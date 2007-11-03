@@ -1,6 +1,7 @@
+% luke: "is it possilbe to use lowercase names? 
+% uppercase breaks the syntax highlighting in textmate"
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(MARK, io:format("MARK: ~p:~p ~p~n",[?MODULE, ?LINE])).
-
 
 -define(MAX_RESTART,      5).
 -define(MAX_TIME,        60).
@@ -12,7 +13,7 @@
 
 -define(DEFAULT_FLV_DIR, "/sfe/sites/castini/htdocs/castinidemo/flv/").
 
-
+%% RTMP header
 %%                                    Headersize:   Value: 
 %%                                   -----------   ------
 -define(RTMP_HDR_NEW,          0). %% 12 Bytes   00
@@ -22,6 +23,7 @@
 
 -define(RTMP_DEF_CHUNK_SIZE, 128).
 
+%% RTMP data 
 -define(RTMP_TYPE_CHUNK_SIZE,     1).
 %-define(RTMP_TYPE_UNKNOWN,       2).
 -define(RTMP_TYPE_BYTES_READ,     3).
@@ -36,14 +38,40 @@
 %-define(RTMP_TYPE_UNKNOWN,      12).
 %-define(RTMP_TYPE_UNKNOWN,      13).
 %-define(RTMP_TYPE_UNKNOWN,      14).
-%-define(RTMP_TYPE_UNKNOWN,      15).
-%-define(RTMP_TYPE_UNKNOWN,      16).
-%-define(RTMP_TYPE_UNKNOWN,      17).
+-define(RTMP_FLEX_STREAM_SEND,   15).
+-define(RTMP_FLEX_SHARED_OBJECT, 16).
+-define(RTMP_FLEX_MESSAGE,       17).
 -define(RTMP_TYPE_NOTIFY,        18).
 -define(RTMP_TYPE_META_DATA,     18).
 -define(RTMP_TYPE_SHARED_OBJECT, 19).
 -define(RTMP_TYPE_INVOKE,        20).
 
+%% RTMP shared object
+-define(SO_CONNECT,              1).
+-define(SO_DISCONNECT,           2).
+-define(SO_SET_ATTRIBUTE,        3).
+-define(SO_UPDATE_DATA,          4).
+-define(SO_UPDATE_ATTRIBUTE,     5).
+-define(SO_SEND_MESSAGE,         6).
+-define(SO_STATUS,               7).
+-define(SO_CLEAR_DATA,           8).
+-define(SO_DELETE_DATA,          9).
+-define(SO_DELETE_ATTRIBUTE,    10).
+-define(SO_INITIAL_DATA,        11).
+
+%% PING Codes
+%%
+-define(PING_STREAM_CLEAR, 0).
+-define(PING_STREAM_PLAY, 1).
+%% Unknown: 2
+-define(PING_CLIENT_BUFFER, 3).
+-define(PING_STREAM_RESET, 4).
+%% Unknown: 5
+-define(PING_PING_CLIENT, 6).
+-define(PING_PONG_SERVER, 7).
+%% Unknown: 8
+
+%% AMF0 data 
 -define(AMF_NUMBER,        0).
 -define(AMF_BOOLEAN,       1).
 -define(AMF_STRING,        2).
@@ -63,17 +91,39 @@
 -define(AMF_TYPED_OBJECT, 16).
 -define(AMF_AMF3,         17).
 
+%% AMF3 data 
+-define(AMF3_NULL,         1).
+-define(AMF3_BOOLEAN_FALSE,2).
+-define(AMF3_BOOLEAN_TRUE, 3).
+-define(AMF3_INTEGER,      4).
+-define(AMF3_NUMBER,       5).
+-define(AMF3_STRING,       6).
+-define(AMF3_XML_UNKNOWN,  7). 
+-define(AMF3_DATE,         8).
+-define(AMF3_ARRAY,        9).
+-define(AMF3_OBJECT,      10).
+-define(AMF3_XML,         11).
+-define(AMF3_BYTE_ARRAY,  12).
 
+%% AMF object 
+-define(AMF3_OBJECT_PROPERTY, 0).
+-define(AMF3_OBJECT_EXTERNALIZABLE, 1).
+-define(AMF3_OBJECT_VALUE, 2).
+-define(AMF3_OBJECT_PROXY, 3).
+
+%% FLV header
 -define(FLV_HEADER_LENGTH,          9).
 -define(FLV_HEAD_SIG,    <<70,76,86>>).
 -define(FLV_HEAD_OFFSET,  <<0,0,0,9>>).
 -define(FLV_PREV_TAG_SIZE_LENGTH,   4).
 -define(FLV_TAG_HEADER_LENGTH,     11).
 
+%% FLV tag
 -define(FLV_TAG_TYPE_AUDIO, 8).
 -define(FLV_TAG_TYPE_VIDEO, 9).
 -define(FLV_TAG_TYPE_META,  18).
 
+%% FLV audio
 -define(FLV_AUDIO_TYPE_MONO,   0).
 -define(FLV_AUDIO_TYPE_STEREO, 1).
 -define(FLV_AUDIO_SIZE_8BIT,   0).
@@ -88,6 +138,7 @@
 -define(FLV_AUDIO_FORMAT_NELLYMOSER8,  5).
 -define(FLV_AUDIO_FORMAT_NELLYMOSER ,  6).
 
+%% FLV video
 -define(FLV_VIDEO_CODEC_SORENSEN,             2).
 -define(FLV_VIDEO_CODEC_SCREENVIDEO,          3).
 -define(FLV_VIDEO_CODEC_ON2VP6,               4).
@@ -97,14 +148,63 @@
 -define(FLV_VIDEO_FRAME_TYPEINTER_FRAME,      2).
 -define(FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME, 3).
 
+%% NetConnection Status
+-define(NC_CALL_FAILED, "NetConnection.Call.Failed").
+-define(NC_CALL_BAD_VERSION, "NetConnection.Call.BadVersion").
+-define(NC_CONNECT_APP_SHUTDOWN, "NetConnection.Connect.AppShutdown").
+-define(NC_CONNECT_CLOSED, "NetConnection.Connect.Closed").
+-define(NC_CONNECT_FAILED, "NetConnection.Connect.Failed").
+-define(NC_CONNECT_REJECTED, "NetConnection.Connect.Rejected").
+-define(NC_CONNECT_SUCCESS, "NetConnection.Connect.Success").
+-define(NC_CONNECT_INVALID_APP, "NetConnection.Connect.InvalidApp").
+
+%% NetStream Status
+-define(NS_INVALID_ARG, "NetStream.InvalidArg").
+-define(NS_CLEAR_SUCCESS, "NetStream.Clear.Success").
+-define(NS_CLEAR_FAILED, "NetStream.Clear.Failed").
+-define(NS_PUBLISH_START, "NetStream.Publish.Start").
+-define(NS_PUBLISH_BAD_NAME, "NetStream.Publish.BadName").
+-define(NS_FAILED, "NetStream.Failed").
+-define(NS_UNPUBLISHED_SUCCESS, "NetStream.Unpublish.Success").
+-define(NS_RECORD_START, "NetStream.Record.Start").
+-define(NS_RECORD_NO_ACCESS, "NetStream.Record.NoAccess").
+-define(NS_RECORD_STOP, "NetStream.Record.Stop").
+-define(NS_RECORD_FAILED, "NetStream.Record.Failed").
+-define(NS_PLAY_INSUFFICIENT_BW, "NetStream.Play.InsufficientBW").
+-define(NS_PLAY_START, "NetStream.Play.Start").
+-define(NS_PLAY_STREAM_NOT_FOUND, "NetStream.Play.StreamNotFound").
+-define(NS_PLAY_STOP, "NetStream.Play.Stop").
+-define(NS_PLAY_FAILED, "NetStream.Play.Failed").
+-define(NS_PLAY_RESET, "NetStream.Play.Reset").
+-define(NS_PLAY_PUBLISH_NOTIFY, "NetStream.Play.PublishNotify").
+-define(NS_PLAY_UNPUBLISH_NOTIFY, "NetStream.Play.UnpublishNotify").
+-define(NS_PLAY_SWITCH, "NetStream.Play.Switch").
+-define(NS_PLAY_COMPLETE, "NetStream.Play.Complete").
+-define(NS_SEEK_NOTIFY, "NetStream.Seek.Notify").
+-define(NS_SEEK_FAILED, "NetStream.Seek.Failed").
+-define(NS_PAUSE_NOTIFY, "NetStream.Pause.Notify").
+-define(NS_UNPAUSE_NOTIFY, "NetStream.Unpause.Notify").
+-define(NS_DATA_START, "NetStream.Data.Start").
+
+%% Application Status
+-define(APP_SCRIPT_ERROR, "Application.Script.Error").
+-define(APP_SCRIPT_WARNING, "Application.Script.Warning").
+-define(APP_RESOURCE_LOW_MEMORY, "Application.Resource.LowMemory").
+-define(APP_SHUTDOWN, "Application.Shutdown").
+-define(APP_GC, "Application.GC").
+
+%% Shared Object Status
+-define(SO_NO_READ_ACCESS, "SharedObject.NoReadAccess").
+-define(SO_NO_WRITE_ACCESS, "SharedObject.NoWriteAccess").
+-define(SO_OBJECT_CREATION_FAILED, "SharedObject.ObjectCreationFailed").
+-define(SO_BAD_PERSISTENCE, "SharedObject.BadPersistence").
+
 
 -record(flv_header,{
 	version = 1,
 	audio = 0,
 	video = 0
 	}).
-
-
 
 -record(ems_server, {
 	listener, % Listening socket
