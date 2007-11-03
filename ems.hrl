@@ -14,8 +14,8 @@
 -define(DEFAULT_FLV_DIR, "/sfe/sites/castini/htdocs/castinidemo/flv/").
 
 %% RTMP header
-%%                                    Headersize:   Value: 
-%%                                   -----------   ------
+%%                                 Headersize:   Value: 
+%%                                 -----------   ------
 -define(RTMP_HDR_NEW,          0). %% 12 Bytes   00
 -define(RTMP_HDR_SAME_SRC,     1). %%  8 Bytes   01
 -define(RTMP_HDR_TS_CHG,       2). %%  4 Bytes   10
