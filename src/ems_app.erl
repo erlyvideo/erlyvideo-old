@@ -1,6 +1,6 @@
 -module(ems_app).
 -author('sjackson@simpleenigma.com').
--include("ems.hrl").
+-include("../include/ems.hrl").
 -behaviour(application).
 
 %% Internal API

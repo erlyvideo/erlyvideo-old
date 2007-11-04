@@ -1,6 +1,6 @@
 -module(ems_flv).
 -author('sjackson@simpleenigma.com').
--include("ems.hrl").
+-include("../include/ems.hrl").
 -compile(export_all).
 
 -export([read_header/1,read_tag/2,write_header/1,write_header/2,write_tag/2,header/1,write/2,to_tag/2,tag/1]).

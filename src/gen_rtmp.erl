@@ -1,6 +1,17 @@
+%%%---------------------------------------------------------------------------------------
+%%% @author     Roberto Saccon
+%%% @author     Stuart Jackson <sjackson@simpleenigma.com> [http://erlsoft.org]
+%%% @author     Luke Hubbard
+%%% @doc        IMAP server command processing
+%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @end
+%%%---------------------------------------------------------------------------------------
+
+
+
 -module(gen_rtmp).
 -author('sjackson@simpleenigma.com').
--include("ems.hrl").
+-include("../include/ems.hrl").
 
 -export([connect/3,createStream/3,play/3,deleteStream/3,closeStream/3,pause/3,stop/3,publish/3,live/3,append/3]).
 

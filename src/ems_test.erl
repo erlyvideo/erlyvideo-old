@@ -1,6 +1,6 @@
 -module(ems_test).
 -author('sjackson@simpleenigma.com').
--include("ems.hrl").
+-include("../include/ems.hrl").
 
 -compile(export_all).
 

@@ -1,5 +1,5 @@
 -module(ems_demo).
--include("ems.hrl").
+-include("../include/ems.hrl").
 -behavior(gen_rtmp).
 
 -export([createStream/3,closeStream/3,deleteStream/3,play/3,pause/3,stop/3,publish/3,live/3,append/3]).

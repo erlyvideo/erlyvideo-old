@@ -1,6 +1,6 @@
 -module(ems_server).
 -author('sjackson@simpleenigma.com').
--include("ems.hrl").
+-include("../include/ems.hrl").
 
 -behaviour(gen_server).
 
