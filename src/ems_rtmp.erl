@@ -166,19 +166,36 @@ check_app(PlayerInfo,Command) ->
 
 
 
-
-
-
-
-
+header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>) ->
+	{#channel{id=Id},Rest};
+header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>) ->
+	{#channel{id=Id},Rest};
 header(<<?RTMP_HDR_CONTINUE:2,Id:6,Rest/binary>>) ->
 	{#channel{id=Id},Rest};
+header(<<?RTMP_HDR_TS_CHG:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp},Rest};
+header(<<?RTMP_HDR_TS_CHG:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp},Rest};
 header(<<?RTMP_HDR_TS_CHG:2,Id:6,TimeStamp:24,Rest/binary>>) ->
 	{#channel{id=Id,timestamp=TimeStamp},Rest};
+header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type},Rest};
+header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type},Rest};
 header(<<?RTMP_HDR_SAME_SRC:2,Id:6,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
 	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type},Rest};
+header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
+header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
 header(<<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
 	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest}.
+
+
+
+
+
+
 
 
 chunk_size(Channel,State,Size) ->

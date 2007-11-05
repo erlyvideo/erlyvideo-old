@@ -21,6 +21,10 @@
 -define(RTMP_HDR_TS_CHG,       2). %%  4 Bytes   10
 -define(RTMP_HDR_CONTINUE,     3). %%  1 Byte    11
 
+-define(RTMP_HDR_MED_ID,       0).
+-define(RTMP_HDR_LRG_ID,       1).
+
+
 -define(RTMP_DEF_CHUNK_SIZE, 128).
 
 %% RTMP data 
