@@ -132,8 +132,7 @@ init([]) ->
 
 
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-	Dir = "/sfe/sites/castini/htdocs/castinidemo/flv/",
-    FileName = filename:join([Dir, Name]),
+    FileName = filename:join([flv_dir(), Name]),
 	case filelib:is_regular(FileName) of
 		true -> 
 			?D({"Found It",FileName}),
@@ -228,8 +227,7 @@ init([]) ->
 
 
 'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name) ->
-	Dir = "/sfe/sites/castini/htdocs/castinidemo/flv/",
-    FileName = filename:join([Dir, Name]),
+    FileName = filename:join([flv_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	NextState = State#ems_fsm{flv_file = [Header],flv_file_name = FileName, flv_ts_prev = 0},
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
@@ -379,7 +377,18 @@ send(#flv_tag{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body
 	gen_fsm:send_event(self(), {send, {Channel,Body}}).
 
 
-
+%%-------------------------------------------------------------------------
+%% @spec () -> FileName::string()
+%% @doc retrieves FLV video file folder from application environment
+%% @end
+%%-------------------------------------------------------------------------	
+flv_dir() ->
+    case application:get_env(ems, flv_dir) of
+        {ok, Val} ->
+            Val;
+        _ ->
+            exit(flv_dir_not_defined)
+    end.
 
 
 

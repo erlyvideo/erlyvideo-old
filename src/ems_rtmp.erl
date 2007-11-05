@@ -145,7 +145,9 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 check_app(State,Command) when is_record(State,ems_fsm) -> check_app(State#ems_fsm.player_info,Command);
 check_app(PlayerInfo,Command) ->
 	case lists:keysearch(app,1,PlayerInfo) of
-		{value,{app,Value}} -> 
+		{value,{app,[]}} -> 
+			gen_rtmp;		 
+		{value,{app,Value}} -> 		
 			case code:get_object_code(list_to_atom(Value)) of
 				{App,_Obj,BeamPath} -> 
 					case beam_lib:chunks(BeamPath,[exports]) of
@@ -158,7 +160,8 @@ check_app(PlayerInfo,Command) ->
 					end;
 				error -> {error,no_module}
 			end;
-		_                   -> gen_rtmp
+		_ -> 
+			gen_rtmp
 	end.
 
 

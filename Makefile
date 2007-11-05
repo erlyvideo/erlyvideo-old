@@ -24,4 +24,5 @@ clean-doc:
 run:
 	$(ERL) -pa `pwd`/ebin \
 	-boot start_sasl \
+	-s $(APP_NAME) \
 	-sname $(NODE_NAME)
