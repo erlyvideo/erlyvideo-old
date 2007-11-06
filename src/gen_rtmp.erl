@@ -1,5 +1,5 @@
 %%%---------------------------------------------------------------------------------------
-%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.org]
+%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%%
