@@ -10,6 +10,7 @@ handshake(Bin) when is_binary(Bin) -> <<Bin/binary,Bin/binary>>.
 
 
 encode(Channel,AMF)	when is_record(Channel,channel), is_record(AMF,amf) -> 
+	?D({"Encode", Channel, AMF}),
 	encode(Channel,ems_amf:encode(AMF));
 encode(Channel,Data) when is_record(Channel,channel), is_binary(Data) -> 
 	encode(Channel,Data,<<>>).
@@ -18,26 +19,22 @@ encode(_Channel, <<>>, Packet) -> Packet;
 encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId} = Channel, Data, <<>>) -> 
 	Length = size(Data),
 	{Chunk,Rest} = chunk(Data),
-	BinId = encode_id(Id),
-	NextPacket = <<?RTMP_HDR_NEW:2,BinId/binary,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Chunk/binary>>,
+	BinId = encode_id(?RTMP_HDR_NEW,Id),
+	NextPacket = <<BinId/binary,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
 encode(#channel{id = Id} = Channel, Data, Packet) -> 
 	{Chunk,Rest} = chunk(Data),
-	BinId = encode_id(Id),
-	NextPacket = <<Packet/binary,?RTMP_HDR_CONTINUE:2,BinId/binary,Chunk/binary>>,
+	BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
+	NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket).
 
-
-encode_id(Id) when Id > 319 -> 
+encode_id(Type, Id) when Id > 319 -> 
 	NewId = Id - 64,
-	<<1,NewId:16>>;
-encode_id(Id) when Id > 63 -> 
+	<<Type:2,?RTMP_HDR_LRG_ID:6,NewId:16>>;
+encode_id(Type, Id) when Id > 63 -> 
 	NewId = Id - 64,
-	<<0,NewId:8>>;
-encode_id(Id) -> <<Id>>.
-
-	
-
+	<<Type:2,?RTMP_HDR_MED_ID:6,NewId:8>>;
+encode_id(Type, Id) -> <<Type:2, Id:6>>.
 
 
 chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
@@ -124,12 +121,7 @@ command(#channel{type = Type} = Channel, State)
 	State;
 
 
-
-
-
-
 command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
-%	?D({"invoke",size(Channel#channel.msg)}),
 	case ems_amf:decode(Channel#channel.msg) of
 		AMF when is_record(AMF,amf) -> 
 			Command = AMF#amf.command,
@@ -139,7 +131,7 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 					{gen_rtmp,State#ems_fsm{player_info=PlayerInfo}};
 				_ -> {check_app(State,Command),State}
 			end,
-%			?D({"AppCmd: ", App, Command}),
+			?D({"AppCmd: ", Channel, AMF}),
 			App:Command(self(), AMF, Channel),
 			NextState;
 		_ -> 
@@ -147,8 +139,6 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 			State
 			
 	end.
-
-
 
 
 
