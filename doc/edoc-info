@@ -6,6 +6,7 @@
           ems_demo,
           ems_flv,
           ems_fsm,
+          ems_proxy,
           ems_rtmp,
           ems_server,
           ems_test,
