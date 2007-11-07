@@ -3,6 +3,10 @@
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%%
+%%% @doc        Generalized RTMP applicaiton behavior module
+%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @end
+%%%
 %%%
 %%% The MIT License
 %%%
@@ -26,13 +30,11 @@
 %%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %%% THE SOFTWARE.
 %%%
-%%%
-%%% @doc        Generalized RTMP applicaiton behavior module
-%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
-%%% @end
 %%%---------------------------------------------------------------------------------------
 -module(gen_rtmp).
--author('sjackson@simpleenigma.com').
+-author('rsaccon@gmail.com').
+-author('simpleenigmainc@gmail.com').
+-author('luke@codegent.com').
 -include("../include/ems.hrl").
 
 -export([connect/3,createStream/3,play/3,deleteStream/3,closeStream/3,pause/3,stop/3,publish/3,live/3,append/3]).
