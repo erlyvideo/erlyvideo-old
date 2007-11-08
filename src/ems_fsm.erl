@@ -1,5 +1,40 @@
+%%%---------------------------------------------------------------------------------------
+%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
+%%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
+%%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
+%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%% @doc        RTMP finite state behavior module
+%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(ems_fsm).
--author('sjackson@simpleenigma.com').
+-author('rsaccon@gmail.com').
+-author('simpleenigmainc@gmail.com').
+-author('luke@codegent.com').
 -include("../include/ems.hrl").
 
 -behaviour(gen_fsm).
@@ -366,14 +401,13 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 
 
 
-%% Convert FLV_Tag into Channel then transmit the Channel and Body
+%%-------------------------------------------------------------------------
+%% @spec (FLV_TAG::tuple()) -> any()
+%% @doc Convert FLV_Tag into Channel then transmit the Channel and Body
+%% @end
+%%-------------------------------------------------------------------------
 send(#flv_tag{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body} = FLVTag) when is_record(FLVTag,flv_tag) ->
-    {ChId,ChType} = case Type of
-		?FLV_TAG_TYPE_META -> {6,Type};
-		?FLV_TAG_TYPE_AUDIO -> {8,8};
-		?FLV_TAG_TYPE_VIDEO -> {9,9}
-	end,
-	Channel = #channel{id=ChId,timestamp=TimeStamp,length=size(Body),type=ChType,stream=StreamId},
+	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
 	gen_fsm:send_event(self(), {send, {Channel,Body}}).
 
 
@@ -389,6 +423,11 @@ flv_dir() ->
         _ ->
             exit(flv_dir_not_defined)
     end.
+
+% rsaccon: TODO: streams per connections need to be stored and channelId retreived from stream
+channel_id(?FLV_TAG_TYPE_META, _StreamId) -> 4;
+channel_id(?FLV_TAG_TYPE_VIDEO, _StreamId) -> 5;
+channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.
 
 
 

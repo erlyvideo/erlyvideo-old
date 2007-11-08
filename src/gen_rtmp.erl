@@ -2,8 +2,8 @@
 %%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
-%%%
-%%% @doc        Generalized RTMP applicaiton behavior module
+%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%% @doc        Generalized RTMP application behavior module
 %%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
 %%% @end
 %%%
