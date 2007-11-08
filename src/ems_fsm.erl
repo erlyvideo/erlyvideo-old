@@ -180,7 +180,7 @@ init([]) ->
 							{stop, normal, State};
 						{ok, Tag} when is_record(Tag,flv_tag) -> 
 							Now = erlang:now(),
-							send(Tag),
+							send(Tag#flv_tag{streamid = StreamId}),
 							Timer = gen_fsm:start_timer(100, play),
 							NextState = State#ems_fsm{flv_read_file = IoDev,
 													  flv_stream_id = StreamId,
@@ -201,13 +201,13 @@ init([]) ->
 
 
 
-'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_read_file = IoDev, flv_pos = Pos} = State) ->
+'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_read_file = IoDev, flv_pos = Pos, flv_stream_id = StreamId} = State) ->
 	case ems_flv:read_tag(IoDev, Pos) of
 		{ok, done} ->
 			file:close(IoDev),
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 			{ok, Tag} when is_record(Tag,flv_tag) ->
-				send(Tag),
+				send(Tag#flv_tag{streamid = StreamId}),
 				NewTimer = gen_fsm:start_timer(100, play),
 				NextState = State#ems_fsm{flv_timer_ref  = NewTimer,
 										  flv_ts_prev = Tag#flv_tag.timestamp,
