@@ -184,3 +184,20 @@ amf(Number) when is_number(Number) ->
 	E = ems_amf:encode(Number),
 	{number,D,_} = ems_amf:parse(E),
 	{D,E}.
+
+
+hex_dump(B) when binary(B) ->
+    hex_dump(binary_to_list(B));
+hex_dump(L) when list(L) ->
+	lists:flatten([hex_dump(I) || I <- L]);
+hex_dump(I) when I > 16#f ->
+	[hex0((I band 16#f0) bsr 4), hex0((I band 16#0f)), 32];
+hex_dump(I) -> [$0, hex0(I), 32].
+
+hex0(10) -> $A;
+hex0(11) -> $B;
+hex0(12) -> $C;
+hex0(13) -> $D;
+hex0(14) -> $E;
+hex0(15) -> $F;
+hex0(I) ->  $0 +I.
