@@ -72,7 +72,7 @@ encode_id(Type, Id) when Id > 63 ->
 encode_id(Type, Id) -> <<Type:2, Id:6>>.
 
 
-%% TODO: rsaccon: replace this hack with a solutionhack
+%% TODO: rsaccon: replace this hack with a solution
 fake_stream_id(?RTMP_TYPE_AUDIO, _) -> 1; 
 fake_stream_id(?RTMP_TYPE_VIDEO, _) -> 1;
 fake_stream_id(?RTMP_TYPE_META_DATA, _) -> 1;

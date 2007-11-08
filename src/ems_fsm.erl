@@ -424,7 +424,8 @@ flv_dir() ->
             exit(flv_dir_not_defined)
     end.
 
-% rsaccon: TODO: streams per connections need to be stored and channelId retreived from stream
+% rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream
+% idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID
 channel_id(?FLV_TAG_TYPE_META, _StreamId) -> 4;
 channel_id(?FLV_TAG_TYPE_VIDEO, _StreamId) -> 5;
 channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.
