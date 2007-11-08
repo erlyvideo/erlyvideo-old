@@ -20,7 +20,8 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId} =
 	Length = size(Data),
 	{Chunk,Rest} = chunk(Data),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
-	NextPacket = <<BinId/binary,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Chunk/binary>>,
+	FakeStreamId = fake_stream_id(Type, StreamId), %% TODO: rsaccon: replace this hack with a solutionhack
+	NextPacket = <<BinId/binary,TimeStamp:24,Length:24,Type:8,FakeStreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
 encode(#channel{id = Id} = Channel, Data, Packet) -> 
 	{Chunk,Rest} = chunk(Data),
@@ -35,6 +36,13 @@ encode_id(Type, Id) when Id > 63 ->
 	NewId = Id - 64,
 	<<Type:2,?RTMP_HDR_MED_ID:6,NewId:8>>;
 encode_id(Type, Id) -> <<Type:2, Id:6>>.
+
+
+%% TODO: rsaccon: replace this hack with a solutionhack
+fake_stream_id(?RTMP_TYPE_AUDIO, _) -> 1; 
+fake_stream_id(?RTMP_TYPE_VIDEO, _) -> 1;
+fake_stream_id(?RTMP_TYPE_META_DATA, _) -> 1;
+fake_stream_id(_, Id) -> Id.
 
 
 chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
