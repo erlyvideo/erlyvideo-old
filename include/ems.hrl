@@ -204,10 +204,8 @@
 -define(SO_BAD_PERSISTENCE, "SharedObject.BadPersistence").
 
 
--record(flv_header,{
-	version = 1,
-	audio = 0,
-	video = 0
+-record(ems_cluster, {
+	next_stream_id = 1
 	}).
 
 -record(ems_server, {
@@ -237,6 +235,12 @@
 	flv_pos = 0
 	}).
 
+-record(flv_header,{
+	version = 1,
+	audio = 0,
+	video = 0
+	}).
+		
 -record(flv_tag,{
 	prev_tag_size = undefined,
 	type          = undefined,

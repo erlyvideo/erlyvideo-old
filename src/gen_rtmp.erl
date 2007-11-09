@@ -78,7 +78,7 @@ createStream(From, AMF, Channel) ->
     ?D("invoke - createStream"),   
 	NewAMF = AMF#amf{
 		command = '_result', 
-		args= [null, generate_stream_id()]},
+		args= [null, ems_cluster:next_stream_id()]},
 	gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
 
 
@@ -198,12 +198,3 @@ filename(Name) ->
 		".FLV" -> Name;
 		_      -> Name ++ ".flv"
 	end.
-
-
-%%-------------------------------------------------------------------------
-%% @spec () -> any()
-%% @doc
-%% @end
-%%-------------------------------------------------------------------------
-generate_stream_id() ->  %% provisory !!!!!!!
-   1.  %% TODO: replace by (distrubuted) gen_server to get a unique Id 

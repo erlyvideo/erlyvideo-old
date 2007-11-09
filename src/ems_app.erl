@@ -65,14 +65,21 @@ stop(_S) ->
 init([Port, Module]) ->
     {ok,
         {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % Erlang Media Server Listener
-              {   ems_sup,                          % Id       = internal id
-                  {ems_server,start_link,[Port,Module]}, % StartFun = {M, F, A}
+            [ % EMS Cluster
+			  {   ems_cluster,
+		          {ems_cluster, start, []},
+		          permanent,
+		          1000,
+		          worker,
+		          [ems_cluster]
+		      },
+              % EMS Listener
+              {   ems_sup,                                 % Id       = internal id
+                  {ems_server,start_link,[Port,Module]},   % StartFun = {M, F, A}
                   permanent,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
-                  [ems_server]                           % Modules  = [Module] | dynamic
+                  [ems_server]                             % Modules  = [Module] | dynamic
               },
               % EMS instance supervisor
               {   ems_client_sup,
@@ -109,12 +116,11 @@ init([Module]) ->
 get_app_env(Opt, Default) ->
 	{ok, App} = application:get_application(),
     case application:get_env(App, Opt) of
-    {ok, Val} -> Val;
-    _ ->
-        case init:get_argument(Opt) of
-        [[Val | _]] -> Val;
-        error       -> Default
-        end
+    	{ok, Val} -> 
+			Val;
+    	_ ->
+        	case init:get_argument(Opt) of
+        		[[Val | _]] -> Val;
+        		error       -> Default
+        	end
     end.
-
-
