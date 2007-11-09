@@ -181,12 +181,15 @@ init([]) ->
 						{ok, Tag} when is_record(Tag,flv_tag) -> 
 							Now = erlang:now(),
 							send(Tag#flv_tag{streamid = StreamId}),
-							Timer = gen_fsm:start_timer(100, play),
+							Timeout = timeout(Tag#flv_tag.timestamp_abs, 
+							                  Now, 
+							                  State#ems_fsm.client_buffer),
+							Timer = gen_fsm:start_timer(Timeout, play),
 							NextState = State#ems_fsm{flv_read_file = IoDev,
-													  flv_stream_id = StreamId,
+													  flv_stream_id = StreamId, 
 													  flv_timer_start = Now,
 													  flv_timer_ref  = Timer,
-													  flv_ts_prev = Tag#flv_tag.timestamp,
+													  flv_ts_prev = Tag#flv_tag.timestamp_abs,
 													  flv_pos = Tag#flv_tag.nextpos},
 							{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 						{error, _Reason} ->
@@ -200,46 +203,26 @@ init([]) ->
 	end;
 
 
-
 'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_read_file = IoDev, flv_pos = Pos, flv_stream_id = StreamId} = State) ->
 	case ems_flv:read_tag(IoDev, Pos) of
 		{ok, done} ->
 			file:close(IoDev),
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-			{ok, Tag} when is_record(Tag,flv_tag) ->
-				send(Tag#flv_tag{streamid = StreamId}),
-				NewTimer = gen_fsm:start_timer(100, play),
-				NextState = State#ems_fsm{flv_timer_ref  = NewTimer,
-										  flv_ts_prev = Tag#flv_tag.timestamp,
-										  flv_pos = Tag#flv_tag.nextpos},
-				{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+		{ok, Tag} when is_record(Tag,flv_tag) ->
+			TimeStamp = Tag#flv_tag.timestamp_abs - State#ems_fsm.flv_ts_prev,			
+			send(Tag#flv_tag{timestamp=TimeStamp, streamid = StreamId}),
+ 			Timeout = timeout(Tag#flv_tag.timestamp_abs, 
+			                  State#ems_fsm.flv_timer_start, 
+    		                  State#ems_fsm.client_buffer),
+				NewTimer = gen_fsm:start_timer(Timeout, play),
+			NextState = State#ems_fsm{flv_timer_ref  = NewTimer,
+									  flv_ts_prev = Tag#flv_tag.timestamp_abs,
+									  flv_pos = Tag#flv_tag.nextpos},
+			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 		{error,_Reason} -> 
 			file:close(IoDev),
 			{stop, normal, State}
 	end;
-%'WAIT_FOR_DATA'({timeout, _Timer, play}, State) ->
-%    case erlyvideo_flv:read_tag(State#state.flv_read_file,
-%                                State#state.flv_pos) of
-%        {ok, done} ->
-%            file:close(State#state.flv_read_file),
-%            {stop, normal, State};
-%        {ok, TagType, TsAbs, Data, Pos} ->
-%            Ts = TsAbs - State#state.flv_ts_prev,
-%            State2 = send({Ts, TagType, State#state.flv_stream_id}, 
-%                          Data, State),
-%            Timeout = calc_timeout(TsAbs, 
-%                                   State2#state.flv_timer_start,
-%                                   State2#state.client_buffer),
-%            Timer = gen_fsm:start_timer(Timeout, play),
-%            {next_state, 
-%             'WAIT_FOR_DATA', 
-%             State2#state{flv_timer_ref = Timer, 
-%                          flv_ts_prev = TsAbs,
-%                          flv_pos = Pos}, ?TIMEOUT};             
-%        {error, _Reason} ->
-%            file:close(State#state.flv_read_file),
-%            {stop, normal, State}
-%    end;
 
 
 'WAIT_FOR_DATA'({stop}, State) ->
@@ -389,16 +372,6 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
 
-%calc_timeout(AbsTime, TimerStart, ClientBuffer) ->
-%%	?D({AbsTime, TimerStart, ClientBuffer}),
-%	case AbsTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000) of
-%		TimeOut when TimeOut > 0 -> TimeOut;
-%		_ -> 0
-%	end.
-
-
-
-
 
 
 %%-------------------------------------------------------------------------
@@ -423,6 +396,22 @@ flv_dir() ->
         _ ->
             exit(flv_dir_not_defined)
     end.
+
+
+%%-------------------------------------------------------------------------
+%% @spec (AbsTime::integer(), TimerStart::integer(), ClientBuffer::integer()) -> (TimeOut::integer() | 0)
+%% @doc calculates timeout to playback of next FLV Tag 
+%% @end
+%%-------------------------------------------------------------------------	
+timeout(AbsTime, TimerStart, ClientBuffer) ->
+    Timeout = AbsTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
+    if 
+		(Timeout > 0) -> 
+            Timeout; 
+        true -> 
+            0 
+    end.
+
 
 % rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream
 % idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID

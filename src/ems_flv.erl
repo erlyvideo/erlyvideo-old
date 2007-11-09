@@ -71,8 +71,6 @@ read_tag(IoDev, Pos) ->
 					{ok, #flv_tag{prev_tag_size = PrevTagSize,
 					         type          = Type,
 							 body_length   = BodyLength,
-							 timestamp     = TimeStamp,
-							 timestamp_ext = TimeStampExt,
 							 timestamp_abs = TimeStampAbs,
 							 streamid      = StreamId,
 							 pos           = Pos,
