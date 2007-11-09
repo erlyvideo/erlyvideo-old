@@ -133,6 +133,7 @@ check_message(#channel{length = Length, msg = Msg} = _Channel,_State,Bin)
 	when Length > size(Msg), size(Bin) == 0 -> next_packet;
 check_message(_Channel,_State,_Bin) -> continue.
 
+
 get_chunk(Channel,State,Bin) ->
 	ChunkSize = chunk_size(Channel,State,size(Bin)),
 	<<Chunk:ChunkSize/binary,Next/binary>> = Bin,
@@ -144,16 +145,20 @@ command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, State) ->
 	?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{chunk_size=ChunkSize};
 
+command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg=Msg} = _Channel, State) ->
+	<<Length:32/integer>>=Msg,
+	?D({"Stream bytes read: ", Length}),
+	State;
+	
 command(#channel{type = ?RTMP_TYPE_PING} = _Channel, State) ->
 	?D("Ping - ignoring"),
-	State;
+	State;	
 
 command(#channel{type = Type} = Channel, State) 
 	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_META_DATA) ->
 %	?D({"Recording",Type}),
 	gen_fsm:send_event(self(), {record, Channel}),
 	State;
-
 
 command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 	case ems_amf:decode(Channel#channel.msg) of
@@ -173,8 +178,7 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 			State
 			
 	end.
-
-
+	
 
 check_app(State,Command) when is_record(State,ems_fsm) -> check_app(State#ems_fsm.player_info,Command);
 check_app(PlayerInfo,Command) ->
