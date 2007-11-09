@@ -43,18 +43,21 @@
 -export([start_link/1,start_link/2,start_link/3]).
 
 -behavior(gen_server).
+
 %%-------------------------------------------------------------------------
 %% @spec (IP::tuple()) -> pid()
 %% @doc starts Debug Proxy server equivalant to start_link(IP,1935,"/tmp")
 %% @end
 %%-------------------------------------------------------------------------
 start_link(IP) -> start_link(IP,1935).
+
 %%-------------------------------------------------------------------------
 %% @spec (IP::tuple(),Port::integer()) -> pid()
 %% @doc starts Debug Proxy server equivalant to start_link(IP,Port,"/tmp")
 %% @end
 %%-------------------------------------------------------------------------
 start_link(IP,Port) -> start_link(IP,Port,"/tmp/").
+
 %%-------------------------------------------------------------------------
 %% @spec (IP::tuple(),Port::integer(),Dir::String) -> pid()
 %% @doc starts Debug Proxy server
@@ -76,14 +79,13 @@ code_change(_OldVsn,State,_Extra) -> {ok,State}.
 %% @doc Handles request from gen_server:call2,3 and gen_server:multi_call:2,3,4
 %% @end
 %%-------------------------------------------------------------------------
-
 handle_call(_Request,_From,State) -> {noreply,State}.
+
 %%-------------------------------------------------------------------------
 %% @spec (Request::any(),State::any()) -> any()
 %% @doc handles request from gen_server:cast/2
 %% @end
 %%-------------------------------------------------------------------------
-
 handle_cast(_Request,State) -> {noreply,State}.
 
 %%-------------------------------------------------------------------------
