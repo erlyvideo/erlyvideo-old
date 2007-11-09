@@ -4,7 +4,7 @@
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
-%%% @doc        Generalized RTMP application behavior module
+%%% @doc        Framework for Clustering Generic Server Instances
 %%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
 %%% @end
 %%%
@@ -52,15 +52,15 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+     terminate/2, code_change/3]).
 
 %% the state of gen_server_cluster
 -record(state, {name,
-		globalServerPid,
-		localServerPidList=[],
-		targetLinkedPidList=[],
-	        targetModule,
-	        targetState}).
+        globalServerPid,
+        localServerPidList=[],
+        targetLinkedPidList=[],
+            targetModule,
+            targetState}).
 
 
 %%====================================================================
@@ -75,29 +75,29 @@ start(Name, TargetModule, TargetArgs, Options) ->
     ArgsGlobalInit = {initGlobal, Name, TargetModule, TargetArgs},
     %% try starting as the global server:
     case gen_server:start({global,Name}, ?MODULE, ArgsGlobalInit, Options) of
-	{ok,_GlobalServerPid}=Result ->
-	    io:format("~p started as global server.~n",[Name]), 
-	    Result;
-	{error,{already_started,_GlobalServerPid}} ->
-	    %% global server already started, start as local server:
-	    start_local_server(Name)
+    {ok,_GlobalServerPid}=Result ->
+        io:format("~p started as global server.~n",[Name]), 
+        Result;
+    {error,{already_started,_GlobalServerPid}} ->
+        %% global server already started, start as local server:
+        start_local_server(Name)
     end.
 
 %% Starts a local server if a global server is already running,
 %% otherwise noGlobalServerRunning is returned.
 start_local_server(Name) ->
     case is_running(Name) of
-	false -> 
-	    noGlobalServerRunning;
-	true ->
-	    ArgsLocalInit = {initLocal, Name},
-	    case gen_server:start({local,Name}, ?MODULE, ArgsLocalInit, []) of
-		{ok, _LocalPid}=Result ->
-		    io:format("~p started as local server.~n",[Name]),
-		    Result;
-		Else ->
-		    Else
-	    end
+    false -> 
+        noGlobalServerRunning;
+    true ->
+        ArgsLocalInit = {initLocal, Name},
+        case gen_server:start({local,Name}, ?MODULE, ArgsLocalInit, []) of
+        {ok, _LocalPid}=Result ->
+            io:format("~p started as local server.~n",[Name]),
+            Result;
+        Else ->
+            Else
+        end
     end.
 
 %% Returns the global server pid and the list of all local server pids:
@@ -110,18 +110,18 @@ get_all_server_pids(Name) ->
 get_all_server_nodes(Name) ->
     {GlobalServerPid, LocalServerPidList} = get_all_server_pids(Name),
     Fun = fun(Pid) ->
-		  node(Pid)
-	  end,
+          node(Pid)
+      end,
     {Fun(GlobalServerPid), lists:map(Fun, LocalServerPidList)}.
 
 
 %% Returns true if there is some global server running, otherwise false.
 is_running(Name) ->
     case catch get_all_server_pids(Name) of
-	{Pid, PidList} when is_pid(Pid), is_list(PidList) ->
-	    true;
+    {Pid, PidList} when is_pid(Pid), is_list(PidList) ->
+        true;
         _ ->
-	    false
+        false
     end.
 
 %% Stops the global server.
@@ -133,10 +133,10 @@ stop(Name, all) ->
     {_, LocalServerNodeList} = get_all_server_nodes(Name),
     Request = {stopByGenServerCluster, stopAllServer},
     case LocalServerNodeList of
-	[] ->
-	    ok;
-	_ ->
-	    gen_server:multi_call(LocalServerNodeList, Name, Request)
+    [] ->
+        ok;
+    _ ->
+        gen_server:multi_call(LocalServerNodeList, Name, Request)
     end,
     gen_server:call({global, Name}, Request);
 
@@ -179,22 +179,22 @@ init({initGlobal, Name, TargetModule, TargetArgs}) ->
     %% initialize callback server:
     TargetResult =  TargetModule:init(TargetArgs),
     case TargetResult of
-	{ok, TargetState} ->
-	    State = #state{name=Name,
-			   globalServerPid=self(),
-			   targetModule=TargetModule,
-			   targetState=TargetState},
-	    {ok, State};
-	{ok, TargetState, _Timeout} ->
-	    State = #state{name=Name,
-			   globalServerPid=self(),
-			   targetModule=TargetModule,
-			   targetState=TargetState},
-	    {ok, State};
-	{stop, Reason} ->
-	    {stop, Reason};
-	ignore ->
-	    ignore
+    {ok, TargetState} ->
+        State = #state{name=Name,
+               globalServerPid=self(),
+               targetModule=TargetModule,
+               targetState=TargetState},
+        {ok, State};
+    {ok, TargetState, _Timeout} ->
+        State = #state{name=Name,
+               globalServerPid=self(),
+               targetModule=TargetModule,
+               targetState=TargetState},
+        {ok, State};
+    {stop, Reason} ->
+        {stop, Reason};
+    ignore ->
+        ignore
     end;
 
 %% Called by local server at startup.
@@ -229,9 +229,9 @@ handle_call(get_all_server_pids, _From, State) ->
 handle_call(init_local_server_state, {FromPid,_}, State) ->
     %% function to update state by storing new localserver pid:
     AddNewLocalServerFun = 
-	fun(S) ->
-		S#state{localServerPidList=[FromPid|S#state.localServerPidList]}
-	end,
+    fun(S) ->
+        S#state{localServerPidList=[FromPid|S#state.localServerPidList]}
+    end,
     NewState = update_all_server_state(State, AddNewLocalServerFun),
     %% link to this local server:
     link(FromPid),
@@ -249,7 +249,7 @@ handle_call(stopByTarget=Reason, _From, State) ->
 %% Called by global or local server and delegates the request to the target. 
 handle_call(Request, From, State) ->
     delegate_to_target(State, handle_call, [Request, From, 
-					    State#state.targetState]).
+                        State#state.targetState]).
 
 
 %%--------------------------------------------------------------------
@@ -272,11 +272,11 @@ handle_cast({update_local_server_state, UpdateFun}, State) ->
 handle_cast({link,Pid}, State) ->
     %% function to update state by storing new pid linked to target:
     AddNewTargetLinkedPidFun = 
-	fun(S) ->
-		%% remove Pid first to avoid duplicates:
-		L = lists:delete(Pid, S#state.targetLinkedPidList),
-		S#state{targetLinkedPidList=[Pid|L]}
-	end,
+    fun(S) ->
+        %% remove Pid first to avoid duplicates:
+        L = lists:delete(Pid, S#state.targetLinkedPidList),
+        S#state{targetLinkedPidList=[Pid|L]}
+    end,
     NewState = update_all_server_state(State, AddNewTargetLinkedPidFun),
     %% link to this local server:
     link(Pid),
@@ -288,10 +288,10 @@ handle_cast({link,Pid}, State) ->
 handle_cast({unlink,Pid}, State) ->
     %% function to update state by removing link to pid:
     RemoveTargetLinkedPidFun = 
-	fun(S) ->
-		S#state{targetLinkedPidList
-			=lists:delete(Pid, S#state.targetLinkedPidList)}
-	end,
+    fun(S) ->
+        S#state{targetLinkedPidList
+            =lists:delete(Pid, S#state.targetLinkedPidList)}
+    end,
     NewState = update_all_server_state(State, RemoveTargetLinkedPidFun ),
     %% unlink to this local server:
     unlink(Pid),
@@ -318,20 +318,20 @@ handle_info({'EXIT', Pid, Reason}, State) when Pid==State#state.globalServerPid 
     io:format("New global server on ~p.~n", [node(NewGlobalServerPid)]),
     %% update new global server pid and local server pid list:
     NewLocalServerPidList = lists:delete(NewGlobalServerPid,
-					 State#state.localServerPidList),
+                     State#state.localServerPidList),
     NewState = State#state{globalServerPid=NewGlobalServerPid,
-			   localServerPidList=NewLocalServerPidList},
+               localServerPidList=NewLocalServerPidList},
     case NewGlobalServerPid==self() of
-	true ->
-	    %% link to all local servers:
-	    F = fun(P) ->
-			link(P)
-		end,
-	    lists:foreach(F, NewLocalServerPidList),
-	    %% link to all pids the target was linked to:
-	    lists:foreach(F, NewState#state.targetLinkedPidList);
-	false ->
-	    ok
+    true ->
+        %% link to all local servers:
+        F = fun(P) ->
+            link(P)
+        end,
+        lists:foreach(F, NewLocalServerPidList),
+        %% link to all pids the target was linked to:
+        lists:foreach(F, NewState#state.targetLinkedPidList);
+    false ->
+        ok
     end,
     {noreply, NewState};
 
@@ -344,26 +344,26 @@ handle_info({'EXIT', Pid, Reason}, State) when Pid==State#state.globalServerPid 
 %% servers.
 handle_info({'EXIT', Pid, _Reason}=Info, State) ->
     case lists:member(Pid, State#state.localServerPidList) of
-	true ->
-	    %% Pid is a local server that has terminated:
-	    %% function to update state by deleting the local server pid:
-	    RemoveLocalServerFun = 
-		fun(S) ->
-			S#state{localServerPidList
-				=lists:delete(Pid,S#state.localServerPidList)}
-		end,
-	    NewState = update_all_server_state(State, RemoveLocalServerFun),
-	    {noreply, NewState};
-	false ->
-	    case lists:member(Pid, State#state.targetLinkedPidList) of
-		true ->
-		    %% Pid was linked to target, so remove from link list:
-		    {reply,_,NewState} = handle_call({unlink,Pid}, void, State);
-		false ->
-		    NewState = State
-	    end,
-	    %% the target created the link to pid, thus delegate:
-	    delegate_to_target(NewState, handle_info, 
+    true ->
+        %% Pid is a local server that has terminated:
+        %% function to update state by deleting the local server pid:
+        RemoveLocalServerFun = 
+        fun(S) ->
+            S#state{localServerPidList
+                =lists:delete(Pid,S#state.localServerPidList)}
+        end,
+        NewState = update_all_server_state(State, RemoveLocalServerFun),
+        {noreply, NewState};
+    false ->
+        case lists:member(Pid, State#state.targetLinkedPidList) of
+        true ->
+            %% Pid was linked to target, so remove from link list:
+            {reply,_,NewState} = handle_call({unlink,Pid}, void, State);
+        false ->
+            NewState = State
+        end,
+        %% the target created the link to pid, thus delegate:
+        delegate_to_target(NewState, handle_info, 
                                [Info, NewState#state.targetState])
     end;
 
@@ -417,35 +417,35 @@ delegate_to_target(State, TargetCall, Args) ->
     TargetResult = apply(TargetModule, TargetCall, Args),
     %% index of state in tuple:
     IndexState = case TargetResult of
-		     {reply, _Reply, TargetStateUpdate} ->
-			 3;
-		     {reply, _Reply, TargetStateUpdate, _Timeout}  ->
-			 3;
-		     {noreply, TargetStateUpdate} ->
-			 2;
-		     {noreply, TargetStateUpdate, _Timeout} ->
-			 2;
-		     {stop, _Reason, _Reply, TargetStateUpdate} ->
-			 4;
-		     {stop, _Reason, TargetStateUpdate} ->
-			 3;
-		     {ok, TargetStateUpdate} ->  %% for code change
-			 2
-		 end,
+             {reply, _Reply, TargetStateUpdate} ->
+             3;
+             {reply, _Reply, TargetStateUpdate, _Timeout}  ->
+             3;
+             {noreply, TargetStateUpdate} ->
+             2;
+             {noreply, TargetStateUpdate, _Timeout} ->
+             2;
+             {stop, _Reason, _Reply, TargetStateUpdate} ->
+             4;
+             {stop, _Reason, TargetStateUpdate} ->
+             3;
+             {ok, TargetStateUpdate} ->  %% for code change
+             2
+         end,
     %% function to update the target state:
     UpdateTargetStateFun = 
-	fun(S) ->		
-		%% update target state where TargetStateUpdate is 
-		%% update function or new state:
-		NewTargetState =
-		    case is_function(TargetStateUpdate,1) of
-			true ->
-			    TargetStateUpdate(S#state.targetState);
-			false ->
-			    TargetStateUpdate
-		    end,
-		S#state{targetState=NewTargetState}
-	end,
+    fun(S) ->       
+        %% update target state where TargetStateUpdate is 
+        %% update function or new state:
+        NewTargetState =
+            case is_function(TargetStateUpdate,1) of
+            true ->
+                TargetStateUpdate(S#state.targetState);
+            false ->
+                TargetStateUpdate
+            end,
+        S#state{targetState=NewTargetState}
+    end,
     NewState = update_all_server_state(State, UpdateTargetStateFun),
     %% return target reply tuple where state is substituted:
     Result = setelement(IndexState, TargetResult, NewState),
@@ -453,15 +453,15 @@ delegate_to_target(State, TargetCall, Args) ->
     %% if target stop, stop all local servers. 
     %% The global server will be stopped by returning the result.
     case (element(1,Result)==stop) and (State#state.localServerPidList/=[]) of
-	true ->
-	    Fun = fun(Pid) ->
-			  node(Pid)
-		  end,
-	    LocalServerNodeList = lists:map(Fun, State#state.localServerPidList),
-	    gen_server:multi_call(LocalServerNodeList,
-	    			  State#state.name, stopByTarget);
-	false ->
-	    ok
+    true ->
+        Fun = fun(Pid) ->
+              node(Pid)
+          end,
+        LocalServerNodeList = lists:map(Fun, State#state.localServerPidList),
+        gen_server:multi_call(LocalServerNodeList,
+                      State#state.name, stopByTarget);
+    false ->
+        ok
     end,
     Result.
 
@@ -471,8 +471,8 @@ delegate_to_target(State, TargetCall, Args) ->
 update_all_server_state(State, UpdateFun) ->
     NewState = UpdateFun(State),
     CastFun = fun(Pid) ->
-		      gen_server:cast(Pid, {update_local_server_state,UpdateFun})
-	      end,
+              gen_server:cast(Pid, {update_local_server_state,UpdateFun})
+          end,
     lists:foreach(CastFun, State#state.localServerPidList),
     NewState.
 
@@ -483,17 +483,17 @@ update_all_server_state(State, UpdateFun) ->
 %% be this or one of the other local servers trying to register themselves.
 try_register_as_global_server(Name, OldGlobalServerPid) ->
     case global:whereis_name(Name) of %% current global server pid in registry
-	OldGlobalServerPid ->
-	    %% sleep up to 1s until old global server pid is deleted 
-	    %% from global registry:
-	    timer:sleep(random:uniform(1000)),
-	    try_register_as_global_server(Name, OldGlobalServerPid);
-	undefined ->
-	    %% try to register this process globally:
-	    global:register_name(Name, self()),
-	    timer:sleep(100), %% wait before next registration check
-	    try_register_as_global_server(Name, OldGlobalServerPid);
-	NewGlobalServerPid ->
-	    %% new global server pid (self() or other local server):
-	    NewGlobalServerPid
+    OldGlobalServerPid ->
+        %% sleep up to 1s until old global server pid is deleted 
+        %% from global registry:
+        timer:sleep(random:uniform(1000)),
+        try_register_as_global_server(Name, OldGlobalServerPid);
+    undefined ->
+        %% try to register this process globally:
+        global:register_name(Name, self()),
+        timer:sleep(100), %% wait before next registration check
+        try_register_as_global_server(Name, OldGlobalServerPid);
+    NewGlobalServerPid ->
+        %% new global server pid (self() or other local server):
+        NewGlobalServerPid
     end.

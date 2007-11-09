@@ -52,7 +52,6 @@ behaviour_info(callbacks) -> [{createStream,3},{play,3},{stop,3},{pause,3},{dele
 behaviour_info(_Other) -> undefined.
 
 
-
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a connect command and responds
@@ -60,14 +59,14 @@ behaviour_info(_Other) -> undefined.
 %%-------------------------------------------------------------------------
 connect(From, AMF, Channel) ->
     ?D("invoke - connect"),   
-	NewAMF = AMF#amf{
-		command = '_result', 
-		args= [null,
-			[{level, "status"}, 
-			{code, "NetConnection.Connect.Success"}, 
-			{description, "Connection succeeded."}]
-			  ]},
-	gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
+    NewAMF = AMF#amf{
+        command = '_result', 
+        args= [null,
+            [{level, "status"}, 
+            {code, "NetConnection.Connect.Success"}, 
+            {description, "Connection succeeded."}]]},
+    gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
+
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
@@ -76,10 +75,10 @@ connect(From, AMF, Channel) ->
 %%-------------------------------------------------------------------------
 createStream(From, AMF, Channel) -> 
     ?D("invoke - createStream"),   
-	NewAMF = AMF#amf{
-		command = '_result', 
-		args= [null, ems_cluster:next_stream_id()]},
-	gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
+    NewAMF = AMF#amf{
+        command = '_result', 
+        args= [null, ems_cluster:next_stream_id()]},
+    gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
 
 
 %%-------------------------------------------------------------------------
@@ -90,6 +89,7 @@ createStream(From, AMF, Channel) ->
 deleteStream(_From, _AMF, _Channel) ->  
     ?D("invoke - deleteStream").
 
+
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a play command and responds
@@ -97,26 +97,25 @@ deleteStream(_From, _AMF, _Channel) ->
 %%-------------------------------------------------------------------------
 play(From, AMF, Channel) -> 
     ?D("invoke - play"),
-	NextChannel = Channel#channel{id=4},
-	[_Null,{string,Name}] = AMF#amf.args,
-	NewAMF = AMF#amf{
-		command = 'onStatus', 
-		args= [null,[{level, "status"}, 
+    NextChannel = Channel#channel{id=4},
+    [_Null,{string,Name}] = AMF#amf.args,
+    NewAMF = AMF#amf{
+        command = 'onStatus', 
+        args= [null,[{level, "status"}, 
                     {code, "NetStream.Play.Reset"}, 
                     {description, "Resetting NetStream."},
                     {details, Name},
                     {clientid, NextChannel#channel.stream}]]},
-	gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
-	NewAMF2 = AMF#amf{
-		command = 'onStatus', 
-		args= [null,[{level, "status"}, 
+    gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
+    NewAMF2 = AMF#amf{
+        command = 'onStatus', 
+        args= [null,[{level, "status"}, 
                     {code, "NetStream.Play.Start"}, 
                     {description, "Start playing."},
                     {details, Name},
                     {clientid, NextChannel#channel.stream}]]},
-	gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
+    gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
     gen_fsm:send_event(From, {play, filename(Name), NextChannel#channel.stream}).
-
 
 
 %%-------------------------------------------------------------------------
@@ -128,6 +127,7 @@ pause(From, _AMF, _Channel) ->
     ?D("invoke - pause"),
     gen_fsm:send_event(From, {pause}). 
 
+
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a publish command and responds
@@ -135,17 +135,19 @@ pause(From, _AMF, _Channel) ->
 %%-------------------------------------------------------------------------
 publish(From, AMF, _Channel) -> 
     ?D("invoke - publish"),
-	Args = AMF#amf.args,
-	case Args of
-		[{null,null},{string,Name},{string,Action}] ->
-			case list_to_atom(Action) of
-				record -> 
-					?D({"Publish - Action - record",Name}),
-					gen_fsm:send_event(From, {record,filename(Name)});
-				_OtherAction -> ?D({"Publish Ignoring - ", _OtherAction})
-			end;
-		_ -> ok
-	end. 
+    Args = AMF#amf.args,
+    case Args of
+        [{null,null},{string,Name},{string,Action}] ->
+            case list_to_atom(Action) of
+                record -> 
+                    ?D({"Publish - Action - record",Name}),
+                    gen_fsm:send_event(From, {record,filename(Name)});
+                _OtherAction -> 
+                    ?D({"Publish Ignoring - ", _OtherAction})
+            end;
+        _ -> ok
+    end. 
+
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
@@ -156,6 +158,7 @@ stop(From, _AMF, _Channel) ->
     ?D("invoke - stop"),
     gen_fsm:send_event(From, {stop}). 
 
+
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a live command and responds
@@ -165,6 +168,7 @@ live(From, _AMF, _Channel) ->
     ?D("invoke - live"),
     gen_fsm:send_event(From, {stop}). 
 
+
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a append command and responds
@@ -173,7 +177,6 @@ live(From, _AMF, _Channel) ->
 append(From, _AMF, _Channel) -> 
     ?D("invoke - append"),
     gen_fsm:send_event(From, {stop}). 
-
 
 
 %%-------------------------------------------------------------------------
@@ -186,15 +189,14 @@ closeStream(From, _AMF, _Channel) ->
     gen_fsm:send_event(From, {stop}). 
 
 
-
 %%-------------------------------------------------------------------------
 %% @spec (Name::string()) -> FileName::string()
 %% @doc ensures that the file name ends with a .flv extention
 %% @end
 %%-------------------------------------------------------------------------
 filename(Name) ->
-	case filename:extension(Name) of
-		".flv" -> Name;
-		".FLV" -> Name;
-		_      -> Name ++ ".flv"
-	end.
+    case filename:extension(Name) of
+        ".flv" -> Name;
+        ".FLV" -> Name;
+        _      -> Name ++ ".flv"
+    end.
