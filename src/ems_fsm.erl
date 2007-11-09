@@ -399,7 +399,7 @@ flv_dir() ->
 
 
 %%-------------------------------------------------------------------------
-%% @spec (AbsTime::integer(), TimerStart::integer(), ClientBuffer::integer()) -> (TimeOut::integer() | 0)
+%% @spec (AbsTime::integer(), TimerStart::integer(), ClientBuffer::integer()) -> [TimeOut::integer() | 0]
 %% @doc calculates timeout to playback of next FLV Tag 
 %% @end
 %%-------------------------------------------------------------------------	
