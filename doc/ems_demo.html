@@ -2,92 +2,117 @@
 <html>
 <head>
 <title>Module ems_demo</title>
-<link rel="stylesheet" type="text/css" href="stylesheet.css">
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
 </head>
 <body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
 
 <h1>Module ems_demo</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>       Demo RTMP application module.
+<p>Copyright ©  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon</p>
 
-<ul><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+<p><b>Authors:</b> Roberto Saccon (<a href="mailto:rsaccon@gmail.com"><tt>rsaccon@gmail.com</tt></a>) [<em>web site:</em> <tt><a href="http://rsaccon.com" target="_top">http://rsaccon.com</a></tt>], Stuart Jackson (<a href="mailto:simpleenigmainc@gmail.com"><tt>simpleenigmainc@gmail.com</tt></a>) [<em>web site:</em> <tt><a href="http://erlsoft.org" target="_top">http://erlsoft.org</a></tt>], Luke Hubbard (<a href="mailto:luke@codegent.com"><tt>luke@codegent.com</tt></a>) [<em>web site:</em> <tt><a href="http://www.codegent.com" target="_top">http://www.codegent.com</a></tt>].</p>
+<p><b>References</b><ul><li> See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information</li></ul></p>
 
+<h2><a name="description">Description</a></h2>       Demo RTMP application module
 <h2><a name="index">Function Index</a></h2>
-<table width="100%" border="1"><tr><td valign="top"><a href="#append-3">append/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#closeStream-3">closeStream/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#createStream-3">createStream/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#deleteStream-3">deleteStream/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#echoArray-3">echoArray/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#echoBoolean-3">echoBoolean/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#echoMultiParam-3">echoMultiParam/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#echoNumber-3">echoNumber/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#echoObject-3">echoObject/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#echoString-3">echoString/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#live-3">live/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#pause-3">pause/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#play-3">play/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#publish-3">publish/3</a></td><td/></tr>
-<tr><td valign="top"><a href="#stop-3">stop/3</a></td><td/></tr>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#append-3">append/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#closeStream-3">closeStream/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#createStream-3">createStream/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#deleteStream-3">deleteStream/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#echoArray-3">echoArray/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#echoBoolean-3">echoBoolean/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#echoMultiParam-3">echoMultiParam/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#echoNumber-3">echoNumber/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#echoObject-3">echoObject/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#echoString-3">echoString/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#live-3">live/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#pause-3">pause/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#play-3">play/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#publish-3">publish/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#stop-3">stop/3</a></td><td></td></tr>
 </table>
 
 <h2><a name="functions">Function Details</a></h2>
 
-<h3><a name="append-3">append/3</a></h3>
-<tt>append(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="append-3">append/3</a></h3>
+<div class="spec">
+<p><tt>append() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="closeStream-3">closeStream/3</a></h3>
-<tt>closeStream(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="closeStream-3">closeStream/3</a></h3>
+<div class="spec">
+<p><tt>closeStream() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="createStream-3">createStream/3</a></h3>
-<tt>createStream(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="createStream-3">createStream/3</a></h3>
+<div class="spec">
+<p><tt>createStream() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="deleteStream-3">deleteStream/3</a></h3>
-<tt>deleteStream(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="deleteStream-3">deleteStream/3</a></h3>
+<div class="spec">
+<p><tt>deleteStream() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="echoArray-3">echoArray/3</a></h3>
-<tt>echoArray(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="echoArray-3">echoArray/3</a></h3>
+<div class="spec">
+<p><tt>echoArray() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="echoBoolean-3">echoBoolean/3</a></h3>
-<tt>echoBoolean(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="echoBoolean-3">echoBoolean/3</a></h3>
+<div class="spec">
+<p><tt>echoBoolean() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="echoMultiParam-3">echoMultiParam/3</a></h3>
-<tt>echoMultiParam(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="echoMultiParam-3">echoMultiParam/3</a></h3>
+<div class="spec">
+<p><tt>echoMultiParam() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="echoNumber-3">echoNumber/3</a></h3>
-<tt>echoNumber(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="echoNumber-3">echoNumber/3</a></h3>
+<div class="spec">
+<p><tt>echoNumber() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="echoObject-3">echoObject/3</a></h3>
-<tt>echoObject(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="echoObject-3">echoObject/3</a></h3>
+<div class="spec">
+<p><tt>echoObject() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="echoString-3">echoString/3</a></h3>
-<tt>echoString(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="echoString-3">echoString/3</a></h3>
+<div class="spec">
+<p><tt>echoString() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="live-3">live/3</a></h3>
-<tt>live(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="live-3">live/3</a></h3>
+<div class="spec">
+<p><tt>live() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="pause-3">pause/3</a></h3>
-<tt>pause(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="pause-3">pause/3</a></h3>
+<div class="spec">
+<p><tt>pause() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="play-3">play/3</a></h3>
-<tt>play(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="play-3">play/3</a></h3>
+<div class="spec">
+<p><tt>play() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="publish-3">publish/3</a></h3>
-<tt>publish(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="publish-3">publish/3</a></h3>
+<div class="spec">
+<p><tt>publish() -&gt; term()</tt></p>
+</div>
 
-<h3><a name="stop-3">stop/3</a></h3>
-<tt>stop(From, AMF, Channel) -&gt; term()
-</tt>
+<h3 class="function"><a name="stop-3">stop/3</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; term()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Nov 8 2007, 22:17:20.</i></p>
 </body>
 </html>
