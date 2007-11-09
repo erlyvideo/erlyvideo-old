@@ -57,6 +57,7 @@
 %%====================================================================
 %% API
 %%====================================================================
+
 %%--------------------------------------------------------------------
 %% Function: start() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server cluster node
@@ -89,70 +90,65 @@ is_global() ->
 next_stream_id() ->
 	gen_server:call({global,?MODULE}, {next_stream_id}). 
 
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
+%%-------------------------------------------------------------------------
+%% @spec (Args::any()) -> any()
+%% @doc Initalization
+%% @end
+%%-------------------------------------------------------------------------
 init([]) ->
     {ok, #ems_cluster{}}.
 
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
+%%-------------------------------------------------------------------------
+%% @spec (Request::any(),From::pid(),State::any()) -> any()
+%% @doc Handles request from gen_server:call2,3 and gen_server:multi_call:2,3,4
+%% @end
+%%-------------------------------------------------------------------------
 handle_call({next_stream_id}, _From, #ems_cluster{next_stream_id=Id}=State) ->
 	NextId = Id+1,
     {reply, Id, State#ems_cluster{next_stream_id=NextId}}.
 
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
+%%-------------------------------------------------------------------------
+%% @spec (Request::any(),State::any()) -> any()
+%% @doc handles request from gen_server:cast/2
+%% @end
+%%-------------------------------------------------------------------------
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
+
+%%-------------------------------------------------------------------------
+%% @spec (Info::any(),State::any()) -> any()
+%% @doc Handles messages sent to server
+%% @end
+%%-------------------------------------------------------------------------
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
+
+%%-------------------------------------------------------------------------
+%% @spec (Reason::any(),State::any()) -> any()
+%% @doc stops EMS cluster
+%% @end
+%%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
+
+%%-------------------------------------------------------------------------
+%% @spec (OldVsn::any(),State::any(),Extra::any()) -> any()
+%% @doc Upgrade or Downgrade code
+%% @end
+%%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
-%%% Internal functions
+%% Internal functions
 %%--------------------------------------------------------------------
