@@ -123,8 +123,6 @@ init([]) ->
     {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
 
 
-
-
 %% Notification event coming from client
 'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
 	{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
@@ -137,14 +135,9 @@ init([]) ->
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
 
-
 'WAIT_FOR_HS_ACK'(Other, State) ->
     ?D({"Ignoring unecpected data:", Other}),
     {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
-
-
-
-
 
 
 %% Notification event coming from client
@@ -159,7 +152,7 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {Channel, Data}}, State) when is_record(Channel,channel), is_binary(Data) ->
 	Packet = ems_rtmp:encode(Channel,Data),
-	?D({"Sending Packet",size(Packet),Channel#channel.id}),
+%	?D({"Sending Packet",size(Packet),Channel#channel.id}),
 %	file:write_file("/sfe/temp/packet.txt",Packet),
 %	?D({"Packet: ",Packet}),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
@@ -176,6 +169,7 @@ init([]) ->
 				{ok, Pos, _FLVHeader} -> 
 					case ems_flv:read_tag(IoDev, Pos) of
 						{ok, done} ->
+?D({"File close"}),
 							file:close(IoDev),
 							{stop, normal, State};
 						{ok, Tag} when is_record(Tag,flv_tag) -> 
@@ -227,34 +221,52 @@ init([]) ->
 
 'WAIT_FOR_DATA'({stop}, State) ->
 	case State#ems_fsm.flv_file of
-		undefined -> ok;
-		_ -> ems_flv:write(State#ems_fsm.flv_file_name,lists:reverse(State#ems_fsm.flv_file))
+		undefined -> 
+		    ok;
+		_ -> 
+		    %ems_flv:write(State#ems_fsm.flv_file_name,lists:reverse(State#ems_fsm.flv_file))
+			?D(write_file_to_disk)
 	end,
     case State#ems_fsm.flv_read_file of
-        undefined -> ok;
-        _ -> file:close(State#ems_fsm.flv_read_file)
+        undefined ->
+	 		ok;
+        _ -> 
+			?D(close_read_file),
+			file:close(State#ems_fsm.flv_read_file)
     end,
     case State#ems_fsm.flv_timer_ref of
         undefined -> ok;
         _ -> gen_fsm:cancel_timer(State#ems_fsm.flv_timer_ref)
     end,
 	NextState = State#ems_fsm{flv_read_file = undefined, flv_write_file = undefined, flv_timer_ref = undefined, 
-                 flv_pos = 0,flv_file = undefined,flv_file_name = undefined},
+                              flv_pos = 0,flv_file = undefined,flv_file_name = undefined},
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
-
-
 'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name) ->
-    FileName = filename:join([flv_dir(), Name]),
+	FileName = filename:join([flv_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	NextState = State#ems_fsm{flv_file = [Header],flv_file_name = FileName, flv_ts_prev = 0},
+%	?D({"record size: ", length(State#ems_fsm.flv_file)}),
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs} = State) when is_record(Channel,channel) ->
 	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
 	NextState = State#ems_fsm{flv_file = [Tag | State#ems_fsm.flv_file],flv_ts_prev = NextTimeStamp},
+%	?D({"record size: ", length(State#ems_fsm.flv_file)}),
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+		
+%'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name) ->
+%    FileName = filename:join([flv_dir(), Name]),
+%	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
+%	NextState = State#ems_fsm{flv_file = [Header],flv_file_name = FileName, flv_ts_prev = 0},
+%	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+
+%'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs} = State) when is_record(Channel,channel) ->
+%	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp}),
+%	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
+%	NextState = State#ems_fsm{flv_file = [Tag | State#ems_fsm.flv_file],flv_ts_prev = NextTimeStamp},
+%	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
 
 
@@ -303,8 +315,10 @@ init([]) ->
 
 'WAIT_FOR_DATA'(Data, State) ->
 	case Data of
-		{record,Channel} when is_record(Channel,channel) -> io:format("~p Ignoring data: ~p\n", [self(), Channel#channel{msg = <<>>}]);
-		Data -> io:format("~p Ignoring data: ~p\n", [self(), Data])
+		{record,Channel} when is_record(Channel,channel) -> 
+			io:format("~p Ignoring data: ~p\n", [self(), Channel#channel{msg = <<>>}]);
+		Data -> 
+			io:format("~p Ignoring data: ~p\n", [self(), Data])
 	end,
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
 

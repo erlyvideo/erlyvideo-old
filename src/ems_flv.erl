@@ -64,27 +64,36 @@ read_header(IoDev) ->
 read_tag(IoDev, Pos) ->
 	case file:pread(IoDev,Pos, ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH) of
 		{ok, IoList} ->
-			<<PrevTagSize:32/integer,Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24>> = iolist_to_binary(IoList),
-			case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, BodyLength) of
-				{ok,IoList2} -> 
-					<<TimeStampAbs:32>> = <<TimeStampExt:8, TimeStamp:24>>,
-					{ok, #flv_tag{prev_tag_size = PrevTagSize,
-					         type          = Type,
-							 body_length   = BodyLength,
-							 timestamp_abs = TimeStampAbs,
-							 streamid      = StreamId,
-							 pos           = Pos,
-							 nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + BodyLength,
-							 body          = iolist_to_binary(IoList2)}};
-				eof -> {ok, done};
-				{error, Reason} -> {error, Reason}
-			end;
-        eof -> {error, unexpected_eof};
-        {error, Reason} -> {error, Reason}
+			case iolist_to_binary(IoList) of
+			  	<<PrevTagSize:32/integer,Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24>> ->				
+					case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, BodyLength) of
+						{ok,IoList2} -> 
+						    <<TimeStampAbs:32>> = <<TimeStampExt:8, TimeStamp:24>>,
+							{ok, #flv_tag{prev_tag_size = PrevTagSize,
+					         			  type          = Type,
+							 			  body_length   = BodyLength,
+							 			  timestamp_abs = TimeStampAbs,
+							 			  streamid      = StreamId,
+							 			  pos           = Pos,
+							   			  nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + BodyLength,
+							 			  body          = iolist_to_binary(IoList2)}};
+						eof -> 
+							{ok, done};
+						{error, Reason} -> 
+							{error, Reason}
+					end;
+				_ ->
+					{error, unexpected_eof};
+			end;		
+        eof -> 
+			{error, unexpected_eof};
+        {error, Reason} -> 
+			{error, Reason}
 	end.
 
 
-write_header(IoDev) -> write_header(IoDev,#flv_header{audio=1,video=1}).
+write_header(IoDev) ->
+	write_header(IoDev,#flv_header{audio=1,video=1}).
 write_header(IoDev, FLVHeader) ->
 	Header = header(FLVHeader),
 	case file:write(IoDev,Header) of

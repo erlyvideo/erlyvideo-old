@@ -166,7 +166,7 @@ stop(From, _AMF, _Channel) ->
 %%-------------------------------------------------------------------------
 live(From, _AMF, _Channel) -> 
     ?D("invoke - live"),
-    gen_fsm:send_event(From, {stop}). 
+    gen_fsm:send_event(From, {stop}).  %% live ??
 
 
 %%-------------------------------------------------------------------------
@@ -176,7 +176,7 @@ live(From, _AMF, _Channel) ->
 %%-------------------------------------------------------------------------
 append(From, _AMF, _Channel) -> 
     ?D("invoke - append"),
-    gen_fsm:send_event(From, {stop}). 
+    gen_fsm:send_event(From, {stop}). %% append ??
 
 
 %%-------------------------------------------------------------------------
