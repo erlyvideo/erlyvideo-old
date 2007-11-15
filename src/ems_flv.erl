@@ -96,7 +96,7 @@ to_tag(#channel{msg = Msg,timestamp = FullTimeStamp, type = Type, stream = Strea
 		<<TimeStampExt1:8,TimeStamp1:32>> -> 
 			{TimeStampExt1, TimeStamp1};
 		_ ->
-			{0, FullTimeStamp}
+			{0, PrevTimeStamp}
 	end,			
 	PrevTagSize = size(Msg) + 11,
 	{<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>,
