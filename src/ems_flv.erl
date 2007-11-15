@@ -89,21 +89,18 @@ header(Bin) when is_binary(Bin) ->
 	#flv_header{version=Ver,audio=Audio,video=Video};
 header(IoList) when is_list(IoList) -> header(iolist_to_binary(IoList)).
 		
-
+	
 to_tag(#channel{msg = Msg,timestamp = FullTimeStamp, type = Type, stream = StreamId} = Channel, PrevTimeStamp) when is_record(Channel,channel) ->
-	BodyLength = size(Msg),
-	{TimeStampExt, TimeStamp} = case FullTimeStamp of
+	BodyLength = size(Msg),	
+	{TimeStampExt, TimeStamp} = case PrevTimeStamp of
 		<<TimeStampExt1:8,TimeStamp1:32>> -> 
 			{TimeStampExt1, TimeStamp1};
 		_ ->
 			{0, FullTimeStamp}
 	end,			
 	PrevTagSize = size(Msg) + 11,
-	NewTimeStamp = case PrevTimeStamp of
-		0 -> 0;
-		_ -> TimeStamp + PrevTimeStamp
-	end,
-	{<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>,NewTimeStamp}.
+	{<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>,
+	 FullTimeStamp + PrevTimeStamp}.
 
 
 parse_meta(Bin) ->

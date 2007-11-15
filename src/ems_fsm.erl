@@ -248,7 +248,7 @@ init([]) ->
 'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs, 
                                            flv_device = IoDev, 
                                            flv_buffer = Buffer} = State) when is_record(Channel,channel) ->
-	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
+%	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
 	FlvChunk = [Tag | Buffer],	
 	Size = size(list_to_binary(FlvChunk)),

@@ -230,7 +230,7 @@
 	flv_stream_id,
 	flv_timer_start,
 	flv_timer_ref,
-	flv_ts_prev,
+	flv_ts_prev = 0,
 	flv_pos = 0
 	}).
 
