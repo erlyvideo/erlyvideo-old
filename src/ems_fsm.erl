@@ -54,7 +54,9 @@
 ]).
 
 
-
+%% rsacon: TODOD move this to ems.hrl ist her only for testing purpose
+%% or make it an application confiuration environment variable
+-define(FLV_WRITE_BUFFER, 20000). 
 
 
 %%%------------------------------------------------------------------------
@@ -158,7 +160,6 @@ init([]) ->
 	gen_tcp:send(State#ems_fsm.socket,Packet),
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
     FileName = filename:join([flv_dir(), Name]),
 	case filelib:is_regular(FileName) of
@@ -169,7 +170,6 @@ init([]) ->
 				{ok, Pos, _FLVHeader} -> 
 					case ems_flv:read_tag(IoDev, Pos) of
 						{ok, done} ->
-?D({"File close"}),
 							file:close(IoDev),
 							{stop, normal, State};
 						{ok, Tag} when is_record(Tag,flv_tag) -> 
@@ -179,7 +179,7 @@ init([]) ->
 							                  Now, 
 							                  State#ems_fsm.client_buffer),
 							Timer = gen_fsm:start_timer(Timeout, play),
-							NextState = State#ems_fsm{flv_read_file = IoDev,
+							NextState = State#ems_fsm{flv_device = IoDev,
 													  flv_stream_id = StreamId, 
 													  flv_timer_start = Now,
 													  flv_timer_ref  = Timer,
@@ -196,8 +196,7 @@ init([]) ->
 		false -> {stop, normal, State}
 	end;
 
-
-'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_read_file = IoDev, flv_pos = Pos, flv_stream_id = StreamId} = State) ->
+'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_device = IoDev, flv_pos = Pos, flv_stream_id = StreamId} = State) ->
 	case ems_flv:read_tag(IoDev, Pos) of
 		{ok, done} ->
 			file:close(IoDev),
@@ -218,91 +217,49 @@ init([]) ->
 			{stop, normal, State}
 	end;
 
-
-'WAIT_FOR_DATA'({stop}, State) ->
-	case State#ems_fsm.flv_file of
-		undefined -> 
-		    ok;
-		_ -> 
-		    %ems_flv:write(State#ems_fsm.flv_file_name,lists:reverse(State#ems_fsm.flv_file))
-			?D(write_file_to_disk)
+'WAIT_FOR_DATA'({stop}, #ems_fsm{flv_device = IoDev, flv_buffer = Buffer} = State) ->
+	case Buffer of
+		undefined -> ok;
+		_ -> file:write(IoDev, lists:reverse(Buffer))
 	end,
-    case State#ems_fsm.flv_read_file of
-        undefined ->
-	 		ok;
-        _ -> 
-			?D(close_read_file),
-			file:close(State#ems_fsm.flv_read_file)
+    case IoDev of
+        undefined -> ok;
+        _ -> file:close(IoDev)
     end,
     case State#ems_fsm.flv_timer_ref of
         undefined -> ok;
         _ -> gen_fsm:cancel_timer(State#ems_fsm.flv_timer_ref)
     end,
-	NextState = State#ems_fsm{flv_read_file = undefined, flv_write_file = undefined, flv_timer_ref = undefined, 
-                              flv_pos = 0,flv_file = undefined,flv_file_name = undefined},
+	NextState = State#ems_fsm{flv_device=undefined,flv_buffer=[],
+							  flv_timer_ref=undefined,flv_pos = 0},
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name) ->
 	FileName = filename:join([flv_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	NextState = State#ems_fsm{flv_file = [Header],flv_file_name = FileName, flv_ts_prev = 0},
-%	?D({"record size: ", length(State#ems_fsm.flv_file)}),
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+	case file:open(FileName, [write, append]) of
+		{ok, IoDev} ->
+			NextState = State#ems_fsm{flv_buffer=[Header],flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
+			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+		_ ->
+			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
+	end;
 
-'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs} = State) when is_record(Channel,channel) ->
-	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp}),
+'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs, 
+                                           flv_device = IoDev, 
+                                           flv_buffer = Buffer} = State) when is_record(Channel,channel) ->
+	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
-	NextState = State#ems_fsm{flv_file = [Tag | State#ems_fsm.flv_file],flv_ts_prev = NextTimeStamp},
-%	?D({"record size: ", length(State#ems_fsm.flv_file)}),
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-		
-%'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name) ->
-%    FileName = filename:join([flv_dir(), Name]),
-%	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-%	NextState = State#ems_fsm{flv_file = [Header],flv_file_name = FileName, flv_ts_prev = 0},
-%	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-
-%'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs} = State) when is_record(Channel,channel) ->
-%	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp}),
-%	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
-%	NextState = State#ems_fsm{flv_file = [Tag | State#ems_fsm.flv_file],flv_ts_prev = NextTimeStamp},
-%	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-
-
-
-% Rework write/record funcation to keep all data in the FSM until finsih, then write the file to disk at once.
-%'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name)->
-%	Dir = "/sfe/sites/castini/htdocs/castinidemo/flv/",
-%    FileName = filename:join([Dir, Name]),
-%	case file:open(FileName, [write, append]) of
-%		{ok, IoDev} ->
-%			ems_flv:write_header(IoDev),
-%			NextState = State#ems_fsm{flv_write_file = IoDev},
-%			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-%        _ ->
-%            ?D("Error opening fiel for write"),
-%            {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}      
-%	end;
-
-%'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_write_file = IoDev, flv_ts_prev = PrevTs} = State) when is_record(Channel,channel) ->
-%	TimeStamp = case PrevTs of
-%		undefined -> Channel#channel.timestamp;
-%		_ ->  Channel#channel.timestamp + PrevTs
-%	end,
-%	FLVTag = #flv_tag{body=Channel#channel.msg, timestamp=TimeStamp, type = Channel#channel.type, streamid = Channel#channel.stream},
-%	ems_flv:write_tag(IoDev,FLVTag),
-%	NextState = State#ems_fsm{flv_ts_prev = TimeStamp},
-%	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-
-
-
-
-
-
-
-
-
-
+	FlvChunk = [Tag | Buffer],	
+	Size = size(list_to_binary(FlvChunk)),
+	NextState = if
+		(Size > ?FLV_WRITE_BUFFER) ->
+			file:write(IoDev, lists:reverse(Buffer)),
+			State#ems_fsm{flv_buffer=[Tag],flv_ts_prev=NextTimeStamp};
+		true ->
+			State#ems_fsm{flv_buffer=FlvChunk,flv_ts_prev=NextTimeStamp}
+	end,
+	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
 
 'WAIT_FOR_DATA'({next_channel, From}, #ems_fsm{channels = Channels} = State) ->
 	Last = lists:last(Channels),
@@ -322,6 +279,7 @@ init([]) ->
 	end,
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
 
+
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3
 %% Returns: {next_state, NextStateName, NextStateData}          |
@@ -331,6 +289,7 @@ init([]) ->
 %%-------------------------------------------------------------------------
 handle_event(Event, StateName, StateData) ->
     {stop, {StateName, undefined_event, Event}, StateData}.
+
 
 %%-------------------------------------------------------------------------
 %% Func: handle_sync_event/4
@@ -344,6 +303,7 @@ handle_event(Event, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 handle_sync_event(Event, _From, StateName, StateData) ->
     {stop, {StateName, undefined_event, Event}, StateData}.
+
 
 %%-------------------------------------------------------------------------
 %% Func: handle_info/3
@@ -367,6 +327,7 @@ handle_info({tcp_closed, Socket}, _StateName,
 handle_info(_Info, StateName, StateData) ->
     {noreply, StateName, StateData}.
 
+
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
 %% Purpose: Shutdown the fsm
@@ -377,6 +338,7 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
     (catch gen_tcp:close(Socket)),
     ok.
 
+
 %%-------------------------------------------------------------------------
 %% Func: code_change/4
 %% Purpose: Convert process state when code is changed
@@ -385,7 +347,6 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
-
 
 
 %%-------------------------------------------------------------------------
