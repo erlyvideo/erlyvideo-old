@@ -224,6 +224,7 @@
 	prev_buff   = <<>>,
 	client_buffer = ?MIN_CLIENT_BUFFER,
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
+	publish,
 	flv_device,
 	flv_buffer,
 	flv_file_name,

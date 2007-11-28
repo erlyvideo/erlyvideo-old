@@ -157,7 +157,7 @@ command(#channel{type = ?RTMP_TYPE_PING} = _Channel, State) ->
 command(#channel{type = Type} = Channel, State) 
 	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_META_DATA) ->
 %	?D({"Recording",Type}),
-	gen_fsm:send_event(self(), {record, Channel}),
+	gen_fsm:send_event(self(), {publish, Channel}),
 	State;
 
 command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->

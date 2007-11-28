@@ -141,13 +141,13 @@ publish(From, AMF, _Channel) ->
             case list_to_atom(Action) of
                 record -> 
                     ?D({"Publish - Action - record",Name}),
-                    gen_fsm:send_event(From, {record,filename(Name)});
+                    gen_fsm:send_event(From, {publish, record, filename(Name)});
                 append -> 
                      ?D({"Publish - Action - append",Name}),
-                     gen_fsm:send_event(From, {append,filename(Name)});
+                     gen_fsm:send_event(From, {publish, append, filename(Name)});
                 live -> 
                     ?D({"Publish - Action - live",Name}),
-                    gen_fsm:send_event(From, {live,Name});
+                    gen_fsm:send_event(From, {publish, live, Name});
                 _OtherAction -> 
                     ?D({"Publish Ignoring - ", _OtherAction})
             end;
