@@ -113,9 +113,8 @@ init([Module]) ->
 %%----------------------------------------------------------------------
 %% Internal functions
 %%----------------------------------------------------------------------
-get_app_env(Opt, Default) ->
-	{ok, App} = application:get_application(),
-    case application:get_env(App, Opt) of
+get_app_env(Opt, Default) ->	
+    case application:get_env(Opt) of
     	{ok, Val} -> 
 			Val;
     	_ ->
