@@ -237,20 +237,20 @@ init([]) ->
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
 	FileName = filename:join([flv_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	case file:open(FileName, [write]) of
+	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
 			NextState = State#ems_fsm{flv_buffer=[Header],publish=record,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 		_ ->
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
 	end;
-	
+
+%% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	
 'WAIT_FOR_DATA'({publish, append, Name}, State) when is_list(Name) ->
 	FileName = filename:join([flv_dir(), Name]),
-	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	case file:open(FileName, [append]) of
+	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
-			NextState = State#ems_fsm{flv_buffer=[Header],publish=append,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
+			NextState = State#ems_fsm{publish=append,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 	    _ ->
     		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
