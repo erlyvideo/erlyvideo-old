@@ -38,14 +38,30 @@
 -compile(export_all).
 
 
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc Starting EMS
+%% @end 
+%%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting EMS ...~n"),
 	application:start(ems).
 
+
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc Stopping EMS
+%% @end 
+%%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping EMS ...~n"),
 	application:stop(ems).
 
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc Compiling and reloading EMS Modules
+%% @end 
+%%--------------------------------------------------------------------
 reload() ->
 	io:format("Compiling and reloading EMS Modules ...~n"),
 	make:all([load]).

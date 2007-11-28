@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([connect/3,createStream/3,play/3,deleteStream/3,closeStream/3,pause/3,stop/3,publish/3,live/3,append/3]).
+-export([connect/3,createStream/3,play/3,deleteStream/3,closeStream/3,pause/3,stop/3,publish/3]).
 
 -export([behaviour_info/1]).
 
@@ -142,6 +142,12 @@ publish(From, AMF, _Channel) ->
                 record -> 
                     ?D({"Publish - Action - record",Name}),
                     gen_fsm:send_event(From, {record,filename(Name)});
+                append -> 
+                     ?D({"Publish - Action - append",Name}),
+                     gen_fsm:send_event(From, {append,filename(Name)});
+                live -> 
+                    ?D({"Publish - Action - live",Name}),
+                    gen_fsm:send_event(From, {live,Name});
                 _OtherAction -> 
                     ?D({"Publish Ignoring - ", _OtherAction})
             end;
@@ -157,27 +163,6 @@ publish(From, AMF, _Channel) ->
 stop(From, _AMF, _Channel) -> 
     ?D("invoke - stop"),
     gen_fsm:send_event(From, {stop}). 
-
-
-%%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a live command and responds
-%% @end
-%%-------------------------------------------------------------------------
-live(From, _AMF, _Channel) -> 
-    ?D("invoke - live"),
-    gen_fsm:send_event(From, {stop}).  %% live ??
-
-
-%%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a append command and responds
-%% @end
-%%-------------------------------------------------------------------------
-append(From, _AMF, _Channel) -> 
-    ?D("invoke - append"),
-    gen_fsm:send_event(From, {stop}). %% append ??
-
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()

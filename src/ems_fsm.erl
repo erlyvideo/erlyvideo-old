@@ -237,7 +237,7 @@ init([]) ->
 'WAIT_FOR_DATA'({record,Name}, State) when is_list(Name) ->
 	FileName = filename:join([flv_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	case file:open(FileName, [write, append]) of
+	case file:open(FileName, [write]) of   %% with 'append' only for apped
 		{ok, IoDev} ->
 			NextState = State#ems_fsm{flv_buffer=[Header],flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
@@ -248,7 +248,7 @@ init([]) ->
 'WAIT_FOR_DATA'({record,Channel}, #ems_fsm{flv_ts_prev = PrevTs, 
                                            flv_device = IoDev, 
                                            flv_buffer = Buffer} = State) when is_record(Channel,channel) ->
-%	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
+	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
 	FlvChunk = [Tag | Buffer],	
 	Size = size(list_to_binary(FlvChunk)),
@@ -260,7 +260,43 @@ init([]) ->
 			State#ems_fsm{flv_buffer=FlvChunk,flv_ts_prev=NextTimeStamp}
 	end,
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
+	
+'WAIT_FOR_DATA'({append,Name}, State) when is_list(Name) ->
+	FileName = filename:join([flv_dir(), Name]),
+	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
+	case file:open(FileName, [write,append]) of   %% with 'append' only for apped
+		{ok, IoDev} ->
+			NextState = State#ems_fsm{flv_buffer=[Header],flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
+			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+		_ ->
+			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
+	end;
 
+'WAIT_FOR_DATA'({append,Channel}, #ems_fsm{flv_ts_prev = PrevTs, 
+                                           flv_device = IoDev, 
+                                           flv_buffer = Buffer} = State) when is_record(Channel,channel) ->
+	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
+	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
+	FlvChunk = [Tag | Buffer],	
+	Size = size(list_to_binary(FlvChunk)),
+	NextState = if
+		(Size > ?FLV_WRITE_BUFFER) ->
+			file:write(IoDev, lists:reverse(Buffer)),
+			State#ems_fsm{flv_buffer=[Tag],flv_ts_prev=NextTimeStamp};
+		true ->
+			State#ems_fsm{flv_buffer=FlvChunk,flv_ts_prev=NextTimeStamp}
+	end,
+	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
+	
+	
+'WAIT_FOR_DATA'({live,Name}, State) when is_list(Name) ->
+    io:format("TRACE ~p:~p FMS0 ~p~n",[?MODULE, ?LINE, Name]),
+	next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT;
+
+'WAIT_FOR_DATA'({live,Channel}, State) ->
+    io:format("TRACE ~p:~p FMS1 ~p~n",[?MODULE, ?LINE, Channel]),
+    next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT;
+    	
 'WAIT_FOR_DATA'({next_channel, From}, #ems_fsm{channels = Channels} = State) ->
 	Last = lists:last(Channels),
 	gen_fsm:reply(From,#channel{id = Last#channel.id + 1}),
