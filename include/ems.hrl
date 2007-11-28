@@ -205,7 +205,6 @@
 
 
 -record(ems_cluster, {
-	next_stream_id = 1
 	}).
 
 -record(ems_server, {
@@ -224,6 +223,7 @@
 	prev_buff   = <<>>,
 	client_buffer = ?MIN_CLIENT_BUFFER,
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
+	next_stream_id = 1,
 	publish,
 	flv_device,
 	flv_buffer,

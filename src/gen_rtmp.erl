@@ -75,9 +75,10 @@ connect(From, AMF, Channel) ->
 %%-------------------------------------------------------------------------
 createStream(From, AMF, Channel) -> 
     ?D("invoke - createStream"),   
+    Id = 1, %% gen_fsm:sync_send_event(From, next_stream_id),  %% rsaccon: TODO: make this work !!!!!
     NewAMF = AMF#amf{
         command = '_result', 
-        args= [null, ems_cluster:next_stream_id()]},
+        args= [null, Id]},
     gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
 
 

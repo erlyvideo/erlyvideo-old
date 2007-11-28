@@ -42,8 +42,7 @@
 %% API
 -export([start/0, 
          stop/0,
-         is_global/0,
-		 next_stream_id/0]).
+         is_global/0]).
 
 %% gen_server callbacks
 -export([init/1, 
@@ -82,14 +81,6 @@ is_global() ->
 	    false
     end.
 
-%%-------------------------------------------------------------------------
-%% @spec () -> integer()
-%% @doc creates an incremental, global unique, non-persistant id
-%% @end
-%%-------------------------------------------------------------------------
-next_stream_id() ->
-	gen_server:call({global,?MODULE}, {next_stream_id}). 
-
 
 %%====================================================================
 %% gen_server callbacks
@@ -109,9 +100,8 @@ init([]) ->
 %% @doc Handles request from gen_server:call2,3 and gen_server:multi_call:2,3,4
 %% @end
 %%-------------------------------------------------------------------------
-handle_call({next_stream_id}, _From, #ems_cluster{next_stream_id=Id}=State) ->
-	NextId = Id+1,
-    {reply, Id, State#ems_cluster{next_stream_id=NextId}}.
+handle_call(_Msg, _From, State) ->
+    {reply, ok, State}.
 
 
 %%-------------------------------------------------------------------------

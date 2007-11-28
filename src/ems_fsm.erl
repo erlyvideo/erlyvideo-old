@@ -50,7 +50,8 @@
     'WAIT_FOR_SOCKET'/2,
 	'WAIT_FOR_HANDSHAKE'/2,
 	'WAIT_FOR_HS_ACK'/2,
-    'WAIT_FOR_DATA'/2
+    'WAIT_FOR_DATA'/2,
+    'WAIT_FOR_DATA'/3
 ]).
 
 
@@ -283,16 +284,10 @@ init([]) ->
 	end,
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
 
-    	
-'WAIT_FOR_DATA'({next_channel, From}, #ems_fsm{channels = Channels} = State) ->
-	Last = lists:last(Channels),
-	gen_fsm:reply(From,#channel{id = Last#channel.id + 1}),
-    {stop, normal, State};
-
 'WAIT_FOR_DATA'(timeout, State) ->
     error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
-    {stop, normal, State};
-
+    {stop, normal, State};    
+        
 'WAIT_FOR_DATA'(Data, State) ->
 	case Data of
 		{record,Channel} when is_record(Channel,channel) -> 
@@ -301,8 +296,12 @@ init([]) ->
 			io:format("~p Ignoring data: ~p\n", [self(), Data])
 	end,
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+        
 
-
+'WAIT_FOR_DATA'(next_stream_id, _From, #ems_fsm{next_stream_id = Id} = State) ->
+    {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}}.    
+    
+    
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3
 %% Returns: {next_state, NextStateName, NextStateData}          |
