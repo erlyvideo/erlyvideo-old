@@ -40,17 +40,21 @@
 -behaviour(gen_server).
 
 %% API
--export([start/0, 
-         stop/0,
-         is_global/0]).
+-export([
+    start/0, 
+    stop/0,
+    is_global/0
+    ]).
 
 %% gen_server callbacks
--export([init/1, 
-         handle_call/3, 
-         handle_cast/2, 
-         handle_info/2, 
-         terminate/2, 
-         code_change/3]).
+-export([
+    init/1, 
+    handle_call/3, 
+    handle_cast/2, 
+    handle_info/2, 
+    terminate/2, 
+    code_change/3
+    ]).
 
 
 %%====================================================================
@@ -58,14 +62,29 @@
 %%====================================================================
 
 %%--------------------------------------------------------------------
-%% Function: start() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server cluster node
+%% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
+%% @doc 
+%% Starts server cluster node
+%% @end 
 %%--------------------------------------------------------------------
 start() ->
-    gen_server_cluster:start(?MODULE, ?MODULE, [], []).
+    Start = gen_server_cluster:start(?MODULE, ?MODULE, [], []),
+    Node = node(),
+    case catch gen_server_cluster:get_all_server_nodes(?MODULE) of
+	    {Node, _} ->
+	        up_master();
+        {Master, _}->
+            gen_server:call(Master, add_mnesia_slave),
+            mnesia:start(),
+            mnesia:change_config(extra_db_nodes, [Node])
+    end,
+    Start.
+
 
 stop() -> 
-    gen_server:stop({global, ?MODULE}).  
+    mnesia:stop(), %TODO: NEED To stop mnesia on each node. ?????
+    gen_server:stop({global, ?MODULE}).
+
 
 %%-------------------------------------------------------------------------
 %% @spec () -> bool()
@@ -100,6 +119,10 @@ init([]) ->
 %% @doc Handles request from gen_server:call2,3 and gen_server:multi_call:2,3,4
 %% @end
 %%-------------------------------------------------------------------------
+handle_call(add_mnesia_slave, From, State) ->
+	mnesia:add_table_copy(schema, From, ram_copies),
+    {reply, ok, State};
+    
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
@@ -142,3 +165,34 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
+
+mnesia_tables() ->
+    [{connection,
+      [{ram_copies, [node()]},
+       {attributes, record_info(fields, ems_connection)}]},
+     {channel,
+      [{ram_copies, [node()]},
+       {attributes, record_info(fields, ems_stream)}]}].
+       
+
+up_master() ->
+    case mnesia:create_schema([node()]) of
+        {error, {_, {already_exists, _}}} -> 
+            mnesia:start();
+        ok -> 
+            mnesia:start(),
+            lists:foreach(fun ({Name, Args}) ->
+        	                  case mnesia:create_table(Name, Args) of
+        			              {atomic, ok} -> ok;
+        			              {aborted, {already_exists, _}} -> ok
+        		              end
+        	              end,
+        			      mnesia_tables())
+    end.
+    
+
+do(QLC) ->
+    F = fun() ->
+		 qlc:e(QLC) end,
+    {atomic, Val} = mnesia:transaction(F),
+    Val.

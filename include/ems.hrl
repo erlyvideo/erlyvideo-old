@@ -206,6 +206,16 @@
 
 -record(ems_cluster, {
 	}).
+	
+-record(ems_connection, {
+    pid,
+    client_id
+    }).
+
+-record(ems_stream, {
+    stream, 
+    pid
+    }).
 
 -record(ems_server, {
 	listener, % Listening socket

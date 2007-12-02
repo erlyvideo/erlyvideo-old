@@ -51,8 +51,7 @@
 	'WAIT_FOR_HANDSHAKE'/2,
 	'WAIT_FOR_HS_ACK'/2,
     'WAIT_FOR_DATA'/2,
-    'WAIT_FOR_DATA'/3
-]).
+    'WAIT_FOR_DATA'/3]).
 
 
 %% rsacon: TODOD move this to ems.hrl ist her only for testing purpose
@@ -98,6 +97,7 @@ init([]) ->
     inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
     {ok, {IP, _Port}} = inet:peername(Socket),
     {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP}, ?TIMEOUT};
+    
 'WAIT_FOR_SOCKET'(Other, State) ->
     error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
     %% Allow to receive async messages
@@ -150,6 +150,7 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {Channel, AMF}}, State) when is_record(Channel,channel), is_record(AMF,amf) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
+	?D({"Packet: ",Packet}),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
@@ -277,7 +278,12 @@ init([]) ->
         
 
 'WAIT_FOR_DATA'(next_stream_id, _From, #ems_fsm{next_stream_id = Id} = State) ->
-    {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}}.    
+    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_next_stream_id_request]),
+    {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}};   
+    
+'WAIT_FOR_DATA'(Data, _From, State) ->
+	io:format("~p Ignoring data: ~p\n", [self(), Data]),
+    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
     
     
 %%-------------------------------------------------------------------------
@@ -302,6 +308,7 @@ handle_event(Event, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_sync_event(Event, _From, StateName, StateData) ->
+     io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
     {stop, {StateName, undefined_event, Event}, StateData}.
 
 
@@ -396,7 +403,7 @@ normalize_fileame(Name) ->
     end.
  
  
-is_live(Name) -> false.
+is_live(_Name) -> false.
  
      
 play_live(_Pid, _StreamId, State) ->
@@ -436,7 +443,7 @@ play_vod(FileName, StreamId, State) ->
 	end.
 
 
-wait_live(StreamId, State) ->
+wait_live(_StreamId, State) ->
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
         	    
 
