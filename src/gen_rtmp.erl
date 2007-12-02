@@ -116,7 +116,7 @@ play(From, AMF, Channel) ->
                     {details, Name},
                     {clientid, NextChannel#channel.stream}]]},
     gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
-    gen_fsm:send_event(From, {play, filename(Name), NextChannel#channel.stream}).
+    gen_fsm:send_event(From, {play, Name, NextChannel#channel.stream}).
 
 
 %%-------------------------------------------------------------------------
@@ -142,10 +142,10 @@ publish(From, AMF, _Channel) ->
             case list_to_atom(Action) of
                 record -> 
                     ?D({"Publish - Action - record",Name}),
-                    gen_fsm:send_event(From, {publish, record, filename(Name)});
+                    gen_fsm:send_event(From, {publish, record, Name});
                 append -> 
                      ?D({"Publish - Action - append",Name}),
-                     gen_fsm:send_event(From, {publish, append, filename(Name)});
+                     gen_fsm:send_event(From, {publish, append, Name});
                 live -> 
                     ?D({"Publish - Action - live",Name}),
                     gen_fsm:send_event(From, {publish, live, Name});
@@ -173,16 +173,3 @@ stop(From, _AMF, _Channel) ->
 closeStream(From, _AMF, _Channel) ->
     ?D("invoke - closeStream"),
     gen_fsm:send_event(From, {stop}). 
-
-
-%%-------------------------------------------------------------------------
-%% @spec (Name::string()) -> FileName::string()
-%% @doc ensures that the file name ends with a .flv extention
-%% @end
-%%-------------------------------------------------------------------------
-filename(Name) ->
-    case filename:extension(Name) of
-        ".flv" -> Name;
-        ".FLV" -> Name;
-        _      -> Name ++ ".flv"
-    end.

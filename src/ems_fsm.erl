@@ -162,40 +162,18 @@ init([]) ->
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-    FileName = filename:join([flv_dir(), Name]),
-	case filelib:is_regular(FileName) of
-		true -> 
-			?D({"Found It",FileName}),
-			{ok, IoDev} = file:open(FileName, [read, read_ahead]),
-			case ems_flv:read_header(IoDev) of
-				{ok, Pos, _FLVHeader} -> 
-					case ems_flv:read_tag(IoDev, Pos) of
-						{ok, done} ->
-							file:close(IoDev),
-							{stop, normal, State};
-						{ok, Tag} when is_record(Tag,flv_tag) -> 
-							Now = erlang:now(),
-							send(Tag#flv_tag{streamid = StreamId}),
-							Timeout = timeout(Tag#flv_tag.timestamp_abs, 
-							                  Now, 
-							                  State#ems_fsm.client_buffer),
-							Timer = gen_fsm:start_timer(Timeout, play),
-							NextState = State#ems_fsm{flv_device = IoDev,
-													  flv_stream_id = StreamId, 
-													  flv_timer_start = Now,
-													  flv_timer_ref  = Timer,
-													  flv_ts_prev = Tag#flv_tag.timestamp_abs,
-													  flv_pos = Tag#flv_tag.nextpos},
-							{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-						{error, _Reason} ->
-							?D(_Reason),
-							file:close(IoDev),
-							{stop, normal, State}
-					end;
-				_HdrError -> ?D(_HdrError)
-			end;
-		false -> {stop, normal, State}
-	end;
+    case is_live(Name) of
+        {ok, Pid} ->
+            play_live(Pid, StreamId, State);
+        _ ->
+            FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
+        	case filelib:is_regular(FileName) of
+        		true ->
+        		    play_vod(FileName, StreamId, State);
+        		_ ->
+        		    wait_live(StreamId, State)
+        	end
+    end;    
 
 'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_device = IoDev, flv_pos = Pos, flv_stream_id = StreamId} = State) ->
 	case ems_flv:read_tag(IoDev, Pos) of
@@ -409,6 +387,58 @@ timeout(AbsTime, TimerStart, ClientBuffer) ->
             0 
     end.
 
+
+normalize_fileame(Name) ->
+    case filename:extension(Name) of
+        ".flv" -> Name;
+        ".FLV" -> Name;
+        _      -> Name ++ ".flv"
+    end.
+ 
+ 
+is_live(Name) -> false.
+ 
+     
+play_live(_Pid, _StreamId, State) ->
+    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+
+
+play_vod(FileName, StreamId, State) ->
+	?D({"Found It",FileName}),
+	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
+	case ems_flv:read_header(IoDev) of
+		{ok, Pos, _FLVHeader} -> 
+			case ems_flv:read_tag(IoDev, Pos) of
+				{ok, done} ->
+					file:close(IoDev),
+					{stop, normal, State};
+				{ok, Tag} when is_record(Tag,flv_tag) -> 
+					Now = erlang:now(),
+					send(Tag#flv_tag{streamid = StreamId}),
+					Timeout = timeout(Tag#flv_tag.timestamp_abs, 
+					                  Now, 
+					                  State#ems_fsm.client_buffer),
+					Timer = gen_fsm:start_timer(Timeout, play),
+					NextState = State#ems_fsm{flv_device = IoDev,
+											  flv_stream_id = StreamId, 
+											  flv_timer_start = Now,
+											  flv_timer_ref  = Timer,
+											  flv_ts_prev = Tag#flv_tag.timestamp_abs,
+											  flv_pos = Tag#flv_tag.nextpos},
+					{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+				{error, _Reason} ->
+					?D(_Reason),
+					file:close(IoDev),
+					{stop, normal, State}
+			end;
+		_HdrError -> 
+		    ?D(_HdrError)
+	end.
+
+
+wait_live(StreamId, State) ->
+    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+        	    
 
 % rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream
 % idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID

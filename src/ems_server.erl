@@ -75,14 +75,14 @@ init([Port, Module]) ->
     Opts = [binary, {packet, raw}, {reuseaddr, true},
             {keepalive, true}, {backlog, 30}, {active, false}],
     case gen_tcp:listen(Port, Opts) of
-    {ok, Listen_socket} ->
-        %%Create first accepting process
-        {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
-        {ok, #ems_server{listener = Listen_socket,
-                    acceptor = Ref,
-                    module   = Module}};
-    {error, Reason} ->
-        {stop, Reason}
+        {ok, Listen_socket} ->
+            %%Create first accepting process
+            {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
+            {ok, #ems_server{listener = Listen_socket,
+                             acceptor = Ref,
+                             module   = Module}};
+        {error, Reason} ->
+            {stop, Reason}
     end.
 
 %%-------------------------------------------------------------------------
