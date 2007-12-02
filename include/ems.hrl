@@ -208,13 +208,13 @@
 	}).
 	
 -record(ems_connection, {
-    pid,
-    client_id
+    client_id,
+    pid
     }).
 
 -record(ems_stream, {
     stream, 
-    pid
+    client_ids
     }).
 
 -record(ems_server, {

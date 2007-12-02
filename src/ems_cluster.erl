@@ -35,6 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-include_lib("stdlib/include/qlc.hrl").
 -include("../include/ems.hrl").
 
 -behaviour(gen_server).
@@ -43,7 +44,14 @@
 -export([
     start/0, 
     stop/0,
-    is_global/0
+    is_global/0,
+    add_connection/2,
+    connections/0,
+    connection/1,
+    remove_connection/1,
+    subscribe/2,
+    unsubscribe/2,
+    streams/0
     ]).
 
 %% gen_server callbacks
@@ -60,6 +68,126 @@
 %%====================================================================
 %% API
 %%====================================================================
+
+%%-------------------------------------------------------------------------
+%% @spec (pid(), string()) -> ok | errror
+%% @doc
+%% adds a connection
+%% @end
+%%-------------------------------------------------------------------------
+add_connection(ClientId, Pid) -> 
+    Row = #ems_connection{client_id=ClientId, pid=Pid},
+    F = fun() ->
+		mnesia:write(Row)
+	end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        _ -> error
+    end.
+ 
+  
+%%--------------------------------------------------------------------
+%% @spec  () -> Connections::list()
+%% @doc
+%% returns a list of all connections
+%% @end 
+%%--------------------------------------------------------------------    
+connections() -> 
+    Recs = do(qlc:q([X || X <-mnesia:table(ems_connection)])),
+    [{Y,Z} || {ems_connection, Y, Z} <- Recs].
+ 
+ 
+%%--------------------------------------------------------------------
+%% @spec (string()) -> pid() | undefined 
+%% @doc
+%% retrieves a connection based on clientId
+%% @end 
+%%--------------------------------------------------------------------    
+connection(ClientId) ->
+    F = fun() ->
+        mnesia:read({ems_connection, ClientId})
+    end,
+    {atomic, Row} = mnesia:transaction(F),
+    case Row of
+        [] ->
+            undefined;
+        [{connection, ClientId, Pid}] ->
+            Pid
+    end.
+
+
+%%--------------------------------------------------------------------
+%% @spec (string()) -> ok | errror
+%% @doc
+%% remove a connection based on clientId
+%% @end 
+%%--------------------------------------------------------------------	
+remove_connection(ClientId) ->
+    Oid = {ems_connection, ClientId},
+    F = fun() ->
+		mnesia:delete(Oid)
+	end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        _ -> error
+    end.	
+    
+      
+%%--------------------------------------------------------------------
+%% @spec (string(), pid()) -> ok | errror 
+%% @doc
+%% subscribe to a stream
+%% @end 
+%%--------------------------------------------------------------------
+subscribe(ClientId, Stream) ->
+    F = fun() ->
+        ClientIdList = case mnesia:read({ems_stream, Stream}) of
+            [] -> 
+                [ClientId];
+            [{ems_stream, Stream, []} ] ->
+                [ClientId];
+            [{ems_stream, Stream, [Ids]} ] ->
+                [ClientId | Ids]
+        end,
+        mnesia:write(#ems_stream{stream=Stream, client_ids=ClientIdList})
+    end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        _ -> error
+    end.
+
+
+%%--------------------------------------------------------------------
+%% @spec (string(), pid()) -> ok | errror  
+%% @doc
+%% unsubscribe from a stream
+%% @end 
+%%--------------------------------------------------------------------
+unsubscribe(ClientId, Stream) ->
+    F = fun() ->
+		case mnesia:read({ems_stream, Stream}) of
+		    [] ->
+			    {error, stream_not_found};
+		    [{ems_stream, Stream, Ids}] ->
+			    mnesia:write({ems_stream, Stream, lists:delete(ClientId,  Ids)})
+		end
+	end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        _ -> error
+    end.    
+
+
+%%--------------------------------------------------------------------
+%% @spec  
+%% @doc
+%% returns a list of all streams
+%% @end 
+%%--------------------------------------------------------------------
+streams() ->
+    Recs = do(qlc:q([X || X <-mnesia:table(stream)])),
+    [{Y,Z} || {stream, Y, Z} <- Recs].
+        
 
 %%--------------------------------------------------------------------
 %% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -82,7 +210,6 @@ start() ->
 
 
 stop() -> 
-    mnesia:stop(), %TODO: NEED To stop mnesia on each node. ?????
     gen_server:stop({global, ?MODULE}).
 
 
@@ -151,6 +278,7 @@ handle_info(_Info, State) ->
 %% @end
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    mnesia:stop(), 
     ok.
 
 
