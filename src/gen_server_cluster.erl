@@ -42,15 +42,15 @@
 
 -export([
     start/4,
-     start_local_server/1,
-     get_target_state/1,
-     get_all_server_pids/1,
-     get_all_server_nodes/1,
-     is_running/1,
-     stop/2,
-     link/2,
-     unlink/2
-     ]).
+    start_local_server/1,
+    get_target_state/1,
+    get_all_server_pids/1,
+    get_all_server_nodes/1,
+    is_running/1,
+    stop/2,
+    link/2,
+    unlink/2
+    ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
