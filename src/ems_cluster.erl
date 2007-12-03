@@ -49,6 +49,7 @@
     connections/0,
     connection/1,
     remove_connection/1,
+    is_live_stream/1,
     subscribe/2,
     unsubscribe/2,
     streams/0
@@ -76,9 +77,8 @@
 %% @end
 %%-------------------------------------------------------------------------
 add_connection(ClientId, Pid) -> 
-    Row = #ems_connection{client_id=ClientId, pid=Pid},
     F = fun() ->
-		mnesia:write(Row)
+		mnesia:write(#ems_connection{client_id=ClientId, pid=Pid})
 	end,
     case mnesia:transaction(F) of
         {atomic, ok} -> ok;
@@ -93,8 +93,7 @@ add_connection(ClientId, Pid) ->
 %% @end 
 %%--------------------------------------------------------------------    
 connections() -> 
-    Recs = do(qlc:q([X || X <-mnesia:table(ems_connection)])),
-    [{Y,Z} || {ems_connection, Y, Z} <- Recs].
+    do(qlc:q([X || X <-mnesia:table(ems_connection)])).
  
  
 %%--------------------------------------------------------------------
@@ -123,15 +122,35 @@ connection(ClientId) ->
 %% @end 
 %%--------------------------------------------------------------------	
 remove_connection(ClientId) ->
-    Oid = {ems_connection, ClientId},
     F = fun() ->
-		mnesia:delete(Oid)
+		mnesia:delete({ems_connection, ClientId})
 	end,
     case mnesia:transaction(F) of
         {atomic, ok} -> ok;
         _ -> error
     end.	
     
+    
+%%--------------------------------------------------------------------
+% @spec (string()) -> true | false 
+%% @doc
+%% subscribe to a stream
+%% @end 
+%%--------------------------------------------------------------------
+is_live_stream(Stream) ->
+    F = fun() ->
+        mnesia:read({ems_stream, Stream})
+    end,
+    {atomic, Row} = mnesia:transaction(F),
+    case Row of
+        [] ->
+            false;
+        [{ems_stream, Stream, wait, _}] -> %% TODO: use Record
+            false;
+        _ ->
+            true
+    end.
+  
       
 %%--------------------------------------------------------------------
 %% @spec (string(), pid()) -> ok | errror 
@@ -141,15 +160,13 @@ remove_connection(ClientId) ->
 %%--------------------------------------------------------------------
 subscribe(ClientId, Stream) ->
     F = fun() ->
-        ClientIdList = case mnesia:read({ems_stream, Stream}) of
+        E = case mnesia:read({ems_stream, Stream}) of
             [] -> 
-                [ClientId];
-            [{ems_stream, Stream, []} ] ->
-                [ClientId];
-            [{ems_stream, Stream, [Ids]} ] ->
-                [ClientId | Ids]
+                #ems_stream{client_ids=[ClientId]};
+            [#ems_stream{client_ids=Ids} = E1] ->
+                E1#ems_stream{client_ids=[ClientId | Ids]}
         end,
-        mnesia:write(#ems_stream{stream=Stream, client_ids=ClientIdList})
+        mnesia:write(E)
     end,
     case mnesia:transaction(F) of
         {atomic, ok} -> ok;
@@ -168,8 +185,8 @@ unsubscribe(ClientId, Stream) ->
 		case mnesia:read({ems_stream, Stream}) of
 		    [] ->
 			    {error, stream_not_found};
-		    [{ems_stream, Stream, Ids}] ->
-			    mnesia:write({ems_stream, Stream, lists:delete(ClientId,  Ids)})
+		    [#ems_stream{client_ids=Ids} = E] ->
+			    mnesia:write(E#ems_stream{client_ids=lists:delete(ClientId,  Ids)})
 		end
 	end,
     case mnesia:transaction(F) of
@@ -185,8 +202,7 @@ unsubscribe(ClientId, Stream) ->
 %% @end 
 %%--------------------------------------------------------------------
 streams() ->
-    Recs = do(qlc:q([X || X <-mnesia:table(stream)])),
-    [{Y,Z} || {stream, Y, Z} <- Recs].
+    do(qlc:q([X || X <-mnesia:table(ems_stream)])).
         
 
 %%--------------------------------------------------------------------

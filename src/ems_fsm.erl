@@ -163,16 +163,16 @@ init([]) ->
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-    case is_live(Name) of
-        {ok, Pid} ->
-            play_live(Pid, StreamId, State);
+    case ems_cluster:is_live_stream(Name) of
+        true ->
+            play_live(Name, StreamId, State);
         _ ->
             FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
         	case filelib:is_regular(FileName) of
         		true ->
         		    play_vod(FileName, StreamId, State);
         		_ ->
-        		    wait_live(StreamId, State)
+        		    play_wait(Name, State)
         	end
     end;    
 
@@ -443,7 +443,7 @@ play_vod(FileName, StreamId, State) ->
 	end.
 
 
-wait_live(_StreamId, State) ->
+play_wait(_StreamId, State) ->
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
         	    
 
