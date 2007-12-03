@@ -52,7 +52,8 @@
     is_live_stream/1,
     subscribe/2,
     unsubscribe/2,
-    streams/0
+    streams/0,
+    broadcast/2
     ]).
 
 %% gen_server callbacks
@@ -153,18 +154,18 @@ is_live_stream(Stream) ->
   
       
 %%--------------------------------------------------------------------
-%% @spec (string(), pid()) -> ok | errror 
+%% @spec (pid(), string()) -> ok | errror 
 %% @doc
 %% subscribe to a stream
 %% @end 
 %%--------------------------------------------------------------------
-subscribe(ClientId, Stream) ->
+subscribe(Pid, Stream) ->
     F = fun() ->
         E = case mnesia:read({ems_stream, Stream}) of
             [] -> 
-                #ems_stream{client_ids=[ClientId]};
-            [#ems_stream{client_ids=Ids} = E1] ->
-                E1#ems_stream{client_ids=[ClientId | Ids]}
+                #ems_stream{pids=[Pid]};
+            [#ems_stream{pids=Pids} = E1] ->
+                E1#ems_stream{pids=[Pid | Pids]}
         end,
         mnesia:write(E)
     end,
@@ -175,18 +176,18 @@ subscribe(ClientId, Stream) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec (string(), pid()) -> ok | errror  
+%% @spec (pid(), string()) -> ok | errror  
 %% @doc
 %% unsubscribe from a stream
 %% @end 
 %%--------------------------------------------------------------------
-unsubscribe(ClientId, Stream) ->
+unsubscribe(Pid, Stream) ->
     F = fun() ->
 		case mnesia:read({ems_stream, Stream}) of
 		    [] ->
 			    {error, stream_not_found};
-		    [#ems_stream{client_ids=Ids} = E] ->
-			    mnesia:write(E#ems_stream{client_ids=lists:delete(ClientId,  Ids)})
+		    [#ems_stream{pids=Pids} = E] ->
+			    mnesia:write(E#ems_stream{pids=lists:delete(Pid,  Pids)})
 		end
 	end,
     case mnesia:transaction(F) of
@@ -203,6 +204,25 @@ unsubscribe(ClientId, Stream) ->
 %%--------------------------------------------------------------------
 streams() ->
     do(qlc:q([X || X <-mnesia:table(ems_stream)])).
+    
+    
+%%--------------------------------------------------------------------
+%% @spec (string(), binary()) -> ok | errror 
+%% @doc
+%% broadcast a stream
+%% @end 
+%%--------------------------------------------------------------------
+broadcast(Name, Packet) ->
+    F = fun() -> 
+        mnesia:read({ems_stream, Name})
+    end,
+    case mnesia:transaction(F) of    
+        {atomic, [#ems_stream{pids=Pids}]} ->
+            [ gen_fms:call(Pid, {send, Packet}) || Pid <- Pids ],
+            ok;
+        _ ->
+            error
+    end.
         
 
 %%--------------------------------------------------------------------

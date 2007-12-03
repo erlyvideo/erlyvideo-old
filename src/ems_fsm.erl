@@ -165,14 +165,16 @@ init([]) ->
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
     case ems_cluster:is_live_stream(Name) of
         true ->
-            play_live(Name, StreamId, State);
+		    ems_cluster:subscribe(self(), Name),
+            {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         _ ->
             FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
         	case filelib:is_regular(FileName) of
         		true ->
         		    play_vod(FileName, StreamId, State);
         		_ ->
-        		    play_wait(Name, State)
+        		    ems_cluster:subscribe(self(), Name),
+                    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
         	end
     end;    
 
@@ -239,11 +241,13 @@ init([]) ->
 'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
     io:format("TRACE ~p:~p live-streamname: ~p~n",[?MODULE, ?LINE, Name]),
     Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
+    %% ems_cluster:broadcast(Name, Header)
     NextState = State#ems_fsm{flv_buffer=[Header],publish=live,flv_file_name=Name,flv_ts_prev=0},
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{publish = live} = State) when is_record(Channel,channel) ->
 	?D({"Live",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp}),
+	%% ems_cluster:broadcast(Name, Header)
 	NextState = State#ems_fsm{},
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
     	
@@ -403,13 +407,6 @@ normalize_fileame(Name) ->
     end.
  
  
-is_live(_Name) -> false.
- 
-     
-play_live(_Pid, _StreamId, State) ->
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
-
-
 play_vod(FileName, StreamId, State) ->
 	?D({"Found It",FileName}),
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
@@ -441,10 +438,6 @@ play_vod(FileName, StreamId, State) ->
 		_HdrError -> 
 		    ?D(_HdrError)
 	end.
-
-
-play_wait(_StreamId, State) ->
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
         	    
 
 % rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream

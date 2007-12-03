@@ -215,7 +215,7 @@
 -record(ems_stream, {
     stream, 
     type = wait,
-    client_ids = []
+    pids = []
     }).
 
 -record(ems_server, {
