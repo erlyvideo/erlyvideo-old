@@ -207,8 +207,8 @@
 -record(ems_cluster, {
 	}).
 	
--record(ems_connection, {
-    client_id,
+-record(ems_client, {
+    id,
     pid
     }).
 

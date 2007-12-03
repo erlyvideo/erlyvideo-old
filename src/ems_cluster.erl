@@ -45,10 +45,10 @@
     start/0, 
     stop/0,
     is_global/0,
-    add_connection/2,
-    connections/0,
-    connection/1,
-    remove_connection/1,
+    add_client/2,
+    clients/0,
+    client/1,
+    remove_client/1,
     is_live_stream/1,
     subscribe/2,
     unsubscribe/2,
@@ -74,12 +74,12 @@
 %%-------------------------------------------------------------------------
 %% @spec (pid(), string()) -> ok | errror
 %% @doc
-%% adds a connection
+%% adds a client
 %% @end
 %%-------------------------------------------------------------------------
-add_connection(ClientId, Pid) -> 
+add_client(Id, Pid) -> 
     F = fun() ->
-		mnesia:write(#ems_connection{client_id=ClientId, pid=Pid})
+		mnesia:write(#ems_client{id=Id, pid=Pid})
 	end,
     case mnesia:transaction(F) of
         {atomic, ok} -> ok;
@@ -88,30 +88,30 @@ add_connection(ClientId, Pid) ->
  
   
 %%--------------------------------------------------------------------
-%% @spec  () -> Connections::list()
+%% @spec  () -> Client::list()
 %% @doc
-%% returns a list of all connections
+%% returns a list of all clients
 %% @end 
 %%--------------------------------------------------------------------    
-connections() -> 
-    do(qlc:q([X || X <-mnesia:table(ems_connection)])).
+clients() -> 
+    do(qlc:q([X || X <-mnesia:table(ems_client)])).
  
  
 %%--------------------------------------------------------------------
 %% @spec (string()) -> pid() | undefined 
 %% @doc
-%% retrieves a connection based on clientId
+%% retrieves a client based on his Id
 %% @end 
 %%--------------------------------------------------------------------    
-connection(ClientId) ->
+client(Id) ->
     F = fun() ->
-        mnesia:read({ems_connection, ClientId})
+        mnesia:read({ems_client, Id})
     end,
     {atomic, Row} = mnesia:transaction(F),
     case Row of
         [] ->
             undefined;
-        [{connection, ClientId, Pid}] ->
+        [#ems_client{pid=Pid}] ->
             Pid
     end.
 
@@ -119,12 +119,12 @@ connection(ClientId) ->
 %%--------------------------------------------------------------------
 %% @spec (string()) -> ok | errror
 %% @doc
-%% remove a connection based on clientId
+%% remove a client based on Id
 %% @end 
 %%--------------------------------------------------------------------	
-remove_connection(ClientId) ->
+remove_client(Id) ->
     F = fun() ->
-		mnesia:delete({ems_connection, ClientId})
+		mnesia:delete({ems_client, Id})
 	end,
     case mnesia:transaction(F) of
         {atomic, ok} -> ok;
@@ -146,7 +146,7 @@ is_live_stream(Stream) ->
     case Row of
         [] ->
             false;
-        [{ems_stream, Stream, wait, _}] -> %% TODO: use Record
+        [#ems_stream{type=wait}] ->
             false;
         _ ->
             true
@@ -218,12 +218,11 @@ broadcast(Name, Packet) ->
     end,
     case mnesia:transaction(F) of    
         {atomic, [#ems_stream{pids=Pids}]} ->
-            [ gen_fms:call(Pid, {send, Packet}) || Pid <- Pids ],
+            [ gen_fms:send_event(Pid, {send, Packet}) || Pid <- Pids ],
             ok;
         _ ->
             error
     end.
-        
 
 %%--------------------------------------------------------------------
 %% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -333,7 +332,7 @@ code_change(_OldVsn, State, _Extra) ->
 mnesia_tables() ->
     [{connection,
       [{ram_copies, [node()]},
-       {attributes, record_info(fields, ems_connection)}]},
+       {attributes, record_info(fields, ems_client)}]},
      {channel,
       [{ram_copies, [node()]},
        {attributes, record_info(fields, ems_stream)}]}].
