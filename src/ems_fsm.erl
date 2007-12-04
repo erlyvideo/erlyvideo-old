@@ -162,19 +162,25 @@ init([]) ->
 	gen_tcp:send(State#ems_fsm.socket,Packet),
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
+'WAIT_FOR_DATA'({send, Packet}, State) when is_binary(Packet) ->
+	gen_tcp:send(State#ems_fsm.socket,Packet),
+    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+        
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
     case ems_cluster:is_live_stream(Name) of
         true ->
 		    ems_cluster:subscribe(self(), Name),
-            {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+		    NextState = State#ems_fsm{type  = live},
+            {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
         _ ->
             FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
         	case filelib:is_regular(FileName) of
         		true ->
-        		    play_vod(FileName, StreamId, State);
+        		    play_vod(FileName, StreamId, State#ems_fsm{type = vod});
         		_ ->
         		    ems_cluster:subscribe(self(), Name),
-                    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
+        		    NextState = State#ems_fsm{type  = wait},
+                    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
         	end
     end;    
 
@@ -189,7 +195,7 @@ init([]) ->
  			Timeout = timeout(Tag#flv_tag.timestamp_abs, 
 			                  State#ems_fsm.flv_timer_start, 
     		                  State#ems_fsm.client_buffer),
-				NewTimer = gen_fsm:start_timer(Timeout, play),
+			NewTimer = gen_fsm:start_timer(Timeout, play),
 			NextState = State#ems_fsm{flv_timer_ref  = NewTimer,
 									  flv_ts_prev = Tag#flv_tag.timestamp_abs,
 									  flv_pos = Tag#flv_tag.nextpos},
@@ -199,7 +205,7 @@ init([]) ->
 			{stop, normal, State}
 	end;
 
-'WAIT_FOR_DATA'({stop}, #ems_fsm{flv_device = IoDev, flv_buffer = Buffer} = State) ->
+'WAIT_FOR_DATA'({stop}, #ems_fsm{flv_device = IoDev, flv_buffer = Buffer, flv_timer_ref = TimerRef, type = Type} = State) ->
 	case Buffer of
 		undefined -> ok;
 		_ -> file:write(IoDev, lists:reverse(Buffer))
@@ -208,9 +214,19 @@ init([]) ->
         undefined -> ok;
         _ -> file:close(IoDev)
     end,
-    case State#ems_fsm.flv_timer_ref of
+    case TimerRef of
         undefined -> ok;
-        _ -> gen_fsm:cancel_timer(State#ems_fsm.flv_timer_ref)
+        _ -> gen_fsm:cancel_timer(TimerRef)
+    end,
+    case type of
+        live -> 
+            ems_cluster:unsubscribe(State#ems_fsm.flv_file_name, self());
+        wait -> 
+            ems_cluster:unsubscribe(State#ems_fsm.flv_file_name, self());
+        broadcast ->
+            emscluster:stop_broadcast(State#ems_fsm.flv_file_name);
+        _ -> 
+            ok
     end,
 	NextState = State#ems_fsm{flv_device=undefined,flv_buffer=[],
 							  flv_timer_ref=undefined,flv_pos = 0},
@@ -221,7 +237,7 @@ init([]) ->
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
-			NextState = State#ems_fsm{flv_buffer=[Header],publish=record,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
+			NextState = State#ems_fsm{flv_buffer=[Header],type=record,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 		_ ->
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
@@ -232,24 +248,26 @@ init([]) ->
 	FileName = filename:join([flv_dir(), Name]),
 	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
-			NextState = State#ems_fsm{publish=append,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
+			NextState = State#ems_fsm{type=record_append,flv_device=IoDev,flv_file_name=FileName,flv_ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 	    _ ->
     		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
     end;	
     
-'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
-    io:format("TRACE ~p:~p live-streamname: ~p~n",[?MODULE, ?LINE, Name]),
-    Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-    %% ems_cluster:broadcast(Name, Header)
-    NextState = State#ems_fsm{flv_buffer=[Header],publish=live,flv_file_name=Name,flv_ts_prev=0},
+'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->        
+    ems_cluster:broadcast(Name),
+    NextState = State#ems_fsm{type=broadcast,flv_file_name=Name, flv_ts_prev = 0},
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{publish = live} = State) when is_record(Channel,channel) ->
-	?D({"Live",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp}),
-	%% ems_cluster:broadcast(Name, Header)
-	NextState = State#ems_fsm{},
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{type = broadcast, 
+                                            flv_ts_prev = PrevTs,
+                                            flv_file_name = Name} = State) when is_record(Channel,channel) ->
+	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
+	?D({"Broadcast",Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
+	Packet = ems_rtmp:encode(Channel#channel{timestamp = NextTimeStamp}),        
+    ems_cluster:broadcast(Name, Packet),
+    NextState = State#ems_fsm{flv_ts_prev=NextTimeStamp},
+    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
     	
 'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{flv_ts_prev = PrevTs, 
                                             flv_device = IoDev, 

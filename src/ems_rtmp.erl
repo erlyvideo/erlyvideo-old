@@ -40,8 +40,11 @@
 
 
 
-handshake(Bin) when is_binary(Bin) -> <<Bin/binary,Bin/binary>>.
+handshake(Bin) when is_binary(Bin) -> 
+    <<Bin/binary,Bin/binary>>.
 
+encode(#channel{msg = Msg} = Channel)	when is_record(Channel,channel) ->
+    encode(Channel,Msg,<<>>).
 
 encode(Channel,AMF)	when is_record(Channel,channel), is_record(AMF,amf) -> 
 	?D({"Encode", Channel, AMF}),

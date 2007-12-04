@@ -53,7 +53,9 @@
     subscribe/2,
     unsubscribe/2,
     streams/0,
-    broadcast/2
+    broadcast/1,
+    broadcast/2,
+    stop_broadcast/1
     ]).
 
 %% gen_server callbacks
@@ -138,9 +140,9 @@ remove_client(Id) ->
 %% subscribe to a stream
 %% @end 
 %%--------------------------------------------------------------------
-is_live_stream(Stream) ->
+is_live_stream(Id) ->
     F = fun() ->
-        mnesia:read({ems_stream, Stream})
+        mnesia:read({ems_stream, Id})
     end,
     {atomic, Row} = mnesia:transaction(F),
     case Row of
@@ -159,9 +161,9 @@ is_live_stream(Stream) ->
 %% subscribe to a stream
 %% @end 
 %%--------------------------------------------------------------------
-subscribe(Pid, Stream) ->
+subscribe(Pid, Id) ->
     F = fun() ->
-        E = case mnesia:read({ems_stream, Stream}) of
+        E = case mnesia:read({ems_stream, Id}) of
             [] -> 
                 #ems_stream{pids=[Pid]};
             [#ems_stream{pids=Pids} = E1] ->
@@ -181,9 +183,9 @@ subscribe(Pid, Stream) ->
 %% unsubscribe from a stream
 %% @end 
 %%--------------------------------------------------------------------
-unsubscribe(Pid, Stream) ->
+unsubscribe(Pid, Id) ->
     F = fun() ->
-		case mnesia:read({ems_stream, Stream}) of
+		case mnesia:read({ems_stream, Id}) of
 		    [] ->
 			    {error, stream_not_found};
 		    [#ems_stream{pids=Pids} = E] ->
@@ -205,25 +207,68 @@ unsubscribe(Pid, Stream) ->
 streams() ->
     do(qlc:q([X || X <-mnesia:table(ems_stream)])).
     
+   
+%%--------------------------------------------------------------------
+%% @spec (string()) -> ok | errror 
+%% @doc
+%% broadcast a stream
+%% @end 
+%%--------------------------------------------------------------------
+broadcast(Id) ->
+    F = fun() ->
+		case mnesia:read({ems_stream, Id}) of
+		    [] ->
+			    {error, stream_not_found};
+		    [E] ->
+			    mnesia:write(E#ems_stream{type=live})
+		end
+	end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        _ -> error
+    end.
     
+                
 %%--------------------------------------------------------------------
 %% @spec (string(), binary()) -> ok | errror 
 %% @doc
 %% broadcast a stream
 %% @end 
 %%--------------------------------------------------------------------
-broadcast(Name, Packet) ->
-    F = fun() -> 
-        mnesia:read({ems_stream, Name})
-    end,
-    case mnesia:transaction(F) of    
-        {atomic, [#ems_stream{pids=Pids}]} ->
-            [ gen_fms:send_event(Pid, {send, Packet}) || Pid <- Pids ],
-            ok;
-        _ ->
-            error
-    end.
+broadcast(Id, Data) ->
+     F = fun() -> 
+         mnesia:read({ems_stream, Id})
+     end,
+     case mnesia:transaction(F) of    
+         {atomic, [#ems_stream{pids=Pids}]} ->
+             [ gen_fsm:send_event(Pid, {send, Data}) || Pid <- Pids ],
+             ok;
+         _ ->
+             error
+     end.
 
+
+ %%--------------------------------------------------------------------
+ %% @spec (string()) -> ok | errror 
+ %% @doc
+ %% stop broadcast a stream
+ %% @end 
+ %%--------------------------------------------------------------------
+ stop_broadcast(Id) ->
+     F = fun() ->
+ 		case mnesia:read({ems_stream, Id}) of
+ 		    [] ->
+ 			    {error, stream_not_found};
+ 		    [E] ->
+ 			    mnesia:write(E#ems_stream{type=undefined})
+ 		end
+     end,
+     case mnesia:transaction(F) of
+         {atomic, ok} -> ok;
+         _ -> error
+     end.
+         
+                 	
 %%--------------------------------------------------------------------
 %% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
 %% @doc 
@@ -330,10 +375,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 mnesia_tables() ->
-    [{connection,
+    [{ems_client,
       [{ram_copies, [node()]},
        {attributes, record_info(fields, ems_client)}]},
-     {channel,
+     {ems_stream,
       [{ram_copies, [node()]},
        {attributes, record_info(fields, ems_stream)}]}].
        

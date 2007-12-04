@@ -213,7 +213,7 @@
     }).
 
 -record(ems_stream, {
-    stream, 
+    id, 
     type = wait,
     pids = []
     }).
@@ -235,7 +235,7 @@
 	client_buffer = ?MIN_CLIENT_BUFFER,
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	next_stream_id = 1,
-	publish,
+	type,
 	flv_device,
 	flv_buffer,
 	flv_file_name,
