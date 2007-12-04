@@ -199,7 +199,7 @@ unsubscribe(Pid, Id) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec  
+%% @spec  () -> term()
 %% @doc
 %% returns a list of all streams
 %% @end 
@@ -209,7 +209,7 @@ streams() ->
     
    
 %%--------------------------------------------------------------------
-%% @spec (string()) -> ok | errror 
+%% @spec (string()) -> ok | error 
 %% @doc
 %% broadcast a stream
 %% @end 
@@ -270,7 +270,7 @@ broadcast(Id, Data) ->
          
                  	
 %%--------------------------------------------------------------------
-%% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
+%% @spec () -> {ok,Pid} | ignore | {error,Error}
 %% @doc 
 %% Starts server cluster node
 %% @end 

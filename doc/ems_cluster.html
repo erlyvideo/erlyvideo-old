@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module ems_cluster</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css">
+</head>
+<body bgcolor="white">
+
+<h1>Module ems_cluster</h1>
+       Generalized RTMP application behavior module.
+<p>Copyright ©  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon</p>
+<ul><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>Authors:</b> Roberto Saccon (<a href="mailto:rsaccon@gmail.com"><tt>rsaccon@gmail.com</tt></a>) [<em>web site:</em> <tt><a href="http://rsaccon.com" target="_top">http://rsaccon.com</a></tt>], Stuart Jackson (<a href="mailto:simpleenigmainc@gmail.com"><tt>simpleenigmainc@gmail.com</tt></a>) [<em>web site:</em> <tt><a href="http://erlsoft.org" target="_top">http://erlsoft.org</a></tt>], Luke Hubbard (<a href="mailto:luke@codegent.com"><tt>luke@codegent.com</tt></a>) [<em>web site:</em> <tt><a href="http://www.codegent.com" target="_top">http://www.codegent.com</a></tt>].</p>
+<p><b>References</b><ul><li> See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information</li></ul></p>
+
+<h2><a name="description">Description</a></h2>       Generalized RTMP application behavior module
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1"><tr><td valign="top"><a href="#add_client-2">add_client/2</a></td><td>
+  adds a client.</td></tr>
+<tr><td valign="top"><a href="#broadcast-1">broadcast/1</a></td><td>
+  broadcast a stream.</td></tr>
+<tr><td valign="top"><a href="#broadcast-2">broadcast/2</a></td><td>
+  broadcast a stream.</td></tr>
+<tr><td valign="top"><a href="#client-1">client/1</a></td><td>
+  retrieves a client based on his Id.</td></tr>
+<tr><td valign="top"><a href="#clients-0">clients/0</a></td><td>
+  returns a list of all clients.</td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td>Upgrade or Downgrade code.</td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td>Handles request from gen_server:call2,3 and gen_server:multi_call:2,3,4.</td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td>handles request from gen_server:cast/2.</td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td>Handles messages sent to server.</td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td>Initalization.</td></tr>
+<tr><td valign="top"><a href="#is_global-0">is_global/0</a></td><td>global or local server.</td></tr>
+<tr><td valign="top"><a href="#is_live_stream-1">is_live_stream/1</a></td><td>
+  subscribe to a stream.</td></tr>
+<tr><td valign="top"><a href="#remove_client-1">remove_client/1</a></td><td>
+  remove a client based on Id.</td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td>
+  Starts server cluster node.</td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td/></tr>
+<tr><td valign="top"><a href="#stop_broadcast-1">stop_broadcast/1</a></td><td>
+  stop broadcast a stream.</td></tr>
+<tr><td valign="top"><a href="#streams-0">streams/0</a></td><td>
+  returns a list of all streams.</td></tr>
+<tr><td valign="top"><a href="#subscribe-2">subscribe/2</a></td><td>
+  subscribe to a stream.</td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td>stops EMS cluster.</td></tr>
+<tr><td valign="top"><a href="#unsubscribe-2">unsubscribe/2</a></td><td>
+  unsubscribe from a stream.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3><a name="add_client-2">add_client/2</a></h3>
+<p><tt>add_client(Id::pid(), Pid::string()) -&gt; ok | errror</tt></p>
+<p>
+  adds a client</p>
+
+<h3><a name="broadcast-1">broadcast/1</a></h3>
+<p><tt>broadcast(Id::string()) -&gt; ok | error</tt></p>
+<p>
+  broadcast a stream</p>
+
+<h3><a name="broadcast-2">broadcast/2</a></h3>
+<p><tt>broadcast(Id::string(), Data::binary()) -&gt; ok | errror</tt></p>
+<p>
+  broadcast a stream</p>
+
+<h3><a name="client-1">client/1</a></h3>
+<p><tt>client(Id::string()) -&gt; pid() | undefined</tt></p>
+<p>
+  retrieves a client based on his Id</p>
+
+<h3><a name="clients-0">clients/0</a></h3>
+<p><tt>clients() -&gt; Client::list()</tt></p>
+<p>
+  returns a list of all clients</p>
+
+<h3><a name="code_change-3">code_change/3</a></h3>
+<p><tt>code_change(OldVsn::any(), State::any(), Extra::any()) -&gt; any()</tt></p>
+<p>Upgrade or Downgrade code</p>
+
+<h3><a name="handle_call-3">handle_call/3</a></h3>
+<p><tt>handle_call(Request::any(), From::pid(), State::any()) -&gt; any()</tt></p>
+<p>Handles request from gen_server:call2,3 and gen_server:multi_call:2,3,4</p>
+
+<h3><a name="handle_cast-2">handle_cast/2</a></h3>
+<p><tt>handle_cast(Request::any(), State::any()) -&gt; any()</tt></p>
+<p>handles request from gen_server:cast/2</p>
+
+<h3><a name="handle_info-2">handle_info/2</a></h3>
+<p><tt>handle_info(Info::any(), State::any()) -&gt; any()</tt></p>
+<p>Handles messages sent to server</p>
+
+<h3><a name="init-1">init/1</a></h3>
+<p><tt>init(Args::any()) -&gt; any()</tt></p>
+<p>Initalization</p>
+
+<h3><a name="is_global-0">is_global/0</a></h3>
+<p><tt>is_global() -&gt; bool()</tt></p>
+<p>global or local server</p>
+
+<h3><a name="is_live_stream-1">is_live_stream/1</a></h3>
+<p><tt>is_live_stream(Id::string()) -&gt; true | false</tt></p>
+<p>
+  subscribe to a stream</p>
+
+<h3><a name="remove_client-1">remove_client/1</a></h3>
+<p><tt>remove_client(Id::string()) -&gt; ok | errror</tt></p>
+<p>
+  remove a client based on Id</p>
+
+<h3><a name="start-0">start/0</a></h3>
+<p><tt>start() -&gt; {ok, Pid} | ignore | {error, Error}</tt></p>
+<p>
+  Starts server cluster node</p>
+
+<h3><a name="stop-0">stop/0</a></h3>
+<tt>stop() -&gt; term()
+</tt>
+
+<h3><a name="stop_broadcast-1">stop_broadcast/1</a></h3>
+<p><tt>stop_broadcast(Id::string()) -&gt; ok | errror</tt></p>
+<p>
+  stop broadcast a stream</p>
+
+<h3><a name="streams-0">streams/0</a></h3>
+<p><tt>streams() -&gt; term()</tt></p>
+<p>
+  returns a list of all streams</p>
+
+<h3><a name="subscribe-2">subscribe/2</a></h3>
+<p><tt>subscribe(Pid::pid(), Id::string()) -&gt; ok | errror</tt></p>
+<p>
+  subscribe to a stream</p>
+
+<h3><a name="terminate-2">terminate/2</a></h3>
+<p><tt>terminate(Reason::any(), State::any()) -&gt; any()</tt></p>
+<p>stops EMS cluster</p>
+
+<h3><a name="unsubscribe-2">unsubscribe/2</a></h3>
+<p><tt>unsubscribe(Pid::pid(), Id::string()) -&gt; ok | errror</tt></p>
+<p>
+  unsubscribe from a stream</p>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module gen_server_cluster</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css">
+</head>
+<body bgcolor="white">
+
+<h1>Module gen_server_cluster</h1>
+       Framework for Clustering Generic Server Instances.
+<p>Copyright ©  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon</p>
+<ul><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>Authors:</b> Christoph Dornheim [<em>web site:</em> <tt><a href="http://www.trapexit.org/A_Framework_for_Clustering_Generic_Server_Instances" target="_top">http://www.trapexit.org/A_Framework_for_Clustering_Generic_Server_Instances</a></tt>], Roberto Saccon (<a href="mailto:rsaccon@gmail.com"><tt>rsaccon@gmail.com</tt></a>) [<em>web site:</em> <tt><a href="http://rsaccon.com" target="_top">http://rsaccon.com</a></tt>], Stuart Jackson (<a href="mailto:simpleenigmainc@gmail.com"><tt>simpleenigmainc@gmail.com</tt></a>) [<em>web site:</em> <tt><a href="http://erlsoft.org" target="_top">http://erlsoft.org</a></tt>], Luke Hubbard (<a href="mailto:luke@codegent.com"><tt>luke@codegent.com</tt></a>) [<em>web site:</em> <tt><a href="http://www.codegent.com" target="_top">http://www.codegent.com</a></tt>].</p>
+<p><b>References</b><ul><li> See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information</li></ul></p>
+
+<h2><a name="description">Description</a></h2>       Framework for Clustering Generic Server Instances
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1"><tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td/></tr>
+<tr><td valign="top"><a href="#get_all_server_nodes-1">get_all_server_nodes/1</a></td><td/></tr>
+<tr><td valign="top"><a href="#get_all_server_pids-1">get_all_server_pids/1</a></td><td/></tr>
+<tr><td valign="top"><a href="#get_target_state-1">get_target_state/1</a></td><td/></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td/></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td/></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td/></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td/></tr>
+<tr><td valign="top"><a href="#is_running-1">is_running/1</a></td><td/></tr>
+<tr><td valign="top"><a href="#link-2">link/2</a></td><td/></tr>
+<tr><td valign="top"><a href="#start-4">start/4</a></td><td/></tr>
+<tr><td valign="top"><a href="#start_local_server-1">start_local_server/1</a></td><td/></tr>
+<tr><td valign="top"><a href="#stop-2">stop/2</a></td><td/></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td/></tr>
+<tr><td valign="top"><a href="#unlink-2">unlink/2</a></td><td/></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3><a name="code_change-3">code_change/3</a></h3>
+<tt>code_change(OldVsn, State, Extra) -&gt; term()
+</tt>
+
+<h3><a name="get_all_server_nodes-1">get_all_server_nodes/1</a></h3>
+<tt>get_all_server_nodes(Name) -&gt; term()
+</tt>
+
+<h3><a name="get_all_server_pids-1">get_all_server_pids/1</a></h3>
+<tt>get_all_server_pids(Name) -&gt; term()
+</tt>
+
+<h3><a name="get_target_state-1">get_target_state/1</a></h3>
+<tt>get_target_state(Name) -&gt; term()
+</tt>
+
+<h3><a name="handle_call-3">handle_call/3</a></h3>
+<tt>handle_call(Reply, From, State) -&gt; term()
+</tt>
+
+<h3><a name="handle_cast-2">handle_cast/2</a></h3>
+<tt>handle_cast(Msg, State) -&gt; term()
+</tt>
+
+<h3><a name="handle_info-2">handle_info/2</a></h3>
+<tt>handle_info(Info, State) -&gt; term()
+</tt>
+
+<h3><a name="init-1">init/1</a></h3>
+<tt>init(X1) -&gt; term()
+</tt>
+
+<h3><a name="is_running-1">is_running/1</a></h3>
+<tt>is_running(Name) -&gt; term()
+</tt>
+
+<h3><a name="link-2">link/2</a></h3>
+<tt>link(Name, Pid) -&gt; term()
+</tt>
+
+<h3><a name="start-4">start/4</a></h3>
+<tt>start(Name, TargetModule, TargetArgs, Options) -&gt; term()
+</tt>
+
+<h3><a name="start_local_server-1">start_local_server/1</a></h3>
+<tt>start_local_server(Name) -&gt; term()
+</tt>
+
+<h3><a name="stop-2">stop/2</a></h3>
+<tt>stop(Name, Node) -&gt; term()
+</tt>
+
+<h3><a name="terminate-2">terminate/2</a></h3>
+<tt>terminate(Reason, State) -&gt; term()
+</tt>
+
+<h3><a name="unlink-2">unlink/2</a></h3>
+<tt>unlink(Name, Pid) -&gt; term()
+</tt>
+</body>
+</html>

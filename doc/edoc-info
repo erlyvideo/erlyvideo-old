@@ -1,8 +1,9 @@
-{application,'ErlyVideo'}.
+{application,erlmedia}.
 {packages,[]}.
 {modules,[ems,
           ems_amf,
           ems_app,
+          ems_cluster,
           ems_demo,
           ems_flv,
           ems_fsm,
@@ -10,4 +11,5 @@
           ems_rtmp,
           ems_server,
           ems_test,
-          gen_rtmp]}.
+          gen_rtmp,
+          gen_server_cluster]}.
