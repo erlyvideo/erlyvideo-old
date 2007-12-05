@@ -153,6 +153,9 @@ publish(From, AMF, _Channel) ->
                 _OtherAction -> 
                     ?D({"Publish Ignoring - ", _OtherAction})
             end;
+		[{null,null},{string,Name}] -> % second arg is optional
+			?D({"Publish - Action - live",Name}),
+            gen_fsm:send_event(From, {publish, live, Name});
         _ -> ok
     end. 
 
