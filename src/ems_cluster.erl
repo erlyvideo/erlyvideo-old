@@ -178,7 +178,7 @@ subscribe(Pid, Id) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec (pid(), string()) -> ok | errror  
+%% @spec (pid(), string()) -> ok | error  
 %% @doc
 %% unsubscribe from a stream
 %% @end 
