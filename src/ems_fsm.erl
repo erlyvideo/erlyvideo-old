@@ -256,6 +256,16 @@ init([]) ->
     
 'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->        
     ems_cluster:broadcast(Name),
+    %% hack - empty audio
+    StreamId=1,
+    Id=channel_id(?RTMP_TYPE_AUDIO, StreamId),
+    TimeStamp=0,
+    Length=0,
+    Type=?RTMP_TYPE_AUDIO,
+    Rest = <<>>,
+    FirstPacket = <<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,    
+    ems_cluster:broadcast(Name, FirstPacket),
+    %% hack end
     NextState = State#ems_fsm{type=broadcast,flv_file_name=Name, flv_ts_prev = 0},
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
@@ -263,8 +273,8 @@ init([]) ->
                                             flv_ts_prev = PrevTs,
                                             flv_file_name = Name} = State) when is_record(Channel,channel) ->
 	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
-	?D({"Broadcast",Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-	Packet = ems_rtmp:encode(Channel#channel{timestamp = NextTimeStamp}),        
+%	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
+	Packet = ems_rtmp:encode(Channel#channel{id = channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
     ems_cluster:broadcast(Name, Packet),
     NextState = State#ems_fsm{flv_ts_prev=NextTimeStamp},
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
