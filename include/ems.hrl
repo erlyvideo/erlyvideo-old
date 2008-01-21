@@ -115,6 +115,10 @@
 -define(AMF3_OBJECT_VALUE, 2).
 -define(AMF3_OBJECT_PROXY, 3).
 
+% AMF commands
+-define(AMF_COMMAND_ONMETADATA, "onMetaData").
+-define(AMF_COMMAND_ONCUEPOINT, "onCuePoint").
+
 %% FLV header
 -define(FLV_HEADER_LENGTH,          9).
 -define(FLV_HEAD_SIG,    <<70,76,86>>).
@@ -262,8 +266,18 @@
 	streamid      = undefined,
 	pos           = undefined,
 	nextpos       = undefined,
-	body          = <<>>
+	body          = <<>>,
+	codec_id 	= undefined,
+	frame_type      = undefined,
+	sound_type	= undefined,
+	sound_size	= undefined,
+	sound_rate	= undefined,
+	sound_format	= undefined,
+	height		= undefined,
+	width		= undefined,
+	amf_data        = undefined
 	}).
+	
 
 -record(channel,{
 	id        = undefined,
@@ -274,8 +288,10 @@
 	msg       = undefined
 	}).
 
+
 -record(amf,{
 	command = [],
 	id      = [],
-	args    = []
+	args    = [],
+	type 	= invoke %if invoke then id, otherwise notify
 	}).
