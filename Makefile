@@ -1,12 +1,11 @@
 ERL=erl
-APP_NAME=ems
+APP_NAME=erlmedia
 MNESIA_DATA=mnesia-data
 NODE_NAME=$(APP_NAME)
 VSN=0.1
 
 all:
-	( $(ERL) -make && \
-	if [ ! -e ebin/$(APP_NAME).app ]; then cp -f src/$(APP_NAME).app.src ebin/$(APP_NAME).app; fi )
+	( $(ERL) -make )
 
 doc:	
 	$(ERL) -pa `pwd`/ebin \
