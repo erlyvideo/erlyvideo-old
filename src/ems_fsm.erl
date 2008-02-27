@@ -205,7 +205,7 @@ init([]) ->
 			{stop, normal, State}
 	end;
 
-'WAIT_FOR_DATA'({stop}, #ems_fsm{flv_device = IoDev, flv_buffer = Buffer, flv_timer_ref = TimerRef, type = Type} = State) ->
+'WAIT_FOR_DATA'({stop}, #ems_fsm{flv_device = IoDev, flv_buffer = Buffer, flv_timer_ref = TimerRef, type = _Type} = State) ->
 	case Buffer of
 		undefined -> ok;
 		_ -> file:write(IoDev, lists:reverse(Buffer))

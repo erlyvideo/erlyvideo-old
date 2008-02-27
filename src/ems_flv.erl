@@ -36,7 +36,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([read_header/1,read_tag/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
+-export([read_header/1,read_tag/1,read_tag/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
 read_header(IoDev) -> 
     case file:read(IoDev, ?FLV_HEADER_LENGTH) of
@@ -174,7 +174,7 @@ decodeScreenVideo(IoDev, Pos) ->
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 4) of
 		{ok, IoList4} -> 
 			case iolist_to_binary(IoList4) of
-				<<Offset:4, Width:12, Height:12, Rest:4>> -> {Width, Height}
+				<<_Offset:4, Width:12, Height:12, _Rest:4>> -> {Width, Height}
 			end
 	end.
 	
@@ -182,14 +182,14 @@ decodeSorensen(IoDev, Pos) ->
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 9) of
 		{ok, IoList4} ->
 			case iolist_to_binary(IoList4) of
-				<<Offset:30, Info:3, Rest:39>> -> 
+				<<_Offset:30, Info:3, _Rest:39>> -> 
 				case Info of
 					
 					0 ->  case iolist_to_binary(IoList4) of
-							<<Offset1:30, Info1:3, Width1:8, Height1:8, Rest1:23>> -> {Width1, Height1}
+							<<_Offset1:30, _Info1:3, Width1:8, Height1:8, _Rest1:23>> -> {Width1, Height1}
 					      end;
 					1 -> case iolist_to_binary(IoList4) of
-							<<Offset2:30, Info2:3, Width2:16, Height2:16, Rest2:7>> -> {Width2, Height2}
+							<<_Offset2:30, _Info2:3, Width2:16, Height2:16, _Rest2:7>> -> {Width2, Height2}
 					     end;
 					2 -> {352, 288};
 					3 -> {176, 144};
@@ -204,7 +204,7 @@ decodeVP6(IoDev, Pos)->
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 7) of
 			{ok, IoList4} -> 
 				case iolist_to_binary(IoList4) of
-					<<HeightHelper:4, WidthHelper:4, Offset:24, Width:8, Height:8>> -> 
+					<<HeightHelper:4, WidthHelper:4, _Offset:24, Width:8, Height:8>> -> 
 						{Width*16-WidthHelper, Height*16-HeightHelper}
 				end
 	end.

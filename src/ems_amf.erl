@@ -42,14 +42,14 @@ decode(Bin) ->
 	%{number, Id, Rest2} = parse(Rest),
 	%rewritten to:
 	case parse(Rest) of
-		{{mixed_array, Rest2}, Rest3} -> %without id,  set type to notify
+		{{mixed_array, Rest2}, _Rest3} -> %without id,  set type to notify
 					Args = decode_args(Rest2, []),
-					AMF = #amf{command = list_to_atom(Command), args = Args, type=notify};
+					_AMF = #amf{command = list_to_atom(Command), args = Args, type=notify};
 		{number, Id, Rest2}  -> io:format("ups, just jumped into that case ! ~p ~n", [Rest2]),
 					case parse(Rest2) of
-						{{mixed_array, Rest3}, Rest4} ->
+						{{mixed_array, Rest3}, _Rest4} ->
 								Args = decode_args(Rest3, []),
-								AMF = #amf{command = list_to_atom(Command), id=Id, args = Args, type=invoke}
+								_AMF = #amf{command = list_to_atom(Command), id=Id, args = Args, type=invoke}
 					end;
 				_ -> io:format("Rest is: ~p~n",[parse(Rest)])
 			
@@ -133,7 +133,7 @@ decode_args(Data,Args) ->
 		{Type,Value,Rest} -> decode_args(Rest,[{Type,Value}|Args]);
 		{Value,Rest} -> decode_args(Rest,[Value|Args]);
 		%added 'cause none of the others would ever match
-		[{Type,{TypeName, Value}} | Rest]  -> decode_args(Rest, [{Type, Value} | Args])
+		[{Type,{_TypeName, Value}} | Rest]  -> decode_args(Rest, [{Type, Value} | Args])
 	end.
 
 parse(<<?AMF_NUMBER:8, Double:64/float, Rest/binary>>) ->
