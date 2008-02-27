@@ -35,31 +35,31 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 
--compile(export_all).
+-export([start/0,stop/0,reload/0]).
 
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
-%% @doc Starting EMS
+%% @doc Starts ErlMedia
 %% @end 
 %%--------------------------------------------------------------------
 start() -> 
-	io:format("Starting EMS ...~n"),
-	application:start(ems).
+	io:format("Starting ErlMedia ...~n"),
+	application:start(erlmedia).
 
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
-%% @doc Stopping EMS
+%% @doc Stops ErlMedia
 %% @end 
 %%--------------------------------------------------------------------
 stop() ->
-	io:format("Stopping EMS ...~n"),
-	application:stop(ems).
+	io:format("Stopping ErlMedia ...~n"),
+	application:stop(erlmedia).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
-%% @doc Compiling and reloading EMS Modules
+%% @doc Compiles and reloads ErlMedia Modules
 %% @end 
 %%--------------------------------------------------------------------
 reload() ->

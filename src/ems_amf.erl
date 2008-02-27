@@ -35,9 +35,17 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
--compile(export_all).
 
-decode(Bin) ->
+-export([encode/1,encode/2,decode/1]).
+-export([number_to_string/1]). % @todo check if this funcation is used
+%-compile(export_all).
+
+%%--------------------------------------------------------------------
+%% @spec (Bin::binary()) -> any()
+%% @doc  Decode binary into an AMF call
+%% @end 
+%%--------------------------------------------------------------------
+decode(Bin) when is_binary(Bin) ->
 	{string, Command, Rest} = parse(Bin),
 	%{number, Id, Rest2} = parse(Rest),
 	%rewritten to:
@@ -57,7 +65,11 @@ decode(Bin) ->
 						
 	%#amf{command = list_to_atom(Command), id= Id, args = Args}.
 	
-	
+%%--------------------------------------------------------------------
+%% @spec (AMF::tuple()) -> binary()
+%% @doc Encode AMF call into a binary
+%% @end 
+%%--------------------------------------------------------------------
 encode(AMF) when is_record(AMF,amf) -> 
 	Command = encode(AMF#amf.command),
 	Args    = encode(AMF#amf.args),
@@ -85,7 +97,12 @@ encode(List) when is_list(List) ->
 encode(_Value) -> 
 	?D(_Value),
 	<<>>.
-
+%%--------------------------------------------------------------------
+%% @spec (List::list(),Bin::binary()) -> any()
+%% @hidden
+%% @doc Encode AMF call into a binary
+%% @end 
+%%--------------------------------------------------------------------
 encode([],Bin) -> Bin;
 encode([H|T],Bin) -> 
 	Part = case H of
@@ -217,5 +234,12 @@ to_number(String) ->
 			end
 	end.
 
+
+%%--------------------------------------------------------------------
+%% @spec (Number::number()) -> string()
+%% @hidden
+%% @doc Converts a numer into a string/list()
+%% @end 
+%%--------------------------------------------------------------------
 number_to_string(Float) when is_float(Float) -> float_to_list(Float);
 number_to_string(Integer) when is_integer(Integer) -> integer_to_list(Integer).
