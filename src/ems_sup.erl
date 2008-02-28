@@ -55,15 +55,7 @@ start_link() ->
 init([Port, Module]) ->
     {ok,
         {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [ % EMS Cluster
-			  {   ems_cluster,
-		          {ems_cluster, start, []},
-		          permanent,
-		          1000,
-		          worker,
-		          [ems_cluster]
-		      },
-              % EMS Listener
+            [ % EMS Listener
               {   ems_sup,                                 % Id       = internal id
                   {ems_server,start_link,[Port,Module]},   % StartFun = {M, F, A}
                   permanent,                               % Restart  = permanent | transient | temporary
@@ -109,7 +101,7 @@ init([Module]) ->
 %% To be called by the TCP listener process.
 %% @end 
 %%--------------------------------------------------------------------
-start_client() -> supervisor:start_child(ems_sup, []).
+start_client() -> supervisor:start_child(ems_client_sup, []).
 
 
 

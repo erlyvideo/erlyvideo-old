@@ -10,11 +10,12 @@
 				ems_demo,
 				ems_flv,
 				ems_fsm,
+				ems_proxy,
 				ems_rtmp,
 				ems_server,
-				ems_cluster,
-				gen_rtmp,
-				gen_server_cluster
+				ems_sup,
+				ems_test,
+				gen_rtmp
   				]},
   {registered,   []},
   {applications, [kernel, stdlib]},

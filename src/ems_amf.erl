@@ -1,4 +1,4 @@
-%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
+%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
@@ -38,7 +38,6 @@
 
 -export([encode/1,encode/2,decode/1]).
 -export([number_to_string/1]). % @todo check if this funcation is used
-%-compile(export_all).
 
 %%--------------------------------------------------------------------
 %% @spec (Bin::binary()) -> any()
@@ -63,8 +62,6 @@ decode(Bin) when is_binary(Bin) ->
 			
 	end.
 						
-	%#amf{command = list_to_atom(Command), id= Id, args = Args}.
-	
 %%--------------------------------------------------------------------
 %% @spec (AMF::tuple()) -> binary()
 %% @doc Encode AMF call into a binary
