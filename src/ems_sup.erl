@@ -37,8 +37,6 @@
 -include("../include/ems.hrl").
 -behaviour(supervisor).
 
--define(APPLICATION,erlmedia).
-
 -export ([init/1,start_link/0]).
 -export ([start_client/0]).
 -export ([get_app_env/1,get_app_env/2]).

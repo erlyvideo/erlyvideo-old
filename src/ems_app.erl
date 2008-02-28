@@ -37,8 +37,6 @@
 -include("../include/ems.hrl").
 -behaviour(application).
 
--define(APPLICATION,erlmedia).
-
 %% Application callbacks
 -export([start/2, stop/1]).
 

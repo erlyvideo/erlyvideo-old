@@ -38,6 +38,13 @@
 
 -export([read_header/1,read_tag/1,read_tag/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
+
+
+%%--------------------------------------------------------------------
+%% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}
+%% @doc Starts ErlMedia
+%% @end 
+%%--------------------------------------------------------------------
 read_header(IoDev) -> 
     case file:read(IoDev, ?FLV_HEADER_LENGTH) of
         {ok, Data} -> 
