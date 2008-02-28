@@ -34,8 +34,9 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-include("../include/ems.hrl").
 
--export([start/0,stop/0,reload/0]).
+-export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
 
 
 %%--------------------------------------------------------------------
@@ -45,7 +46,7 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
-	application:start(erlmedia).
+	application:start(?APPLICATION).
 
 
 %%--------------------------------------------------------------------
@@ -55,13 +56,51 @@ start() ->
 %%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
-	application:stop(erlmedia).
+	application:stop(?APPLICATION).
+
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc Stops, Compiles , Reloads and starts ErlMedia
+%% @end 
+%%--------------------------------------------------------------------
+restart() ->
+	stop(),
+	rebuild(),
+	reload(),
+	start().
+
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc Compiles ErlMedia
+%% @end 
+%%--------------------------------------------------------------------
+rebuild() ->
+	io:format("Recompiling EMS Modules ...~n"),
+	make:all([load]).
+
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc Compiles and reloads ErlMedia Modules
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 reload() ->
-	io:format("Compiling and reloading EMS Modules ...~n"),
-	make:all([load]).
+	case application:get_key(?APPLICATION,modules) of
+		undefined    -> 
+			application:load(?APPLICATION),
+			reload();
+		{ok,Modules} -> 
+			io:format("Reloading EMS Modules ...~n"),
+			reload(lists:usort(Modules))
+	end.
+reload(Module) when is_atom(Module) ->
+	code:purge(Module),
+	code:delete(Module),
+	code:load_file(Module),
+	true;
+reload([]) -> ok;
+reload([?MODULE | T]) -> reload(T);
+reload([H|T]) ->
+	reload(H),
+	reload(H),
+	reload(T).

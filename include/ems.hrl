@@ -2,6 +2,7 @@
 % uppercase breaks the syntax highlighting in textmate"
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(MARK, io:format("MARK: ~p:~p ~p~n",[?MODULE, ?LINE])).
+-define(APPLICATION, erlmedia).
 
 -define(MAX_RESTART,      5).
 -define(MAX_TIME,        60).
@@ -11,7 +12,7 @@
 -define(HS_BODY_LEN,   1536).
 -define(MIN_CLIENT_BUFFER, 100).
 
--define(DEFAULT_FLV_DIR, "/sfe/sites/castini/htdocs/castinidemo/flv/").
+-define(DEFAULT_FLV_DIR, "/tmp").
 
 %% RTMP header
 %%                                 Headersize:   Value: 
