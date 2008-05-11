@@ -89,6 +89,7 @@ chunk(Data,ChunkSize) ->
 
 decode(<<>>,State) -> State;
 decode(Bin,State) ->
+  io:format("in decode... "),
 %	?D("Decode"),
 	case State#ems_fsm.complete of
 		true ->
@@ -169,7 +170,7 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 			Command = AMF#amf.command,
 			{App,NextState} = case Command of
 				connect -> 
-					[{object,PlayerInfo}] = AMF#amf.args,
+					{object, PlayerInfo} = AMF#amf.args,
 					{gen_rtmp,State#ems_fsm{player_info=PlayerInfo}};
 				_ -> {check_app(State,Command),State}
 			end,
