@@ -1,4 +1,4 @@
-%%%---------------------------------------------------------------------------------------
+  %%%---------------------------------------------------------------------------------------
 %%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
@@ -61,6 +61,8 @@ connect(From, AMF, Channel) ->
     ?D("invoke - connect"),   
     NewAMF = AMF#amf{
         command = '_result', 
+        id = 1, %% muriel: dirty too, but the only way I can make this work
+        type = invoke,
         args= [null,
             [{level, "status"}, 
             {code, "NetConnection.Connect.Success"}, 
@@ -74,7 +76,8 @@ connect(From, AMF, Channel) ->
 %% @end
 %%-------------------------------------------------------------------------
 createStream(From, AMF, Channel) -> 
-    ?D("invoke - createStream"),   
+    ?D("invoke - createStream"), 
+    type = invoke,  
     Id = 1, %% rsaccon: dirty temporary hack, because the line below does not work
     %%Id = gen_fsm:sync_send_event(From, next_stream_id),  %% rsaccon: why the hell is this not working !!??????!!!     
     NewAMF = AMF#amf{

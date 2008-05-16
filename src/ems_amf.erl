@@ -1,4 +1,4 @@
-%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
+%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
@@ -36,22 +36,16 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([encode/1,encode/2,decode/1]).
--export([number_to_string/1]). % @todo check if this funcation is used
+-compile(export_all).
 
-%%--------------------------------------------------------------------
-%% @spec (Bin::binary()) -> any()
-%% @doc  Decode binary into an AMF call
-%% @end 
-%%--------------------------------------------------------------------
-decode(Bin) when is_binary(Bin) ->
+decode(Bin) ->	
 	{string, Command, Rest} = parse(Bin),
 	case parse(Rest) of
 		{{mixed_array, Rest2}, _Rest3} -> %without id,  set type to notify
 					Args = decode_args(Rest2, []),
-					_AMF = #amf{command = list_to_atom(Command), args = Args, type=notify};
+					#amf{command = list_to_atom(Command), args = Args, type=notify};
 		{number, Id, Rest2}  -> 
-					case parse(Rest2) of
+	         case parse(Rest2) of
 						{{mixed_array, Rest3}, _Rest4} ->
 								Args = decode_args(Rest3, []),
 								_AMF = #amf{command = list_to_atom(Command), id=Id, args = Args, type=invoke};
@@ -60,23 +54,18 @@ decode(Bin) when is_binary(Bin) ->
 						    _AMF = #amf{command = list_to_atom(Command), args = {object, Rest3}, type=invoke}
 					end;
 				_ -> ?D("AMF Decode Error")
-			
 	end.
-						
-%%--------------------------------------------------------------------
-%% @spec (AMF::tuple()) -> binary()
-%% @doc Encode AMF call into a binary
-%% @end 
-%%--------------------------------------------------------------------
+
 encode(AMF) when is_record(AMF,amf) -> 
 	Command = encode(AMF#amf.command),
-	Args    = encode(AMF#amf.args),
+	Args    = encode(AMF#amf.args, <<>>),
 	case AMF#amf.type of
-		invoke -> Id = encode(AMF#amf.id),
+		invoke -> 
+		  Id = encode(AMF#amf.id),
 			<<Command/binary,Id/binary,Args/binary>>;
-		notify -> <<Command/binary,Args/binary>>
+		notify -> 
+		    <<Command/binary,Args/binary>>
 	end;
-	
 
 encode(null) -> <<?AMF_NULL>>;
 encode(false) -> <<?AMF_BOOLEAN,0>>;
@@ -123,11 +112,10 @@ encode_object([{Key,Value}|T], Bin) ->
 	encode_object(T, <<Bin/binary,Part/binary>>).
 
 
-encode_mixed_array({mixed_array,List} = _Array) when is_list(List) -> 
-encode_mixed_array(List, 0, <<>>).
+encode_mixed_array({mixed_array,List} = _Array) when is_list(List) -> encode_mixed_array(List, 0, <<>>).
 encode_mixed_array([], Max, Bin) -> <<8,Max:32,Bin/binary,0,0,9>>;
 encode_mixed_array([{Key0,Value}|T], Max, Bin) when is_number(Key0) ->
-	Key = ems_amf:number_to_string(Key0),
+	Key = number_to_string(Key0),
 	NewMax = if
 		Key0 > Max -> Key0;
 		true -> Max
@@ -140,16 +128,11 @@ encode_mixed_array([{Key0,Value0}|T], Max, Bin) when is_list(Key0) ->
 	KeyValue = <<0,KeySize:8,Key/binary,Value/binary>>,
 	encode_mixed_array(T, Max, <<Bin/binary,KeyValue/binary>>).
 
-
-decode_args([],Args) -> lists:reverse(Args);
+decode_args(<<>>,Args) -> lists:reverse(Args);
 decode_args(Data,Args) ->
 	case parse(Data) of
-		%not sure what these are used for
-		{Type,Value,Rest} -> 
-		  decode_args(Rest,[{Type,Value}|Args]);
-		{Value,Rest} -> 
-		  decode_args(Rest,[Value|Args]);
-		%added 'cause none of the others would ever match
+		{Type,Value,Rest} -> decode_args(Rest,[{Type,Value}|Args]);
+		{Value,Rest} -> decode_args(Rest,[Value|Args]);
 		[{Type,{_TypeName, Value}} | Rest]  -> 
 		  decode_args(Rest, [{Type, Value} | Args]);
 		_ -> parse(Data)
@@ -177,10 +160,7 @@ parse(<<?AMF_ARRAY,Length:32,Rest/binary>>) ->
 %	?D(Rest),
 	parse_array(Rest,Length,[]);
 
-%the following line doesn't seem to work, or the match is too easy
-%parse(_Bin) -> ok.
-%rewritten to:
-parse(Bin) -> Bin.
+parse(_Bin) -> ok.
 
 parse_array(<<>>,_Length,Array) -> {{array,lists:reverse(Array)}, <<>>};
 parse_array(Rest,Length,Array) when length(Array) == Length -> {{array,lists:reverse(Array)}, Rest};
@@ -190,8 +170,9 @@ parse_array(Data,Length,Array) ->
 	parse_array(Rest,Length,[{Type,Value}|Array]).
 
 
-parse_mixed_array(<<0,0,9,Rest/binary>>, Array) ->  
-	{{mixed_array, lists:reverse(Array)}, Rest};
+
+parse_mixed_array(<<0,0,9,Rest/binary>>, Array) -> 
+  {{mixed_array, lists:reverse(Array)}, Rest};
 parse_mixed_array(Data, Array) ->
 	<<0,L:8,Rest/binary>> = Data,
 	<<I:L/binary,Rest2/binary>> = Rest,
@@ -200,10 +181,11 @@ parse_mixed_array(Data, Array) ->
 		{Type,Value,Rest3} -> parse_mixed_array(Rest3,[{Index,{Type,Value}}|Array]);
 		_ ->  case Rest2 of
 				<<?AMF_MIXED_ARRAY,_Index:32,Rest4/binary>> ->
-				        %this is a cue point info:: question: how to store it????
+				  %muriel: this is a cue point info, needs to be added somewhere
 					parse_mixed_array(Rest4, Array)
 			end
 	end.
+
 
 parse_object(<<0, 0, 9, Rest/binary>>, KeyValueList) -> {{object, lists:reverse(KeyValueList)}, Rest};
 parse_object(Data, KeyValueList) ->    
