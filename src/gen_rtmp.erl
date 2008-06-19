@@ -77,12 +77,12 @@ connect(From, AMF, Channel) ->
 %%-------------------------------------------------------------------------
 createStream(From, AMF, Channel) -> 
     ?D("invoke - createStream"), 
-    type = invoke,  
+    _Type = invoke,  %% SimpleEnigma: Cleaned up this lien to prevent error message when compiling
     Id = 1, %% rsaccon: dirty temporary hack, because the line below does not work
     %%Id = gen_fsm:sync_send_event(From, next_stream_id),  %% rsaccon: why the hell is this not working !!??????!!!     
     NewAMF = AMF#amf{
-        command = '_result', 
-        args= [null, Id]},
+    	command = '_result', 
+    	args = [null, Id]},
     gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
 
 
