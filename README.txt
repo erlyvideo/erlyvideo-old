@@ -28,6 +28,7 @@ To compile & install log4erl, download source from google code's website
 $> svn checkout http://log4erl.googlecode.com/svn/trunk/ log4erl
 $> cd log4erl
 $> make
+or from github public repository.
 
 or you can run the below from erlang shell:
 
