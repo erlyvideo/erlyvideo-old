@@ -42,5 +42,10 @@
 
 -record(rotation_state, {state, timer}).
 
+-record(smtp_appender, {level, srvr_opts, auth_opts, msg_opts}).
+-record(srvr_opts, {ip, port}).
+-record(auth_opts, {username, password}).
+-record(msg_opts, {from, to, title, msg}).
+
 %% log record
 -record(log, {level, msg, data, time, millis}).

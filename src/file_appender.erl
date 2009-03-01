@@ -47,10 +47,7 @@ init(Conf) when is_list(Conf) ->
 	    {error, file:format_error(Reason)};
 	{ok, [Terms]} ->
 	    init(Terms)
-    end;
-init(_N) ->
-    ?LOG2("file_appender:init() with parameter ~p~n",[_N]),
-    {ok, #file_appender{}}.
+    end.
 
 handle_event({change_level, Level}, State) ->
     State2 = State#file_appender{level = Level},

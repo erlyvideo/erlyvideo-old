@@ -12,10 +12,12 @@
 -export([start_link/1]).
 
 -export([change_log_level/1, change_log_level/2]).
+-export([change_level/2, change_level/3]).
 -export([add_logger/1]).
 -export([add_appender/2, add_appender/3]).
 -export([add_file_appender/2, add_file_appender/3]).
 -export([add_console_appender/2, add_console_appender/3]).
+-export([add_smtp_appender/2, add_smtp_appender/3]).
 -export([add_dummy_appender/2, add_dummy_appender/3]).
 -export([get_appenders/0, get_appenders/1]).
 -export([change_format/2, change_format/3]).
@@ -36,7 +38,6 @@
 -export([start/2, stop/1]).
 
 start_link(Default_logger) ->
-    %log4erl_sup:add_logger(Default_logger),
     ?LOG("Starting process log4erl"),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Default_logger], []).
 
@@ -51,6 +52,12 @@ add_appender(Appender, Conf) ->
 add_appender(Logger, Appender, Conf) ->
     try_msg({add_appender, Logger, Appender, Conf}).
 
+add_smtp_appender(Name, Conf) ->
+    add_appender({smtp_appender, Name}, Conf).
+
+add_smtp_appender(Logger, Name, Conf) ->
+    add_appender(Logger, {smtp_appender, Name}, Conf).
+    
 add_console_appender(AName, Conf) ->
     add_appender({console_appender, AName}, Conf).
 
@@ -80,11 +87,17 @@ change_format(Appender, Format) ->
 change_format(Logger, Appender, Format) ->
     try_msg({change_format, Logger, Appender, Format}).
 
+change_level(Appender, Level) ->
+    try_msg({change_level, Appender, Level}).
+
+change_level(Logger, Appender, Level) ->
+    try_msg({change_level, Logger, Appender, Level}).
+
 %% For default logger
 change_log_level(Level) ->
-    try_msg({change_level, Level}).
+    try_msg({change_log_level, Level}).
 change_log_level(Logger, Level) ->
-    try_msg({change_level, Logger, Level}).
+    try_msg({change_log_level, Logger, Level}).
 
 try_msg(Msg) ->
      try
@@ -161,38 +174,44 @@ init([Default_logger]) ->
 
 %% No logger specified? use default logger
 handle_call({add_logger, Logger}, _From, State) ->
-    log_manager:add_logger(Logger),
-    {reply, ok, State};
+    R = log_manager:add_logger(Logger),
+    {reply, R, State};
 handle_call({add_appender, Appender, Conf}, _From, {default_logger, DL} = State) ->
-    log_manager:add_appender(DL, Appender, Conf),
-    {reply, ok, State};
+    R = log_manager:add_appender(DL, Appender, Conf),
+    {reply, R, State};
 handle_call({add_appender, Logger, Appender, Conf}, _From, State) ->
-    log_manager:add_appender(Logger, Appender, Conf),
-    {reply, ok, State};
+    R = log_manager:add_appender(Logger, Appender, Conf),
+    {reply, R, State};
 handle_call(get_appenders, _From, {default_logger, DL} = State) ->
-    Reply = gen_event:which_handlers(DL),
-    {reply, Reply, State};
+    R = gen_event:which_handlers(DL),
+    {reply, R, State};
 handle_call({get_appenders, Logger}, _From, State) ->
-    Reply = gen_event:which_handlers(Logger),
-    {reply, Reply, State};
-handle_call({change_level, Level}, _From, {default_logger, DL} = State) ->
-    log_manager:change_level(DL, Level),
-    {reply, ok, State};
-handle_call({change_level, Logger, Level}, _From, State) ->
-    log_manager:change_level(Logger, Level),    
-    {reply, ok, State};
+    R = gen_event:which_handlers(Logger),
+    {reply, R, State};
+handle_call({change_level, Appender, Level}, _From, {default_logger, DL} = State) ->
+    R = log_manager:change_level(DL, Appender,  Level),
+    {reply, R, State};
+handle_call({change_level, Logger, Appender, Level}, _From, State) ->
+    R = log_manager:change_level(Logger, Appender, Level),    
+    {reply, R, State};
+handle_call({change_log_level, Level}, _From, {default_logger, DL} = State) ->
+    R = log_manager:change_log_level(DL, Level),
+    {reply, R, State};
+handle_call({change_log_level, Logger, Level}, _From, State) ->
+    R = log_manager:change_log_level(Logger, Level),    
+    {reply, R, State};
 handle_call({change_format, Appender, Format}, _From, {default_logger,DL} = State) ->
-    log_manager:change_format(DL, Appender, Format),
-    {reply, ok, State};
+    R = log_manager:change_format(DL, Appender, Format),
+    {reply, R, State};
 handle_call({change_format, Logger, Appender, Format}, _From, State) ->
-    log_manager:change_format(Logger, Appender, Format),
-    {reply, ok, State};
+    R = log_manager:change_format(Logger, Appender, Format),
+    {reply, R, State};
 handle_call({log, Level, Log, Data}, _From, {default_logger, Logger} = State) ->
-    log_manager:log(Logger, Level, Log, Data), 
-    {reply, ok, State};
+    R = log_manager:log(Logger, Level, Log, Data), 
+    {reply, R, State};
 handle_call({log, Logger, Level, Log, Data} , _From, State) ->
-    log_manager:log(Logger, Level, Log, Data),
-    {reply, ok, State}.
+    R = log_manager:log(Logger, Level, Log, Data),
+    {reply, R, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.

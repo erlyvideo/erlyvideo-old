@@ -1,3 +1,13 @@
+log4erl 0.8.4:
+==============
+* Added smtp_appender (new functions add_smtp_appender/2,3)
+* Added change_level/2,3 for changing level of specific Appender
+* Immproved feedback in case of errors
+* Seperated API documentation into 2 files: API.txt & Appenders_API.txt.
+  The first includes general functions and the other includes appenders
+  specific API, such as file appenders and SMTP appenders API.
+* Created a github.com repository (http://github.com/ahmednawras/log4erl/).
+
 log4erl 0.8.3:
 ==============
 * Added console_appender

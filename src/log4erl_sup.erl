@@ -56,7 +56,7 @@ init([Default_logger]) ->
     %% The default has to be added from log4erl
     
     % start log4erl gen_server
-    _Child =  {log4erl,
+    _Child =  {log4erl_p,
 	  {log4erl, start_link ,[Default_logger]},
 	  permanent,
 	  10000,

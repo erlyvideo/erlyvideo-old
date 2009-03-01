@@ -17,8 +17,13 @@
 start_link(Logger, Appender, Name, Conf) ->
     %?LOG2("starting guard for logger ~p~n",[Logger]),
     {ok, Pid} = gen_server:start_link(?MODULE, [Appender, Name], []),
-    add_sup_handler(Pid, Logger, Conf),
-    {ok, Pid}.
+    case add_sup_handler(Pid, Logger, Conf) of
+	{error, E} ->
+	    gen_server:call(Pid, stop),
+	    {error, E};
+	_R ->
+	    {ok, Pid}
+    end.
 
 add_sup_handler(G_pid, Logger, Conf) ->
     ?LOG("add_sup()~n"),
@@ -33,8 +38,15 @@ init([Appender, Name]) ->
 
 handle_call({add_sup_handler, Logger, Conf}, _From, [{appender, Appender, Name}] = State) ->
     ?LOG2("Adding handler ~p with name ~p for ~p From ~p~n",[Appender, Name, Logger, _From]),
-    gen_event:add_sup_handler(Logger, {Appender, Name}, Conf),
-    {reply, ok, State};
+    try
+	Res = gen_event:add_sup_handler(Logger, {Appender, Name}, Conf),
+	{reply, Res, State}
+    catch
+	E:R ->
+	    {reply, {error, {E,R}}, State}
+    end;
+handle_call(stop, _From, State) ->
+    {stop, stop, ok, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
