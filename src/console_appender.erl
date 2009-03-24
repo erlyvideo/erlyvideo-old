@@ -7,6 +7,22 @@
 -export([init/1, handle_event/2, handle_call/2, 
 	 handle_info/2, terminate/2, code_change/3]).
 
+init({conf, Conf}) when is_list(Conf) ->
+    CL = lists:foldl(fun(X, List) ->
+			     [proplists:get_value(X,Conf)|List]
+		     end,
+		     [],
+		     [level, format]),
+    
+    %% in case format doesn't exist
+    Res = case hd(CL) of
+	      undefined ->
+		  [_|CL2] = CL,
+		  lists:reverse(CL2);
+	      _ ->
+		  lists:reverse(CL)
+	  end,
+    init(list_to_tuple(Res));
 init({Level}) ->
     init({Level, ?DEFAULT_FORMAT});
 init({Level, Format} = _Args) ->

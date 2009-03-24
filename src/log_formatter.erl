@@ -64,15 +64,16 @@ get_token_value(date, Log) ->
 get_token_value(date2, Log) ->
     D = Log#log.time,
     {{Y, M, Dd},_} = D,
-    [C,B,A] = lists:map(
+    [A,B,C] = lists:map(
 		fun(X) ->
 			X2 = integer_to_list(X),
-			case string:len(X2) > 1 of
-			    false ->
-				"0" ++ X2;
-			    _ ->
-				X2
-			end
+			log4erl_utils:return_2columns(X2)
+%% 			case string:len(X2) > 1 of
+%% 			    false ->
+%% 				"0" ++ X2;
+%% 			    _ ->
+%% 				X2
+%% 			end
 		end,
 		[Y,M,Dd]),
     Res = A ++ "-" ++ B ++ "-" ++ C,
@@ -94,15 +95,16 @@ get_token_value(time2, Log) ->
     [A,B,C,E] = lists:map(
 		fun(X) ->
 			X2 = integer_to_list(X),
-			case string:len(X2) > 1 of
-			    false ->
-				"0" ++ X2;
-			    _ ->
-				X2
-			end
+			log4erl_utils:return_2columns(X2)
+%% 			case string:len(X2) > 1 of
+%% 			    false ->
+%% 				"0" ++ X2;
+%% 			    _ ->
+%% 				X2
+%% 			end
 		end,
 		[H,M,S, Ms]),    
-    Res = A ++ ":" ++ B ++ ":" ++ C ++ "," ++ E,
+    Res = A ++ ":" ++ B ++ ":" ++ C ++ "." ++ E,
     Res;
 get_token_value(year4, Log) ->
     D = Log#log.time,
@@ -149,6 +151,48 @@ get_token_value(level, Log) ->
     atom_to_list(Log#log.level);
 get_token_value(new_line, _Log) ->
     "\n";
+% GMT TZ
+get_token_value(iso_format, Log) ->
+    [Date] = calendar:local_time_to_universal_time_dst(Log#log.time),
+    get_token_value(date2, Log) ++ "T" ++ get_token_value(time2, Log#log{time=Date}) ++ "Z";
+% With TZ
+get_token_value(iso_format2, Log) ->
+    D = Log#log.time,
+    [UD] = calendar:local_time_to_universal_time_dst(D),
+    Ds = calendar:datetime_to_gregorian_seconds(D),
+    UDs = calendar:datetime_to_gregorian_seconds(UD),
+    TZ = case Ds-UDs > 0 of
+	     true ->
+		 {_,{A,B,_}} = calendar:gregorian_seconds_to_datetime(Ds-UDs),
+		 A2 = log4erl_utils:return_2columns(integer_to_list(A)),
+		 B2 = log4erl_utils:return_2columns(integer_to_list(B)),
+		 "+" ++ A2 ++ ":" ++ B2;
+	     _ ->
+		 {_,{C,D,_}} = calendar:gregorian_seconds_to_datetime(UDs-Ds),
+		 C2 = log4erl_utils:return_2columns(integer_to_list(C)),
+		 D2 = log4erl_utils:return_2columns(integer_to_list(D)),
+		 "-" ++ C2 ++ ":" ++ D2
+	 end,
+    get_token_value(date2, Log) ++ "T" ++ get_token_value(time2, Log) ++ TZ;
+% TZ only
+get_token_value(time_zone, Log) ->
+    D = Log#log.time,
+    [UD] = calendar:local_time_to_universal_time_dst(D),
+    Ds = calendar:datetime_to_gregorian_seconds(D),
+    UDs = calendar:datetime_to_gregorian_seconds(UD),
+    TZ = case Ds-UDs > 0 of
+	     true ->
+		 {_,{A,B,_}} = calendar:gregorian_seconds_to_datetime(Ds-UDs),
+		 A2 = log4erl_utils:return_2columns(integer_to_list(A)),
+		 B2 = log4erl_utils:return_2columns(integer_to_list(B)),
+		 "+" ++ A2 ++ ":" ++ B2;
+	     _ ->
+		 {_,{C,D,_}} = calendar:gregorian_seconds_to_datetime(UDs-Ds),
+		 C2 = log4erl_utils:return_2columns(integer_to_list(C)),
+		 D2 = log4erl_utils:return_2columns(integer_to_list(D)),
+		 "-" ++ C2 ++ ":" ++ D2
+	 end,
+    TZ;
 get_token_value(A, _Log) ->
     A.
 
@@ -212,5 +256,12 @@ parse_char($n) ->
     new_line;
 parse_char($i) ->
     millis;
+parse_char($I) ->
+    iso_format;
+parse_char($S) ->
+    iso_format2;
+parse_char($Z) ->
+    time_zone;
 parse_char(C) ->
     C.
+

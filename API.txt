@@ -3,7 +3,12 @@ NOTE:
 Please be informed that the API below as of now is not stable and any of the functions/parameters below
 may be changed without prior notice.
 
-Furthermore, you can find the appenders 
+Furthermore, you can find appenders and their configurations in 'Appenders_API.txt' file included in release.
+
+**> log4erl:conf(File) -> ok | {error, E}
+  File :: string()
+
+  File is the name of the configuration file. Please check CONFIGURATION.txt for the format of this file.
 
 **> log4erl:add_logger(Name) -> ok | {error, E}
   Name :: atom() name of the logger 
@@ -49,10 +54,10 @@ Furthermore, you can find the appenders
   This will change the output format to the specified Format. Format is a pattern string similar to
   PatternLayout in Log4j. patterns is an arbitrary string with specifiers (proceeded by '%').
   Possible specifiers are below:
-	   d - output date (1-2-2008)
-	   j - output date (01-02-2008)
+	   d - output date (2008-3-7)
+	   j - output date (2008-03-07)
 	   t - time (2:13:9)
-	   T - time (02:28:01,811637)
+	   T - time (02:28:01.811637)
 	   y - year in YY format (08)
 	   Y - year in YYYY format (2008)
 	   M - month (2)
@@ -64,6 +69,9 @@ Furthermore, you can find the appenders
 	   s - second
 	   i - milli-seconds
 	   l - the actual log message
+	   I - ISO format with universal GMT time (equivilant to "%jT%TZ").
+	   S - ISO format with local time and time zone offset
+	   Z - timezone (+04:00)
 	   L - log level
 	   n - new line
 	   % - the percentage sign (%)

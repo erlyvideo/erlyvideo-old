@@ -10,6 +10,38 @@
 -define(DEFAULT_TITLE, "log").
 -define(DEFAULT_PORT, 25).
 
+init({conf, Conf}) when is_list(Conf) ->
+    Level = proplists:get_value(level, Conf),
+    Server = lists:foldl(fun(X, List) ->
+			     [proplists:get_value(X,Conf)|List]
+		     end,
+		     [],
+		     [ip, port]),
+    Auth = lists:foldl(fun(X, List) ->
+			     [proplists:get_value(X,Conf)|List]
+		     end,
+		     [],
+		     [username, password, no_auth]),
+
+    SRes = case hd(Server) of
+	       undefined ->
+		   % in case port is not supplied
+		   [_|S2] = Server,
+		   list_to_tuple(lists:reverse(S2));
+	       _ ->
+		   list_to_tuple(lists:reverse(Server))
+	   end,
+    ARes = case hd(Auth) of
+	       undefined ->
+		   % in case no_auth not true
+		   [_|A2] = Auth,
+		   list_to_tuple(lists:reverse(A2));
+	       _ ->
+		   % no_auth has priority
+		   no_auth
+	   end,
+    MRes = msg_conf(Conf),
+    init({Level, SRes, ARes, MRes});
 %% Server = {Ip, Port} | {Ip} | Ip
 %% Auth = {Uname, Pass} | Uname | {Uname} | no_auth
 %% MsgInfo = {From, To, Title, Msg} 
@@ -20,7 +52,6 @@ init({Level, Server, Auth, MsgInfo}) ->
     Auth2 = check_opts(get_auth_opts(Auth)),
     MsgI = check_opts(get_msg_opts(MsgInfo)),
     State = #smtp_appender{level=Level, srvr_opts=Srvr, auth_opts=Auth2, msg_opts=MsgI},
-    io:format("smtp_appender init done with state ~p~n",[State]),
     {ok, State};
 init(File) when is_list(File) ->
     case file:consult(File) of
@@ -94,7 +125,6 @@ init_smtp(Ip, Port, Uname, Password) ->
 	{undefined, undefined} ->
 	    ok;
 	_ ->
-	    io:format("username ~p and password ~p~n",[Uname, Password]),
 	    smtp_fsm:login(Uname, Password)
     end,
     Pid.
@@ -139,4 +169,29 @@ check_opts(Opts) ->
 	    throw({smtp_appender_opts, E});
 	R ->
 	    R
+    end.
+
+msg_conf(Conf) ->
+    To = proplists:get_value(to, Conf),
+    Msg = proplists:get_value(msg, Conf),
+
+    case {To, Msg} of
+	{undefined, _} ->
+	    throw(smtp_to_null);
+	{_, undefined} ->
+	    throw(smtp_msg_null);
+	{_,_} ->
+	    ok
+    end,
+
+    Title = proplists:get_value(title, Conf),
+    From = proplists:get_value(from, Conf),
+
+    case {Title, From} of
+	{undefined, _} ->
+	    {To, Msg};
+	{_, undefined} ->
+	    {To, Title, Msg};
+	{_, _} ->
+	    {From, To, Title, Msg}
     end.

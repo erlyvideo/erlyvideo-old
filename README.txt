@@ -7,9 +7,10 @@ TOC:
 2. Installation
 3. Usage
 4. API
-5. Known issues
-6. Future development
-7. License
+5. Configuration
+6. Known issues
+7. Future development
+8. License
 
 1. FEATURES:
 ============
@@ -55,13 +56,18 @@ $> erl -pz /path/to/log4erl ...
 you need to run:
 > application:start(log4erl).
 
-3- Create loggers & add appenders to them as appropriate. You can do this as per the API below.
+3- Create a configuration file and load it using log4erl:conf(File)
+> log4erl:conf("priv/log4erl.conf").
+
+4- Alternatevly, you can create loggers & add appenders to them programmatically as appropriate. 
+You can do this as per the API below.
 > log4erl:add_logger(messages_log).
-> log4erl:add_file_appender(messages_log, file_logs, Conf).
-  where Conf is the configuration file or erlang term describing how the log is to be handled
+> log4erl:add_console_appender(messages_log, cmd_logs, {warn, "[%L] %l%n"}).
+  where Conf is the erlang term describing how the log is to be handled
   You can also add more types of appenders, which is explained in API.txt and Appneders_API.txt.
 
-4- Now, you can log whatever messages you like as per logging functions described in API.
+5- Now, you can log whatever messages you like as per logging functions described in API.
+> log4erl:info("Information message").
 
 Precedance of log levels are:
 all = debug < info < warn < error < fatal < none
@@ -72,14 +78,18 @@ User defined levels are always written except when none level is specified in th
 =======
 Please look at API.txt file for more information about the API.
 
-5. KNOWN ISSUES:
+5. CONFIGURATION:
+=================
+Please look at CONFIGURATION.txt for more information about how to configure log4erl.
+
+6. KNOWN ISSUES:
 ================
 - Name of both loggers & appenders should be unique and not registered since log4erl will try and register
   their names. If the name is already registered, nothing will happen. This will be fixed soon.
 - If you run change_log_format/1,2 and appender crashed, a restart from the supervisor will not record the latest
   format used. It will only use either the default format or the format used in the argument is supplied.  
 
-6. FUTURE DEVELOPMENT:
+7. FUTURE DEVELOPMENT:
 ======================
 - Add support for extensive file-based configuration
 - Add support for different log persistance methods (e.g files, XML, console, DB, SNMP, syslog...etc)
@@ -89,7 +99,7 @@ Please look at API.txt file for more information about the API.
 
 Please send your suggestion to ahmed.nawras <at @ at> gmail <dot . dot> com
 
-7. LICENSE:
+8. LICENSE:
 ===========
 This software is subject to "Mozilla Public License 1.1". You can find the license terms
 in the file 'LICENSE.txt' shipping along with the source code. You may also get a copy

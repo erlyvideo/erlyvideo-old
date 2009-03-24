@@ -2,6 +2,7 @@
 
 -export([gen_log_txt/1,return_2columns/1, get_current_time/1, to_log/2]).
 -export([get_id/0, get_month_name/1, get_month_long_name/1]).
+-export([to_atom/1, to_list/1, to_int/1]).
 
 % a function to make the log level text look pretty
 gen_log_txt(L) when is_list(L) ->
@@ -20,7 +21,7 @@ gen_log_txt(L) when is_list(L) ->
 
 % a function to format date/time properly (e.g. 09 instead of 9)
 return_2columns(X) ->
-    case length(X) of
+    case string:len(X) of
 	1 ->
 	    "0" ++ X;
 	_ ->
@@ -120,3 +121,24 @@ get_month_long_name(Month) ->
 	12 ->
 	    "December"
     end.
+
+to_list(A) when is_atom(A) ->
+    atom_to_list(A);
+to_list(A) when is_integer(A) ->
+    integer_to_list(A);
+to_list(A) when is_binary(A) ->
+    binary_to_list(A);
+to_list(A) when is_list(A) ->
+    A.
+
+to_atom(A) when is_list(A) ->
+    list_to_atom(A);
+to_atom(A) when is_binary(A) ->
+    list_to_atom(binary_to_list(A));
+to_atom(A) when is_atom(A) ->
+    A.
+
+to_int(A) when is_list(A) ->
+    list_to_integer(A);
+to_int(A) when is_integer(A) ->
+    A.

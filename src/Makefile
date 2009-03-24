@@ -10,8 +10,8 @@ BEAMS=$(ERLS:.erl=.beam)
 .erl.beam:
 	$(ERLC) -W $<
 
-.yrl.erl:
-	$(ERLC)-W $<
+#.yrl.erl:
+#	$(ERLC)-W $<
 
 
 # Here's a list of the erlang modules you want compiling

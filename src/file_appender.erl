@@ -8,6 +8,8 @@
 -include("../include/log4erl.hrl").
 -include_lib("kernel/include/file.hrl").
 
+-import(log4erl_utils, [to_list/1, to_atom/1, to_int/1]).
+
 %% gen_event callbacks
 -export([init/1, handle_event/2, handle_call/2, 
 	 handle_info/2, terminate/2, code_change/3]).
@@ -15,12 +17,28 @@
 %%======================================
 %% gen_event callback functions
 %%======================================
+init({conf, Conf}) when is_list(Conf) ->
+    CL = lists:foldl(fun(X, List) ->
+			     [proplists:get_value(X,Conf)|List]
+		     end,
+		     [],
+		     [dir, file, type, max, rotation, suffix, level, format]),
+    
+    %% in case format doesn't exist
+    Res = case hd(CL) of
+	      undefined ->
+		  [_|CL2] = CL,
+		  lists:reverse(CL2);
+	      _ ->
+		  lists:reverse(CL)
+	  end,
+    init(list_to_tuple(Res));
 init({Dir, Fname, {Type, Max}, Rot, Suf, Level})->
     ?LOG("file_appender:init() - with default format~n"),
     init({Dir, Fname, {Type, Max}, Rot, Suf, Level, ?DEFAULT_FORMAT});
 %% This one with custom format
 init({Dir, Fname, {Type, Max}, Rot, Suf, Level, Pattern} = _Conf) ->
-    ?LOG("file_appender:init() - 1~n"),
+    ?LOG2("file_appender:init() - 1 ~p~n",[_Conf]),
     File = Dir ++ "/" ++ Fname ++ "." ++ Suf,
     {ok, Fd} = file:open(File, ?FILE_OPTIONS),
     Ltype = #log_type{type = Type, max = Max},
@@ -39,6 +57,12 @@ init({Dir, Fname, {Type, Max}, Rot, Suf, Level, Pattern} = _Conf) ->
 			   level=Level, format=Format},
     ?LOG2("file_appender:init() with conf ~p~n",[State]),
     {ok, State};
+% These 2 are for result of reading conf file
+init({Dir, Fname, Type, Max, Rot, Suf, Level}) ->
+    init({to_list(Dir), to_list(Fname), {to_atom(Type), to_int(Max)}, to_int(Rot), to_list(Suf), to_atom(Level)});
+init({Dir, Fname, Type, Max, Rot, Suf, Level, Format}) ->
+    init({to_list(Dir), to_list(Fname), {to_atom(Type), to_int(Max)}, to_int(Rot), to_list(Suf), to_atom(Level), to_list(Format)});
+% This is for reading from a config file only for one appender
 init(Conf) when is_list(Conf) ->
     ?LOG2("file_appender:init() ~p~n",[Conf]),
     case file:consult(Conf) of

@@ -1,3 +1,10 @@
+log4erl 0.8.5:
+==============
+* Added new file configuration (log4erl:conf(File)).
+* Added syslog_appender.
+* Added support for ISO standard format to appenders (%I, %S & %Z specifiers).
+* Changed %d & %j to output the date in YYYY-MM-DD format according to ISO standard format
+
 log4erl 0.8.4:
 ==============
 * Added smtp_appender (new functions add_smtp_appender/2,3)

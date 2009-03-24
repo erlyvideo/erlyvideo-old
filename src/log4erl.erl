@@ -13,11 +13,12 @@
 
 -export([change_log_level/1, change_log_level/2]).
 -export([change_level/2, change_level/3]).
--export([add_logger/1]).
+-export([add_logger/1, conf/1]).
 -export([add_appender/2, add_appender/3]).
 -export([add_file_appender/2, add_file_appender/3]).
 -export([add_console_appender/2, add_console_appender/3]).
 -export([add_smtp_appender/2, add_smtp_appender/3]).
+-export([add_syslog_appender/2, add_syslog_appender/3]).
 -export([add_dummy_appender/2, add_dummy_appender/3]).
 -export([get_appenders/0, get_appenders/1]).
 -export([change_format/2, change_format/3]).
@@ -51,12 +52,6 @@ add_appender(Appender, Conf) ->
 %% Appender = {Appender, Name}
 add_appender(Logger, Appender, Conf) ->
     try_msg({add_appender, Logger, Appender, Conf}).
-
-add_smtp_appender(Name, Conf) ->
-    add_appender({smtp_appender, Name}, Conf).
-
-add_smtp_appender(Logger, Name, Conf) ->
-    add_appender(Logger, {smtp_appender, Name}, Conf).
     
 add_console_appender(AName, Conf) ->
     add_appender({console_appender, AName}, Conf).
@@ -70,6 +65,18 @@ add_file_appender(AName, Conf) ->
 add_file_appender(Logger, AName, Conf) ->
     add_appender(Logger, {file_appender, AName}, Conf).
 
+add_smtp_appender(Name, Conf) ->
+    add_appender({smtp_appender, Name}, Conf).
+
+add_smtp_appender(Logger, Name, Conf) ->
+    add_appender(Logger, {smtp_appender, Name}, Conf).
+
+add_syslog_appender(Name, Conf) ->
+    add_appender({syslog_appender, Name}, Conf).
+
+add_syslog_appender(Logger, Name, Conf) ->
+    add_appender(Logger, {syslog_appender, Name}, Conf).
+
 add_dummy_appender(AName, Conf) ->
     add_appender({dummy_appender, AName}, Conf).
 
@@ -81,6 +88,9 @@ get_appenders() ->
 
 get_appenders(Logger) ->
     try_msg({get_appenders, Logger}).
+
+conf(File) ->
+    log4erl_conf:conf(File).
 
 change_format(Appender, Format) ->
     try_msg({change_format, Appender, Format}).
