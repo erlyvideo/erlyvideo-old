@@ -12,7 +12,7 @@
 -define(FILE_OPTIONS,[write, raw, binary, append]).
 -define(FILE_OPTIONS_ROTATE,[write, raw, binary]).
 
-%-define(DEBUG, true).
+%%-define(DEBUG, true).
 
 -ifdef(DEBUG).
 -define(LOG(X), io:format("~p: " ++ X,[?MODULE])).

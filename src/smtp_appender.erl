@@ -165,7 +165,7 @@ get_msg_opts(E) ->
 check_opts(Opts) ->
     case Opts of
 	{error, E} ->
-	    ?LOG2("error in getting opts with param ~p~n",[Server]),
+	    ?LOG2("error in getting opts with param ~p~n",[Opts]),
 	    throw({smtp_appender_opts, E});
 	R ->
 	    R

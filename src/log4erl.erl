@@ -19,9 +19,11 @@
 -export([add_console_appender/2, add_console_appender/3]).
 -export([add_smtp_appender/2, add_smtp_appender/3]).
 -export([add_syslog_appender/2, add_syslog_appender/3]).
+-export([add_xml_appender/2, add_xml_appender/3]).
 -export([add_dummy_appender/2, add_dummy_appender/3]).
 -export([get_appenders/0, get_appenders/1]).
 -export([change_format/2, change_format/3]).
+-export([error_logger_handler/0, error_logger_handler/1]).
 
 -export([log/2, log/3, log/4]).
 
@@ -77,6 +79,12 @@ add_syslog_appender(Name, Conf) ->
 add_syslog_appender(Logger, Name, Conf) ->
     add_appender(Logger, {syslog_appender, Name}, Conf).
 
+add_xml_appender(Name, Conf) ->
+    add_appender({xml_appender, Name}, Conf).
+
+add_xml_appender(Logger, Name, Conf) ->
+    add_appender(Logger, {xml_appender, Name}, Conf).
+
 add_dummy_appender(AName, Conf) ->
     add_appender({dummy_appender, AName}, Conf).
 
@@ -102,6 +110,12 @@ change_level(Appender, Level) ->
 
 change_level(Logger, Appender, Level) ->
     try_msg({change_level, Logger, Appender, Level}).
+
+error_logger_handler() ->
+    error_logger_log4erl_h:add_handler().
+
+error_logger_handler(Args) ->
+    error_logger_log4erl_h:add_handler(Args).
 
 %% For default logger
 change_log_level(Level) ->

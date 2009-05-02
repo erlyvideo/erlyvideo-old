@@ -135,7 +135,19 @@ facility(news)     -> (7 bsl 3); % network news subsystem
 facility(uucp)     -> (8 bsl 3); % UUCP subsystem 
 facility(cron)     -> (9 bsl 3); % clock daemon 
 facility(authpriv) -> (10 bsl 3); % security/authorization messages (private) 
-facility(ftp)      -> (11 bsl 3); % ftp daemon 
+facility(ftp)      -> (11 bsl 3); % ftp daemon
+facility(ntp)      -> (12 bsl 3); % ntp daemon
+facility(audit)    -> (13 bsl 3); % log audit
+facility(alert)    -> (14 bsl 3); % log alert
+facility(clock)    -> (15 bsl 3); % clock daemon
+facility(local0)   -> (16 bsl 3); % local use 0
+facility(local1)   -> (17 bsl 3); % local use 1
+facility(local2)   -> (18 bsl 3); % local use 2
+facility(local3)   -> (19 bsl 3); % local use 3
+facility(local4)   -> (20 bsl 3); % local use 4
+facility(local5)   -> (21 bsl 3); % local use 5
+facility(local6)   -> (22 bsl 3); % local use 6
+facility(local7)   -> (23 bsl 3); % local use 7
 facility(_)        -> facility(user). % anything else is user
 
 %% priorities/facilities are encoded into a single 32-bit 

@@ -90,12 +90,12 @@ token(S0, Ics0, L0, Tcs, Tlen0, Tline, A0, Alen0) ->
 	    token_cont(Ics1, L1, yyaction(A1, Alen1, Tcs, Tline));
 	%% Accepting transition state, can take more chars.
 	{A1,Alen1,[],L1,S1} ->			%Need more chars to check
-	    {more,{token,S1,Tcs,L1,Alen1,Tline,A1,Alen1}};
+	    {more,{token,S1,L1,Tcs,Alen1,Tline,A1,Alen1}};
 	{A1,Alen1,Ics1,L1,_S1} ->		%Take what we got
 	    token_cont(Ics1, L1, yyaction(A1, Alen1, Tcs, Tline));
 	%% After a non-accepting state, maybe reach accept state later.
 	{A1,Alen1,Tlen1,[],L1,S1} ->		%Need more chars to check
-	    {more,{token,S1,Tcs,L1,Tlen1,Tline,A1,Alen1}};
+	    {more,{token,S1,L1,Tcs,Tlen1,Tline,A1,Alen1}};
 	{reject,_Alen1,Tlen1,eof,L1,_S1} ->	%No token match
 	    %% Check for partial token which is error.
 	    Ret = if Tlen1 > 0 -> {error,{Tline,?MODULE,

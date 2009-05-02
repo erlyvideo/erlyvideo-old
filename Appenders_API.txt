@@ -126,3 +126,55 @@
   Default port is 514.
   Default Format is the same as default format of file_appender
 
+**> log4erl:add_file_appender(Logger, Appender, SpecFile) -> ok
+  Logger :: atom()
+  Appender :: atom()
+
+  This will create a new appender and associate spec in Spec or in SpecFile to it. Spec and
+  content of SpecFile are the same as in add_file_appender/2
+
+  Example:
+  log4erl:add_file_appender(chat_log, file_logger, "../priv/chat_logs.conf").
+  This will add another logger with the name "chat_log" and use configuration in
+  the file "../priv/chat_logs.conf" for it. To write to this log, you need to specify
+  the name of the logger.
+
+**> log4erl:add_xml_appender(Appender, Spec) -> ok
+    log4erl:add_xml_appender(Logger, Appender, Spec) -> ok
+  Logger :: atom()
+  Appender :: atom()
+  Spec :: tuple()
+
+  @since version 0.8.6
+
+  This will create a new XML Appender with configuration specified in Spec where Spec is
+  {Dir, Fname, {Type, Max}, Rot, Suf, Level} | 
+  {Dir, Fname, {Type, Max}, Rot, Suf, Level, XmlSpecs} 
+
+  All tuple elements are the same as in file_appender except for XmlSpecs. XmlSpecs is as follows
+
+  XmlSpecs :: [XmlSpec]
+  XmlSpec :: {Name, Format, Type}
+  Name :: atom() | string()
+  Format :: string()
+  Type :: att | elem
+
+  Each XmlSpec item represent an attribute or element in xml record for a log. For example:
+  {level, "%L", att} means that this record is going to have an attribute named 'level' with
+  value "%L", which is the level of the message. Therefore, the XmlSpec mentioned in the example
+  will result in a record like
+       <log ... level="warn"..>..</log>
+  However, XmlSpec {level, "%L", elem} will result in the the following:
+       <log ...>...<level>warn</level>...</log>
+
+  All attributes and elements are pre-proccessed to escape XML (i.e. '<' replaced by '&lt;')
+
+  You cannot provide XmlSpecs in file-based configuration yet and default XmlSpecs will be used.
+  If you needed to change XmlSpecs, you'll have to add_xml_appender/2,3 manually.
+
+  The default XmlSpecs if not provided is: 
+      [{level, "%L", att},
+       {date, "%j", att},
+       {time, "%T", att},
+       {message, "%l", elem}]
+

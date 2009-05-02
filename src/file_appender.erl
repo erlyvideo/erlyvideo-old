@@ -140,7 +140,7 @@ rotate(#file_appender{fd = Fd, dir=Dir,  file_name=Fn, counter=Cntr, rotation=Ro
 		    Dir ++ "/" ++ Fn ++ "_" ++ integer_to_list(C) ++ "." ++ Suf
 	    end,
     ?LOG2("Renaming file from ~p to ~p~n",[Src, Fname]),
-    file:copy(Src, Fname),
+    file:rename(Src, Fname),
     {ok ,Fd2} = file:open(Src, ?FILE_OPTIONS_ROTATE),
     State2 = #file_appender{dir = Dir, file_name = Fn, fd = Fd2, counter=C, log_type = Ltype, rotation = Rot, suffix=Suf, level=Level, format=Format},
     {ok, State2}.

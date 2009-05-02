@@ -77,7 +77,7 @@ log(Logger, Level, Log, Data) ->
 
 notify_logger(Logger, Msg) ->
     try
-	gen_event:notify(Logger, Msg)
+	gen_event:sync_notify(Logger, Msg)
     catch
 	exit:noproc ->
 	    {error, no_such_logger}
