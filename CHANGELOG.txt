@@ -2,7 +2,7 @@ log4erl 0.8.6:
 ==============
 * Added xml_appender for outputing logs to xml files
 * Changed default behaviour to use sync logging (helps to eleminate
-  crash due to many processes due to high load
+  crash due to many processes due to high load)
 * file_appender renames files when rotating instead of copying
 * syslog_appender add missing facilities
 * Updated leex to fix a critical bug

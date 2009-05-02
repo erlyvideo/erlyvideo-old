@@ -10,8 +10,7 @@ TOC:
 5. Configuration
 6. Known issues
 7. Future development
-8. Acknowledgments
-9. License
+8. License
 
 1. FEATURES:
 ============
@@ -102,11 +101,7 @@ Please look at CONFIGURATION.txt for more information about how to configure log
 
 Please send your suggestion to ahmed.nawras <at @ at> gmail <dot . dot> com
 
-8. ACKNOWLEDGEMENT:
-===================
-The following has contributed to log4erl
-
-9. LICENSE:
+8. LICENSE:
 ===========
 This software is subject to "Mozilla Public License 1.1". You can find the license terms
 in the file 'LICENSE.txt' shipping along with the source code. You may also get a copy
