@@ -130,3 +130,23 @@ Furthermore, you can find appenders and their configurations in 'Appenders_API.t
   log4erl:fatal(chat_log, "exception occured").
   log4erl:debug(chat_log, "message received is ~p", [Msg]).
   log4erl:error("Error").
+
+**> log4erl:error_logger_handler() -> ok
+    log4erl:error_logger_handler(Mappings) -> ok
+   where
+   Mappings :: [Mapping]
+   Mapping :: {Elevels, level}
+   ELevels :: error | info_msg | warning_msg | error_report | info_report | warning_report
+
+   Mappings basically is a list of mapping between error_logger log levels and log4erl log levels.
+   Currently, report messages are not handled by this error_logger handler. The default Mappings are:
+	      {error=error, info_msg=info, warning_msg=warn,
+	      error_report=error, info_report=info,
+	      warning_report=warn}
+
+   Example:
+   log4erl:error_logger_handler([{error, fatal}, {info_msg, info}]).
+
+   which treats all error messages coming from error_logger as fatal and all info_msg
+   messages coming from error_logger as info.
+   

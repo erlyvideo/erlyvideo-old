@@ -10,7 +10,8 @@ TOC:
 5. Configuration
 6. Known issues
 7. Future development
-8. License
+8. Acknowledgments
+9. License
 
 1. FEATURES:
 ============
@@ -18,10 +19,13 @@ TOC:
 - Currently, only size-based log rotation of files for file appender
 - Support default logger if no logger specified
 - 5 predifined log levels (debug, info, warn, error, fatal)
+- A log handler for error_logger
 - Support for user-specified log levels
 - Support for a log formatter (similar to Layouts in Log4J)
 - Support for console log
 - Support for smtp formatter
+- Support for XML logs
+- Support for syslog 
 - Support for changing format and level of appender during run-time
 
 2. INSTALLATION:
@@ -91,7 +95,6 @@ Please look at CONFIGURATION.txt for more information about how to configure log
 
 7. FUTURE DEVELOPMENT:
 ======================
-- Add support for extensive file-based configuration
 - Add support for different log persistance methods (e.g files, XML, console, DB, SNMP, syslog...etc)
 - Add support for time-based log rotation
 - Multiple configuration format (Erlang terms, XML?, properties files?)
@@ -99,7 +102,11 @@ Please look at CONFIGURATION.txt for more information about how to configure log
 
 Please send your suggestion to ahmed.nawras <at @ at> gmail <dot . dot> com
 
-8. LICENSE:
+8. ACKNOWLEDGEMENT:
+===================
+The following has contributed to log4erl
+
+9. LICENSE:
 ===========
 This software is subject to "Mozilla Public License 1.1". You can find the license terms
 in the file 'LICENSE.txt' shipping along with the source code. You may also get a copy
