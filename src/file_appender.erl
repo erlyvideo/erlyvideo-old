@@ -149,13 +149,13 @@ rotate_daily(#file_appender{fd = Fd, dir=Dir,  file_name=Fn, counter=Cntr, rotat
     file:close(Fd),
     ?LOG("Starting daily rotation~n"),
     Date = lists:flatten(io_lib:format("~4.10.0B-~2.10.0B-~2.10.0B", [Year, Month, Day])),
-    DirName = lists:flatten(io_lib:format("~4.10.0B-~2.10.0B", [Year, Month])),
+    Folder = Dir ++ "/" ++ Fn ++ "." ++ lists:flatten(io_lib:format("~4.10.0B-~2.10.0B", [Year, Month])),
     Src = Dir ++ "/" ++ Fn ++ "." ++ Suf,
-    Fname = Dir ++ "/" ++ DirName ++ "/" ++ Fn ++ "." ++ Date ++ "." ++ Suf,
+    Fname = Folder ++ "/" ++ Fn ++ "." ++ Date ++ "." ++ Suf,
     ?LOG2("Moving file from ~p to ~p~n", [Src, Fname]),
 
     % each month has it's own log dir
-    file:make_dir(Dir ++ "/" ++ DirName),
+    file:make_dir(Folder),
     file:rename(Src, Fname),
 
     case erlang:date() of
@@ -163,10 +163,10 @@ rotate_daily(#file_appender{fd = Fd, dir=Dir,  file_name=Fn, counter=Cntr, rotat
         _ ->
             % compress to zip and remove all previous month log files
             RemoveOld = fun() ->
-                {ok, _} = zip:create(Dir ++ "/" ++ Fn ++ "." ++ DirName ++ "." ++ Suf ++ ".zip", [Dir ++ "/" ++ DirName]),
-                {ok, Files} = file:list_dir(Dir ++ "/" ++ DirName),
-                lists:foreach(fun(F) -> file:delete(Dir ++ "/" ++ DirName ++ "/" ++ F) end, Files),
-                file:del_dir(Dir ++ "/" ++ DirName)
+                {ok, _} = zip:create(Folder ++ ".zip", [Folder]),
+                {ok, Files} = file:list_dir(Folder),
+                lists:foreach(fun(F) -> file:delete(Folder ++ "/" ++ F) end, Files),
+                file:del_dir(Folder)
             end,
             spawn(RemoveOld)
     end,
