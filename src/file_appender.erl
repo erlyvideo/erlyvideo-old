@@ -79,9 +79,9 @@ handle_event({change_level, Level}, State) ->
     {ok, State2};
 handle_event({log,LLog}, State) ->
     ?LOG2("handl_event:log = ~p~n",[LLog]),
-    do_log(LLog, State),
-    Res = check_rotation(State),
-    {ok, Res}.
+    ResState = check_rotation(State),
+    do_log(LLog, ResState),
+    {ok, ResState}.
 
 
 handle_call({change_format, Format}, State) ->
@@ -145,6 +145,38 @@ rotate(#file_appender{fd = Fd, dir=Dir,  file_name=Fn, counter=Cntr, rotation=Ro
     State2 = #file_appender{dir = Dir, file_name = Fn, fd = Fd2, counter=C, log_type = Ltype, rotation = Rot, suffix=Suf, level=Level, format=Format},
     {ok, State2}.
 
+rotate_daily(#file_appender{fd = Fd, dir=Dir,  file_name=Fn, counter=Cntr, rotation=Rot, suffix=Suf, log_type=Ltype, level=Level, format=Format} = _S, {Year, Month, Day}) ->
+    file:close(Fd),
+    ?LOG("Starting daily rotation~n"),
+    Date = lists:flatten(io_lib:format("~4.10.0B-~2.10.0B-~2.10.0B", [Year, Month, Day])),
+    DirName = lists:flatten(io_lib:format("~4.10.0B-~2.10.0B", [Year, Month])),
+    Src = Dir ++ "/" ++ Fn ++ "." ++ Suf,
+    Fname = Dir ++ "/" ++ DirName ++ "/" ++ Fn ++ "." ++ Date ++ "." ++ Suf,
+    ?LOG2("Moving file from ~p to ~p~n", [Src, Fname]),
+
+    % each month has it's own log dir
+    file:make_dir(Dir ++ "/" ++ DirName),
+    file:rename(Src, Fname),
+
+    case erlang:date() of
+        {Year, Month, _} -> ok;
+        _ ->
+            % compress to zip and remove all previous month log files
+            RemoveOld = fun() ->
+                {ok, _} = zip:create(Dir ++ "/" ++ Fn ++ "." ++ DirName ++ "." ++ Suf ++ ".zip", [Dir ++ "/" ++ DirName]),
+                {ok, Files} = file:list_dir(Dir ++ "/" ++ DirName),
+                lists:foreach(fun(F) -> file:delete(Dir ++ "/" ++ DirName ++ "/" ++ F) end, Files),
+                file:del_dir(Dir ++ "/" ++ DirName)
+            end,
+            spawn(RemoveOld)
+    end,
+
+    {ok, Fd2} = file:open(Src, ?FILE_OPTIONS_ROTATE),
+    State2 = #file_appender{dir = Dir, file_name = Fn, fd = Fd2, counter=Cntr, log_type = Ltype, rotation = Rot, suffix=Suf, level=Level, format=Format},
+    {ok, State2}.
+
+
+
 % Check if the file needs to be rotated
 % ignore in case of if log type is set to time instead of size	    
 check_rotation(State) ->
@@ -161,8 +193,19 @@ check_rotation(State) ->
 		true ->
 		    State
 	    end;
-	%% time-based rotation is not implemented yet
+
+	daily ->
+	    File = Dir ++ "/" ++ Fname ++  "." ++ Suf,
+	    {ok, Finfo} = file:read_file_info(File),
+	    {CDate, _CTime} = Finfo#file_info.ctime,
+	    case erlang:date() of
+		CDate ->
+		    State;
+		_ ->
+		    {ok, State2} = rotate_daily(State, CDate),
+		    State2
+	    end;
+
 	_ ->
 	    State
     end.
-
