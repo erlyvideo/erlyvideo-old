@@ -38,23 +38,36 @@
 
 -compile(export_all).
 
+
+decode_list(List, Data) when size(Data) == 0 ->
+  lists:reverse(List);
+
+decode_list(List, Data) ->
+  {Arg, Rest} = parse(Data),
+  decode_list([Arg | List], Rest).
+  
+
+
 decode(Bin) ->	
-	{string, Command, Rest} = parse(Bin),
-	case parse(Rest) of
-		{{mixed_array, Rest2}, _Rest3} -> %without id,  set type to notify
-					Args = decode_args(Rest2, []),
-					#amf{command = list_to_atom(Command), args = Args, type=notify};
-		{number, Id, Rest2}  -> 
-	         case parse(Rest2) of
-						{{mixed_array, Rest3}, _Rest4} ->
-								Args = decode_args(Rest3, []),
-								_AMF = #amf{command = list_to_atom(Command), id=Id, args = Args, type=invoke};
-						{{object, Rest3}, _Rest4}  -> 
-						    %Args = decode_args(Rest3, []),
-						    _AMF = #amf{command = list_to_atom(Command), args = {object, Rest3}, type=invoke}
-					end;
-				_ -> ?D("AMF Decode Error")
-	end.
+  {string, Command, Rest} = parse(Bin),
+  case parse(Rest) of
+    {{mixed_array, Rest2}, _Rest3} -> %without id,  set type to notify
+      Args = decode_args(Rest2, []),
+      #amf{command = list_to_atom(Command), args = Args, type=notify};
+    {number, Id, Rest2}  -> 
+      Arguments = decode_list([], Rest2).
+
+      % 	         case parse(Rest2) of
+      % 	{{mixed_array, Rest3}, _Rest4} ->
+      % 			Args = decode_args(Rest3, []),
+      % 			_AMF = #amf{command = list_to_atom(Command), id=Id, args = Args, type=invoke};
+      % 	{{object, Rest3}, _Rest4}  -> 
+      % 	    %Args = decode_args(Rest3, []),
+      % 	    _AMF = #amf{command = list_to_atom(Command), args = {object, Rest3}, type=invoke}
+      % end;
+      _AMF = #amf{command = list_to_atom(Command), args = {object, Rest3}, type=invoke};
+    _ -> ?D("AMF Decode Error")
+end.
 
 encode(AMF) when is_record(AMF,amf) -> 
 	Command = encode(AMF#amf.command),
