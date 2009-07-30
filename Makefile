@@ -1,5 +1,5 @@
 ERL=erl
-APP_NAME=erlmedia
+APP_NAME=ems
 MNESIA_DATA=mnesia-data
 NODE_NAME=$(APP_NAME)
 VSN=0.1
