@@ -34,6 +34,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).

@@ -47,7 +47,6 @@ encode(#channel{msg = Msg} = Channel)	when is_record(Channel,channel) ->
     encode(Channel,Msg,<<>>).
 
 encode(Channel,AMF)	when is_record(Channel,channel), is_record(AMF,amf) -> 
-	?D({"Encode", Channel, AMF}),
 	encode(Channel,ems_amf:encode(AMF));
 encode(Channel,Data) when is_record(Channel,channel), is_binary(Data) -> 
 	encode(Channel,Data,<<>>).
@@ -145,12 +144,12 @@ get_chunk(Channel,State,Bin) ->
 
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, State) ->
-	<<ChunkSize:32>> = Channel#channel.msg,
+	<<ChunkSize:32/big-integer>> = Channel#channel.msg,
 	?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{chunk_size=ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg=Msg} = _Channel, State) ->
-	<<Length:32/integer>>=Msg,
+	<<Length:32/big-integer>>=Msg,
 	?D({"Stream bytes read: ", Length}),
 	State;
 	
@@ -166,15 +165,13 @@ command(#channel{type = Type} = Channel, State)
 
 command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 	case ems_amf:decode(Channel#channel.msg) of
-		AMF when is_record(AMF,amf) -> 
-			Command = AMF#amf.command,
+		#amf{command = Command} = AMF ->
 			{App,NextState} = case Command of
 				connect -> 
-					{object, PlayerInfo} = AMF#amf.args,
+		      {object, PlayerInfo} = lists:nth(2, AMF#amf.args),
 					{gen_rtmp,State#ems_fsm{player_info=PlayerInfo}};
 				_ -> {check_app(State,Command),State}
 			end,
-			?D({"AppCmd: ", Channel, AMF}),
 			App:Command(self(), AMF, Channel),
 			NextState;
 		_ -> 
