@@ -34,14 +34,16 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
+-import(rtmp_handshake).
 -compile(export_all).
 
 
 
-handshake(Bin) when is_binary(Bin) -> 
-    <<Bin/binary,Bin/binary>>.
+handshake(C1) when is_binary(C1) -> 
+  <<(rtmp_handshake:s1())/binary, (rtmp_handshake:s2(C1))/binary>>.
 
 encode(#channel{msg = Msg} = Channel)	when is_record(Channel,channel) ->
     encode(Channel,Msg,<<>>).
