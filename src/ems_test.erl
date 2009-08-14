@@ -52,15 +52,15 @@ s(FileName,_Count)  ->
 %	<<PrevTagSize:32/integer,Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Rest2/binary>> = Rest,
 %	<<Body:BodyLength/binary,T:30/binary,_Rest3/binary>> = Rest2,
 %	{Meta,_Rest2} = tag(Rest),
-%	AMF = ems_flv:parse_meta(Meta#flv_tag.body),
+%	AMF = ems_flv:parse_meta(Meta#video_frame.body),
 %	io:format("Meta: ~p~n",[AMF]),
 %	?D({PrevTagSize,Type,BodyLength,TimeStamp,TimeStampExt,StreamId}),
 %	?D({Body,T}),
 	ok.
 
 tag(Bin) -> 
-	{#flv_tag{type=Type,timestamp=TimeStamp,body_length = Size,timestamp_ext =TimeStampExt,timestamp_abs = TimeStampAbs} = Tag,Next} = ems_flv:tag(Bin),
-%	io:format("Tag: ~p~n",[Tag#flv_tag{body = <<>>}]),
+	{#video_frame{type=Type,timestamp=TimeStamp,body_length = Size,timestamp_ext =TimeStampExt,timestamp_abs = TimeStampAbs} = Tag,Next} = ems_flv:tag(Bin),
+%	io:format("Tag: ~p~n",[Tag#video_frame{body = <<>>}]),
 	io:format("Type: ~p Size: ~p TimeStamp: ~p Ext: ~p Abs: ~p~n",[Type,Size,TimeStamp,TimeStampExt,TimeStampAbs]),
 	{Tag,Next}.
 
@@ -116,9 +116,9 @@ rflv(FileName) ->
 	{ok, Pos, _Header} = ems_flv:read_header(IoDev),
 	{ok,Tag} = ems_flv:read_tag(IoDev,Pos),
 %	?D(Header),
-	Channel = #channel{id=4,timestamp=0,msg= <<>>,length=size(Tag#flv_tag.body),type=18,stream=1},
-%	?D(Tag#flv_tag{body= <<>>}),
-	Packet = ems_rtmp:encode(Channel,Tag#flv_tag.body),
+	Channel = #channel{id=4,timestamp=0,msg= <<>>,length=size(Tag#video_frame.body),type=18,stream=1},
+%	?D(Tag#video_frame{body= <<>>}),
+	Packet = ems_rtmp:encode(Channel,Tag#video_frame.body),
 	Packet.
 
 f() ->

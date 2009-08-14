@@ -257,7 +257,7 @@
 	video = 0
 	}).
 		
--record(flv_tag,{
+-record(video_frame,{
 	prev_tag_size = undefined,
 	type          = undefined,
 	body_length   = undefined,

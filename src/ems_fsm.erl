@@ -197,16 +197,16 @@ init([]) ->
 		{ok, done} ->
 			file:close(IoDev),
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-		{ok, Tag} when is_record(Tag,flv_tag) ->
-			TimeStamp = Tag#flv_tag.timestamp_abs - State#ems_fsm.video_ts_prev,			
-			send(Tag#flv_tag{timestamp=TimeStamp, streamid = StreamId}),
- 			Timeout = timeout(Tag#flv_tag.timestamp_abs, 
+		{ok, Tag} when is_record(Tag,video_frame) ->
+			TimeStamp = Tag#video_frame.timestamp_abs - State#ems_fsm.video_ts_prev,			
+			send(Tag#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+ 			Timeout = timeout(Tag#video_frame.timestamp_abs, 
 			                  State#ems_fsm.video_timer_start, 
     		                  State#ems_fsm.client_buffer),
 			NewTimer = gen_fsm:start_timer(Timeout, play),
 			NextState = State#ems_fsm{video_timer_ref  = NewTimer,
-									  video_ts_prev = Tag#flv_tag.timestamp_abs,
-									  video_pos = Tag#flv_tag.nextpos},
+									  video_ts_prev = Tag#video_frame.timestamp_abs,
+									  video_pos = Tag#video_frame.nextpos},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 		{error,_Reason} -> 
 			file:close(IoDev),
@@ -401,7 +401,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %% @doc Convert FLV_Tag into Channel then transmit the Channel and Body
 %% @end
 %%-------------------------------------------------------------------------
-send(#flv_tag{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body} = FLVTag) when is_record(FLVTag,flv_tag) ->
+send(#video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body} = FLVTag) when is_record(FLVTag,video_frame) ->
 	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
 	gen_fsm:send_event(self(), {send, {Channel,Body}}).
 
@@ -455,10 +455,10 @@ play_vod(FileName, StreamId, State) ->
 				{ok, done} ->
 					file:close(IoDev),
 					{stop, normal, State};
-				{ok, Tag} when is_record(Tag,flv_tag) -> 
+				{ok, Tag} when is_record(Tag,video_frame) -> 
 					Now = erlang:now(),
-					send(Tag#flv_tag{streamid = StreamId}),
-					Timeout = timeout(Tag#flv_tag.timestamp_abs, 
+					send(Tag#video_frame{streamid = StreamId}),
+					Timeout = timeout(Tag#video_frame.timestamp_abs, 
 					                  Now, 
 					                  State#ems_fsm.client_buffer),
 					Timer = gen_fsm:start_timer(Timeout, play),
@@ -466,8 +466,8 @@ play_vod(FileName, StreamId, State) ->
 											  video_stream_id = StreamId, 
 											  video_timer_start = Now,
 											  video_timer_ref  = Timer,
-											  video_ts_prev = Tag#flv_tag.timestamp_abs,
-											  video_pos = Tag#flv_tag.nextpos},
+											  video_ts_prev = Tag#video_frame.timestamp_abs,
+											  video_pos = Tag#video_frame.nextpos},
 					{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 				{error, _Reason} ->
 					?D(_Reason),
