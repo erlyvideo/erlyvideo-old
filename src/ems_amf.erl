@@ -119,7 +119,8 @@ decode_list(List, Data) ->
 
 decode(Bin) ->	
   {string, Command, Rest} = parse(Bin),
-  Arguments = decode_list([], Rest),
+  FullArguments = decode_list([], Rest),
+  [_Num | Arguments] = FullArguments,
   #amf{command = list_to_atom(Command), args = Arguments, type = invoke}.
   % case parse(Rest) of
   %   {{mixed_array, Rest2}, _Rest3} -> %without id,  set type to notify
@@ -175,7 +176,7 @@ parse_array(Data,Length,Array) ->
 
 
 parse_mixed_array(<<0:16/big-integer, ?AMF_END_OF_OBJECT:8/integer, Rest/binary>>, Array) -> 
-  {{mixed_array, lists:reverse(Array)}, Rest};
+  {mixed_array, lists:reverse(Array), Rest};
 parse_mixed_array(Data, Array) ->
 	<<Length:16/big-integer, I:Length/binary, Rest/binary>> = Data,
 	Index = to_number(binary_to_list(I)),

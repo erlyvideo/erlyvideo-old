@@ -150,7 +150,6 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {Channel, AMF}}, State) when is_record(Channel,channel), is_record(AMF,amf) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
-	?D({"Packet: ",Packet}),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
@@ -167,22 +166,31 @@ init([]) ->
     {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-    case ems_cluster:is_live_stream(Name) of
-        true ->
-		    ems_cluster:subscribe(self(), Name),
-		    NextState = State#ems_fsm{type  = live},
-            {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-        _ ->
-            FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
-        	case filelib:is_regular(FileName) of
-        		true ->
-        		    play_vod(FileName, StreamId, State#ems_fsm{type = vod});
-        		_ ->
-        		    ems_cluster:subscribe(self(), Name),
-        		    NextState = State#ems_fsm{type  = wait},
-                    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-        	end
-    end;    
+    % case ems_cluster:is_live_stream(Name) of
+    %   true ->
+    %         ems_cluster:subscribe(self(), Name),
+    %         NextState = State#ems_fsm{type  = live},
+    %         {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+    %   _ ->
+    %         FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
+    %       case filelib:is_regular(FileName) of
+    %         true ->
+    %             play_vod(FileName, StreamId, State#ems_fsm{type = vod});
+    %         _ ->
+    %             ems_cluster:subscribe(self(), Name),
+    %             NextState = State#ems_fsm{type  = wait},
+    %                 {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
+    %       end
+    % end;    
+  FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
+  case filelib:is_regular(FileName) of
+  true ->
+    play_vod(FileName, StreamId, State#ems_fsm{type = vod});
+  _ ->
+    ems_cluster:subscribe(self(), Name),
+    NextState = State#ems_fsm{type  = wait},
+    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
+  end;
 
 'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{flv_timer_ref = Timer, flv_device = IoDev, flv_pos = Pos, flv_stream_id = StreamId} = State) ->
 	case ems_flv:read_tag(IoDev, Pos) of
@@ -408,7 +416,8 @@ flv_dir() ->
         {ok, Val} ->
             Val;
         _ ->
-            exit(flv_dir_not_defined)
+            % exit(flv_dir_not_defined)
+            "/tmp"
     end.
 
 

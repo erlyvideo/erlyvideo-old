@@ -170,7 +170,7 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 		#amf{command = Command} = AMF ->
 			{App,NextState} = case Command of
 				connect -> 
-		      {object, PlayerInfo} = lists:nth(2, AMF#amf.args),
+		      {object, PlayerInfo} = lists:nth(1, AMF#amf.args),
 					{gen_rtmp,State#ems_fsm{player_info=PlayerInfo}};
 				_ -> {check_app(State,Command),State}
 			end,
