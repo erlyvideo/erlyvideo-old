@@ -237,20 +237,32 @@
 	complete    = true,
 	buff        = <<>>,
 	prev_buff   = <<>>,
-	client_buffer = ?MIN_CLIENT_BUFFER,
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	next_stream_id = 1,
 	type,
-	video_format,
-	video_device,
-	video_buffer,
-	video_file_name,
-	video_stream_id,
-	video_timer_start,
+	video_player,
+  video_file_name,
 	video_timer_ref,
+	video_buffer,
+	video_ts_pos,
 	video_ts_prev = 0,
-	video_pos = 0
+	video_pos = 0,
+	video_device
 	}).
+	
+-record(video_player, {
+  consumer,
+  client_buffer = ?MIN_CLIENT_BUFFER,
+  device,
+  file_name,
+	stream_id,
+	format,
+	buffer,
+	timer_start,
+	timer_ref,
+	ts_prev = 0,
+	pos = 0
+}).
 
 -record(flv_header,{
 	version = 1,

@@ -40,8 +40,8 @@
 -behaviour(gen_fsm).
 
 -export([start_link/0, set_socket/2]).
--import(ems_mp4).
 -import(ems_flv).
+-import(ems_play).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -160,12 +160,12 @@ init([]) ->
 %	?D({"Sending Packet",size(Packet),Channel#channel.id}),
 %	file:write_file("/sfe/temp/packet.txt",Packet),
 %	?D({"Packet: ",Packet}),
-	gen_tcp:send(State#ems_fsm.socket,Packet),
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+	gen_tcp:send(State#ems_fsm.socket, Packet),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, Packet}, State) when is_binary(Packet) ->
 	gen_tcp:send(State#ems_fsm.socket,Packet),
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
     % case ems_cluster:is_live_stream(Name) of
@@ -184,36 +184,23 @@ init([]) ->
     %                 {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
     %       end
     % end;    
-  FileName = filename:join([file_dir(), normalize_fileame(Name)]),  
+  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]),  
   case filelib:is_regular(FileName) of
   true ->
-    play_vod(FileName, StreamId, State#ems_fsm{type = vod});
+    case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
+      {ok, PlayerPid} ->
+        NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
+        gen_fsm:send_event(PlayerPid, {timeout, timer, play}),
+        {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+      Reason -> 
+        ?D({"Failed to start video player", Reason}),
+        {error, Reason}
+      end;
   _ ->
     ems_cluster:subscribe(self(), Name),
     NextState = State#ems_fsm{type  = wait},
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   end;
-
-'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{video_timer_ref = Timer, video_device = IoDev, video_pos = Pos, video_stream_id = StreamId, video_format = Format} = State) ->
-	case Format:read_frame(IoDev, Pos) of
-		{ok, done} ->
-			file:close(IoDev),
-			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-		{ok, Tag} when is_record(Tag,video_frame) ->
-			TimeStamp = Tag#video_frame.timestamp_abs - State#ems_fsm.video_ts_prev,			
-			send(Tag#video_frame{timestamp=TimeStamp, streamid = StreamId}),
- 			Timeout = timeout(Tag#video_frame.timestamp_abs, 
-			                  State#ems_fsm.video_timer_start, 
-    		                  State#ems_fsm.client_buffer),
-			NewTimer = gen_fsm:start_timer(Timeout, play),
-			NextState = State#ems_fsm{video_timer_ref  = NewTimer,
-									  video_ts_prev = Tag#video_frame.timestamp_abs,
-									  video_pos = Tag#video_frame.nextpos},
-			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-		{error,_Reason} -> 
-			file:close(IoDev),
-			{stop, normal, State}
-	end;
 
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = _Type} = State) ->
 	case Buffer of
@@ -243,7 +230,7 @@ init([]) ->
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
-	FileName = filename:join([file_dir(), Name]),
+	FileName = filename:join([ems_play:file_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
@@ -255,7 +242,7 @@ init([]) ->
 
 %% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	
 'WAIT_FOR_DATA'({publish, append, Name}, State) when is_list(Name) ->
-	FileName = filename:join([file_dir(), Name]),
+	FileName = filename:join([ems_play:file_dir(), Name]),
 	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
 			NextState = State#ems_fsm{type=record_append,video_device=IoDev,video_file_name=FileName,video_ts_prev=0},
@@ -268,7 +255,7 @@ init([]) ->
     ems_cluster:broadcast(Name),
     %% hack - empty audio
     StreamId=1,
-    Id=channel_id(?RTMP_TYPE_AUDIO, StreamId),
+    Id=ems_play:channel_id(?RTMP_TYPE_AUDIO, StreamId),
     TimeStamp=0,
     Length=0,
     Type=?RTMP_TYPE_AUDIO,
@@ -284,7 +271,7 @@ init([]) ->
                                             video_file_name = Name} = State) when is_record(Channel,channel) ->
 	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
 %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-	Packet = ems_rtmp:encode(Channel#channel{id = channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
+	Packet = ems_rtmp:encode(Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
     ems_cluster:broadcast(Name, Packet),
     NextState = State#ems_fsm{video_ts_prev=NextTimeStamp},
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
@@ -394,106 +381,9 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(_OldVsn, StateName, StateData, _Extra) ->
-    {ok, StateName, StateData}.
-
-
-%%-------------------------------------------------------------------------
-%% @spec (FLV_TAG::tuple()) -> any()
-%% @doc Convert FLV_Tag into Channel then transmit the Channel and Body
-%% @end
-%%-------------------------------------------------------------------------
-send(#video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body} = FLVTag) when is_record(FLVTag,video_frame) ->
-	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
-	gen_fsm:send_event(self(), {send, {Channel,Body}}).
-
-
-%%-------------------------------------------------------------------------
-%% @spec () -> FileName::string()
-%% @doc retrieves FLV video file folder from application environment
-%% @end
-%%-------------------------------------------------------------------------	
-file_dir() ->
-    case application:get_env(ems, file_dir) of
-        {ok, Val} ->
-            Val;
-        _ ->
-            % exit(flv_dir_not_defined)
-            "/tmp"
-    end.
-
-
-%%-------------------------------------------------------------------------
-%% @spec (AbsTime::integer(), TimerStart::integer(), ClientBuffer::integer()) -> [TimeOut::integer() | 0]
-%% @doc calculates timeout to playback of next FLV Tag 
-%% @end
-%%-------------------------------------------------------------------------	
-timeout(AbsTime, TimerStart, ClientBuffer) ->
-    Timeout = AbsTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
-    if 
-		(Timeout > 0) -> 
-            Timeout; 
-        true -> 
-            0 
-    end.
-
-
-normalize_fileame(Name) ->
-    case filename:extension(Name) of
-        ".flv" -> Name;
-        ".FLV" -> Name;
-        ".mp4" -> Name;
-        ".MP4" -> Name;
-        _      -> Name ++ ".flv"
-    end.
- 
-file_format(Name) ->
-  case filename:extension(Name) of
-      ".flv" -> ems_flv;
-      ".FLV" -> ems_flv;
-      ".mp4" -> ems_mp4;
-      ".MP4" -> ems_mp4
-  end.
- 
-play_vod(FileName, StreamId, StateOld) ->
-  State = StateOld#ems_fsm{video_format = file_format(FileName)},
-	?D({"Found It",FileName, State#ems_fsm.video_format}),
-	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
-	case (State#ems_fsm.video_format):read_header(IoDev) of
-		{ok, Pos, _FLVHeader} -> 
-			case (State#ems_fsm.video_format):read_frame(IoDev, Pos) of
-				{ok, done} ->
-					file:close(IoDev),
-					{stop, normal, State};
-				{ok, Tag} when is_record(Tag,video_frame) -> 
-					Now = erlang:now(),
-					send(Tag#video_frame{streamid = StreamId}),
-					Timeout = timeout(Tag#video_frame.timestamp_abs, 
-					                  Now, 
-					                  State#ems_fsm.client_buffer),
-					Timer = gen_fsm:start_timer(Timeout, play),
-					NextState = State#ems_fsm{video_device = IoDev,
-											  video_stream_id = StreamId, 
-											  video_timer_start = Now,
-											  video_timer_ref  = Timer,
-											  video_ts_prev = Tag#video_frame.timestamp_abs,
-											  video_pos = Tag#video_frame.nextpos},
-					{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-				{error, _Reason} ->
-					?D(_Reason),
-					file:close(IoDev),
-					{stop, normal, State}
-			end;
-		_HdrError -> 
-		    ?D(_HdrError)
-	end.
-        	    
-
-% rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream
-% idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID
-channel_id(?FLV_TAG_TYPE_META, _StreamId) -> 4;
-channel_id(?FLV_TAG_TYPE_VIDEO, _StreamId) -> 5;
-channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.
+code_change(_OldVsn, StateName, #ems_fsm{video_player = PlayerPid} = StateData, _Extra) ->
+  erlang:kill(PlayerPid),
+  {ok, StateName, StateData}.
 
 
 
