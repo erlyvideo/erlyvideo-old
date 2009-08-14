@@ -114,7 +114,7 @@ rflv() -> rflv("/sfe/sites/castini/htdocs/castinidemo/flv/0_320_high.flv").
 rflv(FileName) ->
 	{ok, IoDev} = file:open(FileName, [read,read_ahead]),
 	{ok, Pos, _Header} = ems_flv:read_header(IoDev),
-	{ok,Tag} = ems_flv:read_tag(IoDev,Pos),
+	{ok,Tag} = ems_flv:read_frame(IoDev,Pos),
 %	?D(Header),
 	Channel = #channel{id=4,timestamp=0,msg= <<>>,length=size(Tag#video_frame.body),type=18,stream=1},
 %	?D(Tag#video_frame{body= <<>>}),

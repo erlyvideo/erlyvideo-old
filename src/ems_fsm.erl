@@ -172,7 +172,7 @@ init([]) ->
     %         NextState = State#ems_fsm{type  = live},
     %         {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
     %   _ ->
-    %         FileName = filename:join([flv_dir(), normalize_fileame(Name)]),  
+    %         FileName = filename:join([file_dir(), normalize_fileame(Name)]),  
     %       case filelib:is_regular(FileName) of
     %         true ->
     %             play_vod(FileName, StreamId, State#ems_fsm{type = vod});
@@ -193,7 +193,7 @@ init([]) ->
   end;
 
 'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{video_timer_ref = Timer, video_device = IoDev, video_pos = Pos, video_stream_id = StreamId} = State) ->
-	case ems_flv:read_tag(IoDev, Pos) of
+	case ems_flv:read_frame(IoDev, Pos) of
 		{ok, done} ->
 			file:close(IoDev),
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -451,7 +451,7 @@ play_vod(FileName, StreamId, State) ->
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
 	case ems_flv:read_header(IoDev) of
 		{ok, Pos, _FLVHeader} -> 
-			case ems_flv:read_tag(IoDev, Pos) of
+			case ems_flv:read_frame(IoDev, Pos) of
 				{ok, done} ->
 					file:close(IoDev),
 					{stop, normal, State};

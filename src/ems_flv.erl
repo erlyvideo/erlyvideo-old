@@ -36,7 +36,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([read_header/1,read_tag/1,read_tag/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
+-export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
 
 
@@ -59,7 +59,7 @@ read_header(IoDev) ->
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_tag(IoDev, Pos) ->
+read_frame(IoDev, Pos) ->
 	case file:pread(IoDev,Pos, ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH) of
 		{ok, IoList} ->
 			case iolist_to_binary(IoList) of
@@ -118,7 +118,7 @@ read_tag(IoDev, Pos) ->
 % Decodes a tag from binary
 % @param EncodedTag
 % @return a valid video_frame record type
-read_tag(EncodedTag) ->
+read_frame(EncodedTag) ->
 
 	<<PrevTagSize:32/integer,Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24, Body/binary>> = EncodedTag,		
 
