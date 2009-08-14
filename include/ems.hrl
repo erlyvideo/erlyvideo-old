@@ -241,14 +241,14 @@
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	next_stream_id = 1,
 	type,
-	flv_device,
-	flv_buffer,
-	flv_file_name,
-	flv_stream_id,
-	flv_timer_start,
-	flv_timer_ref,
-	flv_ts_prev = 0,
-	flv_pos = 0
+	video_device,
+	video_buffer,
+	video_file_name,
+	video_stream_id,
+	video_timer_start,
+	video_timer_ref,
+	video_ts_prev = 0,
+	video_pos = 0
 	}).
 
 -record(flv_header,{
