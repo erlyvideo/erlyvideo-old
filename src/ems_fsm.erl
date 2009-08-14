@@ -40,6 +40,8 @@
 -behaviour(gen_fsm).
 
 -export([start_link/0, set_socket/2]).
+-import(ems_mp4).
+-import(ems_flv).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
