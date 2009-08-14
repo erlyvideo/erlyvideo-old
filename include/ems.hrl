@@ -241,6 +241,7 @@
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	next_stream_id = 1,
 	type,
+	video_format,
 	video_device,
 	video_buffer,
 	video_file_name,

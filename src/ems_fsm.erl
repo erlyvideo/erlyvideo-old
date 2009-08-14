@@ -192,8 +192,8 @@ init([]) ->
     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   end;
 
-'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{video_timer_ref = Timer, video_device = IoDev, video_pos = Pos, video_stream_id = StreamId} = State) ->
-	case ems_flv:read_frame(IoDev, Pos) of
+'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{video_timer_ref = Timer, video_device = IoDev, video_pos = Pos, video_stream_id = StreamId, video_format = Format} = State) ->
+	case Format:read_frame(IoDev, Pos) of
 		{ok, done} ->
 			file:close(IoDev),
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -445,13 +445,21 @@ normalize_fileame(Name) ->
         _      -> Name ++ ".flv"
     end.
  
+file_format(Name) ->
+  case filename:extension(Name) of
+      ".flv" -> ems_flv;
+      ".FLV" -> ems_flv;
+      ".mp4" -> ems_mp4;
+      ".MP4" -> ems_mp4
+  end.
  
-play_vod(FileName, StreamId, State) ->
-	?D({"Found It",FileName}),
+play_vod(FileName, StreamId, StateOld) ->
+  State = StateOld#ems_fsm{video_format = file_format(FileName)},
+	?D({"Found It",FileName, State#ems_fsm.video_format}),
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
-	case ems_flv:read_header(IoDev) of
+	case (State#ems_fsm.video_format):read_header(IoDev) of
 		{ok, Pos, _FLVHeader} -> 
-			case ems_flv:read_frame(IoDev, Pos) of
+			case (State#ems_fsm.video_format):read_frame(IoDev, Pos) of
 				{ok, done} ->
 					file:close(IoDev),
 					{stop, normal, State};
