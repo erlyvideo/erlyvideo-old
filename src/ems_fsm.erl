@@ -35,6 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
 -behaviour(gen_fsm).
@@ -49,11 +50,11 @@
 
 %% FSM States
 -export([
-    'WAIT_FOR_SOCKET'/2,
+  'WAIT_FOR_SOCKET'/2,
 	'WAIT_FOR_HANDSHAKE'/2,
 	'WAIT_FOR_HS_ACK'/2,
-    'WAIT_FOR_DATA'/2,
-    'WAIT_FOR_DATA'/3]).
+  'WAIT_FOR_DATA'/2,
+  'WAIT_FOR_DATA'/3]).
 
 
 %% rsacon: TODOD move this to ems.hrl ist her only for testing purpose
@@ -141,19 +142,19 @@ init([]) ->
 	end;
 
 'WAIT_FOR_HS_ACK'(Other, State) ->
-    ?D({"Ignoring unecpected data:", Other}),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
+  ?D({"Ignoring unecpected data:", Other}),
+  {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
 
 
 %% Notification event coming from client
 'WAIT_FOR_DATA'({data, Data}, State) ->
 	NewState = ems_rtmp:decode(Data,State),
-    {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {Channel, AMF}}, State) when is_record(Channel,channel), is_record(AMF,amf) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {Channel, Data}}, State) when is_record(Channel,channel), is_binary(Data) ->
 	Packet = ems_rtmp:encode(Channel,Data),
@@ -168,28 +169,30 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-    % case ems_cluster:is_live_stream(Name) of
-    %   true ->
-    %         ems_cluster:subscribe(self(), Name),
-    %         NextState = State#ems_fsm{type  = live},
-    %         {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]),  
-  case filelib:is_regular(FileName) of
-  true ->
-    case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
-      {ok, PlayerPid} ->
-        NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
-        gen_fsm:send_event(PlayerPid, {timeout, timer, play}),
-        {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-      Reason -> 
-        ?D({"Failed to start video player", Reason}),
-        {error, Reason}
-      end;
-  _ ->
-    ems_cluster:subscribe(self(), Name),
-    NextState = State#ems_fsm{type  = wait},
-    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-  end;
+  case ems_cluster:is_live_stream(Name) of
+    true ->
+      ems_cluster:subscribe(self(), Name),
+      NextState = State#ems_fsm{type  = live},
+      {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+    _ ->
+      FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]),  
+      case filelib:is_regular(FileName) of
+        true ->
+          case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
+            {ok, PlayerPid} ->
+              NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
+              gen_fsm:send_event(PlayerPid, {timeout, timer, play}),
+              {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+            Reason -> 
+              ?D({"Failed to start video player", Reason}),
+              {error, Reason}
+            end;
+        _ ->
+          ems_cluster:subscribe(self(), Name),
+          NextState = State#ems_fsm{type  = wait},
+          {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
+        end
+    end;
 
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = _Type} = State) ->
 	case Buffer of
