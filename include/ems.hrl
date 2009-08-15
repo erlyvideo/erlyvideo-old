@@ -264,6 +264,12 @@
 	pos = 0
 }).
 
+-record(mp4_parser, {
+  file,
+  track_number = 0,
+  tracks = []
+}).
+
 -record(flv_header,{
 	version = 1,
 	audio = 0,
