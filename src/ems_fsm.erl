@@ -173,17 +173,6 @@ init([]) ->
     %         ems_cluster:subscribe(self(), Name),
     %         NextState = State#ems_fsm{type  = live},
     %         {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-    %   _ ->
-    %         FileName = filename:join([file_dir(), normalize_fileame(Name)]),  
-    %       case filelib:is_regular(FileName) of
-    %         true ->
-    %             play_vod(FileName, StreamId, State#ems_fsm{type = vod});
-    %         _ ->
-    %             ems_cluster:subscribe(self(), Name),
-    %             NextState = State#ems_fsm{type  = wait},
-    %                 {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-    %       end
-    % end;    
   FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]),  
   case filelib:is_regular(FileName) of
   true ->

@@ -75,8 +75,17 @@ init({FileName, StreamId, Parent}) ->
 	
 stop(_, State) ->
   {stop, normal, State}.
+  
+ready({start}, State) ->
+	Timer = gen_fsm:start_timer(0.0001, play),
+	NextState = State#video_player{timer_ref  = Timer},
+  {next_state, ready, NextState, ?TIMEOUT};
+  
+ready({pause}, #video_player{timer_ref = Timer} = State) ->
+  gen_fsm:cancel_timer(Timer),
+  {next_state, ready, State, ?TIMEOUT};
 
-ready({timeout, _ExpiredTimer, play}, #video_player{device = IoDev, pos = Pos, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
+ready({timeout, _, play}, #video_player{device = IoDev, pos = Pos, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
 	case FileFormat:read_frame(IoDev, Pos) of
 		{ok, done} ->
   		file:close(IoDev),
