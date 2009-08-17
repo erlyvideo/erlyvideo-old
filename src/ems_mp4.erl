@@ -57,23 +57,23 @@ read_header(IoDev, Mp4Parser) ->
 parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
   Mp4Parser;
   
-parse_atom(Atom, Mp4Parser) when size(Atom) < 4 ->
+parse_atom(Atom, _) when size(Atom) < 4 ->
   {error, "Invalid atom"};
   
 parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
   AtomName = binary_to_atom(BinaryAtomName, utf8),
-  ?D({"Atom", AtomName}),
+  % ?D({"Atom", AtomName}),
   NewMp4Parser = decode_atom(AtomName, Atom, Mp4Parser),
   parse_atom(Rest, NewMp4Parser);
   
-parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) ->
+parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, _/binary>>, Mp4Parser) ->
   ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, utf8)}),
   Mp4Parser.
   
 % FTYP atom
-decode_atom(ftyp, <<Major:4/binary, Minor:4/binary, CompatibleBrands/binary>>, #mp4_parser{} = Mp4Parser) ->
+decode_atom(ftyp, <<Major:4/binary, _Minor:4/binary, CompatibleBrands/binary>>, #mp4_parser{} = Mp4Parser) ->
   NewParser = Mp4Parser#mp4_parser{file_type = binary_to_list(Major), file_types = decode_atom(ftyp, CompatibleBrands, [])},
   ?D({"File type:", NewParser#mp4_parser.file_type, NewParser#mp4_parser.file_types}),
   NewParser;
@@ -91,7 +91,7 @@ decode_atom(moov, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
 
 % MVHD atom
 decode_atom(mvhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer, TimeScale:32/big-integer,
-                    Duration:32/big-integer, Rest/binary>>, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
+                    Duration:32/big-integer, _Rest/binary>>, #mp4_parser{} = Mp4Parser) ->
   ?D({"Movie header:", Duration}),
   Mp4Parser#mp4_parser{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale};
 
@@ -100,7 +100,7 @@ decode_atom(mvhd, <<Version:8/integer, Rest/binary>>, Mp4Parser) ->
   Mp4Parser;
 
 % TRAK atom
-decode_atom(trak, <<>>, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
+decode_atom(trak, <<>>, #mp4_parser{} = Mp4Parser) ->
   Mp4Parser;
 decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   Track = decode_atom(trak, Atom, #mp4_track{}),  
@@ -114,37 +114,44 @@ decode_atom(trak, Atom, #mp4_track{} = Mp4Track) ->
 decode_atom(tkhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer,
                     TrackID:32/big-integer, _Reserved1:4/binary, 
                     Duration:32/big-integer, _Reserved2:8/binary,
-                    Layer:16/big-integer, _AlternateGroup:2/binary,
-                    Volumen:2/binary, _Reserved3:2/binary,
+                    _Layer:16/big-integer, _AlternateGroup:2/binary,
+                    _Volume:2/binary, _Reserved3:2/binary,
                     _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
   ?D({"Track header:", TrackID, Duration}),
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration};
 
-
-decode_atom(edts, Atom, Mp4Track) ->
-  parse_atom(Atom, Mp4Track);
-
+%MDIA atom
 decode_atom(mdia, Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track);
 
 % MDHD atom
 decode_atom(mdhd,<<0:8/integer, _Flags:24/integer, _Ctime:32/big-integer, 
                   _Mtime:32/big-integer, TimeScale:32/big-integer, Duration:32/big-integer,
-                  _Language:2/binary, _Quality:16/big-integer>>, 
-                #mp4_track{} = Mp4Track) ->
+                  _Language:2/binary, _Quality:16/big-integer>>, #mp4_track{} = Mp4Track) ->
   ?D({"Timescale:", Duration, extract_language(_Language)}),
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
 
-decode_atom(mdhd, <<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer, _Mtime:64/big-integer, TimeScale:32/big-integer, Duration:64/big-integer, _Language:2/binary, _Quality:16/big-integer>>, Mp4Track) ->
+decode_atom(mdhd, <<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer, 
+                     _Mtime:64/big-integer, TimeScale:32/big-integer, Duration:64/big-integer, 
+                     _Language:2/binary, _Quality:16/big-integer>>, Mp4Track) ->
+  ?D({"Timescale:", Duration, extract_language(_Language)}),
+  Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
+  
+% SMHD atom
+decode_atom(smhd, <<0:8/integer, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track;
 
+decode_atom(smhd, <<0:8/integer, _Flags:3/binary, Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
+  ?D({"Audio balance:", Balance}),
+  Mp4Track;
 
+% MINF atom
 decode_atom(minf, Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track);
-  
+
+% STBL atom
 decode_atom(stbl, Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track);
-
 
 % STSD atom
 decode_atom(stsd, <<_Version:8/integer, _Flags:24/integer, EntryCount:32/big-integer, EntryData/binary>>, Mp4Track) ->
@@ -156,8 +163,8 @@ decode_atom(stsd, {0, _}, Mp4Track) ->
 decode_atom(stsd, {_, <<>>}, Mp4Track) ->
   Mp4Track;
   
-decode_atom(stsd, {EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
-                                 _Reserved:6/binary, RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
+decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
+                                 _Reserved:6/binary, _RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
            when SampleDescriptionSize == size(EntryData) + 16 ->
   NewTrack = Mp4Track#mp4_track{data_format = binary_to_atom(DataFormat, utf8)},
   ?D({"Sample description:", NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData)}),
@@ -177,19 +184,11 @@ decode_atom(stsz, {_, <<>>}, SampleSizes) ->
 decode_atom(stsz, {SampleCount, <<Size:32/big-integer, Rest/binary>>}, SampleSizes) ->
   decode_atom(stsz, {SampleCount - 1, Rest}, [Size | SampleSizes]);
 
-decode_atom(stsz, {SampleCount, <<Rest/binary>>}, SampleSizes) ->
+decode_atom(stsz, {_, <<Rest/binary>>}, SampleSizes) ->
   ?D("Invalid stsz atom"),
   decode_atom(stsz, {0, Rest}, SampleSizes);
   
-decode_atom(stsz, <<_Version:8/integer, _Flags:24/integer, _:32/big-integer, SampleCount:32/big-integer>>, Mp4Parser) ->
-  Mp4Parser;
 
-
-decode_atom(stsc, _, Mp4Parser) ->
-  Mp4Parser;
-decode_atom(stco, _, Mp4Parser) ->
-  Mp4Parser;
-  
 % STTS atom
 decode_atom(stts, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
   Table = decode_atom(stts, {EntryCount, Rest}, []),
@@ -205,10 +204,22 @@ decode_atom(stts, {_, <<>>}, Table) ->
 decode_atom(stts, {EntryCount, <<SampleCount:32/big-integer, SampleDuration:32/big-integer, Rest/binary>>}, Table) ->
   decode_atom(stts, {EntryCount - 1, Rest}, [{SampleCount, SampleDuration} | Table]);
   
-% STSS atom
-decode_atom(stss, _, Mp4Parser) ->
-  Mp4Parser;
+% STSC atom
+decode_atom(stsc, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
+  Table = decode_atom(stsc, {EntryCount, Rest}, []),
+  % ?D({"Sample chunk table", lists:reverse(Table)}),
+  Mp4Track#mp4_track{sample_chunk_table = lists:reverse(Table)};
 
+decode_atom(stsc, {0, _}, Table) ->
+  Table;
+  
+decode_atom(stsc, {_, <<>>}, Table) ->
+  Table;
+  
+decode_atom(stsc, {EntryCount, <<FirstChunk:32/big-integer, SamplesPerChunk:32/big-integer, SampleID:32/big-integer, Rest/binary>>}, Table) ->
+  decode_atom(stsc, {EntryCount - 1, Rest}, [{FirstChunk, SamplesPerChunk, SampleID} | Table]);
+
+% FALLBACK  
 decode_atom(AtomName, _, Mp4Parser) ->
   ?D({"Unknown atom", AtomName}),
   Mp4Parser.
@@ -224,7 +235,7 @@ next_atom(IoDev) ->
         <<"mdat">> ->
           {eof};
         _ ->
-          ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
+          % ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
           case file:read(IoDev, AtomLength - 8) of
             {ok, Atom} ->
               {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};

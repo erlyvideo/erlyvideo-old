@@ -281,7 +281,8 @@
   extra_data,
   timescale,
   duration,
-  sample_time_table = []
+  sample_time_table = [],
+  sample_chunk_table = []
 }).
 
 -record(flv_header,{
