@@ -102,9 +102,9 @@ deleteStream(_From, _AMF, _Channel) ->
 %% @end
 %%-------------------------------------------------------------------------
 play(From, AMF, Channel) -> 
-    ?D("invoke - play"),
     NextChannel = Channel#channel{id=4},
     [_Null,{string,Name}] = AMF#amf.args,
+    ?D({"invoke - play", Name}),
     NewAMF = AMF#amf{
         command = 'onStatus', 
         args= [null,[{level, "status"}, 

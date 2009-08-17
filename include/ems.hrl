@@ -266,8 +266,13 @@
 
 -record(mp4_parser, {
   file,
-  track_number = 0,
   tracks = []
+}).
+
+-record(mp4_track, {
+  sample_sizes = [],
+  timescale,
+  duration
 }).
 
 -record(flv_header,{

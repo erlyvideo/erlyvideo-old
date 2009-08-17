@@ -169,12 +169,12 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-  case ems_cluster:is_live_stream(Name) of
-    true ->
-      ems_cluster:subscribe(self(), Name),
-      NextState = State#ems_fsm{type  = live},
-      {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-    _ ->
+  % case ems_cluster:is_live_stream(Name) of
+  %   true ->
+  %     ems_cluster:subscribe(self(), Name),
+  %     NextState = State#ems_fsm{type  = live},
+  %     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+  %   _ ->
       FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]),  
       case filelib:is_regular(FileName) of
         true ->
@@ -191,7 +191,7 @@ init([]) ->
           ems_cluster:subscribe(self(), Name),
           NextState = State#ems_fsm{type  = wait},
           {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-        end
+        % end
     end;
 
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = _Type} = State) ->
