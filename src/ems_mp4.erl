@@ -41,19 +41,18 @@
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
 read_header(IoDev) -> 
-  case find_moov(IoDev) of
-    {moov, Atom} -> decode_atom(moov, Atom, #mp4_parser{});
-    Else -> Else
-  end.
-    
-find_moov(IoDev) ->
-  ?D("Finding moov"),
+  read_header(IoDev, #mp4_parser{}).
+
+read_header(IoDev, Mp4Parser) -> 
   case next_atom(IoDev) of
-    {moov, Atom} -> {moov, Atom};
+    {eof} -> {eof};
     {error, Reason} -> {error, Reason};
-    {_, _} -> find_moov(IoDev);
+    {AtomName, Atom} -> 
+      NewParser = decode_atom(AtomName, Atom, Mp4Parser),
+      read_header(IoDev, NewParser);
     Else -> Else
   end.
+  
   
 parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
   Mp4Parser;
@@ -73,6 +72,19 @@ parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/bin
   ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, utf8)}),
   Mp4Parser.
   
+% FTYP atom
+decode_atom(ftyp, <<Major:4/binary, Minor:4/binary, CompatibleBrands/binary>>, #mp4_parser{} = Mp4Parser) ->
+  NewParser = Mp4Parser#mp4_parser{file_type = binary_to_list(Major), file_types = decode_atom(ftyp, CompatibleBrands, [])},
+  ?D({"File type:", NewParser#mp4_parser.file_type, NewParser#mp4_parser.file_types}),
+  NewParser;
+
+decode_atom(ftyp, <<>>, BrandList) ->
+  lists:reverse(BrandList);
+
+decode_atom(ftyp, <<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
+  decode_atom(ftyp, CompatibleBrands, [binary_to_list(Brand)|BrandList]);
+  
+% MOOV atom
 decode_atom(moov, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   NewParser = parse_atom(Atom, Mp4Parser),
   NewParser#mp4_parser{tracks = lists:reverse(Tracks)};
@@ -171,7 +183,7 @@ next_atom(IoDev) ->
   case file:read(IoDev, 8) of
     {ok, Data} ->
       <<AtomLength:32/big-integer, AtomName:4/binary>> = list_to_binary(Data),
-      ?D({"Atom: ", AtomName, AtomLength}),
+      ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
       case file:read(IoDev, AtomLength - 8) of
         {ok, Atom} ->
           {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};
@@ -181,7 +193,7 @@ next_atom(IoDev) ->
           {error, Reason}         
       end;
     eof -> 
-      {error, unexpected_eof};
+      {eof};
     {error, Reason} -> 
       {error, Reason}           
   end.
