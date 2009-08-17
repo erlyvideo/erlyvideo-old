@@ -64,7 +64,7 @@ parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/bin
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
   AtomName = binary_to_atom(BinaryAtomName, utf8),
-  ?D({"Valid atom", AtomName}),
+  ?D({"Atom", AtomName}),
   NewMp4Parser = decode_atom(AtomName, Atom, Mp4Parser),
   parse_atom(Rest, NewMp4Parser);
   
@@ -89,17 +89,36 @@ decode_atom(moov, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   NewParser = parse_atom(Atom, Mp4Parser),
   NewParser#mp4_parser{tracks = lists:reverse(Tracks)};
 
+% MVHD atom
+decode_atom(mvhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer, TimeScale:32/big-integer,
+                    Duration:32/big-integer, Rest/binary>>, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
+  ?D({"Movie header:", Duration}),
+  Mp4Parser#mp4_parser{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale};
+
+decode_atom(mvhd, <<Version:8/integer, Rest/binary>>, Mp4Parser) ->
+  ?D({"Invalid mvhd structure v.", Version, size(Rest)+1}),
+  Mp4Parser;
 
 % TRAK atom
 decode_atom(trak, <<>>, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   Mp4Parser;
 decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
-  Track = decode_atom(trak, Atom, #mp4_track{}),
+  Track = decode_atom(trak, Atom, #mp4_track{}),  
   Mp4Parser#mp4_parser{tracks = [Track | Tracks]};
 decode_atom(trak, <<>>, #mp4_track{} = Mp4Track) ->
   Mp4Track;
 decode_atom(trak, Atom, #mp4_track{} = Mp4Track) ->
   parse_atom(Atom, Mp4Track);
+
+% TKHD atom
+decode_atom(tkhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer,
+                    TrackID:32/big-integer, _Reserved1:4/binary, 
+                    Duration:32/big-integer, _Reserved2:8/binary,
+                    Layer:16/big-integer, _AlternateGroup:2/binary,
+                    Volumen:2/binary, _Reserved3:2/binary,
+                    _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
+  ?D({"Track header:", TrackID, Duration}),
+  Mp4Track#mp4_track{track_id = TrackID, duration = Duration};
 
 
 decode_atom(edts, Atom, Mp4Track) ->
@@ -119,6 +138,7 @@ decode_atom(mdhd,<<0:8/integer, _Flags:24/integer, _Ctime:32/big-integer,
 decode_atom(mdhd, <<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer, _Mtime:64/big-integer, TimeScale:32/big-integer, Duration:64/big-integer, _Language:2/binary, _Quality:16/big-integer>>, Mp4Track) ->
   Mp4Track;
 
+
 decode_atom(minf, Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track);
   
@@ -126,6 +146,7 @@ decode_atom(stbl, Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track);
 
 
+% STSD atom
 decode_atom(stsd, <<_Version:8/integer, _Flags:24/integer, EntryCount:32/big-integer, EntryData/binary>>, Mp4Track) ->
   decode_atom(stsd, {EntryCount, EntryData}, Mp4Track);
 
@@ -135,23 +156,30 @@ decode_atom(stsd, {0, _}, Mp4Track) ->
 decode_atom(stsd, {_, <<>>}, Mp4Track) ->
   Mp4Track;
   
-decode_atom(stsd, {EntryCount, EntryData}, Mp4Track) ->
-  Mp4Track;
-
+decode_atom(stsd, {EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
+                                 _Reserved:6/binary, RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
+           when SampleDescriptionSize == size(EntryData) + 16 ->
+  NewTrack = Mp4Track#mp4_track{data_format = binary_to_atom(DataFormat, utf8)},
+  ?D({"Sample description:", NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData)}),
+  % FIXME: parse extra data, like in RubyIzumi
+  NewTrack;
 
 % STSZ atom
 decode_atom(stsz, <<_Version:8/integer, _Flags:24/integer, 0:32/big-integer, SampleCount:32/big-integer, SampleSizeData/binary>>, Mp4Track) ->
   Mp4Track#mp4_track{sample_sizes = decode_atom(stsz, {SampleCount, SampleSizeData}, [])};
   
-decode_atom(stsz, {0, SampleSizeData}, SampleSizes) ->
+decode_atom(stsz, {0, _}, SampleSizes) ->
   lists:reverse(SampleSizes);
 
 decode_atom(stsz, {_, <<>>}, SampleSizes) ->
   lists:reverse(SampleSizes);
 
-decode_atom(stsz, {SampleCount, SampleSizeData}, SampleSizes) ->
-  <<Size:32/big-integer, Rest>> = SampleSizeData,
+decode_atom(stsz, {SampleCount, <<Size:32/big-integer, Rest/binary>>}, SampleSizes) ->
   decode_atom(stsz, {SampleCount - 1, Rest}, [Size | SampleSizes]);
+
+decode_atom(stsz, {SampleCount, <<Rest/binary>>}, SampleSizes) ->
+  ?D("Invalid stsz atom"),
+  decode_atom(stsz, {0, Rest}, SampleSizes);
   
 decode_atom(stsz, <<_Version:8/integer, _Flags:24/integer, _:32/big-integer, SampleCount:32/big-integer>>, Mp4Parser) ->
   Mp4Parser;
@@ -161,20 +189,29 @@ decode_atom(stsc, _, Mp4Parser) ->
   Mp4Parser;
 decode_atom(stco, _, Mp4Parser) ->
   Mp4Parser;
-decode_atom(stts, _, Mp4Parser) ->
-  Mp4Parser;
   
+% STTS atom
+decode_atom(stts, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
+  Table = decode_atom(stts, {EntryCount, Rest}, []),
+  ?D({"Sample time table", Table}),
+  Mp4Track#mp4_track{sample_time_table = lists:reverse(Table)};
+
+decode_atom(stts, {0, _}, Table) ->
+  Table;
   
+decode_atom(stts, {_, <<>>}, Table) ->
+  Table;
+  
+decode_atom(stts, {EntryCount, <<SampleCount:32/big-integer, SampleDuration:32/big-integer, Rest/binary>>}, Table) ->
+  decode_atom(stts, {EntryCount - 1, Rest}, [{SampleCount, SampleDuration} | Table]);
+  
+% STSS atom
 decode_atom(stss, _, Mp4Parser) ->
   Mp4Parser;
 
-decode_atom(_AtomName, <<>>, Mp4Parser) ->
-  ?D({"Unknown atom", _AtomName}),
-  Mp4Parser;
-
-decode_atom(_AtomName, Atom, Mp4Parser) ->
-  ?D({"Unknown atom", _AtomName}),
-  parse_atom(Atom, Mp4Parser).
+decode_atom(AtomName, _, Mp4Parser) ->
+  ?D({"Unknown atom", AtomName}),
+  Mp4Parser.
 
 extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
@@ -183,14 +220,19 @@ next_atom(IoDev) ->
   case file:read(IoDev, 8) of
     {ok, Data} ->
       <<AtomLength:32/big-integer, AtomName:4/binary>> = list_to_binary(Data),
-      ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
-      case file:read(IoDev, AtomLength - 8) of
-        {ok, Atom} ->
-          {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};
-        eof ->
-          {error, unexpected_eof};
-        {error, Reason} ->
-          {error, Reason}         
+      case AtomName of
+        <<"mdat">> ->
+          {eof};
+        _ ->
+          ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
+          case file:read(IoDev, AtomLength - 8) of
+            {ok, Atom} ->
+              {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};
+            eof ->
+              {error, unexpected_eof};
+            {error, Reason} ->
+              {error, Reason}         
+          end
       end;
     eof -> 
       {eof};
