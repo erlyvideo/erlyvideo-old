@@ -154,7 +154,7 @@ decode_atom(stbl, Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track);
 
 % STSD atom
-decode_atom(stsd, <<_Version:8/integer, _Flags:24/integer, EntryCount:32/big-integer, EntryData/binary>>, Mp4Track) ->
+decode_atom(stsd, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, EntryData/binary>>, Mp4Track) ->
   decode_atom(stsd, {EntryCount, EntryData}, Mp4Track);
 
 decode_atom(stsd, {0, _}, Mp4Track) ->
@@ -163,13 +163,46 @@ decode_atom(stsd, {0, _}, Mp4Track) ->
 decode_atom(stsd, {_, <<>>}, Mp4Track) ->
   Mp4Track;
   
+decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, 
+                                  "mp4a", _Reserved:6/binary, _RefIndex:16/big-integer, 
+                                  _Unknown:8/binary, _ChannelsCount:32/big-integer,
+                                  _SampleSize:32/big-integer, _SampleRate:32/big-integer,
+                                  Atom/binary>>}, Mp4Track) ->
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = mp4a});
+
+decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, 
+                                  "avc1", _Reserved:6/binary, _RefIndex:16/big-integer, 
+                                  _Unknown1:16/binary, 
+                                  _Width:16/big-integer, _Height:16/big-integer,
+                                  _HorizRes:32/big-integer, _VertRes:32/big-integer,
+                                  _FrameCount:16/big-integer, _CompressorName:32/binary,
+                                  _Depth:16/big-integer, _Predefined:16/big-integer,
+                                  _Unknown:4/binary,
+                                  Atom/binary>>}, Mp4Track) ->
+  ?D({"Video sample:", _Width, _Height, _CompressorName}),
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1});
+
+
 decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
                                  _Reserved:6/binary, _RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
            when SampleDescriptionSize == size(EntryData) + 16 ->
   NewTrack = Mp4Track#mp4_track{data_format = binary_to_atom(DataFormat, utf8)},
-  ?D({"Sample description:", NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData)}),
+  ?D({"Sample description:", _RefIndex, NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData), binary_to_list(EntryData)}),
   % FIXME: parse extra data, like in RubyIzumi
   NewTrack;
+  
+% ESDS atom
+decode_atom(esds, <<0:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) ->
+  ?D("Extracted audio config"),
+  Mp4Track#mp4_track{decoder_config = DecoderConfig};
+
+% avcC atom
+decode_atom(avcC, <<_Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
+  ?D("Extracted video config"),
+  Mp4Track#mp4_track{decoder_config = DecoderConfig};
+
+decode_atom(btrt, <<BufferSize:32/big-integer, MaxBitRate:32/big-integer, AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1} = Mp4Track) ->
+  Mp4Track;
 
 % STSZ atom
 decode_atom(stsz, <<_Version:8/integer, _Flags:24/integer, 0:32/big-integer, SampleCount:32/big-integer, SampleSizeData/binary>>, Mp4Track) ->

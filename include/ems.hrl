@@ -278,11 +278,15 @@
   sample_sizes = [],
   track_id,
   data_format,
-  extra_data,
+  decoder_config,
   timescale,
   duration,
   sample_time_table = [],
   sample_chunk_table = []
+}).
+
+-record(mp4_sample_description, {
+
 }).
 
 -record(flv_header,{
