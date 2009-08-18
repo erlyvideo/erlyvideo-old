@@ -179,7 +179,7 @@ decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer,
                                   _Depth:16/big-integer, _Predefined:16/big-integer,
                                   _Unknown:4/binary,
                                   Atom/binary>>}, Mp4Track) ->
-  ?D({"Video sample:", _Width, _Height, _CompressorName}),
+  ?D({"Video size:", _Width, _Height}),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1});
 
 
@@ -187,14 +187,13 @@ decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataForm
                                  _Reserved:6/binary, _RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
            when SampleDescriptionSize == size(EntryData) + 16 ->
   NewTrack = Mp4Track#mp4_track{data_format = binary_to_atom(DataFormat, utf8)},
-  ?D({"Sample description:", _RefIndex, NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData), binary_to_list(EntryData)}),
-  % FIXME: parse extra data, like in RubyIzumi
+  ?D({"Unknown sample description:", NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData), binary_to_list(EntryData)}),
   NewTrack;
   
 % ESDS atom
 decode_atom(esds, <<0:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) ->
   ?D("Extracted audio config"),
-  Mp4Track#mp4_track{decoder_config = DecoderConfig};
+  Mp4Track#mp4_track{decoder_config = esds_tag(DecoderConfig)};
 
 % avcC atom
 decode_atom(avcC, <<_Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
@@ -285,7 +284,13 @@ next_atom(IoDev) ->
   end.
     
     
-    
-    
+-define(MP4ESDescrTag, 3).
+-define(MP4DecConfigDescrTag, 4).
+-define(MP4DecSpecificDescrtag, 5).
+
+esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, Rest/binary>>) ->
+  ?D({"MP4DecSpecificDescrtag", Length}),
+  Config.
+  
     
     
