@@ -10,7 +10,7 @@ package {
 	import flash.media.Video;
 	import flash.net.NetStream;
 	import flash.net.ObjectEncoding;
-/*  import flash.external.ExternalInterface;*/
+  import flash.external.ExternalInterface;
 	
     public class Player extends Sprite 
 	{
@@ -46,6 +46,11 @@ package {
 				addChild(video);
 				_video = video
 				break;
+				
+			case "NetConnection.Message":
+        ExternalInterface.call("eval", event.info.description);
+        break;
+			
 
 			case "NetStream.Play.StreamNotFound":
 				trace("File not found");

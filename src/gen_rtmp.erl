@@ -70,6 +70,7 @@ connect(From, AMF, Channel) ->
     gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
 
 
+
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a createStream command and responds

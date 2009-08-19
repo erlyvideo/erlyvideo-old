@@ -48,6 +48,7 @@
     add_client/3,
     clients/0,
     client/1,
+    clients_for_user_id/1,
     remove_client/1,
     is_live_stream/1,
     subscribe/2,
@@ -120,6 +121,16 @@ client(Id) ->
         [#ems_client{pid=Pid}] ->
             Pid
     end.
+
+%%--------------------------------------------------------------------
+%% @spec (integer()) -> Pid::list()
+%% @doc
+%% returns a list of client with required user Id
+%% @end 
+%%--------------------------------------------------------------------    
+clients_for_user_id(UserId) ->
+  do(qlc:q([X || X <- mnesia:index_read(ems_client, UserId, #ems_client.user_id)])).
+
 
 
 %%--------------------------------------------------------------------
@@ -285,6 +296,7 @@ broadcast(Id, Data) ->
 %%--------------------------------------------------------------------
 start() ->
   ?D("Starting mnesia"),
+  mnesia:add_table_index(ems_client, user_id),
     Start = gen_server_cluster:start(?MODULE, ?MODULE, [], []),
     Node = node(),
     case catch gen_server_cluster:get_all_server_nodes(?MODULE) of

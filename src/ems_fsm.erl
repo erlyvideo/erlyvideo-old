@@ -167,6 +167,20 @@ init([]) ->
 'WAIT_FOR_DATA'({send, Packet}, State) when is_binary(Packet) ->
 	gen_tcp:send(State#ems_fsm.socket,Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+'WAIT_FOR_DATA'({message, Message}, State) ->
+  ?D("Flash push channel"),
+  NewAMF = #amf{
+      command = '_result', 
+      id = 1, %% muriel: dirty too, but the only way I can make this work
+      type = invoke,
+      args= [null,
+          [{level, "status"}, 
+          {code, "NetConnection.Message"}, 
+          {description, Message}]]},
+  gen_fsm:send_event(self(), {send, {1,NewAMF}}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
   % case ems_cluster:is_live_stream(Name) of
@@ -363,8 +377,9 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
-    (catch gen_tcp:close(Socket)),
-    ok.
+  ems_cluster:remove_client(erlang:pid_to_list(self())),
+  (catch gen_tcp:close(Socket)),
+  ok.
 
 
 %%-------------------------------------------------------------------------
