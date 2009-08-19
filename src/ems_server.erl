@@ -77,6 +77,7 @@ init([Port, Module]) ->
     case gen_tcp:listen(Port, Opts) of
         {ok, Listen_socket} ->
             %%Create first accepting process
+            ?D({"Registered: ", registered()}),
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
             {ok, #ems_server{listener = Listen_socket,
                              acceptor = Ref,
@@ -143,6 +144,11 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
 handle_info({inet_async, ListSock, Ref, Error}, #ems_server{listener=ListSock, acceptor=Ref} = State) ->
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
+    
+handle_info({clients, From}, #ems_server{} = State) ->
+  ?D("Asked for clients list"),
+  From ! {client_list, ems_cluster:clients()},
+  {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.

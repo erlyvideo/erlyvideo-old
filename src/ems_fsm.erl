@@ -181,7 +181,7 @@ init([]) ->
           case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
             {ok, PlayerPid} ->
               NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
-              gen_fsm:send_event(PlayerPid, {timeout, timer, play}),
+              gen_fsm:send_event(PlayerPid, {start}),
               {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
             Reason -> 
               ?D({"Failed to start video player", Reason}),

@@ -77,7 +77,7 @@ stop(_, State) ->
   {stop, normal, State}.
   
 ready({start}, State) ->
-	Timer = gen_fsm:start_timer(0.0001, play),
+	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
   {next_state, ready, NextState, ?TIMEOUT};
   

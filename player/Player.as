@@ -25,7 +25,7 @@ package {
 			_connection.addEventListener(NetStatusEvent.NET_STATUS, onNetStatus);
 			_connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
 			_connection.objectEncoding = ObjectEncoding.AMF0;
-			_connection.connect("rtmp://localhost/");
+			_connection.connect("rtmp://localhost/", 142, "password");
         }
 
 		private function onNetStatus( event : NetStatusEvent ) : void
@@ -42,7 +42,7 @@ package {
 				video.deblocking = 2;
 				video.smoothing = true;
 				
-				_stream.play("video.mp4");
+				_stream.play("video.flv");
 				addChild(video);
 				_video = video
 				break;

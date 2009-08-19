@@ -45,7 +45,7 @@
     start/0, 
     stop/0,
     is_global/0,
-    add_client/2,
+    add_client/3,
     clients/0,
     client/1,
     remove_client/1,
@@ -60,6 +60,7 @@
 
 %% gen_server callbacks
 -export([
+    start_link/0,
     init/1, 
     handle_call/3, 
     handle_cast/2, 
@@ -74,17 +75,20 @@
 %%====================================================================
 
 %%-------------------------------------------------------------------------
-%% @spec (pid(), string()) -> ok | errror
+%% @spec (pid(), UserId, string()) -> ok | errror
 %% @doc
 %% adds a client
 %% @end
 %%-------------------------------------------------------------------------
-add_client(Id, Pid) -> 
+add_client(Id, UserId, Pid) -> 
+  ?D({"Writing:", Id, UserId}),
     F = fun() ->
-		mnesia:write(#ems_client{id=Id, pid=Pid})
+		mnesia:write(#ems_client{id=Id, user_id = UserId, pid=Pid})
 	end,
     case mnesia:transaction(F) of
-        {atomic, ok} -> ok;
+        {atomic, ok} -> 
+          ?D({"Client:", Id, UserId}),
+          ok;
         _ -> error
     end.
  
@@ -280,6 +284,7 @@ broadcast(Id, Data) ->
 %% @end 
 %%--------------------------------------------------------------------
 start() ->
+  ?D("Starting mnesia"),
     Start = gen_server_cluster:start(?MODULE, ?MODULE, [], []),
     Node = node(),
     case catch gen_server_cluster:get_all_server_nodes(?MODULE) of
@@ -316,13 +321,24 @@ is_global() ->
 %% gen_server callbacks
 %%====================================================================
 
+%%--------------------------------------------------------------------
+%% @spec () -> {ok, Pid} | {error, Reason}
+%%
+%% @doc Called by a supervisor to start the listening process.
+%% @end
+%%----------------------------------------------------------------------
+start_link() ->
+  start(),
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+
 %%-------------------------------------------------------------------------
 %% @spec (Args::any()) -> any()
 %% @doc Initalization
 %% @end
 %%-------------------------------------------------------------------------
 init([]) ->
-    {ok, #ems_cluster{}}.
+  {ok, #ems_cluster{}}.
 
 
 %%-------------------------------------------------------------------------
