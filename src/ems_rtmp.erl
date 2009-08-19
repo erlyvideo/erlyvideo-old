@@ -171,8 +171,8 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 			{App,NextState} = case Command of
 				connect -> 
 		      {object, PlayerInfo} = lists:nth(1, AMF#amf.args),
-		      UserId = case length(AMF#amf.args) of
-		        1 -> undefined;
+		      {number, UserId} = case length(AMF#amf.args) of
+		        1 -> {number, undefined};
 		        3 -> lists:nth(2, AMF#amf.args)
 	        end,
 	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),

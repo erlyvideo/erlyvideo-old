@@ -153,12 +153,13 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {Channel, AMF}}, State) when is_record(Channel,channel), is_record(AMF,amf) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
+  ?D({"Sending Packet",size(Packet),Channel#channel.id}),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {Channel, Data}}, State) when is_record(Channel,channel), is_binary(Data) ->
 	Packet = ems_rtmp:encode(Channel,Data),
-%	?D({"Sending Packet",size(Packet),Channel#channel.id}),
+% ?D({"Sending Packet",size(Packet),Channel#channel.id}),
 %	file:write_file("/sfe/temp/packet.txt",Packet),
 %	?D({"Packet: ",Packet}),
 	gen_tcp:send(State#ems_fsm.socket, Packet),
@@ -172,13 +173,13 @@ init([]) ->
   ?D("Flash push channel"),
   NewAMF = #amf{
       command = '_result', 
-      id = 1, %% muriel: dirty too, but the only way I can make this work
+      id = 0, %% muriel: dirty too, but the only way I can make this work
       type = invoke,
       args= [null,
           [{level, "status"}, 
           {code, "NetConnection.Message"}, 
           {description, Message}]]},
-  gen_fsm:send_event(self(), {send, {1,NewAMF}}),
+  gen_fsm:send_event(self(), {send, {lists:nth(1, State#ems_fsm.channels),NewAMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
   
         

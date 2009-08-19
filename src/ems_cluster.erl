@@ -295,12 +295,14 @@ broadcast(Id, Data) ->
 %% @end 
 %%--------------------------------------------------------------------
 start() ->
-  ?D("Starting mnesia"),
-  mnesia:add_table_index(ems_client, user_id),
     Start = gen_server_cluster:start(?MODULE, ?MODULE, [], []),
     Node = node(),
     case catch gen_server_cluster:get_all_server_nodes(?MODULE) of
 	    {Node, _} ->
+        ?D("Starting mnesia"),
+        mnesia:transaction(fun() ->
+          mnesia:add_table_index(ems_client, user_id)
+        end),
 	        up_master();
         {Master, _}->
             gen_server:call(Master, add_mnesia_slave),
