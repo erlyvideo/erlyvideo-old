@@ -63,6 +63,14 @@ init([Port, Module]) ->
                   worker,                                  % Type     = worker | supervisor
                   [ems_server]                             % Modules  = [Module] | dynamic
               },
+              % EMS Cluster
+              {   ems_cluster_sup,                         % Id       = internal id
+                  {ems_cluster,start_link,[]},             % StartFun = {M, F, A}
+                  permanent,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [ems_cluster]                            % Modules  = [Module] | dynamic
+              },
               % EMS instance supervisor
               {   ems_client_sup,
                   {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [Module]]},

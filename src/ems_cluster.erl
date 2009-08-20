@@ -45,9 +45,10 @@
     start/0, 
     stop/0,
     is_global/0,
-    add_client/2,
+    add_client/3,
     clients/0,
     client/1,
+    clients_for_user_id/1,
     remove_client/1,
     is_live_stream/1,
     subscribe/2,
@@ -60,6 +61,7 @@
 
 %% gen_server callbacks
 -export([
+    start_link/0,
     init/1, 
     handle_call/3, 
     handle_cast/2, 
@@ -74,17 +76,20 @@
 %%====================================================================
 
 %%-------------------------------------------------------------------------
-%% @spec (pid(), string()) -> ok | errror
+%% @spec (pid(), UserId, string()) -> ok | errror
 %% @doc
 %% adds a client
 %% @end
 %%-------------------------------------------------------------------------
-add_client(Id, Pid) -> 
+add_client(Id, UserId, Pid) -> 
+  ?D({"Writing:", Id, UserId}),
     F = fun() ->
-		mnesia:write(#ems_client{id=Id, pid=Pid})
+		mnesia:write(#ems_client{id=Id, user_id = UserId, pid=Pid})
 	end,
     case mnesia:transaction(F) of
-        {atomic, ok} -> ok;
+        {atomic, ok} -> 
+          ?D({"Client:", Id, UserId}),
+          ok;
         _ -> error
     end.
  
@@ -116,6 +121,16 @@ client(Id) ->
         [#ems_client{pid=Pid}] ->
             Pid
     end.
+
+%%--------------------------------------------------------------------
+%% @spec (integer()) -> Pid::list()
+%% @doc
+%% returns a list of client with required user Id
+%% @end 
+%%--------------------------------------------------------------------    
+clients_for_user_id(UserId) ->
+  do(qlc:q([X || X <- mnesia:index_read(ems_client, UserId, #ems_client.user_id)])).
+
 
 
 %%--------------------------------------------------------------------
@@ -284,6 +299,10 @@ start() ->
     Node = node(),
     case catch gen_server_cluster:get_all_server_nodes(?MODULE) of
 	    {Node, _} ->
+        ?D("Starting mnesia"),
+        mnesia:transaction(fun() ->
+          mnesia:add_table_index(ems_client, user_id)
+        end),
 	        up_master();
         {Master, _}->
             gen_server:call(Master, add_mnesia_slave),
@@ -316,13 +335,24 @@ is_global() ->
 %% gen_server callbacks
 %%====================================================================
 
+%%--------------------------------------------------------------------
+%% @spec () -> {ok, Pid} | {error, Reason}
+%%
+%% @doc Called by a supervisor to start the listening process.
+%% @end
+%%----------------------------------------------------------------------
+start_link() ->
+  start(),
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+
 %%-------------------------------------------------------------------------
 %% @spec (Args::any()) -> any()
 %% @doc Initalization
 %% @end
 %%-------------------------------------------------------------------------
 init([]) ->
-    {ok, #ems_cluster{}}.
+  {ok, #ems_cluster{}}.
 
 
 %%-------------------------------------------------------------------------

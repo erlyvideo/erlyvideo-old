@@ -214,6 +214,7 @@
 	
 -record(ems_client, {
     id,
+    user_id,
     pid
     }).
 
@@ -233,6 +234,7 @@
 	socket,    % client socket
 	addr,      % client address
 	channels    = [],
+	user_id     = undefined,
 	player_info = [],
 	complete    = true,
 	buff        = <<>>,

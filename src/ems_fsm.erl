@@ -153,12 +153,13 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {Channel, AMF}}, State) when is_record(Channel,channel), is_record(AMF,amf) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
+  ?D({"Sending Packet",size(Packet),Channel#channel.id}),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {Channel, Data}}, State) when is_record(Channel,channel), is_binary(Data) ->
 	Packet = ems_rtmp:encode(Channel,Data),
-%	?D({"Sending Packet",size(Packet),Channel#channel.id}),
+% ?D({"Sending Packet",size(Packet),Channel#channel.id}),
 %	file:write_file("/sfe/temp/packet.txt",Packet),
 %	?D({"Packet: ",Packet}),
 	gen_tcp:send(State#ems_fsm.socket, Packet),
@@ -167,6 +168,20 @@ init([]) ->
 'WAIT_FOR_DATA'({send, Packet}, State) when is_binary(Packet) ->
 	gen_tcp:send(State#ems_fsm.socket,Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+'WAIT_FOR_DATA'({message, Message}, State) ->
+  ?D("Flash push channel"),
+  NewAMF = #amf{
+      command = '_result', 
+      id = 0, %% muriel: dirty too, but the only way I can make this work
+      type = invoke,
+      args= [null,
+          [{level, "status"}, 
+          {code, "NetConnection.Message"}, 
+          {description, Message}]]},
+  gen_fsm:send_event(self(), {send, {lists:nth(1, State#ems_fsm.channels),NewAMF}}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
   % case ems_cluster:is_live_stream(Name) of
@@ -181,7 +196,7 @@ init([]) ->
           case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
             {ok, PlayerPid} ->
               NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
-              gen_fsm:send_event(PlayerPid, {timeout, timer, play}),
+              gen_fsm:send_event(PlayerPid, {start}),
               {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
             Reason -> 
               ?D({"Failed to start video player", Reason}),
@@ -363,8 +378,9 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
-    (catch gen_tcp:close(Socket)),
-    ok.
+  ems_cluster:remove_client(erlang:pid_to_list(self())),
+  (catch gen_tcp:close(Socket)),
+  ok.
 
 
 %%-------------------------------------------------------------------------

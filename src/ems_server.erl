@@ -143,6 +143,21 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
 handle_info({inet_async, ListSock, Ref, Error}, #ems_server{listener=ListSock, acceptor=Ref} = State) ->
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
+    
+handle_info({clients, From}, #ems_server{} = State) ->
+  ?D("Asked for clients list"),
+  From ! {client_list, ems_cluster:clients()},
+  {noreply, State};
+
+handle_info({message, UserId, Message}, #ems_server{} = State) ->
+  ?D({"Message to user", UserId, Message}),
+  Clients = ems_cluster:clients_for_user_id(UserId),
+  ?D({"Clients for uid", Clients}),
+  F = fun(#ems_client{pid = Pid} = Client) ->
+    gen_fsm:send_event(Pid, {message, Message})
+  end,
+  lists:foreach(F, Clients),
+  {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.
