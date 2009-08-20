@@ -256,6 +256,8 @@
   consumer,
   header = undefined,
   client_buffer = ?MIN_CLIENT_BUFFER,
+  sent_video_config = false,
+  sent_audio_config = false,
   device,
   file_name,
 	stream_id,

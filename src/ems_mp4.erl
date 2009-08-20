@@ -36,7 +36,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([init/1]).
+-export([init/1, read_frame/1]).
 
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
@@ -55,6 +55,31 @@ init(#video_player{header = Mp4Parser, device = IoDev} = Player) ->
     Else -> Else
   end.
   
+decoder_config(Format, #video_player{header = Mp4Parser} = Player) ->
+  #mp4_parser{tracks = Tracks} = Mp4Parser,
+  Track = lists:keyfind(Format, #mp4_track.data_format, Tracks),
+  Track#mp4_track.decoder_config.
+  
+read_frame(#video_player{sent_video_config = false} = Player) ->
+  Config = decoder_config(avc1, Player),
+  {ok, #video_frame{       
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		body_length   = size(Config),
+		timestamp_abs = 0,
+		streamid      = 1,
+		body          = Config
+	}, Player#video_player{sent_video_config = true}};  
+
+
+read_frame(#video_player{sent_audio_config = false} = Player) ->
+  Config = decoder_config(avc1, Player),
+  {ok, #video_frame{       
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		body_length   = size(Config),
+		timestamp_abs = 0,
+		streamid      = 1,
+		body          = Config
+	}, Player#video_player{sent_audio_config = true}}.
   
 parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
   Mp4Parser;
@@ -66,7 +91,6 @@ parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/bin
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
   AtomName = binary_to_atom(BinaryAtomName, utf8),
-  % ?D({"Atom", AtomName}),
   NewMp4Parser = decode_atom(AtomName, Atom, Mp4Parser),
   parse_atom(Rest, NewMp4Parser);
   
@@ -89,6 +113,7 @@ decode_atom(ftyp, <<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
 % MOOV atom
 decode_atom(moov, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   NewParser = parse_atom(Atom, Mp4Parser),
+  ?D({"Have tracks:", length(Tracks)}),
   NewParser#mp4_parser{tracks = lists:reverse(Tracks)};
 
 % MVHD atom
@@ -105,8 +130,9 @@ decode_atom(mvhd, <<Version:8/integer, Rest/binary>>, Mp4Parser) ->
 decode_atom(trak, <<>>, #mp4_parser{} = Mp4Parser) ->
   Mp4Parser;
 decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
-  Track = decode_atom(trak, Atom, #mp4_track{}),  
+  Track = decode_atom(trak, Atom, #mp4_track{}),
   Mp4Parser#mp4_parser{tracks = [Track | Tracks]};
+  
 decode_atom(trak, <<>>, #mp4_track{} = Mp4Track) ->
   Mp4Track;
 decode_atom(trak, Atom, #mp4_track{} = Mp4Track) ->

@@ -86,7 +86,7 @@ read_frame(#video_player{device = IoDev, pos = Pos} = State) ->
 										  sound_size	= SoundSize,
 										  sound_rate	= SoundRate,
 										  sound_format	= SoundFormat
-										  }};
+										  }, State};
 								 ?FLV_TAG_TYPE_VIDEO -> 
 								  {FrameType, CodecID, Width, Height} = extractVideoHeader(IoDev, Pos),
 								 	{ok, TagData#video_frame{
@@ -94,16 +94,16 @@ read_frame(#video_player{device = IoDev, pos = Pos} = State) ->
 										  codec_id	= CodecID,
 										  width		= Width,
 										  height	= Height
-										  }};
+										  }, State};
 								?FLV_TAG_TYPE_META -> 
 								  AmfData = ems_amf:decode(iolist_to_binary(IoList2)),
 								  {ok, TagData#video_frame{
 										   amf_data      = AmfData
-										   }}
+										   }, State}
 								end;
 	
 						eof -> 
-							{ok, done};
+							{ok, done, State};
 						{error, Reason} -> 
 							{error, Reason}
 					end;

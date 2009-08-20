@@ -142,14 +142,12 @@ get_chunk(Channel,State,Bin) ->
 	{Chunk,Next}.
 
 
-command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, State) ->
-	<<ChunkSize:32/big-integer>> = Channel#channel.msg,
+command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
 	?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{chunk_size=ChunkSize};
 
-command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg=Msg} = _Channel, State) ->
-	<<Length:32/big-integer>>=Msg,
-  % ?D({"Stream bytes read: ", Length}),
+command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
+  % ?D({"Stream bytes read: ", _Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_PING} = _Channel, State) ->

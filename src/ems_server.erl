@@ -151,7 +151,7 @@ handle_info({clients, From}, #ems_server{} = State) ->
 
 handle_info({message, UserId, Message}, #ems_server{} = State) ->
   Clients = ems_cluster:clients_for_user_id(UserId),
-  F = fun(#ems_client{pid = Pid} = Client) ->
+  F = fun(#ems_client{pid = Pid}) ->
     gen_fsm:send_event(Pid, {message, Message})
   end,
   lists:foreach(F, Clients),
