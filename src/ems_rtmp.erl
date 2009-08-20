@@ -45,12 +45,13 @@
 handshake(C1) when is_binary(C1) -> 
   <<(rtmp_handshake:s1())/binary, (rtmp_handshake:s2(C1))/binary>>.
 
-encode(#channel{msg = Msg} = Channel)	when is_record(Channel,channel) ->
+encode(#channel{msg = Msg} = Channel) ->
     encode(Channel,Msg,<<>>).
 
-encode(Channel,AMF)	when is_record(Channel,channel), is_record(AMF,amf) -> 
+encode(#channel{} = Channel, #amf{} = AMF) -> 
 	encode(Channel,ems_amf:encode(AMF));
-encode(Channel,Data) when is_record(Channel,channel), is_binary(Data) -> 
+	
+encode(#channel{} = Channel, Data) when is_binary(Data) -> 
 	encode(Channel,Data,<<>>).
 
 encode(_Channel, <<>>, Packet) -> Packet;
@@ -58,8 +59,9 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId} =
 	Length = size(Data),
 	{Chunk,Rest} = chunk(Data),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
-	NextPacket = <<BinId/binary,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Chunk/binary>>,
+	NextPacket = <<BinId/binary,TimeStamp:24/big-integer,Length:24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
+	
 encode(#channel{id = Id} = Channel, Data, Packet) -> 
 	{Chunk,Rest} = chunk(Data),
 	BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
@@ -90,8 +92,6 @@ chunk(Data,ChunkSize) ->
 
 decode(<<>>,State) -> State;
 decode(Bin,State) ->
-  io:format("in decode... "),
-%	?D("Decode"),
 	case State#ems_fsm.complete of
 		true ->
 			{Channel,Rest} = header(Bin),
@@ -111,17 +111,14 @@ decode(Bin,State) ->
 			NextChannel = NewChannel#channel{msg=Message},
 			case check_message(NextChannel,State,Next) of
 				complete  -> 
-%					?D("Comlpete"),
 					NewState = command(NextChannel,State), % Perform Commands here
 					NextChannelList = channel_put(NextChannel#channel{msg = <<>>},NewChannelList),
 					NextState = NewState#ems_fsm{channels=NextChannelList,complete = true, prev_buff = <<>>},
 					decode(Next,NextState); 
 				next_packet     -> % add case to determine if the processing is done even though the binary is not empty.
-%					?D("Next Packet"),
 					NextChannelList = channel_put(NewChannel,NewChannelList),
 					State#ems_fsm{channels=NextChannelList, prev_buff = Chunk, complete = false};
 				continue -> 
-%					?D({"Continue",NextChannel#channel.length,size(Message),size(Next),State#ems_fsm.chunk_size}),
 					NextChannelList = channel_put(NextChannel,NewChannelList),
 					NextState = State#ems_fsm{channels=NextChannelList, complete = true, prev_buff = <<>>},
 					decode(Next,NextState)
@@ -152,7 +149,7 @@ command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, State) ->
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg=Msg} = _Channel, State) ->
 	<<Length:32/big-integer>>=Msg,
-	?D({"Stream bytes read: ", Length}),
+  % ?D({"Stream bytes read: ", Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_PING} = _Channel, State) ->

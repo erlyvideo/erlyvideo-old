@@ -40,16 +40,11 @@
 -compile(export_all).
 
 
-encode(AMF) when is_record(AMF,amf) -> 
-	Command = encode(AMF#amf.command),
-	Args    = encode(AMF#amf.args, <<>>),
-	case AMF#amf.type of
-		invoke -> 
-		  Id = encode(AMF#amf.id),
-			<<Command/binary,Id/binary,Args/binary>>;
-		notify -> 
-		    <<Command/binary,Args/binary>>
-	end;
+encode(#amf{command = Command, args = Args, id = Id, type = invoke}) -> 
+  <<(encode(Command))/binary, (encode(Id))/binary, (encode(Args, <<>>))/binary>>;
+
+encode(#amf{command = Command, args = Args, type = notify}) -> 
+  <<(encode(Command))/binary, (encode(Args, <<>>))/binary>>;
 
 encode(null) -> <<?AMF_NULL>>;
 encode(false) -> <<?AMF_BOOLEAN,0>>;
@@ -62,7 +57,8 @@ encode({string,List} = _String)    when is_list(List) -> encode(List);
 encode([H|_] = List) when is_list(List), is_tuple(H) -> 
 	encode_object(List, <<>>);
 encode(List) when is_list(List) -> 
-	<<?AMF_STRING, (length(List)):16/big-integer, (list_to_binary(List))/binary>>;
+  String = unicode:characters_to_binary(List),
+	<<?AMF_STRING, (size(String)):16/big-integer, String/binary>>;
 encode(_Value) -> 
 	?D(_Value),
 	<<>>.
@@ -162,15 +158,12 @@ parse(<<?AMF_UNDEFINED:8/integer,Rest/binary>>) ->
 parse(<<?AMF_MIXED_ARRAY:8/integer,_Index:32,Rest/binary>>) ->
 	parse_mixed_array(Rest,[]);
 parse(<<?AMF_ARRAY:8/integer,Length:32,Rest/binary>>) ->
-%	?D(Length),
-%	?D(Rest),
 	parse_array(Rest,Length,[]).
 
 parse_array(<<>>,_,Array) -> {{array,lists:reverse(Array)}, <<>>};
 parse_array(Rest,Length,Array) when length(Array) == Length -> {{array,lists:reverse(Array)}, Rest};
 parse_array(Data,Length,Array) -> 
 	{Type,Value,Rest} = parse(Data),
-%	?D({Type,Value,size(Rest)}),
 	parse_array(Rest,Length,[{Type,Value}|Array]).
 
 

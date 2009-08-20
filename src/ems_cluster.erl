@@ -129,7 +129,7 @@ client(Id) ->
 %% @end 
 %%--------------------------------------------------------------------    
 clients_for_user_id(UserId) ->
-  do(qlc:q([X || X <- mnesia:index_read(ems_client, UserId, #ems_client.user_id)])).
+  do(qlc:q([X || X <- mnesia:match_object(ems_client, {ems_client, '_', UserId, '_'}, read)])).
 
 
 
