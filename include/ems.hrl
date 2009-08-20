@@ -282,7 +282,10 @@
   timescale,
   duration,
   sample_time_table = [],
-  sample_chunk_table = []
+  sample_chunk_table = [],
+  sync_samples = [],
+  key_offset = 0,
+  chunk_offsets = []
 }).
 
 -record(mp4_sample_description, {

@@ -163,14 +163,14 @@ decode_atom(stsd, {0, _}, Mp4Track) ->
 decode_atom(stsd, {_, <<>>}, Mp4Track) ->
   Mp4Track;
   
-decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, 
+decode_atom(stsd, {_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
                                   "mp4a", _Reserved:6/binary, _RefIndex:16/big-integer, 
                                   _Unknown:8/binary, _ChannelsCount:32/big-integer,
                                   _SampleSize:32/big-integer, _SampleRate:32/big-integer,
                                   Atom/binary>>}, Mp4Track) ->
   parse_atom(Atom, Mp4Track#mp4_track{data_format = mp4a});
 
-decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, 
+decode_atom(stsd, {_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
                                   "avc1", _Reserved:6/binary, _RefIndex:16/big-integer, 
                                   _Unknown1:16/binary, 
                                   _Width:16/big-integer, _Height:16/big-integer,
@@ -200,7 +200,7 @@ decode_atom(avcC, <<_Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>,
   ?D("Extracted video config"),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
-decode_atom(btrt, <<BufferSize:32/big-integer, MaxBitRate:32/big-integer, AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1} = Mp4Track) ->
+decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1} = Mp4Track) ->
   Mp4Track;
 
 % STSZ atom
@@ -251,6 +251,34 @@ decode_atom(stsc, {_, <<>>}, Table) ->
 decode_atom(stsc, {EntryCount, <<FirstChunk:32/big-integer, SamplesPerChunk:32/big-integer, SampleID:32/big-integer, Rest/binary>>}, Table) ->
   decode_atom(stsc, {EntryCount - 1, Rest}, [{FirstChunk, SamplesPerChunk, SampleID} | Table]);
 
+% STSS atom
+% List of keyframes
+decode_atom(stss, <<0:8/integer, _Flags:3/binary, SampleCount:32/big-integer, Samples/binary>>, #mp4_track{} = Mp4Track) when size(Samples) == SampleCount*4->
+  NewTrack = Mp4Track#mp4_track{sync_samples = decode_atom(stss, Samples, [])},
+  case NewTrack#mp4_track.sync_samples of
+    [1 | _] ->
+      NewTrack#mp4_track{key_offset = 1};
+    _ ->
+      NewTrack
+  end;
+
+decode_atom(stss, <<>>, SampleList) ->
+  lists:reverse(SampleList);
+  
+decode_atom(stss, <<Sample:32/big-integer, Rest/binary>>, SampleList) ->
+  decode_atom(stss, Rest, [Sample | SampleList]);
+
+% STCO atom
+% sample table chunk offset
+decode_atom(stco, <<0:8/integer, _Flags:3/binary, OffsetCount:32/big-integer, Offsets/binary>>, #mp4_track{} = Mp4Track) when size(Offsets) == OffsetCount*4 ->
+  Mp4Track#mp4_track{chunk_offsets = decode_atom(stco, Offsets, [])};
+
+decode_atom(stco, <<>>, OffsetList) ->
+  lists:reverse(OffsetList);
+  
+decode_atom(stco, <<Offset:32/big-integer, Rest/binary>>, OffsetList) ->
+  decode_atom(stco, Rest, [Offset | OffsetList]);
+
 % FALLBACK  
 decode_atom(AtomName, _, Mp4Parser) ->
   ?D({"Unknown atom", AtomName}),
@@ -288,7 +316,7 @@ next_atom(IoDev) ->
 -define(MP4DecConfigDescrTag, 4).
 -define(MP4DecSpecificDescrtag, 5).
 
-esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, Rest/binary>>) ->
+esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, _Rest/binary>>) ->
   ?D({"MP4DecSpecificDescrtag", Length}),
   Config.
   
