@@ -151,17 +151,13 @@ init([]) ->
 	NewState = ems_rtmp:decode(Data,State),
   {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {Channel, AMF}}, State) when is_record(Channel,channel), is_record(AMF,amf) ->
+'WAIT_FOR_DATA'({send, {#channel{id = ChannelId} = Channel, #amf{} = AMF}}, State) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
-  ?D({"Sending Packet",size(Packet),Channel#channel.id}),
 	gen_tcp:send(State#ems_fsm.socket,Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {Channel, Data}}, State) when is_record(Channel,channel), is_binary(Data) ->
+'WAIT_FOR_DATA'({send, {#channel{} = Channel, <<Data/binary>>}}, State) ->
 	Packet = ems_rtmp:encode(Channel,Data),
-% ?D({"Sending Packet",size(Packet),Channel#channel.id}),
-%	file:write_file("/sfe/temp/packet.txt",Packet),
-%	?D({"Packet: ",Packet}),
 	gen_tcp:send(State#ems_fsm.socket, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
@@ -169,17 +165,21 @@ init([]) ->
 	gen_tcp:send(State#ems_fsm.socket,Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
+'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) ->
+  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = 0}, AMF}}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  
+
 'WAIT_FOR_DATA'({message, Message}, State) ->
-  ?D("Flash push channel"),
   NewAMF = #amf{
-      command = '_result', 
+      command = 'onStatus', 
       id = 0, %% muriel: dirty too, but the only way I can make this work
       type = invoke,
       args= [null,
           [{level, "status"}, 
           {code, "NetConnection.Message"}, 
           {description, Message}]]},
-  gen_fsm:send_event(self(), {send, {lists:nth(1, State#ems_fsm.channels),NewAMF}}),
+  gen_fsm:send_event(self(), {invoke, NewAMF}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
   
         

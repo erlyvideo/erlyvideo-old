@@ -152,7 +152,6 @@ handle_info({clients, From}, #ems_server{} = State) ->
 handle_info({message, UserId, Message}, #ems_server{} = State) ->
   ?D({"Message to user", UserId, Message}),
   Clients = ems_cluster:clients_for_user_id(UserId),
-  ?D({"Clients for uid", Clients}),
   F = fun(#ems_client{pid = Pid} = Client) ->
     gen_fsm:send_event(Pid, {message, Message})
   end,

@@ -48,7 +48,7 @@ package {
 				video.deblocking = 2;
 				video.smoothing = true;
 				
-        _stream.play("video.mp4");
+        _stream.play("video.flv");
 				addChild(video);
 				video.y = 20;
 				_video = video

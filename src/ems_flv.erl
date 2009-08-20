@@ -55,7 +55,7 @@ init(#video_player{device = IoDev} = State) ->
   end.
 
 
-% Reads a tag from IoDev for position Pos, place this method in ems_flv or leave it here???
+% Reads a tag from IoDev for position Pos.
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
