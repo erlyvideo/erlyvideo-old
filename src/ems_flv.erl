@@ -36,7 +36,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
+-export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
 
 
@@ -45,59 +45,61 @@
 %% @doc Starts ErlMedia
 %% @end 
 %%--------------------------------------------------------------------
-read_header(IoDev) -> 
-    case file:read(IoDev, ?FLV_HEADER_LENGTH) of
-        {ok, Data} -> 
-
-			{ok, iolist_size(Data), header(Data)};
-        eof -> {error, unexpected_eof};
-        {error, Reason} -> {error, Reason}           
-    end.
+init(#video_player{device = IoDev} = State) -> 
+  case file:read(IoDev, ?FLV_HEADER_LENGTH) of
+    {ok, Data} -> 
+      {ok, State#video_player{pos = iolist_size(Data), header = header(Data)}};
+    eof -> 
+      {error, unexpected_eof};
+    {error, Reason} -> {error, Reason}           
+  end.
 
 
 % Reads a tag from IoDev for position Pos, place this method in ems_flv or leave it here???
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_frame(IoDev, Pos) ->
+read_frame(#video_player{device = IoDev, pos = Pos} = State) ->
 	case file:pread(IoDev,Pos, ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH) of
 		{ok, IoList} ->
 			case iolist_to_binary(IoList) of
-			  	<<PrevTagSize:32/integer,Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24>> ->				
+			  <<PrevTagSize:32/integer, Type:8, BodyLength:24/big, TimeStamp:24/big, TimeStampExt:8, StreamId:24/big>> ->				
 					case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, BodyLength) of
 						{ok,IoList2} -> 
-						    <<TimeStampAbs:32>> = <<TimeStampExt:8, TimeStamp:24>>,
-						    	TagData = #video_frame{       prev_tag_size = PrevTagSize,
-					         			          type          = Type,
-							 			  body_length   = BodyLength,
-							 			  timestamp_abs = TimeStampAbs,
-							 			  streamid      = StreamId,
-							 			  pos           = Pos,
-							   			  nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + BodyLength,
-							 			  body          = iolist_to_binary(IoList2)
-										  },
+						    <<TimeStampAbs:32/big>> = <<TimeStampExt:8, TimeStamp:24/big>>,
+						    	TagData = #video_frame{       
+						    	  prev_tag_size = PrevTagSize,
+					         	type          = Type,
+							 			body_length   = BodyLength,
+							 			timestamp_abs = TimeStampAbs,
+							 			streamid      = StreamId,
+							 			pos           = Pos,
+							   		nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + BodyLength,
+							 			body          = iolist_to_binary(IoList2)
+									},
 							case Type of
 								
-								 8 -> {SoundType, SoundSize, SoundRate, SoundFormat} =  extractAudioHeader(IoDev, Pos),
-								     
+								 ?FLV_TAG_TYPE_AUDIO -> 
+								  {SoundType, SoundSize, SoundRate, SoundFormat} =  extractAudioHeader(IoDev, Pos),
 								 	{ok, TagData#video_frame{
 										  sound_type	= SoundType,
 										  sound_size	= SoundSize,
 										  sound_rate	= SoundRate,
 										  sound_format	= SoundFormat
 										  }};
-								 9 -> {FrameType, CodecID, Width, Height} = extractVideoHeader(IoDev, Pos),
+								 ?FLV_TAG_TYPE_VIDEO -> 
+								  {FrameType, CodecID, Width, Height} = extractVideoHeader(IoDev, Pos),
 								 	{ok, TagData#video_frame{
 										  frame_type	= FrameType,
 										  codec_id	= CodecID,
 										  width		= Width,
 										  height	= Height
 										  }};
-								18 -> AmfData = ems_amf:decode(iolist_to_binary(IoList2)),
-								       {ok, TagData#video_frame{
+								?FLV_TAG_TYPE_META -> 
+								  AmfData = ems_amf:decode(iolist_to_binary(IoList2)),
+								  {ok, TagData#video_frame{
 										   amf_data      = AmfData
 										   }}
-				
 								end;
 	
 						eof -> 
@@ -114,28 +116,7 @@ read_frame(IoDev, Pos) ->
         {error, Reason} -> 
 			{error, Reason}
 	end.
-
-% Decodes a tag from binary
-% @param EncodedTag
-% @return a valid video_frame record type
-read_frame(EncodedTag) ->
-
-	<<PrevTagSize:32/integer,Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24, Body/binary>> = EncodedTag,		
-
-	    <<TimeStampAbs:32>> = <<TimeStampExt:8, TimeStamp:24>>,
-		case Type of
-			18 ->  
-				      {ok, #video_frame{prev_tag_size = PrevTagSize,
-						  type          = Type,
-						  body_length   = BodyLength,
-						  timestamp_abs = TimeStampAbs,
-						  streamid      = StreamId,
-						  body          = Body
-						  }};
-			_ -> {error}
-
-			end.
-
+	
 % Extracts width and height from video frames.
 % TODO: add to video_frame, not done yet
 % @param IoDev

@@ -36,20 +36,22 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([read_header/1]).
+-export([init/1]).
 
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
-read_header(IoDev) -> 
-  read_header(IoDev, #mp4_parser{}).
+init(#video_player{header = undefined} = Player) -> 
+  init(Player#video_player{header = #mp4_parser{}});
 
-read_header(IoDev, Mp4Parser) -> 
+init(#video_player{header = Mp4Parser, device = IoDev} = Player) -> 
   case next_atom(IoDev) of
     {eof} -> {eof};
     {error, Reason} -> {error, Reason};
     {AtomName, Atom} -> 
       NewParser = decode_atom(AtomName, Atom, Mp4Parser),
-      read_header(IoDev, NewParser);
+      init(Player#video_player{header = NewParser});
+    {mdat} ->
+      {ok, Player};
     Else -> Else
   end.
   
@@ -192,12 +194,12 @@ decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataForm
   
 % ESDS atom
 decode_atom(esds, <<0:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) ->
-  ?D("Extracted audio config"),
+  ?D({"Extracted audio config"}),
   Mp4Track#mp4_track{decoder_config = esds_tag(DecoderConfig)};
 
 % avcC atom
-decode_atom(avcC, <<_Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
-  ?D("Extracted video config"),
+decode_atom(avcC, <<DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
+  ?D({"Extracted video config"}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
 decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1} = Mp4Track) ->
@@ -279,6 +281,7 @@ decode_atom(stco, <<>>, OffsetList) ->
 decode_atom(stco, <<Offset:32/big-integer, Rest/binary>>, OffsetList) ->
   decode_atom(stco, Rest, [Offset | OffsetList]);
 
+
 % FALLBACK  
 decode_atom(AtomName, _, Mp4Parser) ->
   ?D({"Unknown atom", AtomName}),
@@ -293,7 +296,7 @@ next_atom(IoDev) ->
       <<AtomLength:32/big-integer, AtomName:4/binary>> = list_to_binary(Data),
       case AtomName of
         <<"mdat">> ->
-          {eof};
+          {mdat};
         _ ->
           % ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
           case file:read(IoDev, AtomLength - 8) of

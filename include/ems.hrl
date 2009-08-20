@@ -254,6 +254,7 @@
 	
 -record(video_player, {
   consumer,
+  header = undefined,
   client_buffer = ?MIN_CLIENT_BUFFER,
   device,
   file_name,

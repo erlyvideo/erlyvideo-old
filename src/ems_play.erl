@@ -56,18 +56,13 @@ init({FileName, StreamId, Parent}) ->
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
 	FileFormat = file_format(FileName),
 	?D({"Found It",FileName, FileFormat}),
-	case FileFormat:read_header(IoDev) of
-		{ok, Pos, _VideoHeader} -> 
-      State = #video_player{
-        consumer = Parent,
-        device = IoDev,
-        file_name = FileName,
-        stream_id = StreamId,
-        format = FileFormat,
-        pos = Pos,
-        timer_start = erlang:now()
-        },
-      {ok, ready, State};
+	case FileFormat:init(#video_player{device = IoDev, 
+	                                   file_name = FileName,
+	                                   consumer = Parent,
+	                                   stream_id = StreamId,
+	                                   format = FileFormat}) of
+		{ok, VideoPlayerState} -> 
+      {ok, ready, VideoPlayerState#video_player{timer_start = erlang:now()}};
     _HdrError -> 
 		  ?D(_HdrError),
 		  {error, "Invalid header"}
@@ -76,7 +71,7 @@ init({FileName, StreamId, Parent}) ->
 stop(_, State) ->
   {stop, normal, State}.
   
-ready({start}, State) ->
+ready({start}, #video_player{} = State) ->
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
   {next_state, ready, NextState, ?TIMEOUT};
@@ -85,8 +80,8 @@ ready({pause}, #video_player{timer_ref = Timer} = State) ->
   gen_fsm:cancel_timer(Timer),
   {next_state, ready, State, ?TIMEOUT};
 
-ready({timeout, _, play}, #video_player{device = IoDev, pos = Pos, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
-	case FileFormat:read_frame(IoDev, Pos) of
+ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
+	case FileFormat:read_frame(State) of
 		{ok, done} ->
   		file:close(IoDev),
   		{stop, normal, State};
