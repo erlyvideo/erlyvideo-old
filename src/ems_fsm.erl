@@ -151,6 +151,12 @@ init([]) ->
 	NewState = ems_rtmp:decode(Data,State),
   {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 
+'WAIT_FOR_DATA'({send, {#channel{} = Channel, #video_frame{} = Frame}}, State) ->
+	Packet = ems_rtmp:encode(Channel, Frame),
+	gen_tcp:send(State#ems_fsm.socket,Packet),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+
 'WAIT_FOR_DATA'({send, {#channel{} = Channel, #amf{} = AMF}}, State) ->
 	Packet = ems_rtmp:encode(Channel,AMF),
 	gen_tcp:send(State#ems_fsm.socket,Packet),

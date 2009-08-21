@@ -36,7 +36,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
+-export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1]).
 
 
 
@@ -67,16 +67,16 @@ read_frame(#video_player{device = IoDev, pos = Pos} = State) ->
 					case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, BodyLength) of
 						{ok,IoList2} -> 
 						    <<TimeStampAbs:32/big>> = <<TimeStampExt:8, TimeStamp:24/big>>,
-						    	TagData = #video_frame{       
-						    	  prev_tag_size = PrevTagSize,
-					         	type          = Type,
-							 			body_length   = BodyLength,
-							 			timestamp_abs = TimeStampAbs,
-							 			streamid      = StreamId,
-							 			pos           = Pos,
-							   		nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + BodyLength,
-							 			body          = iolist_to_binary(IoList2)
-									},
+						    Body = iolist_to_binary(IoList2),
+					    	TagData = #video_frame{       
+					    	  prev_tag_size = PrevTagSize,
+				         	type          = Type,
+						 			timestamp_abs = TimeStampAbs,
+						 			streamid      = StreamId,
+						 			pos           = Pos,
+						   		nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + size(Body),
+						 			body          = Body
+								},
 							case Type of
 								
 								 ?FLV_TAG_TYPE_AUDIO -> 
@@ -216,17 +216,47 @@ extractAudioHeader(IoDev, Pos) ->
 end.
 
 
-encodeTag(Tag, Body) when is_record(Tag, video_frame) ->
-	TimeStampAbs = Tag#video_frame.timestamp_abs,
-	PrevTagSize = Tag#video_frame.prev_tag_size,
-	Type = Tag#video_frame.type,
-	BodyLength = Tag#video_frame.body_length,
-	StreamId = Tag#video_frame.streamid,
-	<<PrevTagSize:32, Type:8, BodyLength:24,TimeStampAbs:32,
-	StreamId:24, Body/binary>>.
+encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
+                    decoder_config = true,
+                    sound_format = ?FLV_AUDIO_FORMAT_AAC,
+                	  sound_type	= SoundType,
+                	  sound_size	= SoundSize,
+                	  sound_rate	= SoundRate,
+                    streamid = StreamId,
+                    body = Body}) when is_binary(Body) ->
+	<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
+	  ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8,
+	  Body/binary>>;
+  % <<0:32/big, ?FLV_TAG_TYPE_AUDIO:8, (size(Body)):24/big, 0:32/big, StreamId:24, 
+  %   ?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
+  %   ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8,
+  %   Body/binary>>;
+
+
+encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
+                    frame_type = FrameType,
+                   	decoder_config = true,
+                   	codec_id = CodecId,
+                    streamid = StreamId,
+                    body = Body}) when is_binary(Body) ->
+  CompositionTime = 0,
+	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer,
+	  Body/binary>>;
+  % <<0:32/big-integer, ?FLV_TAG_TYPE_VIDEO:8/integer, (size(Body)):24/big-integer, 
+  %   0:32/big-integer, StreamId:24/big-integer, 
+  %   FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer,
+  %   Body/binary>>;
+
+encode(#video_frame{timestamp_abs = TimeStampAbs, 
+                    prev_tag_size = PrevTagSize,
+                    type = Type,
+                    streamid = StreamId,
+                    body = Body}) when is_binary(Body) ->
+  ?D({"Encoding frame", Body}),
+	<<PrevTagSize:32/big, Type:8, (size(Body)):24/big, TimeStampAbs:32/big, StreamId:24, Body/binary>>.
 	
 
-header(#flv_header{version = Version, audio = Audio, video = Video} = FLVHeader) when is_record(FLVHeader,flv_header) -> 
+header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
 	Reserved = 0,
 	Offset = 9,
 	PrevTag = 0,
@@ -237,7 +267,7 @@ header(Bin) when is_binary(Bin) ->
 header(IoList) when is_list(IoList) -> header(iolist_to_binary(IoList)).
 		
 
-to_tag(#channel{msg = Msg,timestamp = FullTimeStamp, type = Type, stream = StreamId} = Channel, PrevTimeStamp) when is_record(Channel,channel) ->
+to_tag(#channel{msg = Msg,timestamp = FullTimeStamp, type = Type, stream = StreamId}, PrevTimeStamp) ->
 	BodyLength = size(Msg),	
 	{TimeStampExt, TimeStamp} = case PrevTimeStamp of
 		<<TimeStampExt1:8,TimeStamp1:32>> -> 

@@ -55,31 +55,46 @@ init(#video_player{header = Mp4Parser, device = IoDev} = Player) ->
     Else -> Else
   end.
   
-decoder_config(Format, #video_player{header = Mp4Parser} = Player) ->
+decoder_config(Format, #video_player{header = Mp4Parser}) ->
   #mp4_parser{tracks = Tracks} = Mp4Parser,
-  Track = lists:keyfind(Format, #mp4_track.data_format, Tracks),
-  Track#mp4_track.decoder_config.
+  case lists:keyfind(Format, #mp4_track.data_format, Tracks) of
+    false ->
+      undefined;
+    Track ->
+      Track#mp4_track.decoder_config
+  end.
   
 read_frame(#video_player{sent_video_config = false} = Player) ->
   Config = decoder_config(avc1, Player),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
-		body_length   = size(Config),
+   	decoder_config = true,
 		timestamp_abs = 0,
 		streamid      = 1,
-		body          = Config
+		body          = Config,
+		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
+		codec_id      = ?FLV_VIDEO_CODEC_AVC,
+	  raw_body      = false
 	}, Player#video_player{sent_video_config = true}};  
 
 
 read_frame(#video_player{sent_audio_config = false} = Player) ->
-  Config = decoder_config(avc1, Player),
+  Config = decoder_config(mp4a, Player),
   {ok, #video_frame{       
-   	type          = ?FLV_TAG_TYPE_VIDEO,
-		body_length   = size(Config),
+   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	decoder_config = true,
 		timestamp_abs = 0,
 		streamid      = 1,
-		body          = Config
-	}, Player#video_player{sent_audio_config = true}}.
+		body          = Config,
+	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+	  sound_rate	  = ?FLV_AUDIO_RATE_44,
+	  raw_body      = false
+	}, Player#video_player{sent_audio_config = true}};
+	
+read_frame(#video_player{}) ->
+  {ok, done}.
   
 parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
   Mp4Parser;
@@ -111,10 +126,9 @@ decode_atom(ftyp, <<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
   decode_atom(ftyp, CompatibleBrands, [binary_to_list(Brand)|BrandList]);
   
 % MOOV atom
-decode_atom(moov, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
+decode_atom(moov, Atom, #mp4_parser{} = Mp4Parser) ->
   NewParser = parse_atom(Atom, Mp4Parser),
-  ?D({"Have tracks:", length(Tracks)}),
-  NewParser#mp4_parser{tracks = lists:reverse(Tracks)};
+  NewParser#mp4_parser{tracks = lists:reverse(NewParser#mp4_parser.tracks)};
 
 % MVHD atom
 decode_atom(mvhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer, TimeScale:32/big-integer,
@@ -129,6 +143,7 @@ decode_atom(mvhd, <<Version:8/integer, Rest/binary>>, Mp4Parser) ->
 % TRAK atom
 decode_atom(trak, <<>>, #mp4_parser{} = Mp4Parser) ->
   Mp4Parser;
+  
 decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   Track = decode_atom(trak, Atom, #mp4_track{}),
   Mp4Parser#mp4_parser{tracks = [Track | Tracks]};

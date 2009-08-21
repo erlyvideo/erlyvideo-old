@@ -50,6 +50,9 @@ encode(#channel{msg = Msg} = Channel) ->
 
 encode(#channel{} = Channel, #amf{} = AMF) -> 
 	encode(Channel,ems_amf:encode(AMF));
+
+encode(#channel{} = Channel, #video_frame{} = Frame) -> 
+	encode(Channel,ems_flv:encode(Frame));
 	
 encode(#channel{} = Channel, Data) when is_binary(Data) -> 
 	encode(Channel,Data,<<>>).

@@ -131,6 +131,11 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 %% @doc Convert FLV_Tag into Channel then transmit the Channel and Body
 %% @end
 %%-------------------------------------------------------------------------
+
+send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body, raw_body = false} = Frame) ->
+	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
+	gen_fsm:send_event(Consumer, {send, {Channel,Frame}});
+
 send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body}) ->
 	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
 	gen_fsm:send_event(Consumer, {send, {Channel,Body}}).

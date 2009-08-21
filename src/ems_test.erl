@@ -59,9 +59,9 @@ s(FileName,_Count)  ->
 	ok.
 
 tag(Bin) -> 
-	{#video_frame{type=Type,timestamp=TimeStamp,body_length = Size,timestamp_ext =TimeStampExt,timestamp_abs = TimeStampAbs} = Tag,Next} = ems_flv:tag(Bin),
+	{#video_frame{type=Type,timestamp=TimeStamp,body = Body,timestamp_ext =TimeStampExt,timestamp_abs = TimeStampAbs} = Tag,Next} = ems_flv:tag(Bin),
 %	io:format("Tag: ~p~n",[Tag#video_frame{body = <<>>}]),
-	io:format("Type: ~p Size: ~p TimeStamp: ~p Ext: ~p Abs: ~p~n",[Type,Size,TimeStamp,TimeStampExt,TimeStampAbs]),
+	io:format("Type: ~p Size: ~p TimeStamp: ~p Ext: ~p Abs: ~p~n",[Type,size(Body),TimeStamp,TimeStampExt,TimeStampAbs]),
 	{Tag,Next}.
 
 tags(_Bin,Stop,Number) when Number >= Stop -> ok;
