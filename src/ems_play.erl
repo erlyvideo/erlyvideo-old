@@ -74,6 +74,7 @@ stop(_, State) ->
 ready({start}, #video_player{} = State) ->
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
+	?D("Player starting"),
   {next_state, ready, NextState, ?TIMEOUT};
   
 ready({pause}, #video_player{timer_ref = Timer} = State) ->
@@ -85,7 +86,8 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 		{ok, done} ->
   		file:close(IoDev),
   		{stop, normal, State};
-		{ok, #video_frame{} = Frame, Player} -> 
+		{ok, #video_frame{type = Type} = Frame, Player} -> 
+    	?D({"frame", Type}),
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
 			Timeout = timeout(Frame#video_frame.timestamp_abs, 

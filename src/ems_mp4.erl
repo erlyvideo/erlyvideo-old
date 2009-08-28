@@ -92,9 +92,54 @@ read_frame(#video_player{sent_audio_config = false} = Player) ->
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
 	  raw_body      = false
 	}, Player#video_player{sent_audio_config = true}};
+
+read_frame(#video_player{frames = []}) ->
+  {ok, done};
 	
-read_frame(#video_player{}) ->
-  {ok, done}.
+read_frame(#video_player{frames = [{video, SampleOffset, SampleSize, Duration, Keyframe} | Frames], device = IoDev} = Player) ->
+  ?D({"Reading video frame at", Duration}),
+	case file:pread(IoDev,SampleOffset, SampleSize) of
+		{ok, IoList} ->
+      {ok, #video_frame{       
+       	type          = ?FLV_TAG_TYPE_VIDEO,
+    		timestamp_abs = Duration,
+    		streamid      = 1,
+    		body          = iolist_to_binary(IoList),
+    		frame_type    = case Keyframe of
+    		  true ->	?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
+    		  _ -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME
+  		  end,
+    		codec_id      = ?FLV_VIDEO_CODEC_AVC,
+    	  raw_body      = false
+    	}, Player#video_player{frames = Frames}};
+		eof -> 
+			{ok, done, Player};
+		{error, Reason} -> 
+			{error, Reason}
+  end;  
+
+read_frame(#video_player{frames = [{audio, SampleOffset, SampleSize, Duration, _} | Frames], device = IoDev} = Player) ->
+  ?D({"Reading video frame at", Duration}),
+	case file:pread(IoDev,SampleOffset, SampleSize) of
+		{ok, IoList} ->
+      {ok, #video_frame{       
+       	type          = ?FLV_TAG_TYPE_AUDIO,
+       	decoder_config = true,
+    		timestamp_abs = Duration,
+    		streamid      = 1,
+    		body          = iolist_to_binary(IoList),
+    	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+    	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+    	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+    	  sound_rate	  = ?FLV_AUDIO_RATE_44,
+    	  raw_body      = false
+    	}, Player#video_player{frames = Frames}};
+  	eof -> 
+  		{ok, done, Player};
+  	{error, Reason} -> 
+  		{error, Reason}
+  end.
+
   
 parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
   Mp4Parser;
@@ -129,6 +174,7 @@ decode_atom(ftyp, <<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
 decode_atom(moov, Atom, #mp4_parser{} = Mp4Parser) ->
   Parser1 = parse_atom(Atom, Mp4Parser),
   Parser2 = merge_frames(Parser1),
+  ?D({"Now there frames", length(Parser2#mp4_parser.frames)}),
   Parser2#mp4_parser{tracks = lists:reverse(Parser2#mp4_parser.tracks)};
 
 % MVHD atom
@@ -172,13 +218,13 @@ decode_atom(mdia, Atom, Mp4Track) ->
 decode_atom(mdhd,<<0:8/integer, _Flags:24/integer, _Ctime:32/big-integer, 
                   _Mtime:32/big-integer, TimeScale:32/big-integer, Duration:32/big-integer,
                   _Language:2/binary, _Quality:16/big-integer>>, #mp4_track{} = Mp4Track) ->
-  ?D({"Timescale:", Duration, extract_language(_Language)}),
+  % ?D({"Timescale:", Duration, extract_language(_Language)}),
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
 
 decode_atom(mdhd, <<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer, 
                      _Mtime:64/big-integer, TimeScale:32/big-integer, Duration:64/big-integer, 
                      _Language:2/binary, _Quality:16/big-integer>>, Mp4Track) ->
-  ?D({"Timescale:", Duration, extract_language(_Language)}),
+  % ?D({"Timescale:", Duration, extract_language(_Language)}),
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
   
 % SMHD atom
@@ -268,7 +314,7 @@ decode_atom(stsz, {_, <<Rest/binary>>}, SampleSizes) ->
 % STTS atom
 decode_atom(stts, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
   Table = decode_atom(stts, {EntryCount, Rest}, []),
-  ?D({"Sample time table", Table}),
+  % ?D({"Sample time table", Table}),
   Mp4Track#mp4_track{sample_durations = lists:reverse(Table)};
 
 decode_atom(stts, {0, _}, Table) ->

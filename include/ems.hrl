@@ -283,7 +283,8 @@
 	timer_start,
 	timer_ref,
 	ts_prev = 0,
-	pos = 0
+	pos = 0,
+	frames = []
 }).
 
 -record(mp4_parser, {
