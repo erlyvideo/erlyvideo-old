@@ -293,7 +293,8 @@
   duration,
   seconds,
   file_types = [],
-  tracks = []
+  tracks = [],
+  frames = []
 }).
 
 -record(mp4_track, {

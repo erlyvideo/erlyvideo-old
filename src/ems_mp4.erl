@@ -127,8 +127,9 @@ decode_atom(ftyp, <<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
   
 % MOOV atom
 decode_atom(moov, Atom, #mp4_parser{} = Mp4Parser) ->
-  NewParser = parse_atom(Atom, Mp4Parser),
-  NewParser#mp4_parser{tracks = lists:reverse(NewParser#mp4_parser.tracks)};
+  Parser1 = parse_atom(Atom, Mp4Parser),
+  Parser2 = merge_frames(Parser1),
+  Parser2#mp4_parser{tracks = lists:reverse(Parser2#mp4_parser.tracks)};
 
 % MVHD atom
 decode_atom(mvhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer, TimeScale:32/big-integer,
@@ -146,11 +147,7 @@ decode_atom(trak, <<>>, #mp4_parser{} = Mp4Parser) ->
   
 decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   Track = decode_atom(trak, Atom, #mp4_track{}),
-  case Track#mp4_track.data_format of
-    avc1 -> DecodedTrack = calculate_sample_offsets(Track);
-    _ -> DecodedTrack = Track
-  end,
-  Mp4Parser#mp4_parser{tracks = [DecodedTrack | Tracks]};
+  Mp4Parser#mp4_parser{tracks = [calculate_sample_offsets(Track) | Tracks]};
   
 decode_atom(trak, <<>>, #mp4_track{} = Mp4Track) ->
   Mp4Track;
@@ -361,6 +358,7 @@ next_atom(IoDev) ->
   
 -record(mp4_frames, {
   data_format,
+  timescale,
   index = 1,
   dts = 0,
   chunk_table = [],
@@ -371,6 +369,13 @@ next_atom(IoDev) ->
   duration = 0,
   frames = []
 }).
+
+merge_frames(#mp4_parser{tracks = Tracks} = Mp4Parser) ->
+  FramesList = lists:map(fun(#mp4_track{frames = TrackFrames}) -> TrackFrames end, Tracks),
+  UnsortedFrames = lists:merge(FramesList),
+  Frames = lists:sort(fun({_, _, _, Duration1, _}, {_, _, _, Duration2, _}) -> Duration1 < Duration2 end, UnsortedFrames),
+  CleanedTracks = lists:map(fun(#mp4_track{} = Track) -> Track#mp4_track{frames = {}} end, Tracks),
+  Mp4Parser#mp4_parser{frames = Frames, tracks = CleanedTracks}.
 
 next_duration(#mp4_frames{durations = []}) ->
   {error};
@@ -396,11 +401,11 @@ calculate_samples_in_chunk(_, 0, #mp4_frames{} = FrameReader) ->
   FrameReader;
 
 calculate_samples_in_chunk(SampleOffset, SamplesInChunk, 
-  #mp4_frames{index = Index, frames = Frames, data_format = DataFormat, keyframes = Keyframes, 
+  #mp4_frames{index = Index, frames = Frames, data_format = DataFormat, keyframes = Keyframes, timescale = Timescale,
     sample_sizes = [SampleSize | SampleSizes]} = FrameReader) ->
   % add dts field
   {Duration, FrameReader1} = next_duration(FrameReader),
-  Frame = {DataFormat, SampleOffset, SampleSize, Duration, lists:member(Index, Keyframes)},
+  Frame = {DataFormat, SampleOffset, SampleSize, Duration / Timescale, lists:member(Index, Keyframes)},
   % io:format("~p~n", [[SampleOffset, SampleSize, Duration, lists:member(Index, Keyframes)]]),
   FrameReader2 = FrameReader1#mp4_frames{frames = [Frame | Frames], sample_sizes = SampleSizes, index = Index + 1},
   calculate_samples_in_chunk(SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2#mp4_frames{}).
@@ -424,7 +429,8 @@ calculate_sample_offsets(
     keyframes = Keyframes, 
     sample_sizes = SampleSizes, 
     sample_durations = Durations,
-    data_format = DataFormat} = Track) ->
+    data_format = DataFormat,
+    timescale = Timescale} = Track) ->
       
   Frames = calculate_sample_offsets(
     #mp4_frames{
@@ -433,7 +439,8 @@ calculate_sample_offsets(
       keyframes = Keyframes, 
       sample_sizes = SampleSizes, 
       durations = Durations, 
-      data_format = DataFormat}),
+      data_format = DataFormat,
+      timescale = Timescale}),
   Track#mp4_track{frames = Frames#mp4_frames.frames}.
 
   
