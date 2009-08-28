@@ -301,13 +301,14 @@
   track_id,
   timescale,
   duration,
-  key_offset = 0,
   decoder_config,
-  sample_sizes = [],
-  sample_time_table = [],
-  sample_chunk_table = [],
-  sync_samples = [],
-  chunk_offsets = []
+  sample_sizes = [],        % stsz Sample sizes
+  sample_durations = [],    % stts Durations
+  chunk_table = [],         % stsc Chunk info
+  keyframes = [],           % stss  Sample Table Sync Samples
+  key_offset = 0,
+  chunk_offsets = [],       % stco  Sample Table Chunk Offsets
+  frames = []
 }).
 
 -record(mp4_sample_description, {

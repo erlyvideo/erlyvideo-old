@@ -146,7 +146,11 @@ decode_atom(trak, <<>>, #mp4_parser{} = Mp4Parser) ->
   
 decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
   Track = decode_atom(trak, Atom, #mp4_track{}),
-  Mp4Parser#mp4_parser{tracks = [Track | Tracks]};
+  case Track#mp4_track.data_format of
+    avc1 -> DecodedTrack = calculate_sample_offsets(Track);
+    _ -> DecodedTrack = Track
+  end,
+  Mp4Parser#mp4_parser{tracks = [DecodedTrack | Tracks]};
   
 decode_atom(trak, <<>>, #mp4_track{} = Mp4Track) ->
   Mp4Track;
@@ -268,7 +272,7 @@ decode_atom(stsz, {_, <<Rest/binary>>}, SampleSizes) ->
 decode_atom(stts, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
   Table = decode_atom(stts, {EntryCount, Rest}, []),
   ?D({"Sample time table", Table}),
-  Mp4Track#mp4_track{sample_time_table = lists:reverse(Table)};
+  Mp4Track#mp4_track{sample_durations = lists:reverse(Table)};
 
 decode_atom(stts, {0, _}, Table) ->
   Table;
@@ -283,7 +287,7 @@ decode_atom(stts, {EntryCount, <<SampleCount:32/big-integer, SampleDuration:32/b
 decode_atom(stsc, <<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
   Table = decode_atom(stsc, {EntryCount, Rest}, []),
   % ?D({"Sample chunk table", lists:reverse(Table)}),
-  Mp4Track#mp4_track{sample_chunk_table = lists:reverse(Table)};
+  Mp4Track#mp4_track{chunk_table = lists:reverse(Table)};
 
 decode_atom(stsc, {0, _}, Table) ->
   Table;
@@ -297,8 +301,8 @@ decode_atom(stsc, {EntryCount, <<FirstChunk:32/big-integer, SamplesPerChunk:32/b
 % STSS atom
 % List of keyframes
 decode_atom(stss, <<0:8/integer, _Flags:3/binary, SampleCount:32/big-integer, Samples/binary>>, #mp4_track{} = Mp4Track) when size(Samples) == SampleCount*4->
-  NewTrack = Mp4Track#mp4_track{sync_samples = decode_atom(stss, Samples, [])},
-  case NewTrack#mp4_track.sync_samples of
+  NewTrack = Mp4Track#mp4_track{keyframes = decode_atom(stss, Samples, [])},
+  case NewTrack#mp4_track.keyframes of
     [1 | _] ->
       NewTrack#mp4_track{key_offset = 1};
     _ ->
@@ -354,8 +358,85 @@ next_atom(IoDev) ->
     {error, Reason} -> 
       {error, Reason}           
   end.
+  
+-record(mp4_frames, {
+  data_format,
+  index = 1,
+  dts = 0,
+  chunk_table = [],
+  chunk_offsets = [],
+  keyframes = [],
+  sample_sizes = [],
+  durations = [],
+  duration = 0,
+  frames = []
+}).
+
+next_duration(#mp4_frames{durations = []}) ->
+  {error};
+
+next_duration(#mp4_frames{durations = [{0, _} | Durations]} = FrameReader) ->
+  next_duration(FrameReader#mp4_frames{durations = Durations});
+
+next_duration(#mp4_frames{durations = [{DurationCount, Duration} | Durations], duration = TotalDuration} = FrameReader) ->
+  {TotalDuration, FrameReader#mp4_frames{durations = [{DurationCount - 1, Duration} | Durations], duration = TotalDuration + Duration}}.
+
+
+chunk_samples_count(#mp4_frames{chunk_table = [{_, SamplesInChunk, _}]} = FrameReader) ->
+  {SamplesInChunk, FrameReader};
+  
+chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, _, _} | [{NextChunk, NextSamplesInChunk, SampleId} | ChunkTable]]} = FrameReader) when FirstChunk == NextChunk ->
+  {NextSamplesInChunk, FrameReader#mp4_frames{chunk_table = [{NextChunk + 1, NextSamplesInChunk, SampleId} | ChunkTable]}};
+
+chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, SamplesInChunk, SampleId} | ChunkTable]} = FrameReader) ->
+  {SamplesInChunk, FrameReader#mp4_frames{chunk_table = [{FirstChunk + 1, SamplesInChunk, SampleId} | ChunkTable]}}.
+
+  
+calculate_samples_in_chunk(_, 0, #mp4_frames{} = FrameReader) ->
+  FrameReader;
+
+calculate_samples_in_chunk(SampleOffset, SamplesInChunk, 
+  #mp4_frames{index = Index, frames = Frames, data_format = DataFormat, keyframes = Keyframes, 
+    sample_sizes = [SampleSize | SampleSizes]} = FrameReader) ->
+  % add dts field
+  {Duration, FrameReader1} = next_duration(FrameReader),
+  Frame = {DataFormat, SampleOffset, SampleSize, Duration, lists:member(Index, Keyframes)},
+  % io:format("~p~n", [[SampleOffset, SampleSize, Duration, lists:member(Index, Keyframes)]]),
+  FrameReader2 = FrameReader1#mp4_frames{frames = [Frame | Frames], sample_sizes = SampleSizes, index = Index + 1},
+  calculate_samples_in_chunk(SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2#mp4_frames{}).
+  
+calculate_sample_offsets(#mp4_frames{chunk_offsets = [], frames = FrameList} = FrameReader) ->
+  FrameReader#mp4_frames{frames = lists:reverse(FrameList)};
+  
+calculate_sample_offsets(#mp4_frames{
+  chunk_offsets = [ChunkOffset | ChunkOffsets]} = FrameReader) ->
     
-    
+  {SamplesInChunk, FrameReader1} = chunk_samples_count(FrameReader),
+  
+  % io:format("~p~n", [[ChunkOffset, SamplesInChunk]]),
+  FrameReader2 = calculate_samples_in_chunk(ChunkOffset, SamplesInChunk, FrameReader1),
+  calculate_sample_offsets(FrameReader2#mp4_frames{chunk_offsets = ChunkOffsets});
+
+calculate_sample_offsets(
+  #mp4_track{
+    chunk_offsets = ChunkOffsets, 
+    chunk_table = ChunkTable, 
+    keyframes = Keyframes, 
+    sample_sizes = SampleSizes, 
+    sample_durations = Durations,
+    data_format = DataFormat} = Track) ->
+      
+  Frames = calculate_sample_offsets(
+    #mp4_frames{
+      chunk_offsets = ChunkOffsets, 
+      chunk_table = ChunkTable, 
+      keyframes = Keyframes, 
+      sample_sizes = SampleSizes, 
+      durations = Durations, 
+      data_format = DataFormat}),
+  Track#mp4_track{frames = Frames#mp4_frames.frames}.
+
+  
 -define(MP4ESDescrTag, 3).
 -define(MP4DecConfigDescrTag, 4).
 -define(MP4DecSpecificDescrtag, 5).
