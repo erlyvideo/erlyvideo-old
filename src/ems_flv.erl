@@ -222,38 +222,45 @@ encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
                 	  sound_type	= SoundType,
                 	  sound_size	= SoundSize,
                 	  sound_rate	= SoundRate,
-                    streamid = StreamId,
                     body = Body}) when is_binary(Body) ->
 	<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
-	  ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8,
-	  Body/binary>>;
-  % <<0:32/big, ?FLV_TAG_TYPE_AUDIO:8, (size(Body)):24/big, 0:32/big, StreamId:24, 
-  %   ?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
-  %   ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8,
-  %   Body/binary>>;
+	  ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>;
+
+
+encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
+                    sound_format = ?FLV_AUDIO_FORMAT_AAC,
+                	  sound_type	= SoundType,
+                	  sound_size	= SoundSize,
+                	  sound_rate	= SoundRate,
+                    body = Body}) when is_binary(Body) ->
+	<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
+	  ?FLV_AUDIO_AAC_RAW:8, Body/binary>>;
 
 
 encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
                     frame_type = FrameType,
                    	decoder_config = true,
                    	codec_id = CodecId,
-                    streamid = StreamId,
                     body = Body}) when is_binary(Body) ->
   CompositionTime = 0,
-	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer,
-	  Body/binary>>;
-  % <<0:32/big-integer, ?FLV_TAG_TYPE_VIDEO:8/integer, (size(Body)):24/big-integer, 
-  %   0:32/big-integer, StreamId:24/big-integer, 
-  %   FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer,
-  %   Body/binary>>;
+	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer, Body/binary>>;
+
+encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
+                    frame_type = FrameType,
+                   	codec_id = CodecId,
+                    body = Body}) when is_binary(Body) ->
+  CompositionTime = 0,
+	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_NALU:8/integer, CompositionTime:24/big-integer, Body/binary>>;
 
 encode(#video_frame{timestamp_abs = TimeStampAbs, 
                     prev_tag_size = PrevTagSize,
                     type = Type,
                     streamid = StreamId,
                     body = Body}) when is_binary(Body) ->
-  ?D({"Encoding frame", Body}),
-	<<PrevTagSize:32/big, Type:8, (size(Body)):24/big, TimeStampAbs:32/big, StreamId:24, Body/binary>>.
+	<<PrevTagSize:32/big, Type:8, (size(Body)):24/big, TimeStampAbs:32/big, StreamId:24, Body/binary>>;
+	
+encode(_) ->
+  ?D("Request to encode undefined").
 	
 
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 

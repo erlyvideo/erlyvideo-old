@@ -49,13 +49,12 @@
 
 
 play(FileName, StreamId, _) ->
-  ?D({"Going to play", FileName}),
   gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
+  
   
 init({FileName, StreamId, Parent}) ->
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
 	FileFormat = file_format(FileName),
-	?D({"Found It",FileName, FileFormat}),
 	case FileFormat:init(#video_player{device = IoDev, 
 	                                   file_name = FileName,
 	                                   consumer = Parent,
@@ -74,7 +73,7 @@ stop(_, State) ->
 ready({start}, #video_player{} = State) ->
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
-	?D("Player starting"),
+	?D({"Player starting with pid", self()}),
   {next_state, ready, NextState, ?TIMEOUT};
   
 ready({pause}, #video_player{timer_ref = Timer} = State) ->
@@ -84,10 +83,10 @@ ready({pause}, #video_player{timer_ref = Timer} = State) ->
 ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
 	case FileFormat:read_frame(State) of
 		{ok, done} ->
+		  ?D("Video file finished"),
   		file:close(IoDev),
   		{stop, normal, State};
 		{ok, #video_frame{type = Type} = Frame, Player} -> 
-    	?D({"frame", Type}),
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
 			Timeout = timeout(Frame#video_frame.timestamp_abs, 
@@ -102,9 +101,10 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			?D(_Reason),
 			file:close(IoDev),
 			{stop, normal, State}
-	end.
+	end;
 
-
+ready(timeout, State) ->
+  Timer = gen_fsm:start_timer(1, play).
   % 'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{video_timer_ref = Timer, video_device = IoDev, video_pos = Pos, video_stream_id = StreamId, video_format = Format} = State) ->
   %   case Format:read_frame(IoDev, Pos) of
   %     {ok, done} ->

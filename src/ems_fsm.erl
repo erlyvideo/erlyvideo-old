@@ -151,18 +151,7 @@ init([]) ->
 	NewState = ems_rtmp:decode(Data,State),
   {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, #video_frame{} = Frame}}, State) ->
-	Packet = ems_rtmp:encode(Channel, Frame),
-	gen_tcp:send(State#ems_fsm.socket,Packet),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, #amf{} = AMF}}, State) ->
-	Packet = ems_rtmp:encode(Channel,AMF),
-	gen_tcp:send(State#ems_fsm.socket,Packet),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, <<Data/binary>>}}, State) ->
+'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, State) ->
 	Packet = ems_rtmp:encode(Channel,Data),
 	gen_tcp:send(State#ems_fsm.socket, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -196,7 +185,7 @@ init([]) ->
   %     NextState = State#ems_fsm{type  = live},
   %     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
   %   _ ->
-      FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]),  
+      FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
       case filelib:is_regular(FileName) of
         true ->
           case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
@@ -220,27 +209,27 @@ init([]) ->
 		undefined -> ok;
 		_ -> file:write(IoDev, lists:reverse(Buffer))
 	end,
-    case IoDev of
-        undefined -> ok;
-        _ -> file:close(IoDev)
-    end,
-    case TimerRef of
-        undefined -> ok;
-        _ -> gen_fsm:cancel_timer(TimerRef)
-    end,
-    case type of
-        live -> 
-            ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
-        wait -> 
-            ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
-        broadcast ->
-            emscluster:stop_broadcast(State#ems_fsm.video_file_name);
-        _ -> 
-            ok
-    end,
+  case IoDev of
+      undefined -> ok;
+      _ -> file:close(IoDev)
+  end,
+  case TimerRef of
+      undefined -> ok;
+      _ -> gen_fsm:cancel_timer(TimerRef)
+  end,
+  case type of
+      live -> 
+          ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
+      wait -> 
+          ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
+      broadcast ->
+          emscluster:stop_broadcast(State#ems_fsm.video_file_name);
+      _ -> 
+          ok
+  end,
 	NextState = State#ems_fsm{video_device=undefined,video_buffer=[],
 							  video_timer_ref=undefined,video_pos = 0},
-    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
 	FileName = filename:join([ems_play:file_dir(), Name]),
@@ -316,16 +305,16 @@ init([]) ->
 		Data -> 
 			io:format("~p Ignoring data: ~p\n", [self(), Data])
 	end,
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
         
 
 'WAIT_FOR_DATA'(next_stream_id, _From, #ems_fsm{next_stream_id = Id} = State) ->
-    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_next_stream_id_request]),
-    {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}};   
+  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_next_stream_id_request]),
+  {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}};   
     
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
-    {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
     
     
 %%-------------------------------------------------------------------------
@@ -336,7 +325,7 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_event(Event, StateName, StateData) ->
-    {stop, {StateName, undefined_event, Event}, StateData}.
+  {stop, {StateName, undefined_event, Event}, StateData}.
 
 
 %%-------------------------------------------------------------------------
@@ -350,8 +339,8 @@ handle_event(Event, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_sync_event(Event, _From, StateName, StateData) ->
-     io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
-    {stop, {StateName, undefined_event, Event}, StateData}.
+   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
+  {stop, {StateName, undefined_event, Event}, StateData}.
 
 
 %%-------------------------------------------------------------------------
@@ -365,16 +354,25 @@ handle_info({tcp, Socket, Bin}, StateName, #ems_fsm{socket=Socket} = State) ->
     % Flow control: enable forwarding of next TCP message
 %	?D({"TCP",size(Bin)}),
 %	file:write_file("/sfe/temp/packet.txt",Bin),
-    inet:setopts(Socket, [{active, once}]),
-    ?MODULE:StateName({data, Bin}, State);
+  inet:setopts(Socket, [{active, once}]),
+  ?MODULE:StateName({data, Bin}, State);
 
 handle_info({tcp_closed, Socket}, _StateName,
             #ems_fsm{socket=Socket, addr=Addr} = StateData) ->
     error_logger:info_msg("~p Client ~p disconnected.\n", [self(), Addr]),
     {stop, normal, StateData};
 
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
+  ?D({"Player died", _Reason}),
+  {next_state, StateName, StateData, ?TIMEOUT};
+
+handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
+  ?D({"Died child", Pid, _Reason}),
+  {next_state, StateName, StateData, ?TIMEOUT};
+
 handle_info(_Info, StateName, StateData) ->
-    {noreply, StateName, StateData}.
+  ?D({"Som info handled", _Info, StateName, StateData}),
+  {noreply, StateName, StateData}.
 
 
 %%-------------------------------------------------------------------------
@@ -384,6 +382,7 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
+  ?D("FSM stopping"),
   ems_cluster:remove_client(erlang:pid_to_list(self())),
   (catch gen_tcp:close(Socket)),
   ok.

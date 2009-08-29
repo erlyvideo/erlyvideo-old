@@ -59,10 +59,9 @@ encode(#channel{} = Channel, Data) when is_binary(Data) ->
 
 encode(_Channel, <<>>, Packet) -> Packet;
 encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId} = Channel, Data, <<>>) -> 
-	Length = size(Data),
 	{Chunk,Rest} = chunk(Data),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
-	NextPacket = <<BinId/binary,TimeStamp:24/big-integer,Length:24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
+	NextPacket = <<BinId/binary,(round(TimeStamp)):24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
 	
 encode(#channel{id = Id} = Channel, Data, Packet) -> 
@@ -73,7 +72,7 @@ encode(#channel{id = Id} = Channel, Data, Packet) ->
 
 encode_id(Type, Id) when Id > 319 -> 
 	NewId = Id - 64,
-	<<Type:2,?RTMP_HDR_LRG_ID:6,NewId:16>>;
+	<<Type:2,?RTMP_HDR_LRG_ID:6,NewId:16/big-integer>>;
 encode_id(Type, Id) when Id > 63 -> 
 	NewId = Id - 64,
 	<<Type:2,?RTMP_HDR_MED_ID:6,NewId:8>>;

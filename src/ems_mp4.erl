@@ -41,22 +41,26 @@
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
 init(#video_player{header = undefined} = Player) -> 
-  init(Player#video_player{header = #mp4_parser{}});
+  init(Player#video_player{header = #mp4_header{}});
 
-init(#video_player{header = Mp4Parser, device = IoDev} = Player) -> 
+init(#video_player{header = Header, device = IoDev} = Player) -> 
   case next_atom(IoDev) of
     {eof} -> {eof};
     {error, Reason} -> {error, Reason};
+    {moov, Atom} -> 
+      NewHeader = decode_atom(moov, Atom, Header),
+      #mp4_header{frames = Frames} = NewHeader,
+      init(Player#video_player{header = NewHeader#mp4_header{frames = []}, frames = Frames});
     {AtomName, Atom} -> 
-      NewParser = decode_atom(AtomName, Atom, Mp4Parser),
-      init(Player#video_player{header = NewParser});
+      NewHeader = decode_atom(AtomName, Atom, Header),
+      init(Player#video_player{header = NewHeader});
     {mdat} ->
       {ok, Player};
     Else -> Else
   end.
   
 decoder_config(Format, #video_player{header = Mp4Parser}) ->
-  #mp4_parser{tracks = Tracks} = Mp4Parser,
+  #mp4_header{tracks = Tracks} = Mp4Parser,
   case lists:keyfind(Format, #mp4_track.data_format, Tracks) of
     false ->
       undefined;
@@ -94,10 +98,10 @@ read_frame(#video_player{sent_audio_config = false} = Player) ->
 	}, Player#video_player{sent_audio_config = true}};
 
 read_frame(#video_player{frames = []}) ->
+  ?D("No frames left in file"),
   {ok, done};
 	
-read_frame(#video_player{frames = [{video, SampleOffset, SampleSize, Duration, Keyframe} | Frames], device = IoDev} = Player) ->
-  ?D({"Reading video frame at", Duration}),
+read_frame(#video_player{frames = [{avc1, SampleOffset, SampleSize, Duration, Keyframe} | Frames], device = IoDev} = Player) ->
 	case file:pread(IoDev,SampleOffset, SampleSize) of
 		{ok, IoList} ->
       {ok, #video_frame{       
@@ -113,13 +117,12 @@ read_frame(#video_player{frames = [{video, SampleOffset, SampleSize, Duration, K
     	  raw_body      = false
     	}, Player#video_player{frames = Frames}};
 		eof -> 
-			{ok, done, Player};
+			{ok, done};
 		{error, Reason} -> 
 			{error, Reason}
   end;  
 
-read_frame(#video_player{frames = [{audio, SampleOffset, SampleSize, Duration, _} | Frames], device = IoDev} = Player) ->
-  ?D({"Reading video frame at", Duration}),
+read_frame(#video_player{frames = [{mp4a, SampleOffset, SampleSize, Duration, _} | Frames], device = IoDev} = Player) ->
 	case file:pread(IoDev,SampleOffset, SampleSize) of
 		{ok, IoList} ->
       {ok, #video_frame{       
@@ -159,9 +162,8 @@ parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, _/binary>>, 
   Mp4Parser.
   
 % FTYP atom
-decode_atom(ftyp, <<Major:4/binary, _Minor:4/binary, CompatibleBrands/binary>>, #mp4_parser{} = Mp4Parser) ->
-  NewParser = Mp4Parser#mp4_parser{file_type = binary_to_list(Major), file_types = decode_atom(ftyp, CompatibleBrands, [])},
-  ?D({"File type:", NewParser#mp4_parser.file_type, NewParser#mp4_parser.file_types}),
+decode_atom(ftyp, <<Major:4/binary, _Minor:4/binary, CompatibleBrands/binary>>, #mp4_header{} = Mp4Parser) ->
+  NewParser = Mp4Parser#mp4_header{file_type = binary_to_list(Major), file_types = decode_atom(ftyp, CompatibleBrands, [])},
   NewParser;
 
 decode_atom(ftyp, <<>>, BrandList) ->
@@ -171,29 +173,27 @@ decode_atom(ftyp, <<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
   decode_atom(ftyp, CompatibleBrands, [binary_to_list(Brand)|BrandList]);
   
 % MOOV atom
-decode_atom(moov, Atom, #mp4_parser{} = Mp4Parser) ->
+decode_atom(moov, Atom, #mp4_header{} = Mp4Parser) ->
   Parser1 = parse_atom(Atom, Mp4Parser),
   Parser2 = merge_frames(Parser1),
-  ?D({"Now there frames", length(Parser2#mp4_parser.frames)}),
-  Parser2#mp4_parser{tracks = lists:reverse(Parser2#mp4_parser.tracks)};
+  Parser2#mp4_header{tracks = lists:reverse(Parser2#mp4_header.tracks)};
 
 % MVHD atom
 decode_atom(mvhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer, TimeScale:32/big-integer,
-                    Duration:32/big-integer, _Rest/binary>>, #mp4_parser{} = Mp4Parser) ->
-  ?D({"Movie header:", Duration}),
-  Mp4Parser#mp4_parser{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale};
+                    Duration:32/big-integer, _Rest/binary>>, #mp4_header{} = Mp4Parser) ->
+  Mp4Parser#mp4_header{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale};
 
 decode_atom(mvhd, <<Version:8/integer, Rest/binary>>, Mp4Parser) ->
   ?D({"Invalid mvhd structure v.", Version, size(Rest)+1}),
   Mp4Parser;
 
 % TRAK atom
-decode_atom(trak, <<>>, #mp4_parser{} = Mp4Parser) ->
+decode_atom(trak, <<>>, #mp4_header{} = Mp4Parser) ->
   Mp4Parser;
   
-decode_atom(trak, Atom, #mp4_parser{tracks = Tracks} = Mp4Parser) ->
+decode_atom(trak, Atom, #mp4_header{tracks = Tracks} = Mp4Parser) ->
   Track = decode_atom(trak, Atom, #mp4_track{}),
-  Mp4Parser#mp4_parser{tracks = [calculate_sample_offsets(Track) | Tracks]};
+  Mp4Parser#mp4_header{tracks = [calculate_sample_offsets(Track) | Tracks]};
   
 decode_atom(trak, <<>>, #mp4_track{} = Mp4Track) ->
   Mp4Track;
@@ -207,7 +207,6 @@ decode_atom(tkhd, <<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:
                     _Layer:16/big-integer, _AlternateGroup:2/binary,
                     _Volume:2/binary, _Reserved3:2/binary,
                     _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
-  ?D({"Track header:", TrackID, Duration}),
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration};
 
 %MDIA atom
@@ -219,6 +218,7 @@ decode_atom(mdhd,<<0:8/integer, _Flags:24/integer, _Ctime:32/big-integer,
                   _Mtime:32/big-integer, TimeScale:32/big-integer, Duration:32/big-integer,
                   _Language:2/binary, _Quality:16/big-integer>>, #mp4_track{} = Mp4Track) ->
   % ?D({"Timescale:", Duration, extract_language(_Language)}),
+  _DecodedLanguate = extract_language(_Language),
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
 
 decode_atom(mdhd, <<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer, 
@@ -232,7 +232,6 @@ decode_atom(smhd, <<0:8/integer, _Flags:3/binary, 0:16/big-signed-integer, _Rese
   Mp4Track;
 
 decode_atom(smhd, <<0:8/integer, _Flags:3/binary, Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
-  ?D({"Audio balance:", Balance}),
   Mp4Track;
 
 % MINF atom
@@ -290,8 +289,10 @@ decode_atom(avcC, <<DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
   ?D({"Extracted video config"}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
-decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1} = Mp4Track) ->
-  Mp4Track;
+decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1, decoder_config = DecoderConfig} = Mp4Track) ->
+  Mp4Track#mp4_track{decoder_config = 
+    <<DecoderConfig/binary, 20:32/big-integer, "btrt", 
+      _BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>};
 
 % STSZ atom
 decode_atom(stsz, <<_Version:8/integer, _Flags:24/integer, 0:32/big-integer, SampleCount:32/big-integer, SampleSizeData/binary>>, Mp4Track) ->
@@ -416,12 +417,12 @@ next_atom(IoDev) ->
   frames = []
 }).
 
-merge_frames(#mp4_parser{tracks = Tracks} = Mp4Parser) ->
+merge_frames(#mp4_header{tracks = Tracks} = Mp4Parser) ->
   FramesList = lists:map(fun(#mp4_track{frames = TrackFrames}) -> TrackFrames end, Tracks),
   UnsortedFrames = lists:merge(FramesList),
   Frames = lists:sort(fun({_, _, _, Duration1, _}, {_, _, _, Duration2, _}) -> Duration1 < Duration2 end, UnsortedFrames),
   CleanedTracks = lists:map(fun(#mp4_track{} = Track) -> Track#mp4_track{frames = {}} end, Tracks),
-  Mp4Parser#mp4_parser{frames = Frames, tracks = CleanedTracks}.
+  Mp4Parser#mp4_header{frames = Frames, tracks = CleanedTracks}.
 
 next_duration(#mp4_frames{durations = []}) ->
   {error};
@@ -487,7 +488,14 @@ calculate_sample_offsets(
       durations = Durations, 
       data_format = DataFormat,
       timescale = Timescale}),
-  Track#mp4_track{frames = Frames#mp4_frames.frames}.
+  {First, _Second} = lists:split(3000, Frames#mp4_frames.frames),
+  Track#mp4_track{
+    frames = First, 
+    chunk_offsets = [],
+    chunk_table = [],
+    keyframes = [],
+    sample_sizes = [],
+    sample_durations = []}.
 
   
 -define(MP4ESDescrTag, 3).

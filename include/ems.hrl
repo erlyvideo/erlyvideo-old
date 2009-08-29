@@ -287,7 +287,7 @@
 	frames = []
 }).
 
--record(mp4_parser, {
+-record(mp4_header, {
   file,
   file_type,
   timescale,
