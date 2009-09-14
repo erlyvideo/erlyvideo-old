@@ -115,6 +115,8 @@ play(From, AMF, Channel) ->
                     {details, Name},
                     {clientid, NextChannel#channel.stream}]]},
     gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
+    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_PING, msg = <<>>}, <<0,4,0,0,0,1>>}}),
+    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_PING, msg = <<>>}, <<0,0,0,0,0,1>>}}),
     NewAMF2 = AMF#amf{
         command = 'onStatus', 
         args= [null,[{level, "status"}, 

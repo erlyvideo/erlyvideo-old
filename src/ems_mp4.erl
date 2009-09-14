@@ -489,7 +489,7 @@ calculate_sample_offsets(
       durations = Durations, 
       data_format = DataFormat,
       timescale = Timescale}),
-  {First, _Second} = lists:split(100, Frames#mp4_frames.frames),
+  {First, _Second} = lists:split(1000, Frames#mp4_frames.frames),
   Track#mp4_track{
     frames = First, 
     chunk_offsets = [],
