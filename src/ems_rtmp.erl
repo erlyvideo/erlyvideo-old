@@ -167,13 +167,19 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 		#amf{command = Command} = AMF ->
 			{App,NextState} = case Command of
 				connect -> 
-		      {object, PlayerInfo} = lists:nth(1, AMF#amf.args),
-		      {number, UserId} = case length(AMF#amf.args) of
-		        1 -> {number, undefined};
-		        3 -> lists:nth(2, AMF#amf.args)
-	        end,
-	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-					{gen_rtmp,State#ems_fsm{player_info=PlayerInfo, user_id = UserId}};
+				  case AMF#amf.args of
+    				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
+    				  {UserId, _} = string:to_integer(SUserId),
+    	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+    					{gen_rtmp,State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+    				[{object, PlayerInfo}, {string, _Session}, {number, UserId}] ->
+    	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+    					{gen_rtmp,State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+				    [{object, PlayerInfo}] ->
+    					{gen_rtmp,State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
+    				_Msg -> 
+    				  ?D({"Unknown player connect", _Msg})
+    			end;
 				_ -> {check_app(State,Command),State}
 			end,
 			App:Command(self(), AMF, Channel),

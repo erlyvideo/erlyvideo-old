@@ -32,6 +32,9 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 
+% decoder config
+% frame[219:63] == 17:00:00:00:00:01:42:c0:15:fd:e1:00:17:67:42:c0:15:92:44:0f:04:7f:58:08:80:00:01:f4:00:00:61:a1:47:8b:17:50:01:00:04:68:ce:32:c8
+
 -module(ems_mp4).
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
@@ -231,7 +234,7 @@ decode_atom(mdhd, <<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer,
 decode_atom(smhd, <<0:8/integer, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track;
 
-decode_atom(smhd, <<0:8/integer, _Flags:3/binary, Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
+decode_atom(smhd, <<0:8/integer, _Flags:3/binary, _Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track;
 
 % MINF atom
@@ -289,10 +292,8 @@ decode_atom(avcC, <<DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
   ?D({"Extracted video config"}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
-decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{data_format = avc1, decoder_config = DecoderConfig} = Mp4Track) ->
-  Mp4Track#mp4_track{decoder_config = 
-    <<DecoderConfig/binary, 20:32/big-integer, "btrt", 
-      _BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>};
+decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{} = Mp4Track) ->
+  Mp4Track;
 
 % STSZ atom
 decode_atom(stsz, <<_Version:8/integer, _Flags:24/integer, 0:32/big-integer, SampleCount:32/big-integer, SampleSizeData/binary>>, Mp4Track) ->
