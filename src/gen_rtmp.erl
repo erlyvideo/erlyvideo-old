@@ -63,7 +63,8 @@ connect(From, AMF, Channel) ->
         command = '_result', 
         id = 1, %% muriel: dirty too, but the only way I can make this work
         type = invoke,
-        args= [null,
+        args= [
+            [{capabilities, 31}, {fmsVer, "Erlyvideo"}],
             [{level, "status"}, 
             {code, "NetConnection.Connect.Success"}, 
             {description, "Connection succeeded."}]]},
@@ -103,7 +104,7 @@ deleteStream(_From, _AMF, _Channel) ->
 %% @end
 %%-------------------------------------------------------------------------
 play(From, AMF, Channel) -> 
-    NextChannel = Channel#channel{id = 4},
+    NextChannel = Channel#channel{id = 5},
     [_Null,{string,Name}] = AMF#amf.args,
     ?D({"invoke - play", Name}),
     NewAMF = AMF#amf{
