@@ -105,28 +105,6 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 
 ready(timeout, State) ->
   Timer = gen_fsm:start_timer(1, play).
-  % 'WAIT_FOR_DATA'({timeout, Timer, play}, #ems_fsm{video_timer_ref = Timer, video_device = IoDev, video_pos = Pos, video_stream_id = StreamId, video_format = Format} = State) ->
-  %   case Format:read_frame(IoDev, Pos) of
-  %     {ok, done} ->
-  %       file:close(IoDev),
-  %       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-  %     {ok, Tag} when is_record(Tag,video_frame) ->
-  %       TimeStamp = Tag#video_frame.timestamp_abs - State#ems_fsm.video_ts_prev,      
-  %       send(Tag#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-  %       Timeout = timeout(Tag#video_frame.timestamp_abs, 
-  %                         State#ems_fsm.video_timer_start, 
-  %                           State#ems_fsm.client_buffer),
-  %       NewTimer = gen_fsm:start_timer(Timeout, play),
-  %       NextState = State#ems_fsm{video_timer_ref  = NewTimer,
-  %                     video_ts_prev = Tag#video_frame.timestamp_abs,
-  %                     video_pos = Tag#video_frame.nextpos},
-  %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-  %     {error,_Reason} -> 
-  %       file:close(IoDev),
-  %       {stop, normal, State}
-  %   end;
-
-
 
 %%-------------------------------------------------------------------------
 %% @spec (FLV_TAG::tuple()) -> any()
@@ -147,7 +125,8 @@ send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeS
 % idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID
 channel_id(?FLV_TAG_TYPE_META, _StreamId) -> 4;
 channel_id(?FLV_TAG_TYPE_VIDEO, _StreamId) -> 5;
-channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.
+channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 5.
+% channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.
 
 
 

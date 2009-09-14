@@ -106,7 +106,7 @@ read_frame(#video_player{frames = [{avc1, SampleOffset, SampleSize, Duration, Ke
 		{ok, IoList} ->
       {ok, #video_frame{       
        	type          = ?FLV_TAG_TYPE_VIDEO,
-    		timestamp_abs = Duration,
+    		timestamp_abs = round(Duration * 1000),
     		streamid      = 1,
     		body          = iolist_to_binary(IoList),
     		frame_type    = case Keyframe of
@@ -128,7 +128,7 @@ read_frame(#video_player{frames = [{mp4a, SampleOffset, SampleSize, Duration, _}
       {ok, #video_frame{       
        	type          = ?FLV_TAG_TYPE_AUDIO,
        	decoder_config = true,
-    		timestamp_abs = Duration,
+    		timestamp_abs = round(Duration * 1000),
     		streamid      = 1,
     		body          = iolist_to_binary(IoList),
     	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
@@ -488,7 +488,7 @@ calculate_sample_offsets(
       durations = Durations, 
       data_format = DataFormat,
       timescale = Timescale}),
-  {First, _Second} = lists:split(3000, Frames#mp4_frames.frames),
+  {First, _Second} = lists:split(100, Frames#mp4_frames.frames),
   Track#mp4_track{
     frames = First, 
     chunk_offsets = [],
@@ -504,7 +504,7 @@ calculate_sample_offsets(
 
 esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, _Rest/binary>>) ->
   ?D({"MP4DecSpecificDescrtag", Length}),
-  Config.
+  <<Config/binary, 6>>.
   
     
     

@@ -138,8 +138,7 @@ seed(C1) ->
   end.
   
 s2(C1) ->
-	SERVER_KEY = hmac256:digest(binary_to_list(?KEYSERVER), binary_to_list(seed(C1))),
-	<<S2:1504/binary, _/binary>> = C1,
-	SERVER_SIGN = hmac256:digest(binary_to_list(S2), SERVER_KEY),
-	list_to_binary([S2, SERVER_SIGN]).
-	
+  SERVER_KEY = hmac256:digest(binary_to_list(?KEYSERVER), binary_to_list(seed(C1))),
+  <<S2:1504/binary, _/binary>> = C1,
+  SERVER_SIGN = hmac256:digest(binary_to_list(S2), SERVER_KEY),
+  list_to_binary([S2, SERVER_SIGN]).
