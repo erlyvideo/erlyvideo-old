@@ -30,7 +30,7 @@ package {
 			_connection.addEventListener(NetStatusEvent.NET_STATUS, onNetStatus);
 			_connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
 			_connection.objectEncoding = ObjectEncoding.AMF0;
-			_connection.connect("rtmp://localhost/", 142, "password");
+			_connection.connect("rtmp://localhost/", "password", 142);
         }
 
 		private function onNetStatus( event : NetStatusEvent ) : void
