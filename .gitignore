@@ -1,3 +1,4 @@
 *.beam
 erl_crash.dump
+mnesia-data
 
