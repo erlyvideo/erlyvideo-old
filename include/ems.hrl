@@ -265,7 +265,8 @@
 	complete    = true,
 	buff        = <<>>,
 	prev_buff   = <<>>,
-	chunk_size = ?RTMP_DEF_CHUNK_SIZE,
+	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
+	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	next_stream_id = 1,
 	type,
 	video_player,
@@ -362,7 +363,8 @@
 	length    = undefined,
 	type      = undefined,
 	stream    = undefined,
-	msg       = undefined
+	msg       = undefined,
+	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into ems_rtmp:encode
 	}).
 
 

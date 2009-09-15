@@ -151,8 +151,13 @@ init([]) ->
 	NewState = ems_rtmp:decode(Data,State),
   {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, State) ->
-	Packet = ems_rtmp:encode(Channel,Data),
+'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_fsm{server_chunk_size = OldChunkSize} = State) ->
+	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
+	gen_tcp:send(State#ems_fsm.socket, Packet),
+  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{server_chunk_size = ChunkSize}, ?TIMEOUT};
+
+'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #ems_fsm{server_chunk_size = ChunkSize} = State) ->
+	Packet = ems_rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
 	gen_tcp:send(State#ems_fsm.socket, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
@@ -193,8 +198,7 @@ init([]) ->
               NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
               gen_fsm:send_event(PlayerPid, {start}),
               % This must be done sync
-              'WAIT_FOR_DATA'({send, {#channel{id = 5, timestamp = 0, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, <<?RTMP_PREF_CHUNK_SIZE:32/big-integer>>}}, NextState#ems_fsm{chunk_size = ?RTMP_PREF_CHUNK_SIZE});
-              % {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+              {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
             Reason -> 
               ?D({"Failed to start video player", Reason}),
               {error, Reason}

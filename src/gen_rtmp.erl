@@ -64,9 +64,9 @@ connect(From, AMF, Channel) ->
         id = 1, %% muriel: dirty too, but the only way I can make this work
         type = invoke,
         args= [
-            [{capabilities, 31}, {fmsVer, "Erlyvideo"}],
-            [{level, "status"}, 
-            {code, "NetConnection.Connect.Success"}, 
+            [{capabilities, 31}, {fmsVer, "RubyIZUMI/0,1,2,0"}],
+            [{code, "NetConnection.Connect.Success"},
+            {level, "status"}, 
             {description, "Connection succeeded."}]]},
     gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
 
@@ -86,7 +86,8 @@ createStream(From, AMF, Channel) ->
       id = 2.0,
     	command = '_result',
     	args = [null, Id]},
-    gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
+    gen_fsm:send_event(From, {send, {Channel#channel{timestamp = 0},NewAMF}}),
+    gen_fsm:send_event(From, {send, {Channel#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}).
 
 
 %%-------------------------------------------------------------------------
@@ -104,22 +105,24 @@ deleteStream(_From, _AMF, _Channel) ->
 %% @end
 %%-------------------------------------------------------------------------
 play(From, AMF, Channel) -> 
-    NextChannel = Channel#channel{id = 5},
+    NextChannel = Channel#channel{id = 5, timestamp = 0},
     [_Null,{string,Name}] = AMF#amf.args,
     ?D({"invoke - play", Name}),
     gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
     gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
-    NewAMF = AMF#amf{
-        command = 'onStatus', 
-        args= [null,[{level, "status"}, 
-                    {code, "NetStream.Play.Reset"}, 
-                    {description, "Resetting NetStream."}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
-    gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
+    % NewAMF = AMF#amf{
+    %     command = 'onStatus', 
+    %     args= [null,[{level, "status"}, 
+    %                 {code, "NetStream.Play.Reset"}, 
+    %                 {description, "Resetting NetStream."}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
+    % gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
     NewAMF2 = AMF#amf{
-        command = 'onStatus', 
-        args= [null,[{level, "status"}, 
-                    {code, "NetStream.Play.Start"}, 
-                    {description, "Start playing."}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
+        command = 'onStatus',
+        type = invoke,
+        id = 0,
+        args= [null,[{code, "NetStream.Play.Start"}, 
+                    {level, "status"}, 
+                    {description, "-"}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
     gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
     gen_fsm:send_event(From, {play, Name, NextChannel#channel.stream}).
 

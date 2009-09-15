@@ -58,8 +58,8 @@ encode(#channel{} = Channel, Data) when is_binary(Data) ->
 	encode(Channel,Data,<<>>).
 
 encode(_Channel, <<>>, Packet) -> Packet;
-encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId} = Channel, Data, <<>>) -> 
-	{Chunk,Rest} = chunk(Data),
+encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = Channel, Data, <<>>) -> 
+	{Chunk,Rest} = chunk(Data, ChunkSize),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
 	NextPacket = <<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
@@ -146,10 +146,10 @@ get_chunk(Channel,State,Bin) ->
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
 	?D({"Change Chunk Size",Channel,ChunkSize}),
-	State#ems_fsm{chunk_size=ChunkSize};
+	State#ems_fsm{client_chunk_size=ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
-  % ?D({"Stream bytes read: ", _Length}),
+  ?D({"Stream bytes read: ", _Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
@@ -176,8 +176,8 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 		#amf{command = Command} = AMF ->
 			{App,NextState} = case Command of
 				connect -> 
-  				gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_SERVER, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
-    			gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_CLIENT, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
+  				gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_SERVER, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
+    			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_CLIENT, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
 				  case AMF#amf.args of
     				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
     				  {UserId, _} = string:to_integer(SUserId),
@@ -199,7 +199,11 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 			?D("AMF Error"),
 			State
 			
-	end.
+	end;
+	
+command(#channel{type = Type}, State) ->
+  ?D({"Unhandled message type", Type}),
+  State.
 	
 
 check_app(State,Command) when is_record(State,ems_fsm) -> check_app(State#ems_fsm.player_info,Command);
@@ -260,7 +264,7 @@ header(<<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,R
 
 chunk_size(Channel,State,Size) ->
 	Length = Channel#channel.length,
-	ChunkSize = State#ems_fsm.chunk_size,
+	ChunkSize = State#ems_fsm.client_chunk_size,
 	if
 		Length < ChunkSize -> Length;
 		Size < Length, Size < ChunkSize -> Size;		
