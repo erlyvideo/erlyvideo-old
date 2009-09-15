@@ -27,12 +27,13 @@
 
 
 -define(RTMP_DEF_CHUNK_SIZE, 128).
+-define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
 
 %% RTMP data 
 -define(RTMP_TYPE_CHUNK_SIZE,     1).
 %-define(RTMP_TYPE_UNKNOWN,       2).
 -define(RTMP_TYPE_BYTES_READ,     3).
--define(RTMP_TYPE_PING,           4).
+-define(RTMP_TYPE_CONTROL,           4).
 -define(RTMP_TYPE_BW_SERVER,      5).
 -define(RTMP_TYPE_BW_CLIENT,      6).
 %-define(RTMP_TYPE_UNKNOWN,       7).
@@ -50,6 +51,14 @@
 -define(RTMP_TYPE_META_DATA,     18).
 -define(RTMP_TYPE_SHARED_OBJECT, 19).
 -define(RTMP_TYPE_INVOKE,        20).
+
+-define(RTMP_CONTROL_STREAM_BEGIN,    0).
+-define(RTMP_CONTROL_STREAM_EOF,      1).
+-define(RTMP_CONTROL_STREAM_DRY,      2).
+-define(RTMP_CONTROL_STREAM_BUFFER,   3).
+-define(RTMP_CONTROL_STREAM_RECORDED, 4).
+-define(RTMP_CONTROL_STREAM_PING,     6).
+-define(RTMP_CONTROL_STREAM_PONG,     7).
 
 %% RTMP shared object
 -define(SO_CONNECT,              1).

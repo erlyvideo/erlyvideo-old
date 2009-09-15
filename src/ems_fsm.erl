@@ -192,7 +192,8 @@ init([]) ->
             {ok, PlayerPid} ->
               NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
               gen_fsm:send_event(PlayerPid, {start}),
-              'WAIT_FOR_DATA'({send, {#channel{id = 5, timestamp = 0, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, <<(4*1024):32/big-integer>>}}, NextState#ems_fsm{chunk_size = 4*1024});
+              % This must be done sync
+              'WAIT_FOR_DATA'({send, {#channel{id = 5, timestamp = 0, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, <<?RTMP_PREF_CHUNK_SIZE:32/big-integer>>}}, NextState#ems_fsm{chunk_size = ?RTMP_PREF_CHUNK_SIZE});
               % {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
             Reason -> 
               ?D({"Failed to start video player", Reason}),

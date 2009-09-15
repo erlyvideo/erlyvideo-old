@@ -107,23 +107,19 @@ play(From, AMF, Channel) ->
     NextChannel = Channel#channel{id = 5},
     [_Null,{string,Name}] = AMF#amf.args,
     ?D({"invoke - play", Name}),
+    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
+    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
     NewAMF = AMF#amf{
         command = 'onStatus', 
         args= [null,[{level, "status"}, 
                     {code, "NetStream.Play.Reset"}, 
-                    {description, "Resetting NetStream."},
-                    {details, Name},
-                    {clientid, NextChannel#channel.stream}]]},
+                    {description, "Resetting NetStream."}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
     gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
-    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_PING, msg = <<>>}, <<0,4,0,0,0,1>>}}),
-    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_PING, msg = <<>>}, <<0,0,0,0,0,1>>}}),
     NewAMF2 = AMF#amf{
         command = 'onStatus', 
         args= [null,[{level, "status"}, 
                     {code, "NetStream.Play.Start"}, 
-                    {description, "Start playing."},
-                    {details, Name},
-                    {clientid, NextChannel#channel.stream}]]},
+                    {description, "Start playing."}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
     gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
     gen_fsm:send_event(From, {play, Name, NextChannel#channel.stream}).
 
