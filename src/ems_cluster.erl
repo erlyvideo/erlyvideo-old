@@ -300,10 +300,7 @@ start() ->
     case catch gen_server_cluster:get_all_server_nodes(?MODULE) of
 	    {Node, _} ->
         ?D("Starting mnesia"),
-        mnesia:transaction(fun() ->
-          mnesia:add_table_index(ems_client, user_id)
-        end),
-	        up_master();
+	      up_master();
         {Master, _}->
             gen_server:call(Master, add_mnesia_slave),
             mnesia:start(),
@@ -411,14 +408,17 @@ code_change(_OldVsn, State, _Extra) ->
 mnesia_tables() ->
     [{ems_client,
       [{ram_copies, [node()]},
+       {disc_copies, []},
+       {index, [user_id]},
        {attributes, record_info(fields, ems_client)}]},
      {ems_stream,
       [{ram_copies, [node()]},
+       {disc_copies, []},
        {attributes, record_info(fields, ems_stream)}]}].
        
 
 up_master() ->
-    case mnesia:create_schema([node()]) of
+    case mnesia:create_schema([]) of
         {error, {_, {already_exists, _}}} -> 
             mnesia:start();
         ok -> 
