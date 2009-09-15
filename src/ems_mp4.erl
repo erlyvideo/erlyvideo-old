@@ -85,25 +85,6 @@ read_frame(#video_player{sent_video_config = false} = Player) ->
 	}, Player#video_player{sent_video_config = true}};  
 
 
-read_frame(#video_player{sent_audio_config = false} = Player) ->
-  Config = decoder_config(mp4a, Player),
-  {ok, #video_frame{       
-   	type          = ?FLV_TAG_TYPE_AUDIO,
-   	decoder_config = true,
-		timestamp_abs = 0,
-		streamid      = 1,
-		body          = Config,
-	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
-	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
-	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-	  sound_rate	  = ?FLV_AUDIO_RATE_44,
-	  raw_body      = false
-	}, Player#video_player{sent_audio_config = true}};
-
-read_frame(#video_player{frames = []}) ->
-  ?D("No frames left in file"),
-  {ok, done};
-	
 read_frame(#video_player{frames = [{avc1, SampleOffset, SampleSize, Duration, Keyframe} | Frames], device = IoDev} = Player) ->
 	case file:pread(IoDev,SampleOffset, SampleSize) of
 		{ok, IoList} ->
@@ -125,12 +106,32 @@ read_frame(#video_player{frames = [{avc1, SampleOffset, SampleSize, Duration, Ke
 			{error, Reason}
   end;  
 
+
+read_frame(#video_player{sent_audio_config = false} = Player) ->
+  Config = decoder_config(mp4a, Player),
+  {ok, #video_frame{       
+   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	decoder_config = true,
+		timestamp_abs = 0,
+		streamid      = 1,
+		body          = Config,
+	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+	  sound_rate	  = ?FLV_AUDIO_RATE_44,
+	  raw_body      = false
+	}, Player#video_player{sent_audio_config = true}};
+
+read_frame(#video_player{frames = []}) ->
+  ?D("No frames left in file"),
+  {ok, done};
+	
+
 read_frame(#video_player{frames = [{mp4a, SampleOffset, SampleSize, Duration, _} | Frames], device = IoDev} = Player) ->
 	case file:pread(IoDev,SampleOffset, SampleSize) of
 		{ok, IoList} ->
       {ok, #video_frame{       
        	type          = ?FLV_TAG_TYPE_AUDIO,
-       	decoder_config = true,
     		timestamp_abs = round(Duration * 1000),
     		streamid      = 1,
     		body          = iolist_to_binary(IoList),
@@ -418,10 +419,21 @@ next_atom(IoDev) ->
   frames = []
 }).
 
+
+sort_types(avc1, mp4a) -> true;
+sort_types(_, _) -> false.
+
+sort_frames({Type1, _, _, Duration1, _}, {Type2, _, _, Duration2, _}) when Duration1 == Duration2 ->
+  sort_types(Type1, Type2);
+  
+sort_frames({_, _, _, Duration1, _}, {_, _, _, Duration2, _}) ->
+  Duration1 < Duration2.
+  
+
 merge_frames(#mp4_header{tracks = Tracks} = Mp4Parser) ->
   FramesList = lists:map(fun(#mp4_track{frames = TrackFrames}) -> TrackFrames end, Tracks),
   UnsortedFrames = lists:merge(FramesList),
-  Frames = lists:sort(fun({_, _, _, Duration1, _}, {_, _, _, Duration2, _}) -> Duration1 < Duration2 end, UnsortedFrames),
+  Frames = lists:sort(fun(F1, F2) -> sort_frames(F1, F2) end, UnsortedFrames),
   CleanedTracks = lists:map(fun(#mp4_track{} = Track) -> Track#mp4_track{frames = {}} end, Tracks),
   Mp4Parser#mp4_header{frames = Frames, tracks = CleanedTracks}.
 
@@ -504,7 +516,7 @@ calculate_sample_offsets(
 -define(MP4DecSpecificDescrtag, 5).
 
 esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, _Rest/binary>>) ->
-  ?D({"MP4DecSpecificDescrtag", Length}),
+  ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary, 6>>.
   
     

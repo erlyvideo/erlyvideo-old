@@ -223,8 +223,8 @@ encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
                 	  sound_size	= SoundSize,
                 	  sound_rate	= SoundRate,
                     body = Body}) when is_binary(Body) ->
-	<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
-	  ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>;
+  <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
+    ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>;
 
 
 encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
