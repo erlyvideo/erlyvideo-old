@@ -18,7 +18,14 @@ hexdigest(Key, Data)->
 digest(Key, Data) ->
     digest(Key, Data, false).
 
-digest(Key, Data, Hex) -> 
+digest(Key, Data, Hex) when is_binary(Key) -> 
+  digest(binary_to_list(Key), Data, Hex);
+
+digest(Key, Data, Hex) when is_binary(Data) -> 
+  digest(Key, binary_to_list(Data), Hex);
+
+
+digest(Key, Data, Hex) when is_list(Key) and is_list(Data) -> 
     BlockSize = 64,
     
     %% Initialize OPad and IPad arrays filled with magic 0x5c and 0x36 values

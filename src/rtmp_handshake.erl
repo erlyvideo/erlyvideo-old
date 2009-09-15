@@ -2,8 +2,10 @@
 
 -export([s1/0, s2/1]).
 -import(hmac256).
+-include("../include/ems.hrl").
 
--define(HANDSHAKE, <<16#01,16#86,16#4f,16#7f,16#00,16#00,16#00,16#00,16#6b,16#04,16#67,16#52,16#a2,16#70,16#5b,16#51,
+-define(HANDSHAKE, <<
+16#01,16#86,16#4f,16#7f,16#00,16#00,16#00,16#00,16#6b,16#04,16#67,16#52,16#a2,16#70,16#5b,16#51,
 16#a2,16#89,16#ca,16#cc,16#8e,16#70,16#f0,16#06,16#70,16#0e,16#d7,16#b3,16#73,16#7f,16#07,16#c1,
 16#72,16#d6,16#cb,16#4c,16#c0,16#45,16#0f,16#f5,16#4f,16#ec,16#d0,16#2f,16#46,16#2b,16#76,16#10,
 16#92,16#1b,16#0e,16#b6,16#ed,16#71,16#73,16#45,16#c1,16#c6,16#26,16#0c,16#69,16#59,16#7b,16#bb,
@@ -100,9 +102,8 @@
 16#08,16#72,16#52,16#a7,16#98,16#42,16#95,16#7b,16#b7,16#e7,16#10,16#fe,16#db,16#54,16#34,16#fb,
 16#91,16#24,16#1c,16#07,16#fb,16#9c,16#ce,16#d0,16#46,16#cf,16#c4,16#9d,16#09,16#49,16#24,16#ec>>).
 
--define(KEYSERVER, <<16#47,16#65,16#6e,16#75,16#69,16#6e,16#65,16#20,16#41,16#64,16#6f,16#62,16#65,16#20,16#46,16#6c,
-16#61,16#73,16#68,16#20,16#4d,16#65,16#64,16#69,16#61,16#20,16#53,16#65,16#72,16#76,16#65,16#72,
-16#20,16#30,16#30,16#31,16#f0,16#ee,16#c2,16#4a,16#80,16#68,16#be,16#e8,16#2e,16#00,16#d0,16#d1,
+-define(KEYSERVER, <<"Genuine Adobe Flash Media Server 001",
+                        16#f0,16#ee,16#c2,16#4a,16#80,16#68,16#be,16#e8,16#2e,16#00,16#d0,16#d1,
 16#02,16#9e,16#7e,16#57,16#6e,16#ec,16#5d,16#2d,16#29,16#80,16#6f,16#ab,16#93,16#b8,16#e6,16#36,
 16#cf,16#eb,16#31,16#ae>>).
 
@@ -110,35 +111,35 @@ s1() ->
 	?HANDSHAKE.
 
 clientGenuineConstDigest(C1) ->
-	<<_:8/binary, P1:8/integer, P2:8/integer, P3:8/integer, P4:8/integer, _/binary>> = C1,
-	OFFSET = (P1+P2+P3+P4) rem 728 + 12,
-	<<_:OFFSET/binary, SEED:32/binary, _/binary>> = C1,
-  SEED.
+  ?D("Old player"),
+	<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1,
+	Offset = (P1+P2+P3+P4) rem 728 + 12,
+	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
+  Seed.
 
 serverGenuineConstDigest(C1) ->
-	<<_:772/binary, P1:8/integer, P2:8/integer, P3:8/integer, P4:8/integer, _/binary>> = C1,
-	OFFSET = (P1+P2+P3+P4) rem 728 + 776,
-	<<_:OFFSET/binary, SEED:32/binary, _/binary>> = C1,
-  SEED.
+  ?D("New player"),
+	<<_:772/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1,
+	Offset = (P1+P2+P3+P4) rem 728 + 776,
+	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
+  Seed.
 	
 version(<<_:32/integer, 1:1/integer, _:7/integer, 0:8/integer, 1:8/integer, 2:8/integer, _/binary>>) ->
-  io:format("Old player~n"),
   v1;
 version(<<_:32/integer, 1:1/integer, _/binary>>) ->
-  io:format("New player~n"),
   v2;
 version(_) ->
-  io:format("Old player~n"),
   v1.
   
 seed(C1) ->
-  case version(C1) of
+  Seed = case version(C1) of
     v1 -> clientGenuineConstDigest(C1);
     v2 -> serverGenuineConstDigest(C1)
-  end.
+  end,
+  binary_to_list(Seed).
   
 s2(C1) ->
-  SERVER_KEY = hmac256:digest(binary_to_list(?KEYSERVER), binary_to_list(seed(C1))),
-  <<S2:1504/binary, _/binary>> = C1,
-  SERVER_SIGN = hmac256:digest(binary_to_list(S2), SERVER_KEY),
-  list_to_binary([S2, SERVER_SIGN]).
+  ServerDigest = hmac256:digest(?KEYSERVER, seed(C1)),
+  <<S2:1504/binary, _/binary>> = s1(),
+  ServerSign = hmac256:digest(ServerDigest, S2),
+  <<S2/binary, (list_to_binary(ServerSign))/binary>>.

@@ -111,12 +111,12 @@ init([]) ->
 	Data2 = <<Buff/binary,Data/binary>>,
 	{next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{buff=Data2}, ?TIMEOUT};
 
-'WAIT_FOR_HANDSHAKE'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) == ?HS_BODY_LEN + 1 ->
+'WAIT_FOR_HANDSHAKE'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
 	case <<Buff/binary,Data/binary>> of
-		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary>> ->
+		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
 			Reply = ems_rtmp:handshake(HandShake),
 			gen_tcp:send(State#ems_fsm.socket, <<?HS_HEADER, Reply/binary>>),
-			{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = <<>>}, ?TIMEOUT};
+			{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = Rest}, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
 
@@ -125,7 +125,7 @@ init([]) ->
     {stop, normal, State};
 
 'WAIT_FOR_HANDSHAKE'(Other, State) ->
-    ?D({"Ignoring unecpected data:", Other}),
+    ?D({"Ignoring unexpected data:", Other}),
     {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
 
 
@@ -133,7 +133,7 @@ init([]) ->
 'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
 	{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
 
-'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) > ?HS_BODY_LEN -> 
+'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
 	case <<Buff/binary,Data/binary>> of
 		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
 			NewState = ems_rtmp:decode(Rest,State),
