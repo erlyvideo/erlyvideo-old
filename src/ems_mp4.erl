@@ -285,12 +285,12 @@ decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataForm
   
 % ESDS atom
 decode_atom(esds, <<0:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) ->
-  ?D({"Extracted audio config"}),
+  % ?D({"Extracted audio config"}),
   Mp4Track#mp4_track{decoder_config = esds_tag(DecoderConfig)};
 
 % avcC atom
 decode_atom(avcC, <<DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
-  ?D({"Extracted video config"}),
+  % ?D({"Extracted video config"}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
 decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{} = Mp4Track) ->
@@ -501,9 +501,10 @@ calculate_sample_offsets(
       durations = Durations, 
       data_format = DataFormat,
       timescale = Timescale}),
-  {First, _Second} = lists:split(1000, Frames#mp4_frames.frames),
+  % {First, _Second} = lists:split(1000, Frames#mp4_frames.frames),
+  ?D({"Frames in file", DataFormat, length(Frames#mp4_frames.frames)}),
   Track#mp4_track{
-    frames = First, 
+    frames = Frames#mp4_frames.frames, 
     chunk_offsets = [],
     chunk_table = [],
     keyframes = [],

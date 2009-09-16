@@ -197,7 +197,6 @@ init([]) ->
             {ok, PlayerPid} ->
               NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
               gen_fsm:send_event(PlayerPid, {start}),
-              % This must be done sync
               {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
             Reason -> 
               ?D({"Failed to start video player", Reason}),
@@ -388,7 +387,7 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
-  ?D("FSM stopping"),
+  ?D({"FSM stopping", _StateName, _Reason}),
   ems_cluster:remove_client(erlang:pid_to_list(self())),
   (catch gen_tcp:close(Socket)),
   ok.

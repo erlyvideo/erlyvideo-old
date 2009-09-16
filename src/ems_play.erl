@@ -87,6 +87,7 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
   		file:close(IoDev),
   		{stop, normal, State};
 		{ok, #video_frame{type = Type} = Frame, Player} -> 
+      % ?D({"Frame", Type, Frame#video_frame.timestamp_abs}),
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
 			Timeout = timeout(Frame#video_frame.timestamp_abs, 
@@ -98,7 +99,7 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 											  pos = Frame#video_frame.nextpos},
 			{next_state, ready, NextState, ?TIMEOUT};
 		{error, _Reason} ->
-			?D(_Reason),
+			?D({"Ems player stopping", _Reason}),
 			file:close(IoDev),
 			{stop, normal, State}
 	end;
@@ -164,6 +165,7 @@ file_format(Name) ->
   end.
   
 handle_event(Event, StateName, StateData) ->
+  ?D({"Unknown event in player", Event, StateName}),
     {stop, {StateName, undefined_event, Event}, StateData}.
 
 
@@ -177,6 +179,7 @@ handle_info({tcp_closed, _Socket}, _StateName,
     {stop, normal, StateData};
 
 handle_info(_Info, StateName, StateData) ->
+  ?D({"Unknown info in player", _Info, StateName}),
   {noreply, StateName, StateData}.
 
 terminate(_Reason, _StateName, _StateData) ->
