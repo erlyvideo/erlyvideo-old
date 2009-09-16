@@ -153,6 +153,7 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_fsm{server_chunk_size = OldChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
+  ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
 	gen_tcp:send(State#ems_fsm.socket, Packet),
   {next_state, 'WAIT_FOR_DATA', State#ems_fsm{server_chunk_size = ChunkSize}, ?TIMEOUT};
 

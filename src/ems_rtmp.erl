@@ -64,8 +64,8 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, c
 	NextPacket = <<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
 	
-encode(#channel{id = Id} = Channel, Data, Packet) -> 
-	{Chunk,Rest} = chunk(Data),
+encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) -> 
+	{Chunk,Rest} = chunk(Data, ChunkSize),
 	BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
 	NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket).
@@ -146,7 +146,7 @@ get_chunk(Channel,State,Bin) ->
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
 	?D({"Change Chunk Size",Channel,ChunkSize}),
-	State#ems_fsm{client_chunk_size=ChunkSize};
+	State#ems_fsm{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
   ?D({"Stream bytes read: ", _Length}),
@@ -262,9 +262,7 @@ header(<<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,R
 
 
 
-chunk_size(Channel,State,Size) ->
-	Length = Channel#channel.length,
-	ChunkSize = State#ems_fsm.client_chunk_size,
+chunk_size(#channel{length = Length}, #ems_fsm{client_chunk_size = ChunkSize}, Size) ->
 	if
 		Length < ChunkSize -> Length;
 		Size < Length, Size < ChunkSize -> Size;		
