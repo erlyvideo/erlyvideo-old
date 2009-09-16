@@ -73,6 +73,11 @@ private function onMetaData(metadata : Object) : void
 
 private function onStreamStatus( event : NetStatusEvent ) : void
 {
+	switch(event.info.code){
+	case "NetStream.Metadata":
+	  onMetaData(event.info.description);
+	  break;
+  }
   
 }
 

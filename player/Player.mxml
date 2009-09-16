@@ -59,6 +59,6 @@
 		    snapInterval="0.01"
 		    change="set_volume(volSlider.value)" width="100"/>
 	</mx:HBox>
-  <mx:Label id="_log" text="" color="#FFFFFF" width="73" height="15"/>
+  <mx:Label id="_log" text="" color="#FFFFFF" width="273" height="15"/>
 	
 </mx:Application>
