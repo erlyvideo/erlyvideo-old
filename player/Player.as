@@ -22,11 +22,13 @@ public function init()  : void
 
 public function play() : void
 {
+	var listener : Object = new Object();
   if (!_connected) return;
 	_stream = new NetStream(_connection);
 	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
 	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
-	_stream.addEventListener("onMetaData", onMetaData);
+	listener.onMetaData = onMetaData;
+	_stream.client = listener;
 
 	var video : Video = new Video(320, 180);
 	video.attachNetStream(_stream);
