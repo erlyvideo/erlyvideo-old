@@ -184,13 +184,8 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
-'WAIT_FOR_DATA'({metadata, Metadata}, State) ->
-  NewAMF = #amf{
-      command = 'onMetaData', 
-      id = 1,
-      type = invoke,
-      args= [null, Metadata]},
-  gen_fsm:send_event(self(), {invoke, NewAMF}),
+'WAIT_FOR_DATA'({metadata, Metadata}, #ems_fsm{server_chunk_size = ChunkSize} = State) ->
+  gen_fsm:send_event(self(), {send, {#channel{id = 5, type = ?RTMP_TYPE_METADATA, stream = 1, chunk_size = ChunkSize, timestamp = 0}, <<"onMetaData", (ems_amf:encode(Metadata))/binary>>}}),
   ?D({"Metadata", Metadata}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
   

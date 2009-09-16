@@ -65,8 +65,8 @@ init(#video_player{header = Header, device = IoDev} = Player) ->
 metadata(#video_player{header = Header}) ->
   metadata(Header);
 metadata(#mp4_header{tracks = []}) -> [];
-metadata(#mp4_header{tracks = [#mp4_track{data_format = avc1, width = Width, height = Height} | _]}) -> 
-  [{width, Width}, {height, Height}];
+metadata(#mp4_header{tracks = [#mp4_track{data_format = avc1, width = Width, height = Height, duration = Duration, timescale = Timescale} | _]}) -> 
+  [{width, Width}, {height, Height}, {duration, Duration/Timescale}];
 metadata(#mp4_header{tracks = [_ | List]} = Player) -> 
   metadata(Player#mp4_header{tracks = List}).
   

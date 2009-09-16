@@ -43,7 +43,7 @@
 %-define(RTMP_TYPE_UNKNOWN,      11).
 %-define(RTMP_TYPE_UNKNOWN,      12).
 %-define(RTMP_TYPE_UNKNOWN,      13).
-%-define(RTMP_TYPE_UNKNOWN,      14).
+-define(RTMP_TYPE_METADATA,      14).
 -define(RTMP_FLEX_STREAM_SEND,   15).
 -define(RTMP_FLEX_SHARED_OBJECT, 16).
 -define(RTMP_FLEX_MESSAGE,       17).
