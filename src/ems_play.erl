@@ -70,7 +70,8 @@ init({FileName, StreamId, Parent}) ->
 stop(_, State) ->
   {stop, normal, State}.
   
-ready({start}, #video_player{} = State) ->
+ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
+  gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)}),
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
 	?D({"Player starting with pid", self()}),

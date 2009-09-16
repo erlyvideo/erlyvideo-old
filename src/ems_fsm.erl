@@ -182,6 +182,17 @@ init([]) ->
           {description, Message}]]},
   gen_fsm:send_event(self(), {invoke, NewAMF}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+
+'WAIT_FOR_DATA'({metadata, Metadata}, State) ->
+  NewAMF = #amf{
+      command = 'onMetaData', 
+      id = 1,
+      type = invoke,
+      args= [null, Metadata]},
+  gen_fsm:send_event(self(), {invoke, NewAMF}),
+  ?D({"Metadata", Metadata}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
   
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->

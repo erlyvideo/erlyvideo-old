@@ -292,6 +292,9 @@
 	buffer,
 	timer_start,
 	timer_ref,
+	width = undefined,
+	height = undefined,
+	duration = undefined,
 	ts_prev = 0,
 	pos = 0,
 	frames = []
@@ -313,6 +316,8 @@
   track_id,
   timescale,
   duration,
+  width,
+  height,
   decoder_config,
   sample_sizes = [],        % stsz Sample sizes
   sample_durations = [],    % stts Durations

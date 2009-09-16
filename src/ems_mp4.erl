@@ -39,7 +39,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([init/1, read_frame/1]).
+-export([init/1, read_frame/1, metadata/1]).
 
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
@@ -61,6 +61,15 @@ init(#video_player{header = Header, device = IoDev} = Player) ->
       {ok, Player};
     Else -> Else
   end.
+  
+metadata(#video_player{header = Header}) ->
+  metadata(Header);
+metadata(#mp4_header{tracks = []}) -> [];
+metadata(#mp4_header{tracks = [#mp4_track{data_format = avc1, width = Width, height = Height} | _]}) -> 
+  [{width, Width}, {height, Height}];
+metadata(#mp4_header{tracks = [_ | List]} = Player) -> 
+  metadata(Player#mp4_header{tracks = List}).
+  
   
 decoder_config(Format, #video_player{header = Mp4Parser}) ->
   #mp4_header{tracks = Tracks} = Mp4Parser,
@@ -266,14 +275,14 @@ decode_atom(stsd, {_EntryCount, <<_SampleDescriptionSize:32/big-integer,
 decode_atom(stsd, {_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
                                   "avc1", _Reserved:6/binary, _RefIndex:16/big-integer, 
                                   _Unknown1:16/binary, 
-                                  _Width:16/big-integer, _Height:16/big-integer,
+                                  Width:16/big-integer, Height:16/big-integer,
                                   _HorizRes:32/big-integer, _VertRes:32/big-integer,
                                   _FrameCount:16/big-integer, _CompressorName:32/binary,
                                   _Depth:16/big-integer, _Predefined:16/big-integer,
                                   _Unknown:4/binary,
                                   Atom/binary>>}, Mp4Track) ->
-  ?D({"Video size:", _Width, _Height}),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1});
+  % ?D({"Video size:", Width, Height}),
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1, width = Width, height = Height});
 
 
 decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
