@@ -3,6 +3,7 @@ erlyvideo is a flash streaming server, written in erlang.
 currently it can:
 
   * stream flv files
+  * stream mp4 files
   * provide push channel to flash, just like juggernaut, just like AMQP
   * have possibility to auth users
   
@@ -12,11 +13,11 @@ possibly it can:
   * broadcast flv between people
   
 future plans:
-
-  * stream mp4 files
+  * seek, pause, resume in files
+  * try to change quality on fly
 
 
 What you can do right now?
 
-  * use it for streaming flv files
+  * use it for streaming flv and mp4 files
   * use it like juggernaut

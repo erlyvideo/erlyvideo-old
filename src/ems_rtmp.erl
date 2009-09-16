@@ -145,11 +145,11 @@ get_chunk(Channel,State,Bin) ->
 
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
-	?D({"Change Chunk Size",Channel,ChunkSize}),
+  % ?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
-  ?D({"Stream bytes read: ", _Length}),
+  % ?D({"Stream bytes read: ", _Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
@@ -157,7 +157,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 	State;	
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, State) ->
-	?D({"Buffer size on stream id", BufferSize, StreamId}),
+  % ?D({"Buffer size on stream id", BufferSize, StreamId}),
 	State;	
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/binary>>} = _Channel, State) ->
