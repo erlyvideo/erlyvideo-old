@@ -97,6 +97,14 @@ init([Port, Module]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_call({start}, From, State) ->
+  {Listener, _Ref} = From,
+  {ok, Pid} = ems_sup:start_client(),
+  gen_fsm:sync_send_event(Pid, {socket_ready, Listener}),
+  {reply, {ok, Pid}, State};
+
+
 handle_call(Request, _From, State) ->
     {stop, {unknown_call, Request}, State}.
 
@@ -139,7 +147,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
         {stop, Reason, State}
     end;
-
+    
 handle_info({inet_async, ListSock, Ref, Error}, #ems_server{listener=ListSock, acceptor=Ref} = State) ->
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};

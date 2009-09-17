@@ -131,10 +131,6 @@ read_frame(#video_player{sent_audio_config = false} = Player) ->
 	  raw_body      = false
 	}, Player#video_player{sent_audio_config = true}};
 
-read_frame(#video_player{frames = []}) ->
-  ?D("No frames left in file"),
-  {ok, done};
-	
 
 read_frame(#video_player{frames = [{mp4a, SampleOffset, SampleSize, Duration, _} | Frames], device = IoDev} = Player) ->
 	case file:pread(IoDev,SampleOffset, SampleSize) of
@@ -154,7 +150,13 @@ read_frame(#video_player{frames = [{mp4a, SampleOffset, SampleSize, Duration, _}
   		{ok, done, Player};
   	{error, Reason} -> 
   		{error, Reason}
-  end.
+  end;
+  
+read_frame(#video_player{frames = []}) ->
+  ?D("No frames left in file"),
+  {ok, done}.
+
+
 
   
 parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
@@ -170,9 +172,14 @@ parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/bin
   NewMp4Parser = decode_atom(AtomName, Atom, Mp4Parser),
   parse_atom(Rest, NewMp4Parser);
   
-parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, _/binary>>, Mp4Parser) ->
-  ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, utf8)}),
+parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, _Rest/binary>>, Mp4Parser) ->
+  ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, utf8), size(_Rest)}),
+  Mp4Parser;
+
+parse_atom(<<0:32/big-integer>>, Mp4Parser) ->
+  ?D("NULL atom"),
   Mp4Parser.
+
   
 % FTYP atom
 decode_atom(ftyp, <<Major:4/binary, _Minor:4/binary, CompatibleBrands/binary>>, #mp4_header{} = Mp4Parser) ->
@@ -391,21 +398,27 @@ extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
 
 next_atom(IoDev) ->
-  case file:read(IoDev, 8) of
+  case file:read(IoDev, 4) of
     {ok, Data} ->
-      <<AtomLength:32/big-integer, AtomName:4/binary>> = list_to_binary(Data),
-      case AtomName of
-        <<"mdat">> ->
-          {mdat};
+      <<AtomLength:32/big-integer>> = list_to_binary(Data),
+      case AtomLength of
+        0 -> next_atom(IoDev);
         _ ->
-          % ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
-          case file:read(IoDev, AtomLength - 8) of
-            {ok, Atom} ->
-              {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};
-            eof ->
-              {error, unexpected_eof};
-            {error, Reason} ->
-              {error, Reason}         
+          {ok, AtomNameData} = file:read(IoDev, 4),
+          <<AtomName:4/binary>> = list_to_binary(AtomNameData),
+          case AtomName of
+            <<"mdat">> ->
+              {mdat};
+            _ ->
+              % ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
+              case file:read(IoDev, AtomLength - 8) of
+                {ok, Atom} ->
+                  {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};
+                eof ->
+                  {error, unexpected_eof};
+                {error, Reason} ->
+                  {error, Reason}         
+              end
           end
       end;
     eof -> 
