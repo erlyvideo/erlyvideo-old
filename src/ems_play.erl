@@ -87,15 +87,15 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 		  ?D("Video file finished"),
   		file:close(IoDev),
   		{stop, normal, State};
-		{ok, #video_frame{type = Type} = Frame, Player} -> 
-      % ?D({"Frame", Type, Frame#video_frame.timestamp_abs}),
+		{ok, #video_frame{type = _Type} = Frame, Player} -> 
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
+      % ?D({"Frame", _Type, Frame#video_frame.timestamp_abs, TimeStamp}),
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
 			Timeout = timeout(Frame#video_frame.timestamp_abs, 
 				Player#video_player.timer_start, 
 				Player#video_player.client_buffer),
-			Timer = gen_fsm:start_timer(Timeout, play),
-			NextState = Player#video_player{timer_ref  = Timer,
+			NextState = Player#video_player{
+			                  timer_ref = gen_fsm:start_timer(Timeout, play),
 											  ts_prev = Frame#video_frame.timestamp_abs,
 											  pos = Frame#video_frame.nextpos},
 			{next_state, ready, NextState, ?TIMEOUT};
@@ -105,8 +105,8 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			{stop, normal, State}
 	end;
 
-ready(timeout, State) ->
-  Timer = gen_fsm:start_timer(1, play).
+ready(timeout, _State) ->
+  _Timer = gen_fsm:start_timer(1, play).
 
 %%-------------------------------------------------------------------------
 %% @spec (FLV_TAG::tuple()) -> any()
@@ -161,8 +161,8 @@ file_format(Name) ->
   case filename:extension(Name) of
       ".flv" -> ems_flv;
       ".FLV" -> ems_flv;
-      ".mp4" -> ems_mp4;
-      ".MP4" -> ems_mp4
+      ".mp4" -> mp4;
+      ".MP4" -> mp4
   end.
   
 handle_event(Event, StateName, StateData) ->

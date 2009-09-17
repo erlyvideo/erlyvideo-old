@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%%
-%%% Copyright (c) 2008 Takuma Mori, 2009 Max Lapshin
+%%% Copyright (c) 2009 Max Lapshin
 %%%    This program is free software: you can redistribute it and/or modify
 %%%    it under the terms of the GNU Affero General Public License as
 %%%    published by the Free Software Foundation, either version 3 of the
@@ -35,9 +35,10 @@
 % decoder config
 % frame[219:63] == 17:00:00:00:00:01:42:c0:15:fd:e1:00:17:67:42:c0:15:92:44:0f:04:7f:58:08:80:00:01:f4:00:00:61:a1:47:8b:17:50:01:00:04:68:ce:32:c8
 
--module(ems_mp4).
+-module(mp4).
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
+-include("../include/mp4.hrl").
 
 -export([init/1, read_frame/1, metadata/1]).
 
@@ -80,81 +81,77 @@ decoder_config(Format, #video_player{header = Mp4Parser}) ->
       Track#mp4_track.decoder_config
   end.
   
-read_frame(#video_player{sent_video_config = false} = Player) ->
+read_frame(#video_player{sent_video_config = false, frames = FrameTable} = Player) ->
   Config = decoder_config(avc1, Player),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
    	decoder_config = true,
 		timestamp_abs = 0,
-		streamid      = 1,
 		body          = Config,
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-	  raw_body      = false
+	  raw_body      = false,
+	  nextpos       = ets:first(FrameTable)
 	}, Player#video_player{sent_video_config = true}};  
 
-
-read_frame(#video_player{frames = [{avc1, SampleOffset, SampleSize, Duration, Keyframe} | Frames], device = IoDev} = Player) ->
-	case file:pread(IoDev,SampleOffset, SampleSize) of
-		{ok, IoList} ->
-      {ok, #video_frame{       
-       	type          = ?FLV_TAG_TYPE_VIDEO,
-    		timestamp_abs = round(Duration * 1000),
-    		streamid      = 1,
-    		body          = iolist_to_binary(IoList),
-    		frame_type    = case Keyframe of
-    		  true ->	?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
-    		  _ -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME
-  		  end,
-    		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-    	  raw_body      = false
-    	}, Player#video_player{frames = Frames}};
-		eof -> 
-			{ok, done};
-		{error, Reason} -> 
-			{error, Reason}
-  end;  
-
-
-read_frame(#video_player{sent_audio_config = false} = Player) ->
+read_frame(#video_player{sent_audio_config = false, frames = FrameTable} = Player) ->
   Config = decoder_config(mp4a, Player),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
 		timestamp_abs = 0,
-		streamid      = 1,
 		body          = Config,
 	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
 	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
-	  raw_body      = false
+	  raw_body      = false,
+	  nextpos       = ets:first(FrameTable)
 	}, Player#video_player{sent_audio_config = true}};
 
+read_frame(#video_player{pos = '$end_of_table'}) ->
+  {ok, done};
 
-read_frame(#video_player{frames = [{mp4a, SampleOffset, SampleSize, Duration, _} | Frames], device = IoDev} = Player) ->
-	case file:pread(IoDev,SampleOffset, SampleSize) of
-		{ok, IoList} ->
-      {ok, #video_frame{       
-       	type          = ?FLV_TAG_TYPE_AUDIO,
-    		timestamp_abs = round(Duration * 1000),
-    		streamid      = 1,
-    		body          = iolist_to_binary(IoList),
-    	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
-    	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
-    	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-    	  sound_rate	  = ?FLV_AUDIO_RATE_44,
-    	  raw_body      = false
-    	}, Player#video_player{frames = Frames}};
-  	eof -> 
-  		{ok, done, Player};
-  	{error, Reason} -> 
-  		{error, Reason}
-  end;
+read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Player) ->
+  [Frame] = ets:lookup(FrameTable, Key),
+  #mp4_frame{offset = Offset, size = Size} = Frame,
+	case file:pread(IoDev, Offset, Size) of
+		{ok, Data} ->
+		  VideoFrame = video_frame(Frame, Data),
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
+    eof ->
+      {ok, done};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+      
   
-read_frame(#video_player{frames = []}) ->
-  ?D("No frames left in file"),
-  {ok, done}.
+
+video_frame(#mp4_frame{type = avc1, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
+  #video_frame{       
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		timestamp_abs = Timestamp,
+		body          = iolist_to_binary(Data),
+		frame_type    = case Keyframe of
+		  true ->	?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
+		  _ -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME
+	  end,
+		codec_id      = ?FLV_VIDEO_CODEC_AVC,
+	  raw_body      = false
+  };  
+
+video_frame(#mp4_frame{type = mp4a, timestamp = Timestamp}, Data) ->
+  #video_frame{       
+   	type          = ?FLV_TAG_TYPE_AUDIO,
+  	timestamp_abs = Timestamp,
+  	streamid      = 1,
+  	body          = iolist_to_binary(Data),
+    sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+    sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+    sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+    sound_rate	  = ?FLV_AUDIO_RATE_44,
+    raw_body      = false
+  }.
 
 
 
@@ -426,7 +423,8 @@ next_atom(IoDev) ->
     {error, Reason} -> 
       {error, Reason}           
   end.
-  
+
+% Internal structure to parse all moov data, untill it reaches mp4_frame table
 -record(mp4_frames, {
   data_format,
   timescale,
@@ -442,23 +440,13 @@ next_atom(IoDev) ->
 }).
 
 
-sort_types(avc1, mp4a) -> true;
-sort_types(_, _) -> false.
-
-sort_frames({Type1, _, _, Duration1, _}, {Type2, _, _, Duration2, _}) when Duration1 == Duration2 ->
-  sort_types(Type1, Type2);
-  
-sort_frames({_, _, _, Duration1, _}, {_, _, _, Duration2, _}) ->
-  Duration1 < Duration2.
-  
 
 merge_frames(#mp4_header{tracks = Tracks} = Mp4Parser) ->
-  FramesList = lists:map(fun(#mp4_track{frames = TrackFrames}) -> TrackFrames end, Tracks),
-  UnsortedFrames = lists:merge(FramesList),
-  Frames = lists:sort(fun(F1, F2) -> sort_frames(F1, F2) end, UnsortedFrames),
-  CleanedTracks = lists:map(fun(#mp4_track{} = Track) -> Track#mp4_track{frames = {}} end, Tracks),
-  FrameTable = ets:new(frames, [ordered_set, private, {keypos, 4}]),
-  ets:insert(FrameTable, Frames),
+  FrameTable = ets:new(frames, [ordered_set, private, {keypos, 2}]),
+  CleanedTracks = lists:map(fun(#mp4_track{frames = Frames} = Track) -> 
+    ets:insert(FrameTable, Frames),
+    Track#mp4_track{frames = []}
+  end, Tracks),
   Mp4Parser#mp4_header{frames = FrameTable, tracks = CleanedTracks}.
 
 next_duration(#mp4_frames{durations = []}) ->
@@ -488,11 +476,16 @@ calculate_samples_in_chunk(SampleOffset, SamplesInChunk,
   #mp4_frames{index = Index, frames = Frames, data_format = DataFormat, keyframes = Keyframes, timescale = Timescale,
     sample_sizes = [SampleSize | SampleSizes]} = FrameReader) ->
   % add dts field
-  {Duration, FrameReader1} = next_duration(FrameReader),
-  Frame = {DataFormat, SampleOffset, SampleSize, Duration / Timescale, lists:member(Index, Keyframes)},
-  % io:format("~p~n", [[SampleOffset, SampleSize, Duration, lists:member(Index, Keyframes)]]),
+  {Dts, FrameReader1} = next_duration(FrameReader),
+  TimestampMS = round(Dts * 1000 / Timescale),
+  Id = case DataFormat of
+    avc1 -> TimestampMS*2;
+    mp4a -> TimestampMS*2 + 1
+  end,
+  Frame = #mp4_frame{id = Id, timestamp = TimestampMS, type = DataFormat, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes)},
+  % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
   FrameReader2 = FrameReader1#mp4_frames{frames = [Frame | Frames], sample_sizes = SampleSizes, index = Index + 1},
-  calculate_samples_in_chunk(SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2#mp4_frames{}).
+  calculate_samples_in_chunk(SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2).
   
 calculate_sample_offsets(#mp4_frames{chunk_offsets = [], frames = FrameList} = FrameReader) ->
   FrameReader#mp4_frames{frames = lists:reverse(FrameList)};
@@ -540,7 +533,7 @@ calculate_sample_offsets(
 -define(MP4DecSpecificDescrtag, 5).
 
 esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, _Rest/binary>>) ->
-  ?D({"MP4DecSpecificDescrtag", Length, Config}),
+  % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary, 6>>.
   
     
