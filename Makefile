@@ -26,12 +26,12 @@ run:
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
-	-sname $(NODE_NAME)
+	-name $(NODE_NAME)
 	
 start:
 	$(ERL) -pa `pwd`/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
-	-sname $(NODE_NAME) \
+	-name $(NODE_NAME) \
 	-detached

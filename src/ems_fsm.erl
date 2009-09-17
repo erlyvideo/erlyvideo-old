@@ -50,6 +50,7 @@
 
 %% FSM States
 -export([
+  'WAIT_FOR_SOCKET'/3,
   'WAIT_FOR_SOCKET'/2,
 	'WAIT_FOR_HANDSHAKE'/2,
 	'WAIT_FOR_HS_ACK'/2,
@@ -88,6 +89,8 @@ init([]) ->
     process_flag(trap_exit, true),
     {ok, 'WAIT_FOR_SOCKET', #ems_fsm{}}.
 
+
+
 %%-------------------------------------------------------------------------
 %% Func: StateName/2
 %% Returns: {next_state, NextStateName, NextStateData}          |
@@ -95,11 +98,16 @@ init([]) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
+'WAIT_FOR_SOCKET'({socket_ready, Socket}, _From, State) when is_pid(Socket) ->
+    {reply, ok, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket}, ?TIMEOUT}.
+
+
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
     % Now we own the socket
     inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
     {ok, {IP, _Port}} = inet:peername(Socket),
     {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP}, ?TIMEOUT};
+
     
 'WAIT_FOR_SOCKET'(Other, State) ->
     error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
@@ -115,7 +123,7 @@ init([]) ->
 	case <<Buff/binary,Data/binary>> of
 		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
 			Reply = ems_rtmp:handshake(HandShake),
-			gen_tcp:send(State#ems_fsm.socket, <<?HS_HEADER, Reply/binary>>),
+			send_data(State, <<?HS_HEADER, Reply/binary>>),
 			{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = Rest}, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
@@ -154,16 +162,16 @@ init([]) ->
 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_fsm{server_chunk_size = OldChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
   ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
-	gen_tcp:send(State#ems_fsm.socket, Packet),
+	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State#ems_fsm{server_chunk_size = ChunkSize}, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #ems_fsm{server_chunk_size = ChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
-	gen_tcp:send(State#ems_fsm.socket, Packet),
+	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, Packet}, State) when is_binary(Packet) ->
-	gen_tcp:send(State#ems_fsm.socket,Packet),
+	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) ->
@@ -348,6 +356,11 @@ handle_sync_event(Event, _From, StateName, StateData) ->
    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
+send_data(#ems_fsm{socket = Socket}, Data) when is_port(Socket) ->
+  gen_tcp:send(Socket, Data);
+
+send_data(#ems_fsm{socket = Socket}, Data) when is_pid(Socket) ->
+  gen_fsm:send_event(Socket, {server_data, Data}).
 
 %%-------------------------------------------------------------------------
 %% Func: handle_info/3
