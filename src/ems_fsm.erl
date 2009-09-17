@@ -197,7 +197,7 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
-'WAIT_FOR_DATA'({metadata, Metadata}, #ems_fsm{server_chunk_size = ChunkSize} = State) ->
+'WAIT_FOR_DATA'({metadata, Metadata}, State) ->
   gen_fsm:send_event(self(), {invoke, #amf{command = onStatus, args = [null, [{level, "status"}, {code, "NetStream.Metadata"}, {description, Metadata}]], id = 1, type = invoke}, 1}),
   ?D({"Metadata", Metadata}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -228,6 +228,9 @@ init([]) ->
           {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
         % end
     end;
+
+'WAIT_FOR_DATA'({exit}, State) ->
+  {stop, normal, State};
 
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = _Type} = State) ->
 	case Buffer of
@@ -392,8 +395,17 @@ handle_info({tcp_closed, Socket}, _StateName,
     error_logger:info_msg("~p Client ~p disconnected.\n", [self(), Addr]),
     {stop, normal, StateData};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid, server_chunk_size = ChunkSize}= StateData) ->
   ?D({"Player died", _Reason}),
+  AMF = #amf{
+      command = 'onStatus',
+      type = invoke,
+      id = 0,
+      args= [null,[{code, "NetStream.Play.Complete"}, 
+                  {level, "status"}, 
+                  {description, "-"}]]},
+  Channel = #channel{id = 5, timestamp = 0, stream = 1, chunk_size = ChunkSize},
+  gen_fsm:send_event(self(), {send, {Channel,AMF}}),
   {next_state, StateName, StateData, ?TIMEOUT};
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
