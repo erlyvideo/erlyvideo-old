@@ -444,7 +444,9 @@ merge_frames(#mp4_header{tracks = Tracks} = Mp4Parser) ->
   UnsortedFrames = lists:merge(FramesList),
   Frames = lists:sort(fun(F1, F2) -> sort_frames(F1, F2) end, UnsortedFrames),
   CleanedTracks = lists:map(fun(#mp4_track{} = Track) -> Track#mp4_track{frames = {}} end, Tracks),
-  Mp4Parser#mp4_header{frames = Frames, tracks = CleanedTracks}.
+  FrameTable = ets:new(frames, [ordered_set, private, {keypos, 4}]),
+  ets:insert(FrameTable, Frames),
+  Mp4Parser#mp4_header{frames = FrameTable, tracks = CleanedTracks}.
 
 next_duration(#mp4_frames{durations = []}) ->
   {error};
@@ -510,7 +512,6 @@ calculate_sample_offsets(
       durations = Durations, 
       data_format = DataFormat,
       timescale = Timescale}),
-  % {First, _Second} = lists:split(1000, Frames#mp4_frames.frames),
   ?D({"Frames in file", DataFormat, length(Frames#mp4_frames.frames)}),
   Track#mp4_track{
     frames = Frames#mp4_frames.frames, 
