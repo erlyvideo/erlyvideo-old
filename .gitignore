@@ -1,4 +1,5 @@
 *.beam
 erl_crash.dump
 mnesia-data
+*.DS_Store
 

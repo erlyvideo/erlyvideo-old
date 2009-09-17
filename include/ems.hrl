@@ -43,7 +43,7 @@
 %-define(RTMP_TYPE_UNKNOWN,      11).
 %-define(RTMP_TYPE_UNKNOWN,      12).
 %-define(RTMP_TYPE_UNKNOWN,      13).
-%-define(RTMP_TYPE_UNKNOWN,      14).
+-define(RTMP_TYPE_METADATA,      14).
 -define(RTMP_FLEX_STREAM_SEND,   15).
 -define(RTMP_FLEX_SHARED_OBJECT, 16).
 -define(RTMP_FLEX_MESSAGE,       17).
@@ -292,6 +292,9 @@
 	buffer,
 	timer_start,
 	timer_ref,
+	width = undefined,
+	height = undefined,
+	duration = undefined,
 	ts_prev = 0,
 	pos = 0,
 	frames = []
@@ -313,6 +316,8 @@
   track_id,
   timescale,
   duration,
+  width,
+  height,
   decoder_config,
   sample_sizes = [],        % stsz Sample sizes
   sample_durations = [],    % stts Durations

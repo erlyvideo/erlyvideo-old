@@ -174,6 +174,11 @@ init([]) ->
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
+
+'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->
+  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = Stream}, AMF}}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = 0}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -181,7 +186,7 @@ init([]) ->
 
 'WAIT_FOR_DATA'({message, Message}, State) ->
   NewAMF = #amf{
-      command = 'onStatus', 
+      command = 'onStatus',
       id = 0, %% muriel: dirty too, but the only way I can make this work
       type = invoke,
       args= [null,
@@ -189,6 +194,12 @@ init([]) ->
           {code, "NetConnection.Message"}, 
           {description, Message}]]},
   gen_fsm:send_event(self(), {invoke, NewAMF}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+
+'WAIT_FOR_DATA'({metadata, Metadata}, #ems_fsm{server_chunk_size = ChunkSize} = State) ->
+  gen_fsm:send_event(self(), {invoke, #amf{command = onStatus, args = [null, [{level, "status"}, {code, "NetStream.Metadata"}, {description, Metadata}]], id = 1, type = invoke}, 1}),
+  ?D({"Metadata", Metadata}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
   
         
