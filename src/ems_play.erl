@@ -51,8 +51,7 @@
 play(FileName, StreamId, _) ->
   gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
   
-  
-init({FileName, StreamId, Parent}) ->
+init_file(FileName, StreamId, Parent) ->
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
 	FileFormat = file_format(FileName),
 	case FileFormat:init(#video_player{device = IoDev, 
@@ -66,6 +65,24 @@ init({FileName, StreamId, Parent}) ->
 		  ?D(_HdrError),
 		  {error, "Invalid header"}
 	end.
+  
+init({Name, StreamId, Parent}) ->
+  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
+  %   case filelib:is_regular(FileName) of
+  %     true ->
+  %     _ ->
+  %       ems_cluster:subscribe(self(), Name),
+  %       NextState = State#ems_fsm{type  = wait},
+  %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
+  %     % end
+  % end;
+  
+  case filelib:is_regular(FileName) of
+    true ->
+      init_file(FileName, StreamId, Parent);
+    _ ->
+      {error, "No such file"}
+  end.    
 	
 stop(_, State) ->
   {stop, normal, State}.

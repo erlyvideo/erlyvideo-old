@@ -41,8 +41,6 @@
 -behaviour(gen_fsm).
 
 -export([start_link/0, set_socket/2]).
--import(ems_flv).
--import(ems_play).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -204,30 +202,15 @@ init([]) ->
   
         
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-  % case ems_cluster:is_live_stream(Name) of
-  %   true ->
-  %     ems_cluster:subscribe(self(), Name),
-  %     NextState = State#ems_fsm{type  = live},
-  %     {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-  %   _ ->
-      FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
-      case filelib:is_regular(FileName) of
-        true ->
-          case ems_play:play(FileName, StreamId, State#ems_fsm{type = vod}) of
-            {ok, PlayerPid} ->
-              NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
-              gen_fsm:send_event(PlayerPid, {start}),
-              {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-            Reason -> 
-              ?D({"Failed to start video player", Reason}),
-              {error, Reason}
-            end;
-        _ ->
-          ems_cluster:subscribe(self(), Name),
-          NextState = State#ems_fsm{type  = wait},
-          {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-        % end
-    end;
+  case ems_play:play(Name, StreamId, State#ems_fsm{type = vod}) of
+    {ok, PlayerPid} ->
+      NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
+      gen_fsm:send_event(PlayerPid, {start}),
+      {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+    Reason -> 
+      ?D({"Failed to start video player", Reason}),
+      {error, Reason}
+  end;
 
 'WAIT_FOR_DATA'({exit}, State) ->
   {stop, normal, State};
