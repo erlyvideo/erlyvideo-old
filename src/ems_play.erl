@@ -65,6 +65,13 @@ init_file(FileName, StreamId, Parent) ->
 		  ?D(_HdrError),
 		  {error, "Invalid header"}
 	end.
+
+init_stream(Name, StreamId, Parent) ->
+  {ok, NetStream} = rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT),
+  ?D({"Netstream created", NetStream}),
+	VideoPlayer = #video_player{device = NetStream, file_name = Name, consumer = Parent, stream_id = StreamId, format = netstream, timer_start = erlang:now()},
+  {ok, ready, VideoPlayer}.
+
   
 init({Name, StreamId, Parent}) ->
   FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
@@ -81,11 +88,14 @@ init({Name, StreamId, Parent}) ->
     true ->
       init_file(FileName, StreamId, Parent);
     _ ->
-      {error, "No such file"}
+      init_stream(Name, StreamId, Parent)
   end.    
 	
 stop(_, State) ->
   {stop, normal, State}.
+
+ready({start}, #video_player{format = netstream} = State) ->
+  {next_state, ready, State, ?TIMEOUT};
   
 ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
   gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)}),
@@ -121,6 +131,10 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			file:close(IoDev),
 			{stop, normal, State}
 	end;
+
+ready(timeout, #video_player{format = netstream} = State) ->
+  ?D("Netstream timeout"),
+  {next_state, ready, State, ?TIMEOUT};
 
 ready(timeout, _State) ->
   _Timer = gen_fsm:start_timer(1, play).
@@ -190,6 +204,29 @@ handle_event(Event, StateName, StateData) ->
 handle_sync_event(Event, _From, StateName, StateData) ->
      io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
     {stop, {StateName, undefined_event, Event}, StateData}.
+
+
+handle_info({audio, _Bin}, StateName, #video_player{} = State) ->
+  ?D("Audio received"),
+    % error_logger:info_msg("~p Video player lost connection.\n", [self()]),
+    
+    % TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
+    %     % ?D({"Frame", _Type, Frame#video_frame.timestamp_abs, TimeStamp}),
+    % send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+    % Timeout = timeout(Frame#video_frame.timestamp_abs, 
+    %   Player#video_player.timer_start, 
+    %   Player#video_player.client_buffer),
+    % NextState = Player#video_player{
+    %                   timer_ref = gen_fsm:start_timer(Timeout, play),
+    %                   ts_prev = Frame#video_frame.timestamp_abs,
+    %                   pos = Frame#video_frame.nextpos},
+	{next_state, StateName, State, ?TIMEOUT};
+
+
+handle_info({video, _Bin}, StateName, #video_player{} = State) ->
+  ?D("Video received"),
+	{next_state, StateName, State, ?TIMEOUT};
+    
   
 handle_info({tcp_closed, _Socket}, _StateName,
             #video_player{} = StateData) ->

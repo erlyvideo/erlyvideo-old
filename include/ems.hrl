@@ -285,7 +285,7 @@
   client_buffer = ?MIN_CLIENT_BUFFER,
   sent_video_config = false,
   sent_audio_config = false,
-  device,
+  device = undefined,
   file_name,
 	stream_id,
 	format,

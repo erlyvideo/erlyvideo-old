@@ -195,12 +195,11 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
-'WAIT_FOR_DATA'({metadata, Metadata}, State) ->
+'WAIT_FOR_DATA'({metadata, Metadata}, State) when is_list(Metadata) ->
   gen_fsm:send_event(self(), {invoke, #amf{command = onStatus, args = [null, [{level, "status"}, {code, "NetStream.Metadata"}, {description, Metadata}]], id = 1, type = invoke}, 1}),
   ?D({"Metadata", Metadata}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-  
-        
+
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
   case ems_play:play(Name, StreamId, State#ems_fsm{type = vod}) of
     {ok, PlayerPid} ->
