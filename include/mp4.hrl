@@ -6,7 +6,7 @@
   seconds,
   file_types = [],
   tracks = [],
-  frames = []
+  frames
 }).
 
 -record(mp4_track, {
@@ -23,7 +23,7 @@
   keyframes = [],           % stss  Sample Table Sync Samples
   key_offset = 0,
   chunk_offsets = [],       % stco  Sample Table Chunk Offsets
-  frames = []
+  frames
 }).
 
 -record(mp4_sample_description, {

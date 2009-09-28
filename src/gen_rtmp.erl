@@ -107,7 +107,7 @@ deleteStream(_From, _AMF, _Channel) ->
 play(From, AMF, Channel) -> 
     NextChannel = Channel#channel{id = 5, timestamp = 0},
     [_Null,{string,Name}] = AMF#amf.args,
-    ?D({"invoke - play", Name}),
+    ?D({"invoke - play", Name, NextChannel}),
     gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
     gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
     % NewAMF = AMF#amf{
@@ -120,7 +120,7 @@ play(From, AMF, Channel) ->
         command = 'onStatus',
         type = invoke,
         id = 0,
-        args= [null,[{code, "NetStream.Play.Start"}, 
+        args= [null,[{code, ?NS_PLAY_START}, 
                     {level, "status"}, 
                     {description, "-"}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
     gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
