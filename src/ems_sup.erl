@@ -43,8 +43,7 @@
 
 start_link() ->
 	ListenPort = get_app_env(listen_port, ?RTMP_PORT),
-	FSM = get_app_env(default_fsm, ems_fsm),
-	supervisor:start_link({local, ?MODULE}, ?MODULE, [ListenPort, FSM]).
+	supervisor:start_link({local, ?MODULE}, ?MODULE, [ListenPort]).
 
 
 %%--------------------------------------------------------------------
@@ -52,12 +51,27 @@ start_link() ->
 %% @doc Initialize application
 %% @end 
 %%--------------------------------------------------------------------
-init([Port, Module]) ->
+init([ems_fsm]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {ems_fsm,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([Port]) when is_integer(Port) ->
     {ok,
         {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [ % EMS Listener
               {   ems_sup,                                 % Id       = internal id
-                  {ems_server,start_link,[Port,Module]},   % StartFun = {M, F, A}
+                  {ems_server,start_link,[Port,ems_fsm]},   % StartFun = {M, F, A}
                   permanent,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -73,25 +87,10 @@ init([Port, Module]) ->
               },
               % EMS instance supervisor
               {   ems_client_sup,
-                  {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [Module]]},
+                  {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [ems_fsm]]},
                   permanent,                               % Restart  = permanent | transient | temporary
                   infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
                   supervisor,                              % Type     = worker | supervisor
-                  []                                       % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
-init([Module]) ->
-    {ok,
-        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % TCP Client
-              {   undefined,                               % Id       = internal id
-                  {Module,start_link,[]},                  % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
                   []                                       % Modules  = [Module] | dynamic
               }
             ]

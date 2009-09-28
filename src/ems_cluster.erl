@@ -299,7 +299,6 @@ start() ->
     Node = node(),
     case catch gen_server_cluster:get_all_server_nodes(?MODULE) of
 	    {Node, _} ->
-        ?D("Starting mnesia"),
 	      up_master();
         {Master, _}->
             gen_server:call(Master, add_mnesia_slave),

@@ -169,13 +169,7 @@ channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 5.
 %% @end
 %%-------------------------------------------------------------------------	
 file_dir() ->
-  case application:get_env(ems, file_dir) of
-    {ok, Val} ->
-      Val;
-    _ ->
-      % exit(flv_dir_not_defined)
-      "/tmp"
-  end.
+  ems_sup:get_app_env(file_dir, "/tmp").
 
 
 
