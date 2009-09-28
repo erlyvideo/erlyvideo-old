@@ -27,6 +27,7 @@ public function play() : void
 	_stream = new NetStream(_connection);
 	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
 	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
+	_stream.setBufferTime(20);
 	listener.onMetaData = onMetaData;
 	_stream.client = listener;
 
@@ -68,7 +69,7 @@ private function onMetaData(metadata : Object) : void
 {
   _video.width = metadata.width;
   _video.height = metadata.height;
-  _log.text = "Metadata";
+  _log.text = "Metadata "+(metadata.duration);
 }
 
 private function onStreamStatus( event : NetStatusEvent ) : void
@@ -77,6 +78,8 @@ private function onStreamStatus( event : NetStatusEvent ) : void
 	case "NetStream.Metadata":
 	  onMetaData(event.info.description);
 	  break;
+	default:
+	  _log.text = "Stream: "+event.info.code;
   }
   
 }

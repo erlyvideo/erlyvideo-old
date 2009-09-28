@@ -1,7 +1,7 @@
 ERL=erl
 APP_NAME=ems
 MNESIA_DATA=mnesia-data
-NODE_NAME=$(APP_NAME)
+NODE_NAME=$(APP_NAME)@`hostname`
 VSN=0.1
 
 all:
