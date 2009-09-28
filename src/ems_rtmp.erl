@@ -37,9 +37,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--import(rtmp_handshake).
--compile(export_all).
-
+-export([encode/1, encode/2, handshake/1, decode/2]).
 
 
 handshake(C1) when is_binary(C1) -> 

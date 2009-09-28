@@ -386,8 +386,7 @@ handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = Pla
       args= [null,[{code, ?NS_PLAY_COMPLETE}, 
                   {level, "status"}, 
                   {description, "-"}]]},
-  Channel = #channel{id = 5, timestamp = 0, stream = 1, type = 20, chunk_size = ChunkSize},
-  gen_fsm:send_event(self(), {send, {Channel,AMF}}),
+  gen_fsm:send_event(self(), {invoke, AMF}),
   {next_state, StateName, StateData, ?TIMEOUT};
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->

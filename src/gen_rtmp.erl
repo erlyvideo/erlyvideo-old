@@ -65,10 +65,10 @@ connect(From, AMF, Channel) ->
         type = invoke,
         args= [
             [{capabilities, 31}, {fmsVer, "RubyIZUMI/0,1,2,0"}],
-            [{code, "NetConnection.Connect.Success"},
+            [{code, ?NC_CONNECT_SUCCESS},
             {level, "status"}, 
             {description, "Connection succeeded."}]]},
-    gen_fsm:send_event(From, {send, {Channel,NewAMF}}).
+    gen_fsm:send_event(From, {invoke, NewAMF}).
 
 
 
@@ -107,7 +107,7 @@ deleteStream(_From, _AMF, _Channel) ->
 play(From, AMF, Channel) -> 
     NextChannel = Channel#channel{id = 5, timestamp = 0},
     [_Null,{string,Name}] = AMF#amf.args,
-    ?D({"invoke - play", Name, NextChannel}),
+    ?D({"invoke - play", Name}),
     gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
     gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
     % NewAMF = AMF#amf{
