@@ -24,27 +24,32 @@ public function init()  : void
 public function play() : void
 {
   if (!_connected) return;
-  if (!_stream) {
-  	var listener : Object = new Object();
-  	_stream = new NetStream(_connection);
-  	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
-  	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
-/*    _stream.setBufferTime(20);*/
-  	listener.onMetaData = onMetaData;
-  	_stream.client = listener;
+  
+  if (_stream) {
+    PlayButton.label = "Play";
+    stop();
+    return;
   }
+  
+	var listener : Object = new Object();
+	_stream = new NetStream(_connection);
+	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
+	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
+/*    _stream.setBufferTime(20);*/
+	listener.onMetaData = onMetaData;
+	_stream.client = listener;
 
   if (!_video) {
   	var video : Video = new Video(320, 180);
-  	video.attachNetStream(_stream);
   	video.deblocking = 2;
   	video.smoothing = true;
   	video_container.addChild(video);
   	_video = video;
   }
 	
+	_video.attachNetStream(_stream);
   _stream.play(player_url.text);
-	
+	PlayButton.label = "Stop";
 	_playing = true;
 }
 
@@ -52,13 +57,19 @@ public function pause() : void
 {
   if (!_stream) return;
   
-  _stream.pause();
+  if (_playing) {
+    _stream.pause();
+    PauseButton.label = "Resume";
+  } else {
+    PauseButton.label = "Pause";
+    _stream.resume();
+  }
   _playing = !_playing;
-  
 }
 
 public function stop() : void
 {
+  
 }
 public function set_volume(volume : Object) : void
 {
