@@ -98,7 +98,7 @@ ready({start}, #video_player{format = netstream} = State) ->
   {next_state, ready, State, ?TIMEOUT};
   
 ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
-  gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)}),
+  % gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)}),
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
 	?D({"Player starting with pid", self()}),
@@ -147,7 +147,7 @@ ready(timeout, _State) ->
 
 send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body, raw_body = false} = Frame) ->
 	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
-	gen_fsm:send_event(Consumer, {send, {Channel,Frame}});
+	gen_fsm:send_event(Consumer, {send, {Channel, ems_flv:encode(Frame)}});
 
 send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body}) ->
 	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
