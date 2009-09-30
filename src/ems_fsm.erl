@@ -172,15 +172,24 @@ init([]) ->
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
+'WAIT_FOR_DATA'({status, Code, Stream}, State) ->
+  AMF = #amf{
+      command = 'onStatus',
+      type = invoke,
+      id = 0,
+      args = [null, [{code, ?NS_PAUSE_NOTIFY}, 
+                     {level, "status"}, 
+                     {description, "-"}]]},
+  'WAIT_FOR_DATA'({invoke, AMF, Stream}, State);
+
+'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0}, State);
+
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = Stream}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = 0}, AMF}}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-  
+'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) -> 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, 0}, State);
 
 'WAIT_FOR_DATA'({message, Message}, State) ->
   NewAMF = #amf{

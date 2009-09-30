@@ -97,11 +97,16 @@ ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) 
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
 	?D({"Player starting with pid", self()}),
-  {next_state, ready, NextState, ?TIMEOUT};
+  {next_state, ready, NextState};
   
 ready({pause}, #video_player{timer_ref = Timer} = State) ->
+  ?D("Player paused"),
   gen_fsm:cancel_timer(Timer),
-  {next_state, ready, State, ?TIMEOUT};
+  {next_state, ready, State};
+
+ready({resume}, State) ->
+  ?D("Player resumed"),
+  {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
 
 ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
 	case FileFormat:read_frame(State) of
@@ -120,15 +125,13 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			                  timer_ref = gen_fsm:start_timer(Timeout, play),
 											  ts_prev = Frame#video_frame.timestamp_abs,
 											  pos = Frame#video_frame.nextpos},
-			{next_state, ready, NextState, ?TIMEOUT};
+			{next_state, ready, NextState};
 		{error, _Reason} ->
 			?D({"Ems player stopping", _Reason}),
 			file:close(IoDev),
 			{stop, normal, State}
-	end;
+	end.
 
-ready(timeout, _State) ->
-  _Timer = gen_fsm:start_timer(1, play).
 
 %%-------------------------------------------------------------------------
 %% @spec (FLV_TAG::tuple()) -> any()

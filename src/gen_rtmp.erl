@@ -112,20 +112,8 @@ play(AMF, State) ->
     ?D({"invoke - play", Name, AMF}),
     gen_fsm:send_event(self(), {send, {Channel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
     gen_fsm:send_event(self(), {send, {Channel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
-    % NewAMF = AMF#amf{
-    %     command = 'onStatus', 
-    %     args= [null,[{level, "status"}, 
-    %                 {code, "NetStream.Play.Reset"}, 
-    %                 {description, "Resetting NetStream."}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
-    % gen_fsm:send_event(From, {send, {NextChannel,NewAMF}}),
-    NewAMF2 = AMF#amf{
-        command = 'onStatus',
-        type = invoke,
-        id = 0,
-        args= [null,[{code, ?NS_PLAY_START}, 
-                    {level, "status"}, 
-                    {description, "-"}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
-    gen_fsm:send_event(self(), {invoke, NewAMF2}),
+    gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
+    gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, 1}),
     gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
     State.
 
@@ -135,10 +123,20 @@ play(AMF, State) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(AMF, State) -> 
+pause(AMF, #ems_fsm{video_player = Player} = State) -> 
     ?D({"invoke - pause", AMF}),
-    % gen_fsm:send_event(From, {pause}),
-    State.
+    [_, {boolean, Pausing}, {number, _Timestamp}] = AMF#amf.args,
+    
+    case Pausing of
+      true ->
+        gen_fsm:send_event(Player, {pause}),
+        gen_fsm:send_event(self(), {status, ?NS_PAUSE_NOTIFY, 1}),
+        State;
+      false ->
+        gen_fsm:send_event(Player, {resume}),
+        gen_fsm:send_event(self(), {status, ?NS_UNPAUSE_NOTIFY, 1}),
+        State
+    end.
 
 
 pauseRaw(AMF, State) -> pause(AMF, State).
