@@ -55,13 +55,13 @@ encode(#channel{} = Channel, Data) when is_binary(Data) ->
 encode(_Channel, <<>>, Packet) -> Packet;
 
 
-encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = Channel, Data, <<>>)  -> 
+encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = Channel, Data, <<>>) -> 
 	{Chunk,Rest} = chunk(Data, ChunkSize),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
 	NextPacket = <<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
 	encode(Channel, Rest, NextPacket);
 
-encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) when is_integer(Id) and is_integer(ChunkSize) -> 
+encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) -> 
 	{Chunk,Rest} = chunk(Data, ChunkSize),
 	BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
 	NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
@@ -191,8 +191,7 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
     			end;
 				_ -> {check_app(State,Command),State}
 			end,
-			App:Command(self(), AMF, Channel),
-			NextState;
+			App:Command(AMF, NextState);
 		_ -> 
 			?D("AMF Error"),
 			State

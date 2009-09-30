@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([connect/3,createStream/3,play/3,deleteStream/3,closeStream/3,pause/3,stop/3,publish/3]).
+-export([connect/2,createStream/2,play/2,deleteStream/2,closeStream/2,pause/2, pauseRaw/2, stop/2,publish/2]).
 
 -export([behaviour_info/1]).
 
@@ -57,7 +57,7 @@ behaviour_info(_Other) -> undefined.
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(From, AMF, Channel) ->
+connect(AMF, State) ->
     ?D("invoke - connect"),   
     NewAMF = AMF#amf{
         command = '_result', 
@@ -68,7 +68,8 @@ connect(From, AMF, Channel) ->
             [{code, ?NC_CONNECT_SUCCESS},
             {level, "status"}, 
             {description, "Connection succeeded."}]]},
-    gen_fsm:send_event(From, {invoke, NewAMF}).
+    gen_fsm:send_event(self(), {invoke, NewAMF}),
+    State.
 
 
 
@@ -77,17 +78,17 @@ connect(From, AMF, Channel) ->
 %% @doc  Processes a createStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-createStream(From, AMF, Channel) -> 
-    ?D("invoke - createStream"), 
-    _Type = invoke,  %% SimpleEnigma: Cleaned up this lien to prevent error message when compiling
-    Id = 1, %% rsaccon: dirty temporary hack, because the line below does not work
-    %%Id = gen_fsm:sync_send_event(From, next_stream_id),  %% rsaccon: why the hell is this not working !!??????!!!     
+createStream(AMF, State) -> 
+    ?D({"invoke - createStream", AMF}),
+    Id = 1, % New stream ID
     NewAMF = AMF#amf{
       id = 2.0,
     	command = '_result',
     	args = [null, Id]},
-    gen_fsm:send_event(From, {send, {Channel#channel{timestamp = 0},NewAMF}}),
-    gen_fsm:send_event(From, {send, {Channel#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}).
+    % gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2},NewAMF}}),
+    gen_fsm:send_event(self(), {invoke, NewAMF}),
+    gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
+    State.
 
 
 %%-------------------------------------------------------------------------
@@ -95,8 +96,9 @@ createStream(From, AMF, Channel) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-deleteStream(_From, _AMF, _Channel) ->  
-    ?D("invoke - deleteStream").
+deleteStream(_AMF, State) ->  
+    ?D("invoke - deleteStream"),
+    State.
 
 
 %%-------------------------------------------------------------------------
@@ -104,12 +106,12 @@ deleteStream(_From, _AMF, _Channel) ->
 %% @doc  Processes a play command and responds
 %% @end
 %%-------------------------------------------------------------------------
-play(From, AMF, Channel) -> 
-    NextChannel = Channel#channel{id = 5, timestamp = 0},
+play(AMF, State) -> 
+    Channel = #channel{id = 5, timestamp = 0, stream = 1},
     [_Null,{string,Name}] = AMF#amf.args,
-    ?D({"invoke - play", Name}),
-    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
-    gen_fsm:send_event(From, {send, {NextChannel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
+    ?D({"invoke - play", Name, AMF}),
+    gen_fsm:send_event(self(), {send, {Channel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
+    gen_fsm:send_event(self(), {send, {Channel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
     % NewAMF = AMF#amf{
     %     command = 'onStatus', 
     %     args= [null,[{level, "status"}, 
@@ -123,8 +125,9 @@ play(From, AMF, Channel) ->
         args= [null,[{code, ?NS_PLAY_START}, 
                     {level, "status"}, 
                     {description, "-"}]]}, %, {details, Name}, {clientid, NextChannel#channel.stream}
-    gen_fsm:send_event(From, {send, {NextChannel,NewAMF2}}),
-    gen_fsm:send_event(From, {play, Name, NextChannel#channel.stream}).
+    gen_fsm:send_event(self(), {invoke, NewAMF2}),
+    gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
+    State.
 
 
 %%-------------------------------------------------------------------------
@@ -132,9 +135,13 @@ play(From, AMF, Channel) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(From, _AMF, _Channel) -> 
-    ?D("invoke - pause"),
-    gen_fsm:send_event(From, {pause}). 
+pause(AMF, State) -> 
+    ?D({"invoke - pause", AMF}),
+    % gen_fsm:send_event(From, {pause}),
+    State.
+
+
+pauseRaw(AMF, State) -> pause(AMF, State).
 
 
 %%-------------------------------------------------------------------------
@@ -142,7 +149,7 @@ pause(From, _AMF, _Channel) ->
 %% @doc  Processes a publish command and responds
 %% @end
 %%-------------------------------------------------------------------------
-publish(From, AMF, _Channel) -> 
+publish(AMF, State) -> 
     ?D("invoke - publish"),
     Args = AMF#amf.args,
     case Args of
@@ -150,21 +157,22 @@ publish(From, AMF, _Channel) ->
             case list_to_atom(Action) of
                 record -> 
                     ?D({"Publish - Action - record",Name}),
-                    gen_fsm:send_event(From, {publish, record, Name});
+                    gen_fsm:send_event(self(), {publish, record, Name});
                 append -> 
                      ?D({"Publish - Action - append",Name}),
-                     gen_fsm:send_event(From, {publish, append, Name});
+                     gen_fsm:send_event(self(), {publish, append, Name});
                 live -> 
                     ?D({"Publish - Action - live",Name}),
-                    gen_fsm:send_event(From, {publish, live, Name});
+                    gen_fsm:send_event(self(), {publish, live, Name});
                 _OtherAction -> 
                     ?D({"Publish Ignoring - ", _OtherAction})
             end;
 		[{null,null},{string,Name}] -> % second arg is optional
 			?D({"Publish - Action - live",Name}),
-            gen_fsm:send_event(From, {publish, live, Name});
+            gen_fsm:send_event(self(), {publish, live, Name});
         _ -> ok
-    end. 
+    end,
+    State.
 
 
 %%-------------------------------------------------------------------------
@@ -172,15 +180,18 @@ publish(From, AMF, _Channel) ->
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(From, _AMF, _Channel) -> 
+stop(_AMF, State) -> 
     ?D("invoke - stop"),
-    gen_fsm:send_event(From, {stop}). 
+    gen_fsm:send_event(self(), {stop}),
+    State.
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a closeStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-closeStream(From, _AMF, _Channel) ->
+closeStream(_AMF, State) ->
     ?D("invoke - closeStream"),
-    gen_fsm:send_event(From, {stop}). 
+    gen_fsm:send_event(self(), {stop}),
+    State.
+
