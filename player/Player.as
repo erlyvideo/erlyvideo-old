@@ -7,18 +7,27 @@ import flash.media.Video;
 import flash.net.NetStream;
 import flash.net.ObjectEncoding;
 import flash.external.ExternalInterface;
-import flash.text.TextField;  
+import flash.text.TextField;
+import mx.events.SliderEvent;
 	
 private var _connection : NetConnection;
 private var _stream : NetStream;
 private var _video : Video;
 private var _connected : Boolean = false;
 private var _playing : Boolean = false;
+private var _statusTimer : Timer;
+private var _totalTime : Number;
 
 public function init()  : void
 {
-/*      ExternalInterface.call("alert", "Connecting");*/
   connect();
+  _statusTimer = new Timer(100); // 1 second
+  _statusTimer.addEventListener(TimerEvent.TIMER, setProgressBar);
+}
+
+public function setProgressBar(event:TimerEvent) : void
+{
+  progressBar.value = _stream.time;
 }
 
 public function play() : void
@@ -50,6 +59,7 @@ public function play() : void
 	_video.attachNetStream(_stream);
   _stream.play(player_url.text);
 	PlayButton.label = "Stop";
+	_statusTimer.start();
 	_playing = true;
 }
 
@@ -59,12 +69,22 @@ public function pause() : void
   
   if (_playing) {
     _stream.pause();
+  	_statusTimer.stop();
     PauseButton.label = "Resume";
   } else {
     PauseButton.label = "Pause";
+    _statusTimer.start();
     _stream.resume();
   }
   _playing = !_playing;
+}
+
+public function seek(event:SliderEvent) : void
+{
+  progressBar.value = event.value;
+  if (_stream) {
+    _stream.seek(event.value);
+  }
 }
 
 public function stop() : void
@@ -92,7 +112,8 @@ private function onMetaData(metadata : Object) : void
 {
   _video.width = metadata.width;
   _video.height = metadata.height;
-  _log.text = "Metadata "+(metadata.duration);
+  _totalTime = metadata.duration;
+  progressBar.maximum = metadata.duration;
 }
 
 private function onStreamStatus( event : NetStatusEvent ) : void

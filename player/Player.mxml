@@ -44,7 +44,7 @@
 	<mx:Label text="Basic Video Player in Flex" fontFamily="Georgia" fontSize="30" fontWeight="bold" color="#6D0A26"/>
 	<mx:UIComponent id="video_container"
 		width="450" height="280" />
-	<mx:ProgressBar id="progressBar" mode="manual" label=" " width="{video_container.width}"/>
+	<mx:HSlider id="progressBar" minimum="0" maximum="0" liveDragging="true" change="seek(event)" width="{video_container.width}"/>
 	<mx:HBox width="450">
 	  <mx:TextInput id="player_url" width="100" text="video.mp4" />
 		<mx:Button label="Play" click="play()" id="PlayButton"/>
