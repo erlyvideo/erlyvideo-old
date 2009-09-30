@@ -39,7 +39,7 @@
 
 -include("../include/ems.hrl").
 
--export([play/3, file_dir/0, channel_id/2]).
+-export([play/3, file_dir/0, channel_id/2, normalize_filename/1]).
 
 -behaviour(gen_fsm).
 -export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
@@ -58,17 +58,18 @@ play(Name, StreamId, _) ->
   % end;
   case filelib:is_regular(FileName) of
     true ->
-      init_file(FileName, StreamId, Parent);
+      init_file(FileName, StreamId);
     _ ->
-      init_stream(Name, StreamId, Parent)
+      init_stream(Name, StreamId)
   end.    
   
   
-init_file(FileName, StreamId, Parent) ->
+init_file(FileName, StreamId) ->
   gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
 
-init_stream(Name, StreamId, Parent) ->
+init_stream(Name, StreamId) ->
   {ok, NetStream} = rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT),
+  link(NetStream),
   ?D({"Netstream created", NetStream}),
   {ok, NetStream}.
 
