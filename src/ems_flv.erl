@@ -96,7 +96,8 @@ read_frame(#video_player{device = IoDev, pos = Pos} = State) ->
 										  height	= Height
 										  }, State};
 								?FLV_TAG_TYPE_META -> 
-								  AmfData = ems_amf:decode(iolist_to_binary(IoList2)),
+                  % AmfData = ems_amf:decode(iolist_to_binary(IoList2)),
+                  AmfData = [],
 								  {ok, TagData#video_frame{
 										   amf_data      = AmfData
 										   }, State}
