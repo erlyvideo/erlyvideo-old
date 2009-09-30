@@ -140,7 +140,6 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			{next_state, ready, NextState};
 		{error, _Reason} ->
 			?D({"Ems player stopping", _Reason}),
-			file:close(IoDev),
 			{stop, normal, State}
 	end.
 
@@ -214,7 +213,8 @@ handle_info(_Info, StateName, StateData) ->
   ?D({"Unknown info in player", _Info, StateName}),
   {noreply, StateName, StateData}.
 
-terminate(_Reason, _StateName, _StateData) ->
+terminate(_Reason, _StateName, #video_player{device = IoDev} = State) ->
+  file:close(IoDev),
   ok.
  
 code_change(_OldVsn, StateName, StateData, _Extra) ->
