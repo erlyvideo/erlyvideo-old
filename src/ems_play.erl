@@ -37,21 +37,43 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 
--import(ems_mp4).
--import(ems_flv).
 -include("../include/ems.hrl").
 
--export([play/3, file_dir/0, normalize_filename/1, channel_id/2]).
+-export([play/3, file_dir/0, channel_id/2]).
 
 -behaviour(gen_fsm).
 -export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
 -export([ready/2, stop/2]).
 
 
-play(FileName, StreamId, _) ->
-  gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
+play(Name, StreamId, _) ->
+  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
+  %   case filelib:is_regular(FileName) of
+  %     true ->
+  %     _ ->
+  %       ems_cluster:subscribe(self(), Name),
+  %       NextState = State#ems_fsm{type  = wait},
+  %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
+  %     % end
+  % end;
+  case filelib:is_regular(FileName) of
+    true ->
+      init_file(FileName, StreamId, Parent);
+    _ ->
+      init_stream(Name, StreamId, Parent)
+  end.    
+  
   
 init_file(FileName, StreamId, Parent) ->
+  gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
+
+init_stream(Name, StreamId, Parent) ->
+  {ok, NetStream} = rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT),
+  ?D({"Netstream created", NetStream}),
+  {ok, NetStream}.
+
+  
+init({FileName, StreamId, Parent}) ->
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
 	FileFormat = file_format(FileName),
 	case FileFormat:init(#video_player{device = IoDev, 
@@ -65,38 +87,10 @@ init_file(FileName, StreamId, Parent) ->
 		  ?D(_HdrError),
 		  {error, "Invalid header"}
 	end.
-
-init_stream(Name, StreamId, Parent) ->
-  {ok, NetStream} = rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT),
-  ?D({"Netstream created", NetStream}),
-	VideoPlayer = #video_player{device = NetStream, file_name = Name, consumer = Parent, stream_id = StreamId, format = netstream, timer_start = erlang:now()},
-  {ok, ready, VideoPlayer}.
-
-  
-init({Name, StreamId, Parent}) ->
-  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
-  %   case filelib:is_regular(FileName) of
-  %     true ->
-  %     _ ->
-  %       ems_cluster:subscribe(self(), Name),
-  %       NextState = State#ems_fsm{type  = wait},
-  %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-  %     % end
-  % end;
-  
-  case filelib:is_regular(FileName) of
-    true ->
-      init_file(FileName, StreamId, Parent);
-    _ ->
-      init_stream(Name, StreamId, Parent)
-  end.    
 	
 stop(_, State) ->
   {stop, normal, State}.
 
-ready({start}, #video_player{format = netstream} = State) ->
-  {next_state, ready, State, ?TIMEOUT};
-  
 ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
   % gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)}),
 	Timer = gen_fsm:start_timer(1, play),
@@ -131,10 +125,6 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			file:close(IoDev),
 			{stop, normal, State}
 	end;
-
-ready(timeout, #video_player{format = netstream} = State) ->
-  ?D("Netstream timeout"),
-  {next_state, ready, State, ?TIMEOUT};
 
 ready(timeout, _State) ->
   _Timer = gen_fsm:start_timer(1, play).
