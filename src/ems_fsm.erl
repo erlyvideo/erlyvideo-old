@@ -172,12 +172,16 @@ init([]) ->
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
+'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
+  'WAIT_FOR_DATA'({send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL, stream = 0}, <<Type:16/big, Stream:32/big>>}}, State);
+  
+
 'WAIT_FOR_DATA'({status, Code, Stream}, State) ->
   AMF = #amf{
       command = 'onStatus',
       type = invoke,
       id = 0,
-      args = [null, [{code, ?NS_PAUSE_NOTIFY}, 
+      args = [null, [{code, Code}, 
                      {level, "status"}, 
                      {description, "-"}]]},
   'WAIT_FOR_DATA'({invoke, AMF, Stream}, State);
@@ -386,16 +390,9 @@ handle_info({tcp_closed, Socket}, _StateName,
     error_logger:info_msg("~p Client ~p disconnected.\n", [self(), Addr]),
     {stop, normal, StateData};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid, server_chunk_size = ChunkSize}= StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
   ?D({"Player died", _Reason}),
-  AMF = #amf{
-      command = 'onStatus',
-      type = invoke,
-      id = 0,
-      args= [null,[{code, ?NS_PLAY_COMPLETE}, 
-                  {level, "status"}, 
-                  {description, "-"}]]},
-  gen_fsm:send_event(self(), {invoke, AMF}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
   {next_state, StateName, StateData, ?TIMEOUT};
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->

@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([connect/2,createStream/2,play/2,deleteStream/2,closeStream/2,pause/2, pauseRaw/2, stop/2,publish/2]).
+-export([connect/2, createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, publish/2, seek/2]).
 
 -export([behaviour_info/1]).
 
@@ -106,20 +106,21 @@ deleteStream(_AMF, State) ->
 %% @doc  Processes a play command and responds
 %% @end
 %%-------------------------------------------------------------------------
-play(AMF, State) -> 
-    Channel = #channel{id = 5, timestamp = 0, stream = 1},
-    [_Null,{string,Name}] = AMF#amf.args,
-    ?D({"invoke - play", Name, AMF}),
-    gen_fsm:send_event(self(), {send, {Channel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,4,0,0,0,1>>}}),
-    gen_fsm:send_event(self(), {send, {Channel#channel{id = 2,type = ?RTMP_TYPE_CONTROL, stream = 0}, <<0,0,0,0,0,1>>}}),
-    gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
-    gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, 1}),
-    gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
-    State.
+play(AMF, State) ->
+  StreamId = 1,
+  Channel = #channel{id = 5, timestamp = 0, stream = StreamId},
+  [_Null,{string,Name}] = AMF#amf.args,
+  ?D({"invoke - play", Name, AMF}),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, 1}),
+  gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
+  State.
 
 
 %%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
+%% @spec (AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
@@ -141,6 +142,23 @@ pause(AMF, #ems_fsm{video_player = Player} = State) ->
 
 pauseRaw(AMF, State) -> pause(AMF, State).
 
+
+%%-------------------------------------------------------------------------
+%% @spec (AMF::tuple(),Channel::tuple) -> any()
+%% @doc  Processes a seek command and responds
+%% @end
+%%-------------------------------------------------------------------------
+seek(AMF, #ems_fsm{video_player = Player} = State) -> 
+  ?D({"invoke - seek", AMF}),
+  [_, {number, Timestamp}] = AMF#amf.args,
+  StreamId = 1,
+  gen_fsm:send_event(Player, {seek, Timestamp}),
+  gen_fsm:send_event(self(), {status, ?NS_SEEK_NOTIFY, 1}),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
+  State.
+  
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()

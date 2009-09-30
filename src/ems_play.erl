@@ -93,7 +93,10 @@ stop(_, State) ->
   {stop, normal, State}.
 
 ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
-  % gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)}),
+  case FileFormat of
+    mp4 -> gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)});
+    _ -> ok
+  end,
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer},
 	?D({"Player starting with pid", self()}),
@@ -107,6 +110,15 @@ ready({pause}, #video_player{timer_ref = Timer} = State) ->
 ready({resume}, State) ->
   ?D("Player resumed"),
   {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
+
+ready({seek, Timestamp}, #video_player{format = mp4} = State) ->
+  {Pos, NewTimestamp} = mp4:seek(State, Timestamp),
+  % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
+  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp}};
+
+ready({seek, Timestamp}, State) ->
+  ?D("Seek for flv not available"),
+  {next_state, ready, State};
 
 ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
 	case FileFormat:read_frame(State) of
