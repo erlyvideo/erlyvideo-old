@@ -90,7 +90,9 @@ encode_object([{Key,Value}|T], Bin) ->
 	encode_object(T, <<Bin/binary,Part/binary>>).
 
 
+encode_mixed_array(List) when is_list(List) -> encode_mixed_array(List, 0, <<>>);
 encode_mixed_array({mixed_array,List} = _Array) when is_list(List) -> encode_mixed_array(List, 0, <<>>).
+
 encode_mixed_array([], Length, Bin) -> <<?AMF_MIXED_ARRAY:8/integer, Length:32/big-integer, Bin/binary, 0:16/big-integer, ?AMF_END_OF_OBJECT:8/integer>>;
 encode_mixed_array([{Key0,Value}|T], Max, Bin) when is_number(Key0) ->
 	Key = number_to_string(Key0),
@@ -99,9 +101,15 @@ encode_mixed_array([{Key0,Value}|T], Max, Bin) when is_number(Key0) ->
 		true -> Max
 	end,
 	encode_mixed_array([{Key,Value}|T], NewMax, Bin);
+
 encode_mixed_array([{Key,Value}|T], Max, Bin) when is_list(Key) ->
 	KeyValue = <<(length(Key)):16/big-integer, (list_to_binary(Key))/binary, (encode(Value))/binary>>,
-	encode_mixed_array(T, Max, <<Bin/binary,KeyValue/binary>>).
+	encode_mixed_array(T, Max, <<KeyValue/binary, Bin/binary>>);
+
+encode_mixed_array([{KeyAtom,Value}|T], Max, Bin) when is_atom(KeyAtom) ->
+  Key = atom_to_binary(KeyAtom, utf8),
+	KeyValue = <<(size(Key)):16/big-integer, Key/binary, (encode(Value))/binary>>,
+	encode_mixed_array(T, Max, <<KeyValue/binary, Bin/binary>>).
 
 decode_list(List, Data) when size(Data) == 0 ->
   lists:reverse(List);

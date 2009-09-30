@@ -253,6 +253,7 @@ encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
   CompositionTime = 0,
 	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_NALU:8/integer, CompositionTime:24/big-integer, Body/binary>>;
 
+
 encode(#video_frame{timestamp_abs = TimeStampAbs, 
                     prev_tag_size = PrevTagSize,
                     type = Type,

@@ -164,7 +164,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/
 
 
 command(#channel{type = Type} = Channel, State) 
-	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_META_DATA) ->
+	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA) ->
 %	?D({"Recording",Type}),
 	gen_fsm:send_event(self(), {publish, Channel}),
 	State;

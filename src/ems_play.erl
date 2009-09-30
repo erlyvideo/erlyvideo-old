@@ -94,7 +94,7 @@ stop(_, State) ->
 
 ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
   case FileFormat of
-    mp4 -> gen_fsm:send_event(Consumer, {metadata, FileFormat:metadata(State)});
+    mp4 -> gen_fsm:send_event(Consumer, {metadata, "onMetaData", FileFormat:metadata(State), 1});
     _ -> ok
   end,
 	Timer = gen_fsm:start_timer(1, play),
@@ -205,29 +205,6 @@ handle_sync_event(Event, _From, StateName, StateData) ->
      io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
     {stop, {StateName, undefined_event, Event}, StateData}.
 
-
-handle_info({audio, _Bin}, StateName, #video_player{} = State) ->
-  ?D("Audio received"),
-    % error_logger:info_msg("~p Video player lost connection.\n", [self()]),
-    
-    % TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
-    %     % ?D({"Frame", _Type, Frame#video_frame.timestamp_abs, TimeStamp}),
-    % send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-    % Timeout = timeout(Frame#video_frame.timestamp_abs, 
-    %   Player#video_player.timer_start, 
-    %   Player#video_player.client_buffer),
-    % NextState = Player#video_player{
-    %                   timer_ref = gen_fsm:start_timer(Timeout, play),
-    %                   ts_prev = Frame#video_frame.timestamp_abs,
-    %                   pos = Frame#video_frame.nextpos},
-	{next_state, StateName, State, ?TIMEOUT};
-
-
-handle_info({video, _Bin}, StateName, #video_player{} = State) ->
-  ?D("Video received"),
-	{next_state, StateName, State, ?TIMEOUT};
-    
-  
 handle_info({tcp_closed, _Socket}, _StateName,
             #video_player{} = StateData) ->
     error_logger:info_msg("~p Video player lost connection.\n", [self()]),
