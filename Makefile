@@ -6,8 +6,8 @@ VSN=0.1
 
 include support/include.mk
 
-all: $(EBIN_FILES)
-	echo $(EBIN_FILES)
+all: 
+	erl -make
 
 doc:	
 	$(ERL) -pa `pwd`/ebin \
