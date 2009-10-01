@@ -113,7 +113,7 @@ init([SessionId]) ->
 
 'READY'({recv, SequenceNumber}, _From, #rtmp_fsm{buffer = Buffer, watchdog = Watchdog} = State) ->
     Watchdog ! {rtmpt},
-    io:format("Recv ~p ~p bytes~n", [SequenceNumber, size(Buffer)]),
+    % io:format("Recv ~p ~p bytes~n", [SequenceNumber, size(Buffer)]),
     {reply, {Buffer}, 'READY', State#rtmp_fsm{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMP_TIMEOUT}.
 
 

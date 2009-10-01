@@ -357,7 +357,6 @@ split_at_q_mark([], Acc) ->
 
 % TCP send
 send(Sock, Data) ->
-	?DEBUG(debug, "sending data: ~p", [Data]),
 	case gen_tcp:send(Sock, Data) of
 		ok ->
 			ok;
