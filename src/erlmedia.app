@@ -4,28 +4,30 @@
   {vsn, "0.0.6"},
   {id, "erlmedia"},
   {modules,      [
-  				ems,
+  			ems,
 				ems_amf,
 				ems_app,
-				ems_demo,
-				ems_flv,
-				ems_mp4,
-				ems_play,
 				ems_cluster,
+				ems_flv,
 				ems_fsm,
-				ems_proxy,
+				ems_play,
 				ems_rtmp,
 				ems_server,
 				ems_sup,
-				ems_test,
-				gen_rtmp
+				gen_rtmp,
+				gen_server_cluster,
+				hmac256,
+				mp4,
+				rtmp_handshake,
+				sha2
   				]},
   {registered,   []},
   {applications, [kernel, stdlib]},
   {mod, {ems_app, []}},
   {env, [
 	{listen_port, 1935}, 
-	{flv_dir, "/tmp"}
+	{file_dir, "/tmp"},
+	{netstream, "netstream@localhost"}	
 	]}
  ]
 }.

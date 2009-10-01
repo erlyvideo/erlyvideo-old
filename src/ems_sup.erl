@@ -39,10 +39,9 @@
 
 -export ([init/1,start_link/0]).
 -export ([start_client/0]).
--export ([get_app_env/1,get_app_env/2]).
 
 start_link() ->
-	ListenPort = get_app_env(listen_port, ?RTMP_PORT),
+	ListenPort = ems:get_var(listen_port, ?RTMP_PORT),
 	supervisor:start_link({local, ?MODULE}, ?MODULE, [ListenPort]).
 
 
@@ -112,30 +111,3 @@ start_client() -> supervisor:start_child(ems_client_sup, []).
 
 
 
-%%--------------------------------------------------------------------
-%% @spec (Opt::atom()) -> any()
-%% @doc Gets application enviroment variable. User defined varaibles in 
-%% .config file override application default varabiles. Default [].
-%% @end 
-%%--------------------------------------------------------------------
-get_app_env(Opt) -> get_app_env(Opt, []).
-%%--------------------------------------------------------------------
-%% @spec (Opt::atom(), Default::any()) -> any()
-%% @doc Gets application enviroment variable. Returns Default if no 
-%% varaible named Opt is found. User defined varaibles in .config file
-%% override application default varabiles.
-%% @end 
-%%--------------------------------------------------------------------
-get_app_env(Opt, Default) ->
-	case lists:keysearch(?APPLICATION, 1, application:loaded_applications()) of
-		false -> application:load(?APPLICATION);
-		_ -> ok
-	end,
-	case application:get_env(?APPLICATION, Opt) of
-	{ok, Val} -> Val;
-	_ ->
-		case init:get_argument(Opt) of
-		[[Val | _]] -> Val;
-		error		-> Default
-		end
-	end.

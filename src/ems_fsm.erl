@@ -224,6 +224,9 @@ init([]) ->
       NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
       gen_fsm:send_event(PlayerPid, {start}),
       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+    {notfound} ->
+      gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
+      {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reason -> 
       ?D({"Failed to start video player", Reason}),
       {error, Reason}

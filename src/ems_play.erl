@@ -60,7 +60,10 @@ play(Name, StreamId, _) ->
     true ->
       init_file(FileName, StreamId);
     _ ->
-      init_stream(Name, StreamId)
+      case ems:get_var(netstream, undefined) of
+        undefined -> {notfound};
+        _ -> init_stream(Name, StreamId)
+      end
   end.    
   
   
@@ -68,10 +71,14 @@ init_file(FileName, StreamId) ->
   gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
 
 init_stream(Name, StreamId) ->
-  {ok, NetStream} = rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT),
-  link(NetStream),
-  ?D({"Netstream created", NetStream}),
-  {ok, NetStream}.
+  case rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT) of
+    {ok, NetStream} ->
+      link(NetStream),
+      ?D({"Netstream created", NetStream}),
+      {ok, NetStream};
+    _ ->
+      {notfound}
+  end.
 
   
 init({FileName, StreamId, Parent}) ->
@@ -174,7 +181,7 @@ channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 5.
 %% @end
 %%-------------------------------------------------------------------------	
 file_dir() ->
-  ems_sup:get_app_env(file_dir, "/tmp").
+  ems:get_var(file_dir, "/tmp").
 
 
 
