@@ -139,7 +139,7 @@ private function connect() : void
 	_connection.addEventListener(NetStatusEvent.NET_STATUS, onConnectionStatus);
 	_connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
 	_connection.objectEncoding = ObjectEncoding.AMF0;
-	_connection.connect("rtmp://"+Application.application.parameters.server+"/", "password", 142);
+	_connection.connect(Application.application.parameters.server+"/", "password", 142);
   
 }
 
