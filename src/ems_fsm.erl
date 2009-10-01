@@ -408,7 +408,7 @@ handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   {next_state, StateName, StateData, ?TIMEOUT};
 
 handle_info(_Info, StateName, StateData) ->
-  ?D({"Som info handled", _Info, StateName, StateData}),
+  ?D({"Some info handled", _Info, StateName, StateData}),
   {noreply, StateName, StateData}.
 
 
@@ -420,7 +420,7 @@ handle_info(_Info, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) ->
   ?D({"FSM stopping", _StateName, _Reason}),
-  (catch erlang:kill(Player)),
+  gen_fsm:send_event(Player, {stop}),
   ems_cluster:remove_client(erlang:pid_to_list(self())),
   (catch gen_tcp:close(Socket)),
   ok.

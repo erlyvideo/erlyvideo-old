@@ -96,9 +96,10 @@ createStream(AMF, State) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-deleteStream(_AMF, State) ->  
-    ?D("invoke - deleteStream"),
-    State.
+deleteStream(_AMF, #ems_fsm{video_player = Player} = State) ->
+  ems_fsm:send_event(Player, {stop}),
+  ?D("invoke - deleteStream"),
+  State.
 
 
 %%-------------------------------------------------------------------------
@@ -106,6 +107,9 @@ deleteStream(_AMF, State) ->
 %% @doc  Processes a play command and responds
 %% @end
 %%-------------------------------------------------------------------------
+
+play(#amf{args = [_Null, {boolean, false} | _]} = AMF, State) -> stop(AMF, State);
+
 play(AMF, State) ->
   StreamId = 1,
   Channel = #channel{id = 5, timestamp = 0, stream = StreamId},
@@ -196,9 +200,9 @@ publish(AMF, State) ->
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(_AMF, State) -> 
+stop(_AMF, #ems_fsm{video_player = Player} = State) -> 
     ?D("invoke - stop"),
-    gen_fsm:send_event(self(), {stop}),
+    gen_fsm:send_event(Player, {stop}),
     State.
 
 %%-------------------------------------------------------------------------

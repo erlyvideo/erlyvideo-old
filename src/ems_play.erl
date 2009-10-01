@@ -127,6 +127,10 @@ ready({seek, Timestamp}, #video_player{format = mp4, timer_ref = Timer} = State)
 ready({seek, Timestamp}, State) ->
   ?D("Seek for flv not available"),
   {next_state, ready, State};
+  
+ready({stop}, State) ->
+  ?D("Player stopping"),
+  {stop, normal, State};
 
 ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
 	case FileFormat:read_frame(State) of
@@ -236,7 +240,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 timeout(#video_frame{timestamp_abs = AbsTime}, #video_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom}) ->
   SeekTime = AbsTime - PlayingFrom,
     Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
-    ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
+    % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
     if 
 		(Timeout > 0) -> 
             Timeout; 
