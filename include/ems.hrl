@@ -291,6 +291,7 @@
 	buffer,
 	timer_start,
 	timer_ref,
+	playing_from = 0,
 	width = undefined,
 	height = undefined,
 	duration = undefined,

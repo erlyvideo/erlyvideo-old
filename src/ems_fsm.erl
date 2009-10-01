@@ -418,8 +418,9 @@ handle_info(_Info, StateName, StateData) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #ems_fsm{socket=Socket}) ->
+terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) ->
   ?D({"FSM stopping", _StateName, _Reason}),
+  (catch erlang:kill(Player)),
   ems_cluster:remove_client(erlang:pid_to_list(self())),
   (catch gen_tcp:close(Socket)),
   ok.

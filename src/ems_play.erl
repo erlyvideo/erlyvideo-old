@@ -118,10 +118,11 @@ ready({resume}, State) ->
   ?D("Player resumed"),
   {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
 
-ready({seek, Timestamp}, #video_player{format = mp4} = State) ->
+ready({seek, Timestamp}, #video_player{format = mp4, timer_ref = Timer} = State) ->
   {Pos, NewTimestamp} = mp4:seek(State, Timestamp),
+  gen_fsm:cancel_timer(Timer),
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
-  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp}};
+  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp}};
 
 ready({seek, Timestamp}, State) ->
   ?D("Seek for flv not available"),
@@ -135,11 +136,9 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
   		{stop, normal, State};
 		{ok, #video_frame{type = _Type} = Frame, Player} -> 
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
-      % ?D({"Frame", _Type, Frame#video_frame.timestamp_abs, TimeStamp}),
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-			Timeout = timeout(Frame#video_frame.timestamp_abs, 
-				Player#video_player.timer_start, 
-				Player#video_player.client_buffer),
+			Timeout = timeout(Frame, Player),
+      % ?D({"Frame", Frame#video_frame.timestamp_abs, Player#video_player.timer_start, TimeStamp, Timeout}),
 			NextState = Player#video_player{
 			                  timer_ref = gen_fsm:start_timer(Timeout, play),
 											  ts_prev = Frame#video_frame.timestamp_abs,
@@ -221,6 +220,7 @@ handle_info(_Info, StateName, StateData) ->
   {noreply, StateName, StateData}.
 
 terminate(_Reason, _StateName, #video_player{device = IoDev} = State) ->
+  ?D("Video player exit"),
   file:close(IoDev),
   ok.
  
@@ -232,8 +232,11 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %% @doc calculates timeout to playback of next FLV Tag 
 %% @end
 %%-------------------------------------------------------------------------	
-timeout(AbsTime, TimerStart, ClientBuffer) ->
-    Timeout = AbsTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
+
+timeout(#video_frame{timestamp_abs = AbsTime}, #video_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom}) ->
+  SeekTime = AbsTime - PlayingFrom,
+    Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
+    ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
     if 
 		(Timeout > 0) -> 
             Timeout; 
