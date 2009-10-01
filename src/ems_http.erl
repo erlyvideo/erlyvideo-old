@@ -15,14 +15,15 @@ handle_http(Req) ->
 
 
 handle('GET', [], Req) ->
+  {ok, Contents} = file:read_file("player/player.html"),
   io:format("GET /~n"),
-	Req:file("player/player.html");
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), [ems:get_var(host, "localhost")]);
 
-handle('GET', ["Player.swf"], Req) ->
+handle('GET', ["player.swf"], Req) ->
   io:format("GET /Player.swf~n"),
   Req:file("player/Player.swf"),
   Req:stream(close);
   
 % handle the 404 page not found
-handle(_, _, Req) ->
-	Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.").
+handle(_, Path, Req) ->
+	Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req]).
