@@ -268,7 +268,7 @@
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	next_stream_id = 1,
 	type,
-	video_player,
+	video_player = undefined,
   video_file_name,
 	video_timer_ref,
 	video_buffer,

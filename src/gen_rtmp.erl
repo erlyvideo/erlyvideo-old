@@ -110,17 +110,21 @@ deleteStream(_AMF, #ems_fsm{video_player = Player} = State) ->
 
 play(#amf{args = [_Null, {boolean, false} | _]} = AMF, State) -> stop(AMF, State);
 
-play(AMF, State) ->
+play(AMF, #ems_fsm{video_player = Player} = State) ->
   StreamId = 1,
   Channel = #channel{id = 5, timestamp = 0, stream = StreamId},
   [_Null,{string,Name}] = AMF#amf.args,
   ?D({"invoke - play", Name, AMF}),
+  case Player of
+    undefined -> ok;
+    _ -> gen_fsm:send_event(Player, {stop})
+  end,
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, 1}),
   gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
-  State.
+  State#ems_fsm{video_player = undefined}.
 
 
 %%-------------------------------------------------------------------------
