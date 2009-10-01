@@ -47,8 +47,9 @@
 	<mx:HSlider id="progressBar" minimum="0" maximum="0" liveDragging="true" change="seek(event)" width="{video_container.width}"/>
 	<mx:HBox width="450">
 	  <mx:TextInput id="player_url" width="100" text="video.mp4" />
-		<mx:Button label="Play" click="play()" id="PlayButton"/>
-		<mx:Button label="Pause" click="pause()" id="PauseButton"/>
+		<mx:Button label="Play" click="play()" id="playButton"/>
+		<mx:Button label="Pause" click="pause()" id="pauseButton"/>
+		<mx:Button label="Record" click="record()" id="recordButton"/>
     <!-- <mx:Button id="muteBtn" label="Mute" click="muteHandler(event)" width="70"/> -->
 		<mx:HSlider id="volSlider" 
 			liveDragging="true" 

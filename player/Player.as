@@ -9,12 +9,16 @@ import flash.net.ObjectEncoding;
 import flash.external.ExternalInterface;
 import flash.text.TextField;
 import mx.events.SliderEvent;
+import flash.media.Camera;
 	
 private var _connection : NetConnection;
 private var _stream : NetStream;
 private var _video : Video;
 private var _connected : Boolean = false;
 private var _playing : Boolean = false;
+private var _pausing : Boolean = false;
+private var _recording : Boolean = false;
+private var _camera : Camera;
 private var _statusTimer : Timer;
 private var _totalTime : Number;
 
@@ -23,6 +27,15 @@ public function init()  : void
   connect();
   _statusTimer = new Timer(100); // 1 second
   _statusTimer.addEventListener(TimerEvent.TIMER, setProgressBar);
+  pauseButton.enabled = false;
+  playButton.enabled = false;
+  recordButton.enabled = false;
+  
+	var video : Video = new Video(320, 240);
+	video.deblocking = 2;
+	video.smoothing = true;
+	video_container.addChild(video);
+	_video = video;
 }
 
 public function setProgressBar(event:TimerEvent) : void
@@ -32,51 +45,61 @@ public function setProgressBar(event:TimerEvent) : void
 
 public function play() : void
 {
-  if (!_connected) return;
+  if (!_connected || !_stream) return;
   
-  if (_stream) {
-    PlayButton.label = "Play";
+  if (_playing) {
     stop();
     return;
   }
   
-	var listener : Object = new Object();
-	_stream = new NetStream(_connection);
-	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
-	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
-/*    _stream.setBufferTime(20);*/
-	listener.onMetaData = onMetaData;
-	_stream.client = listener;
-
-  if (!_video) {
-  	var video : Video = new Video(320, 180);
-  	video.deblocking = 2;
-  	video.smoothing = true;
-  	video_container.addChild(video);
-  	_video = video;
-  }
 	
-	_video.attachNetStream(_stream);
   _stream.play(player_url.text);
-	PlayButton.label = "Stop";
+	playButton.label = "Stop";
+	pauseButton.label = "Pause";
+	pauseButton.enabled = true;
 	_statusTimer.start();
 	_playing = true;
+	_pausing = true;
+}
+
+public function record() : void
+{
+  if (_recording) {
+    _stream.publish(null);
+    _recording = false;
+    playButton.enabled = true;
+    recordButton.label = "Record";
+    _recording = false;
+  } else {
+    if (!_camera) {
+      _camera = Camera.getCamera();
+    }
+    if (_camera) {
+      stop();
+      playButton.enabled = false;
+      _stream.publish("mp4:stream", "record");
+      _video.attachCamera(_camera);
+/*      _camera.setMode(380,240,25);*/
+      recordButton.label = "Stop";
+      _recording = true;
+    }
+  }
 }
 
 public function pause() : void
 {
-  if (!_stream) return;
+  if (!_stream || !_playing) return;
   
-  if (_playing) {
+  if (_pausing) {
     _stream.pause();
   	_statusTimer.stop();
-    PauseButton.label = "Resume";
+    pauseButton.label = "Resume";
   } else {
-    PauseButton.label = "Pause";
+    pauseButton.label = "Pause";
     _statusTimer.start();
     _stream.resume();
   }
-  _playing = !_playing;
+  _pausing = !_pausing;
 }
 
 public function seek(event:SliderEvent) : void
@@ -89,7 +112,15 @@ public function seek(event:SliderEvent) : void
 
 public function stop() : void
 {
-  
+  playButton.label = "Play";
+  pauseButton.label = "Pause";
+  pauseButton.enabled = false;
+  _playing = false;
+  _pausing = true;
+  if (_playing) {
+    _stream.play(false);
+  }
+  _video.clear();
 }
 public function set_volume(volume : Object) : void
 {
@@ -134,12 +165,29 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
 	case "NetConnection.Connect.Success":
 /*        ExternalInterface.call("alert", "Connected");*/
     _log.text = "Connected";
+  	var listener : Object = new Object();
+  	_stream = new NetStream(_connection);
+  	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
+  	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
+  /*    _stream.setBufferTime(20);*/
+  	listener.onMetaData = onMetaData;
+  	_stream.client = listener;
+  	_video.attachNetStream(_stream);
+  	
+    playButton.enabled = true;
+    recordButton.enabled = true;
+    
     _connected = true;
 		break;
 		
 	case "NetConnection.Message":
 /*        ExternalInterface.call("console.log", event.info.description);*/
     _log.text = event.info.description;
+    break;
+    
+  case "NetConnection.Connect.Failed":
+    _stream = null;
+    _playing = false;
     break;
 	
 
