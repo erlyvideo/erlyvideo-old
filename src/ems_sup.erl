@@ -84,6 +84,14 @@ init([Port]) when is_integer(Port) ->
                   worker,                                  % Type     = worker | supervisor
                   [ems_cluster]                            % Modules  = [Module] | dynamic
               },
+              % EMS HTTP
+              {   ems_http_sup,                         % Id       = internal id
+                  {ems_http,start_link,[ems:get_var(http_port, 8082)]},             % StartFun = {M, F, A}
+                  permanent,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [ems_http]                               % Modules  = [Module] | dynamic
+              },
               % EMS instance supervisor
               {   ems_client_sup,
                   {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [ems_fsm]]},

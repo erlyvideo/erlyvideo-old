@@ -27,6 +27,7 @@
   {env, [
 	{listen_port, 1935}, 
 	{file_dir, "/tmp"},
+	{http_port, 8082},
 	{netstream, "netstream@localhost"}	
 	]}
  ]

@@ -33,8 +33,6 @@ ebin/%.app: %.app
 	cp $< $@
 
 $(EBIN_DIR)/%.$(EMULATOR): %.erl
-	echo $<
-	echo $@.$(EMULATOR)
 	$(ERLC) $(ERLC_FLAGS) -o $(EBIN_DIR) $<
 
 ./%.$(EMULATOR): %.erl
