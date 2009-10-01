@@ -66,6 +66,7 @@ init([ems_fsm]) ->
         }
     };
 init([Port]) when is_integer(Port) ->
+  ets:new(rtmp_sessions, [set, public, named_table]),
     {ok,
         {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [ % EMS Listener

@@ -8,11 +8,18 @@
 -define(MAX_TIME,        60).
 -define(RTMP_PORT,     1935).
 -define(TIMEOUT,     120000).
+-define(RTMP_TIMEOUT,     120000).
 -define(HS_HEADER,        3).
 -define(HS_BODY_LEN,   1536).
 -define(MIN_CLIENT_BUFFER, 100).
 
+-define(CONTENT_TYPE, "application/x-fcs").
+-define(SERVER_HEADER, {"Server", "RTMPT/1.0"}).
+
+-define(RTMPT_TIMEOUT, 12000).
 -define(DEFAULT_FLV_DIR, "/tmp").
+
+
 
 %% RTMP header
 %%                                 Headersize:   Value: 

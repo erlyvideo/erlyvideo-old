@@ -17,7 +17,7 @@ handle_http(Req) ->
 handle('GET', [], Req) ->
   {ok, Contents} = file:read_file("player/player.html"),
   io:format("GET /~n"),
-  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), [ems:get_var(host, "localhost")]);
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), [ems:get_var(host, "rtmp://localhost")]);
 
 handle('GET', ["player.swf"], Req) ->
   io:format("GET /Player.swf~n"),

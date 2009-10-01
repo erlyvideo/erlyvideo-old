@@ -19,6 +19,7 @@
 				hmac256,
 				mp4,
 				rtmp_handshake,
+				rtmp_client,
 				sha2
   				]},
   {registered,   []},
@@ -27,7 +28,7 @@
   {env, [
 	{listen_port, 1935}, 
 	{file_dir, "/tmp"},
-	{host, "localhost"},
+	{host, "rtmp://localhost"},
 	{http_port, 8082},
 	{netstream, "netstream@localhost"}	
 	]}
