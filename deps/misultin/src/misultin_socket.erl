@@ -73,7 +73,7 @@ listener(ListenSocket, ListenPort, Loop, RecvTimeout) ->
 			Pid = spawn(fun () ->
 				receive
 					set ->
-						inet:setopts(Sock, [{active, true}]),
+						inet:setopts(Sock, [{active, once}]),
 						?DEBUG(debug, "activated controlling process", [])
 				after 60000 ->
 					exit({error, controlling_failed})
@@ -102,6 +102,7 @@ listener(ListenSocket, ListenPort, Loop, RecvTimeout) ->
 
 % REQUEST: wait for a HTTP Request line. Transition to state headers if one is received. 
 request(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
+	inet:setopts(Sock, [{active, once}]),
 	receive
 		{http, Sock, {http_request, Method, Path, Version}} ->
 			?DEBUG(debug, "received full headers of a new HTTP packet", []),
@@ -122,6 +123,7 @@ request(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 headers(C, Req, H) ->
 	headers(C, Req, H, 0).
 headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) when HeaderCount =< ?MAX_HEADERS_COUNT ->
+	inet:setopts(Sock, [{active, once}]),
 	receive
 		{http, Sock, {http_header, _, 'Content-Length', _, Val}} ->
 			headers(C, Req#req{content_length = Val}, [{'Content-Length', Val}|H], HeaderCount + 1);
@@ -267,6 +269,7 @@ call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 	case catch Loop(Req) of
 		{'EXIT', _Reason} ->
 			?DEBUG(error, "worker crash: ~p", [_Reason]),
+			error_logger:error_msg("FAIL ~p ~p~n~p", [Req:get(method), Req:get(uri), _Reason]),
 			% kill listening socket
 			SocketPid ! shutdown,
 			% send response
@@ -276,15 +279,15 @@ call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 		{HttpCode, Headers0, Body} ->
 			% received normal response
 			?DEBUG(debug, "sending response", []),
-			% kill listening socket
-			SocketPid ! shutdown,
 			% flatten body [optimization since needed for content length]
 			BodyBinary = convert_to_binary(Body),
 			% provide response
 			Headers = add_content_length(Headers0, BodyBinary),
 			Enc_headers = enc_headers(Headers),
 			Resp = ["HTTP/1.1 ", integer_to_list(HttpCode), " OK\r\n", Enc_headers, <<"\r\n">>, BodyBinary],
-			send(Sock, Resp);
+			send(Sock, Resp),
+			% kill listening socket
+			SocketPid ! shutdown;
 		{raw, Body} ->
 			send(Sock, Body);
 		_ ->
