@@ -36,6 +36,10 @@ public function init()  : void
 	video.smoothing = true;
 	video_container.addChild(video);
 	_video = video;
+	
+	if (Application.application.parameters.file) {
+  	player_url.text = Application.application.parameters.file;
+	}
 }
 
 public function setProgressBar(event:TimerEvent) : void
@@ -80,7 +84,7 @@ public function record() : void
     if (_camera) {
       stop();
       playButton.enabled = false;
-      _stream.publish("mp4:stream", "record");
+      _stream.publish("stream.flv", "record");
       _video.attachCamera(_camera);
 /*      _camera.setMode(380,240,25);*/
       _stream.attachCamera(_camera);
