@@ -69,6 +69,9 @@ public function record() : void
     _recording = false;
     playButton.enabled = true;
     recordButton.label = "Record";
+    _video.attachCamera(null);
+    _video.clear();
+    _stream.attachCamera(null);
     _recording = false;
   } else {
     if (!_camera) {
@@ -80,6 +83,7 @@ public function record() : void
       _stream.publish("mp4:stream", "record");
       _video.attachCamera(_camera);
 /*      _camera.setMode(380,240,25);*/
+      _stream.attachCamera(_camera);
       recordButton.label = "Stop";
       _recording = true;
     }
