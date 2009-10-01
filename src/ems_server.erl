@@ -99,10 +99,9 @@ init([Port, Module]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({start}, From, State) ->
-  {Listener, _Ref} = From,
+handle_call({start}, {From, _Ref}, State) ->
   {ok, Pid} = ems_sup:start_client(),
-  gen_fsm:sync_send_event(Pid, {socket_ready, Listener}),
+  gen_fsm:sync_send_event(Pid, {socket_ready, From}),
   {reply, {ok, Pid}, State};
 
 

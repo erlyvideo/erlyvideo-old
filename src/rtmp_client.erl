@@ -73,7 +73,7 @@ init([SessionId]) ->
     {ok, Rtmp} = gen_server:call(ems_server, {start}, ?RTMPT_TIMEOUT),
     link(Rtmp),
     io:format("Received upstream ~p~n", [Rtmp]),
-    Watchdog = spawn_link(rtmp_client, watcher, [self(), ?RTMPT_TIMEOUT*10]),
+    Watchdog = spawn_link(rtmp_client, watcher, [self(), ?RTMPT_TIMEOUT*5]),
     ets:insert(rtmp_sessions, {SessionId, self()}),
     {ok, 'READY', #rtmp_fsm{session_id = SessionId, watchdog = Watchdog, upstream = Rtmp}, ?RTMP_TIMEOUT}.
         
@@ -89,11 +89,12 @@ init([SessionId]) ->
 %% Notification event coming from client
 
 'READY'({server_data, Bin}, #rtmp_fsm{buffer = Buffer, bytes_count = BytesCount} = State) ->
-    % io:format("Received bytes: ~p/~p~n", [size(Bin), BytesCount + size(Bin)]),
+    % io:format("Received server bytes: ~p/~p~n", [size(Bin), BytesCount + size(Bin)]),
     {next_state, 'READY', State#rtmp_fsm{buffer = <<Buffer/binary, Bin/binary>>, bytes_count = BytesCount + size(Bin)}, ?RTMP_TIMEOUT};
 
 
 'READY'({client_data, Bin}, #rtmp_fsm{upstream = Upstream} = State) when is_pid(Upstream)  ->
+    % io:format("Received client bytes: ~p~n", [size(Bin)]),
     gen_fsm:send_event(Upstream, {data, Bin}),
     {next_state, 'READY', State, ?RTMP_TIMEOUT};
 

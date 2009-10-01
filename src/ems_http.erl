@@ -28,10 +28,10 @@ handle('GET', ["player.swf"], Req) ->
 handle('POST', ["open", ChunkNumber], Req) ->
   error_logger:info_msg("Request: open/~p.\n", [ChunkNumber]),
   SessionId = generate_session_id(),
-  <<Timeout>> = Req:recv_body(),
+  <<Timeout>> = Req:get(body),
   {ok, Pid} = rtmp_client:start_link(SessionId),
   error_logger:info_msg("Opened session ~p, timeout ~p.\n", [SessionId, Timeout]),
-  Req:ok([{'Content-Type', ?CONTENT_TYPE}| ?SERVER_HEADER], [SessionId, "\n"]);
+  Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [SessionId, "\n"]);
   
 handle('POST', ["idle", SessionId, SequenceNumber], Req) ->
   % error_logger:info_msg("Request: idle/~p/~p.\n", [SessionId, SequenceNumber]),
@@ -39,7 +39,7 @@ handle('POST', ["idle", SessionId, SequenceNumber], Req) ->
       [{SessionId, Rtmp}] ->
           {Buffer} = gen_fsm:sync_send_event(Rtmp, {recv, list_to_int(SequenceNumber)}),
           % io:format("Returning ~p~n", [size(Buffer)]),
-          Req:ok([{'Content-Type', ?CONTENT_TYPE}| ?SERVER_HEADER], [33, Buffer]);
+          Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [33, Buffer]);
       _ ->
           error_logger:info_msg("Request 'idle' to closed session ~p\n", [SessionId]),
           Req:stream(<<0>>),
@@ -48,13 +48,13 @@ handle('POST', ["idle", SessionId, SequenceNumber], Req) ->
 
 
 handle('POST', ["send", SessionId, SequenceNumber], Req) ->
-  % error_logger:info_msg("Request: idle/~p/~p.\n", [SessionId, SequenceNumber]),
+  % error_logger:info_msg("Request: send/~p/~p.\n", [SessionId, SequenceNumber]),
   case ets:match_object(rtmp_sessions, {SessionId, '$2'}) of
       [{SessionId, Rtmp}] ->
-          gen_fsm:send_event(Rtmp, {client_data, Req:recv_body()}),
+          gen_fsm:send_event(Rtmp, {client_data, Req:get(body)}),
           {Buffer} = gen_fsm:sync_send_event(Rtmp, {recv, list_to_int(SequenceNumber)}),
           % io:format("Returning ~p~n", [size(Buffer)]),
-          Req:ok([{'Content-Type', ?CONTENT_TYPE}| ?SERVER_HEADER], [33, Buffer]);
+          Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [33, Buffer]);
       _ ->
           error_logger:info_msg("Request 'idle' to closed session ~p\n", [SessionId]),
           Req:stream(<<0>>),
@@ -67,13 +67,13 @@ handle('POST', ["close", SessionId, ChunkNumber], Req) ->
     Req:stream(<<0>>),
     Req:stream(close);
     
-handle('POST', ["ident" | ChunkNumber], Req) ->
+handle('POST', ["fcs", "ident", ChunkNumber], Req) ->
     error_logger:info_msg("Request: ident/~p.\n", [ChunkNumber]),
-    Req:ok([{'Content-Type', ?CONTENT_TYPE}| ?SERVER_HEADER], "0.1");
+    Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
     
-handle('POST', ["ident2"| ChunkNumber], Req) ->
-    error_logger:info_msg("Request: ident2/~p.\n", [ChunkNumber]),
-    Req:ok([{'Content-Type', ?CONTENT_TYPE}| ?SERVER_HEADER], "0.1");
+handle('POST', ["fcs", "ident2"], Req) ->
+    error_logger:info_msg("Request: ident2.\n"),
+    Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
   
   
 % handle the 404 page not found

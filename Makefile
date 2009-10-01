@@ -6,8 +6,12 @@ VSN=0.1
 
 include support/include.mk
 
-all: 
+all: ebin/erlmedia.app
 	erl -make
+
+
+ebin/erlmedia.app:
+	cp src/erlmedia.app ebin/erlmedia.app
 
 doc:	
 	$(ERL) -pa `pwd`/ebin \
@@ -23,16 +27,14 @@ clean-doc:
 	rm -fv doc/edoc-info
 	rm -fv doc/*.css
 
-run:
-	[ -f ebin/erlmedia.app ] || cp src/erlmedia.app ebin/erlmedia.app
+run: ebin/erlmedia.app
 	$(ERL) -pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME)
 	
-start:
-	[ -f `pwd`/ebin/erlmedia.app ] || cp src/erlmedia.app ebin/erlmedia.app
+start: ebin/erlmedia.app
 	$(ERL) -pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
