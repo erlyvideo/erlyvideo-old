@@ -22,6 +22,7 @@ clean-doc:
 	rm -fv doc/*.css
 
 run:
+	[ -f ebin/erlmedia.app ] || cp src/erlmedia.app ebin/erlmedia.app
 	$(ERL) -pa `pwd`/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
@@ -29,6 +30,7 @@ run:
 	-name $(NODE_NAME)
 	
 start:
+	[ -f `pwd`/ebin/erlmedia.app ] || cp src/erlmedia.app ebin/erlmedia.app
 	$(ERL) -pa `pwd`/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
