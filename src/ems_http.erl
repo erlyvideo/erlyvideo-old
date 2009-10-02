@@ -17,8 +17,13 @@ handle_http(Req) ->
 
 handle('GET', [], Req) ->
   {ok, Contents} = file:read_file("player/player.html"),
-  io:format("GET /~n"),
-  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), [ems:get_var(host, "rtmp://localhost")]);
+  Query = Req:parse_qs(),
+  io:format("GET / ~p~n", [Query]),
+  File = case lists:keyfind("file", 1, Query) of
+    {"file", _File} -> _File;
+    false -> "video.mp4"
+  end,
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), [ems:get_var(host, "rtmp://localhost"), File]);
 
 handle('GET', ["player.swf"], Req) ->
   io:format("GET /Player.swf~n"),
