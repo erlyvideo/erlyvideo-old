@@ -114,6 +114,7 @@ public function seek(event:SliderEvent) : void
 {
   progressBar.value = event.value;
   if (_stream) {
+    _statusTimer.stop();
     _stream.seek(event.value);
   }
 }
@@ -158,9 +159,19 @@ private function onMetaData(metadata : Object) : void
 private function onStreamStatus( event : NetStatusEvent ) : void
 {
 	switch(event.info.code){
-	case "NetStream.Metadata":
-	  onMetaData(event.info.description);
-	  break;
+  	case "NetStream.Play.StreamNotFound":
+  		trace("File not found");
+  		stop();
+  		break;
+  		
+  	case "NetStream.Seek.Notify":
+  	  _statusTimer.start();
+      break;
+  		
+  	case "NetStream.Play.Complete":
+/*      stop();*/
+  	  break;
+  	  
 	default:
 	  _log.text = "Stream: "+event.info.code;
   }
@@ -198,10 +209,6 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
     _playing = false;
     break;
 	
-
-	case "NetStream.Play.StreamNotFound":
-		trace("File not found");
-		break;
 	}
 }
 

@@ -70,7 +70,7 @@ play(Name, StreamId, _) ->
 init_file(FileName, StreamId) ->
   gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
 
-init_stream(Name, StreamId) ->
+init_stream(Name, _StreamId) ->
   case rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT) of
     {ok, NetStream} ->
       link(NetStream),
@@ -118,26 +118,22 @@ ready({resume}, State) ->
   ?D("Player resumed"),
   {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
 
-ready({seek, Timestamp}, #video_player{format = mp4, timer_ref = Timer} = State) ->
-  {Pos, NewTimestamp} = mp4:seek(State, Timestamp),
+ready({seek, Timestamp}, #video_player{format = FileFormat, timer_ref = Timer} = State) ->
+  {Pos, NewTimestamp} = FileFormat:seek(State, Timestamp),
   gen_fsm:cancel_timer(Timer),
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
   {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp}};
 
-ready({seek, Timestamp}, State) ->
-  ?D("Seek for flv not available"),
-  {next_state, ready, State};
-  
 ready({stop}, State) ->
   ?D("Player stopping"),
   {stop, normal, State};
 
-ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
+ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
 	case FileFormat:read_frame(State) of
 		{ok, done} ->
 		  ?D("Video file finished"),
-  		file:close(IoDev),
-  		{stop, normal, State};
+		  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
+  		{next_state, ready, State};
 		{ok, #video_frame{type = _Type} = Frame, Player} -> 
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
@@ -150,7 +146,7 @@ ready({timeout, _, play}, #video_player{device = IoDev, stream_id = StreamId, fo
 			{next_state, ready, NextState};
 		{error, _Reason} ->
 			?D({"Ems player stopping", _Reason}),
-			{stop, normal, State}
+			{stop, _Reason, State}
 	end.
 
 
@@ -223,7 +219,7 @@ handle_info(_Info, StateName, StateData) ->
   ?D({"Unknown info in player", _Info, StateName}),
   {noreply, StateName, StateData}.
 
-terminate(_Reason, _StateName, #video_player{device = IoDev} = State) ->
+terminate(_Reason, _StateName, #video_player{device = IoDev} = _State) ->
   ?D("Video player exit"),
   file:close(IoDev),
   ok.

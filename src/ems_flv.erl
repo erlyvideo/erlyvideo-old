@@ -36,7 +36,7 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
--export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1]).
+-export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, seek/2]).
 
 
 
@@ -53,6 +53,12 @@ init(#video_player{device = IoDev} = State) ->
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
+
+
+seek(#video_player{pos = Pos, ts_prev = OldTimestamp} = Player, Timestamp) ->
+  ?D("Seek for flv not available"),
+  {Pos, OldTimestamp}.
+
 
 
 % Reads a tag from IoDev for position Pos.
