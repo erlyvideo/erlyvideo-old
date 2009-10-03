@@ -58,7 +58,13 @@ behaviour_info(_Other) -> undefined.
 %% @end
 %%-------------------------------------------------------------------------
 connect(AMF, State) ->
-    ?D("invoke - connect"),   
+    ?D({"invoke - connect", AMF}),
+    case AMF#amf.args of
+      [_PlayerInfo, {string, Cookie}, _UserId] ->
+        Session = rtmp_session:decode(Cookie),
+        ?D({"Session:", Session});
+      _ -> ok
+    end,
     NewAMF = AMF#amf{
         command = '_result', 
         id = 1, %% muriel: dirty too, but the only way I can make this work

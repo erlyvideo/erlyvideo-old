@@ -46,7 +46,9 @@
 %% @end 
 %%--------------------------------------------------------------------
 
-start(_Type, _Args) -> ems_sup:start_link().
+start(_Type, _Args) -> 
+  application:start(crypto),
+  ems_sup:start_link().
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()
 %% @doc Stop ErlMedia Application

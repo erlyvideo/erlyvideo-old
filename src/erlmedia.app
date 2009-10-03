@@ -30,6 +30,7 @@
 	{file_dir, "/tmp"},
 	{host, "rtmp://localhost"},
 	{http_port, 8082},
+	{secret_key, "fddbb018f51cb867a2e6d10b9eea7bd5eaec2d9ee1b814856251776f08e8acdef49154b0317b432ff6dfbd7c7e0e74d5db53287cc991e8cf46da8d6a27fc5ae8"},
 	{netstream, "netstream@localhost"}	
 	]}
  ]
