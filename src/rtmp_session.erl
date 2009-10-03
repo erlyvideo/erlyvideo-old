@@ -1,6 +1,6 @@
 -module(rtmp_session).
 -author(max@maxidoors.ru).
--export([decode/1]).
+-export([decode/1, encode/1]).
 
 decode(Session) when is_binary(Session) ->
   decode(0, Session);
@@ -8,6 +8,11 @@ decode(Session) when is_binary(Session) ->
 decode(Session) when is_list(Session) ->
   decode(0, list_to_binary(Session)).
   
+encode(Session) when is_list(Session) ->
+  Json = iolist_to_binary(mochijson2:encode({struct, Session})),
+  Json64 = base64:encode(Json),
+  Sign = session_sign(Json64),
+  <<Json64/binary, "--", Sign/binary>>.
   
 binary_to_hexbin(L) ->
   list_to_binary(lists:flatten(lists:map(fun(X) -> int_to_hex(X) end, binary_to_list(L)))).

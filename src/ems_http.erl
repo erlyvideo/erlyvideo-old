@@ -23,7 +23,10 @@ handle('GET', [], Req) ->
     {"file", _File} -> _File;
     false -> "video.mp4"
   end,
-  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), [ems:get_var(host, "rtmp://localhost"), File]);
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), 
+    [ems:get_var(host, "rtmp://localhost"), 
+     File,
+     rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}])]);
 
 handle('GET', ["player.swf"], Req) ->
   io:format("GET /Player.swf~n"),
