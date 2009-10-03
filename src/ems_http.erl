@@ -16,17 +16,20 @@ handle_http(Req) ->
 
 
 handle('GET', [], Req) ->
-  {ok, Contents} = file:read_file("player/player.html"),
+  erlydtl:compile("player/player.html", index_template),
+  % {ok, Contents} = file:read_file("player/player.html"),
+  
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
   File = case lists:keyfind("file", 1, Query) of
     {"file", _File} -> _File;
     false -> "video.mp4"
   end,
-  Req:ok([{'Content-Type', "text/html; charset=utf8"}], binary_to_list(Contents), 
-    [ems:get_var(host, "rtmp://localhost"), 
-     File,
-     rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}])]);
+  {ok, Index} = index_template:render([
+    {hostname, ems:get_var(host, "rtmp://localhost")},
+    {url, File},
+    {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 handle('GET', ["player.swf"], Req) ->
   io:format("GET /Player.swf~n"),
