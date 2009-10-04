@@ -163,7 +163,7 @@ pauseRaw(AMF, State) -> pause(AMF, State).
 %% @end
 %%-------------------------------------------------------------------------
 seek(AMF, #ems_fsm{video_player = Player} = State) -> 
-  ?D("invoke - seek"),
+  ?D({"invoke - seek", AMF#amf.args}),
   [_, {number, Timestamp}] = AMF#amf.args,
   StreamId = 1,
   gen_fsm:send_event(Player, {seek, Timestamp}),

@@ -11,6 +11,7 @@ import flash.external.ExternalInterface;
 import flash.text.TextField;
 import mx.events.SliderEvent;
 import flash.media.Camera;
+import flash.media.Microphone;
 	
 private var _connection : NetConnection;
 private var _stream : NetStream;
@@ -21,6 +22,7 @@ private var _playing : Boolean = false;
 private var _pausing : Boolean = false;
 private var _recording : Boolean = false;
 private var _camera : Camera;
+private var _microphone : Microphone;
 private var _statusTimer : Timer;
 private var _totalTime : Number;
 
@@ -87,12 +89,17 @@ public function record() : void
       _camera.setMode(320,240,20, false);
       _camera.setQuality(0, 90);
     }
+    if (!_microphone) {
+      _microphone = Microphone.getMicrophone();
+      _microphone.setUseEchoSuppression(true);
+    }
     if (_camera) {
       stop();
       playButton.enabled = false;
       _stream.publish("stream.flv", "record");
       _video.attachCamera(_camera);
       _stream.attachCamera(_camera);
+      _stream.attachAudio(_microphone);
       recordButton.label = "Stop";
       _recording = true;
     }
@@ -118,7 +125,7 @@ public function pause() : void
 public function seek(event:SliderEvent) : void
 {
   progressBar.value = event.value;
-  if (_stream) {
+  if (_stream && Math.abs(_stream.time - event.value) >= 1) {
     _statusTimer.stop();
     _stream.seek(event.value);
   }
@@ -171,7 +178,7 @@ private function onStreamStatus( event : NetStatusEvent ) : void
   		break;
   		
   	case "NetStream.Seek.Notify":
-/*      _statusTimer.start();*/
+      _statusTimer.start();
       break;
   		
   	case "NetStream.Play.Complete":
@@ -206,6 +213,10 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
     recordButton.enabled = true;
     
     _connected = true;
+    
+    if (Application.application.parameters.autostart) {
+      play();
+    }
 		break;
 		
 	case "NetConnection.Message":

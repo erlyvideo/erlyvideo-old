@@ -265,7 +265,7 @@ init([]) ->
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
 	FileName = filename:join([ems_play:file_dir(), Name]),
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	case file:open(FileName, [write, append]) of
+	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, IoDev} ->
 			NextState = State#ems_fsm{video_buffer=[Header],type=record,video_device=IoDev,video_file_name=FileName,video_ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
