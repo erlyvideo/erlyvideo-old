@@ -80,13 +80,14 @@ public function record() : void
   } else {
     if (!_camera) {
       _camera = Camera.getCamera();
+      _camera.setMode(320,240,20, false);
+      _camera.setQuality(0, 90);
     }
     if (_camera) {
       stop();
       playButton.enabled = false;
       _stream.publish("stream.flv", "record");
       _video.attachCamera(_camera);
-/*      _camera.setMode(380,240,25);*/
       _stream.attachCamera(_camera);
       recordButton.label = "Stop";
       _recording = true;
@@ -165,7 +166,7 @@ private function onStreamStatus( event : NetStatusEvent ) : void
   		break;
   		
   	case "NetStream.Seek.Notify":
-  	  _statusTimer.start();
+/*      _statusTimer.start();*/
       break;
   		
   	case "NetStream.Play.Complete":
