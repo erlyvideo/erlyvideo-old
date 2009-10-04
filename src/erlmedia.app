@@ -16,10 +16,12 @@
 				ems_sup,
 				gen_rtmp,
 				gen_server_cluster,
+				mochijson2,
 				hmac256,
 				mp4,
-				rtmp_handshake,
 				rtmp_client,
+				rtmp_handshake,
+				rtmp_session,
 				sha2
   				]},
   {registered,   []},
