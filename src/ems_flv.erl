@@ -35,94 +35,107 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
+-include("../include/flv.hrl").
 
--export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, seek/2]).
+-export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, read_frame_list/2, video_frame/2]).
 
 
 
 %%--------------------------------------------------------------------
 %% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}
-%% @doc Starts ErlMedia
+%% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(#video_player{device = IoDev} = State) -> 
+init(#video_player{device = IoDev} = Player) -> 
   case file:read(IoDev, ?FLV_HEADER_LENGTH) of
     {ok, Data} -> 
-      {ok, State#video_player{pos = iolist_size(Data), header = header(Data)}};
+      read_frame_list(Player#video_player{
+        pos = iolist_size(Data),
+        frames = ets:new(frames, [ordered_set, public, {keypos, 2}]),
+        header = header(Data)}, 0);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
 
+read_frame_list(#video_player{frames = FrameTable} = Player, FrameCount) when FrameCount == 10 ->
+  spawn_link(?MODULE, read_frame_list, [Player, FrameCount + 1]),
+  {ok, Player#video_player{pos = undefined}};
+  
 
-seek(#video_player{pos = Pos, ts_prev = OldTimestamp} = Player, Timestamp) ->
-  ?D("Seek for flv not available"),
-  {Pos, OldTimestamp}.
-
+read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = Player, FrameCount) ->
+  % We need to bypass PreviousTagSize and read header.
+	case file:pread(IoDev,Pos + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
+		{ok, IoList} ->
+		  <<Type, Length:24/big, TimeStamp:24/big, TimeStampExt, _StreamId:24/big>> = iolist_to_binary(IoList),
+		  <<TimeStampAbs:32/big>> = <<TimeStampExt, TimeStamp:24/big>>,
+		  
+		  PreparedFrame = #file_frame{
+		    timestamp = TimeStampAbs, 
+		    offset = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 
+		    size = Length,
+		    type = Type
+		  },
+		  
+			Frame = case Type of
+			  ?FLV_TAG_TYPE_VIDEO ->
+				  {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(IoDev, Pos),
+				  KeyFrame = case FrameType of
+				    1 -> true;
+				    _ -> false
+			    end,
+			    PreparedFrame#file_frame{
+			      id = TimeStampAbs*3 + 1,
+    		    keyframe = KeyFrame
+			    };
+        ?FLV_TAG_TYPE_AUDIO -> 
+          % {SoundType, SoundSize, SoundRate, SoundFormat} =  extractAudioHeader(IoDev, Pos),
+          PreparedFrame#file_frame{
+            id = TimeStampAbs*3 + 2
+          };
+			  ?FLV_TAG_TYPE_META ->
+			    PreparedFrame#file_frame{
+			      id = TimeStampAbs*3
+			    }
+			end,
+			
+			ets:insert(FrameTable, Frame),
+			read_frame_list(Player#video_player{pos = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length}, FrameCount + 1);
+    eof -> 
+      {ok, Player#video_player{pos = undefined}};
+    {error, Reason} -> 
+      {error, Reason}
+  end.
+  
 
 
 % Reads a tag from IoDev for position Pos.
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_frame(#video_player{device = IoDev, pos = Pos} = State) ->
-	case file:pread(IoDev,Pos, ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH) of
-		{ok, IoList} ->
-			case iolist_to_binary(IoList) of
-			  <<PrevTagSize:32/integer, Type:8, BodyLength:24/big, TimeStamp:24/big, TimeStampExt:8, StreamId:24/big>> ->				
-					case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, BodyLength) of
-						{ok,IoList2} -> 
-						    <<TimeStampAbs:32/big>> = <<TimeStampExt:8, TimeStamp:24/big>>,
-						    Body = iolist_to_binary(IoList2),
-					    	TagData = #video_frame{       
-					    	  prev_tag_size = PrevTagSize,
-				         	type          = Type,
-						 			timestamp_abs = TimeStampAbs,
-						 			streamid      = StreamId,
-						 			pos           = Pos,
-						   		nextpos       = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + size(Body),
-						 			body          = Body
-								},
-							case Type of
-								
-								 ?FLV_TAG_TYPE_AUDIO -> 
-								  {SoundType, SoundSize, SoundRate, SoundFormat} =  extractAudioHeader(IoDev, Pos),
-								 	{ok, TagData#video_frame{
-										  sound_type	= SoundType,
-										  sound_size	= SoundSize,
-										  sound_rate	= SoundRate,
-										  sound_format	= SoundFormat
-										  }, State};
-								 ?FLV_TAG_TYPE_VIDEO -> 
-								  {FrameType, CodecID, Width, Height} = extractVideoHeader(IoDev, Pos),
-								 	{ok, TagData#video_frame{
-										  frame_type	= FrameType,
-										  codec_id	= CodecID,
-										  width		= Width,
-										  height	= Height
-										  }, State};
-								?FLV_TAG_TYPE_META -> 
-                  % AmfData = ems_amf:decode(iolist_to_binary(IoList2)),
-                  AmfData = [],
-								  {ok, TagData#video_frame{
-										   amf_data      = AmfData
-										   }, State}
-								end;
-	
-						eof -> 
-							{ok, done, State};
-						{error, Reason} -> 
-							{error, Reason}
-					end;
-				%where has the error handling gone :)?
-				_ ->
-					{ok, done}
-			end;		
-        eof -> 
-			{error, unexpected_eof};
-        {error, Reason} -> 
-			{error, Reason}
-	end.
+read_frame(#video_player{pos = undefined, frames = FrameTable} = Player) ->
+  read_frame(Player#video_player{pos = ets:first(FrameTable)});
+  
+read_frame(#video_player{pos = '$end_of_table'}) ->
+  {ok, done};
+  
+read_frame(#video_player{device = IoDev, pos = Key, frames = FrameTable} = Player) ->
+  [Frame] = ets:lookup(FrameTable, Key),
+  #file_frame{type = Type, offset = Offset, size = Size, timestamp = Timestamp} = Frame,
+	case file:pread(IoDev, Offset, Size) of
+		{ok, Data} ->
+		  VideoFrame = video_frame(Frame, iolist_to_binary(Data)),
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
+    eof ->
+      {ok, done};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+  
+video_frame(Frame, Data) ->
+  #file_frame{type = Type, timestamp = Timestamp} = Frame,
+  #video_frame{type = Type, raw_body = true, body = Data, timestamp_abs = Timestamp}.
+
 	
 % Extracts width and height from video frames.
 % TODO: add to video_frame, not done yet
@@ -260,15 +273,8 @@ encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
 	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_NALU:8/integer, CompositionTime:24/big-integer, Body/binary>>;
 
 
-encode(#video_frame{timestamp_abs = TimeStampAbs, 
-                    prev_tag_size = PrevTagSize,
-                    type = Type,
-                    streamid = StreamId,
-                    body = Body}) when is_binary(Body) ->
-	<<PrevTagSize:32/big, Type:8, (size(Body)):24/big, TimeStampAbs:32/big, StreamId:24, Body/binary>>;
-	
-encode(_) ->
-  ?D("Request to encode undefined").
+encode(_Frame) ->
+  ?D({"Request to encode undefined", _Frame}).
 	
 
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 

@@ -135,12 +135,6 @@
 -define(AMF_COMMAND_ONMETADATA, "onMetaData").
 -define(AMF_COMMAND_ONCUEPOINT, "onCuePoint").
 
-%% FLV header
--define(FLV_HEADER_LENGTH,          9).
--define(FLV_HEAD_SIG,    <<70,76,86>>).
--define(FLV_HEAD_OFFSET,  <<0,0,0,9>>).
--define(FLV_PREV_TAG_SIZE_LENGTH,   4).
--define(FLV_TAG_HEADER_LENGTH,     11).
 
 %% FLV tag
 -define(FLV_TAG_TYPE_AUDIO, 8).
@@ -308,6 +302,15 @@
 }).
 
 
+-record(file_frame, {
+  id,
+  timestamp,
+  type,
+  offset,
+  size,
+  keyframe
+}).
+
 -record(flv_header,{
 	version = 1,
 	audio = 0,
@@ -317,7 +320,6 @@
 -record(video_frame,{
   decoder_config = false,
   raw_body       = true,
-	prev_tag_size  = undefined,
 	type           = undefined,
 	timestamp      = undefined,
 	timestamp_ext  = undefined,
