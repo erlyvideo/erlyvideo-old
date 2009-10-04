@@ -37,7 +37,7 @@
 -include("../include/ems.hrl").
 -include("../include/flv.hrl").
 
--export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, read_frame_list/2]).
+-export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, read_frame_list/2, video_frame/2]).
 
 
 
@@ -85,17 +85,17 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
 				    _ -> false
 			    end,
 			    PreparedFrame#file_frame{
-			      id = TimeStampAbs*3,
+			      id = TimeStampAbs*3 + 1,
     		    keyframe = KeyFrame
 			    };
         ?FLV_TAG_TYPE_AUDIO -> 
           % {SoundType, SoundSize, SoundRate, SoundFormat} =  extractAudioHeader(IoDev, Pos),
           PreparedFrame#file_frame{
-            id = TimeStampAbs*3 + 1
+            id = TimeStampAbs*3 + 2
           };
 			  ?FLV_TAG_TYPE_META ->
 			    PreparedFrame#file_frame{
-			      id = TimeStampAbs*3 + 2
+			      id = TimeStampAbs*3
 			    }
 			end,
 			
@@ -116,18 +116,26 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
 read_frame(#video_player{pos = undefined, frames = FrameTable} = Player) ->
   read_frame(Player#video_player{pos = ets:first(FrameTable)});
   
+read_frame(#video_player{pos = '$end_of_table'}) ->
+  {ok, done};
+  
 read_frame(#video_player{device = IoDev, pos = Key, frames = FrameTable} = Player) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{type = Type, offset = Offset, size = Size, timestamp = Timestamp} = Frame,
 	case file:pread(IoDev, Offset, Size) of
 		{ok, Data} ->
-      {ok, #video_frame{type = Type, raw_body = true, body = iolist_to_binary(Data), timestamp_abs = Timestamp, nextpos = ets:next(FrameTable, Key)}, Player};
+		  VideoFrame = video_frame(Frame, iolist_to_binary(Data)),
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
     eof ->
       {ok, done};
     {error, Reason} ->
       {error, Reason}
   end.
   
+video_frame(Frame, Data) ->
+  #file_frame{type = Type, timestamp = Timestamp} = Frame,
+  #video_frame{type = Type, raw_body = true, body = Data, timestamp_abs = Timestamp}.
+
 	
 % Extracts width and height from video frames.
 % TODO: add to video_frame, not done yet

@@ -114,7 +114,7 @@ read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Playe
   #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
 		{ok, Data} ->
-		  VideoFrame = video_frame(Frame, Data),
+		  VideoFrame = video_frame(Frame, iolist_to_binary(Data)),
       {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
     eof ->
       {ok, done};
@@ -476,8 +476,8 @@ calculate_samples_in_chunk(SampleOffset, SamplesInChunk,
   {Dts, FrameReader1} = next_duration(FrameReader),
   TimestampMS = round(Dts * 1000 / Timescale),
   {FrameType, Id} = case DataFormat of
-    avc1 -> {video, TimestampMS*3};
-    mp4a -> {audio, TimestampMS*3 + 1}
+    avc1 -> {video, TimestampMS*3 + 1 + 3};
+    mp4a -> {audio, TimestampMS*3 + 2 + 3}
   end,
   Frame = #file_frame{id = Id, timestamp = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes)},
   % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
