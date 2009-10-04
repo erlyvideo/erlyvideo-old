@@ -80,7 +80,7 @@ decoder_config(Format, #video_player{header = Mp4Parser}) ->
   end.
   
 seek(#video_player{frames = FrameTable} = Player, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp < Timestamp ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp < Timestamp ->
     {Id, FrameTimestamp}
   end)),
   [Item | _] = lists:reverse(Ids),
@@ -119,7 +119,7 @@ read_frame(#video_player{pos = '$end_of_table'}) ->
 
 read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Player) ->
   [Frame] = ets:lookup(FrameTable, Key),
-  #mp4_frame{offset = Offset, size = Size} = Frame,
+  #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
 		{ok, Data} ->
 		  VideoFrame = video_frame(Frame, Data),
@@ -132,7 +132,7 @@ read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Playe
       
   
 
-video_frame(#mp4_frame{type = avc1, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
+video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = Timestamp,
@@ -145,7 +145,7 @@ video_frame(#mp4_frame{type = avc1, timestamp = Timestamp, keyframe = Keyframe},
 	  raw_body      = false
   };  
 
-video_frame(#mp4_frame{type = mp4a, timestamp = Timestamp}, Data) ->
+video_frame(#file_frame{type = audio, timestamp = Timestamp}, Data) ->
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
   	timestamp_abs = Timestamp,
@@ -483,11 +483,11 @@ calculate_samples_in_chunk(SampleOffset, SamplesInChunk,
   % add dts field
   {Dts, FrameReader1} = next_duration(FrameReader),
   TimestampMS = round(Dts * 1000 / Timescale),
-  Id = case DataFormat of
-    avc1 -> TimestampMS*2;
-    mp4a -> TimestampMS*2 + 1
+  {FrameType, Id} = case DataFormat of
+    avc1 -> {video, TimestampMS*3};
+    mp4a -> {audio, TimestampMS*3 + 1}
   end,
-  Frame = #mp4_frame{id = Id, timestamp = TimestampMS, type = DataFormat, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes)},
+  Frame = #file_frame{id = Id, timestamp = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes)},
   % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
   FrameReader2 = FrameReader1#mp4_frames{frames = [Frame | Frames], sample_sizes = SampleSizes, index = Index + 1},
   calculate_samples_in_chunk(SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2).

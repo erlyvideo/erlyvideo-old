@@ -30,11 +30,3 @@
 
 }).
 
--record(mp4_frame, {
-  id,
-  timestamp,
-  type,
-  offset,
-  size,
-  keyframe
-}).
