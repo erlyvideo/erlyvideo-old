@@ -37,7 +37,7 @@
 -include("../include/ems.hrl").
 -include("../include/flv.hrl").
 
--export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1]).
+-export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, read_frame_list/2]).
 
 
 
@@ -49,17 +49,21 @@
 init(#video_player{device = IoDev} = Player) -> 
   case file:read(IoDev, ?FLV_HEADER_LENGTH) of
     {ok, Data} -> 
-      ?D("Going to build FLV frame list"),
       read_frame_list(Player#video_player{
         pos = iolist_size(Data),
-        frames = ets:new(frames, [ordered_set, private, {keypos, 2}]),
-        header = header(Data)});
+        frames = ets:new(frames, [ordered_set, public, {keypos, 2}]),
+        header = header(Data)}, 0);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
 
-read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = Player) ->
+read_frame_list(#video_player{frames = FrameTable} = Player, FrameCount) when FrameCount == 10 ->
+  spawn_link(?MODULE, read_frame_list, [Player, FrameCount + 1]),
+  {ok, Player#video_player{pos = undefined}};
+  
+
+read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = Player, FrameCount) ->
   % We need to bypass PreviousTagSize and read header.
 	case file:pread(IoDev,Pos + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
 		{ok, IoList} ->
@@ -96,9 +100,8 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
 			end,
 			
 			ets:insert(FrameTable, Frame),
-			read_frame_list(Player#video_player{pos = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length});
+			read_frame_list(Player#video_player{pos = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length}, FrameCount + 1);
     eof -> 
-      ?D({"Read frames", ets:info(FrameTable)}),
       {ok, Player#video_player{pos = undefined}};
     {error, Reason} -> 
       {error, Reason}
