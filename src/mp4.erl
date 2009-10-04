@@ -36,9 +36,8 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 -include("../include/mp4.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 
--export([init/1, read_frame/1, metadata/1, seek/2]).
+-export([init/1, read_frame/1, metadata/1]).
 
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
@@ -78,13 +77,6 @@ decoder_config(Format, #video_player{header = Mp4Parser}) ->
     Track ->
       Track#mp4_track.decoder_config
   end.
-  
-seek(#video_player{frames = FrameTable} = Player, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp < Timestamp ->
-    {Id, FrameTimestamp}
-  end)),
-  [Item | _] = lists:reverse(Ids),
-  Item.
   
 read_frame(#video_player{sent_video_config = false, frames = FrameTable} = Player) ->
   Config = decoder_config(avc1, Player),

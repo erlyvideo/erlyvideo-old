@@ -38,6 +38,7 @@
 -author('max@maxidoors.ru').
 
 -include("../include/ems.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 
 -export([play/3, file_dir/0, channel_id/2, normalize_filename/1]).
 
@@ -119,7 +120,7 @@ ready({resume}, State) ->
   {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
 
 ready({seek, Timestamp}, #video_player{format = FileFormat, timer_ref = Timer} = State) ->
-  {Pos, NewTimestamp} = FileFormat:seek(State, Timestamp),
+  {Pos, NewTimestamp} = seek(State, Timestamp),
   gen_fsm:cancel_timer(Timer),
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
   {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp}};
@@ -148,6 +149,14 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileForma
 			?D({"Ems player stopping", _Reason}),
 			{stop, _Reason, State}
 	end.
+
+seek(#video_player{frames = FrameTable} = Player, Timestamp) ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp < Timestamp ->
+    {Id, FrameTimestamp}
+  end)),
+  [Item | _] = lists:reverse(Ids),
+  Item.
+
 
 
 %%-------------------------------------------------------------------------

@@ -314,14 +314,12 @@
 -record(flv_header,{
 	version = 1,
 	audio = 0,
-	video = 0,
-	frame_table
+	video = 0
 	}).
 		
 -record(video_frame,{
   decoder_config = false,
   raw_body       = true,
-	prev_tag_size  = undefined,
 	type           = undefined,
 	timestamp      = undefined,
 	timestamp_ext  = undefined,
