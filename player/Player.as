@@ -4,6 +4,7 @@ import flash.events.NetStatusEvent;
 import flash.events.SecurityErrorEvent;
 import flash.events.AsyncErrorEvent;
 import flash.media.Video;
+import flash.media.SoundTransform;
 import flash.net.NetStream;
 import flash.net.ObjectEncoding;
 import flash.external.ExternalInterface;
@@ -14,6 +15,7 @@ import flash.media.Camera;
 private var _connection : NetConnection;
 private var _stream : NetStream;
 private var _video : Video;
+private var _sound : SoundTransform;
 private var _connected : Boolean = false;
 private var _playing : Boolean = false;
 private var _pausing : Boolean = false;
@@ -36,6 +38,8 @@ public function init()  : void
 	video.smoothing = true;
 	video_container.addChild(video);
 	_video = video;
+	
+	_sound = new SoundTransform();
 	
 	if (Application.application.parameters.file) {
   	player_url.text = Application.application.parameters.file;
@@ -132,9 +136,10 @@ public function stop() : void
   }
   _video.clear();
 }
-public function set_volume(volume : Object) : void
+public function setVolume(volume : Number) : void
 {
-  
+  _sound.volume = volume;
+  _stream.soundTransform = _sound;
 }
 
 private function connect() : void
@@ -193,6 +198,9 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
   	listener.onMetaData = onMetaData;
   	_stream.client = listener;
   	_video.attachNetStream(_stream);
+
+    _sound.volume = volSlider.value;
+  	_stream.soundTransform = _sound;
   	
     playButton.enabled = true;
     recordButton.enabled = true;
