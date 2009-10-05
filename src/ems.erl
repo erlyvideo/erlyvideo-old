@@ -58,7 +58,8 @@ start() ->
 %%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
-	application:stop(?APPLICATION).
+	application:stop(?APPLICATION),
+	application:unload(?APPLICATION).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -87,6 +88,7 @@ rebuild() ->
 %% @end
 %%--------------------------------------------------------------------
 reload() ->
+	application:load(?APPLICATION),
 	case application:get_key(?APPLICATION,modules) of
 		undefined    -> 
 			application:load(?APPLICATION),
