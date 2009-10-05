@@ -76,6 +76,10 @@ decoder_config(Format, #video_player{header = Mp4Parser}) ->
     Track ->
       Track#mp4_track.decoder_config
   end.
+
+read_frame(#video_player{pos = '$end_of_table'}) ->
+  {ok, done};
+
   
 read_frame(#video_player{sent_video_config = false, frames = FrameTable} = Player) ->
   Config = decoder_config(avc1, Player),
@@ -104,9 +108,6 @@ read_frame(#video_player{sent_audio_config = false, frames = FrameTable} = Playe
 	  raw_body      = false,
 	  nextpos       = ets:first(FrameTable)
 	}, Player#video_player{sent_audio_config = true}};
-
-read_frame(#video_player{pos = '$end_of_table'}) ->
-  {ok, done};
 
 read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Player) ->
   [Frame] = ets:lookup(FrameTable, Key),
