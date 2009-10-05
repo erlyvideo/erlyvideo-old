@@ -1,11 +1,8 @@
--module(ems_fsm).
+-module(mpeg_ts).
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
--behaviour(gen_fsm).
 
 -export([play/2]).
--behaviour(gen_fsm).
-
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
@@ -13,17 +10,20 @@
 %% FSM States
 -export([ready/2]).
 
-play(URL, StreamId) ->
+
+-behaviour(gen_fsm).
+
+play(URL, _StreamId) ->
   gen_fsm:start_link(?MODULE, [URL], []).
   
   
 -record(mpeg_ts_player, {
-
+  url
 }).
   
 init(URL) ->
   % Make HTTP request here.
-  {ok, ready, #mpeg_ts_player{}}.
+  {ok, ready, #mpeg_ts_player{url = URL}}.
   
 ready({start}, State) ->
   {next_state, ready, State};
@@ -34,8 +34,8 @@ ready({pause}, State) ->
 ready({resume}, State) ->
   {next_state, ready, State};
 
-ready({seek, Timestamp}, State) ->
-  {next_state, ready, State};
+ready({seek, _Timestamp}, State) ->
+  {next_state, ready, State}.
 
 
 

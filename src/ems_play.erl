@@ -204,6 +204,7 @@ normalize_filename(Name) ->
         ".FLV" -> Name;
         ".mp4" -> Name;
         ".MP4" -> Name;
+        ".mov" -> Name;
         _      -> Name ++ ".flv"
     end.
  
@@ -212,7 +213,8 @@ file_format(Name) ->
       ".flv" -> ems_flv;
       ".FLV" -> ems_flv;
       ".mp4" -> mp4;
-      ".MP4" -> mp4
+      ".MP4" -> mp4;
+      ".mov" -> mp4
   end.
   
 handle_event(Event, StateName, StateData) ->
