@@ -48,7 +48,6 @@
 
 
 play(Name, StreamId, _) ->
-  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
   %   case filelib:is_regular(FileName) of
   %     true ->
   %     _ ->
@@ -57,28 +56,34 @@ play(Name, StreamId, _) ->
   %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   %     % end
   % end;
+  init_file(Name, StreamId).
+  
+  
+init_file(Name, StreamId) ->
+  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
   case filelib:is_regular(FileName) of
-    true ->
-      init_file(FileName, StreamId);
-    _ ->
-      case ems:get_var(netstream, undefined) of
-        undefined -> {notfound};
-        _ -> init_stream(Name, StreamId)
-      end
-  end.    
+    true -> gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []);
+    _ -> init_mpeg_ts(FileName, StreamId)
+  end.
   
-  
-init_file(FileName, StreamId) ->
-  gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
+init_mpeg_ts(FileName, StreamId) ->
+  {ok, Re} = re:compile("http://(.*).ts"),
+  case re:run(FileName, Re) of
+    {match, _Captured} -> mpeg_ts:play(FileName);
+    _ -> init_stream(FileName, StreamId)
+  end.
 
 init_stream(Name, _StreamId) ->
-  case rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT) of
-    {ok, NetStream} ->
-      link(NetStream),
-      ?D({"Netstream created", NetStream}),
-      {ok, NetStream};
-    _ ->
-      {notfound}
+  case ems:get_var(netstream, undefined) of
+    undefined -> {notfound};
+    _ -> case rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT) of
+      {ok, NetStream} ->
+        link(NetStream),
+        ?D({"Netstream created", NetStream}),
+        {ok, NetStream};
+      _ ->
+        {notfound}
+      end
   end.
 
   
