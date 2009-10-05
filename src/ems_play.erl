@@ -76,7 +76,7 @@ init_mpeg_ts(FileName, StreamId) ->
 init_stream(Name, _StreamId) ->
   case ems:get_var(netstream, undefined) of
     undefined -> {notfound};
-    _ -> case rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT) of
+    NetStreamNode -> case rpc:call(NetStreamNode, rtmp, start, [Name], ?TIMEOUT) of
       {ok, NetStream} ->
         link(NetStream),
         ?D({"Netstream created", NetStream}),

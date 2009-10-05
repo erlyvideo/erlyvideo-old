@@ -399,7 +399,7 @@ handle_info({tcp_closed, Socket}, _StateName,
     {stop, normal, StateData};
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
-  ?D({"Player died", _Reason}),
+  ?D({"Player died", PlayerPid, _Reason}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
   {next_state, StateName, StateData, ?TIMEOUT};
 

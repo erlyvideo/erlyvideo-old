@@ -38,7 +38,7 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, config_change/3]).
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
@@ -55,3 +55,13 @@ start(_Type, _Args) ->
 %% @end 
 %%--------------------------------------------------------------------
 stop(_S) -> ok.
+
+
+%%--------------------------------------------------------------------
+%% @spec (Any::any()) -> any()
+%% @doc Reload ErlMedia Application config
+%% @end 
+%%--------------------------------------------------------------------
+config_change(Changed, New, Remove) ->
+  ?D({"Changes", Changed, New, Remove}),
+  ok.
