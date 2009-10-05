@@ -72,7 +72,7 @@ init_file(FileName, StreamId) ->
   gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
 
 init_stream(Name, _StreamId) ->
-  case rpc:call('netstream@lmax.local', rtmp, start, [Name], ?TIMEOUT) of
+  case rpc:call(ems:get_var(netstream), rtmp, start, [Name], ?TIMEOUT) of
     {ok, NetStream} ->
       link(NetStream),
       ?D({"Netstream created", NetStream}),
