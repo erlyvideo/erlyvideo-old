@@ -188,6 +188,13 @@ init([]) ->
 
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0}, State);
 
+'WAIT_FOR_DATA'({video, Data}, State) ->
+  Channel = #channel{id=5,timestamp=0, length=size(Data),type = ?RTMP_TYPE_VIDEO,stream=1},
+  'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
+
+'WAIT_FOR_DATA'({audio, Data}, State) ->
+  Channel = #channel{id=4,timestamp=0, length=size(Data),type = ?RTMP_TYPE_AUDIO,stream=1},
+  'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = Stream}, AMF}}),
@@ -406,6 +413,14 @@ handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = Pla
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   ?D({"Died child", Pid, _Reason}),
   {next_state, StateName, StateData, ?TIMEOUT};
+
+handle_info({video, Data}, StateName, State) ->
+  gen_fsm:send_event(self(), {video, Data}),
+  {next_state, StateName, State, ?TIMEOUT};
+
+handle_info({audio, Data}, StateName, State) ->
+  gen_fsm:send_event(self(), {audio, Data}),
+  {next_state, StateName, State, ?TIMEOUT};
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
