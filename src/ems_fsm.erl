@@ -56,9 +56,6 @@
   'WAIT_FOR_DATA'/3]).
 
 
-%% rsacon: TODOD move this to ems.hrl ist her only for testing purpose
-%% or make it an application confiuration environment variable
--define(VIDEO_WRITE_BUFFER, 20000). 
 
 
 %%%------------------------------------------------------------------------
@@ -173,144 +170,10 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
-
-'WAIT_FOR_DATA'({video, Data}, State) ->
-  Channel = #channel{id=5,timestamp=0, length=size(Data),type = ?RTMP_TYPE_VIDEO,stream=1},
-  'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
-
-'WAIT_FOR_DATA'({audio, Data}, State) ->
-  Channel = #channel{id=4,timestamp=0, length=size(Data),type = ?RTMP_TYPE_AUDIO,stream=1},
-  'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
-
-
-'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
-  gen_fsm:send_event(self(), {send, {
-    #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA, stream = Stream}, 
-    <<(ems_amf:encode(Command))/binary, (ems_amf:encode_mixed_array(AMF))/binary>>}}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({metadata, Command, AMF}, State) -> 'WAIT_FOR_DATA'({metadata, Command, AMF, 0}, State);
-
-
-'WAIT_FOR_DATA'({message, Message}, State) ->
-  NewAMF = #amf{
-      command = 'onStatus',
-      id = 0, %% muriel: dirty too, but the only way I can make this work
-      type = invoke,
-      args= [null,
-          [{level, "status"}, 
-          {code, "NetConnection.Message"}, 
-          {description, Message}]]},
-  gen_fsm:send_event(self(), {invoke, NewAMF}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-
-'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-  case ems_play:play(Name, StreamId, State#ems_fsm{type = vod}) of
-    {ok, PlayerPid} ->
-      NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
-      gen_fsm:send_event(PlayerPid, {start}),
-      {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-    {notfound} ->
-      gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
-      {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-    Reason -> 
-      ?D({"Failed to start video player", Reason}),
-      {error, Reason}
-  end;
-
 'WAIT_FOR_DATA'({exit}, State) ->
   {stop, normal, State};
 
-'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = _Type} = State) ->
-	case Buffer of
-		undefined -> ok;
-		_ -> file:write(IoDev, lists:reverse(Buffer))
-	end,
-  case IoDev of
-      undefined -> ok;
-      _ -> file:close(IoDev)
-  end,
-  case TimerRef of
-      undefined -> ok;
-      _ -> gen_fsm:cancel_timer(TimerRef)
-  end,
-  case type of
-      live -> 
-          ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
-      wait -> 
-          ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
-      broadcast ->
-          emscluster:stop_broadcast(State#ems_fsm.video_file_name);
-      _ -> 
-          ok
-  end,
-	NextState = State#ems_fsm{video_device=undefined,video_buffer=[],
-							  video_timer_ref=undefined,video_pos = 0},
-  {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
-	FileName = filename:join([ems_play:file_dir(), Name]),
-	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
-		{ok, IoDev} ->
-			NextState = State#ems_fsm{video_buffer=[Header],type=record,video_device=IoDev,video_file_name=FileName,video_ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-		_ ->
-			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
-	end;
-
-%% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	
-'WAIT_FOR_DATA'({publish, append, Name}, State) when is_list(Name) ->
-	FileName = filename:join([ems_play:file_dir(), Name]),
-	case file:open(FileName, [write, append]) of
-		{ok, IoDev} ->
-			NextState = State#ems_fsm{type=record_append,video_device=IoDev,video_file_name=FileName,video_ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-	    _ ->
-    		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
-    end;	
-    
-'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->        
-    ems_cluster:broadcast(Name),
-    %% hack - empty audio
-    StreamId=1,
-    Id=ems_play:channel_id(?RTMP_TYPE_AUDIO, StreamId),
-    TimeStamp=0,
-    Length=0,
-    Type=?RTMP_TYPE_AUDIO,
-    Rest = <<>>,
-    FirstPacket = <<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,    
-    ems_cluster:broadcast(Name, FirstPacket),
-    %% hack end
-    NextState = State#ems_fsm{type=broadcast,video_file_name=Name, video_ts_prev = 0},
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{type = broadcast, 
-                                            video_ts_prev = PrevTs,
-                                            video_file_name = Name} = State) when is_record(Channel,channel) ->
-	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
-%	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-	Packet = ems_rtmp:encode(Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
-    ems_cluster:broadcast(Name, Packet),
-    NextState = State#ems_fsm{video_ts_prev=NextTimeStamp},
-    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
-    	
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_ts_prev = PrevTs, 
-                                            video_device = IoDev, 
-                                            video_buffer = Buffer} = State) when is_record(Channel,channel) ->
-	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
-	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
-	FlvChunk = [Tag | Buffer],	
-	Size = size(list_to_binary(FlvChunk)),
-	NextState = if
-		(Size > ?VIDEO_WRITE_BUFFER) ->
-			file:write(IoDev, lists:reverse(Buffer)),
-			State#ems_fsm{video_buffer=[Tag],video_ts_prev=NextTimeStamp};
-		true ->
-			State#ems_fsm{video_buffer=FlvChunk,video_ts_prev=NextTimeStamp}
-	end,
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
 
 'WAIT_FOR_DATA'(timeout, State) ->
     error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
