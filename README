@@ -20,3 +20,18 @@ What you can do right now?
 
   * use it for streaming flv and mp4 files
   * use it like juggernaut
+
+How to launch:
+
+  * git clone git://github.com/maxlapshin/erlyvideo.git
+  * cd erlyvideo
+  * cp src/erlmedia.app ebin/erlmedia.app
+  * mate ebin/erlmedia.app
+  * change /tmp to /Users/username/Movies
+  * make
+  * make run
+  * open http://localhost:8082
+  * click on any flv/mp4 file and then press Play
+  * change any erlang code
+  * type ems:rebuild() in console
+  * profit!
