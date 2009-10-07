@@ -145,7 +145,7 @@ respond_to(Module, Command, Arity) ->
   case code:ensure_loaded(Module) of
 		{module, Module} -> 
 		  lists:member({Command, Arity}, Module:module_info(exports));
-		error -> false
+		_ -> false
 	end.
   
 

@@ -35,3 +35,14 @@ How to launch:
   * change any erlang code
   * type ems:rebuild() in console
   * profit!
+
+How to hack and add features:
+
+  * read doc/hacking.edoc
+  * add plugin
+
+Plugin structure:
+
+  * Look at src/apps_streaming.erl
+  * You should define and export functions, that will be available to flash. Format is  FunctionName(AMF, State). Reply is State.
+  * To handle events to client runloop, add 'WAIT_FOR_DATA'(Message, State) function, which should respond in the same way as OTP handler.

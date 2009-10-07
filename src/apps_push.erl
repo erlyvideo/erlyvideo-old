@@ -1,5 +1,6 @@
 -module(apps_push).
 -author('max@maxidoors.ru').
+-include("../include/ems.hrl").
 
 -export(['WAIT_FOR_DATA'/2]).
 
