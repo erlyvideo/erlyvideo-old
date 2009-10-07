@@ -106,7 +106,7 @@ ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) 
     _ -> ok
   end,
 	Timer = gen_fsm:start_timer(1, play),
-	NextState = State#video_player{timer_ref  = Timer},
+	NextState = State#video_player{timer_ref  = Timer, prepush = ?PREPUSH},
 	?D({"Player starting with pid", self()}),
   {next_state, ready, NextState};
   
@@ -123,7 +123,7 @@ ready({seek, Timestamp}, #video_player{format = FileFormat, timer_ref = Timer} =
   {Pos, NewTimestamp} = seek(State, Timestamp),
   gen_fsm:cancel_timer(Timer),
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
-  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp}};
+  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp, prepush = ?PREPUSH}};
 
 ready({stop}, State) ->
   ?D("Player stopping"),
@@ -138,9 +138,9 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileForma
 		{ok, #video_frame{type = _Type} = Frame, Player} -> 
 			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
 			send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-			Timeout = timeout(Frame, Player),
+			{Timeout, Player1} = timeout(Frame, Player),
       % ?D({"Frame", Frame#video_frame.timestamp_abs, Player#video_player.timer_start, TimeStamp, Timeout}),
-			NextState = Player#video_player{
+			NextState = Player1#video_player{
 			                  timer_ref = gen_fsm:start_timer(Timeout, play),
 											  ts_prev = Frame#video_frame.timestamp_abs,
 											  pos = Frame#video_frame.nextpos},
@@ -151,7 +151,7 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileForma
 	end.
 
 seek(#video_player{frames = FrameTable} = Player, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp < Timestamp ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp =< Timestamp ->
     {Id, FrameTimestamp}
   end)),
   [Item | _] = lists:reverse(Ids),
@@ -242,15 +242,17 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %% @end
 %%-------------------------------------------------------------------------	
 
-timeout(#video_frame{timestamp_abs = AbsTime}, #video_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom}) ->
+timeout(#video_frame{timestamp_abs = AbsTime}, #video_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
   SeekTime = AbsTime - PlayingFrom,
-    Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
-    % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
-    if 
-		(Timeout > 0) -> 
-            Timeout; 
-        true -> 
-            0 
-    end.
+  Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
+  % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
+  if
+  (Prepush > SeekTime) ->
+    {0, Player#video_player{prepush = Prepush - SeekTime}};
+	(Timeout > 0) -> 
+    {Timeout, Player}; 
+  true -> 
+    {0, Player}
+  end.
 
  
