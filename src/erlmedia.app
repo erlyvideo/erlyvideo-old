@@ -19,6 +19,7 @@
 				mochijson2,
 				hmac256,
 				mp4,
+				mpeg_ts,
 				rtmp_client,
 				rtmp_handshake,
 				rtmp_session,

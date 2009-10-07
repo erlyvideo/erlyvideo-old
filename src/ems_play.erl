@@ -48,7 +48,6 @@
 
 
 play(Name, StreamId, _) ->
-  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
   %   case filelib:is_regular(FileName) of
   %     true ->
   %     _ ->
@@ -57,28 +56,34 @@ play(Name, StreamId, _) ->
   %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   %     % end
   % end;
+  init_file(Name, StreamId).
+  
+  
+init_file(Name, StreamId) ->
+  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
   case filelib:is_regular(FileName) of
-    true ->
-      init_file(FileName, StreamId);
-    _ ->
-      case ems:get_var(netstream, undefined) of
-        undefined -> {notfound};
-        _ -> init_stream(Name, StreamId)
-      end
-  end.    
+    true -> gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []);
+    _ -> init_mpeg_ts(FileName, StreamId)
+  end.
   
-  
-init_file(FileName, StreamId) ->
-  gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []).
+init_mpeg_ts(FileName, StreamId) ->
+  {ok, Re} = re:compile("http://(.*).ts"),
+  case re:run(FileName, Re) of
+    {match, _Captured} -> mpeg_ts:play(FileName);
+    _ -> init_stream(FileName, StreamId)
+  end.
 
 init_stream(Name, _StreamId) ->
-  case rpc:call(ems:get_var(netstream), rtmp, start, [Name, self()], ?TIMEOUT) of
-    {ok, NetStream} ->
-      % link(NetStream),
-      ?D({"Netstream", NetStream, "created for", self()}),
-      {ok, NetStream};
-    _ ->
-      {notfound}
+  case ems:get_var(netstream, undefined) of
+    undefined -> {notfound};
+    NetStreamNode -> case rpc:call(NetStreamNode, rtmp, start, [Name], ?TIMEOUT) of
+      {ok, NetStream} ->
+        link(NetStream),
+        ?D({"Netstream created", NetStream}),
+        {ok, NetStream};
+      _ ->
+        {notfound}
+      end
   end.
 
   
@@ -165,11 +170,11 @@ seek(#video_player{frames = FrameTable} = Player, Timestamp) ->
 %% @end
 %%-------------------------------------------------------------------------
 
-send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body, raw_body = false} = Frame) ->
+send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body, raw_body = false} = Frame) when is_binary(Body) ->
 	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
 	gen_fsm:send_event(Consumer, {send, {Channel, ems_flv:encode(Frame)}});
 
-send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body}) ->
+send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body}) when is_binary(Body) ->
 	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
 	gen_fsm:send_event(Consumer, {send, {Channel,Body}}).
 
@@ -199,6 +204,7 @@ normalize_filename(Name) ->
         ".FLV" -> Name;
         ".mp4" -> Name;
         ".MP4" -> Name;
+        ".mov" -> Name;
         _      -> Name ++ ".flv"
     end.
  
@@ -207,7 +213,8 @@ file_format(Name) ->
       ".flv" -> ems_flv;
       ".FLV" -> ems_flv;
       ".mp4" -> mp4;
-      ".MP4" -> mp4
+      ".MP4" -> mp4;
+      ".mov" -> mp4
   end.
   
 handle_event(Event, StateName, StateData) ->
