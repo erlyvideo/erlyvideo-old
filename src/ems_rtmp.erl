@@ -37,7 +37,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/2]).
+-export([encode/1, encode/2, handshake/1, decode/2, chunk/1]).
 
 
 handshake(C1) when is_binary(C1) -> 
@@ -142,7 +142,7 @@ get_chunk(Channel,State,Bin) ->
 	{Chunk,Next}.
 
 
-command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
   % ?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{client_chunk_size = ChunkSize};
 
@@ -155,7 +155,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 	State;	
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, State) ->
-  % ?D({"Buffer size on stream id", BufferSize, StreamId}),
+  ?D({"Buffer size on stream id", BufferSize, StreamId}),
 	State;	
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/binary>>} = _Channel, State) ->
@@ -180,16 +180,16 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
     				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
     				  {UserId, _} = string:to_integer(SUserId),
     	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-    					{gen_rtmp,State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
     				[{object, PlayerInfo}, {string, _Session}, {number, UserId}] ->
     	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-    					{gen_rtmp,State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
 				    [{object, PlayerInfo} | _] ->
-    					{gen_rtmp,State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
+    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
     				_Msg -> 
     				  ?D({"Unknown player connect", _Msg})
     			end;
-				_ -> {check_app(State,Command),State}
+				_ -> {check_app(State,Command, 2),State}
 			end,
 			App:Command(AMF, NextState);
 		_ -> 
@@ -201,29 +201,24 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
-	
 
-check_app(State,Command) when is_record(State,ems_fsm) -> check_app(State#ems_fsm.player_info,Command);
-check_app(PlayerInfo,Command) ->
-	case lists:keysearch(app,1,PlayerInfo) of
-		{value,{app,[]}} -> 
-			gen_rtmp;		 
-		{value,{app,Value}} -> 		
-			case code:get_object_code(list_to_atom(Value)) of
-				{App,_Obj,BeamPath} -> 
-					case beam_lib:chunks(BeamPath,[exports]) of
-						{ok,{_Mod,[{exports,Exports}]}} ->
-							case lists:member({Command,3},Exports) of
-								true -> App;
-								false -> {error,command_not_found}
-							end;
-						{error,_BeamLib,Reason} -> {error,Reason}
-					end;
-				error -> {error,no_module}
-			end;
-		_ -> 
-			gen_rtmp
-	end.
+check_app([], _Command, _Arity) ->
+  'apps_rtmp';
+
+check_app([Module | Applications], Command, Arity) ->
+  case code:ensure_loaded(Module) of
+		{module, Module} -> 
+		  case lists:member({Command, Arity}, Module:module_info(exports)) of
+		    true -> Module;
+		    false -> check_app(Applications, Command, Arity)
+		  end;
+		error -> check_app(Applications, Command, Arity)
+	end;
+		
+
+check_app(#ems_fsm{} = _State, Command, Arity) ->
+  Applications = ems:get_var(applications, ['apps_rtmp']),
+  check_app(lists:reverse(Applications), Command, Arity).
 
 
 
