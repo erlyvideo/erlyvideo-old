@@ -172,21 +172,7 @@ init([]) ->
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
-  'WAIT_FOR_DATA'({send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL, stream = 0}, <<Type:16/big, Stream:32/big>>}}, State);
-  
 
-'WAIT_FOR_DATA'({status, Code, Stream}, State) ->
-  AMF = #amf{
-      command = 'onStatus',
-      type = invoke,
-      id = 0,
-      args = [null, [{code, Code}, 
-                     {level, "status"}, 
-                     {description, "-"}]]},
-  'WAIT_FOR_DATA'({invoke, AMF, Stream}, State);
-
-'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0}, State);
 
 'WAIT_FOR_DATA'({video, Data}, State) ->
   Channel = #channel{id=5,timestamp=0, length=size(Data),type = ?RTMP_TYPE_VIDEO,stream=1},
@@ -195,12 +181,6 @@ init([]) ->
 'WAIT_FOR_DATA'({audio, Data}, State) ->
   Channel = #channel{id=4,timestamp=0, length=size(Data),type = ?RTMP_TYPE_AUDIO,stream=1},
   'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
-
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = Stream}, AMF}}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) -> 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, 0}, State);
 
 
 'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
@@ -336,14 +316,18 @@ init([]) ->
     error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
     {stop, normal, State};    
         
-'WAIT_FOR_DATA'(Data, State) ->
-	case Data of
-		{record,Channel} when is_record(Channel,channel) -> 
-			io:format("~p Ignoring data: ~p\n", [self(), Channel#channel{msg = <<>>}]);
-		Data -> 
-			io:format("~p Ignoring data: ~p\n", [self(), Data])
-	end,
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+'WAIT_FOR_DATA'(Message, State) ->
+  case ems:try_method_chain('WAIT_FOR_DATA', [Message, State]) of
+    {unhandled} ->
+    	case Message of
+    		{record,Channel} when is_record(Channel,channel) -> 
+    			io:format("~p Ignoring data: ~p\n", [self(), Channel#channel{msg = <<>>}]);
+    		Data -> 
+    			io:format("~p Ignoring data: ~p\n", [self(), Data])
+    	end,
+      {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+    Reply -> Reply
+  end.
         
 
 'WAIT_FOR_DATA'(next_stream_id, _From, #ems_fsm{next_stream_id = Id} = State) ->

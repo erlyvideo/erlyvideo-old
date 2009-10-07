@@ -38,7 +38,7 @@
 -include("../include/ems.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
--export ([get_var/1,get_var/2]).
+-export ([get_var/1,get_var/2, check_app/3, try_method_chain/2]).
 
 
 %%--------------------------------------------------------------------
@@ -140,5 +140,57 @@ get_var(Opt, Default) ->
 		end
 	end.
 
+
+respond_to(Module, Command, Arity) ->
+  case code:ensure_loaded(Module) of
+		{module, Module} -> 
+		  lists:member({Command, Arity}, Module:module_info(exports));
+		error -> false
+	end.
+  
+
+%%--------------------------------------------------------------------
+%% @spec (Opt::atom(), Command::atom(), Arity::integer()) -> any()
+%% @doc Try to launch methods one by one in modules
+%% @end 
+%%--------------------------------------------------------------------
+
+try_method_chain(Method, Args) ->
+  try_method_chain(ems:get_var(applications, ['apps_rtmp']), Method, Args).
+
+try_method_chain([], _Method, _Args) ->
+  {unhandled};
+
+try_method_chain([Module | Applications], Method, Args) ->
+  case respond_to(Module, Method, length(Args)) of
+    true -> case apply(Module, Method, Args) of
+      {unhandled} -> try_method_chain(Applications, Method, Args);
+      Else -> Else
+    end;
+    false -> try_method_chain(Applications, Method, Args)
+  end.  
+
+
+%%--------------------------------------------------------------------
+%% @spec (Opt::atom(), Command::atom(), Arity::integer()) -> any()
+%% @doc Look whan module in loaded plugins can handle required method
+%% @end 
+%%--------------------------------------------------------------------
 	
+check_app([], _Command, _Arity) ->
+  'apps_rtmp';
+
+check_app([Module | Applications], Command, Arity) ->
+  case respond_to(Module, Command, Arity) of
+    true -> Module;
+    false -> check_app(Applications, Command, Arity)
+  end;
+
+
+check_app(#ems_fsm{} = _State, Command, Arity) ->
+  Applications = ems:get_var(applications, ['apps_rtmp']),
+  check_app(Applications, Command, Arity).
+
+
+
 	

@@ -189,7 +189,7 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
     				_Msg -> 
     				  ?D({"Unknown player connect", _Msg})
     			end;
-				_ -> {check_app(State,Command, 2),State}
+				_ -> {ems:check_app(State,Command, 2),State}
 			end,
 			App:Command(AMF, NextState);
 		_ -> 
@@ -201,25 +201,6 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
-
-check_app([], _Command, _Arity) ->
-  'apps_rtmp';
-
-check_app([Module | Applications], Command, Arity) ->
-  case code:ensure_loaded(Module) of
-		{module, Module} -> 
-		  case lists:member({Command, Arity}, Module:module_info(exports)) of
-		    true -> Module;
-		    false -> check_app(Applications, Command, Arity)
-		  end;
-		error -> check_app(Applications, Command, Arity)
-	end;
-		
-
-check_app(#ems_fsm{} = _State, Command, Arity) ->
-  Applications = ems:get_var(applications, ['apps_rtmp']),
-  check_app(lists:reverse(Applications), Command, Arity).
-
 
 
 header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>) ->
