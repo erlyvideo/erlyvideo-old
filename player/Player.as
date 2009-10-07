@@ -122,8 +122,14 @@ public function pause() : void
   _pausing = !_pausing;
 }
 
+public function startSeek(event:SliderEvent) : void
+{
+  _statusTimer.stop();
+}
+
 public function seek(event:SliderEvent) : void
 {
+  var thumb:Object = progressBar.getThumbAt(0)
   progressBar.value = event.value;
   if (_stream && Math.abs(_stream.time - event.value) >= 1) {
     _statusTimer.stop();
