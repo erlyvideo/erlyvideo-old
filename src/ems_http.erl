@@ -26,10 +26,12 @@ handle('GET', [], Req) ->
     false -> "video.mp4"
   end,
   {ok, FileList} = file:list_dir(ems_play:file_dir()),
+  Clients = [Address || {_Pid, [{ip, Address}]} <- ems_server:clients()],
   {ok, Index} = index_template:render([
     {files, FileList},
     {hostname, ems:get_var(host, "rtmp://localhost")},
     {url, File},
+    {clients, []},
     {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 

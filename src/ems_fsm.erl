@@ -191,6 +191,9 @@ init([]) ->
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reply -> Reply
   end.
+
+'WAIT_FOR_DATA'({info}, _From, #ems_fsm{addr = Address} = State) ->
+  {reply, [{ip, Address}], 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
 'WAIT_FOR_DATA'(Data, _From, State) ->

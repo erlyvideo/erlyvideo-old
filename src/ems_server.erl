@@ -39,13 +39,22 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2]).
+-export([start_link/2, clients/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 
+%%--------------------------------------------------------------------
+%% @spec () -> [Ip::tuple()]
+%%
+%% @doc Show list of clients
+%% @end
+%%----------------------------------------------------------------------
+clients() ->
+  Timeout = 10,
+  lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(ems_client_sup)).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer(), Module) -> {ok, Pid} | {error, Reason}
