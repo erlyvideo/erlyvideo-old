@@ -30,14 +30,14 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_flv).
+-module(flv).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--include("../include/ems.hrl").
--include("../include/flv.hrl").
+-include("../../include/ems.hrl").
+-include("../../include/flv.hrl").
 
--export([init/1,read_frame/1,to_tag/2,header/1, parse_meta/1, encode/1, read_frame_list/2, video_frame/2]).
+-export([init/1, read_frame/1, header/1, read_frame_list/2]).
 
 
 
@@ -236,45 +236,6 @@ extractAudioHeader(IoDev, Pos) ->
 end.
 
 
-encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
-                    decoder_config = true,
-                    sound_format = ?FLV_AUDIO_FORMAT_AAC,
-                	  sound_type	= SoundType,
-                	  sound_size	= SoundSize,
-                	  sound_rate	= SoundRate,
-                    body = Body}) when is_binary(Body) ->
-  <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
-    ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>;
-
-
-encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
-                    sound_format = ?FLV_AUDIO_FORMAT_AAC,
-                	  sound_type	= SoundType,
-                	  sound_size	= SoundSize,
-                	  sound_rate	= SoundRate,
-                    body = Body}) when is_binary(Body) ->
-	<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
-	  ?FLV_AUDIO_AAC_RAW:8, Body/binary>>;
-
-
-encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
-                    frame_type = FrameType,
-                   	decoder_config = true,
-                   	codec_id = CodecId,
-                    body = Body}) when is_binary(Body) ->
-  CompositionTime = 0,
-	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer, Body/binary>>;
-
-encode(#video_frame{type = ?FLV_TAG_TYPE_VIDEO,
-                    frame_type = FrameType,
-                   	codec_id = CodecId,
-                    body = Body}) when is_binary(Body) ->
-  CompositionTime = 0,
-	<<FrameType:4/integer, CodecId:4/integer, ?FLV_VIDEO_AVC_NALU:8/integer, CompositionTime:24/big-integer, Body/binary>>;
-
-
-encode(_Frame) ->
-  ?D({"Request to encode undefined", _Frame}).
 	
 
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
@@ -288,25 +249,4 @@ header(Bin) when is_binary(Bin) ->
 header(IoList) when is_list(IoList) -> header(iolist_to_binary(IoList)).
 		
 
-to_tag(#channel{msg = Msg,timestamp = FullTimeStamp, type = Type, stream = StreamId}, PrevTimeStamp) ->
-	BodyLength = size(Msg),	
-	{TimeStampExt, TimeStamp} = case PrevTimeStamp of
-		<<TimeStampExt1:8,TimeStamp1:32>> -> 
-			{TimeStampExt1, TimeStamp1};
-		_ ->
-			{0, PrevTimeStamp}
-	end,			
-	PrevTagSize = size(Msg) + 11,
-	{<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>,
-	 FullTimeStamp + PrevTimeStamp}.
 
-
-parse_meta(Bin) ->
-	file:write_file("/sfe/temp/meta.txt",Bin),
-	?D(Bin),
-	{Type,String,Next} = ems_amf:parse(Bin),
-%	?D(String),
-%	?D(Next),
-	{Type,Array,_Next} = ems_amf:parse(Next),
-	{String,Array}.
-	

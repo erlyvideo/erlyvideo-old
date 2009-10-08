@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--include("../include/ems.hrl").
+-include("../../include/ems.hrl").
 
 -export([publish/2]).
 -export(['WAIT_FOR_DATA'/2]).

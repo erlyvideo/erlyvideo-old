@@ -215,8 +215,8 @@ normalize_filename(Name) ->
  
 file_format(Name) ->
   case filename:extension(Name) of
-      ".flv" -> ems_flv;
-      ".FLV" -> ems_flv;
+      ".flv" -> flv;
+      ".FLV" -> flv;
       ".mp4" -> mp4;
       ".MP4" -> mp4;
       ".mov" -> mp4

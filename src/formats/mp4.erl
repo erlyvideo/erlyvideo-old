@@ -34,8 +34,8 @@
 
 -module(mp4).
 -author('max@maxidoors.ru').
--include("../include/ems.hrl").
--include("../include/mp4.hrl").
+-include("../../include/ems.hrl").
+-include("../../include/mp4.hrl").
 
 -export([init/1, read_frame/1, metadata/1]).
 
