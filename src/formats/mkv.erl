@@ -105,7 +105,7 @@ class_id(#video_player{pos = Pos, device = IoDev} = Player) ->
       BitSize = Bytes*8,
       {ok, ClassIdData} = file:pread(IoDev, Pos, Bytes),
       <<ClassId:BitSize/big-integer>> = iolist_to_binary(ClassIdData),
-      {ok, ClassId, Bytes};
+      {ok, int_to_hex(ClassId), Bytes};
     {eof} -> eof
   end.
 
@@ -113,5 +113,9 @@ class_id(#video_player{pos = Pos, device = IoDev} = Player) ->
 read_element(#video_player{pos = Pos, device = IoDev} = Player) ->
   {ok, ClassId, IdBytes} = class_id(Player),
   {ok, Size, SizeBytes} = next_int(Player#video_player{pos = Pos + IdBytes}),
-  ?D({"Read", int_to_hex(ClassId), Size})
+  ?D({"Read", ClassId, Size}),
+  parse_element(ClassId, Size, Player#video_player{pos = Pos + IdBytes + SizeBytes})
   .
+
+parse_element("1a45dfa3", Size, Player) ->
+  ?D("Got header").
