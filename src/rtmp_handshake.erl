@@ -114,17 +114,17 @@ s1() ->
 	?HANDSHAKE.
 
 -spec clientDigest(<<_:12288>>) -> <<_:256>>.
-clientDigest(<<_:5/binary, 0, 3, 2, _/binary>> = C1) ->
+
+
+clientDigest(<<_:5/binary, 0, 3, 2, _:764/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
   ?D("New player"),
-	<<_:772/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1,
 	Offset = (P1+P2+P3+P4) rem 728 + 776,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed;
 
 
-clientDigest(C1) ->
+clientDigest(<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
   ?D("Old player"),
-	<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1,
 	Offset = (P1+P2+P3+P4) rem 728 + 12,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed.

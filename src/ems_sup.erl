@@ -119,7 +119,7 @@ init([Port]) when is_integer(Port) ->
 %% To be called by the TCP listener process.
 %% @end 
 %%--------------------------------------------------------------------
--spec start_client() -> {'error',_} | {'ok',pid()}..
+-spec start_client() -> {'error',_} | {'ok',pid()}.
 start_client() -> supervisor:start_child(ems_client_sup, []).
 
 

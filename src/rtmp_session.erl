@@ -28,6 +28,9 @@ hex(N) when N >= 10, N < 16 ->
 session_sign(Session) ->
   binary_to_hexbin(crypto:sha_mac(ems:get_var(secret_key), Session)).
   
+decode(Offset, Subscription) when Offset >= size(Subscription) - 2 ->
+  {error};
+
 decode(Offset, Subscription) ->
   case Subscription of
     <<Session64:Offset/binary, "--", Sign/binary>> ->
@@ -39,8 +42,6 @@ decode(Offset, Subscription) ->
         _ ->
           {invalid_signature}
       end;
-    _ when size(Subscription) == Offset ->
-      {error};
     _ ->
       decode(Offset + 1, Subscription)
   end.
