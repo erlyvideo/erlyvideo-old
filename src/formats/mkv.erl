@@ -57,22 +57,39 @@ read_frame(#video_player{}) ->
   {ok, done}.
 
 
+int_to_hex(N) when N < 256 ->
+  [hex(N div 16), hex(N rem 16)];
+
+int_to_hex(N) ->
+  int_to_hex(N div 256) ++ int_to_hex(N rem 256).
+
+
+hex(N) when N < 10 ->
+  $0+N;
+hex(N) when N >= 10, N < 16 ->
+  $a + (N-10).
+
 match_int(#video_player{pos = Pos, device = IoDev}, Bytes) ->
   {ok, Data} = file:pread(IoDev, Pos, Bytes),
   BitSize = Bytes*7,
-  <<_:Bytes/bits, Int:BitSize/integer>> = iolist_to_binary(Data),
+  BData = iolist_to_binary(Data),
+  <<_Shift:Bytes/big-integer, Int:BitSize/big-integer>> = BData,
+  ByteSize = Bytes*8,
+  <<WholeInt:ByteSize/big-integer>> = BData,
+  ?D({"Int", Int, WholeInt}),
   {ok, Int, Bytes}.
   
+bits_offset(<<1:1, _/bits>>)      -> 1;
+bits_offset(<<0:1, 1:1, _/bits>>) -> 2;
+bits_offset(<<0:2, 1:1, _/bits>>) -> 3;
+bits_offset(<<0:3, 1:1, _/bits>>) -> 4;
+bits_offset(<<0:4, 1:1, _/bits>>) -> 5;
+bits_offset(<<0:5, 1:1, _/bits>>) -> 6;
+bits_offset(<<0:6, 1:1, _/bits>>) -> 7;
+bits_offset(<<0:7, 1:1>>)         -> 8.
   
 decode_int(Player, <<1:1, Int:7>>) -> {ok, Int, 1};
-decode_int(Player, <<0:1, 1:1, _/bits>>) -> match_int(Player, 2);
-decode_int(Player, <<0:2, 1:1, _/bits>>) -> match_int(Player, 3);
-decode_int(Player, <<0:3, 1:1, _/bits>>) -> match_int(Player, 4);
-decode_int(Player, <<0:4, 1:1, _/bits>>) -> match_int(Player, 5);
-decode_int(Player, <<0:5, 1:1, _/bits>>) -> match_int(Player, 6);
-decode_int(Player, <<0:6, 1:1, _/bits>>) -> match_int(Player, 7);
-decode_int(Player, <<0:7, 1:1>>)      -> match_int(Player, 8).
-  
+decode_int(Player, Data) -> match_int(Player, bits_offset(Data)).
 
 next_int(#video_player{pos = Pos, device = IoDev} = Player) ->
   case file:pread(IoDev, Pos, 1) of
@@ -80,8 +97,21 @@ next_int(#video_player{pos = Pos, device = IoDev} = Player) ->
     {eof} -> eof
   end.
 
+
+class_id(#video_player{pos = Pos, device = IoDev} = Player) ->
+  case file:pread(IoDev, Pos, 1) of
+    {ok, Data} -> 
+      Bytes = bits_offset(iolist_to_binary(Data)),
+      BitSize = Bytes*8,
+      {ok, ClassIdData} = file:pread(IoDev, Pos, Bytes),
+      <<ClassId:BitSize/big-integer>> = iolist_to_binary(ClassIdData),
+      {ok, ClassId, Bytes};
+    {eof} -> eof
+  end.
+
+
 read_element(#video_player{pos = Pos, device = IoDev} = Player) ->
-  {ok, ClassId, IdBytes} = next_int(Player),
+  {ok, ClassId, IdBytes} = class_id(Player),
   {ok, Size, SizeBytes} = next_int(Player#video_player{pos = Pos + IdBytes}),
-  ?D({"Read", ClassId, Size})
+  ?D({"Read", int_to_hex(ClassId), Size})
   .
