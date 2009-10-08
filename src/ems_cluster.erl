@@ -309,7 +309,8 @@ start() ->
 
 
 stop() -> 
-    gen_server:stop({global, ?MODULE}).
+    % gen_server:stop({global, ?MODULE}).
+    ok.
 
 
 %%-------------------------------------------------------------------------

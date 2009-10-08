@@ -1,4 +1,5 @@
 <html>
+  <head><title>Erlyvideo: {{url}}</title></head>
   <body>
     <script type="text/javascript">
     </script>
@@ -18,6 +19,16 @@
         <ul>
           {% for file in files %}
           <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>
+          {% endfor %}
+        </ul>
+      </td>
+
+
+      <td>
+        Online:
+        <ul>
+          {% for client in clients %}
+          <li>{{client}}</li>
           {% endfor %}
         </ul>
       </td>

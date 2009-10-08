@@ -55,7 +55,7 @@
       {error, Reason}
   end;
 
-'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = _Type} = State) ->
+'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = Type} = State) ->
 	case Buffer of
 		undefined -> ok;
 		_ -> file:write(IoDev, lists:reverse(Buffer))
@@ -68,13 +68,13 @@
       undefined -> ok;
       _ -> gen_fsm:cancel_timer(TimerRef)
   end,
-  case type of
+  case Type of
       live -> 
           ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
       wait -> 
           ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
       broadcast ->
-          emscluster:stop_broadcast(State#ems_fsm.video_file_name);
+          ems_cluster:stop_broadcast(State#ems_fsm.video_file_name);
       _ -> 
           ok
   end,
@@ -130,8 +130,12 @@ createStream(AMF, State) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
+deleteStream(_AMF, #ems_fsm{video_player = undefined} = State) ->
+  ?D("player is stopped when deleteStream called"),
+  State;
+  
 deleteStream(_AMF, #ems_fsm{video_player = Player} = State) ->
-  ems_fsm:send_event(Player, {stop}),
+  gen_fsm:send_event(Player, {stop}),
   ?D("invoke - deleteStream"),
   State.
 

@@ -196,13 +196,9 @@ parse_object(Data, KeyValueList) ->
   {Key, Rest} = parse_string(Data),
   case parse(Rest) of
 	  {Value, Rest2} -> 
-      NewKeyValueList =  [{list_to_atom(Key), Value} | KeyValueList],
-			parse_object(Rest2, NewKeyValueList);
+			parse_object(Rest2, [{list_to_atom(Key), Value} | KeyValueList]);
     {_Type, Value, Rest2} ->
-      NewKeyValueList =  [{list_to_atom(Key), Value} | KeyValueList],
-			parse_object(Rest2, NewKeyValueList);
-    _ ->
-      {error, Key, Rest}
+			parse_object(Rest2, [{list_to_atom(Key), Value} | KeyValueList])
   end. 
 
 parse_string(<<Len:16/big-integer, String:Len/binary, Rest/binary>>) ->

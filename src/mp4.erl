@@ -55,8 +55,7 @@ init(#video_player{header = Header, device = IoDev, frames = FrameTable} = Playe
       NewHeader = decode_atom(AtomName, Atom, Header),
       init(Player#video_player{header = NewHeader});
     {mdat} ->
-      {ok, Player};
-    Else -> Else
+      {ok, Player}
   end.
   
 metadata(#video_player{header = Header}) ->
@@ -208,7 +207,7 @@ decode_atom(mvhd, <<Version:8/integer, Rest/binary>>, Mp4Parser) ->
 decode_atom(trak, <<>>, #mp4_header{} = Mp4Parser) ->
   Mp4Parser;
   
-decode_atom(trak, Atom, #mp4_header{tracks = Tracks} = Mp4Parser) ->
+decode_atom(trak, Atom, #mp4_header{} = Mp4Parser) ->
   Track = decode_atom(trak, Atom, #mp4_track{}),
   calculate_sample_offsets(Mp4Parser, Track);
   
@@ -460,7 +459,7 @@ chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, SamplesInChunk, Samp
   {SamplesInChunk, FrameReader#mp4_frames{chunk_table = [{FirstChunk + 1, SamplesInChunk, SampleId} | ChunkTable]}}.
 
   
-calculate_samples_in_chunk(Mp4Parser, _, 0, #mp4_frames{} = FrameReader) ->
+calculate_samples_in_chunk(_Mp4Parser, _SampleOffset, 0, #mp4_frames{} = FrameReader) ->
   FrameReader;
 
 calculate_samples_in_chunk(#mp4_header{frames = FrameTable} = Mp4Parser, SampleOffset, SamplesInChunk, 
@@ -479,7 +478,7 @@ calculate_samples_in_chunk(#mp4_header{frames = FrameTable} = Mp4Parser, SampleO
   FrameReader2 = FrameReader1#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
   calculate_samples_in_chunk(Mp4Parser, SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2).
   
-calculate_sample_offsets(Mp4Parser, #mp4_frames{chunk_offsets = []} = FrameReader) ->
+calculate_sample_offsets(_Mp4Parser, #mp4_frames{chunk_offsets = []} = FrameReader) ->
   FrameReader;
   
 calculate_sample_offsets(Mp4Parser, #mp4_frames{
@@ -501,7 +500,7 @@ calculate_sample_offsets(#mp4_header{tracks = Tracks} = Mp4Parser,
     data_format = DataFormat,
     timescale = Timescale} = Track) ->
       
-  Frames = calculate_sample_offsets(Mp4Parser, 
+  calculate_sample_offsets(Mp4Parser, 
     #mp4_frames{
       chunk_offsets = ChunkOffsets, 
       chunk_table = ChunkTable, 

@@ -100,8 +100,8 @@ init([]) ->
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
     % Now we own the socket
     inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
-    {ok, {IP, _Port}} = inet:peername(Socket),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP}, ?TIMEOUT};
+    {ok, {IP, Port}} = inet:peername(Socket),
+    {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
 
     
 'WAIT_FOR_SOCKET'(Other, State) ->
@@ -191,12 +191,11 @@ init([]) ->
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reply -> Reply
   end.
+
+'WAIT_FOR_DATA'({info}, _From, #ems_fsm{addr = Address, port = Port} = State) ->
+  {reply, [{ip, Address, Port}], 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
-'WAIT_FOR_DATA'(next_stream_id, _From, #ems_fsm{next_stream_id = Id} = State) ->
-  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_next_stream_id_request]),
-  {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}};   
-    
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
@@ -248,8 +247,8 @@ handle_info({tcp, Socket, Bin}, StateName, #ems_fsm{socket=Socket} = State) ->
   ?MODULE:StateName({data, Bin}, State);
 
 handle_info({tcp_closed, Socket}, _StateName,
-            #ems_fsm{socket=Socket, addr=Addr} = StateData) ->
-    error_logger:info_msg("~p Client ~p disconnected.\n", [self(), Addr]),
+            #ems_fsm{socket=Socket, addr=Addr, port = Port} = StateData) ->
+    error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
     {stop, normal, StateData};
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
@@ -295,7 +294,7 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) -
 %% @private
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, StateName, #ems_fsm{video_player = PlayerPid} = StateData, _Extra) ->
-  erlang:kill(PlayerPid),
+  erlang:exit(PlayerPid, code_change),
   {ok, StateName, StateData}.
 
 

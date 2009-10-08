@@ -26,10 +26,13 @@ handle('GET', [], Req) ->
     false -> "video.mp4"
   end,
   {ok, FileList} = file:list_dir(ems_play:file_dir()),
+  Clients = [io_lib:format("~p.~p.~p.~p:~p", tuple_to_list(Address)++[Port]) || {_Pid, [{ip, Address, Port}]} <- ems_server:clients()],
+  ?D({"Clients", Clients}),
   {ok, Index} = index_template:render([
     {files, FileList},
     {hostname, ems:get_var(host, "rtmp://localhost")},
     {url, File},
+    {clients, Clients},
     {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
@@ -42,7 +45,7 @@ handle('POST', ["open", ChunkNumber], Req) ->
   error_logger:info_msg("Request: open/~p.\n", [ChunkNumber]),
   SessionId = generate_session_id(),
   <<Timeout>> = Req:get(body),
-  {ok, Pid} = rtmp_client:start_link(SessionId),
+  {ok, _Pid} = rtmp_client:start_link(SessionId),
   error_logger:info_msg("Opened session ~p, timeout ~p.\n", [SessionId, Timeout]),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [SessionId, "\n"]);
   

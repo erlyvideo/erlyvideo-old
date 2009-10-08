@@ -141,22 +141,31 @@ get_chunk(Channel,State,Bin) ->
 	<<Chunk:ChunkSize/binary,Next/binary>> = Bin,
 	{Chunk,Next}.
 
+command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
+  ?D({"Window acknolegement size", WindowSize}),
+  State;
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
   % ?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
-  % ?D({"Stream bytes read: ", _Length}),
+  ?D({"Stream bytes read: ", _Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
   gen_fsm:send_event(self(), {send, {Channel, <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>}}),
 	State;	
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, State) ->
-  ?D({"Buffer size on stream id", BufferSize, StreamId}),
-	State;	
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, 
+        #ems_fsm{video_player = Player} = State) ->
+  % ?D({"Buffer size on stream id", BufferSize, _StreamId}),
+  case Player of
+    undefined -> ok;
+    _ -> gen_fsm:send_event(Player, {client_buffer, BufferSize})
+  end,
+	State#ems_fsm{client_buffer = BufferSize};	
+
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/binary>>} = _Channel, State) ->
 	?D({"Ping - ignoring", EventType}),
@@ -170,33 +179,28 @@ command(#channel{type = Type} = Channel, State)
 	State;
 
 command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
-	case ems_amf:decode(Channel#channel.msg) of
-		#amf{command = Command} = AMF ->
-			{App,NextState} = case Command of
-				connect -> 
-  				gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_SERVER, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
-    			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_CLIENT, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
-				  case AMF#amf.args of
-    				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
-    				  {UserId, _} = string:to_integer(SUserId),
-    	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
-    				[{object, PlayerInfo}, {string, _Session}, {number, UserId}] ->
-    	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
-				    [{object, PlayerInfo} | _] ->
-    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
-    				_Msg -> 
-    				  ?D({"Unknown player connect", _Msg})
-    			end;
-				_ -> {ems:check_app(State,Command, 2),State}
-			end,
-			App:Command(AMF, NextState);
-		_ -> 
-			?D("AMF Error"),
-			State
-			
-	end;
+	AMF = ems_amf:decode(Channel#channel.msg),
+	#amf{command = Command} = AMF,
+	{App,NextState} = case Command of
+		connect -> 
+			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
+			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_PEER, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
+		  case AMF#amf.args of
+				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
+				  {UserId, _} = string:to_integer(SUserId),
+	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+				[{object, PlayerInfo}, {string, _Session}, {number, UserId}] ->
+	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+		    [{object, PlayerInfo} | _] ->
+					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
+				_Msg -> 
+				  ?D({"Unknown player connect", _Msg})
+			end;
+		_ -> {ems:check_app(State,Command, 2),State}
+	end,
+	App:Command(AMF, NextState);
 	
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),

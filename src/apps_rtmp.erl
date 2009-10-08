@@ -69,7 +69,8 @@ connect(AMF, State) ->
 
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
-  'WAIT_FOR_DATA'({send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL, stream = 0}, <<Type:16/big, Stream:32/big>>}}, State);
+  gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL, stream = 0}, <<Type:16/big, Stream:32/big>>}}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({status, Code, Stream, Description}, State) ->
@@ -82,6 +83,7 @@ connect(AMF, State) ->
                      {description, Description}]]},
   'WAIT_FOR_DATA'({invoke, AMF, Stream}, State);
 
+'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->

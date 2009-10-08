@@ -42,8 +42,8 @@
 %-define(RTMP_TYPE_UNKNOWN,       2).
 -define(RTMP_TYPE_BYTES_READ,     3).
 -define(RTMP_TYPE_CONTROL,           4).
--define(RTMP_TYPE_BW_SERVER,      5).
--define(RTMP_TYPE_BW_CLIENT,      6).
+-define(RTMP_TYPE_WINDOW_ACK_SIZE,  5).
+-define(RTMP_TYPE_BW_PEER,      6).
 %-define(RTMP_TYPE_UNKNOWN,       7).
 -define(RTMP_TYPE_AUDIO,          8).
 -define(RTMP_TYPE_VIDEO,          9).
@@ -260,15 +260,16 @@
 -record(ems_fsm, {
 	socket,    % client socket
 	addr,      % client address
+	port,
 	channels    = [],
 	user_id     = undefined,
 	player_info = [],
 	complete    = true,
 	buff        = <<>>,
 	prev_buff   = <<>>,
+  client_buffer = ?MIN_CLIENT_BUFFER,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	next_stream_id = 1,
 	type,
 	video_player = undefined,
   video_file_name,

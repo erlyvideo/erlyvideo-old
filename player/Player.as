@@ -207,7 +207,7 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
   	_stream = new NetStream(_connection);
   	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
   	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
-  /*    _stream.setBufferTime(20);*/
+    _stream.bufferTime = 1;
   	listener.onMetaData = onMetaData;
   	_stream.client = listener;
   	_video.attachNetStream(_stream);

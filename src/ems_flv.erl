@@ -58,7 +58,7 @@ init(#video_player{device = IoDev} = Player) ->
     {error, Reason} -> {error, Reason}           
   end.
 
-read_frame_list(#video_player{frames = FrameTable} = Player, FrameCount) when FrameCount == 10 ->
+read_frame_list(#video_player{} = Player, FrameCount) when FrameCount == 10 ->
   spawn_link(?MODULE, read_frame_list, [Player, FrameCount + 1]),
   {ok, Player#video_player{pos = undefined}};
   
@@ -89,7 +89,7 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
     		    keyframe = KeyFrame
 			    };
         ?FLV_TAG_TYPE_AUDIO -> 
-          % {SoundType, SoundSize, SoundRate, SoundFormat} =  extractAudioHeader(IoDev, Pos),
+          {_SoundType, _SoundSize, _SoundRate, _SoundFormat} =  extractAudioHeader(IoDev, Pos),
           PreparedFrame#file_frame{
             id = TimeStampAbs*3 + 2
           };
@@ -121,7 +121,7 @@ read_frame(#video_player{pos = '$end_of_table'}) ->
   
 read_frame(#video_player{device = IoDev, pos = Key, frames = FrameTable} = Player) ->
   [Frame] = ets:lookup(FrameTable, Key),
-  #file_frame{type = Type, offset = Offset, size = Size, timestamp = Timestamp} = Frame,
+  #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
 		{ok, Data} ->
 		  VideoFrame = video_frame(Frame, iolist_to_binary(Data)),
