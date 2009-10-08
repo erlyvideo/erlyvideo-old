@@ -141,13 +141,16 @@ get_chunk(Channel,State,Bin) ->
 	<<Chunk:ChunkSize/binary,Next/binary>> = Bin,
 	{Chunk,Next}.
 
+command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
+  ?D({"Window acknolegement size", WindowSize}),
+  State;
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
   % ?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
-  % ?D({"Stream bytes read: ", _Length}),
+  ?D({"Stream bytes read: ", _Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
@@ -180,8 +183,8 @@ command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
 		#amf{command = Command} = AMF ->
 			{App,NextState} = case Command of
 				connect -> 
-  				gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_SERVER, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
-    			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_CLIENT, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
+  				gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
+    			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_PEER, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
 				  case AMF#amf.args of
     				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
     				  {UserId, _} = string:to_integer(SUserId),

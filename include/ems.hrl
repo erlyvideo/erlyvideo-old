@@ -42,8 +42,8 @@
 %-define(RTMP_TYPE_UNKNOWN,       2).
 -define(RTMP_TYPE_BYTES_READ,     3).
 -define(RTMP_TYPE_CONTROL,           4).
--define(RTMP_TYPE_BW_SERVER,      5).
--define(RTMP_TYPE_BW_CLIENT,      6).
+-define(RTMP_TYPE_WINDOW_ACK_SIZE,  5).
+-define(RTMP_TYPE_BW_PEER,      6).
 %-define(RTMP_TYPE_UNKNOWN,       7).
 -define(RTMP_TYPE_AUDIO,          8).
 -define(RTMP_TYPE_VIDEO,          9).
