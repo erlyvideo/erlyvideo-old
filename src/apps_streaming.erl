@@ -130,6 +130,10 @@ createStream(AMF, State) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
+deleteStream(_AMF, #ems_fsm{video_player = undefined} = State) ->
+  ?D("player is stopped when deleteStream called"),
+  State;
+  
 deleteStream(_AMF, #ems_fsm{video_player = Player} = State) ->
   ems_fsm:send_event(Player, {stop}),
   ?D("invoke - deleteStream"),

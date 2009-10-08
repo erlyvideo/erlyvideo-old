@@ -260,6 +260,7 @@
 -record(ems_fsm, {
 	socket,    % client socket
 	addr,      % client address
+	port,
 	channels    = [],
 	user_id     = undefined,
 	player_info = [],

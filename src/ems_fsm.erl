@@ -100,8 +100,8 @@ init([]) ->
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
     % Now we own the socket
     inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
-    {ok, {IP, _Port}} = inet:peername(Socket),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP}, ?TIMEOUT};
+    {ok, {IP, Port}} = inet:peername(Socket),
+    {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
 
     
 'WAIT_FOR_SOCKET'(Other, State) ->
@@ -192,8 +192,8 @@ init([]) ->
     Reply -> Reply
   end.
 
-'WAIT_FOR_DATA'({info}, _From, #ems_fsm{addr = Address} = State) ->
-  {reply, [{ip, Address}], 'WAIT_FOR_DATA', State, ?TIMEOUT};
+'WAIT_FOR_DATA'({info}, _From, #ems_fsm{addr = Address, port = Port} = State) ->
+  {reply, [{ip, Address, Port}], 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
 'WAIT_FOR_DATA'(Data, _From, State) ->
@@ -247,8 +247,8 @@ handle_info({tcp, Socket, Bin}, StateName, #ems_fsm{socket=Socket} = State) ->
   ?MODULE:StateName({data, Bin}, State);
 
 handle_info({tcp_closed, Socket}, _StateName,
-            #ems_fsm{socket=Socket, addr=Addr} = StateData) ->
-    error_logger:info_msg("~p Client ~p disconnected.\n", [self(), Addr]),
+            #ems_fsm{socket=Socket, addr=Addr, port = Port} = StateData) ->
+    error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
     {stop, normal, StateData};
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
