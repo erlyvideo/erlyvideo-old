@@ -266,6 +266,7 @@
 	complete    = true,
 	buff        = <<>>,
 	prev_buff   = <<>>,
+  client_buffer = ?MIN_CLIENT_BUFFER,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	type,

@@ -47,7 +47,7 @@
 -export([ready/2, stop/2]).
 
 
-play(Name, StreamId, _) ->
+play(Name, StreamId, State) ->
   %   case filelib:is_regular(FileName) of
   %     true ->
   %     _ ->
@@ -56,24 +56,24 @@ play(Name, StreamId, _) ->
   %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   %     % end
   % end;
-  init_file(Name, StreamId).
+  init_file(Name, StreamId, State).
   
   
-init_file(Name, StreamId) ->
+init_file(Name, StreamId, State) ->
   FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
   case filelib:is_regular(FileName) of
-    true -> gen_fsm:start_link(?MODULE, {FileName, StreamId, self()}, []);
-    _ -> init_mpeg_ts(FileName, StreamId)
+    true -> gen_fsm:start_link(?MODULE, {FileName, StreamId, State, self()}, []);
+    _ -> init_mpeg_ts(FileName, StreamId, State)
   end.
   
-init_mpeg_ts(FileName, StreamId) ->
+init_mpeg_ts(FileName,StreamId,  State) ->
   {ok, Re} = re:compile("http://(.*).ts"),
   case re:run(FileName, Re) of
     {match, _Captured} -> mpeg_ts:play(FileName);
-    _ -> init_stream(FileName, StreamId)
+    _ -> init_stream(FileName, StreamId, State)
   end.
 
-init_stream(Name, _StreamId) ->
+init_stream(Name, _StreamId, _State) ->
   case ems:get_var(netstream, undefined) of
     undefined -> {notfound};
     NetStreamNode -> case rpc:call(NetStreamNode, rtmp, start, [Name], ?TIMEOUT) of
@@ -87,13 +87,14 @@ init_stream(Name, _StreamId) ->
   end.
 
   
-init({FileName, StreamId, Parent}) ->
+init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
 	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
 	FileFormat = file_format(FileName),
 	case FileFormat:init(#video_player{device = IoDev, 
 	                                   file_name = FileName,
 	                                   consumer = Parent,
 	                                   stream_id = StreamId,
+	                                   client_buffer = ClientBuffer,
 	                                   format = FileFormat}) of
 		{ok, VideoPlayerState} -> 
       {ok, ready, VideoPlayerState#video_player{timer_start = erlang:now()}};
@@ -105,13 +106,13 @@ init({FileName, StreamId, Parent}) ->
 stop(_, State) ->
   {stop, normal, State}.
 
-ready({start}, #video_player{format = FileFormat, consumer = Consumer} = State) ->
+ready({start}, #video_player{format = FileFormat, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
   case FileFormat of
     mp4 -> gen_fsm:send_event(Consumer, {metadata, "onMetaData", FileFormat:metadata(State), 1});
     _ -> ok
   end,
 	Timer = gen_fsm:start_timer(1, play),
-	NextState = State#video_player{timer_ref  = Timer, prepush = ?PREPUSH},
+	NextState = State#video_player{timer_ref  = Timer, prepush = ClientBuffer},
 	?D({"Player starting with pid", self()}),
   {next_state, ready, NextState};
   
@@ -124,11 +125,11 @@ ready({resume}, State) ->
   ?D("Player resumed"),
   {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
 
-ready({seek, Timestamp}, #video_player{format = FileFormat, timer_ref = Timer} = State) ->
+ready({seek, Timestamp}, #video_player{timer_ref = Timer, client_buffer = ClientBuffer} = State) ->
   {Pos, NewTimestamp} = seek(State, Timestamp),
   gen_fsm:cancel_timer(Timer),
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
-  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp, prepush = ?PREPUSH}};
+  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp, prepush = ClientBuffer}};
 
 ready({stop}, State) ->
   ?D("Player stopping"),
@@ -155,7 +156,7 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileForma
 			{stop, _Reason, State}
 	end.
 
-seek(#video_player{frames = FrameTable} = Player, Timestamp) ->
+seek(#video_player{frames = FrameTable} = _Player, Timestamp) ->
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp =< Timestamp ->
     {Id, FrameTimestamp}
   end)),

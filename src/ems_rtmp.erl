@@ -154,9 +154,9 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
   gen_fsm:send_event(self(), {send, {Channel, <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>}}),
 	State;	
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, State) ->
-  ?D({"Buffer size on stream id", BufferSize, StreamId}),
-	State;	
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, State) ->
+  % ?D({"Buffer size on stream id", BufferSize, _StreamId}),
+	State#ems_fsm{client_buffer = BufferSize};	
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/binary>>} = _Channel, State) ->
 	?D({"Ping - ignoring", EventType}),
