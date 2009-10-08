@@ -135,7 +135,7 @@ get_var(Opt, Default) ->
 	{ok, Val} -> Val;
 	_ ->
 		case init:get_argument(Opt) of
-		[[Val | _]] -> Val;
+		{ok, [[Val | _] | _]} -> Val;
 		error		-> Default
 		end
 	end.

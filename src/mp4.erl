@@ -55,8 +55,7 @@ init(#video_player{header = Header, device = IoDev, frames = FrameTable} = Playe
       NewHeader = decode_atom(AtomName, Atom, Header),
       init(Player#video_player{header = NewHeader});
     {mdat} ->
-      {ok, Player};
-    Else -> Else
+      {ok, Player}
   end.
   
 metadata(#video_player{header = Header}) ->

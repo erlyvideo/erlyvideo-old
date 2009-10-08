@@ -66,10 +66,10 @@ init_file(Name, StreamId, State) ->
     _ -> init_mpeg_ts(FileName, StreamId, State)
   end.
   
-init_mpeg_ts(FileName,StreamId,  State) ->
+init_mpeg_ts(FileName, StreamId,  State) ->
   {ok, Re} = re:compile("http://(.*).ts"),
   case re:run(FileName, Re) of
-    {match, _Captured} -> mpeg_ts:play(FileName);
+    {match, _Captured} -> mpeg_ts:play(FileName, StreamId, State);
     _ -> init_stream(FileName, StreamId, State)
   end.
 

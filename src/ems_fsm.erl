@@ -294,7 +294,7 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) -
 %% @private
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, StateName, #ems_fsm{video_player = PlayerPid} = StateData, _Extra) ->
-  erlang:kill(PlayerPid),
+  erlang:exit(PlayerPid, code_change),
   {ok, StateName, StateData}.
 
 

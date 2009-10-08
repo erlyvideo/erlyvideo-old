@@ -179,33 +179,28 @@ command(#channel{type = Type} = Channel, State)
 	State;
 
 command(#channel{type = ?RTMP_TYPE_INVOKE} = Channel, State) ->
-	case ems_amf:decode(Channel#channel.msg) of
-		#amf{command = Command} = AMF ->
-			{App,NextState} = case Command of
-				connect -> 
-  				gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
-    			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_PEER, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
-				  case AMF#amf.args of
-    				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
-    				  {UserId, _} = string:to_integer(SUserId),
-    	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
-    				[{object, PlayerInfo}, {string, _Session}, {number, UserId}] ->
-    	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
-    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
-				    [{object, PlayerInfo} | _] ->
-    					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
-    				_Msg -> 
-    				  ?D({"Unknown player connect", _Msg})
-    			end;
-				_ -> {ems:check_app(State,Command, 2),State}
-			end,
-			App:Command(AMF, NextState);
-		_ -> 
-			?D("AMF Error"),
-			State
-			
-	end;
+	AMF = ems_amf:decode(Channel#channel.msg),
+	#amf{command = Command} = AMF,
+	{App,NextState} = case Command of
+		connect -> 
+			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<>>}, <<0,16#26, 16#25,16#a0>>}}),
+			gen_fsm:send_event(self(), {send, {Channel#channel{id = 2, type = ?RTMP_TYPE_BW_PEER, msg = <<>>}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
+		  case AMF#amf.args of
+				[{object, PlayerInfo}, {string, _Session}, {string, SUserId}] ->
+				  {UserId, _} = string:to_integer(SUserId),
+	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+				[{object, PlayerInfo}, {string, _Session}, {number, UserId}] ->
+	        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = UserId}};
+		    [{object, PlayerInfo} | _] ->
+					{'apps_rtmp',State#ems_fsm{player_info = PlayerInfo, user_id = undefined}};
+				_Msg -> 
+				  ?D({"Unknown player connect", _Msg})
+			end;
+		_ -> {ems:check_app(State,Command, 2),State}
+	end,
+	App:Command(AMF, NextState);
 	
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
