@@ -106,6 +106,10 @@ init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Paren
 stop(_, State) ->
   {stop, normal, State}.
 
+ready({client_buffer, ClientBuffer}, State) ->
+  {next_state, ready, State#video_player{client_buffer = ClientBuffer}};
+
+
 ready({start}, #video_player{format = FileFormat, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
   case FileFormat of
     mp4 -> gen_fsm:send_event(Consumer, {metadata, "onMetaData", FileFormat:metadata(State), 1});
