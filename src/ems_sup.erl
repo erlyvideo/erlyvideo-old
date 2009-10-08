@@ -40,6 +40,8 @@
 -export ([init/1,start_link/0]).
 -export ([start_client/0]).
 
+
+-spec start_link() -> {'error',_} | {'ok',pid()}.
 start_link() ->
 	ListenPort = ems:get_var(listen_port, ?RTMP_PORT),
 	supervisor:start_link({local, ?MODULE}, ?MODULE, [ListenPort]).
@@ -50,6 +52,7 @@ start_link() ->
 %% @doc Initialize application
 %% @end 
 %%--------------------------------------------------------------------
+-spec init([]) -> any().
 init([ems_fsm]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -116,6 +119,7 @@ init([Port]) when is_integer(Port) ->
 %% To be called by the TCP listener process.
 %% @end 
 %%--------------------------------------------------------------------
+-spec start_client() -> {'error',_} | {'ok',pid()}..
 start_client() -> supervisor:start_child(ems_client_sup, []).
 
 
