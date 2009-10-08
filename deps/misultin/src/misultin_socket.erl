@@ -266,17 +266,8 @@ call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 	% create request
 	Req = misultin_req:new(Request, SocketPid),
 	% call loop
-	case catch Loop(Req) of
-		{'EXIT', _Reason} ->
-			?DEBUG(error, "worker crash: ~p", [_Reason]),
-			error_logger:error_msg("FAIL ~p ~p~n~p", [Req:get(method), Req:get(uri), _Reason]),
-			% kill listening socket
-			SocketPid ! shutdown,
-			% send response
-			send(Sock, ?INTERNAL_SERVER_ERROR_500),
-			% force exit
-			exit(normal);
-		{HttpCode, Headers0, Body} ->
+	try Loop(Req) of
+	  {HttpCode, Headers0, Body} ->
 			% received normal response
 			?DEBUG(debug, "sending response", []),
 			% flatten body [optimization since needed for content length]
@@ -293,6 +284,17 @@ call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 		_ ->
 			% loop exited normally, kill listening socket
 			SocketPid ! shutdown
+	catch	
+		_Class:_Error ->
+			?DEBUG(error, "worker crash: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
+      error_logger:error_msg("FAIL ~p ~p~n~p:~p:~p", [Req:get(method), Req:get(uri), _Class, _Error, erlang:get_stacktrace()]),
+			% kill listening socket
+			SocketPid ! shutdown,
+			% send response
+      % send(Sock, [[?INTERNAL_SERVER_ERROR_500], io_lib:format("~p:~p", [_Class:_Error])]),
+      send(Sock, [?INTERNAL_SERVER_ERROR_500, io_lib:format("~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()])]),
+			% force exit
+			exit(normal)
 	end.
 
 % Description: Ensure Body is binary.

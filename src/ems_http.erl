@@ -31,7 +31,7 @@ handle('GET', [], Req) ->
     {files, FileList},
     {hostname, ems:get_var(host, "rtmp://localhost")},
     {url, File},
-    {clients, []},
+    {clients, {}},
     {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
