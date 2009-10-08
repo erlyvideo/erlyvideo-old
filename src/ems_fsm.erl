@@ -193,10 +193,6 @@ init([]) ->
   end.
         
 
-'WAIT_FOR_DATA'(next_stream_id, _From, #ems_fsm{next_stream_id = Id} = State) ->
-  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_next_stream_id_request]),
-  {reply, Id, 'WAIT_FOR_DATA', State#ems_fsm{next_stream_id = Id + 1}};   
-    
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.

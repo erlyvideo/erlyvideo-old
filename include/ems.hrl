@@ -268,7 +268,6 @@
 	prev_buff   = <<>>,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	next_stream_id = 1,
 	type,
 	video_player = undefined,
   video_file_name,
