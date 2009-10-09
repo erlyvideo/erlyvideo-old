@@ -37,7 +37,7 @@
 -include("../../include/ems.hrl").
 -include("../../include/flv.hrl").
 
--export([init/1, read_frame/1]).
+-export([init/1, read_frame/1, read_frame_list/2]).
 -behaviour(gen_format).
 
 
@@ -185,8 +185,8 @@ decodeSorensen(IoDev, Pos) ->
 		  <<_Offset:30, Info:3, _Rest:39>> = IoList,
 			case Info of
 				
-				0 -> <<_:30, _:3, Width1:8, Height1:8, _Rest1:23>> = _Rest, {Width1, Height1};
-				1 -> <<_:30, _:3, Width2:16, Height2:16, _Rest2:7>> = _Rest, {Width2, Height2};
+				0 -> <<_:30, _:3, Width1:8, Height1:8, _Rest1:23>> = IoList, {Width1, Height1};
+				1 -> <<_:30, _:3, Width2:16, Height2:16, _Rest2:7>> = IoList, {Width2, Height2};
 				2 -> {352, 288};
 				3 -> {176, 144};
 				4 -> {128, 96};
