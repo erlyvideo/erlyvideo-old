@@ -25,7 +25,7 @@ handle('GET', [], Req) ->
     {"file", _File} -> _File;
     false -> "video.mp4"
   end,
-  {ok, FileList} = file:list_dir(ems_play:file_dir()),
+  {ok, FileList} = file:list_dir(file_play:file_dir()),
   Clients = [io_lib:format("~p.~p.~p.~p:~p", tuple_to_list(Address)++[Port]) || {_Pid, [{ip, Address, Port}]} <- ems_server:clients()],
   ?D({"Clients", Clients}),
   {ok, Index} = index_template:render([
