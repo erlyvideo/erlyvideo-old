@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--include("../include/ems.hrl").
+-include("../../include/ems.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2]).
 -export(['WAIT_FOR_DATA'/2]).

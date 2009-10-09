@@ -78,13 +78,13 @@ encode_id(Type, Id) -> <<Type:2, Id:6>>.
 
 
 chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
-chunk(Data,ChunkSize) ->
-	if
-		size(Data) < ChunkSize -> {Data,<<>>};
-		true ->
-			<<Chunk:ChunkSize/binary,Rest/binary>> = Data,
-			{Chunk,Rest}
-	end.
+
+chunk(Data,ChunkSize) when size(Data) < ChunkSize ->
+  {Data, <<>>};
+
+chunk(Data, ChunkSize) ->
+  <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
+	{Chunk,Rest}.
 		
 
 

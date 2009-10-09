@@ -69,24 +69,19 @@ encode(_Value) ->
 %% @end 
 %%--------------------------------------------------------------------
 encode([],Bin) -> Bin;
-encode([H|T],Bin) -> 
-	Part = case H of
-		{Key0,Value0} -> 
-			Key = encode(Key0),
-			Value = encode(Value0),
-			<<Key/binary,Value/binary>>;
-		Value -> encode(Value)
-	end,
-	encode(T, <<Bin/binary,Part/binary>>).
 
+encode([{Key, Value} | T], Bin) ->
+  encode(T, <<Bin/binary, (encode(Key))/binary, (encode(Value))/binary>>);
+
+encode([Value | T], Bin) ->
+  encode(T, <<Bin/binary, (encode(Value))/binary>>).
+  
 
 encode_object({object,List} = _Object) -> encode_object(List, <<>>).
 encode_object([], Bin) -> <<?AMF_OBJECT,Bin/binary,0,0,9>>;
 encode_object([{Key,Value}|T], Bin) ->
-	KeyBinary = list_to_binary(atom_to_list(Key)),
-	KeySize = size(KeyBinary),
-	ValueBinary = encode(Value),
-	Part = <<0,KeySize:8,KeyBinary/binary,ValueBinary/binary>>,
+	KeyBinary = atom_to_binary(Key, latin1),
+	Part = <<0, (size(KeyBinary)), KeyBinary/binary, (encode(Value))/binary>>,
 	encode_object(T, <<Bin/binary,Part/binary>>).
 
 
@@ -178,16 +173,13 @@ parse_array(Data,Length,Array) ->
 
 parse_mixed_array(<<0:16/big-integer, ?AMF_END_OF_OBJECT:8/integer, Rest/binary>>, Array) -> 
   {mixed_array, lists:reverse(Array), Rest};
-parse_mixed_array(Data, Array) ->
-	<<Length:16/big-integer, I:Length/binary, Rest/binary>> = Data,
+parse_mixed_array(<<Length:16/big-integer, I:Length/binary, Rest/binary>>, Array) ->
 	Index = to_number(binary_to_list(I)),
 	case parse(Rest) of
 		{Type,Value,Rest3} -> parse_mixed_array(Rest3,[{Index,{Type,Value}}|Array]);
-		_ ->  case Rest of
-				<<?AMF_MIXED_ARRAY,_Index:32/big-integer,Rest4/binary>> ->
-				  %muriel: this is a cue point info, needs to be added somewhere
-					parse_mixed_array(Rest4, Array)
-			end
+		_ ->
+				<<?AMF_MIXED_ARRAY,_Index:32/big-integer,Rest4/binary>> = Rest,
+				parse_mixed_array(Rest4, Array)
 	end.
 
 

@@ -40,7 +40,7 @@
 -include("../include/ems.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
--export([play/3, file_dir/0, channel_id/2, normalize_filename/1]).
+-export([play/3, file_dir/0, channel_id/2]).
 
 -behaviour(gen_fsm).
 -export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
@@ -60,7 +60,7 @@ play(Name, StreamId, State) ->
   
   
 init_file(Name, StreamId, State) ->
-  FileName = filename:join([ems_play:file_dir(), ems_play:normalize_filename(Name)]), 
+  FileName = filename:join([ems_play:file_dir(), Name]), 
   case filelib:is_regular(FileName) of
     true -> gen_fsm:start_link(?MODULE, {FileName, StreamId, State, self()}, []);
     _ -> init_mpeg_ts(FileName, StreamId, State)
@@ -203,23 +203,15 @@ file_dir() ->
 
 
 
-normalize_filename(Name) ->
-    case filename:extension(Name) of
-        ".flv" -> Name;
-        ".FLV" -> Name;
-        ".mp4" -> Name;
-        ".MP4" -> Name;
-        ".mov" -> Name;
-        _      -> Name ++ ".flv"
-    end.
- 
 file_format(Name) ->
   case filename:extension(Name) of
-      ".flv" -> ems_flv;
-      ".FLV" -> ems_flv;
+      ".flv" -> flv;
+      ".FLV" -> flv;
       ".mp4" -> mp4;
       ".MP4" -> mp4;
-      ".mov" -> mp4
+      ".mov" -> mp4;
+      ".mkv" -> mkv;
+      ".MKV" -> mkv
   end.
   
 handle_event(Event, StateName, StateData) ->

@@ -1,4 +1,4 @@
-ERL=erl
+ERL=erl +bin_opt_info +debug
 APP_NAME=ems
 MNESIA_DATA=mnesia-data
 NODE_NAME=$(APP_NAME)@`hostname`

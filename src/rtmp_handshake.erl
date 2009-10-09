@@ -107,24 +107,30 @@
 16#02,16#9e,16#7e,16#57,16#6e,16#ec,16#5d,16#2d,16#29,16#80,16#6f,16#ab,16#93,16#b8,16#e6,16#36,
 16#cf,16#eb,16#31,16#ae>>).
 
+
+
+-spec s1() -> <<_:12288>>.
 s1() ->
 	?HANDSHAKE.
 
-clientDigest(<<_:5/binary, 0, 3, 2, _/binary>> = C1) ->
+-spec clientDigest(<<_:12288>>) -> <<_:256>>.
+
+
+clientDigest(<<_:5/binary, 0, 3, 2, _:764/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
   ?D("New player"),
-	<<_:772/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1,
 	Offset = (P1+P2+P3+P4) rem 728 + 776,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed;
 
 
-clientDigest(C1) ->
+clientDigest(<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
   ?D("Old player"),
-	<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1,
 	Offset = (P1+P2+P3+P4) rem 728 + 12,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed.
   
+-spec s2(<<_:12288>>) -> <<_:12288>>.
+
 s2(C1) ->
   ServerDigest = hmac256:digest(?KEYSERVER, clientDigest(C1)),
   <<S2:1504/binary, _/binary>> = s1(),
