@@ -54,10 +54,10 @@
 % -define(RTMP_TYPE_UNKNOWN,      14).
 -define(RTMP_FLEX_STREAM_SEND,   15).
 -define(RTMP_FLEX_SHARED_OBJECT, 16).
--define(RTMP_FLEX_MESSAGE,       17).
+-define(RTMP_INVOKE_AMF3,        17).
 -define(RTMP_TYPE_METADATA,      18).
 -define(RTMP_TYPE_SHARED_OBJECT, 19).
--define(RTMP_TYPE_INVOKE,        20).
+-define(RTMP_INVOKE_AMF0,        20).
 
 -define(RTMP_CONTROL_STREAM_BEGIN,    0).
 -define(RTMP_CONTROL_STREAM_EOF,      1).

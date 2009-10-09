@@ -112,7 +112,7 @@ ready({client_buffer, ClientBuffer}, State) ->
 
 ready({start}, #video_player{format = FileFormat, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
   case FileFormat of
-    mp4 -> gen_fsm:send_event(Consumer, {metadata, "onMetaData", FileFormat:metadata(State), 1});
+    mp4 -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, FileFormat:metadata(State), 1});
     _ -> ok
   end,
 	Timer = gen_fsm:start_timer(1, play),

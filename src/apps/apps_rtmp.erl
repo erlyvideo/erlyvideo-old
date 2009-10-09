@@ -41,6 +41,11 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
+obj_to_integer({number, Int}) -> Int;
+obj_to_integer({string, String}) -> 
+  {Int, _} = string:to_integer(String),
+  Int.
+
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a connect command and responds
@@ -48,12 +53,35 @@
 %%-------------------------------------------------------------------------
 connect(AMF, State) ->
     ?D({"invoke - connect", AMF}),
-    case AMF#amf.args of
-      [_PlayerInfo, {string, Cookie}, _UserId] ->
-        Session = rtmp_session:decode(Cookie),
-        ?D({"Session:", Session});
-      _ -> ok
+    
+    Channel = #channel{id = 2, timestamp = 0, stream = 0, msg = <<>>},
+		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<0,16#26, 16#25,16#a0>>}}),
+		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
+		
+	  NewState = case AMF#amf.args of
+			[{object, PlayerInfo}, {string, Cookie}, UserIdObj] ->
+			  UserId = obj_to_integer(UserIdObj),
+			  Session = rtmp_session:decode(Cookie),
+        ?D({"Session:", Session}),
+        
+        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
+				State#ems_fsm{player_info = PlayerInfo, user_id = UserId};
+	    [{object, PlayerInfo} | _] ->
+				State#ems_fsm{player_info = PlayerInfo, user_id = undefined}
+		end,
+    
+    case lists:keyfind(objectEncoding, 1, PlayerInfo) of
+      {objectEncoding, 0} -> ok;
+      {objectEncoding, _N} -> 
+        error_logger:error_msg("Warning! Cannot work with clients, using AMF3 encoding.
+        Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code"),
+        throw(invalid_amf3_encoding);
+      _ ->
+        error_logger:error_msg("Warning! Client hasnt provided any encoding.
+        Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code"),
+        throw(invalid_amf_encoding)
     end,
+    
     NewAMF = AMF#amf{
         command = '_result', 
         id = 1, %% muriel: dirty too, but the only way I can make this work
@@ -64,7 +92,7 @@ connect(AMF, State) ->
             {level, "status"}, 
             {description, "Connection succeeded."}]]},
     gen_fsm:send_event(self(), {invoke, NewAMF}),
-    State.
+    NewState.
 
 
 
@@ -87,7 +115,7 @@ connect(AMF, State) ->
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_TYPE_INVOKE, stream = Stream}, AMF}}),
+  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) -> 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, 0}, State);
