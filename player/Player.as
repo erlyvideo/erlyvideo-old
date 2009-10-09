@@ -188,6 +188,8 @@ private function onStreamStatus( event : NetStatusEvent ) : void
       break;
   		
   	case "NetStream.Play.Complete":
+  	  stop();
+  	  play();
 /*      stop();*/
   	  break;
   	  
