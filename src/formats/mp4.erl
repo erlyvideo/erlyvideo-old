@@ -116,23 +116,47 @@ read_frame(#video_player{sent_audio_config = false, frames = FrameTable} = Playe
 read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Player) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
-	case file:pread(IoDev, Offset, Size) of
-		{ok, Data} ->
-		  VideoFrame = video_frame(Frame, iolist_to_binary(Data)),
-      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
+	case read_data(Player, Offset, Size) of
+		{ok, Data, NewPlayer} ->
+		  VideoFrame = video_frame(Frame, Data),
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, NewPlayer};
     eof ->
       {ok, done};
     {error, Reason} ->
       {error, Reason}
   end.
-      
+  
+
+% read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
+%   Seek = Offset - CacheOffset,
+%   % ?D({"Cache hit", Offset, Size}),
+%   <<_:Seek/binary, Data:Size/binary, Rest/binary>> = Cache,
+%   {ok, Data, Player};
+% 
+read_data(#video_player{device = IoDev} = Player, Offset, Size) ->
+  case file:pread(IoDev, Offset, Size) of
+		{ok, Data} ->
+      {ok, Data, Player};
+    Else -> Else
+  end.
+
+
+% read_data(#video_player{device = IoDev} = Player, Offset, Size) ->
+%   CacheSize = 1000000 + Size,
+%   case file:pread(IoDev, Offset, CacheSize) of
+%     {ok, CacheList} ->
+%       Cache = iolist_to_binary(CacheList),
+%       <<Data:Size/binary, _/binary>> = Cache,
+%       {ok, Data, Player#video_player{cache_offset = Offset, cache = Cache}};
+%     Else -> Else
+%   end.
   
 
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = Timestamp,
-		body          = iolist_to_binary(Data),
+		body          = Data,
 		frame_type    = case Keyframe of
 		  true ->	?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
 		  _ -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME
@@ -146,7 +170,7 @@ video_frame(#file_frame{type = audio, timestamp = Timestamp}, Data) ->
    	type          = ?FLV_TAG_TYPE_AUDIO,
   	timestamp_abs = Timestamp,
   	streamid      = 1,
-  	body          = iolist_to_binary(Data),
+  	body          = Data,
     sound_format	= ?FLV_AUDIO_FORMAT_AAC,
     sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
     sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
@@ -397,12 +421,11 @@ extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
 next_atom(IoDev) ->
   case file:read(IoDev, 4) of
     {ok, Data} ->
-      <<AtomLength:32/big-integer>> = list_to_binary(Data),
+      <<AtomLength:32/big-integer>> = Data,
       case AtomLength of
         0 -> next_atom(IoDev);
         _ ->
-          {ok, AtomNameData} = file:read(IoDev, 4),
-          <<AtomName:4/binary>> = list_to_binary(AtomNameData),
+          {ok, AtomName} = file:read(IoDev, 4),
           case AtomName of
             <<"mdat">> ->
               {mdat};
@@ -410,7 +433,7 @@ next_atom(IoDev) ->
               % ?D({"Atom: ", binary_to_atom(AtomName, utf8), AtomLength}),
               case file:read(IoDev, AtomLength - 8) of
                 {ok, Atom} ->
-                  {binary_to_atom(AtomName, utf8), list_to_binary(Atom)};
+                  {binary_to_atom(AtomName, utf8), Atom};
                 eof ->
                   {error, unexpected_eof};
                 {error, Reason} ->

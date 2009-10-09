@@ -67,8 +67,7 @@ read_frame_list(#video_player{} = Player, FrameCount) when FrameCount == 10 ->
 read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = Player, FrameCount) ->
   % We need to bypass PreviousTagSize and read header.
 	case file:pread(IoDev,Pos + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
-		{ok, IoList} ->
-		  <<Type, Length:24/big, TimeStamp:24/big, TimeStampExt, _StreamId:24/big>> = iolist_to_binary(IoList),
+		{ok, <<Type, Length:24/big, TimeStamp:24/big, TimeStampExt, _StreamId:24/big>>} ->
 		  <<TimeStampAbs:32/big>> = <<TimeStampExt, TimeStamp:24/big>>,
 		  
 		  PreparedFrame = #file_frame{
@@ -125,7 +124,7 @@ read_frame(#video_player{device = IoDev, pos = Key, frames = FrameTable} = Playe
   #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
 		{ok, Data} ->
-		  VideoFrame = video_frame(Frame, iolist_to_binary(Data)),
+		  VideoFrame = video_frame(Frame, Data),
       {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
     eof ->
       {ok, done};
@@ -164,13 +163,9 @@ getWidthHeight(IoDev, Pos, CodecID)->
 % @return {FrameType, CodecID}
 extractVideoHeader(IoDev, Pos) ->	
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of   
-	       {ok,IoList3} ->
-		     case iolist_to_binary(IoList3) of
-			     %type= 9 :: read video headers:
-				 <<FrameType:4, CodecID:4>> ->
-				 	{Width, Height} = getWidthHeight(IoDev, Pos, CodecID),
-					{FrameType, CodecID, Width, Height}
-		      end;
+   {ok, <<FrameType:4, CodecID:4>>} ->
+				{Width, Height} = getWidthHeight(IoDev, Pos, CodecID),
+				{FrameType, CodecID, Width, Height};
 		eof -> 
 			 {ok, done};
 		{error, Reason} -> 
@@ -181,41 +176,28 @@ end.
 
 decodeScreenVideo(IoDev, Pos) ->
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 4) of
-		{ok, IoList4} -> 
-			case iolist_to_binary(IoList4) of
-				<<_Offset:4, Width:12, Height:12, _Rest:4>> -> {Width, Height}
-			end
+		{ok, <<_Offset:4, Width:12, Height:12, _Rest:4>>} -> {Width, Height}
 	end.
 	
 decodeSorensen(IoDev, Pos) ->
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 9) of
-		{ok, IoList4} ->
-			case iolist_to_binary(IoList4) of
-				<<_Offset:30, Info:3, _Rest:39>> -> 
-				case Info of
-					
-					0 ->  case iolist_to_binary(IoList4) of
-							<<_Offset1:30, _Info1:3, Width1:8, Height1:8, _Rest1:23>> -> {Width1, Height1}
-					      end;
-					1 -> case iolist_to_binary(IoList4) of
-							<<_Offset2:30, _Info2:3, Width2:16, Height2:16, _Rest2:7>> -> {Width2, Height2}
-					     end;
-					2 -> {352, 288};
-					3 -> {176, 144};
-					4 -> {128, 96};
-					5 -> {320, 240};
-					6 -> {160, 120}
-				end
+		{ok, IoList} ->
+		  <<_Offset:30, Info:3, _Rest:39>> = IoList,
+			case Info of
+				
+				0 -> <<_:30, _:3, Width1:8, Height1:8, _Rest1:23>> = _Rest, {Width1, Height1};
+				1 -> <<_:30, _:3, Width2:16, Height2:16, _Rest2:7>> = _Rest, {Width2, Height2};
+				2 -> {352, 288};
+				3 -> {176, 144};
+				4 -> {128, 96};
+				5 -> {320, 240};
+				6 -> {160, 120}
 			end
 	end.
 
 decodeVP6(IoDev, Pos)->
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 7) of
-			{ok, IoList4} -> 
-				case iolist_to_binary(IoList4) of
-					<<HeightHelper:4, WidthHelper:4, _Offset:24, Width:8, Height:8>> -> 
-						{Width*16-WidthHelper, Height*16-HeightHelper}
-				end
+			{ok, <<HeightHelper:4, WidthHelper:4, _Offset:24, Width:8, Height:8>>} -> {Width*16-WidthHelper, Height*16-HeightHelper}
 	end.
 % Extracts audio header information for a tag.
 % @param IoDev
@@ -223,18 +205,10 @@ decodeVP6(IoDev, Pos)->
 % @return {SoundType, SoundSize, SoundRate, SoundFormat}
 extractAudioHeader(IoDev, Pos) ->	
 	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of   
-	       {ok,IoList3} ->
-		     case iolist_to_binary(IoList3) of
-			     %type= 9 :: read video headers:
-				 %<<SoundType:1, SoundSize:1, SoundRate:2, SoundFormat: 4>> ->
-				 <<SoundFormat:4, SoundRate:2, SoundSize:1, SoundType:1>> ->
-					 {SoundType, SoundSize, SoundRate, SoundFormat}
-		      end;
-		eof -> 
-			 {ok, done};
-		{error, Reason} -> 
-			 {error, Reason}
-end.
+	  {ok, <<SoundFormat:4, SoundRate:2, SoundSize:1, SoundType:1>>} -> {SoundType, SoundSize, SoundRate, SoundFormat};
+		eof -> {ok, done};
+		{error, Reason} -> {error, Reason}
+  end.
 
 
 	
@@ -246,8 +220,7 @@ header(#flv_header{version = Version, audio = Audio, video = Video}) ->
 	<<70,76,86,Version:8,Reserved:5,Audio:1,Reserved:1,Video:1,Offset:32,PrevTag:32>>;
 header(Bin) when is_binary(Bin) ->
 	<<70,76,86, Ver:8, _:5, Audio:1, _:1, Video:1, 0,0,0,9>> = Bin,
-	#flv_header{version=Ver,audio=Audio,video=Video};
-header(IoList) when is_list(IoList) -> header(iolist_to_binary(IoList)).
+	#flv_header{version=Ver,audio=Audio,video=Video}.
 		
 
 

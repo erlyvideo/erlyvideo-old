@@ -28,7 +28,9 @@ clean-doc:
 	rm -fv doc/*.css
 
 run: ebin/erlmedia.app
-	$(ERL) -pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
+	$(ERL) \
+	+A 4 +K true \
+	-pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \

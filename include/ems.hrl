@@ -301,7 +301,9 @@
 	duration = undefined,
 	ts_prev = 0,
 	pos = 0,
-	frames = []
+	frames = [],
+	cache = <<>>,
+	cache_offset = 0
 }).
 
 

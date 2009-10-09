@@ -48,7 +48,7 @@
 
   
 init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
-	{ok, IoDev} = file:open(FileName, [read, read_ahead]),
+	{ok, IoDev} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
 	FileFormat = file_format(FileName),
 	case FileFormat:init(#video_player{device = IoDev, 
 	                                   file_name = FileName,
@@ -100,6 +100,7 @@ ready({stop}, State) ->
   {stop, normal, State};
 
 ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
+  {_, Sec1, MSec1} = erlang:now(),
 	case FileFormat:read_frame(State) of
 		{ok, done} ->
 		  ?D("Video file finished"),
@@ -114,6 +115,9 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileForma
 			                  timer_ref = gen_fsm:start_timer(Timeout, play),
 											  ts_prev = Frame#video_frame.timestamp_abs,
 											  pos = Frame#video_frame.nextpos},
+			{_, Sec2, MSec2} = erlang:now(),
+			Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
+      % ?D({"Read frame", Delta}),
 			{next_state, ready, NextState};
 		{error, _Reason} ->
 			?D({"Ems player stopping", _Reason}),
