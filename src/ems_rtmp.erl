@@ -150,7 +150,7 @@ command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>
 	State#ems_fsm{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
-  ?D({"Stream bytes read: ", _Length}),
+  % ?D({"Stream bytes read: ", _Length}),
 	State;
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
