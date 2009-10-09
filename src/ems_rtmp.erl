@@ -37,7 +37,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/2, chunk/1]).
+-export([encode/1, encode/2, handshake/1, decode/2]).
 
 
 handshake(C1) when is_binary(C1) -> 
@@ -56,16 +56,18 @@ encode(_Channel, <<>>, Packet) -> Packet;
 
 
 encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = Channel, Data, <<>>) -> 
-	{Chunk,Rest} = chunk(Data, ChunkSize),
+  % {Chunk,Rest} = chunk(Data, ChunkSize),
+  ChunkList = chunk(Data, ChunkSize, Id),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
-	NextPacket = <<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
-	encode(Channel, Rest, NextPacket);
+  %   NextPacket = <<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
+  % encode(Channel, Rest, NextPacket);
+  [<<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little>> | ChunkList].
 
-encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) -> 
-	{Chunk,Rest} = chunk(Data, ChunkSize),
-	BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
-	NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
-	encode(Channel, Rest, NextPacket).
+% encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) -> 
+%   {Chunk,Rest} = chunk(Data, ChunkSize, Id),
+%   BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
+%   NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
+%   encode(Channel, Rest, NextPacket).
 
 
 encode_id(Type, Id) when Id > 319 -> 
@@ -77,14 +79,16 @@ encode_id(Type, Id) when Id > 63 ->
 encode_id(Type, Id) -> <<Type:2, Id:6>>.
 
 
-chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
+% chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
 
-chunk(Data,ChunkSize) when size(Data) < ChunkSize ->
-  {Data, <<>>};
+chunk(Data, ChunkSize, Id) -> chunk(Data, ChunkSize, Id, []).
 
-chunk(Data, ChunkSize) ->
+chunk(Data, ChunkSize, Id, List) when size(Data) =< ChunkSize ->
+  lists:reverse([Data | List]);
+
+chunk(Data, ChunkSize, Id, List) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
-	{Chunk,Rest}.
+  chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
 
 

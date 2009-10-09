@@ -48,7 +48,7 @@
 
   
 init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
-	{ok, IoDev} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
+	{ok, IoDev} = file:open(FileName, [read, binary, raw, {read_ahead, 100000}]),
 	FileFormat = file_format(FileName),
 	case FileFormat:init(#video_player{device = IoDev, 
 	                                   file_name = FileName,
