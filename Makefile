@@ -1,4 +1,4 @@
-ERL=erl +bin_opt_info +debug
+ERL=erl +A 4 +K true
 APP_NAME=ems
 MNESIA_DATA=mnesia-data
 NODE_NAME=$(APP_NAME)@`hostname`
@@ -28,8 +28,7 @@ clean-doc:
 	rm -fv doc/*.css
 
 run: ebin/erlmedia.app
-	$(ERL) \
-	+A 4 +K true \
+	$(ERL) +bin_opt_info +debug \
 	-pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
@@ -38,6 +37,8 @@ run: ebin/erlmedia.app
 	
 start: ebin/erlmedia.app
 	$(ERL) -pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
+	-sasl sasl_error_logger '{file, "sasl.log"}' \
+  -kernel error_logger '{file, "erlang.log"}' \
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
