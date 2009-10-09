@@ -127,29 +127,30 @@ read_frame(#video_player{frames = FrameTable, pos = Key, device = IoDev} = Playe
   end.
   
 
-% read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
-%   Seek = Offset - CacheOffset,
-%   % ?D({"Cache hit", Offset, Size}),
-%   <<_:Seek/binary, Data:Size/binary, Rest/binary>> = Cache,
-%   {ok, Data, Player};
-% 
-read_data(#video_player{device = IoDev} = Player, Offset, Size) ->
-  case file:pread(IoDev, Offset, Size) of
-		{ok, Data} ->
-      {ok, Data, Player};
-    Else -> Else
-  end.
-
-
 % read_data(#video_player{device = IoDev} = Player, Offset, Size) ->
-%   CacheSize = 1000000 + Size,
-%   case file:pread(IoDev, Offset, CacheSize) of
-%     {ok, CacheList} ->
-%       Cache = iolist_to_binary(CacheList),
-%       <<Data:Size/binary, _/binary>> = Cache,
-%       {ok, Data, Player#video_player{cache_offset = Offset, cache = Cache}};
+%   case file:pread(IoDev, Offset, Size) of
+%     {ok, Data} ->
+%       {ok, Data, Player};
 %     Else -> Else
 %   end.
+
+read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
+  Seek = Offset - CacheOffset,
+  % ?D({"Cache hit", Offset, Size}),
+  <<_:Seek/binary, Data:Size/binary, Rest/binary>> = Cache,
+  {ok, Data, Player};
+
+
+
+read_data(#video_player{device = IoDev} = Player, Offset, Size) ->
+  CacheSize = 60000 + Size,
+  case file:pread(IoDev, Offset, CacheSize) of
+    {ok, CacheList} ->
+      Cache = iolist_to_binary(CacheList),
+      <<Data:Size/binary, _/binary>> = Cache,
+      {ok, Data, Player#video_player{cache_offset = Offset, cache = Cache}};
+    Else -> Else
+  end.
   
 
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
