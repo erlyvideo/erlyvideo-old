@@ -40,7 +40,7 @@
 -include("../include/ems.hrl").
 
 
--export([play/3, send/2]).
+-export([play/3, send/2, channel_id/2]).
 
 
 play(Name, StreamId, State) ->

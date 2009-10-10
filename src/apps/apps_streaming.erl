@@ -111,7 +111,7 @@ deleteStream(_AMF, #ems_fsm{video_player = undefined} = State) ->
   ?D("player is stopped when deleteStream called"),
   State;
   
-deleteStream(_AMF, #ems_fsm{video_player = Player} = State) ->
+deleteStream(_AMF, #ems_fsm{video_player = Player} = State) when is_pid(Player) ->
   gen_fsm:send_event(Player, {stop}),
   ?D("invoke - deleteStream"),
   State.

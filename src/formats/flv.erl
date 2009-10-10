@@ -37,7 +37,7 @@
 -include("../../include/ems.hrl").
 -include("../../include/flv.hrl").
 
--export([init/1, read_frame/1, read_frame_list/2]).
+-export([init/1, read_frame/1, read_frame_list/2, header/1]).
 -behaviour(gen_format).
 
 
