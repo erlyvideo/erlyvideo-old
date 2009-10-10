@@ -270,15 +270,7 @@
   client_buffer = ?MIN_CLIENT_BUFFER,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	type,
-	video_player = undefined,
-  video_file_name,
-	video_timer_ref,
-	video_buffer,
-	video_ts_pos,
-	video_ts_prev = 0,
-	video_pos = 0,
-	video_device
+	video_player = undefined
 	}).
 	
 -record(video_player, {

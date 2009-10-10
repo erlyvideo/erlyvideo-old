@@ -36,6 +36,7 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
+-include("../../include/recorder.hrl").
 
 -export([publish/2]).
 -export(['WAIT_FOR_DATA'/2]).
@@ -50,8 +51,8 @@
 	Header = ems_flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, IoDev} ->
-			NextState = State#ems_fsm{video_buffer=[Header],type=record,video_device=IoDev,video_file_name=FileName,video_ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+		  Recorder = #video_recorder{buffer=[Header], type=record, device = IoDev, file_name = FileName, ts_prev=0},
+			{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
 		_ ->
 			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
 	end;
@@ -61,8 +62,8 @@
 	FileName = filename:join([ems_play:file_dir(), Name]),
 	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
-			NextState = State#ems_fsm{type=record_append,video_device=IoDev,video_file_name=FileName,video_ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+		  Recorder = #video_recorder{type=record_append, device = IoDev, file_name = FileName, ts_prev=0},
+			{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
 	    _ ->
     		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
     end;	
@@ -79,22 +80,23 @@
     FirstPacket = <<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,    
     ems_cluster:broadcast(Name, FirstPacket),
     %% hack end
-    NextState = State#ems_fsm{type=broadcast,video_file_name=Name, video_ts_prev = 0},
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+    Recorder = #video_recorder{type=broadcast, file_name = Name, ts_prev = 0},
+	{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{type = broadcast, 
-                                            video_ts_prev = PrevTs,
-                                            video_file_name = Name} = State) when is_record(Channel,channel) ->
+'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_player = #video_recorder{
+                                              type = broadcast, 
+                                              ts_prev = PrevTs,
+                                              file_name = Name} = Recorder} = State) when is_record(Channel,channel) ->
 	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
 %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
 	Packet = ems_rtmp:encode(Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
     ems_cluster:broadcast(Name, Packet),
-    NextState = State#ems_fsm{video_ts_prev=NextTimeStamp},
-    {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+    {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder#video_recorder{ts_prev=NextTimeStamp}}, ?TIMEOUT};
     	
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_ts_prev = PrevTs, 
-                                            video_device = IoDev, 
-                                            video_buffer = Buffer} = State) when is_record(Channel,channel) ->
+'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_player = #video_recorder{
+                                              ts_prev = PrevTs, 
+                                              device = IoDev, 
+                                              buffer = Buffer} = Recorder} = State) when is_record(Channel,channel) ->
 	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
 	FlvChunk = [Tag | Buffer],	
@@ -102,11 +104,44 @@
 	NextState = if
 		(Size > ?VIDEO_WRITE_BUFFER) ->
 			file:write(IoDev, lists:reverse(Buffer)),
-			State#ems_fsm{video_buffer=[Tag],video_ts_prev=NextTimeStamp};
+			State#ems_fsm{video_player = Recorder#video_recorder{buffer=[Tag],ts_prev=NextTimeStamp}};
 		true ->
-			State#ems_fsm{video_buffer=FlvChunk,video_ts_prev=NextTimeStamp}
+			State#ems_fsm{video_player = Recorder#video_recorder{buffer=FlvChunk,ts_prev=NextTimeStamp}}
 	end,
 	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
+
+
+'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = #video_recorder{
+                                                 device = IoDev, 
+                                                 buffer = Buffer,
+                                                 file_name = FileName,
+                                                 type = Type,
+                                                 timer_ref = TimerRef} = Recorder} = State) ->
+	case Buffer of
+		undefined -> ok;
+		_ -> file:write(IoDev, lists:reverse(Buffer))
+	end,
+  case IoDev of
+      undefined -> ok;
+      _ -> file:close(IoDev)
+  end,
+  case TimerRef of
+      undefined -> ok;
+      _ -> gen_fsm:cancel_timer(TimerRef)
+  end,
+  case Type of
+      live -> 
+          ems_cluster:unsubscribe(FileName, self());
+      wait -> 
+          ems_cluster:unsubscribe(FileName, self());
+      broadcast ->
+          ems_cluster:stop_broadcast(FileName);
+      _ -> 
+          ok
+  end,
+	NextState = State#ems_fsm{video_player = undefined},
+  {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 

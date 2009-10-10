@@ -42,9 +42,9 @@
 
 
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-  case ems_play:play(Name, StreamId, State#ems_fsm{type = vod}) of
+  case ems_play:play(Name, StreamId, State) of
     {ok, PlayerPid} ->
-      NextState = State#ems_fsm{type  = vod, video_player = PlayerPid},
+      NextState = State#ems_fsm{video_player = PlayerPid},
       gen_fsm:send_event(PlayerPid, {start}),
       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
     {notfound} ->
@@ -55,32 +55,9 @@
       {error, Reason}
   end;
 
-'WAIT_FOR_DATA'({stop}, #ems_fsm{video_device = IoDev, video_buffer = Buffer, video_timer_ref = TimerRef, type = Type} = State) ->
-	case Buffer of
-		undefined -> ok;
-		_ -> file:write(IoDev, lists:reverse(Buffer))
-	end,
-  case IoDev of
-      undefined -> ok;
-      _ -> file:close(IoDev)
-  end,
-  case TimerRef of
-      undefined -> ok;
-      _ -> gen_fsm:cancel_timer(TimerRef)
-  end,
-  case Type of
-      live -> 
-          ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
-      wait -> 
-          ems_cluster:unsubscribe(State#ems_fsm.video_file_name, self());
-      broadcast ->
-          ems_cluster:stop_broadcast(State#ems_fsm.video_file_name);
-      _ -> 
-          ok
-  end,
-	NextState = State#ems_fsm{video_device=undefined,video_buffer=[],
-							  video_timer_ref=undefined,video_pos = 0},
-  {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
+  gen_fsm:send_event(PlayerPid, {stop}),
+  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = undefined}, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
