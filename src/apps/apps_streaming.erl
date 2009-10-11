@@ -44,6 +44,7 @@
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
   case ems_play:play(Name, StreamId, State) of
     {ok, PlayerPid} ->
+      ?D({"Player starting", PlayerPid}),
       NextState = State#ems_fsm{video_player = PlayerPid},
       gen_fsm:send_event(PlayerPid, {start}),
       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
@@ -56,6 +57,7 @@
   end;
 
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
+  ?D({"Stopping video player", PlayerPid}),
   gen_fsm:send_event(PlayerPid, {stop}),
   {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = undefined}, ?TIMEOUT};
 
@@ -188,9 +190,9 @@ seek(AMF, #ems_fsm{video_player = Player} = State) ->
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(_AMF, #ems_fsm{video_player = Player} = State) -> 
-    ?D("invoke - stop"),
-    gen_fsm:send_event(Player, {stop}),
+stop(_AMF, State) -> 
+    ?D({"invoke - stop", _AMF#amf.args}),
+    gen_fsm:send_event(self(), {stop}),
     State.
 
 %%-------------------------------------------------------------------------
@@ -199,7 +201,6 @@ stop(_AMF, #ems_fsm{video_player = Player} = State) ->
 %% @end
 %%-------------------------------------------------------------------------
 closeStream(_AMF, State) ->
-    ?D("invoke - closeStream"),
-    gen_fsm:send_event(self(), {stop}),
-    State.
+  ?D("invoke - closeStream"),
+  State.
 

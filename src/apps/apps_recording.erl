@@ -48,9 +48,11 @@
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
 	FileName = filename:join([file_play:file_dir(), Name]),
+	ok = file:delete(FileName),
 	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, IoDev} ->
+    	?D({"Recording stream to", FileName}),
 		  Recorder = #video_recorder{buffer=[Header], type=record, device = IoDev, file_name = FileName, ts_prev=0},
 			{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
 		_ ->
@@ -97,7 +99,7 @@
                                               ts_prev = PrevTs, 
                                               device = IoDev, 
                                               buffer = Buffer} = Recorder} = State) when is_record(Channel,channel) ->
-	?D({"Record",Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
+	?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
 	FlvChunk = [Tag | Buffer],	
 	Size = size(list_to_binary(FlvChunk)),
@@ -116,7 +118,7 @@
                                                  buffer = Buffer,
                                                  file_name = FileName,
                                                  type = Type,
-                                                 timer_ref = TimerRef} = Recorder} = State) ->
+                                                 timer_ref = TimerRef} = _Recorder} = State) ->
 	case Buffer of
 		undefined -> ok;
 		_ -> file:write(IoDev, lists:reverse(Buffer))
@@ -139,12 +141,12 @@
       _ -> 
           ok
   end,
-	NextState = State#ems_fsm{video_player = undefined},
-  {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+  ?D({"Stopping video recorder"}),
+  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = undefined}, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({stop}, State) ->
-  ?D({"Invalid state", State}),
+  ?D({"Invalid state in STOP", State#ems_fsm.video_player}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
@@ -154,28 +156,26 @@
 %% @doc  Processes a publish command and responds
 %% @end
 %%-------------------------------------------------------------------------
-publish(AMF, State) -> 
-    ?D("invoke - publish"),
-    Args = AMF#amf.args,
-    case Args of
-        [{null,null},{string,Name},{string,Action}] ->
-            case list_to_atom(Action) of
-                record -> 
-                    ?D({"Publish - Action - record",Name}),
-                    gen_fsm:send_event(self(), {publish, record, Name});
-                append -> 
-                     ?D({"Publish - Action - append",Name}),
-                     gen_fsm:send_event(self(), {publish, append, Name});
-                live -> 
-                    ?D({"Publish - Action - live",Name}),
-                    gen_fsm:send_event(self(), {publish, live, Name});
-                _OtherAction -> 
-                    ?D({"Publish Ignoring - ", _OtherAction})
-            end;
-		[{null,null},{string,Name}] -> % second arg is optional
-			?D({"Publish - Action - live",Name}),
-            gen_fsm:send_event(self(), {publish, live, Name});
-        _ -> ok
-    end,
-    State.
+
+publish(#amf{args = [{null,null},{string,Name},{string,"record"}]} = _AMF, State) -> 
+  ?D({"Publish - Action - record",Name}),
+  gen_fsm:send_event(self(), {publish, record, Name}),
+  State;
+
+
+publish(#amf{args = [{null,null},{string,Name},{string,"append"}]} = _AMF, State) -> 
+  ?D({"Publish - Action - append",Name}),
+  gen_fsm:send_event(self(), {publish, append, Name}),
+  State;
+
+
+publish(#amf{args = [{null,null},{string,Name},{string,"live"}]} = _AMF, State) -> 
+  ?D({"Publish - Action - live",Name}),
+  gen_fsm:send_event(self(), {publish, live, Name}),
+  State;
+
+publish(#amf{args = [{null,null},{string,Name}]} = _AMF, State) -> 
+  ?D({"Publish - Action - live",Name}),
+  gen_fsm:send_event(self(), {publish, live, Name}),
+  State.
 
