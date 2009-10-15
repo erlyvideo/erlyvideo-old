@@ -196,7 +196,7 @@ decodeSorensen(IoDev, Pos) ->
 	end.
 
 decodeVP6(IoDev, Pos)->
-	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 7) of
+	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 6) of
 			{ok, <<HeightHelper:4, WidthHelper:4, _Offset:24, Width:8, Height:8>>} -> {Width*16-WidthHelper, Height*16-HeightHelper}
 	end.
 % Extracts audio header information for a tag.
@@ -211,7 +211,8 @@ extractAudioHeader(IoDev, Pos) ->
   end.
 
 
-	
+
+-spec header(#flv_header{} | <<_:72>>) -> #flv_header{version::byte(),audio::0 | 1,video::0 | 1}.
 
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
 	Reserved = 0,

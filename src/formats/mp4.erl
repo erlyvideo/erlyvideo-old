@@ -314,6 +314,7 @@ decode_atom(stsd, {_EntryCount, <<_SampleDescriptionSize:32/big-integer,
   parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1, width = Width, height = Height});
 
 
+
 decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
                                  _Reserved:6/binary, _RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
            when SampleDescriptionSize == size(EntryData) + 16 ->
@@ -322,8 +323,8 @@ decode_atom(stsd, {_EntryCount, <<SampleDescriptionSize:32/big-integer, DataForm
   NewTrack;
   
 % ESDS atom
-decode_atom(esds, <<0:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) ->
-  % ?D({"Extracted audio config"}),
+decode_atom(esds, <<Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) when Version == 0 ->
+  % ?D({"Extracted audio config", DecoderConfig}),
   Mp4Track#mp4_track{decoder_config = esds_tag(DecoderConfig)};
 
 % avcC atom
@@ -548,9 +549,38 @@ calculate_sample_offsets(#mp4_header{tracks = Tracks} = Mp4Parser,
 -define(MP4DecConfigDescrTag, 4).
 -define(MP4DecSpecificDescrtag, 5).
 
-esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag:8/integer, Length/integer, Config:Length/binary, _Rest/binary>>) ->
+mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
+  {Rest, Rest2};
+
+mp4_desc_length(<<1:1, Length1:7, 0:1, Length:7, Rest/binary>>) ->
+  TagLength = Length1 * 128 + Length,
+  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
+  {Rest1, Rest2};
+
+mp4_desc_length(<<1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7, Rest/binary>>)  ->
+  TagLength = (Length2 bsl 14 + Length1 bsl 7 + Length),
+  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
+  {Rest1, Rest2};
+
+mp4_desc_length(<<1:1, Length3:7, 1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7, Rest/binary>>)  ->
+  TagLength = (Length3 bsl 21 + Length2 bsl 14 + Length1 bsl 7 + Length),
+  ?D({"MP4 desc length", TagLength}),
+  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
+  {Rest1, Rest2}.
+
+esds_tag(<<3, Rest/binary>>) ->
+  {DecoderConfigTag, Other1} = mp4_desc_length(Rest),
+  <<_HardcodedOffset:3/binary, 4, Rest1/binary>> = DecoderConfigTag,
+  {SpecificInfoTag, Other2} = mp4_desc_length(Rest1),
+  <<_HardcodedOffset1:13/binary, ?MP4DecSpecificDescrtag, ConfigData/binary>> = SpecificInfoTag,
+  {Config, Other3} = mp4_desc_length(ConfigData),
+  % ?D({"MP4DecSpecificDescrtag", Length, Config}),
+  <<Config/binary, 6>>;
+
+esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag, Length/integer, Config:Length/binary, _Rest/binary>>) ->
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary, 6>>.
   
+    
     
     
