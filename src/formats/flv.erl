@@ -211,7 +211,8 @@ extractAudioHeader(IoDev, Pos) ->
   end.
 
 
-	
+
+-spec header(#flv_header{} | <<_:72>>) -> #flv_header{version::byte(),audio::0 | 1,video::0 | 1}.
 
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
 	Reserved = 0,
