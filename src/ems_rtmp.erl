@@ -71,12 +71,11 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, c
 
 
 encode_id(Type, Id) when Id > 319 -> 
-	NewId = Id - 64,
-	<<Type:2,?RTMP_HDR_LRG_ID:6,NewId:16/big-integer>>;
+	<<Type:2,?RTMP_HDR_LRG_ID:6, (Id - 64):16/big-integer>>;
 encode_id(Type, Id) when Id > 63 -> 
-	NewId = Id - 64,
-	<<Type:2,?RTMP_HDR_MED_ID:6,NewId:8>>;
-encode_id(Type, Id) -> <<Type:2, Id:6>>.
+	<<Type:2,?RTMP_HDR_MED_ID:6, (Id - 64):8>>;
+encode_id(Type, Id) when Id >= 2 -> 
+  <<Type:2, Id:6>>.
 
 
 % chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
@@ -87,7 +86,7 @@ chunk(Data, ChunkSize, Id, List) when size(Data) =< ChunkSize ->
   lists:reverse([Data | List]);
 
 
-chunk(Data, ChunkSize, Id, List) ->
+chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
   chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
@@ -114,8 +113,8 @@ decode(Bin,State) ->
 			{NewChannel,NewChannelList} = channel_merge(Channel,State),
 			{Chunk,Next} = get_chunk(Channel,State,Rest);
 		false ->
-			NewChannelList = State#ems_fsm.channels,
-			NewChannel = lists:nth(1,NewChannelList),
+		  NewChannelList = State#ems_fsm.channels,
+			NewChannel = hd(NewChannelList),
 			Prev = State#ems_fsm.prev_buff,
 			Rest = <<Prev/binary,Bin/binary>>,
 			{Chunk,Next} = get_chunk(NewChannel,State,Rest)
@@ -202,24 +201,50 @@ command(#channel{type = Type}, State) ->
   State.
 
 
+% Very many repetition on several indepentent cases. First, we have three different choices of
+% header size
+% Second: three difference sizes of channel Id
+% Third: two different variants of timestamp
+% Continuation of chunked channel
 header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>) ->
 	{#channel{id=Id + 64},Rest};
-header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_LRG_ID:6,Id:16/little-integer,Rest/binary>>) ->
+header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>) ->
 	{#channel{id=Id + 64},Rest};
 header(<<?RTMP_HDR_CONTINUE:2,Id:6,Rest/binary>>) ->
 	{#channel{id=Id},Rest};
+% Same channel, same size, same data, change timestamp
 header(<<?RTMP_HDR_TS_CHG:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Rest/binary>>) ->
 	{#channel{id=Id + 64,timestamp=TimeStamp},Rest};
 header(<<?RTMP_HDR_TS_CHG:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Rest/binary>>) ->
 	{#channel{id=Id + 64,timestamp=TimeStamp},Rest};
 header(<<?RTMP_HDR_TS_CHG:2,Id:6,TimeStamp:24,Rest/binary>>) ->
 	{#channel{id=Id,timestamp=TimeStamp},Rest};
+
+
 header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
 	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type},Rest};
 header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
 	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type},Rest};
 header(<<?RTMP_HDR_SAME_SRC:2,Id:6,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
 	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type},Rest};
+	
+header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_MED_ID:6,Id:8,16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type},Rest};
+header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_LRG_ID:6,Id:16,16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type},Rest};
+header(<<?RTMP_HDR_SAME_SRC:2,Id:6,16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type},Rest};
+
+
+
+header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_MED_ID:6,Id:8,16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24, Rest/binary>>) ->
+	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
+header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_LRG_ID:6,Id:16, 16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
+header(<<?RTMP_HDR_NEW:2,Id:6, 16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>) ->
+	{#channel{id=Id,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
+
+	
 header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
 	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
 header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
