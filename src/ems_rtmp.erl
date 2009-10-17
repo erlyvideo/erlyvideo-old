@@ -86,12 +86,24 @@ chunk(Data, ChunkSize, Id) -> chunk(Data, ChunkSize, Id, []).
 chunk(Data, ChunkSize, Id, List) when size(Data) =< ChunkSize ->
   lists:reverse([Data | List]);
 
+
 chunk(Data, ChunkSize, Id, List) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
   chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
 
+get_chunk(Channel,State,Bin) ->
+	ChunkSize = chunk_size(Channel,State,size(Bin)),
+	<<Chunk:ChunkSize/binary,Next/binary>> = Bin,
+	{Chunk,Next}.
 
+
+chunk_size(#channel{length = Length}, #ems_fsm{client_chunk_size = ChunkSize}, Size) ->
+	if
+		Length < ChunkSize -> Length;
+		Size < Length, Size < ChunkSize -> Size;		
+		true -> ChunkSize
+	end.
 
 
 decode(<<>>,State) -> State;
@@ -140,10 +152,7 @@ check_message(#channel{length = Length, msg = Msg} = _Channel,_State,Bin)
 check_message(_Channel,_State,_Bin) -> continue.
 
 
-get_chunk(Channel,State,Bin) ->
-	ChunkSize = chunk_size(Channel,State,size(Bin)),
-	<<Chunk:ChunkSize/binary,Next/binary>> = Bin,
-	{Chunk,Next}.
+
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
   ?D({"Window acknolegement size", WindowSize}),
@@ -195,7 +204,7 @@ command(#channel{type = Type}, State) ->
 
 header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>) ->
 	{#channel{id=Id + 64},Rest};
-header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>) ->
+header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_LRG_ID:6,Id:16/little-integer,Rest/binary>>) ->
 	{#channel{id=Id + 64},Rest};
 header(<<?RTMP_HDR_CONTINUE:2,Id:6,Rest/binary>>) ->
 	{#channel{id=Id},Rest};
@@ -217,23 +226,6 @@ header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,
 	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
 header(<<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
 	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest}.
-
-
-
-
-
-
-
-
-chunk_size(#channel{length = Length}, #ems_fsm{client_chunk_size = ChunkSize}, Size) ->
-	if
-		Length < ChunkSize -> Length;
-		Size < Length, Size < ChunkSize -> Size;		
-		true -> ChunkSize
-	end.
-
-
-	
 
 
 

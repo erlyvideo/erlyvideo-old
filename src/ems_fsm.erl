@@ -151,8 +151,7 @@ init([]) ->
 
 %% Notification event coming from client
 'WAIT_FOR_DATA'({data, Data}, State) ->
-	NewState = ems_rtmp:decode(Data,State),
-  {next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', ems_rtmp:decode(Data, State), ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_fsm{server_chunk_size = OldChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
