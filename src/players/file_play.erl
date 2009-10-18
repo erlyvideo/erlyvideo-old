@@ -44,7 +44,7 @@
 
 -behaviour(gen_fsm).
 -export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
--export([ready/2, stop/2]).
+-export([ready/2, ready/3, stop/2]).
 
   
 init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
@@ -95,9 +95,10 @@ ready({seek, Timestamp}, #video_player{timer_ref = Timer, client_buffer = Client
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
   {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp, prepush = ClientBuffer}};
 
-ready({stop}, State) ->
+ready({stop}, #video_player{timer_ref = Timer, frames = FrameTable} = State) ->
   ?D("Player stopping"),
-  {stop, normal, State};
+  gen_fsm:cancel_timer(Timer),
+  {next_state, ready, State#video_player{ts_prev = 0, pos = ets:first(FrameTable), playing_from = 0}};
 
 ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileFormat, consumer = Consumer} = State) ->
   {_, Sec1, MSec1} = erlang:now(),
@@ -116,13 +117,19 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, format = FileForma
 											  ts_prev = Frame#video_frame.timestamp_abs,
 											  pos = Frame#video_frame.nextpos},
 			{_, Sec2, MSec2} = erlang:now(),
-			Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
+      _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
       % ?D({"Read frame", Delta}),
 			{next_state, ready, NextState};
 		{error, _Reason} ->
 			?D({"Ems player stopping", _Reason}),
 			{stop, _Reason, State}
 	end.
+
+
+
+ready(file_name, _From, #video_player{file_name = FileName} = State) ->
+  {reply, FileName, ready, State}.
+
 
 seek(#video_player{frames = FrameTable} = _Player, Timestamp) ->
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp =< Timestamp ->
@@ -162,9 +169,10 @@ handle_event(Event, StateName, StateData) ->
     {stop, {StateName, undefined_event, Event}, StateData}.
 
 
+  
 handle_sync_event(Event, _From, StateName, StateData) ->
-     io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
-    {stop, {StateName, undefined_event, Event}, StateData}.
+  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
+  {stop, {StateName, undefined_event, Event}, StateData}.
 
 handle_info({tcp_closed, _Socket}, _StateName,
             #video_player{} = StateData) ->

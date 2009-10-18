@@ -75,7 +75,7 @@ public function play() : void
 public function record() : void
 {
   if (_recording) {
-    _stream.publish(null);
+    _stream.play(null);
     _recording = false;
     playButton.enabled = true;
     recordButton.label = "Record";
@@ -142,11 +142,11 @@ public function stop() : void
   playButton.label = "Play";
   pauseButton.label = "Pause";
   pauseButton.enabled = false;
-  _playing = false;
-  _pausing = true;
   if (_playing) {
     _stream.play(false);
   }
+  _playing = false;
+  _pausing = true;
   _video.clear();
 }
 public function setVolume(volume : Number) : void

@@ -151,6 +151,7 @@ bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_fsm{client_chunk_si
 
 decode_channel(Channel, Data, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
+	?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#ems_fsm.channels)}),
 	push_channel_packet(Channel, Data, State, BytesRequired).
 	
 	
@@ -166,13 +167,13 @@ push_channel_packet(#channel{msg = Msg} = Channel, Data, State, BytesRequired) -
 
 % When chunked packet hasn't arived, just accumulate it
 decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{channels = Channels} = State) when size(Msg) < Length ->
-  NextChannelList = channel_put(Channel, Channels),
+  NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel),
   decode(State#ems_fsm{channels=NextChannelList});
 
 % Work with packet when it has accumulated and flush buffers
 decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{channels = Channels} = State) when size(Msg) == Length ->
   NewState = command(Channel, State), % Perform Commands here
-  NextChannelList = channel_put(Channel#channel{msg = <<>>}, Channels),
+  NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel#channel{msg = <<>>}),
   decode(NewState#ems_fsm{channels=NextChannelList}).
 
 
@@ -222,37 +223,3 @@ command(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, State) ->
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
-
-
-channel_get(Channel,ChannelList) when is_record(Channel,channel) -> channel_get(Channel#channel.id,ChannelList);
-channel_get(ChannelId,ChannelList) when is_integer(ChannelId) ->
-	case lists:keysearch(ChannelId, 2, ChannelList) of
-		{value,Channel} when is_record(Channel,channel) -> Channel;
-		_ -> undefined
-	end.
-
-%% Make sure that the First channel is the most recent channel
-channel_put(Channel,ChannelList) ->
-	lists:keytake(Channel#channel.id, #channel.id, ChannelList),
-	[Channel | ChannelList].
-
-choose_value(Channel, OrigChannel, Position) ->
-  case element(Position, Channel) of
-    undefined -> element(Position, OrigChannel);
-    Value -> Value
-  end.
-
-channel_merge(Channel, #ems_fsm{channels = Channels}) -> channel_merge(Channel,Channels);
-channel_merge(Channel,ChannelList) ->
-	case channel_get(Channel,ChannelList) of
-		undefined -> {Channel,ChannelList};
-		OrigChannel ->
-			TimeStamp = choose_value(Channel, OrigChannel, #channel.timestamp),
-			Length    = choose_value(Channel, OrigChannel, #channel.length),
-			Type      = choose_value(Channel, OrigChannel, #channel.type),
-			StreamId  = choose_value(Channel, OrigChannel, #channel.stream),
-			NewChannel = OrigChannel#channel{timestamp=TimeStamp,length=Length,type=Type,stream=StreamId},
-			?D({"Merge", Channel, NewChannel}),
-			NewChannelList = channel_put(NewChannel,ChannelList),
-			{NewChannel,NewChannelList}
-	end.

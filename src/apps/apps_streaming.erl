@@ -59,7 +59,7 @@
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
   ?D({"Stopping video player", PlayerPid}),
   gen_fsm:send_event(PlayerPid, {stop}),
-  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = undefined}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
@@ -141,7 +141,7 @@ play(AMF, #ems_fsm{video_player = Player} = State) ->
   gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, 1}),
   gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
-  State#ems_fsm{video_player = undefined}.
+  State.
 
 
 %%-------------------------------------------------------------------------

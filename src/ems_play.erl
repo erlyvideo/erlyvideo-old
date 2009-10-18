@@ -55,10 +55,25 @@ play(Name, StreamId, State) ->
   init_file(Name, StreamId, State).
   
   
+start_file_play(FileName, #ems_fsm{video_player = PlayerPid} = State, StreamId) when is_pid(PlayerPid) -> 
+  CurrentFileName = gen_fsm:sync_send_event(PlayerPid, file_name),
+  ?D({"Current playing", CurrentFileName}),
+  case CurrentFileName of
+    FileName -> {ok, PlayerPid};
+    _ -> 
+      gen_fsm:send_event(PlayerPid, {exit}),
+      gen_fsm:start_link(file_play, {FileName, StreamId, State, self()}, [])
+  end;
+
+start_file_play(FileName, State, StreamId) -> 
+  gen_fsm:start_link(file_play, {FileName, StreamId, State, self()}, []).
+
+  
+  
 init_file(Name, StreamId, State) ->
   FileName = filename:join([file_play:file_dir(), Name]), 
   case filelib:is_regular(FileName) of
-    true -> gen_fsm:start_link(file_play, {FileName, StreamId, State, self()}, []);
+    true -> start_file_play(FileName, State, StreamId);
     _ -> init_mpeg_ts(FileName, StreamId, State)
   end.
   
