@@ -8,6 +8,7 @@
 				ems_amf,
 				ems_app,
 				ems_cluster,
+				ems_encoding,
 				ems_flv,
 				ems_fsm,
 				ems_play,
