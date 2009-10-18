@@ -151,7 +151,7 @@ bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_fsm{client_chunk_si
 
 decode_channel(Channel, Data, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
-	?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#ems_fsm.channels)}),
+  % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#ems_fsm.channels)}),
 	push_channel_packet(Channel, Data, State, BytesRequired).
 	
 	

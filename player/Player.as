@@ -75,7 +75,7 @@ public function play() : void
 public function record() : void
 {
   if (_recording) {
-    _stream.play(null);
+    _stream.play(false);
     _recording = false;
     playButton.enabled = true;
     recordButton.label = "Record";
