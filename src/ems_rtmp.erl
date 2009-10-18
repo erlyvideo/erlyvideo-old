@@ -97,52 +97,51 @@ decode(#ems_fsm{} = State) -> decode_channel_id(State).
 decode_channel_id(#ems_fsm{buff = <<>>} = State) ->
   State;
 decode_channel_id(#ems_fsm{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
-  decode_channel_header(Format, Id + 64, Rest, State);
+  decode_channel_header(Rest, Format, Id + 64, State);
 decode_channel_id(#ems_fsm{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
-  decode_channel_header(Format, Id + 64, Rest, State);
+  decode_channel_header(Rest, Format, Id + 64, State);
 decode_channel_id(#ems_fsm{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
-  decode_channel_header(Format, Id, Rest, State).
+  decode_channel_header(Rest, Format, Id, State).
 
 % Now extracting channel header
-decode_channel_header(?RTMP_HDR_CONTINUE, Id, Rest, State) ->
+decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
   decode_channel(Channel, Rest, State);
 
-decode_channel_header(?RTMP_HDR_TS_CHG, Id, <<16#ffffff:24, TimeStamp:24, Rest/binary>>, State) ->
+decode_channel_header(<<16#ffffff:24, TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff}, Rest, State);
-decode_channel_header(?RTMP_HDR_TS_CHG, Id, <<TimeStamp:24, Rest/binary>>, State) ->
+decode_channel_header(<<TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp}, Rest, State);
   
-decode_channel_header(?RTMP_HDR_SAME_SRC, Id, <<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, State) ->
+decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff,length=Length,type=Type},Rest,State);
 	
-decode_channel_header(?RTMP_HDR_SAME_SRC, Id, <<TimeStamp:24,Length:24,Type:8,Rest/binary>>, State) ->
+decode_channel_header(<<TimeStamp:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp,length=Length,type=Type},Rest,State);
 
-decode_channel_header(?RTMP_HDR_NEW,Id,<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>, State) ->
+decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case lists:keysearch(Id, #channel.id, State#ems_fsm.channels) of
     {value, Channel} -> ok;
     _ -> Channel = #channel{}
   end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,length=Length,type=Type,stream=StreamId},Rest,State);
 	
-decode_channel_header(?RTMP_HDR_NEW,Id,<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>, State) ->
+decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case lists:keysearch(Id, #channel.id, State#ems_fsm.channels) of
     {value, Channel} -> ok;
     _ -> Channel = #channel{}
   end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId},Rest,State);
 
-decode_channel_header(_Type, _Id, _Rest, State) -> % Still small buffer
+decode_channel_header(_Rest,_Type, _Id,  State) -> % Still small buffer
   State.
 
 % Now trying to fill channel with required data
 bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_fsm{client_chunk_size = ChunkSize}) ->
-  ?D({"Required:", Length, size(Msg), ChunkSize}),
   RemainingBytes = Length - size(Msg),
   if
     RemainingBytes < ChunkSize -> RemainingBytes;
