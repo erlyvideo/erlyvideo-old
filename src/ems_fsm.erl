@@ -139,8 +139,8 @@ init([]) ->
 'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
 	case <<Buff/binary,Data/binary>> of
 		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
-			NewState = ems_rtmp:decode(Rest,State),
-			{next_state, 'WAIT_FOR_DATA', NewState#ems_fsm{buff = <<>>}, ?TIMEOUT};
+			NewState = ems_rtmp:decode(State#ems_fsm{buff = Rest}),
+			{next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
 
@@ -150,8 +150,8 @@ init([]) ->
 
 
 %% Notification event coming from client
-'WAIT_FOR_DATA'({data, Data}, State) ->
-  {next_state, 'WAIT_FOR_DATA', ems_rtmp:decode(Data, State), ?TIMEOUT};
+'WAIT_FOR_DATA'({data, Data}, #ems_fsm{buff = Buff} = State) ->
+  {next_state, 'WAIT_FOR_DATA', ems_rtmp:decode(State#ems_fsm{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_fsm{server_chunk_size = OldChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),

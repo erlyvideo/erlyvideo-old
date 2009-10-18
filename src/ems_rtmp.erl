@@ -37,7 +37,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/2]).
+-export([encode/1, encode/2, handshake/1, decode/1]).
 
 
 handshake(C1) when is_binary(C1) -> 
@@ -90,67 +90,91 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
   chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
+decode(#ems_fsm{buff = <<>>} = State) -> State;
+decode(#ems_fsm{} = State) -> decode_channel_id(State).
 
-get_chunk(Channel,State,Bin) ->
-	ChunkSize = chunk_size(Channel,State,size(Bin)),
-	<<Chunk:ChunkSize/binary,Next/binary>> = Bin,
-	{Chunk,Next}.
+% First extracting channel id
+decode_channel_id(#ems_fsm{buff = <<>>} = State) ->
+  State;
+decode_channel_id(#ems_fsm{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
+  decode_channel_header(Format, Id + 64, Rest, State);
+decode_channel_id(#ems_fsm{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
+  decode_channel_header(Format, Id + 64, Rest, State);
+decode_channel_id(#ems_fsm{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
+  decode_channel_header(Format, Id, Rest, State).
 
+% Now extracting channel header
+decode_channel_header(?RTMP_HDR_CONTINUE, Id, Rest, State) ->
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  decode_channel(Channel, Rest, State);
 
-chunk_size(#channel{length = Length}, #ems_fsm{client_chunk_size = ChunkSize}, Size) ->
-	if
-		Length < ChunkSize -> Length;
-		Size < Length, Size < ChunkSize -> Size;		
-		true -> ChunkSize
-	end.
-
-
-decode(<<>>,State) -> State;
-decode(Bin,State) ->
-	case State#ems_fsm.complete of
-		true ->
-			{Channel,Rest} = header(Bin),
-			{NewChannel,NewChannelList} = channel_merge(Channel,State),
-			{Chunk,Next} = get_chunk(Channel,State,Rest);
-		false ->
-		  NewChannelList = State#ems_fsm.channels,
-			NewChannel = hd(NewChannelList),
-			Prev = State#ems_fsm.prev_buff,
-			Rest = <<Prev/binary,Bin/binary>>,
-			{Chunk,Next} = get_chunk(NewChannel,State,Rest)
-	end,
+decode_channel_header(?RTMP_HDR_TS_CHG, Id, <<16#ffffff:24, TimeStamp:24, Rest/binary>>, State) ->
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff}, Rest, State);
+decode_channel_header(?RTMP_HDR_TS_CHG, Id, <<TimeStamp:24, Rest/binary>>, State) ->
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  decode_channel(Channel#channel{timestamp = TimeStamp}, Rest, State);
+  
+decode_channel_header(?RTMP_HDR_SAME_SRC, Id, <<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, State) ->
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff,length=Length,type=Type},Rest,State);
 	
-	case NewChannel#channel.msg of
-		Msg when is_binary(Msg) ->
-			Message = <<Msg/binary,Chunk/binary>>,
-			NextChannel = NewChannel#channel{msg=Message},
-			case check_message(NextChannel,State,Next) of
-				complete  -> 
-					NewState = command(NextChannel,State), % Perform Commands here
-					NextChannelList = channel_put(NextChannel#channel{msg = <<>>},NewChannelList),
-					NextState = NewState#ems_fsm{channels=NextChannelList,complete = true, prev_buff = <<>>},
-					decode(Next,NextState); 
-				next_packet     -> % add case to determine if the processing is done even though the binary is not empty.
-					NextChannelList = channel_put(NewChannel,NewChannelList),
-					State#ems_fsm{channels=NextChannelList, prev_buff = Chunk, complete = false};
-				continue -> 
-					NextChannelList = channel_put(NextChannel,NewChannelList),
-					NextState = State#ems_fsm{channels=NextChannelList, complete = true, prev_buff = <<>>},
-					decode(Next,NextState)
-			end;
-		undefined -> 
-			?D({"Bad Channel: ",NewChannel#channel.id}),
-			gen_fsm:send_event(self(), {stop}),
-			decode(<<>>, State)
-	end.
+decode_channel_header(?RTMP_HDR_SAME_SRC, Id, <<TimeStamp:24,Length:24,Type:8,Rest/binary>>, State) ->
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+	decode_channel(Channel#channel{timestamp=TimeStamp,length=Length,type=Type},Rest,State);
 
-check_message(#channel{length = Length, msg = Msg} = _Channel,_State,_Bin) 
-	when Length == size(Msg) -> complete;
-check_message(#channel{length = Length, msg = Msg} = _Channel,_State,Bin) 
-	when Length > size(Msg), size(Bin) == 0 -> next_packet;
-check_message(_Channel,_State,_Bin) -> continue.
+decode_channel_header(?RTMP_HDR_NEW,Id,<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>, State) ->
+  case lists:keysearch(Id, #channel.id, State#ems_fsm.channels) of
+    {value, Channel} -> ok;
+    _ -> Channel = #channel{}
+  end,
+	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,length=Length,type=Type,stream=StreamId},Rest,State);
+	
+decode_channel_header(?RTMP_HDR_NEW,Id,<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>, State) ->
+  case lists:keysearch(Id, #channel.id, State#ems_fsm.channels) of
+    {value, Channel} -> ok;
+    _ -> Channel = #channel{}
+  end,
+	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId},Rest,State);
 
+decode_channel_header(_Type, _Id, _Rest, State) -> % Still small buffer
+  State.
 
+% Now trying to fill channel with required data
+bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_fsm{client_chunk_size = ChunkSize}) ->
+  ?D({"Required:", Length, size(Msg), ChunkSize}),
+  RemainingBytes = Length - size(Msg),
+  if
+    RemainingBytes < ChunkSize -> RemainingBytes;
+    true -> ChunkSize
+  end.
+  
+
+decode_channel(Channel, Data, State) ->
+	BytesRequired = bytes_for_channel(Channel, State),
+	push_channel_packet(Channel, Data, State, BytesRequired).
+	
+	
+% Nothing to do when buffer is small
+
+push_channel_packet(#channel{} = Channel, Data, State, BytesRequired) when size(Data) < BytesRequired -> 
+  State;
+  
+% And decode channel when bytes required are in buffer
+push_channel_packet(#channel{msg = Msg} = Channel, Data, State, BytesRequired) -> 
+  <<Chunk:BytesRequired/binary, Rest/binary>> = Data,
+  decode_channel_packet(Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State#ems_fsm{buff = Rest}).
+
+% When chunked packet hasn't arived, just accumulate it
+decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{channels = Channels} = State) when size(Msg) < Length ->
+  NextChannelList = channel_put(Channel, Channels),
+  decode(State#ems_fsm{channels=NextChannelList});
+
+% Work with packet when it has accumulated and flush buffers
+decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{channels = Channels} = State) when size(Msg) == Length ->
+  NewState = command(Channel, State), % Perform Commands here
+  NextChannelList = channel_put(Channel#channel{msg = <<>>}, Channels),
+  decode(NewState#ems_fsm{channels=NextChannelList}).
 
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
@@ -201,60 +225,6 @@ command(#channel{type = Type}, State) ->
   State.
 
 
-% Very many repetition on several indepentent cases. First, we have three different choices of
-% header size
-% Second: three difference sizes of channel Id
-% Third: two different variants of timestamp
-% Continuation of chunked channel
-header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>) ->
-	{#channel{id=Id + 64},Rest};
-header(<<?RTMP_HDR_CONTINUE:2,?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>) ->
-	{#channel{id=Id + 64},Rest};
-header(<<?RTMP_HDR_CONTINUE:2,Id:6,Rest/binary>>) ->
-	{#channel{id=Id},Rest};
-% Same channel, same size, same data, change timestamp
-header(<<?RTMP_HDR_TS_CHG:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp},Rest};
-header(<<?RTMP_HDR_TS_CHG:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp},Rest};
-header(<<?RTMP_HDR_TS_CHG:2,Id:6,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id,timestamp=TimeStamp},Rest};
-
-
-header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type},Rest};
-header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type},Rest};
-header(<<?RTMP_HDR_SAME_SRC:2,Id:6,TimeStamp:24,Length:24,Type:8,Rest/binary>>) ->
-	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type},Rest};
-	
-header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_MED_ID:6,Id:8,16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type},Rest};
-header(<<?RTMP_HDR_SAME_SRC:2,?RTMP_HDR_LRG_ID:6,Id:16,16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type},Rest};
-header(<<?RTMP_HDR_SAME_SRC:2,Id:6,16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type},Rest};
-
-
-
-header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_MED_ID:6,Id:8,16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24, Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
-header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_LRG_ID:6,Id:16, 16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
-header(<<?RTMP_HDR_NEW:2,Id:6, 16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>) ->
-	{#channel{id=Id,timestamp=TimeStamp + 16#ffffff,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
-
-	
-header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_MED_ID:6,Id:8,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
-header(<<?RTMP_HDR_NEW:2,?RTMP_HDR_LRG_ID:6,Id:16,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
-	{#channel{id=Id + 64,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest};
-header(<<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>) ->
-	{#channel{id=Id,timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg= <<>>},Rest}.
-
-
-
-
 channel_get(Channel,ChannelList) when is_record(Channel,channel) -> channel_get(Channel#channel.id,ChannelList);
 channel_get(ChannelId,ChannelList) when is_integer(ChannelId) ->
 	case lists:keysearch(ChannelId, 2, ChannelList) of
@@ -263,26 +233,27 @@ channel_get(ChannelId,ChannelList) when is_integer(ChannelId) ->
 	end.
 
 %% Make sure that the First channel is the most recent channel
-channel_put(Channel,ChannelList) -> 
-	case lists:keysearch(Channel#channel.id, 2, ChannelList) of
-		{value,OrigChannel} when is_record(OrigChannel,channel) -> 
-			List = lists:keydelete(Channel#channel.id,2,ChannelList),
-			[Channel | List];
-		_ -> [Channel | ChannelList]
-	end.
+channel_put(Channel,ChannelList) ->
+	lists:keytake(Channel#channel.id, #channel.id, ChannelList),
+	[Channel | ChannelList].
 
+choose_value(Channel, OrigChannel, Position) ->
+  case element(Position, Channel) of
+    undefined -> element(Position, OrigChannel);
+    Value -> Value
+  end.
 
-channel_merge(Channel,State) when is_record(State,ems_fsm) -> channel_merge(Channel,State#ems_fsm.channels);
+channel_merge(Channel, #ems_fsm{channels = Channels}) -> channel_merge(Channel,Channels);
 channel_merge(Channel,ChannelList) ->
 	case channel_get(Channel,ChannelList) of
 		undefined -> {Channel,ChannelList};
 		OrigChannel ->
-			TimeStamp = case Channel#channel.timestamp of undefined -> OrigChannel#channel.timestamp; _ -> Channel#channel.timestamp end,
-			Length    = case Channel#channel.length    of undefined -> OrigChannel#channel.length;    _ -> Channel#channel.length    end,
-			Type      = case Channel#channel.type      of undefined -> OrigChannel#channel.type;      _ -> Channel#channel.type      end,
-			StreamId  = case Channel#channel.stream    of undefined -> OrigChannel#channel.stream;    _ -> Channel#channel.stream    end,
-			Msg       = case Channel#channel.msg       of undefined -> OrigChannel#channel.msg;       _ -> Channel#channel.msg       end,
-			NewChannel = OrigChannel#channel{timestamp=TimeStamp,length=Length,type=Type,stream=StreamId,msg=Msg},
+			TimeStamp = choose_value(Channel, OrigChannel, #channel.timestamp),
+			Length    = choose_value(Channel, OrigChannel, #channel.length),
+			Type      = choose_value(Channel, OrigChannel, #channel.type),
+			StreamId  = choose_value(Channel, OrigChannel, #channel.stream),
+			NewChannel = OrigChannel#channel{timestamp=TimeStamp,length=Length,type=Type,stream=StreamId},
+			?D({"Merge", Channel, NewChannel}),
 			NewChannelList = channel_put(NewChannel,ChannelList),
 			{NewChannel,NewChannelList}
 	end.

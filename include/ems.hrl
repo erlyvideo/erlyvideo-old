@@ -264,14 +264,24 @@
 	channels    = [],
 	user_id     = undefined,
 	player_info = [],
-	complete    = true,
 	buff        = <<>>,
-	prev_buff   = <<>>,
   client_buffer = ?MIN_CLIENT_BUFFER,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	video_player = undefined
 	}).
+
+
+-record(channel,{
+	id        = undefined,
+	timestamp = undefined,
+	length    = undefined,
+	type      = undefined,
+	stream    = undefined,
+	msg       = <<>>,
+	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into ems_rtmp:encode
+	}).
+
 	
 -record(video_player, {
   consumer,
@@ -336,17 +346,6 @@
 	amf_data       = undefined
 	}).
 	
-
--record(channel,{
-	id        = undefined,
-	timestamp = undefined,
-	length    = undefined,
-	type      = undefined,
-	stream    = undefined,
-	msg       = undefined,
-	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into ems_rtmp:encode
-	}).
-
 
 -record(amf,{
 	command = [],
