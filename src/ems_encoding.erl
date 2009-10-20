@@ -7,26 +7,102 @@
 -include("../include/ems.hrl").
 -export([encode/2, status/1]).
 
+-behaviour(gen_fsm).
+-export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
+-export([first_pass/2, second_pass/2]).
+
 status(_) -> ok.
 
+-record(encoder, {
+  in_file_name,
+  out_file_name,
+  port
+}).
+
 encode(InFileName, OutFileName) ->
-  FFMpegPath = case os:find_executable("ffmpeg") of
-    false -> throw(no_ffmpeg_found);
-    Value1 -> Value1
-  end,
-  X264Path = case os:find_executable("x264") of
-    false -> throw(no_x264_found);
-    Value2 -> Value2
-  end,
-  FirstFFMpegArgs = ["-i", InFileName, "-an", "-f","yuv4mpegpipe",
-  "-croptop","0", "-cropbottom", "0", "-cropleft", "0", "-cropright", "0", 
-  "-s", "640x480", "-r", "25", "-"],
-  FirstFFmpeg = open_port({spawn_executable, FFMpegPath}, [exit_status, eof, {args, FirstFFMpegArgs}, binary, stream, out, use_stdio]),
-  % FirstFFmpeg = open_port({spawn_executable, FFMpegPath}, [exit_status, eof, binary, stream, out, use_stdio, hide]),
-  ?D({"Opening first ffmpeg", FirstFFmpeg}),
-  FirstX264Args = ["-v","-A","i4x4", "-b", "1", "--trellis", "1", "--qpmin", "22", "--qpmax", "51", 
-  "-B", "940", "--me", "umh", "--threads", "2", "--level", "13", "--fps", "25", "--pass", "1", 
-  "--stats", OutFileName++".log", "-o", OutFileName, "-", "640x480"],
-  FirstX264 = open_port({spawn_executable, X264Path}, [exit_status, eof, {args, FirstX264Args}, binary, stream, use_stdio, hide]),
-  ?D({"Opening first h264", FirstX264}),
+  gen_fsm:start_link(?MODULE, {InFileName, OutFileName}, []).
+
+init({InFileName, OutFileName}) ->
+  Encoder1 = #encoder{in_file_name = InFileName, out_file_name = OutFileName},
+  Encoder2 = run_encoder(Encoder1, "1"),
+  {ok, first_pass, Encoder2}.
+  
+
+
+audio_codec("1") -> "acodec=none";
+audio_codec("2") -> "acodec=mp4a,ab=96".
+
+run_encoder(#encoder{in_file_name = InFileName, out_file_name = OutFileName} = Encoder, Pass) ->
+  X264 = "x264{keyint=120,chroma-me,me-range=8,ref=1,ratetol=1.0,8x8dct,mixed-refs,direct=auto,direct-8x8=-1,non-deterministic,scenecut=50,qpmax=30,qpmin=5,pass="++
+    Pass++",stats="++ OutFileName++".log}",
+  Output = ":std{access=file,mux=mp4,dst="++OutFileName++"}",
+  VBitRate = "1024",
+  
+  Args = ["vlc ", InFileName, " --sout='#transcode{venc="++X264++",vcodec=h264,vb="++VBitRate++",scale=1,"++audio_codec(Pass)++"}"++ Output++"'", " -I", " dummy", " vlc://quit"],
+  Cmd = lists:append(Args),
+  
+  Port = open_port({spawn, Cmd}, [stream, {line, 1000}, exit_status, binary, stderr_to_stdout, eof]),
+  ?D("Running VLC pass "++Pass),
+  Encoder#encoder{port = Port}.
+  
+  
+first_pass(Event, State) ->
+  ?D({"First pass", Event, State}),
+  {next_state, first_pass, State}.
+
+second_pass(Event, State) ->
+  ?D({"Second pass", Event, State}),
+  {next_state, second_pass, State}.
+
+  
+handle_event(Event, StateName, StateData) ->
+  ?D({"Unknown event in player", Event, StateName}),
+    {stop, {StateName, undefined_event, Event}, StateData}.
+
+
+
+handle_sync_event(Event, _From, StateName, StateData) ->
+  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
+  {stop, {StateName, undefined_event, Event}, StateData}.
+
+
+handle_info({Port, {exit_status, 0}}, first_pass, #encoder{port = Port} = Encoder) ->
+  ?D("First pass finished"),
+  Encoder2 = run_encoder(Encoder, "2"),
+  {next_state, second_pass, Encoder2};
+
+handle_info({Port, {exit_status, Status}}, first_pass, #encoder{port = Port} = Encoder) ->
+  ?D({"First pass failed:", Status}),
+  Encoder1 = run_encoder(Encoder, "1"),
+  {next_state, first_pass, Encoder1};
+
+handle_info({Port, {exit_status, 0}}, second_pass, #encoder{port = Port} = Encoder) ->
+  ?D("Second pass finished"),
+  {stop, normal, Encoder#encoder{port = undefined}};
+
+handle_info({Port, {exit_status, Status}}, second_pass, #encoder{port = Port} = Encoder) ->
+  ?D({"Second pass failed:", Status}),
+  Encoder2 = run_encoder(Encoder, "2"),
+  {next_state, second_pass, Encoder2};
+
+handle_info({Port, {data, {eol, String}}}, StateName, #encoder{port = Port} = Encoder) ->
+  % ?D({"Status message", Status})
+  io:format("~p~n", [binary_to_list(String)]),
+  {next_state, StateName, Encoder};
+  
+handle_info({Port, eof}, StateName, Encoder) ->
+  ?D({"VLC closed while", StateName}),
+  {next_state, StateName, Encoder};
+
+handle_info(_Info, StateName, StateData) ->
+  ?D({"Unknown info in encoder", _Info, StateName}),
+  {next_state, StateName, StateData}.
+
+terminate(_Reason, _StateName, #encoder{port = Port} = State) ->
+  ?D("Encoder exit"),
   ok.
+
+code_change(_OldVsn, StateName, StateData, _Extra) ->
+  {ok, StateName, StateData}.
+
+  
