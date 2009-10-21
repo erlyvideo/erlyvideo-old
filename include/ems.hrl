@@ -285,27 +285,35 @@
 	
 -record(video_player, {
   consumer,
-  header = undefined,
+  media_info,
   client_buffer = ?MIN_CLIENT_BUFFER,
   sent_video_config = false,
   sent_audio_config = false,
   prepush = 0,
-  device = undefined,
-  file_name,
 	stream_id,
-	format,
 	buffer,
 	timer_start,
 	timer_ref,
 	playing_from = 0,
-	width = undefined,
-	height = undefined,
-	duration = undefined,
 	ts_prev = 0,
 	pos = 0,
-	frames = [],
 	cache = <<>>,
 	cache_offset = 0
+}).
+
+-record(media_info, {
+  device = undefined,
+  header = undefined,
+  file_name = undefined,
+  format,
+  width = undefined,
+  height = undefined,
+  duration = undefined,
+  timescale,
+  seconds,
+  video_decoder_config,
+  audio_decoder_config,
+	frames = []
 }).
 
 
