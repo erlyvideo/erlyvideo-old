@@ -29,6 +29,7 @@ private var _totalTime : Number;
 public function init()  : void
 {
   connect();
+  _totalTime = 0;
   _statusTimer = new Timer(100); // 1 second
   _statusTimer.addEventListener(TimerEvent.TIMER, setProgressBar);
   pauseButton.enabled = false;
@@ -50,7 +51,9 @@ public function init()  : void
 
 public function setProgressBar(event:TimerEvent) : void
 {
-  progressBar.value = _stream.time;
+  if (_totalTime) {
+    progressBar.value = _stream.time;
+  }
 }
 
 public function play() : void
