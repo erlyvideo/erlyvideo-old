@@ -161,7 +161,6 @@ init(MediaInfo, Pos) ->
       init(MediaInfo, Offset + Length);
     {atom, AtomName, Offset, Length} -> 
       {ok, AtomData} = file:pread(Device, Offset, Length),
-      ?D({"Read", AtomName, Offset, Length}),
       NewInfo = decode_atom(AtomName, AtomData, MediaInfo),
       init(NewInfo, Offset + Length)
   end.

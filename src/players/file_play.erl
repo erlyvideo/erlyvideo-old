@@ -59,6 +59,7 @@ init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Paren
 		{ok, MediaInfo1} -> 
       {ok, ready, #video_player{consumer = Parent,
     	                          stream_id = StreamId,
+    	                          pos = undefined,
     	                          media_info = MediaInfo1,
     	                          client_buffer = ClientBuffer,
     	                          timer_start = erlang:now()}};

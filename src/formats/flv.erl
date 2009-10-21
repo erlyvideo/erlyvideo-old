@@ -37,7 +37,7 @@
 -include("../../include/ems.hrl").
 -include("../../include/flv.hrl").
 
--export([init/1, read_frame/1, read_frame_list/2, header/1]).
+-export([init/1, read_frame/1, read_frame_list/3, header/1]).
 -behaviour(gen_format).
 
 
@@ -47,39 +47,38 @@
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(#video_player{device = IoDev} = Player) -> 
+init(#media_info{device = IoDev} = MediaInfo) -> 
   case file:read(IoDev, ?FLV_HEADER_LENGTH) of
     {ok, Data} -> 
-      read_frame_list(Player#video_player{
-        pos = iolist_size(Data),
-        frames = ets:new(frames, [ordered_set, public, {keypos, 2}]),
-        header = header(Data)}, 0);
+      read_frame_list(MediaInfo#media_info{
+          frames = ets:new(frames, [ordered_set, public, {keypos, #file_frame.id}]),
+          header = header(Data)}, size(Data), 0);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
 
-read_frame_list(#video_player{} = Player, FrameCount) when FrameCount == 10 ->
-  spawn_link(?MODULE, read_frame_list, [Player, FrameCount + 1]),
-  {ok, Player#video_player{pos = undefined}};
+read_frame_list(#media_info{} = MediaInfo, Offset, FrameCount) when FrameCount == 10 ->
+  spawn_link(?MODULE, read_frame_list, [MediaInfo, Offset, FrameCount + 1]),
+  {ok, MediaInfo};
   
 
-read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = Player, FrameCount) ->
+read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, Offset, FrameCount) ->
   % We need to bypass PreviousTagSize and read header.
-	case file:pread(IoDev,Pos + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
+	case file:pread(Device,Offset + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
 		{ok, <<Type, Length:24/big, TimeStamp:24/big, TimeStampExt, _StreamId:24/big>>} ->
 		  <<TimeStampAbs:32/big>> = <<TimeStampExt, TimeStamp:24/big>>,
 		  
 		  PreparedFrame = #file_frame{
 		    timestamp = TimeStampAbs, 
-		    offset = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 
+		    offset = Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 
 		    size = Length,
 		    type = Type
 		  },
 		  
 			Frame = case Type of
 			  ?FLV_TAG_TYPE_VIDEO ->
-				  {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(IoDev, Pos),
+				  {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(Device, Offset),
 				  KeyFrame = case FrameType of
 				    1 -> true;
 				    _ -> false
@@ -89,7 +88,7 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
     		    keyframe = KeyFrame
 			    };
         ?FLV_TAG_TYPE_AUDIO -> 
-          {_SoundType, _SoundSize, _SoundRate, _SoundFormat} =  extractAudioHeader(IoDev, Pos),
+          {_SoundType, _SoundSize, _SoundRate, _SoundFormat} =  extractAudioHeader(Device, Offset),
           PreparedFrame#file_frame{
             id = TimeStampAbs*3 + 2
           };
@@ -100,9 +99,9 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
 			end,
 			
 			ets:insert(FrameTable, Frame),
-			read_frame_list(Player#video_player{pos = Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length}, FrameCount + 1);
+			read_frame_list(MediaInfo, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length, FrameCount + 1);
     eof -> 
-      {ok, Player#video_player{pos = undefined}};
+      {ok, MediaInfo};
     {error, Reason} -> 
       {error, Reason}
   end.
@@ -113,13 +112,13 @@ read_frame_list(#video_player{device = IoDev, pos = Pos, frames = FrameTable} = 
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_frame(#video_player{pos = undefined, frames = FrameTable} = Player) ->
+read_frame(#video_player{pos = undefined, media_info = #media_info{frames = FrameTable}} = Player) ->
   read_frame(Player#video_player{pos = ets:first(FrameTable)});
   
 read_frame(#video_player{pos = '$end_of_table'}) ->
   {ok, done};
   
-read_frame(#video_player{device = IoDev, pos = Key, frames = FrameTable} = Player) ->
+read_frame(#video_player{pos = Key, media_info = #media_info{device = IoDev, frames = FrameTable}} = Player) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
