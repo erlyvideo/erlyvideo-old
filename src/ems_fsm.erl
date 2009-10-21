@@ -280,7 +280,7 @@ handle_info(_Info, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) ->
   ?D({"FSM stopping", _StateName, _Reason}),
-  (catch gen_fsm:send_event(Player, {stop})),
+  (catch gen_fsm:send_event(Player, {exit})),
   ems_cluster:remove_client(erlang:pid_to_list(self())),
   (catch gen_tcp:close(Socket)),
   ok.

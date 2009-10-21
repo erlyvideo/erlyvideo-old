@@ -62,7 +62,8 @@ init([Name]) ->
 handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
   ets:insert(Clients, {Client}),
   link(Client),
-  link(_From),
+  ?D({"Link from to", self(), Client, ets:info(Clients, size)}),
+  % link(_From),
   {reply, ok, MediaInfo};
 
 
@@ -118,6 +119,31 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_info({graceful}, #media_info{file_name = FileName, clients = Clients} = MediaInfo) ->
+  case ets:info(Clients, size) of
+    0 -> ?D({"No readers for file", FileName}),
+         {stop, normal, MediaInfo};
+    _ -> {noreply, MediaInfo}
+  end;
+  
+  
+
+handle_info({'EXIT', Client, Reason}, #media_info{clients = Clients} = MediaInfo) ->
+  case ets:lookup(Clients, Client) of
+    [] -> 
+      ?D({"Undefined exit status", Client, Reason}),
+      {stop, Reason, MediaInfo};
+    [{Client}] ->
+      ets:delete(Clients, Client),
+      ?D({"Removing client", Client, "left", ets:info(Clients, size)}),
+      case ets:info(Clients, size) of
+        0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
+        _ -> ok
+      end,
+      {noreply, MediaInfo}
+  end;
+  
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
   {noreply, State}.
@@ -130,9 +156,10 @@ handle_info(_Info, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, #media_info{device = Device} = MediaInfo) ->
+  (catch file:close(Device)),
   ?D({"Media entry terminating", _Reason}),
-    ok.
+  ok.
 
 %%-------------------------------------------------------------------------
 %% @spec (OldVsn, State, Extra) -> {ok, NewState}

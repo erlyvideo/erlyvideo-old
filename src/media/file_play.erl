@@ -92,6 +92,9 @@ ready({stop}, #video_player{timer_ref = Timer, media_info = MediaEntry} = State)
   ?D("Player stopping"),
   gen_fsm:cancel_timer(Timer),
   {next_state, ready, State#video_player{ts_prev = 0, pos = media_entry:first(MediaEntry), playing_from = 0}};
+  
+ready({exit}, State) ->
+  {stop, normal, State};
 
 ready({timeout, _, play}, #video_player{stream_id = StreamId, media_info = MediaEntry, consumer = Consumer} = State) ->
   {_, Sec1, MSec1} = erlang:now(),
@@ -169,9 +172,8 @@ handle_info(_Info, StateName, StateData) ->
   ?D({"Unknown info in player", _Info, StateName}),
   {noreply, StateName, StateData}.
 
-terminate(_Reason, _StateName, #video_player{media_info = #media_info{device = IoDev}} = _State) ->
+terminate(_Reason, _StateName, _State) ->
   ?D("Video player exit"),
-  file:close(IoDev),
   ok.
  
 code_change(_OldVsn, StateName, StateData, _Extra) ->

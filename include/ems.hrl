@@ -13,6 +13,7 @@
 -define(HS_BODY_LEN,   1536).
 -define(MIN_CLIENT_BUFFER, 100).
 -define(PREPUSH, 3000).
+-define(FILE_CACHE_TIME, 10000).
 
 -define(CONTENT_TYPE, "application/x-fcs").
 -define(SERVER_HEADER, {"Server", "RTMPT/1.0"}).

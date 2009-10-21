@@ -60,7 +60,7 @@ handle_call({open, Name}, {Opener, _Ref}, #media_provider{opened_media = OpenedM
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
       Pid
   end,
-  % ok = media_entry:subscribe(Server, Opener),
+  ok = media_entry:subscribe(Server, Opener),
   {reply, Server, MediaProvider};
   
 handle_call(Request, _From, State) ->

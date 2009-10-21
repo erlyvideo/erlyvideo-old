@@ -52,7 +52,9 @@ play(Name, StreamId, State) ->
   %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   %     % end
   % end;
-  init_file(Name, StreamId, State).
+  {ok, Pid} = init_file(Name, StreamId, State),
+  link(Pid),
+  {ok, Pid}.
   
   
 start_file_play(FileName, #ems_fsm{video_player = PlayerPid} = State, StreamId) when is_pid(PlayerPid) -> 
