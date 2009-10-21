@@ -1,41 +1,38 @@
-% Server, that handle links to all opened files and streams. You should
-% go here to open file. If file is already opened, you will get cached copy. 
+% Media entry is instance of some resource
 
--module(media_provider).
+-module(media_entry).
 -author(max@maxidoors.ru).
 -include("../include/ems.hrl").
 
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, open/1]).
+-export([start_link/1, subscribe/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--record(media_provider, {
-  opened_media
-}).
-
 -record(media_entry, {
   name,
-  handler
+  clients,
+  info
 }).
 
 
-start_link() ->
-   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Path) ->
+   gen_server:start_link({local, ?MODULE}, ?MODULE, [Path], []).
    
-open(Name) ->
-  gen_server:call(?MODULE, {open, Name}).
+subscribe(Server, Client) ->
+  gen_server:call(Server, {subscribe, Client}).
 
 
-init([]) ->
+init([Name]) ->
   process_flag(trap_exit, true),
-  % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
-  OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
-  {ok, #media_provider{opened_media = OpenedMedia}}.
+  error_logger:info_msg("Opening file ~p~n", [Name]),
+  Clients = ets:new(clients, [set, private]),
+  Info = open_file(Name),
+  {ok, #media_entry{clients = Clients, name = Name, info = Info}}.
   
 
 
@@ -52,16 +49,9 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({open, Name}, Opener, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Server = case ets:lookup(OpenedMedia, Name) of
-    [_Value] -> _Value;
-    [] -> 
-      {ok, Pid} = media_player:start_link(Name),
-      ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
-      Pid
-  end,
-  media_entry:subscribe(Server, Opener),
-  {reply, ok, MediaProvider};
+handle_call({subscribe, Client}, _From, #media_entry{clients = Clients} = MediaEntry) ->
+  ets:insert_new(Clients, {Client}),
+  {reply, ok, MediaEntry};
   
 handle_call(Request, _From, State) ->
     {stop, {unknown_call, Request}, State}.
@@ -110,3 +100,15 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+
+  
+open_file(Name) ->
+  FileName = filename:join([file_play:file_dir(), Name]), 
+	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
+	FileFormat = file_play:file_format(FileName),
+  % case FileFormat:init(#video_player{device = Device, 
+  %                                    file_name = FileName,
+  %                                    format = FileFormat}) of
+  ok.
+
