@@ -296,9 +296,7 @@
 	timer_ref,
 	playing_from = 0,
 	ts_prev = 0,
-	pos = 0,
-	cache = <<>>,
-	cache_offset = 0
+	pos = 0
 }).
 
 -record(media_info, {
@@ -313,7 +311,8 @@
   seconds,
   video_decoder_config,
   audio_decoder_config,
-	frames = []
+	frames = undefined,
+	clients = undefined
 }).
 
 

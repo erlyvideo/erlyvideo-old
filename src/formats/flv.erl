@@ -37,7 +37,7 @@
 -include("../../include/ems.hrl").
 -include("../../include/flv.hrl").
 
--export([init/1, read_frame/1, read_frame_list/3, header/1]).
+-export([init/1, read_frame/2, read_frame_list/3, header/1]).
 -behaviour(gen_format).
 
 
@@ -112,13 +112,13 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_frame(#video_player{pos = undefined, media_info = #media_info{frames = FrameTable}} = Player) ->
-  read_frame(Player#video_player{pos = ets:first(FrameTable)});
+read_frame(#video_player{pos = undefined} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
+  read_frame(Player#video_player{pos = ets:first(FrameTable)}, MediaInfo);
   
-read_frame(#video_player{pos = '$end_of_table'}) ->
+read_frame(#video_player{pos = '$end_of_table'}, _MediaInfo) ->
   {ok, done};
   
-read_frame(#video_player{pos = Key, media_info = #media_info{device = IoDev, frames = FrameTable}} = Player) ->
+read_frame(#video_player{pos = Key} = Player, #media_info{device = IoDev, frames = FrameTable}) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of

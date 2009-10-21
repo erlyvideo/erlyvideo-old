@@ -38,7 +38,6 @@
 -author('max@maxidoors.ru').
 
 -include("../../include/ems.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 
 -export([file_dir/0, file_format/1]).
 
@@ -48,25 +47,14 @@
 
   
 init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
-	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
-	FileFormat = file_format(FileName),
-	MediaInfo = #media_info{
-	  device = Device,
-	  file_name = FileName,
-    format = FileFormat
-	},
-	case FileFormat:init(MediaInfo) of
-		{ok, MediaInfo1} -> 
-      {ok, ready, #video_player{consumer = Parent,
-    	                          stream_id = StreamId,
-    	                          pos = undefined,
-    	                          media_info = MediaInfo1,
-    	                          client_buffer = ClientBuffer,
-    	                          timer_start = erlang:now()}};
-    _HdrError -> 
-		  ?D(_HdrError),
-		  {error, "Invalid header"}
-	end.
+  MediaEntry = media_provider:open(FileName),
+  {ok, ready, #video_player{consumer = Parent,
+	                          stream_id = StreamId,
+	                          pos = undefined,
+	                          media_info = MediaEntry,
+	                          client_buffer = ClientBuffer,
+	                          timer_start = erlang:now()}}.
+  
 	
 stop(_, State) ->
   {stop, normal, State}.
@@ -75,12 +63,12 @@ ready({client_buffer, ClientBuffer}, State) ->
   {next_state, ready, State#video_player{client_buffer = ClientBuffer}};
 
 
-ready({start}, #video_player{media_info = MediaInfo, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
-  #media_info{format = FileFormat} = MediaInfo,
-  case FileFormat of
-    mp4 -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, FileFormat:metadata(MediaInfo), 1});
-    _ -> ok
-  end,
+ready({start}, #video_player{media_info = _MediaInfo, consumer = _Consumer, client_buffer = ClientBuffer} = State) ->
+  % #media_info{format = FileFormat} = MediaInfo,
+  % case FileFormat of
+  %   mp4 -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, FileFormat:metadata(MediaInfo), 1});
+  %   _ -> ok
+  % end,
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer, prepush = ClientBuffer},
 	?D({"Player starting with pid", self()}),
@@ -95,20 +83,20 @@ ready({resume}, State) ->
   ?D("Player resumed"),
   {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
 
-ready({seek, Timestamp}, #video_player{timer_ref = Timer, client_buffer = ClientBuffer} = State) ->
-  {Pos, NewTimestamp} = seek(State, Timestamp),
+ready({seek, Timestamp}, #video_player{timer_ref = Timer, client_buffer = ClientBuffer, media_info = MediaEntry} = State) ->
+  {Pos, NewTimestamp} = media_entry:seek(MediaEntry, Timestamp),
   gen_fsm:cancel_timer(Timer),
   % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
   {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp, prepush = ClientBuffer}};
 
-ready({stop}, #video_player{timer_ref = Timer, media_info = #media_info{frames = FrameTable}} = State) ->
+ready({stop}, #video_player{timer_ref = Timer, media_info = MediaEntry} = State) ->
   ?D("Player stopping"),
   gen_fsm:cancel_timer(Timer),
-  {next_state, ready, State#video_player{ts_prev = 0, pos = ets:first(FrameTable), playing_from = 0}};
+  {next_state, ready, State#video_player{ts_prev = 0, pos = media_entry:first(MediaEntry), playing_from = 0}};
 
-ready({timeout, _, play}, #video_player{stream_id = StreamId, media_info = #media_info{format = FileFormat}, consumer = Consumer} = State) ->
+ready({timeout, _, play}, #video_player{stream_id = StreamId, media_info = MediaEntry, consumer = Consumer} = State) ->
   {_, Sec1, MSec1} = erlang:now(),
-	case FileFormat:read_frame(State) of
+	case media_entry:read(MediaEntry, State) of
 		{ok, done} ->
 		  ?D("Video file finished"),
 		  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
@@ -133,16 +121,9 @@ ready({timeout, _, play}, #video_player{stream_id = StreamId, media_info = #medi
 
 
 
-ready(file_name, _From, #video_player{media_info = #media_info{file_name = FileName}} = State) ->
-  {reply, FileName, ready, State}.
+ready(file_name, _From, #video_player{media_info = MediaInfo} = State) ->
+  {reply, media_entry:file_name(MediaInfo), ready, State}.
 
-
-seek(#video_player{media_info = #media_info{frames = FrameTable}} = _Player, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = Frame) when FrameTimestamp =< Timestamp ->
-    {Id, FrameTimestamp}
-  end)),
-  [Item | _] = lists:reverse(Ids),
-  Item.
 
 
 

@@ -52,16 +52,16 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({open, Name}, Opener, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+handle_call({open, Name}, {Opener, _Ref}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   Server = case ets:lookup(OpenedMedia, Name) of
-    [_Value] -> _Value;
+    [#media_entry{handler = Pid}] -> Pid;
     [] -> 
-      {ok, Pid} = media_player:start_link(Name),
+      {ok, Pid} = ems_sup:start_media(Name),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
       Pid
   end,
-  media_entry:subscribe(Server, Opener),
-  {reply, ok, MediaProvider};
+  % ok = media_entry:subscribe(Server, Opener),
+  {reply, Server, MediaProvider};
   
 handle_call(Request, _From, State) ->
     {stop, {unknown_call, Request}, State}.

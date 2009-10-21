@@ -37,19 +37,18 @@
 -include("../../include/ems.hrl").
 -include("../../include/mp4.hrl").
 
--export([init/1, read_frame/1, metadata/1]).
+-export([init/1, read_frame/2, metadata/1]).
 -behaviour(gen_format).
 
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
 
 
-read_frame(#video_player{pos = '$end_of_table'}) ->
+read_frame(#video_player{pos = '$end_of_table'}, _MediaInfo) ->
   {ok, done};
 
   
-read_frame(#video_player{sent_video_config = false, media_info = MediaInfo} = Player) ->
-  #media_info{frames = FrameTable} = MediaInfo,
+read_frame(#video_player{sent_video_config = false} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
@@ -62,8 +61,7 @@ read_frame(#video_player{sent_video_config = false, media_info = MediaInfo} = Pl
 	  nextpos       = ets:first(FrameTable)
 	}, Player#video_player{sent_video_config = true}};  
 
-read_frame(#video_player{sent_audio_config = false, media_info = MediaInfo} = Player) ->
-  #media_info{frames = FrameTable} = MediaInfo,
+read_frame(#video_player{sent_audio_config = false} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
@@ -78,14 +76,13 @@ read_frame(#video_player{sent_audio_config = false, media_info = MediaInfo} = Pl
 	  nextpos       = ets:first(FrameTable)
 	}, Player#video_player{sent_audio_config = true}};
 
-read_frame(#video_player{pos = Key, media_info = MediaInfo} = Player) ->
-  #media_info{frames = FrameTable, device = IoDev} = MediaInfo,
+read_frame(#video_player{pos = Key} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
-	case read_data(Player, Offset, Size) of
-		{ok, Data, NewPlayer} ->
+	case read_data(MediaInfo, Offset, Size) of
+		{ok, Data, _} ->
 		  VideoFrame = video_frame(Frame, Data),
-      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, NewPlayer};
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
     eof ->
       {ok, done};
     {error, Reason} ->
@@ -93,31 +90,31 @@ read_frame(#video_player{pos = Key, media_info = MediaInfo} = Player) ->
   end.
   
 
-% read_data(#media_info{device = IoDev} = Player, Offset, Size) ->
-%   case file:pread(IoDev, Offset, Size) of
-%     {ok, Data} ->
-%       {ok, Data, Player};
-%     Else -> Else
-%   end.
-
-read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
-  Seek = Offset - CacheOffset,
-  % ?D({"Cache hit", Offset, Size}),
-  <<_:Seek/binary, Data:Size/binary, Rest/binary>> = Cache,
-  {ok, Data, Player};
-
-
-
-read_data(#video_player{media_info = #media_info{device = IoDev}} = Player, Offset, Size) ->
-  CacheSize = 60000 + Size,
-  case file:pread(IoDev, Offset, CacheSize) of
-    {ok, CacheList} ->
-      Cache = iolist_to_binary(CacheList),
-      <<Data:Size/binary, _/binary>> = Cache,
-      {ok, Data, Player#video_player{cache_offset = Offset, cache = Cache}};
+read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
+  case file:pread(IoDev, Offset, Size) of
+    {ok, Data} ->
+      {ok, Data, MediaInfo};
     Else -> Else
   end.
-  
+
+% read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
+%   Seek = Offset - CacheOffset,
+%   % ?D({"Cache hit", Offset, Size}),
+%   <<_:Seek/binary, Data:Size/binary, Rest/binary>> = Cache,
+%   {ok, Data, Player};
+% 
+% 
+
+% read_data(#video_player{media_info = #media_info{device = IoDev}} = Player, Offset, Size) ->
+%   CacheSize = 60000 + Size,
+%   case file:pread(IoDev, Offset, CacheSize) of
+%     {ok, CacheList} ->
+%       Cache = iolist_to_binary(CacheList),
+%       <<Data:Size/binary, _/binary>> = Cache,
+%       {ok, Data, Player#video_player{cache_offset = Offset, cache = Cache}};
+%     Else -> Else
+%   end.
+%   
 
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
   #video_frame{       

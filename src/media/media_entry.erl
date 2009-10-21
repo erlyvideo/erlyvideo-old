@@ -3,21 +3,16 @@
 -module(media_entry).
 -author(max@maxidoors.ru).
 -include("../include/ems.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, subscribe/2]).
+-export([start_link/1, subscribe/2, first/1, read/2, file_name/1, seek/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
-
--record(media_entry, {
-  name,
-  clients,
-  info
-}).
 
 
 start_link(Path) ->
@@ -25,14 +20,26 @@ start_link(Path) ->
    
 subscribe(Server, Client) ->
   gen_server:call(Server, {subscribe, Client}).
+  
+read(Server, Player) ->
+  gen_server:call(Server, {read, Player}).
+
+first(Server) ->
+  gen_server:call(Server, {first}).
+
+file_name(Server) ->
+  gen_server:call(Server, {file_name}).
+
+seek(Server, Timestamp) ->
+  gen_server:call(Server, {seek, Timestamp}).
 
 
 init([Name]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Opening file ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
-  Info = open_file(Name),
-  {ok, #media_entry{clients = Clients, name = Name, info = Info}}.
+  {ok, Info} = open_file(Name),
+  {ok, Info#media_info{clients = Clients}}.
   
 
 
@@ -49,12 +56,33 @@ init([Name]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({subscribe, Client}, _From, #media_entry{clients = Clients} = MediaEntry) ->
-  ets:insert_new(Clients, {Client}),
-  {reply, ok, MediaEntry};
+handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
+  ets:insert(Clients, {Client}),
+  % link(Client),
+  {reply, ok, MediaInfo};
+
+
+handle_call({first}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
+  {reply, ets:first(FrameTable), MediaInfo};
+
+
+handle_call({read, State}, _From, #media_info{format = FileFormat} = MediaInfo) ->
+  {reply, FileFormat:read_frame(State, MediaInfo), MediaInfo};
+
+handle_call({file_name}, _From, #media_info{file_name = FileName} = MediaInfo) ->
+  {reply, FileName, MediaInfo};
+  
+handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
+    {Id, FrameTimestamp}
+  end)),
+  [Item | _] = lists:reverse(Ids),
+  {reply, Item, MediaInfo};
+  
   
 handle_call(Request, _From, State) ->
-    {stop, {unknown_call, Request}, State}.
+  ?D({"Undefined call", Request, _From}),
+  {stop, {unknown_call, Request}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -66,7 +94,8 @@ handle_call(Request, _From, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+  ?D({"Undefined cast", _Msg}),
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -79,7 +108,8 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info(_Info, State) ->
-    {noreply, State}.
+  ?D({"Undefined info", _Info}),
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
@@ -90,6 +120,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
+  ?D({"Media entry terminating", _Reason}),
     ok.
 
 %%-------------------------------------------------------------------------
@@ -107,8 +138,16 @@ open_file(Name) ->
   FileName = filename:join([file_play:file_dir(), Name]), 
 	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
 	FileFormat = file_play:file_format(FileName),
-  % case FileFormat:init(#video_player{device = Device, 
-  %                                    file_name = FileName,
-  %                                    format = FileFormat}) of
-  ok.
+	MediaInfo = #media_info{
+	  device = Device,
+	  file_name = FileName,
+    format = FileFormat
+	},
+	case FileFormat:init(MediaInfo) of
+		{ok, MediaInfo1} -> 
+		  {ok, MediaInfo1};
+    _HdrError -> 
+		  ?D(_HdrError),
+		  {error, "Invalid header", _HdrError}
+	end.
 
