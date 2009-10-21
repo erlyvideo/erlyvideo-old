@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, subscribe/2, first/1, read/2, file_name/1, seek/2]).
+-export([start_link/1, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -32,6 +32,9 @@ file_name(Server) ->
 
 seek(Server, Timestamp) ->
   gen_server:call(Server, {seek, Timestamp}).
+
+metadata(Server) ->
+  gen_server:call(Server, {metadata}).
 
 
 init([Name]) ->
@@ -78,6 +81,13 @@ handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaIn
   end)),
   [Item | _] = lists:reverse(Ids),
   {reply, Item, MediaInfo};
+
+
+handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->
+  {reply, mp4:metadata(MediaInfo), MediaInfo};
+
+handle_call({metadata}, _From, MediaInfo) ->
+  {reply, undefined, MediaInfo};
   
   
 handle_call(Request, _From, State) ->

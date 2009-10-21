@@ -63,12 +63,11 @@ ready({client_buffer, ClientBuffer}, State) ->
   {next_state, ready, State#video_player{client_buffer = ClientBuffer}};
 
 
-ready({start}, #video_player{media_info = _MediaInfo, consumer = _Consumer, client_buffer = ClientBuffer} = State) ->
-  % #media_info{format = FileFormat} = MediaInfo,
-  % case FileFormat of
-  %   mp4 -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, FileFormat:metadata(MediaInfo), 1});
-  %   _ -> ok
-  % end,
+ready({start}, #video_player{media_info = MediaInfo, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
+  case media_entry:metadata(MediaInfo) of
+    undefined -> ok;
+    MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, 1})
+  end,
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer, prepush = ClientBuffer},
 	?D({"Player starting with pid", self()}),
