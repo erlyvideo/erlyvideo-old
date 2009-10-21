@@ -81,7 +81,6 @@ start_link(Port, Module) when is_integer(Port), is_atom(Module) ->
 %%----------------------------------------------------------------------
 init([Port, Module]) ->
     process_flag(trap_exit, true),
-    error_logger:info_msg("Starting with file directory ~p~n", [ems:get_var(file_dir, "/tmp")]),
     Opts = [binary, {packet, raw}, {reuseaddr, true},
             {keepalive, true}, {backlog, 30}, {active, false}],
     case gen_tcp:listen(Port, Opts) of

@@ -88,6 +88,13 @@ init([Port]) when is_integer(Port) ->
                   worker,                                  % Type     = worker | supervisor
                   [ems_cluster]                            % Modules  = [Module] | dynamic
               },
+              {   media_provider_sup,                      % Id       = internal id
+                  {media_provider,start_link,[ems:get_var(file_dir, "/tmp")]},          % StartFun = {M, F, A}
+                  permanent,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [media_provider]                         % Modules  = [Module] | dynamic
+              },
               % EMS HTTP
               {   ems_http_sup,                         % Id       = internal id
                   {ems_http,start_link,[ems:get_var(http_port, 8082)]},             % StartFun = {M, F, A}

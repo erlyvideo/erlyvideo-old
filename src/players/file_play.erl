@@ -40,7 +40,7 @@
 -include("../../include/ems.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
--export([file_dir/0]).
+-export([file_dir/0, file_format/1]).
 
 -behaviour(gen_fsm).
 -export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).

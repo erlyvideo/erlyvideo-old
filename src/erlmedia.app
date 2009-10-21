@@ -17,6 +17,7 @@
 				ems_sup,
 				gen_rtmp,
 				gen_server_cluster,
+				media_provider,
 				mochijson2,
 				hmac256,
 				mp4,
