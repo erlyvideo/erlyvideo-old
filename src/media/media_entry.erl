@@ -61,7 +61,8 @@ init([Name]) ->
 
 handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
   ets:insert(Clients, {Client}),
-  % link(Client),
+  link(Client),
+  link(_From),
   {reply, ok, MediaInfo};
 
 

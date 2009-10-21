@@ -70,7 +70,7 @@ ready({start}, #video_player{media_info = MediaInfo, consumer = Consumer, client
   end,
 	Timer = gen_fsm:start_timer(1, play),
 	NextState = State#video_player{timer_ref  = Timer, prepush = ClientBuffer},
-	?D({"Player starting with pid", self()}),
+	?D({"Player starting with pid", self(), MediaInfo}),
   {next_state, ready, NextState};
   
 ready({pause}, #video_player{timer_ref = Timer} = State) ->
