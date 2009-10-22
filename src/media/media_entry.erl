@@ -72,7 +72,7 @@ init([Name, record]) ->
 		  Recorder = #media_info{type=record, device = Device, file_name = FileName, ts_prev = 0, clients = Clients},
 			{ok, Recorder, ?TIMEOUT};
 		Error ->
-			{stop, Error}
+			ignore
   end.
 
 
@@ -138,6 +138,7 @@ handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = De
   NextTimeStamp = PrevTs + Channel#channel.timestamp,
   %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
   Packet = Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp},
+  % ?D({"Broadcast to", ets:info(Clients, size)}),
   ets:foldl(fun send_packet/2, Packet, Clients),
 	
 	{reply, ok, Recorder#media_info{ts_prev = NextTimeStamp}};
@@ -180,23 +181,20 @@ handle_info({graceful}, #media_info{file_name = FileName, clients = Clients} = M
   
 
 handle_info({'EXIT', Client, Reason}, #media_info{clients = Clients} = MediaInfo) ->
-  case ets:lookup(Clients, Client) of
-    [] -> 
-      ?D({"Undefined exit status", Client, Reason}),
-      % {stop, Reason, MediaInfo};
-      {noreply, MediaInfo};
-    [{Client}] ->
-      ets:delete(Clients, Client),
-      ?D({"Removing client", Client, "left", ets:info(Clients, size)}),
-      case ets:info(Clients, size) of
-        0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
-        _ -> ok
-      end,
-      {noreply, MediaInfo}
-  end;
+  ets:delete(Clients, Client),
+  ?D({"Removing client", Client, "left", ets:info(Clients, size)}),
+  case ets:info(Clients, size) of
+    0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
+    _ -> ok
+  end,
+  {noreply, MediaInfo};
 
 handle_info({'$gen_event', {stop}}, State) ->
   {noreply, State};
+
+handle_info({'$gen_event', {start}}, State) ->
+  {noreply, State};
+
   
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
@@ -224,8 +222,10 @@ terminate(_Reason, #media_info{device = Device} = MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-send_packet({Client}, Packet) ->
-  gen_fsm:send_event(Client, {send, Packet}).
+send_packet({Client}, Channel) ->
+  ?D({"Send to", Client}),
+  gen_fsm:send_event(Client, {send, {live, Channel, self()}}),
+  Channel.
   
 open_file(Name) ->
   FileName = filename:join([file_play:file_dir(), Name]), 

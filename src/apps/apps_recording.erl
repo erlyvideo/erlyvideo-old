@@ -46,8 +46,18 @@
 -define(VIDEO_WRITE_BUFFER, 20000). 
 
 
+% 'WAIT_FOR_DATA'({send, {live, Channel, Recorder}}, #ems_fsm{video_player = Recorder} = State) ->
+%   {next_state, 'WAIT_FOR_DATA', State};
+
+
+'WAIT_FOR_DATA'({send, {live, #channel{msg = Body} = Channel, Stream}}, State) ->
+  ?D({"Sending live stream", Channel#channel.timestamp}),
+  % ems_fsm:'WAIT_FOR_DATA'({send, Channel, Body}, State);
+  {next_state, 'WAIT_FOR_DATA', State};
+
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
   Recorder = media_provider:open(Name, record),
+  media_entry:subscribe(Recorder, self()),
   {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}};
 
 %% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	

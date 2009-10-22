@@ -122,6 +122,7 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
         {ok, Pid} ->
           link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+          ?D({"Inserting", Name, Pid}),
           Pid;
         ignore ->
           undefined
