@@ -31,6 +31,7 @@ handle('GET', [], Req) ->
   {ok, Index} = index_template:render([
     {files, FileList},
     {hostname, ems:get_var(host, "rtmp://localhost")},
+    {live_id, uuid:to_string(uuid:v4())},
     {url, File},
     {clients, Clients},
     {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
