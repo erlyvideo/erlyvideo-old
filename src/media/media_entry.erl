@@ -160,7 +160,8 @@ handle_info({'EXIT', Client, Reason}, #media_info{clients = Clients} = MediaInfo
   case ets:lookup(Clients, Client) of
     [] -> 
       ?D({"Undefined exit status", Client, Reason}),
-      {stop, Reason, MediaInfo};
+      % {stop, Reason, MediaInfo};
+      {noreply, MediaInfo};
     [{Client}] ->
       ets:delete(Clients, Client),
       ?D({"Removing client", Client, "left", ets:info(Clients, size)}),
