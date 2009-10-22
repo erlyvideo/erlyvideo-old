@@ -40,67 +40,11 @@
 -include("../include/ems.hrl").
 
 
--export([play/3, send/2, channel_id/2]).
+-export([send/2, channel_id/2]).
 
 
-play(Name, StreamId, State) ->
-  %   case filelib:is_regular(FileName) of
-  %     true ->
-  %     _ ->
-  %       ems_cluster:subscribe(self(), Name),
-  %       NextState = State#ems_fsm{type  = wait},
-  %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
-  %     % end
-  % end;
-  case init_file(Name, StreamId, State) of
-    {ok, Pid} ->
-      link(Pid),
-      {ok, Pid};
-    {notfound} -> {notfound}
-  end.
-      
   
   
-start_file_play(FileName, #ems_fsm{video_player = PlayerPid} = State, StreamId) when is_pid(PlayerPid) -> 
-  CurrentFileName = gen_fsm:sync_send_event(PlayerPid, file_name),
-  ?D({"Current playing", CurrentFileName}),
-  case CurrentFileName of
-    FileName -> {ok, PlayerPid};
-    _ -> 
-      gen_fsm:send_event(PlayerPid, {exit}),
-      gen_fsm:start_link(file_play, {FileName, StreamId, State, self()}, [])
-  end;
-
-start_file_play(FileName, State, StreamId) -> 
-  gen_fsm:start_link(file_play, {FileName, StreamId, State, self()}, []).
-
-  
-init_file(Name, StreamId, State) ->
-  case start_file_play(Name, State, StreamId) of
-    {ok, Pid} -> {ok, Pid};
-    _ -> init_mpeg_ts(Name, StreamId, State)
-  end.
-  
-init_mpeg_ts(FileName, StreamId,  State) ->
-  {ok, Re} = re:compile("http://(.*).ts"),
-  case re:run(FileName, Re) of
-    {match, _Captured} -> mpeg_ts:play(FileName, StreamId, State);
-    _ -> init_stream(FileName, StreamId, State)
-  end.
-
-init_stream(Name, _StreamId, _State) ->
-  case ems:get_var(netstream, undefined) of
-    undefined -> {notfound};
-    NetStreamNode -> case rpc:call(NetStreamNode, rtmp, start, [Name], ?TIMEOUT) of
-      {ok, NetStream} ->
-        link(NetStream),
-        ?D({"Netstream created", NetStream}),
-        {ok, NetStream};
-      _ ->
-        {notfound}
-      end
-  end.
-
 
 %%-------------------------------------------------------------------------
 %% @spec (FLV_TAG::tuple()) -> any()

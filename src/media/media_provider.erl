@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, open/2]).
+-export([start_link/0, open/2, play/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -25,10 +25,62 @@
 
 
 start_link() ->
-   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+   
+   
+play(Name, StreamId, State) ->
+  case find(Name) of
+    undefined -> open_file(Name, StreamId, State);
+    Server -> connect_to_media(Server, StreamId, State)
+  end.
+  
+connect_to_media(Server, StreamId, State) ->
+  case media_entry:is_stream(Server) of
+    true -> 
+      media_entry:subscribe(Server, self()),
+      {ok, Server};
+    _ -> 
+      file_play:start(Server, StreamId, State)
+  end.
+
+% init_file(Name, StreamId, State) ->
+%   case start_file_play(Name, State, StreamId) of
+%     {ok, Pid} -> {ok, Pid};
+%     _ -> init_mpeg_ts(Name, StreamId, State)
+%   end.
+% 
+% init_mpeg_ts(FileName, StreamId,  State) ->
+%   {ok, Re} = re:compile("http://(.*).ts"),
+%   case re:run(FileName, Re) of
+%     {match, _Captured} -> mpeg_ts:play(FileName, StreamId, State);
+%     _ -> init_stream(FileName, StreamId, State)
+%   end.
+% 
+% init_stream(Name, _StreamId, _State) ->
+%   case ems:get_var(netstream, undefined) of
+%     undefined -> {notfound};
+%     NetStreamNode -> case rpc:call(NetStreamNode, rtmp, start, [Name], ?TIMEOUT) of
+%       {ok, NetStream} ->
+%         link(NetStream),
+%         ?D({"Netstream created", NetStream}),
+%         {ok, NetStream};
+%       _ ->
+%         {notfound}
+%       end
+%   end.
+
+
+open_file(Name, StreamId, State) ->
+  case open(Name, file) of
+    undefined -> {notfound};
+    Server -> file_play:start(Server, StreamId, State)
+  end.
    
 open(Name, Type) ->
   gen_server:call(?MODULE, {open, Name, Type}).
+
+find(Name) ->
+  gen_server:call(?MODULE, {find, Name}).
 
 
 init([]) ->
@@ -51,6 +103,15 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+
+handle_call({find, Name}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  Server = case ets:lookup(OpenedMedia, Name) of
+    [#media_entry{handler = Pid}] -> Pid;
+    [] -> undefined
+  end,
+  {reply, Server, MediaProvider};
+  
 
 handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   ?D({"Lookup for media", Name, ets:lookup(OpenedMedia, Name)}),
@@ -101,6 +162,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info(_Info, State) ->
+  ?D({"Undefined info", _Info}),
     {noreply, State}.
 
 %%-------------------------------------------------------------------------

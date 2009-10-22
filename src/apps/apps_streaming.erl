@@ -42,7 +42,7 @@
 
 
 'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-  case ems_play:play(Name, StreamId, State) of
+  case media_provider:play(Name, StreamId, State) of
     {ok, PlayerPid} ->
       ?D({"Player starting", PlayerPid}),
       NextState = State#ems_fsm{video_player = PlayerPid},

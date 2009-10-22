@@ -39,24 +39,24 @@
 
 -include("../../include/ems.hrl").
 
--export([file_dir/0, file_format/1]).
+-export([file_dir/0, file_format/1, start/3]).
 
 -behaviour(gen_fsm).
 -export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
 -export([ready/2, ready/3, stop/2]).
 
+
+start(MediaEntry, StreamId, State) ->
+  gen_fsm:start_link(?MODULE, [MediaEntry, StreamId, State, self()], []).
+
   
-init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
-  case media_provider:open(FileName, file) of
-    undefined -> ignore;
-    MediaEntry ->
-      {ok, ready, #video_player{consumer = Parent,
-    	                          stream_id = StreamId,
-    	                          pos = undefined,
-    	                          media_info = MediaEntry,
-    	                          client_buffer = ClientBuffer,
-    	                          timer_start = erlang:now()}}
-  end.
+init([MediaEntry, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent]) ->
+  {ok, ready, #video_player{consumer = Parent,
+	                          stream_id = StreamId,
+	                          pos = undefined,
+	                          media_info = MediaEntry,
+	                          client_buffer = ClientBuffer,
+	                          timer_start = erlang:now()}}.
   
 	
 stop(_, State) ->
