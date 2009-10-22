@@ -41,10 +41,14 @@ publish(Server, Frame) ->
 
 init([Name, file]) ->
   process_flag(trap_exit, true),
-  error_logger:info_msg("Opening file ~p~n", [Name]),
-  Clients = ets:new(clients, [set, private]),
-  {ok, Info} = open_file(Name),
-  {ok, Info#media_info{clients = Clients, type = file}};
+  case filelib:is_regular(Name) of
+    true ->
+      error_logger:info_msg("Opening file ~p~n", [Name]),
+      Clients = ets:new(clients, [set, private]),
+      {ok, Info} = open_file(Name),
+      {ok, Info#media_info{clients = Clients, type = file}};
+    _ -> ignore
+  end;
   
 
 

@@ -56,12 +56,21 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
   Server = case ets:lookup(OpenedMedia, Name) of
     [#media_entry{handler = Pid}] -> Pid;
     [] -> 
-      {ok, Pid} = ems_sup:start_media(Name, Type),
-      ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
-      Pid
+      case ems_sup:start_media(Name, Type) of
+        {ok, Pid} ->
+          ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+          Pid;
+        ignore ->
+          undefined
+      end
   end,
-  ok = media_entry:subscribe(Server, Opener),
-  {reply, Server, MediaProvider};
+  case Server of
+    undefined -> 
+      {reply, undefined, MediaProvider};
+    _ ->
+      ok = media_entry:subscribe(Server, Opener),
+      {reply, Server, MediaProvider}
+  end;
   
 handle_call(Request, _From, State) ->
     {stop, {unknown_call, Request}, State}.

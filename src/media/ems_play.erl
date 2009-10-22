@@ -52,9 +52,13 @@ play(Name, StreamId, State) ->
   %       {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT}
   %     % end
   % end;
-  {ok, Pid} = init_file(Name, StreamId, State),
-  link(Pid),
-  {ok, Pid}.
+  case init_file(Name, StreamId, State) of
+    {ok, Pid} ->
+      link(Pid),
+      {ok, Pid};
+    {notfound} -> {notfound}
+  end.
+      
   
   
 start_file_play(FileName, #ems_fsm{video_player = PlayerPid} = State, StreamId) when is_pid(PlayerPid) -> 
@@ -71,12 +75,10 @@ start_file_play(FileName, State, StreamId) ->
   gen_fsm:start_link(file_play, {FileName, StreamId, State, self()}, []).
 
   
-  
 init_file(Name, StreamId, State) ->
-  FileName = filename:join([file_play:file_dir(), Name]), 
-  case filelib:is_regular(FileName) of
-    true -> start_file_play(FileName, State, StreamId);
-    _ -> init_mpeg_ts(FileName, StreamId, State)
+  case start_file_play(filename:join([file_play:file_dir(), Name]), State, StreamId) of
+    {ok, Pid} -> {ok, Pid};
+    _ -> init_mpeg_ts(Name, StreamId, State)
   end.
   
 init_mpeg_ts(FileName, StreamId,  State) ->

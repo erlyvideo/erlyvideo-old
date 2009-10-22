@@ -47,13 +47,16 @@
 
   
 init({FileName, StreamId, #ems_fsm{client_buffer = ClientBuffer} = _State, Parent}) ->
-  MediaEntry = media_provider:open(FileName, file),
-  {ok, ready, #video_player{consumer = Parent,
-	                          stream_id = StreamId,
-	                          pos = undefined,
-	                          media_info = MediaEntry,
-	                          client_buffer = ClientBuffer,
-	                          timer_start = erlang:now()}}.
+  case media_provider:open(FileName, file) of
+    undefined -> ignore;
+    MediaEntry ->
+      {ok, ready, #video_player{consumer = Parent,
+    	                          stream_id = StreamId,
+    	                          pos = undefined,
+    	                          media_info = MediaEntry,
+    	                          client_buffer = ClientBuffer,
+    	                          timer_start = erlang:now()}}
+  end.
   
 	
 stop(_, State) ->
