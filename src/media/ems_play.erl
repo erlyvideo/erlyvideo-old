@@ -76,7 +76,7 @@ start_file_play(FileName, State, StreamId) ->
 
   
 init_file(Name, StreamId, State) ->
-  case start_file_play(filename:join([file_play:file_dir(), Name]), State, StreamId) of
+  case start_file_play(Name, State, StreamId) of
     {ok, Pid} -> {ok, Pid};
     _ -> init_mpeg_ts(Name, StreamId, State)
   end.

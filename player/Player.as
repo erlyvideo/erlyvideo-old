@@ -99,7 +99,7 @@ public function record() : void
     if (_camera) {
       stop();
       playButton.enabled = false;
-      _stream.publish(player_url.text+".flv", "record");
+      _stream.publish(player_url.text, "record");
       _video.attachCamera(_camera);
       _stream.attachCamera(_camera);
       _stream.attachAudio(_microphone);

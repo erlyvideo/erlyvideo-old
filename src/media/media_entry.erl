@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1, publish/2]).
+-export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1, publish/2, is_stream/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -39,15 +39,21 @@ metadata(Server) ->
 publish(Server, Frame) ->
   gen_server:call(Server, {publish, Frame}).
 
+is_stream(Server) ->
+  gen_server:call(Server, {is_stream}).
+  
+
 init([Name, file]) ->
   process_flag(trap_exit, true),
-  case filelib:is_regular(Name) of
+  FileName = filename:join([file_play:file_dir(), Name]),
+  case filelib:is_regular(FileName) of
     true ->
-      error_logger:info_msg("Opening file ~p~n", [Name]),
+      error_logger:info_msg("Opening file ~p~n", [FileName]),
       Clients = ets:new(clients, [set, private]),
-      {ok, Info} = open_file(Name),
+      {ok, Info} = open_file(FileName),
       {ok, Info#media_info{clients = Clients, type = file}};
-    _ -> ignore
+    _ -> 
+      ignore
   end;
   
 
@@ -56,7 +62,7 @@ init([Name, record]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Recording stream ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
-	FileName = filename:join([file_play:file_dir(), Name]),
+	FileName = filename:join([file_play:file_dir(), Name ++ ".flv"]),
 	(catch file:delete(FileName)),
 	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	?D({"Recording to file", FileName}),
@@ -84,10 +90,10 @@ init([Name, record]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) when is_pid(Client) ->
+handle_call({subscribe, Client}, _From, #media_info{file_name = Name, clients = Clients} = MediaInfo) when is_pid(Client) ->
   ets:insert(Clients, {Client}),
   link(Client),
-  ?D({"Link from to", self(), Client, ets:info(Clients, size)}),
+  ?D({"Link from to", Name, self(), Client, ets:info(Clients, size)}),
   % link(_From),
   {reply, ok, MediaInfo};
 
@@ -117,10 +123,23 @@ handle_call({metadata}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
 
 
-handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = Device} = Recorder) ->
-	?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
+handle_call({is_stream}, _From, #media_info{type = record} = MediaInfo) ->
+  {reply, true, MediaInfo};
+
+handle_call({is_stream}, _From, MediaInfo) ->
+  {reply, false, MediaInfo};
+
+
+handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = Device, clients = Clients} = Recorder) ->
+  % ?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
 	file:write(Device, Tag),
+	
+  NextTimeStamp = PrevTs + Channel#channel.timestamp,
+  %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
+  Packet = Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp},
+  ets:foldl(fun send_packet/2, Packet, Clients),
+	
 	{reply, ok, Recorder#media_info{ts_prev = NextTimeStamp}};
 
 handle_call(Request, _From, State) ->
@@ -205,7 +224,8 @@ terminate(_Reason, #media_info{device = Device} = MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-
+send_packet({Client}, Packet) ->
+  gen_fsm:send_event(Client, {send, Packet}).
   
 open_file(Name) ->
   FileName = filename:join([file_play:file_dir(), Name]), 

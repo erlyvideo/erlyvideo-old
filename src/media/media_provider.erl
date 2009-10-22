@@ -53,6 +53,7 @@ init([]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  ?D({"Lookup for media", Name, ets:lookup(OpenedMedia, Name)}),
   Server = case ets:lookup(OpenedMedia, Name) of
     [#media_entry{handler = Pid}] -> Pid;
     [] -> 
@@ -64,11 +65,13 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
           undefined
       end
   end,
-  case Server of
-    undefined -> 
+  case {Server, Type} of
+    {undefined, _} -> 
       {reply, undefined, MediaProvider};
-    _ ->
+    {_, file} ->
       ok = media_entry:subscribe(Server, Opener),
+      {reply, Server, MediaProvider};
+    {_, record} ->
       {reply, Server, MediaProvider}
   end;
   
