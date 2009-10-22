@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1]).
+-export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1, publish/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -36,14 +36,35 @@ seek(Server, Timestamp) ->
 metadata(Server) ->
   gen_server:call(Server, {metadata}).
 
+publish(Server, Frame) ->
+  gen_server:call(Server, {publish, Frame}).
 
-init([Name, Type]) ->
+init([Name, file]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Opening file ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
   {ok, Info} = open_file(Name),
-  {ok, Info#media_info{clients = Clients, type = Type}}.
+  {ok, Info#media_info{clients = Clients, type = file}};
   
+
+
+init([Name, record]) ->
+  process_flag(trap_exit, true),
+  error_logger:info_msg("Recording stream ~p~n", [Name]),
+  Clients = ets:new(clients, [set, private]),
+	FileName = filename:join([file_play:file_dir(), Name]),
+	(catch file:delete(FileName)),
+	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
+	?D({"Recording to file", FileName}),
+	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
+		{ok, Device} ->
+		  file:write(Device, Header),
+		  Recorder = #media_info{type=record, device = Device, file_name = FileName, ts_prev = 0, clients = Clients},
+			{ok, Recorder, ?TIMEOUT};
+		Error ->
+			{stop, Error}
+  end.
+
 
 
 %%-------------------------------------------------------------------------
@@ -59,7 +80,7 @@ init([Name, Type]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
+handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) when is_pid(Client) ->
   ets:insert(Clients, {Client}),
   link(Client),
   ?D({"Link from to", self(), Client, ets:info(Clients, size)}),
@@ -90,8 +111,14 @@ handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->
 
 handle_call({metadata}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
-  
-  
+
+
+handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = Device} = Recorder) ->
+	?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
+	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
+	file:write(Device, Tag),
+	{reply, ok, Recorder#media_info{ts_prev = NextTimeStamp}};
+
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
   {stop, {unknown_call, Request}, State}.
@@ -143,6 +170,9 @@ handle_info({'EXIT', Client, Reason}, #media_info{clients = Clients} = MediaInfo
       end,
       {noreply, MediaInfo}
   end;
+
+handle_info({'$gen_event', {stop}}, State) ->
+  {noreply, State};
   
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),

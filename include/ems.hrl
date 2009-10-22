@@ -314,7 +314,8 @@
   video_decoder_config,
   audio_decoder_config,
 	frames = undefined,
-	clients = undefined
+	clients = undefined,
+	ts_prev % Timestamp of previous written frame. Only for recording streams.
 }).
 
 
