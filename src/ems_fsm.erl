@@ -82,6 +82,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 %%-------------------------------------------------------------------------
 init([]) ->
     process_flag(trap_exit, true),
+    random:seed(now()),
     {ok, 'WAIT_FOR_SOCKET', #ems_fsm{}}.
 
 

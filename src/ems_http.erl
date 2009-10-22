@@ -12,6 +12,7 @@ stop() ->
 
 % callback on request received
 handle_http(Req) ->	
+  random:seed(now()),
   handle(Req:get(method), Req:resource([lowercase, urldecode]), Req).
 
 
