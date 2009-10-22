@@ -120,6 +120,7 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
     [] -> 
       case ems_sup:start_media(Name, Type) of
         {ok, Pid} ->
+          link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
           Pid;
         ignore ->
@@ -161,9 +162,18 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_info({'EXIT', Media, Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
+    [] -> 
+      {noreply, MediaProvider};
+    [[Name]] ->
+      ets:delete(OpenedMedia, Name),
+      {noreply, MediaProvider}
+  end;
+
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
-    {noreply, State}.
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
