@@ -223,7 +223,7 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 send_packet({Client}, Channel) ->
-  ?D({"Send to", Client}),
+  % ?D({"Send to", Client}),
   gen_fsm:send_event(Client, {send, {live, Channel, self()}}),
   Channel.
   

@@ -269,7 +269,8 @@
   client_buffer = ?MIN_CLIENT_BUFFER,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	video_player = undefined
+	video_player = undefined,
+	video_state = undefined
 	}).
 
 
