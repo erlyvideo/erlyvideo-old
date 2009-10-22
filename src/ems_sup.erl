@@ -41,10 +41,35 @@
 -export ([start_client/0, start_media/1]).
 
 
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc A startup function for whole supervisor. Started by application
+%% @end 
+%%--------------------------------------------------------------------
 -spec start_link() -> {'error',_} | {'ok',pid()}.
 start_link() ->
 	ListenPort = ems:get_var(listen_port, ?RTMP_PORT),
 	supervisor:start_link({local, ?MODULE}, ?MODULE, [ListenPort]).
+
+
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc A startup function for spawning new client connection handling FSM.
+%% To be called by the TCP listener process.
+%% @end 
+%%--------------------------------------------------------------------
+-spec start_client() -> {'error',_} | {'ok',pid()}.
+start_client() -> supervisor:start_child(ems_client_sup, []).
+
+
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc A startup function for spawning new media entry
+%% To be called by the media provider.
+%% @end 
+%%--------------------------------------------------------------------
+start_media(Name) -> supervisor:start_child(media_entry_sup, [Name]).
+
 
 
 %%--------------------------------------------------------------------
@@ -72,7 +97,7 @@ init([media_entry]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
-              % TCP Client
+              % MediaEntry
               {   undefined,                               % Id       = internal id
                   {media_entry,start_link,[]},             % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
@@ -142,18 +167,6 @@ init([Port]) when is_integer(Port) ->
 %%----------------------------------------------------------------------
 %% Internal functions
 %%----------------------------------------------------------------------
-
-%%--------------------------------------------------------------------
-%% @spec () -> any()
-%% @doc A startup function for spawning new client connection handling FSM.
-%% To be called by the TCP listener process.
-%% @end 
-%%--------------------------------------------------------------------
--spec start_client() -> {'error',_} | {'ok',pid()}.
-start_client() -> supervisor:start_child(ems_client_sup, []).
-
-
-start_media(Name) -> supervisor:start_child(media_entry_sup, [Name]).
 
 
 

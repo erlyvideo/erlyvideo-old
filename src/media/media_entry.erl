@@ -16,7 +16,7 @@
 
 
 start_link(Path) ->
-   gen_server:start_link({local, ?MODULE}, ?MODULE, [Path], []).
+   gen_server:start_link(?MODULE, [Path], []).
    
 subscribe(Server, Client) ->
   gen_server:call(Server, {subscribe, Client}).
