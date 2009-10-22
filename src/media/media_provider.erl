@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, open/1]).
+-export([start_link/0, open/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -27,8 +27,8 @@
 start_link() ->
    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
    
-open(Name) ->
-  gen_server:call(?MODULE, {open, Name}).
+open(Name, Type) ->
+  gen_server:call(?MODULE, {open, Name, Type}).
 
 
 init([]) ->
@@ -52,11 +52,11 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({open, Name}, {Opener, _Ref}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   Server = case ets:lookup(OpenedMedia, Name) of
     [#media_entry{handler = Pid}] -> Pid;
     [] -> 
-      {ok, Pid} = ems_sup:start_media(Name),
+      {ok, Pid} = ems_sup:start_media(Name, Type),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
       Pid
   end,

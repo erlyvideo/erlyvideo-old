@@ -8,15 +8,15 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1]).
+-export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 
-start_link(Path) ->
-   gen_server:start_link(?MODULE, [Path], []).
+start_link(Path, Type) ->
+   gen_server:start_link(?MODULE, [Path, Type], []).
    
 subscribe(Server, Client) ->
   gen_server:call(Server, {subscribe, Client}).
@@ -37,12 +37,12 @@ metadata(Server) ->
   gen_server:call(Server, {metadata}).
 
 
-init([Name]) ->
+init([Name, Type]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Opening file ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
   {ok, Info} = open_file(Name),
-  {ok, Info#media_info{clients = Clients}}.
+  {ok, Info#media_info{clients = Clients, type = Type}}.
   
 
 

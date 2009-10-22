@@ -38,7 +38,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_client/0, start_media/1]).
+-export ([start_client/0, start_media/2]).
 
 
 %%--------------------------------------------------------------------
@@ -68,7 +68,7 @@ start_client() -> supervisor:start_child(ems_client_sup, []).
 %% To be called by the media provider.
 %% @end 
 %%--------------------------------------------------------------------
-start_media(Name) -> supervisor:start_child(media_entry_sup, [Name]).
+start_media(Name, Type) -> supervisor:start_child(media_entry_sup, [Name, Type]).
 
 
 

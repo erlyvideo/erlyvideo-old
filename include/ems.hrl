@@ -301,6 +301,7 @@
 }).
 
 -record(media_info, {
+  type = undefined,
   device = undefined,
   header = undefined,
   file_name = undefined,
