@@ -4,16 +4,14 @@ currently it can:
 
   * stream, seek, pause and resume mp4 and flv files 
   * fast starting of flv playback with building index in background
-  * provide push channel to flash, just like juggernaut, just like AMQP
   * record flv from camera
   * have possibility to auth users
-  
-possibly it can:
-
   * broadcast flv between people
+  
   
 future plans:
   * try to change quality on fly
+  * provide push channel to flash, just like juggernaut, just like AMQP
 
 
 What you can do right now?
