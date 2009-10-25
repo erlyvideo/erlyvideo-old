@@ -139,9 +139,17 @@ try_msg(Msg) ->
 log(Level, Log) ->
     log(Level, Log, []).
 log(Level, Log, Data) ->
-    try_msg({log, Level, Log, Data}).
+    filter_log(Level, {log, Level, Log, Data}).
 log(Logger, Level, Log, Data) ->
-    try_msg({log, Logger, Level, Log, Data}).
+    filter_log(Level, {log, Logger, Level, Log, Data}).
+
+filter_log(Level, Msg) ->
+    case log4erl_utils:to_log(Level, log_filter:cutoff_level()) of
+        true ->
+            try_msg(Msg);
+        false ->
+            ok
+    end.
 
 warn(Log) ->
     log(warn, Log).
@@ -257,6 +265,7 @@ start(_Type, [Arg]) ->
     log4erl_sup:start_link(Arg).
 
 stop(_State) ->
+    log_filter_codegen:reset(),
     ok.
 
 

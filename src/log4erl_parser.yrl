@@ -1,10 +1,13 @@
-Nonterminals loggers logger appenders appender props prop value.
+Nonterminals cutoff_level loggers logger appenders appender props prop value.
 
-% 'loger' is missing 'e' not to be confused with Nonterminals 
+% 'loger' is missing 'g' not to be confused with Nonterminals 
 % check 'log4erl_conf.xrl'
 Terminals '{' '}' ',' '=' 'loger' 'default' 'integer' 'val' 'atom'.
 
-Rootsymbol loggers.
+Rootsymbol cutoff_level.
+
+cutoff_level -> loggers : '$1'.
+cutoff_level -> prop loggers : ['$1'] ++ '$2'.
 
 loggers -> logger : ['$1'].
 loggers -> logger loggers : ['$1'] ++ '$2'.

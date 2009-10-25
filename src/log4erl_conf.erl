@@ -31,12 +31,14 @@ conf(File) ->
 traverse([]) ->
     ok;
 traverse([H|Tree]) ->
-    logger(H),
+    element(H),
     traverse(Tree).
 
-logger({default_logger, Appenders}) ->
+element({cutoff_level, CutoffLevel}) ->
+    log_filter_codegen:set_cutoff_level(CutoffLevel);
+element({default_logger, Appenders}) ->
     appenders(Appenders);
-logger({logger, Logger, Appenders}) ->
+element({logger, Logger, Appenders}) ->
     log4erl:add_logger(Logger),
     appenders(Logger, Appenders).
 
