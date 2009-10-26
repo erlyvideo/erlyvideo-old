@@ -23,11 +23,14 @@ BEAMS=$(ERLS:.erl=.beam)
 BEAMS = $(ERLS:.erl=.beam)
 MODS = $(BEAMS:.beam=)
 
-all:	compile
+all:	generate_parser compile
 
 %.beam: %.erl
 	@echo ">>" compiling: $<
 	@$(ERLC) $<
+
+generate_parser:
+	erlc log4erl_parser.yrl
 
 compile: ${MODS:%=%.beam}
 
