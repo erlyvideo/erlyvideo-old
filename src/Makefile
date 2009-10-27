@@ -23,7 +23,10 @@ BEAMS=$(ERLS:.erl=.beam)
 BEAMS = $(ERLS:.erl=.beam)
 MODS = $(BEAMS:.beam=)
 
-all:	generate_parser generate_lex compile
+all:
+	make generate_parser
+	make generate_lex
+	make compile
 
 %.beam: %.erl
 	@echo ">>" compiling: $<
