@@ -23,14 +23,20 @@ BEAMS=$(ERLS:.erl=.beam)
 BEAMS = $(ERLS:.erl=.beam)
 MODS = $(BEAMS:.beam=)
 
-all:	generate_parser compile
+all:	generate_parser generate_lex compile
 
 %.beam: %.erl
 	@echo ">>" compiling: $<
 	@$(ERLC) $<
 
 generate_parser:
+	@echo ">>" generating log4erl_parser.erl from log4erl_parser.yrl $<
 	erlc log4erl_parser.yrl
+
+# export LEEX_PATH env var for this to work
+generate_lex:
+	@echo ">>" generating log4erl_lex.erl from log4erl_lex.xrl $<
+	erl -pa $$LEEX_PATH/ebin -s leex file log4erl_lex.xrl -s init stop
 
 compile: ${MODS:%=%.beam}
 
