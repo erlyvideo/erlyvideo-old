@@ -44,4 +44,4 @@ generate_lex:
 compile: ${MODS:%=%.beam}
 
 clean:
-	rm -rf ../ebin/*.beam erl_crash.dump
+	rm -rf ../ebin/*.beam erl_crash.dump src/log4erl_lex.erl src/log4erl_parser.erl
