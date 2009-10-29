@@ -28,7 +28,7 @@ generate_parser:
 # export LEEX_PATH env var for this to work
 generate_lex:
 	@echo ">>" generating log4erl_lex.erl from log4erl_lex.xrl $<
-	erl -pa $$LEEX_PATH/ebin -s leex file log4erl_lex.xrl -s init stop
+	erl -noinput -noshell -pa $$LEEX_PATH/ebin -s leex file log4erl_lex.xrl -s init stop
 
 compile: ${BEAMS}
 
