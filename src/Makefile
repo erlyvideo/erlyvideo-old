@@ -2,7 +2,7 @@ EBIN_DIR=../ebin
 INCLUDE_DIR=../include
 ERLS=$(wildcard *.erl)
 ERLC=erlc -o $(EBIN_DIR) -I ${INCLUDE_DIR}
-BEAMS=$(ERLS:.erl=.beam)
+BEAMS=$(ERLS:%.erl=$(EBIN_DIR)/%.beam)
 
 # leave these lines alone
 .SUFFIXES: .erl .beam .yrl
@@ -12,8 +12,6 @@ BEAMS=$(ERLS:.erl=.beam)
 
 #.yrl.erl:
 #	$(ERLC)-W $<
-
-BEAMS = $(ERLS:%.erl=$(EBIN_DIR)/%.beam)
 
 all: compile
 
