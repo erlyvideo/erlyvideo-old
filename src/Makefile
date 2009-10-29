@@ -13,19 +13,11 @@ BEAMS=$(ERLS:.erl=.beam)
 #.yrl.erl:
 #	$(ERLC)-W $<
 
-
-# Here's a list of the erlang modules you want compiling
-# If the modules don't fit onto one line add a \ character
-# to the end of the line and continue on the next line
-# Edit the lines below
-#MODS = log4erl_sup log4erl file_appender console_appender log_manager logger_guard log4erl_utils dummy_appender log_formatter smtp_fsm.erl email_msg.erl
-#MODS = $(ERLS)
-BEAMS = $(ERLS:.erl=.beam)
-MODS = $(BEAMS:.beam=)
+BEAMS = $(ERLS:%.erl=$(EBIN_DIR)/%.beam)
 
 all: compile
 
-%.beam: %.erl
+$(EBIN_DIR)/%.beam: %.erl
 	@echo ">>" compiling: $<
 	@$(ERLC) $<
 
@@ -38,7 +30,7 @@ generate_lex:
 	@echo ">>" generating log4erl_lex.erl from log4erl_lex.xrl $<
 	erl -pa $$LEEX_PATH/ebin -s leex file log4erl_lex.xrl -s init stop
 
-compile: ${MODS:%=%.beam}
+compile: ${BEAMS}
 
 clean:
-	rm -rf ../ebin/*.beam erl_crash.dump src/log4erl_lex.erl src/log4erl_parser.erl
+	rm -rf ../ebin/*.beam erl_crash.dump
