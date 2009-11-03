@@ -43,6 +43,7 @@
   {env, [
 	{listen_port, 1935}, 
 	{file_dir, "/tmp"},
+	{tmp_dir, "/tmp/erlyvideo"},
 	{host, "rtmp://localhost"},
 	{applications, [apps_streaming, apps_recording, apps_push, apps_rtmp]},
 	{http_port, 8082},

@@ -48,6 +48,7 @@
 
 start(_Type, _Args) -> 
   application:start(crypto),
+  inets:start(httpc, [{profile, erlyvideo}, {data_dir, ems:get_var(tmp_dir, "/tmp/erlyvideo")}]),
   ems_sup:start_link().
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()
