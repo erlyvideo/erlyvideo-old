@@ -64,7 +64,6 @@ connect(AMF, State) ->
 			  Session = rtmp_session:decode(Cookie),
         ?D({"Session:", Session}),
         
-        ems_cluster:add_client(erlang:pid_to_list(self()), UserId, self()),
 				State#ems_fsm{player_info = PlayerInfo, user_id = UserId};
 	    [{object, PlayerInfo} | _] ->
 				State#ems_fsm{player_info = PlayerInfo, user_id = undefined}

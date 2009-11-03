@@ -162,16 +162,16 @@ handle_info({inet_async, ListSock, Ref, Error}, #ems_server{listener=ListSock, a
     
 handle_info({clients, From}, #ems_server{} = State) ->
   ?D("Asked for clients list"),
-  From ! {client_list, ems_cluster:clients()},
+  % From ! {client_list, ems_cluster:clients()},
   {noreply, State};
 
-handle_info({message, UserId, Message}, #ems_server{} = State) ->
-  Clients = ems_cluster:clients_for_user_id(UserId),
-  F = fun(#ems_client{pid = Pid}) ->
-    gen_fsm:send_event(Pid, {message, Message})
-  end,
-  lists:foreach(F, Clients),
-  {noreply, State};
+% handle_info({message, UserId, Message}, #ems_server{} = State) ->
+%  Clients = ems_cluster:clients_for_user_id(UserId),
+%   F = fun(#ems_client{pid = Pid}) ->
+%     gen_fsm:send_event(Pid, {message, Message})
+%   end,
+%   lists:foreach(F, Clients),
+%   {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.

@@ -120,14 +120,6 @@ init([Port]) when is_integer(Port) ->
                   worker,                                  % Type     = worker | supervisor
                   [ems_server]                             % Modules  = [Module] | dynamic
               },
-              % EMS Cluster
-              {   ems_cluster_sup,                         % Id       = internal id
-                  {ems_cluster,start_link,[]},             % StartFun = {M, F, A}
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [ems_cluster]                            % Modules  = [Module] | dynamic
-              },
               {   media_provider_sup,                      % Id       = internal id
                   {media_provider,start_link,[]},          % StartFun = {M, F, A}
                   permanent,                               % Restart  = permanent | transient | temporary

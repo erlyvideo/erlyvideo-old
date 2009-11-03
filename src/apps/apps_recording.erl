@@ -87,16 +87,16 @@
       undefined -> ok;
       _ -> gen_fsm:cancel_timer(TimerRef)
   end,
-  case Type of
-      live -> 
-          ems_cluster:unsubscribe(FileName, self());
-      wait -> 
-          ems_cluster:unsubscribe(FileName, self());
-      broadcast ->
-          ems_cluster:stop_broadcast(FileName);
-      _ -> 
-          ok
-  end,
+  % case Type of
+  %     live -> 
+  %         ems_cluster:unsubscribe(FileName, self());
+  %     wait -> 
+  %         ems_cluster:unsubscribe(FileName, self());
+  %     broadcast ->
+  %         ems_cluster:stop_broadcast(FileName);
+  %     _ -> 
+  %         ok
+  % end,
   ?D({"Stopping video recorder"}),
   {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = undefined}, ?TIMEOUT};
 
