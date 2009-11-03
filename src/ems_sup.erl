@@ -38,7 +38,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_client/0, start_media/2]).
+-export ([start_client/0, start_media/2, start_ts_lander/1]).
 
 
 %%--------------------------------------------------------------------
@@ -69,6 +69,14 @@ start_client() -> supervisor:start_child(ems_client_sup, []).
 %% @end 
 %%--------------------------------------------------------------------
 start_media(Name, Type) -> supervisor:start_child(media_entry_sup, [Name, Type]).
+
+%%--------------------------------------------------------------------
+%% @spec () -> any()
+%% @doc A startup function for spawning new media entry
+%% To be called by the media provider.
+%% @end 
+%%--------------------------------------------------------------------
+start_ts_lander(URL) -> supervisor:start_child(ts_lander_sup, [URL]).
 
 
 
@@ -104,6 +112,21 @@ init([media_entry]) ->
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
                   [media_entry]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([ts_lander]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {ts_lander,start_link,[]},               % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [ts_lander]                              % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -146,6 +169,14 @@ init([Port]) when is_integer(Port) ->
               % Media entry supervisor
               {   media_entry_sup,
                   {supervisor,start_link,[{local, media_entry_sup}, ?MODULE, [media_entry]]},
+                  permanent,                               % Restart  = permanent | transient | temporary
+                  infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+                  supervisor,                              % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              },
+              % MPEG TS Lander
+              {   ts_lander_sup,
+                  {supervisor,start_link,[{local, ts_lander_sup}, ?MODULE, [ts_lander]]},
                   permanent,                               % Restart  = permanent | transient | temporary
                   infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
                   supervisor,                              % Type     = worker | supervisor

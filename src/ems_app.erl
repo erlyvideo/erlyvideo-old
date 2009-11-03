@@ -48,14 +48,18 @@
 
 start(_Type, _Args) -> 
   application:start(crypto),
-  inets:start(httpc, [{profile, erlyvideo}, {data_dir, ems:get_var(tmp_dir, "/tmp/erlyvideo")}]),
+  application:start(inets),
+  % inets:start(httpc, [{profile, erlyvideo}, {data_dir, ems:get_var(tmp_dir, "/tmp/erlyvideo")}]),
   ems_sup:start_link().
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()
 %% @doc Stop ErlMedia Application
 %% @end 
 %%--------------------------------------------------------------------
-stop(_S) -> ok.
+stop(_S) -> 
+  % application:stop(crypto),
+  % inets:stop(httpc, erlyvideo),
+  ok.
 
 
 %%--------------------------------------------------------------------
