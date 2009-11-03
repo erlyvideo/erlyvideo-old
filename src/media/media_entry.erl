@@ -57,6 +57,15 @@ init([Name, file]) ->
   end;
   
 
+init([Name, live]) ->
+  process_flag(trap_exit, true),
+  error_logger:info_msg("Live streaming stream ~p~n", [Name]),
+  Clients = ets:new(clients, [set, private]),
+  % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
+	Recorder = #media_info{type=live, ts_prev = 0, clients = Clients},
+	{ok, Recorder, ?TIMEOUT};
+  end.
+
 
 init([Name, record]) ->
   process_flag(trap_exit, true),

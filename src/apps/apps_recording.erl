@@ -49,11 +49,11 @@
 'WAIT_FOR_DATA'({send, {live, Channel, Recorder}}, #ems_fsm{video_player = Recorder, video_state = publishing} = State) ->
   {next_state, 'WAIT_FOR_DATA', State};
 
+'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
+  Recorder = media_provider:open(Name, live),
+  media_entry:subscribe(Recorder, self()),
+  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder, video_state = publishing}};
 
-'WAIT_FOR_DATA'({send, {live, #channel{msg = Body} = Channel, Stream}}, State) ->
-  % ?D({"Sending live stream", Channel#channel.timestamp}),
-  ems_fsm:'WAIT_FOR_DATA'({send, {Channel, Body}}, State);
-  % {next_state, 'WAIT_FOR_DATA', State};
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
   Recorder = media_provider:open(Name, record),
@@ -71,31 +71,6 @@
     		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
     end;	
     
-'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->        
-    ems_cluster:broadcast(Name),
-    %% hack - empty audio
-    StreamId=1,
-    Id=ems_play:channel_id(?RTMP_TYPE_AUDIO, StreamId),
-    TimeStamp=0,
-    Length=0,
-    Type=?RTMP_TYPE_AUDIO,
-    Rest = <<>>,
-    FirstPacket = <<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,    
-    ems_cluster:broadcast(Name, FirstPacket),
-    %% hack end
-    Recorder = #video_recorder{type=broadcast, file_name = Name, ts_prev = 0},
-	{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_player = #video_recorder{
-                                              type = broadcast, 
-                                              ts_prev = PrevTs,
-                                              file_name = Name} = Recorder} = State) when is_record(Channel,channel) ->
-	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
-%	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-	Packet = ems_rtmp:encode(Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
-    ems_cluster:broadcast(Name, Packet),
-    {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder#video_recorder{ts_prev=NextTimeStamp}}, ?TIMEOUT};
-    	
 'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #ems_fsm{video_player = Recorder} = State) ->
   media_entry:publish(Recorder, Channel),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	

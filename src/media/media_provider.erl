@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, open/2, play/3]).
+-export([start_link/0, open/2, play/1, play/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -28,19 +28,21 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
    
    
-play(Name, StreamId, State) ->
+play(Name) -> play(Name, []).
+
+play(Name, Options) ->
   case find(Name) of
-    undefined -> open_file(Name, StreamId, State);
-    Server -> connect_to_media(Server, StreamId, State)
+    undefined -> open_file(Name, Options);
+    Server -> connect_to_media(Server, Options)
   end.
   
-connect_to_media(Server, StreamId, State) ->
+connect_to_media(Server, Options) ->
   case media_entry:is_stream(Server) of
     true -> 
       media_entry:subscribe(Server, self()),
       {ok, Server};
     _ -> 
-      file_play:start(Server, StreamId, State)
+      file_play:start(Server, Options)
   end.
 
 % init_file(Name, StreamId, State) ->
@@ -70,10 +72,10 @@ connect_to_media(Server, StreamId, State) ->
 %   end.
 
 
-open_file(Name, StreamId, State) ->
+open_file(Name, Options) ->
   case open(Name, file) of
     undefined -> {notfound};
-    Server -> file_play:start(Server, StreamId, State)
+    Server -> file_play:start(Server, Options)
   end.
    
 open(Name, Type) ->
@@ -133,6 +135,10 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
       {reply, undefined, MediaProvider};
     {_, file} ->
       ok = media_entry:subscribe(Server, Opener),
+      {reply, Server, MediaProvider};
+    {_, live} ->
+      {reply, Server, MediaProvider};
+    {_, append} ->
       {reply, Server, MediaProvider};
     {_, record} ->
       {reply, Server, MediaProvider}
