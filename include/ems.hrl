@@ -13,7 +13,6 @@
 -define(HS_BODY_LEN,   1536).
 -define(MIN_CLIENT_BUFFER, 100).
 -define(PREPUSH, 3000).
--define(FILE_CACHE_TIME, 10000).
 
 -define(CONTENT_TYPE, "application/x-fcs").
 -define(SERVER_HEADER, {"Server", "RTMPT/1.0"}).
@@ -301,23 +300,6 @@
 	pos = 0
 }).
 
--record(media_info, {
-  type = undefined,
-  device = undefined,
-  header = undefined,
-  file_name = undefined,
-  format,
-  width = undefined,
-  height = undefined,
-  duration = undefined,
-  timescale,
-  seconds,
-  video_decoder_config,
-  audio_decoder_config,
-	frames = undefined,
-	clients = undefined,
-	ts_prev % Timestamp of previous written frame. Only for recording streams.
-}).
 
 
 -record(file_frame, {

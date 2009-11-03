@@ -50,7 +50,6 @@
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
   Recorder = media_provider:open(Name, record),
-  media_entry:subscribe(Recorder, self()),
   {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder, video_state = publishing}};
 
 %% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	

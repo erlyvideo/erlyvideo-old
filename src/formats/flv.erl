@@ -36,6 +36,7 @@
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
 -include("../../include/flv.hrl").
+-include("../../include/media_info.hrl").
 
 -export([init/1, read_frame/2, read_frame_list/3, header/1]).
 -behaviour(gen_format).

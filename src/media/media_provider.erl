@@ -150,10 +150,13 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
       ok = media_entry:subscribe(Server, Opener),
       {reply, Server, MediaProvider};
     {_, live} ->
+      media_entry:set_owner(Server, Opener),
       {reply, Server, MediaProvider};
     {_, append} ->
+      media_entry:set_owner(Server, Opener),
       {reply, Server, MediaProvider};
     {_, record} ->
+      media_entry:set_owner(Server, Opener),
       {reply, Server, MediaProvider}
   end;
   

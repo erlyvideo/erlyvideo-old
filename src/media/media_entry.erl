@@ -3,12 +3,13 @@
 -module(media_entry).
 -author(max@maxidoors.ru).
 -include("../include/ems.hrl").
+-include("../include/media_info.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1, publish/2, is_stream/1]).
+-export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1, publish/2, is_stream/1, set_owner/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -41,6 +42,9 @@ publish(Server, Frame) ->
 
 is_stream(Server) ->
   gen_server:call(Server, {is_stream}).
+  
+set_owner(Server, Owner) ->
+  gen_server:call(Server, {set_owner, Owner}).
   
 
 init([Name, file]) ->
@@ -138,10 +142,21 @@ handle_call({is_stream}, _From, MediaInfo) ->
   {reply, false, MediaInfo};
 
 
+handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
+  ?D({"Setting owner to", Owner}),
+  {reply, ok, MediaInfo#media_info{owner = Owner}};
+
+handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
+  {reply, {error, {owner_exists, Owner}}, MediaInfo};
+
+
 handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = Device, clients = Clients} = Recorder) ->
   % ?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
 	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
-	file:write(Device, Tag),
+	case Device of
+	  undefined -> ok;
+	  _ -> file:write(Device, Tag)
+	end,
 	
   NextTimeStamp = PrevTs + Channel#channel.timestamp,
   %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
@@ -179,7 +194,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({graceful}, #media_info{file_name = FileName, clients = Clients} = MediaInfo) ->
+handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
     0 -> ?D({"No readers for file", FileName}),
          {stop, normal, MediaInfo};
@@ -187,6 +202,12 @@ handle_info({graceful}, #media_info{file_name = FileName, clients = Clients} = M
   end;
   
   
+handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
+  case ets:info(Clients, size) of
+    0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
+    _ -> ok
+  end,
+  {noreply, MediaInfo#media_info{owner = Owner}};
 
 handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInfo) ->
   ets:delete(Clients, Client),
@@ -230,9 +251,9 @@ terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-send_packet({Client}, Channel) ->
+send_packet({Client}, #channel{msg = Data} = Channel) ->
   % ?D({"Send to", Client}),
-  gen_fsm:send_event(Client, {send, {live, Channel, self()}}),
+  gen_fsm:send_event(Client, {send, {Channel, Data}}),
   Channel.
   
 open_file(Name) ->
