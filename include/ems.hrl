@@ -9,6 +9,7 @@
 -define(RTMP_PORT,     1935).
 -define(TIMEOUT,     120000).
 -define(RTMP_TIMEOUT,     120000).
+-define(RTMP_WINDOW_SIZE, 100000).
 -define(HS_HEADER,        3).
 -define(HS_BODY_LEN,   1536).
 -define(MIN_CLIENT_BUFFER, 100).
@@ -40,10 +41,10 @@
 %% RTMP data 
 -define(RTMP_TYPE_CHUNK_SIZE,     1).
 %-define(RTMP_TYPE_UNKNOWN,       2).
--define(RTMP_TYPE_BYTES_READ,     3).
--define(RTMP_TYPE_CONTROL,           4).
--define(RTMP_TYPE_WINDOW_ACK_SIZE,  5).
--define(RTMP_TYPE_BW_PEER,      6).
+-define(RTMP_TYPE_ACK_READ,       3).
+-define(RTMP_TYPE_CONTROL,        4).
+-define(RTMP_TYPE_WINDOW_ACK_SIZE,5).
+-define(RTMP_TYPE_BW_PEER,        6).
 %-define(RTMP_TYPE_UNKNOWN,       7).
 -define(RTMP_TYPE_AUDIO,          8).
 -define(RTMP_TYPE_VIDEO,          9).
@@ -269,7 +270,10 @@
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	video_player = undefined,
-	video_state = undefined
+	video_state = undefined,
+	window_size = ?RTMP_WINDOW_SIZE,
+	previous_ack = undefined,
+	current_speed = 0
 	}).
 
 

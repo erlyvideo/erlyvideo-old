@@ -200,6 +200,10 @@ handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, cli
          {stop, normal, MediaInfo};
     _ -> {noreply, MediaInfo}
   end;
+
+
+handle_info({graceful}, #media_info{owner = Owner} = MediaInfo) ->
+  {noreply, MediaInfo};
   
   
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
@@ -219,6 +223,9 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   {noreply, MediaInfo};
 
 handle_info({'$gen_event', {stop}}, State) ->
+  {noreply, State};
+
+handle_info({'$gen_event', {exit}}, State) ->
   {noreply, State};
 
 handle_info({'$gen_event', {start}}, State) ->

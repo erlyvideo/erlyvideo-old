@@ -176,6 +176,11 @@ decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{c
   NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel#channel{msg = <<>>}),
   decode(NewState#ems_fsm{channels=NextChannelList}).
 
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #ems_fsm{previous_ack = Prev} = State) ->
+  Time = timer:now_diff(erlang:now(), Prev)/1000,
+  Speed = round(_Length*1000 / Time),
+  % ?D({"Stream bytes read: ", _Length, round(Time/1000), round(Speed)}),
+	State#ems_fsm{previous_ack = erlang:now(), current_speed = Speed};
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
   ?D({"Window acknolegement size", WindowSize}),
@@ -185,9 +190,6 @@ command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>
   % ?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#ems_fsm{client_chunk_size = ChunkSize};
 
-command(#channel{type = ?RTMP_TYPE_BYTES_READ, msg = <<_Length:32/big-integer>>} = _Channel, State) ->
-  % ?D({"Stream bytes read: ", _Length}),
-	State;
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
   gen_fsm:send_event(self(), {send, {Channel, <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>}}),
@@ -195,7 +197,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, 
         #ems_fsm{video_player = Player} = State) ->
-  % ?D({"Buffer size on stream id", BufferSize, _StreamId}),
+  ?D({"Buffer size on stream id", BufferSize, _StreamId}),
   case Player of
     undefined -> ok;
     _ -> gen_fsm:send_event(Player, {client_buffer, BufferSize})

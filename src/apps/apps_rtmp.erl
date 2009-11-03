@@ -51,14 +51,14 @@ obj_to_integer({string, String}) ->
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(AMF, State) ->
+connect(AMF, #ems_fsm{window_size = WindowAckSize} = State) ->
     ?D({"invoke - connect", AMF}),
     
     Channel = #channel{id = 2, timestamp = 0, stream = 0, msg = <<>>},
-		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<0,16#26, 16#25,16#a0>>}}),
+		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}}),
 		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
 		
-	  NewState = case AMF#amf.args of
+	  NewState1 = case AMF#amf.args of
 			[{object, PlayerInfo}, {string, Cookie}, UserIdObj] ->
 			  UserId = obj_to_integer(UserIdObj),
 			  Session = rtmp_session:decode(Cookie),
@@ -68,6 +68,8 @@ connect(AMF, State) ->
 	    [{object, PlayerInfo} | _] ->
 				State#ems_fsm{player_info = PlayerInfo, user_id = undefined}
 		end,
+		
+		NewState = NewState1#ems_fsm{previous_ack = erlang:now()},
     
     case lists:keyfind(objectEncoding, 1, PlayerInfo) of
       {objectEncoding, 0} -> ok;
