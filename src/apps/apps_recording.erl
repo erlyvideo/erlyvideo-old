@@ -41,13 +41,6 @@
 -export([publish/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
-%% rsacon: TODOD move this to ems.hrl ist her only for testing purpose
-%% or make it an application confiuration environment variable
--define(VIDEO_WRITE_BUFFER, 20000). 
-
-
-'WAIT_FOR_DATA'({send, {live, Channel, Recorder}}, #ems_fsm{video_player = Recorder, video_state = publishing} = State) ->
-  {next_state, 'WAIT_FOR_DATA', State};
 
 'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
   Recorder = media_provider:open(Name, live),

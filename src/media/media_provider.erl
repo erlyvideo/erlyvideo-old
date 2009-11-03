@@ -26,20 +26,35 @@
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+
+% Opens media of type Type, named Name
+open(Name, Type) ->
+  gen_server:call(?MODULE, {open, Name, Type}).
    
-   
+
+% Plays media with default options
 play(Name) -> play(Name, []).
 
-play(Name, Options) ->
+% Plays media named Name
+% Valid options:
+%   consumer: pid of media consumer
+%   stream_id: for RTMP, FLV stream id
+%  client_buffer: client buffer size
+play(Name, OriginalOptions) ->
+  Consumer = proplists:get_value(consumer, OriginalOptions, self()),
+  Options = [{consumer, Consumer} | OriginalOptions],
+  
   case find(Name) of
     undefined -> open_file(Name, Options);
     Server -> connect_to_media(Server, Options)
   end.
   
 connect_to_media(Server, Options) ->
+  Consumer = proplists:get_value(consumer, Options),
   case media_entry:is_stream(Server) of
     true -> 
-      media_entry:subscribe(Server, self()),
+      media_entry:subscribe(Server, Consumer),
       {ok, Server};
     _ -> 
       file_play:start(Server, Options)
@@ -78,8 +93,6 @@ open_file(Name, Options) ->
     Server -> file_play:start(Server, Options)
   end.
    
-open(Name, Type) ->
-  gen_server:call(?MODULE, {open, Name, Type}).
 
 find(Name) ->
   gen_server:call(?MODULE, {find, Name}).
@@ -169,7 +182,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'EXIT', Media, Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+handle_info({'EXIT', Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
     [] -> 
       {noreply, MediaProvider};

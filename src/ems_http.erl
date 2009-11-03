@@ -4,7 +4,7 @@
 
 % start misultin http server
 start_link(Port) ->
-	misultin:start_link([{port, Port}, {loop, fun(Req) -> handle_http(Req) end}]).
+	misultin:start_link([{port, Port}, {loop, fun handle_http/1}]).
 
 % stop misultin
 stop() ->
@@ -93,6 +93,15 @@ handle('POST', ["fcs", "ident2"], Req) ->
     error_logger:info_msg("Request: ident2.\n"),
     Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
   
+handle('GET', ["stream", Name], Req) ->
+  case media_provider:play(Name) of
+    {ok, PlayerPid} ->
+      mpeg_ts:play(Name, PlayerPid, Req);
+    {notfound} ->
+      Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Name, Req]);
+    Reason -> 
+      Req:respond(500, [{"Content-Type", "text/plain"}], "500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])
+  end;
   
 % handle the 404 page not found
 handle(_, Path, Req) ->

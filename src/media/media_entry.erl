@@ -64,7 +64,6 @@ init([Name, live]) ->
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	Recorder = #media_info{type=live, ts_prev = 0, clients = Clients},
 	{ok, Recorder, ?TIMEOUT};
-  end.
 
 
 init([Name, record]) ->
@@ -80,7 +79,7 @@ init([Name, record]) ->
 		  file:write(Device, Header),
 		  Recorder = #media_info{type=record, device = Device, file_name = FileName, ts_prev = 0, clients = Clients},
 			{ok, Recorder, ?TIMEOUT};
-		Error ->
+		_Error ->
 			ignore
   end.
 
@@ -189,7 +188,7 @@ handle_info({graceful}, #media_info{file_name = FileName, clients = Clients} = M
   
   
 
-handle_info({'EXIT', Client, Reason}, #media_info{clients = Clients} = MediaInfo) ->
+handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInfo) ->
   ets:delete(Clients, Client),
   ?D({"Removing client", Client, "left", ets:info(Clients, size)}),
   case ets:info(Clients, size) of
@@ -217,7 +216,7 @@ handle_info(_Info, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #media_info{device = Device} = MediaInfo) ->
+terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
   (catch file:close(Device)),
   ?D({"Media entry terminating", _Reason}),
   ok.

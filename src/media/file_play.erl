@@ -49,18 +49,15 @@
 start(MediaEntry) -> start(MediaEntry, []).
 
 start(MediaEntry, Options) ->
-  gen_fsm:start_link(?MODULE, [MediaEntry, [{consumer, self()} | Options]], []).
+  gen_fsm:start_link(?MODULE, [MediaEntry, Options], []).
 
   
 init([MediaEntry, Options]) ->
-  Consumer = proplists:get_value(consumer, Options),
-  StreamId = proplists:get_value(stream_id, Options, 1),
-  ClientBuffer = proplists:get_value(client_buffer, Options, 10000),
-  {ok, ready, #video_player{consumer = Parent,
-	                          stream_id = StreamId,
+  {ok, ready, #video_player{consumer = proplists:get_value(consumer, Options),
+	                          stream_id = proplists:get_value(stream_id, Options, 1),
 	                          pos = undefined,
 	                          media_info = MediaEntry,
-	                          client_buffer = ClientBuffer,
+	                          client_buffer = proplists:get_value(client_buffer, Options, 10000),
 	                          timer_start = erlang:now()}}.
   
 	
