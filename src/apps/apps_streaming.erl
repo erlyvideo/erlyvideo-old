@@ -41,13 +41,12 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, StreamId}, State) ->
-  case ems_play:play(Name, StreamId, State) of
+'WAIT_FOR_DATA'({play, Name, StreamId}, #ems_fsm{client_buffer = ClientBuffer} = State) ->
+  case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
     {ok, PlayerPid} ->
       ?D({"Player starting", PlayerPid}),
-      NextState = State#ems_fsm{video_player = PlayerPid},
       gen_fsm:send_event(PlayerPid, {start}),
-      {next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};
+      {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = PlayerPid}, ?TIMEOUT};
     {notfound} ->
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};

@@ -41,23 +41,17 @@
 -export([publish/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
-%% rsacon: TODOD move this to ems.hrl ist her only for testing purpose
-%% or make it an application confiuration environment variable
--define(VIDEO_WRITE_BUFFER, 20000). 
+
+'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
+  Recorder = media_provider:open(Name, live),
+  media_entry:subscribe(Recorder, self()),
+  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder, video_state = publishing}};
 
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
-	FileName = filename:join([file_play:file_dir(), Name]),
-	ok = file:delete(FileName),
-	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
-		{ok, IoDev} ->
-    	?D({"Recording stream to", FileName}),
-		  Recorder = #video_recorder{buffer=[Header], type=record, device = IoDev, file_name = FileName, ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
-		_ ->
-			{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
-	end;
+  Recorder = media_provider:open(Name, record),
+  media_entry:subscribe(Recorder, self()),
+  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder, video_state = publishing}};
 
 %% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	
 'WAIT_FOR_DATA'({publish, append, Name}, State) when is_list(Name) ->
@@ -70,47 +64,9 @@
     		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
     end;	
     
-'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->        
-    ems_cluster:broadcast(Name),
-    %% hack - empty audio
-    StreamId=1,
-    Id=ems_play:channel_id(?RTMP_TYPE_AUDIO, StreamId),
-    TimeStamp=0,
-    Length=0,
-    Type=?RTMP_TYPE_AUDIO,
-    Rest = <<>>,
-    FirstPacket = <<?RTMP_HDR_NEW:2,Id:6,TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,    
-    ems_cluster:broadcast(Name, FirstPacket),
-    %% hack end
-    Recorder = #video_recorder{type=broadcast, file_name = Name, ts_prev = 0},
-	{next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder}, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_player = #video_recorder{
-                                              type = broadcast, 
-                                              ts_prev = PrevTs,
-                                              file_name = Name} = Recorder} = State) when is_record(Channel,channel) ->
-	NextTimeStamp = PrevTs + Channel#channel.timestamp,    
-%	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-	Packet = ems_rtmp:encode(Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp}),        
-    ems_cluster:broadcast(Name, Packet),
-    {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = Recorder#video_recorder{ts_prev=NextTimeStamp}}, ?TIMEOUT};
-    	
-'WAIT_FOR_DATA'({publish,Channel}, #ems_fsm{video_player = #video_recorder{
-                                              ts_prev = PrevTs, 
-                                              device = IoDev, 
-                                              buffer = Buffer} = Recorder} = State) when is_record(Channel,channel) ->
-	?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
-	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
-	FlvChunk = [Tag | Buffer],	
-	Size = size(list_to_binary(FlvChunk)),
-	NextState = if
-		(Size > ?VIDEO_WRITE_BUFFER) ->
-			file:write(IoDev, lists:reverse(Buffer)),
-			State#ems_fsm{video_player = Recorder#video_recorder{buffer=[Tag],ts_prev=NextTimeStamp}};
-		true ->
-			State#ems_fsm{video_player = Recorder#video_recorder{buffer=FlvChunk,ts_prev=NextTimeStamp}}
-	end,
-	{next_state, 'WAIT_FOR_DATA', NextState, ?TIMEOUT};	
+'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #ems_fsm{video_player = Recorder} = State) ->
+  media_entry:publish(Recorder, Channel),
+	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 
 
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = #video_recorder{

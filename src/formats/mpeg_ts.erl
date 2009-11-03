@@ -1,6 +1,7 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
-%%% @copyright  2009 Max Lapshin
-%%% @doc        Player module
+%%% @author     Takuma Mori <mori@sgra.co.jp> [http://www.sgra.co.jp/en/], SGRA Corporation
+%%% @copyright  2008 Takuma Mori, 2009 Max Lapshin
+%%% @doc        MP4 decoding module, rewritten from RubyIzumi
 %%% @reference  See <a href="http://github.com/maxlapshin/erlyvideo" target="_top">http://github.com/maxlapshin/erlyvideo</a> for more information
 %%% @end
 %%%
@@ -31,39 +32,19 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 
--module(ems_play).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
+-module(mpeg_ts).
 -author('max@maxidoors.ru').
+-include("../../include/ems.hrl").
 
--include("../include/ems.hrl").
-
-
--export([send/2, channel_id/2]).
+-export([play/3]).
 
 
+
+play(Name, PlayerPid, Req) ->
+  ?D({"Player starting", PlayerPid}),
+  Req:stream(head, [{"Content-Type", "video/mpeg2"}]),
+  Req:stream(<<"MPEG TS\r\n\n\n">>),
+  % ?D({"MPEG TS", Req}),
+  Req:stream(close),
+  ok.
   
-  
-
-%%-------------------------------------------------------------------------
-%% @spec (FLV_TAG::tuple()) -> any()
-%% @doc Convert FLV_Tag into Channel then transmit the Channel and Body
-%% @end
-%%-------------------------------------------------------------------------
-
-send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body, raw_body = false} = Frame) when is_binary(Body) ->
-	Channel = #channel{id = channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
-	gen_fsm:send_event(Consumer, {send, {Channel, ems_flv:encode(Frame)}});
-
-send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body}) when is_binary(Body) ->
-	Channel = #channel{id=channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
-	gen_fsm:send_event(Consumer, {send, {Channel,Body}}).
-
-
-% rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream
-% idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID
-channel_id(?FLV_TAG_TYPE_META, _StreamId) -> 4;
-channel_id(?FLV_TAG_TYPE_VIDEO, _StreamId) -> 5;
-channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 5.
-% channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.

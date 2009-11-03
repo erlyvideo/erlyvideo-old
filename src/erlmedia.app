@@ -10,6 +10,7 @@
 			apps_streaming,
 			hmac256,
 			sha2,
+			uuid,
  			ems,
 			ems_amf,
 			ems_app,

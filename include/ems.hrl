@@ -269,7 +269,8 @@
   client_buffer = ?MIN_CLIENT_BUFFER,
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	video_player = undefined
+	video_player = undefined,
+	video_state = undefined
 	}).
 
 
@@ -301,6 +302,7 @@
 }).
 
 -record(media_info, {
+  type = undefined,
   device = undefined,
   header = undefined,
   file_name = undefined,
@@ -313,7 +315,8 @@
   video_decoder_config,
   audio_decoder_config,
 	frames = undefined,
-	clients = undefined
+	clients = undefined,
+	ts_prev % Timestamp of previous written frame. Only for recording streams.
 }).
 
 
