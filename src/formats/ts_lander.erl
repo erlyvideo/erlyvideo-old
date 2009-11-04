@@ -14,7 +14,8 @@
 -record(pes, {
   pid,
   synced = false,
-  buffer = []
+  buffer = [],
+  counter = 0
 }).
 
 %% gen_server callbacks
@@ -51,6 +52,7 @@ init([URL]) ->
   % {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream_to, self}], erlyvideo),
   {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream, self}]),
   io:format("HTTP Request ~p~n", [RequestId]),
+  timer:send_after(6*1000, {stop}),
   {ok, #ts_lander{request_id = RequestId, url = URL, pids = dict:new()}}.
     
 
@@ -109,6 +111,11 @@ handle_info({http, {_RequestId, stream_end, _Headers}}, TSLander) ->
   io:format("MPEG TS end ~p~n", [_Headers]),
   {stop, normal, TSLander};
 
+
+handle_info({stop}, #ts_lander{request_id = RequestId} = TSLander) ->
+  http:cancel_request(RequestId),
+  {stop, normal, TSLander#ts_lander{request_id = undefined}};
+
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
   {noreply, State}.
@@ -137,18 +144,19 @@ demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _/
       
 
 
-receive_pes(#pes{synced = false} = Pes, <<_:9, Start:1, _:22, _Rest/binary>> = Packet) when Start == 0 ->
+receive_pes(#pes{synced = false} = Pes, <<_:1, Start:1, _:22, _Rest/binary>> = Packet) when Start == 0 ->
   Pes;
 
-receive_pes(#pes{synced = false} = Pes, <<_:9, Start:1, _:22, _/binary>> = Packet) when Start == 1->
+receive_pes(#pes{synced = false, pid = Pid} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 1->
+  ?D({"Synced PES", Pid}),
   Pes#pes{synced = true, buffer = [extract_ts_payload(Packet)]};
 
-receive_pes(#pes{synced = true, buffer = Buf} = Pes, <<_:9, Start:1, _:22, _/binary>> = Packet) when Start == 0->
+receive_pes(#pes{synced = true, buffer = Buf} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 0->
   Pes#pes{synced = true, buffer = [extract_ts_payload(Packet) | Buf]};
 
-receive_pes(#pes{synced = true, buffer = Buf} = Pes, <<_:9, Start:1, _:22, _/binary>> = Packet) when Start == 1 ->
-  pes_packet(list_to_binary(lists:reverse(Buf))),
-  Pes#pes{synced = true, buffer = [extract_ts_payload(Packet)]}.
+receive_pes(#pes{synced = true, buffer = Buf} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 1 ->
+  Pes1 = pes_packet(Pes, list_to_binary(lists:reverse(Buf))),
+  Pes1#pes{synced = true, buffer = [extract_ts_payload(Packet)]}.
   
   
 extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, 
@@ -160,56 +168,26 @@ extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13,
               AdaptationLength, AdaptationField:AdaptationLength/binary, Payload/binary>> = Packet) ->
   Payload.
 
-
-pes_packet(Packet) ->
-  ok.
-    % io:format("Received PES ~p bytes~n", [size(Packet)])
-    %<<1:24/integer,
-    %StreamId:8/integer,
-    %PesPacketLength:16/integer,
-    %2#10:2,
-    %_PESScramblingControl:2,
-    %_PESPriority:1,
-    %_DataAlignmentIndicator:1,
-    %_Copyright:1,
-    %_OriginalOrCopy:1,
-    %_PTS_DTS_flags:2,
-    %_ESCRFlag:1,
-    %_ESRateFlag:1,
-    %_DSMTrickModeFlag:1,
-    %_AdditionalCopyInfoFlag:1,
-    %_PESCRCFlag:1,
-    %_PESExtensionFlag:1,
-    %PESHeaderDataLength:8,
-    %_/binary>> = Packet,
-    %{_, Data} = split_binary(Packet, PESHeaderDataLength+9),
-    %io:format("Write PES Data ~p StreamId ~p PES length ~p Header length ~p~n", [size(Packet), StreamId, PesPacketLength, PESHeaderDataLength]),
   
 
-start_dts_counter() ->
-    spawn(fun() -> pes_dts_counter(0) end).
-
-pes_dts_counter(Counter) ->
-    receive
-        {pes_packet, Packet} ->
-            <<1:24/integer,
-            _StreamId:8/integer,
-            _PesPacketLength:16/integer,
-            2#10:2,
-            _PESScramblingControl:2,
-            _PESPriority:1,
-            _DataAlignmentIndicator:1,
-            _Copyright:1,
-            _OriginalOrCopy:1,
-            PTS_DTS_flags:2,
-            _ESCRFlag:1,
-            _ESRateFlag:1,
-            _DSMTrickModeFlag:1,
-            _AdditionalCopyInfoFlag:1,
-            _PESCRCFlag:1,
-            _PESExtensionFlag:1,
-            _PESHeaderDataLength:8,
-            _/binary>> = Packet,
+pes_packet(#pes{counter = Counter, pid = Pid} = Pes, <<1:24/integer,
+                                            _StreamId:8/integer,
+                                            _PesPacketLength:16/integer,
+                                            2#10:2,
+                                            _PESScramblingControl:2,
+                                            _PESPriority:1,
+                                            _DataAlignmentIndicator:1,
+                                            _Copyright:1,
+                                            _OriginalOrCopy:1,
+                                            PTS_DTS_flags:2,
+                                            _ESCRFlag:1,
+                                            _ESRateFlag:1,
+                                            _DSMTrickModeFlag:1,
+                                            _AdditionalCopyInfoFlag:1,
+                                            _PESCRCFlag:1,
+                                            _PESExtensionFlag:1,
+                                            _PESHeaderDataLength:8,
+                                            _/binary>> = Packet) ->
             DTS = case PTS_DTS_flags of
                 2#11 ->
                     <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
@@ -219,17 +197,20 @@ pes_dts_counter(Counter) ->
                     Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30);
                 _ ->
                     %io:format("No DTS found~n"),
-                    Counter
+                    Counter + 1
             end,
             case DTS > Counter of
                 true ->
-                    io:format("New DTS ~p, Delta ~p~n", [DTS, DTS-Counter]),
-                    pes_dts_counter(DTS);
+                    io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    Pes#pes{counter = Counter + 1};
                 false ->
-                    io:format("!!! DTS ~p, Delta ~p~n", [DTS, DTS-Counter]),
-                    pes_dts_counter(Counter)
-            end
-    end.
+                    io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    Pes#pes{counter = Counter + 1}
+            end;
+            
+pes_packet(#pes{pid = Pid} = Pes, _Packet) ->
+  io:format("Broken PES packet on pid ~p~n", [Pid]),
+  Pes.
 
 % TEST ONLY----
 % start(FileName) ->
