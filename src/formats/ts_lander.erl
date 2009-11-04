@@ -8,7 +8,8 @@
   request_id,
   url,
   buffer = <<>>,
-  pids
+  pids,
+  program_pids = []
 }).
 
 -record(pes, {
@@ -134,46 +135,92 @@ synchronizer(TSLander, Bin) ->
 
 demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _/binary>> = Packet) ->
   % <<_TEI:1, PayloadStart:1, _Priority:1, TsPid:13, _Scrambling:2, _Adaptation:1, _Payload:1, _Counter:4, Payload/binary>> = Packet,
-  Pes1 = case dict:find(Pid, Pids) of
+  {TSLander1, Pes1} = case dict:find(Pid, Pids) of
     {ok, Pes} -> 
-      receive_pes(Pes, Packet);
+      receive_ts(TSLander, Pes, Packet);
     error ->
-      receive_pes(#pes{pid = Pid}, Packet)
+      receive_ts(TSLander, #pes{pid = Pid}, Packet)
   end,
-  TSLander#ts_lander{pids = dict:store(Pid, Pes1, Pids)}.
+  TSLander1#ts_lander{pids = dict:store(Pid, Pes1, Pids)}.
       
 
 
-receive_pes(#pes{synced = false} = Pes, <<_:1, Start:1, _:22, _Rest/binary>> = Packet) when Start == 0 ->
-  Pes;
+receive_ts(TSLander, #pes{synced = false} = Pes, <<_:1, Start:1, _:22, _Rest/binary>> = Packet) when Start == 0 ->
+  {TSLander, Pes};
 
-receive_pes(#pes{synced = false, pid = Pid} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 1->
+receive_ts(TSLander, #pes{synced = false, pid = Pid} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 1->
   ?D({"Synced PES", Pid}),
-  Pes#pes{synced = true, buffer = [extract_ts_payload(Packet)]};
+  {TSLander, Pes#pes{synced = true, buffer = [extract_ts_payload(Packet)]}};
 
-receive_pes(#pes{synced = true, buffer = Buf} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 0->
-  Pes#pes{synced = true, buffer = [extract_ts_payload(Packet) | Buf]};
+receive_ts(TSLander, #pes{synced = true, buffer = Buf} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 0->
+  {TSLander, Pes#pes{synced = true, buffer = [extract_ts_payload(Packet) | Buf]}};
 
-receive_pes(#pes{synced = true, buffer = Buf} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 1 ->
-  Pes1 = pes_packet(Pes, list_to_binary(lists:reverse(Buf))),
-  Pes1#pes{synced = true, buffer = [extract_ts_payload(Packet)]}.
+receive_ts(TSLander, #pes{synced = true, buffer = Buf, pid = Pid} = Pes, <<_:1, Start:1, _:22, _/binary>> = Packet) when Start == 1 ->
+  io:format("Packet on pid ~p~n", [Pid]),
+  {TSLander1, Pes1} = ts_payload(TSLander, Pes, list_to_binary(lists:reverse(Buf))),
+  {TSLander1, Pes1#pes{synced = true, buffer = [extract_ts_payload(Packet)]}}.
   
   
-extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, 
-              _Scrambling:2, Adaptation:1, _Payload:1, _Counter:4, Payload/binary>> = Packet) when Adaptation == 0  ->
+extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
+              0:1, 1:1, _Counter:4, Payload/binary>> = Packet)  ->
   Payload;
                 
 extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, 
-              _Scrambling:2, _Adaptation:1, _Payload:1, _Counter:4, 
+              _Scrambling:2, 1:1, 1:1, _Counter:4, 
               AdaptationLength, AdaptationField:AdaptationLength/binary, Payload/binary>> = Packet) ->
-  Payload.
+  % io:format("~p bytes of adapt field pid ~p~n", [AdaptationLength, _Pid]),
+  Payload;
 
+extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
+              _Adaptation:1, 0:1, _Counter:4, _Payload/binary>> = Packet)  ->
+  io:format("Empty payload on pid ~p~n", [_Pid]),
+  <<>>.
   
 
-pes_packet(#pes{counter = Counter, pid = Pid} = Pes, <<1:24/integer,
-                                            _StreamId:8/integer,
-                                            _PesPacketLength:16/integer,
-                                            2#10:2,
+extract_pat(0, _CRC32, ProgramPids) ->
+  ProgramPids;
+extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramPids) ->
+  io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
+  extract_pat(ProgramCount - 1, PAT, [Pid | ProgramPids]).
+
+ts_payload(TSLander, #pes{pid = 0} = Pes, <<_PointerField, 0, 2#10:2, 2#11:2, SectionLength:12, _Misc:5/binary, PAT/binary>>) -> % PAT
+  ProgramCount = round((SectionLength - 5)/4) - 1,
+  io:format("PAT: ~p programs~n~n", [ProgramCount]),
+  ProgramPids = extract_pat(ProgramCount, PAT, []),
+  {TSLander#ts_lander{program_pids = ProgramPids}, Pes};
+  
+ts_payload(#ts_lander{program_pids = ProgramPids} = TSLander, #pes{pid = Pid} = Pes, Packet) ->
+  case lists:member(Pid, ProgramPids) of
+    true ->
+      pmt_packet(TSLander, Pes, Packet);
+    _ ->
+      pes_packet(TSLander, Pes, Packet)
+  end;
+
+ts_payload(TSLander, #pes{pid = Pid} = Pes, _Packet) ->
+  io:format("Broken PES packet on pid ~p, ~p~n", [Pid, _Packet]),
+  {TSLander, Pes}.
+
+
+extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, Rest/binary>>, _) ->
+  io:format("Stream: ~p, ~p, ~p, ~p~n", [StreamType, Pid, ESLength, size(Rest)]),
+  ok;
+extract_pmt(PMT, _) ->
+  io:format("Unknown PMT: ~p~n", [PMT]),
+  ok.
+
+pmt_packet(TSLander, Pes, <<_Pointer, _TableId, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
+                             ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
+                             _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, PMT/binary>>) ->
+  SectionCount = round(SectionLength - 13),
+  io:format("PMT: ~p~n", [SectionCount]),
+  extract_pmt(PMT, []),
+  {TSLander, Pes}.
+
+pes_packet(TSLander, #pes{counter = Counter, pid = Pid} = Pes, <<1:24,
+                                            _StreamId:8,
+                                            _PesPacketLength:16,
+                                            2:2,
                                             _PESScramblingControl:2,
                                             _PESPriority:1,
                                             _DataAlignmentIndicator:1,
@@ -188,6 +235,7 @@ pes_packet(#pes{counter = Counter, pid = Pid} = Pes, <<1:24/integer,
                                             _PESExtensionFlag:1,
                                             _PESHeaderDataLength:8,
                                             _/binary>> = Packet) ->
+            % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
             DTS = case PTS_DTS_flags of
                 2#11 ->
                     <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
@@ -201,16 +249,13 @@ pes_packet(#pes{counter = Counter, pid = Pid} = Pes, <<1:24/integer,
             end,
             case DTS > Counter of
                 true ->
-                    io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-                    Pes#pes{counter = Counter + 1};
+                    % io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    {TSLander, Pes#pes{counter = Counter + 1}};
                 false ->
                     io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-                    Pes#pes{counter = Counter + 1}
-            end;
+                    {TSLander, Pes#pes{counter = Counter + 1}}
+            end.
             
-pes_packet(#pes{pid = Pid} = Pes, _Packet) ->
-  io:format("Broken PES packet on pid ~p~n", [Pid]),
-  Pes.
 
 % TEST ONLY----
 % start(FileName) ->
