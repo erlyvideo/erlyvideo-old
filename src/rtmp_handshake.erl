@@ -109,11 +109,9 @@
 
 
 
--spec s1() -> <<_:12288>>.
 s1() ->
 	?HANDSHAKE.
 
--spec clientDigest(<<_:12288>>) -> <<_:256>>.
 
 
 clientDigest(<<_:5/binary, 0, 3, 2, _:764/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
@@ -128,11 +126,14 @@ clientDigest(<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _
 	Offset = (P1+P2+P3+P4) rem 728 + 12,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed.
-  
--spec s2(<<_:12288>>) -> <<_:12288>>.
+
+s2(<<0:64, _:1528/binary>> = C1) ->
+  ?D("VLC connected"),
+  C1;
 
 s2(C1) ->
   ServerDigest = hmac256:digest(?KEYSERVER, clientDigest(C1)),
   <<S2:1504/binary, _/binary>> = s1(),
   ServerSign = hmac256:digest(ServerDigest, S2),
-  <<S2/binary, (list_to_binary(ServerSign))/binary>>.
+  [S2, ServerSign].
+  % <<S2/binary, (list_to_binary(ServerSign))/binary>>.

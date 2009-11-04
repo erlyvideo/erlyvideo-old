@@ -119,7 +119,7 @@ init([]) ->
 	case <<Buff/binary,Data/binary>> of
 		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
 			Reply = ems_rtmp:handshake(HandShake),
-			send_data(State, <<?HS_HEADER, Reply/binary>>),
+			send_data(State, [?HS_HEADER, Reply]),
 			{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = Rest}, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;

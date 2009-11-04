@@ -41,7 +41,7 @@
 
 
 handshake(C1) when is_binary(C1) -> 
-  <<(rtmp_handshake:s1())/binary, (rtmp_handshake:s2(C1))/binary>>.
+  [rtmp_handshake:s1(), rtmp_handshake:s2(C1)].
 
 encode(#channel{msg = Msg} = Channel) ->
     encode(Channel,Msg,<<>>).
