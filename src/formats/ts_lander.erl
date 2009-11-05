@@ -14,7 +14,9 @@
 
 -record(stream, {
   pid,
+  program_num,
   handler,
+  type,
   synced = false,
   buffer = [],
   counter = 0
@@ -24,6 +26,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
+-export([pat/4, pmt/4, pes/4]).
 
 % start() ->
 %     Pid = start(?HOST, ?PORT, ?PATH),
@@ -53,7 +56,7 @@ init([URL]) ->
   
   % {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream_to, self}], erlyvideo),
   {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream, self}]),
-  io:format("HTTP Request ~p~n", [RequestId]),
+  % io:format("HTTP Request ~p~n", [RequestId]),
   timer:send_after(6*1000, {stop}),
   {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
     
@@ -101,7 +104,7 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 
 handle_info({http, {_RequestId, stream_start, _Headers}}, TSLander) ->
-  io:format("MPEG TS headers ~p~n", [_Headers]),
+  % io:format("MPEG TS headers ~p~n", [_Headers]),
   {noreply, TSLander};
 
 
@@ -137,40 +140,22 @@ synchronizer(TSLander, Bin) ->
 demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _/binary>> = Packet) ->
   % <<_TEI:1, PayloadStart:1, _Priority:1, TsPid:13, _Scrambling:2, _Adaptation:1, _Payload:1, _Counter:4, Payload/binary>> = Packet,
   
-  {TSLander1, Pes1} = case lists:keyfind(Pid, #stream.pid, Pids) of
+  case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler} = Stream ->
-      Handler(TSLander, Stream, PayloadStart, extract_ts_payload(Packet));
+      % io:format("Pid: ~p, handler ~p~n", [Pid, Handler]),
+      ?MODULE:Handler(TSLander, Stream, PayloadStart, extract_ts_payload(Packet));
+      % TSLander1#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
     false ->
-      io:format("Unknown pid ~p~n", Pid)
-  end,
-  TSLander1#ts_lander{pids = dict:store(Pid, Pes1, Pids)}.
+      io:format("Unknown pid ~p~n", [Pid]),
+      TSLander
+  end.
+  
       
 
-% receive_ts(TSLander, #pes{pid = 0} = Pes, Packet) ->
-%   {TSLander1, Pes1} = ts_payload(TSLander, Pes, Packet),
-%   {TSLander1, Pes1#pes{synced = true, buffer = []}}.
-% 
-% 
-% receive_ts(TSLander, #pes{synced = false} = Pes, 0, Packet) ->
-%   {TSLander, Pes};
-% 
-% receive_ts(TSLander, #pes{synced = false, pid = Pid} = Pes, 1, Packet)->
-%   ?D({"Synced PES", Pid}),
-%   {TSLander, Pes#pes{synced = true, buffer = [Packet]}};
-% 
-% receive_ts(TSLander, #pes{synced = true, buffer = Buf} = Pes, 0, Packet)->
-%   {TSLander, Pes#pes{synced = true, buffer = [Packet | Buf]}};
-% 
-% receive_ts(TSLander, #pes{synced = true, buffer = Buf, pid = Pid} = Pes, 1, Packet) ->
-%   io:format("Packet on pid ~p~n", [Pid]),
-%   {TSLander1, Pes1} = ts_payload(TSLander, Pes, list_to_binary(lists:reverse(Buf))),
-%   {TSLander1, Pes1#pes{synced = true, buffer = [Packet]}}.
-%   
-%   
 extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
               0:1, 1:1, _Counter:4, Payload/binary>> = Packet)  ->
   Payload;
-                
+
 extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, 
               _Scrambling:2, 1:1, 1:1, _Counter:4, 
               AdaptationLength, AdaptationField:AdaptationLength/binary, Payload/binary>> = Packet) ->
@@ -181,86 +166,107 @@ extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2,
               _Adaptation:1, 0:1, _Counter:4, _Payload/binary>> = Packet)  ->
   io:format("Empty payload on pid ~p~n", [_Pid]),
   <<>>.
-%   
-% 
-% extract_pat(0, _CRC32, ProgramPids) ->
-%   ProgramPids;
-% extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramPids) ->
-%   io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
-%   extract_pat(ProgramCount - 1, PAT, [Pid | ProgramPids]).
-% 
-% ts_payload(TSLander, #pes{pid = 0} = Pes, <<_PointerField, 0, 2#10:2, 2#11:2, SectionLength:12, _Misc:5/binary, PAT/binary>>) -> % PAT
-%   ProgramCount = round((SectionLength - 5)/4) - 1,
-%   io:format("PAT: ~p programs~n~n", [ProgramCount]),
-%   ProgramPids = extract_pat(ProgramCount, PAT, []),
-%   {TSLander#ts_lander{program_pids = ProgramPids}, Pes};
-%   
-% ts_payload(#ts_lander{program_pids = ProgramPids} = TSLander, #pes{pid = Pid} = Pes, Packet) ->
-%   case lists:member(Pid, ProgramPids) of
-%     true ->
-%       pmt_packet(TSLander, Pes, Packet);
-%     _ ->
-%       pes_packet(TSLander, Pes, Packet)
-%   end;
-% 
-% ts_payload(TSLander, #pes{pid = Pid} = Pes, _Packet) ->
-%   io:format("Broken PES packet on pid ~p, ~p~n", [Pid, _Packet]),
-%   {TSLander, Pes}.
-% 
-% 
-% extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, Rest/binary>>, _) ->
-%   io:format("Stream: ~p, ~p, ~p, ~p~n", [StreamType, Pid, ESLength, size(Rest)]),
-%   ok;
-% extract_pmt(PMT, _) ->
-%   io:format("Unknown PMT: ~p~n", [PMT]),
-%   ok.
-% 
-% pmt_packet(TSLander, Pes, <<_Pointer, _TableId, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
-%                              ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
-%                              _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, PMT/binary>>) ->
-%   SectionCount = round(SectionLength - 13),
-%   io:format("PMT: ~p~n", [SectionCount]),
-%   extract_pmt(PMT, []),
-%   {TSLander, Pes}.
-% 
-% pes_packet(TSLander, #pes{counter = Counter, pid = Pid} = Pes, <<1:24,
-%                                             _StreamId:8,
-%                                             _PesPacketLength:16,
-%                                             2:2,
-%                                             _PESScramblingControl:2,
-%                                             _PESPriority:1,
-%                                             _DataAlignmentIndicator:1,
-%                                             _Copyright:1,
-%                                             _OriginalOrCopy:1,
-%                                             PTS_DTS_flags:2,
-%                                             _ESCRFlag:1,
-%                                             _ESRateFlag:1,
-%                                             _DSMTrickModeFlag:1,
-%                                             _AdditionalCopyInfoFlag:1,
-%                                             _PESCRCFlag:1,
-%                                             _PESExtensionFlag:1,
-%                                             _PESHeaderDataLength:8,
-%                                             _/binary>> = Packet) ->
-%             % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
-%             DTS = case PTS_DTS_flags of
-%                 2#11 ->
-%                     <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
-%                     Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30);
-%                 2#10 ->
-%                     <<_:9/binary, 2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer, _/binary>> = Packet,
-%                     Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30);
-%                 _ ->
-%                     %io:format("No DTS found~n"),
-%                     Counter + 1
-%             end,
-%             case DTS > Counter of
-%                 true ->
-%                     % io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-%                     {TSLander, Pes#pes{counter = Counter + 1}};
-%                 false ->
-%                     io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-%                     {TSLander, Pes#pes{counter = Counter + 1}}
-%             end.
+
+
+%%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
+
+pat(#ts_lander{pids = Pids} = TSLander, Stream, _, <<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>>) -> % PAT
+  ProgramCount = round((Length - 5)/4) - 1,
+  % io:format("PAT: ~p programs~n~n", [ProgramCount]),
+  Descriptors = extract_pat(ProgramCount, PAT, []),
+  Descriptors1 = lists:keysort(#stream.pid, Descriptors),
+  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors1, Pids)}.
+
+
+extract_pat(0, <<_CRC32:4/binary>>, Descriptors) ->
+  Descriptors;
+extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
+  % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
+  extract_pat(ProgramCount - 1, PAT, [#stream{handler = pmt, pid = Pid, program_num = ProgramNum} | Descriptors]).
+
+
+
+
+pmt(#ts_lander{pids = Pids} = TSLander, Stream, _, 
+                           <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
+                             ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
+                             _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, 
+                             ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMT) ->
+  SectionCount = round(SectionLength - 13),
+  io:format("Program ~p v~p~n", [ProgramNum, _Version]),
+  Descriptors = lists:keysort(#stream.pid, extract_pmt(PMT, [])),
+  Descriptors1 = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum} end, Descriptors),
+  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors1, Pids)}.
+
+extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
+  io:format("Stream: ~p, ~p, ~p~n", [StreamType, Pid, ESLength]),
+  extract_pmt(Rest, [#stream{handler = pes, pid = Pid, type = StreamType}|Descriptors]);
+  
+extract_pmt(<<_CRC32:4/binary>>, Descriptors) ->
+  % io:format("Unknown PMT: ~p~n", [PMT]),
+  Descriptors.
+
+
+
+
+pes(TSLander, #stream{synced = false} = Pes, 0, Packet) ->
+  TSLander;
+
+pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = false, pid = Pid} = Stream, 1, Packet)->
+  ?D({"Synced PES", Pid}),
+  Stream1 = Stream#stream{synced = true, buffer = [Packet]},
+  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
+
+pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, buffer = Buf, pid = Pid} = Stream, 0, Packet)->
+  Stream1 = Stream#stream{synced = true, buffer = [Packet | Buf]},
+  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
+
+pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, buffer = Buf, pid = Pid} = Stream, 1, Packet) ->
+  {TSLander1, Stream1} = pes_packet(TSLander, Stream, list_to_binary(lists:reverse(Buf))),
+  Stream2 = Stream1#stream{synced = true, buffer = [Packet]},
+  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream2)}.
+
+
+
+
+pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes, <<1:24,
+                                            _StreamId:8,
+                                            _PesPacketLength:16,
+                                            2:2,
+                                            _PESScramblingControl:2,
+                                            _PESPriority:1,
+                                            _DataAlignmentIndicator:1,
+                                            _Copyright:1,
+                                            _OriginalOrCopy:1,
+                                            PTS_DTS_flags:2,
+                                            _ESCRFlag:1,
+                                            _ESRateFlag:1,
+                                            _DSMTrickModeFlag:1,
+                                            _AdditionalCopyInfoFlag:1,
+                                            _PESCRCFlag:1,
+                                            _PESExtensionFlag:1,
+                                            _PESHeaderDataLength:8,
+                                            _/binary>> = Packet) ->
+            % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
+            DTS = case PTS_DTS_flags of
+                2#11 ->
+                    <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
+                    Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30);
+                2#10 ->
+                    <<_:9/binary, 2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer, _/binary>> = Packet,
+                    Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30);
+                _ ->
+                    %io:format("No DTS found~n"),
+                    Counter + 1
+            end,
+            case DTS > Counter of
+                true ->
+                    io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    {TSLander, Pes#stream{counter = Counter + 1}};
+                false ->
+                    io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    {TSLander, Pes#stream{counter = Counter + 1}}
+            end.
 %             
 % 
 % % TEST ONLY----
