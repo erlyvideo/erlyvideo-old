@@ -90,7 +90,7 @@ handle_info({Port, {data, {eol, String}}}, StateName, #encoder{port = Port} = En
   io:format("~p~n", [binary_to_list(String)]),
   {next_state, StateName, Encoder};
   
-handle_info({Port, eof}, StateName, Encoder) ->
+handle_info({_Port, eof}, StateName, Encoder) ->
   ?D({"VLC closed while", StateName}),
   {next_state, StateName, Encoder};
 
@@ -98,7 +98,7 @@ handle_info(_Info, StateName, StateData) ->
   ?D({"Unknown info in encoder", _Info, StateName}),
   {next_state, StateName, StateData}.
 
-terminate(_Reason, _StateName, #encoder{port = Port} = State) ->
+terminate(_Reason, _StateName, #encoder{port = _Port} = _State) ->
   ?D("Encoder exit"),
   ok.
 

@@ -160,7 +160,7 @@ handle_info({inet_async, ListSock, Ref, Error}, #ems_server{listener=ListSock, a
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
     
-handle_info({clients, From}, #ems_server{} = State) ->
+handle_info({clients, _From}, #ems_server{} = State) ->
   ?D("Asked for clients list"),
   % From ! {client_list, ems_cluster:clients()},
   {noreply, State};

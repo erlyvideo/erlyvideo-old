@@ -200,7 +200,7 @@ parse_atom(<<0:32/big-integer>>, Mp4Parser) ->
 
   
 % FTYP atom
-decode_atom(ftyp, <<Major:4/binary, _Minor:4/binary, CompatibleBrands/binary>>, MediaInfo) ->
+decode_atom(ftyp, <<_Major:4/binary, _Minor:4/binary, _CompatibleBrands/binary>>, MediaInfo) ->
   % NewParser = Mp4Parser#mp4_header{file_type = binary_to_list(Major), file_types = decode_atom(ftyp, CompatibleBrands, [])},
   MediaInfo;
 
@@ -410,7 +410,7 @@ decode_atom(AtomName, _, Mp4Parser) ->
 extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
 
-next_atom(#media_info{header = Header, device = Device, frames = FrameTable} = MediaInfo, Pos) ->
+next_atom(#media_info{device = Device}, Pos) ->
   case file:pread(Device, Pos, 4) of
     {ok, Data} ->
       <<AtomLength:32/big-integer>> = Data,
@@ -470,7 +470,7 @@ chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, SamplesInChunk, Samp
   {SamplesInChunk, FrameReader#mp4_frames{chunk_table = [{FirstChunk + 1, SamplesInChunk, SampleId} | ChunkTable]}}.
 
   
-calculate_samples_in_chunk(FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameReader) ->
+calculate_samples_in_chunk(_FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameReader) ->
   FrameReader;
 
 calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, 
@@ -489,7 +489,7 @@ calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk,
   FrameReader2 = FrameReader1#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
   calculate_samples_in_chunk(FrameTable, SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2).
   
-calculate_sample_offsets(FrameTable, #mp4_frames{chunk_offsets = []} = FrameReader) ->
+calculate_sample_offsets(_FrameTable, #mp4_frames{chunk_offsets = []} = FrameReader) ->
   FrameReader;
   
 calculate_sample_offsets(FrameTable, #mp4_frames{chunk_offsets = [ChunkOffset | ChunkOffsets]} = FrameReader) ->
@@ -545,11 +545,11 @@ mp4_desc_length(<<1:1, Length3:7, 1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7,
   {Rest1, Rest2}.
 
 esds_tag(<<3, Rest/binary>>) ->
-  {DecoderConfigTag, Other1} = mp4_desc_length(Rest),
+  {DecoderConfigTag, _Other1} = mp4_desc_length(Rest),
   <<_HardcodedOffset:3/binary, 4, Rest1/binary>> = DecoderConfigTag,
-  {SpecificInfoTag, Other2} = mp4_desc_length(Rest1),
+  {SpecificInfoTag, _Other2} = mp4_desc_length(Rest1),
   <<_HardcodedOffset1:13/binary, ?MP4DecSpecificDescrtag, ConfigData/binary>> = SpecificInfoTag,
-  {Config, Other3} = mp4_desc_length(ConfigData),
+  {Config, _Other3} = mp4_desc_length(ConfigData),
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary, 6>>;
 
