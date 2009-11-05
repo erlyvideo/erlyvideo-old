@@ -202,7 +202,7 @@ handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, cli
   end;
 
 
-handle_info({graceful}, #media_info{owner = Owner} = MediaInfo) ->
+handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo};
   
   

@@ -55,7 +55,7 @@ encode(#channel{} = Channel, Data) when is_binary(Data) ->
 encode(_Channel, <<>>, Packet) -> Packet;
 
 
-encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = Channel, Data, <<>>) -> 
+encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = _Channel, Data, <<>>) -> 
   % {Chunk,Rest} = chunk(Data, ChunkSize),
   ChunkList = chunk(Data, ChunkSize, Id),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
@@ -82,7 +82,7 @@ encode_id(Type, Id) when Id >= 2 ->
 
 chunk(Data, ChunkSize, Id) -> chunk(Data, ChunkSize, Id, []).
 
-chunk(Data, ChunkSize, Id, List) when size(Data) =< ChunkSize ->
+chunk(Data, ChunkSize, _Id, List) when size(Data) =< ChunkSize ->
   lists:reverse([Data | List]);
 
 
@@ -157,7 +157,7 @@ decode_channel(Channel, Data, State) ->
 	
 % Nothing to do when buffer is small
 
-push_channel_packet(#channel{} = Channel, Data, State, BytesRequired) when size(Data) < BytesRequired -> 
+push_channel_packet(#channel{} = _Channel, Data, State, BytesRequired) when size(Data) < BytesRequired -> 
   State;
   
 % And decode channel when bytes required are in buffer

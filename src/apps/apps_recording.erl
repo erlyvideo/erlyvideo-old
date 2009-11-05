@@ -71,8 +71,6 @@
 'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = #video_recorder{
                                                  device = IoDev, 
                                                  buffer = Buffer,
-                                                 file_name = FileName,
-                                                 type = Type,
                                                  timer_ref = TimerRef} = _Recorder} = State) ->
 	case Buffer of
 		undefined -> ok;
