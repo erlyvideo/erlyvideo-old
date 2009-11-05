@@ -174,12 +174,11 @@ pat(#ts_lander{pids = Pids} = TSLander, Stream, _, <<_PtField, 0, 2#10:2, 2#11:2
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs~n~n", [ProgramCount]),
   Descriptors = extract_pat(ProgramCount, PAT, []),
-  Descriptors1 = lists:keysort(#stream.pid, Descriptors),
-  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors1, Pids)}.
+  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors, Pids)}.
 
 
 extract_pat(0, <<_CRC32:4/binary>>, Descriptors) ->
-  Descriptors;
+  lists:keysort(#stream.pid, Descriptors);
 extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
   % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
   extract_pat(ProgramCount - 1, PAT, [#stream{handler = pmt, pid = Pid, program_num = ProgramNum} | Descriptors]).
@@ -190,23 +189,25 @@ extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptor
 pmt(#ts_lander{pids = Pids} = TSLander, Stream, _, 
                            <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
                              ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
-                             _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, 
+                             _LastSectionNumber, _:3, PCRPID:13, _:4, ProgramInfoLength:12, 
                              ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMT) ->
   SectionCount = round(SectionLength - 13),
-  io:format("Program ~p v~p~n", [ProgramNum, _Version]),
-  Descriptors = lists:keysort(#stream.pid, extract_pmt(PMT, [])),
-  Descriptors1 = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum} end, Descriptors),
+  io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
+  Descriptors = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum, type = video} end, extract_pmt(PMT, [])),
+  Descriptors1 = set_audio_stream_from_pcr(Descriptors, PCRPID),
+  io:format("Streams: ~p~n", [Descriptors1]),
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors1, Pids)}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
-  io:format("Stream: ~p, ~p, ~p~n", [StreamType, Pid, ESLength]),
   extract_pmt(Rest, [#stream{handler = pes, pid = Pid, type = StreamType}|Descriptors]);
   
 extract_pmt(<<_CRC32:4/binary>>, Descriptors) ->
   % io:format("Unknown PMT: ~p~n", [PMT]),
-  Descriptors.
+  lists:keysort(#stream.pid, Descriptors).
 
-
+set_audio_stream_from_pcr(Descriptors, PCRPID) ->
+  Stream = lists:keyfind(PCRPID, #stream.pid, Descriptors),
+  lists:keyreplace(PCRPID, #stream.pid, Descriptors, Stream#stream{type = audio}).
 
 
 pes(TSLander, #stream{synced = false} = Pes, 0, Packet) ->
