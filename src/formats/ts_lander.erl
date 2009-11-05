@@ -272,15 +272,10 @@ feed_bytestream_file(File, Pid) ->
             file:close(File)
     end.
 
-nal_receiver(Buffer) ->
-    receive
-        {pes_packet, Packet} ->
-            <<1:24, _:24, 2#10:2, _:14, PESHeaderDataLength:8, _/binary>> = Packet,
-            {_, Data} = split_binary(Packet, PESHeaderDataLength+9),
-            nal_synchronizer(list_to_binary([Buffer, Data]));
-        {raw, Data} ->
-            nal_synchronizer(list_to_binary([Buffer, Data]))
-    end.
+nal_receiver(Packet) ->
+  <<1:24, _:24, 2#10:2, _:14, PESHeaderDataLength:8, _/binary>> = Packet,
+  {_, Data} = split_binary(Packet, PESHeaderDataLength+9).
+  % nal_synchronizer(list_to_binary([Buffer, Data])).
 
 nal_synchronizer(Buffer) ->
     Offset1 = nal_unit_start_code_finder(Buffer, 0)+3,
