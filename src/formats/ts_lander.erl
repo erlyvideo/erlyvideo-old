@@ -18,7 +18,8 @@
   handler,
   type,
   synced = false,
-  buffer = [],
+  ts_buffer = [],
+  es_buffer = <<>>,
   counter = 0
 }).
 
@@ -57,7 +58,7 @@ init([URL]) ->
   % {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream_to, self}], erlyvideo),
   {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream, self}]),
   % io:format("HTTP Request ~p~n", [RequestId]),
-  timer:send_after(6*1000, {stop}),
+  timer:send_after(16*1000, {stop}),
   {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
     
 
@@ -160,6 +161,7 @@ extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13,
               _Scrambling:2, 1:1, 1:1, _Counter:4, 
               AdaptationLength, AdaptationField:AdaptationLength/binary, Payload/binary>> = Packet) ->
   % io:format("~p bytes of adapt field pid ~p~n", [AdaptationLength, _Pid]),
+  ?D({_Pid, Packet, Payload}),
   Payload;
 
 extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
@@ -174,7 +176,7 @@ pat(#ts_lander{pids = Pids} = TSLander, Stream, _, <<_PtField, 0, 2#10:2, 2#11:2
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs~n~n", [ProgramCount]),
   Descriptors = extract_pat(ProgramCount, PAT, []),
-  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors, Pids)}.
+  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
 
 
 extract_pat(0, <<_CRC32:4/binary>>, Descriptors) ->
@@ -193,10 +195,10 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
                              ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMT) ->
   SectionCount = round(SectionLength - 13),
   io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
-  Descriptors = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum, type = video} end, extract_pmt(PMT, [])),
-  Descriptors1 = set_audio_stream_from_pcr(Descriptors, PCRPID),
+  Descriptors1 = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum, type = video} end, extract_pmt(PMT, [])),
+  % Descriptors1 = set_audio_stream_from_pcr(Descriptors, PCRPID),
   io:format("Streams: ~p~n", [Descriptors1]),
-  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Descriptors1, Pids)}.
+  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
   extract_pmt(Rest, [#stream{handler = pes, pid = Pid, type = StreamType}|Descriptors]);
@@ -215,23 +217,26 @@ pes(TSLander, #stream{synced = false} = Pes, 0, Packet) ->
 
 pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = false, pid = Pid} = Stream, 1, Packet)->
   ?D({"Synced PES", Pid}),
-  Stream1 = Stream#stream{synced = true, buffer = [Packet]},
+  Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
   TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
 
-pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, buffer = Buf, pid = Pid} = Stream, 0, Packet)->
-  Stream1 = Stream#stream{synced = true, buffer = [Packet | Buf]},
+pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, ts_buffer = Buf, pid = Pid} = Stream, 0, Packet)->
+  Stream1 = Stream#stream{synced = true, ts_buffer = [Packet | Buf]},
   TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
 
-pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, buffer = Buf, pid = Pid} = Stream, 1, Packet) ->
-  {TSLander1, Stream1} = pes_packet(TSLander, Stream, list_to_binary(lists:reverse(Buf))),
-  Stream2 = Stream1#stream{synced = true, buffer = [Packet]},
+pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, ts_buffer = Buf, pid = Pid} = Stream, 1, Packet) ->
+  PES = list_to_binary(lists:reverse(Buf)),
+  {TSLander1, Stream1} = pes_packet(TSLander, Stream, PES),
+  Stream2 = Stream1#stream{synced = true, ts_buffer = [Packet]},
   TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream2)}.
 
 
 
 
-pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes, <<1:24,
-                                            _StreamId:8,
+pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes, 
+                                            <<1:24,
+                                            2#110:3, _StreamId:5,
+                                            % _StreamId:8,
                                             _PesPacketLength:16,
                                             2:2,
                                             _PESScramblingControl:2,
@@ -246,9 +251,10 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes, <<1:24,
                                             _AdditionalCopyInfoFlag:1,
                                             _PESCRCFlag:1,
                                             _PESExtensionFlag:1,
-                                            _PESHeaderDataLength:8,
-                                            _/binary>> = Packet) ->
-            % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
+                                            PESHeaderLength:8,
+                                            PESHeader:PESHeaderLength/binary,
+                                            Data/binary>> = Packet) ->
+            io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
             DTS = case PTS_DTS_flags of
                 2#11 ->
                     <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
@@ -267,129 +273,129 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes, <<1:24,
                 false ->
                     io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
                     {TSLander, Pes#stream{counter = Counter + 1}}
-            end.
-%             
-% 
-% % TEST ONLY----
-% % start(FileName) ->
-% %     {ok, File} = file:open(FileName, [read,binary,raw]),
-% %     NalRcv = spawn(?MODULE, nal_receiver, [[]]),
-% %     feed_bytestream_file(File, NalRcv).
-% 
-% feed_bytestream_file(File, Pid) ->
-%     case file:read(File, 1024) of
-%         {ok, Data} ->
-%             Pid ! {raw, Data},
-%             feed_bytestream_file(File, Pid);
-%         eof ->
-%             file:close(File)
-%     end.
-% 
-% nal_receiver(Packet) ->
-%   <<1:24, _:24, 2#10:2, _:14, PESHeaderDataLength:8, _/binary>> = Packet,
-%   {_, Data} = split_binary(Packet, PESHeaderDataLength+9).
-%   % nal_synchronizer(list_to_binary([Buffer, Data])).
-% 
-% nal_synchronizer(Buffer) ->
-%     Offset1 = nal_unit_start_code_finder(Buffer, 0)+3,
-%     Offset2 = nal_unit_start_code_finder(Buffer, Offset1+3),
-%     case Offset2 of
-%         false -> nal_receiver(Buffer);
-%         _ ->
-%             Length = Offset2-Offset1-1,
-%             <<_:Offset1/binary, NAL:Length/binary, Rest/binary>> = Buffer,
-%             decode_nal(NAL),
-%             nal_synchronizer(Rest)
-%     end.
-% 
-% nal_unit_start_code_finder(Bin, Offset) when Offset < size(Bin) ->
-%     case Bin of
-%         <<_:Offset/binary, 16#000001:24, _/binary>> ->
-%             Offset;
-%         _ ->
-%             nal_unit_start_code_finder(Bin, Offset + 1)
-%     end;
-% 
-% nal_unit_start_code_finder(_, _) -> false.
-% 
-% decode_nal(Bin) ->
-%     <<0:1, NalRefIdc:2, NalUnitType:5, Rest/binary>> = Bin,
-%     case NalUnitType of
-%         7 ->
-%             <<ProfileId:8, _:3, 0:5, Level:8, AfterLevel/binary>> = Rest,
-%             {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
-%             {Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
-%             Profile = case ProfileId of
-%                 66 -> "Baseline";
-%                 77 -> "Main";
-%                 88 -> "Extended";
-%                 100 -> "High";
-%                 110 -> "High 10";
-%                 122 -> "High 4:2:2";
-%                 144 -> "High 4:4:4";
-%                 _ -> "Uknkown "++integer_to_list(ProfileId)
-%             end,
-%             io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
-%             io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
-%             io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]);
-%         8 ->
-%             io:format("Picture parameter set [~p]~n", [size(Bin)]);
-%         1 ->
-%             %io:format("Coded slice of a non-IDR picture :: "),
-%             slice_header(Rest, NalRefIdc);
-%         2 ->
-%             %io:format("Coded slice data partition A     :: "),
-%             slice_header(Rest, NalRefIdc);
-%         5 ->
-%             io:format("~nCoded slice of an IDR picture~n"),
-%             slice_header(Rest, NalRefIdc);
-%         9 ->
-%             <<PrimaryPicTypeId:3, _:5, _/binary>> = Rest,
-%             PrimaryPicType = case PrimaryPicTypeId of
-%                 0 -> "I";
-%                 1 -> "I, P";
-%                 2 -> "I, P, B";
-%                 3 -> "SI";
-%                 4 -> "SI, SP";
-%                 5 -> "I, SI";
-%                 6 -> "I, SI, P, SP";
-%                 7 -> "I, SI, P, SP, B"
-%             end,
-%             io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]);
-%         _ ->
-%             io:format("Unknown NAL unit type ~p~n", [NalUnitType])
-%     end.
-% 
-% slice_header(Bin, NalRefIdc) ->
-%     {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
-%     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
-%     {PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
-%     <<FrameNum:5, FieldPicFlag:1, BottomFieldFlag:1, _/bitstring>> = Rest3,
-%     SliceType = case SliceTypeId of
-%         0 -> "P";
-%         1 -> "B";
-%         2 -> "I";
-%         3 -> "p";
-%         4 -> "i";
-%         5 -> "P";
-%         6 -> "B";
-%         7 -> "I";
-%         8 -> "p";
-%         9 -> "i"
-%     end,
-%     io:format("~s~p:~p:~p:~p:~p ", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
-% 
-% exp_golomb_read(Bin) ->
-%     LeadingZeros = count_zeros(Bin,0),
-%     <<0:LeadingZeros, 1:1, ReadBits:LeadingZeros, Rest/bitstring>> = Bin,
-%     CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
-%     {CodeNum, Rest}.
-% 
-% count_zeros(Bin, Offset) ->
-%     case Bin of
-%         <<_:Offset, 1:1, _/bitstring>> -> Offset;
-%         <<_:Offset, 0:1, _/bitstring>> -> count_zeros(Bin, Offset+1)
-%     end.
+            end;
+
+pes_packet(TSLander, #stream{es_buffer = Buffer} = Stream, 
+                                                  <<1:24,
+                                                  2#1110:4, StreamId:4,
+                                                  _PesPacketLength:16,
+                                                  2:2,
+                                                  _PESScramblingControl:2,
+                                                  _PESPriority:1,
+                                                  _DataAlignmentIndicator:1,
+                                                  _Copyright:1,
+                                                  _OriginalOrCopy:1,
+                                                  PTS_DTS_flags:2,
+                                                  _ESCRFlag:1,
+                                                  _ESRateFlag:1,
+                                                  _DSMTrickModeFlag:1,
+                                                  _AdditionalCopyInfoFlag:1,
+                                                  _PESCRCFlag:1,
+                                                  _PESExtensionFlag:1,
+                                                  PESHeaderLength:8,
+                                                  PESHeader:PESHeaderLength/binary,
+                                                  Rest/binary>> = Packet) ->
+  Data = <<Buffer/binary, Rest/binary>>,
+  % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
+  Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
+  Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
+  case Offset2 of
+      false -> {TSLander, Stream#stream{es_buffer = Data}};
+      _ ->
+          Length = Offset2-Offset1-1,
+          <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
+          decode_nal(NAL),
+          pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
+  end.
+
+nal_unit_start_code_finder(Bin, Offset) when Offset + 3 =< size(Bin) ->
+    case Bin of
+        <<_:Offset/binary, 16#000001:24, _/binary>> ->
+            Offset;
+        _ ->
+            nal_unit_start_code_finder(Bin, Offset + 1)
+    end;
+
+nal_unit_start_code_finder(_, _) -> false.
+
+decode_nal(Bin) ->
+    <<0:1, NalRefIdc:2, NalUnitType:5, Rest/binary>> = Bin,
+    case NalUnitType of
+        7 ->
+            <<ProfileId:8, _:3, 0:5, Level:8, AfterLevel/binary>> = Rest,
+            {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
+            {Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
+            Profile = case ProfileId of
+                66 -> "Baseline";
+                77 -> "Main";
+                88 -> "Extended";
+                100 -> "High";
+                110 -> "High 10";
+                122 -> "High 4:2:2";
+                144 -> "High 4:4:4";
+                _ -> "Uknkown "++integer_to_list(ProfileId)
+            end,
+            io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
+            io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
+            io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]);
+        8 ->
+            io:format("Picture parameter set [~p]~n", [size(Bin)]);
+        1 ->
+            %io:format("Coded slice of a non-IDR picture :: "),
+            slice_header(Rest, NalRefIdc);
+        2 ->
+            %io:format("Coded slice data partition A     :: "),
+            slice_header(Rest, NalRefIdc);
+        5 ->
+            io:format("~nCoded slice of an IDR picture~n"),
+            slice_header(Rest, NalRefIdc);
+        9 ->
+            <<PrimaryPicTypeId:3, _:5, _/binary>> = Rest,
+            PrimaryPicType = case PrimaryPicTypeId of
+                0 -> "I";
+                1 -> "I, P";
+                2 -> "I, P, B";
+                3 -> "SI";
+                4 -> "SI, SP";
+                5 -> "I, SI";
+                6 -> "I, SI, P, SP";
+                7 -> "I, SI, P, SP, B"
+            end,
+            io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]);
+        _ ->
+            io:format("Unknown NAL unit type ~p~n", [NalUnitType])
+    end.
+
+slice_header(Bin, NalRefIdc) ->
+    {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
+    {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
+    {PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
+    <<FrameNum:5, FieldPicFlag:1, BottomFieldFlag:1, _/bitstring>> = Rest3,
+    SliceType = case SliceTypeId of
+        0 -> "P";
+        1 -> "B";
+        2 -> "I";
+        3 -> "p";
+        4 -> "i";
+        5 -> "P";
+        6 -> "B";
+        7 -> "I";
+        8 -> "p";
+        9 -> "i"
+    end,
+    io:format("~s~p:~p:~p:~p:~p ", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
+
+exp_golomb_read(Bin) ->
+    LeadingZeros = count_zeros(Bin,0),
+    <<0:LeadingZeros, 1:1, ReadBits:LeadingZeros, Rest/bitstring>> = Bin,
+    CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
+    {CodeNum, Rest}.
+
+count_zeros(Bin, Offset) ->
+    case Bin of
+        <<_:Offset, 1:1, _/bitstring>> -> Offset;
+        <<_:Offset, 0:1, _/bitstring>> -> count_zeros(Bin, Offset+1)
+    end.
 
 
 %%-------------------------------------------------------------------------
