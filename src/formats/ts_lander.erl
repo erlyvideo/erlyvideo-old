@@ -131,19 +131,20 @@ synchronizer(TSLander, <<16#47, Body:187/binary, 16#47, Rest/binary>>) ->
   Lander = demux(TSLander, Body),
   Lander#ts_lander{buffer = <<16#47, Rest/binary>>};
 
-synchronizer(TSLander, <<_, Bin/binary>>) when size(Bin) >= 188 ->
+synchronizer(TSLander, <<_, Bin/binary>>) when size(Bin) >= 374 ->
   synchronizer(TSLander, Bin);
 
 synchronizer(TSLander, Bin) ->
   TSLander#ts_lander{buffer = Bin}.
 
 
-demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _/binary>> = Packet) ->
+demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
   % <<_TEI:1, PayloadStart:1, _Priority:1, TsPid:13, _Scrambling:2, _Adaptation:1, _Payload:1, _Counter:4, Payload/binary>> = Packet,
   
   case lists:keyfind(Pid, #stream.pid, Pids) of
-    #stream{handler = Handler} = Stream ->
-      % io:format("Pid: ~p, handler ~p~n", [Pid, Handler]),
+    #stream{handler = Handler, counter = OldCounter} = Stream ->
+      % io:format("Pid: ~p, handler ~p~n", [Pid, Handler, Counter]),
+      % ?D({Handler, Pid, PayloadStart, (OldCounter + 1) rem 15, Counter, Packet, extract_ts_payload(Packet)}),
       ?MODULE:Handler(TSLander, Stream, PayloadStart, extract_ts_payload(Packet));
       % TSLander1#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
     false ->
@@ -161,7 +162,7 @@ extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13,
               _Scrambling:2, 1:1, 1:1, _Counter:4, 
               AdaptationLength, AdaptationField:AdaptationLength/binary, Payload/binary>> = Packet) ->
   % io:format("~p bytes of adapt field pid ~p~n", [AdaptationLength, _Pid]),
-  ?D({_Pid, Packet, Payload}),
+  % ?D({_Pid, Packet, Payload}),
   Payload;
 
 extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
@@ -183,7 +184,7 @@ extract_pat(0, <<_CRC32:4/binary>>, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
 extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
   % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
-  extract_pat(ProgramCount - 1, PAT, [#stream{handler = pmt, pid = Pid, program_num = ProgramNum} | Descriptors]).
+  extract_pat(ProgramCount - 1, PAT, [#stream{handler = pmt, pid = Pid, counter = 0, program_num = ProgramNum} | Descriptors]).
 
 
 
@@ -201,7 +202,7 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
-  extract_pmt(Rest, [#stream{handler = pes, pid = Pid, type = StreamType}|Descriptors]);
+  extract_pmt(Rest, [#stream{handler = pes, counter = 0, pid = Pid, type = StreamType}|Descriptors]);
   
 extract_pmt(<<_CRC32:4/binary>>, Descriptors) ->
   % io:format("Unknown PMT: ~p~n", [PMT]),
@@ -213,6 +214,7 @@ set_audio_stream_from_pcr(Descriptors, PCRPID) ->
 
 
 pes(TSLander, #stream{synced = false} = Pes, 0, Packet) ->
+  ?D("No sync pes"),
   TSLander;
 
 pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = false, pid = Pid} = Stream, 1, Packet)->
@@ -226,9 +228,10 @@ pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, ts_buffer = Buf, 
 
 pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, ts_buffer = Buf, pid = Pid} = Stream, 1, Packet) ->
   PES = list_to_binary(lists:reverse(Buf)),
+  % ?D({"Decode PES", Pid, Stream#stream.es_buffer, PES}),
   {TSLander1, Stream1} = pes_packet(TSLander, Stream, PES),
   Stream2 = Stream1#stream{synced = true, ts_buffer = [Packet]},
-  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream2)}.
+  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, TSLander1#ts_lander.pids, Stream2)}.
 
 
 
@@ -269,34 +272,23 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes,
             case DTS > Counter of
                 true ->
                     io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-                    {TSLander, Pes#stream{counter = Counter + 1}};
+                    {TSLander, Pes#stream{counter = Counter + 1, type = audio}};
                 false ->
                     io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-                    {TSLander, Pes#stream{counter = Counter + 1}}
+                    {TSLander, Pes#stream{counter = Counter + 1, type = audio}}
             end;
 
-pes_packet(TSLander, #stream{es_buffer = Buffer} = Stream, 
-                                                  <<1:24,
+pes_packet(TSLander, #stream{es_buffer = Buffer, pid = Pid} = Stream, 
+                                                  <<_:3/binary, 
                                                   2#1110:4, StreamId:4,
-                                                  _PesPacketLength:16,
-                                                  2:2,
-                                                  _PESScramblingControl:2,
-                                                  _PESPriority:1,
-                                                  _DataAlignmentIndicator:1,
-                                                  _Copyright:1,
-                                                  _OriginalOrCopy:1,
-                                                  PTS_DTS_flags:2,
-                                                  _ESCRFlag:1,
-                                                  _ESRateFlag:1,
-                                                  _DSMTrickModeFlag:1,
-                                                  _AdditionalCopyInfoFlag:1,
-                                                  _PESCRCFlag:1,
-                                                  _PESExtensionFlag:1,
-                                                  PESHeaderLength:8,
-                                                  PESHeader:PESHeaderLength/binary,
+                                                  % _:4/binary,
+                                                  % PESHeaderLength:8,
+                                                  % PESHeader:PESHeaderLength/binary,
                                                   Rest/binary>> = Packet) ->
   Data = <<Buffer/binary, Rest/binary>>,
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
+  % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
+  ?D({"In pes", Pid, StreamId}),
   Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
   Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
   case Offset2 of
@@ -305,7 +297,8 @@ pes_packet(TSLander, #stream{es_buffer = Buffer} = Stream,
           Length = Offset2-Offset1-1,
           <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
           decode_nal(NAL),
-          pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
+          % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
+          {TSLander, Stream#stream{es_buffer = Rest1}}
   end.
 
 nal_unit_start_code_finder(Bin, Offset) when Offset + 3 =< size(Bin) ->
