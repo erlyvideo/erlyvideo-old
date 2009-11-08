@@ -257,7 +257,7 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes,
                                             PESHeaderLength:8,
                                             PESHeader:PESHeaderLength/binary,
                                             Data/binary>> = Packet) ->
-            io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
+            % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
             DTS = case PTS_DTS_flags of
                 2#11 ->
                     <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
@@ -281,14 +281,13 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes,
 pes_packet(TSLander, #stream{es_buffer = Buffer, pid = Pid} = Stream, 
                                                   <<_:3/binary, 
                                                   2#1110:4, StreamId:4,
-                                                  % _:4/binary,
-                                                  % PESHeaderLength:8,
-                                                  % PESHeader:PESHeaderLength/binary,
+                                                  _:4/binary,
+                                                  PESHeaderLength:8,
+                                                  PESHeader:PESHeaderLength/binary,
                                                   Rest/binary>> = Packet) ->
   Data = <<Buffer/binary, Rest/binary>>,
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
-  ?D({"In pes", Pid, StreamId}),
   Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
   Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
   case Offset2 of
@@ -376,7 +375,7 @@ slice_header(Bin, NalRefIdc) ->
         8 -> "p";
         9 -> "i"
     end,
-    io:format("~s~p:~p:~p:~p:~p ", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
+    io:format("~s~p:~p:~p:~p:~p ~n", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
 
 exp_golomb_read(Bin) ->
     LeadingZeros = count_zeros(Bin,0),
