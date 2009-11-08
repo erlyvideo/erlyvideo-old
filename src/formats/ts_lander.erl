@@ -4,6 +4,9 @@
 
 -include("../../include/ems.hrl").
 
+% ems_sup:start_ts_lander("http://localhost:8080").
+
+
 -record(ts_lander, {
   request_id,
   url,
@@ -58,7 +61,7 @@ init([URL]) ->
   % {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream_to, self}], erlyvideo),
   {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream, self}]),
   % io:format("HTTP Request ~p~n", [RequestId]),
-  timer:send_after(16*1000, {stop}),
+  % timer:send_after(16*1000, {stop}),
   {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
     
 
@@ -109,6 +112,9 @@ handle_info({http, {_RequestId, stream_start, _Headers}}, TSLander) ->
   {noreply, TSLander};
 
 
+handle_info({http, {_RequestId, stream, Bin}}, #ts_lander{buffer = <<>>} = TSLander) ->
+  {noreply, synchronizer(TSLander, Bin)};
+
 handle_info({http, {_RequestId, stream, Bin}}, #ts_lander{buffer = Buf} = TSLander) ->
   {noreply, synchronizer(TSLander, <<Buf/binary, Bin/binary>>)};
 
@@ -129,7 +135,7 @@ handle_info(_Info, State) ->
 
 synchronizer(TSLander, <<16#47, Body:187/binary, 16#47, Rest/binary>>) ->
   Lander = demux(TSLander, Body),
-  Lander#ts_lander{buffer = <<16#47, Rest/binary>>};
+  synchronizer(Lander, <<16#47, Rest/binary>>);
 
 synchronizer(TSLander, <<_, Bin/binary>>) when size(Bin) >= 374 ->
   synchronizer(TSLander, Bin);
@@ -176,15 +182,16 @@ extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2,
 pat(#ts_lander{pids = Pids} = TSLander, Stream, _, <<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>>) -> % PAT
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs~n~n", [ProgramCount]),
-  Descriptors = extract_pat(ProgramCount, PAT, []),
+  Descriptors = extract_pat(PAT, ProgramCount, []),
+  % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
 
 
-extract_pat(0, <<_CRC32:4/binary>>, Descriptors) ->
+extract_pat(<<_CRC32:4/binary>>, 0, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
-extract_pat(ProgramCount, <<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
+extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
   % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
-  extract_pat(ProgramCount - 1, PAT, [#stream{handler = pmt, pid = Pid, counter = 0, program_num = ProgramNum} | Descriptors]).
+  extract_pat(PAT, ProgramCount - 1, [#stream{handler = pmt, pid = Pid, counter = 0, program_num = ProgramNum} | Descriptors]).
 
 
 
@@ -195,10 +202,10 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
                              _LastSectionNumber, _:3, PCRPID:13, _:4, ProgramInfoLength:12, 
                              ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMT) ->
   SectionCount = round(SectionLength - 13),
-  io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
+  % io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
   Descriptors1 = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum, type = video} end, extract_pmt(PMT, [])),
   % Descriptors1 = set_audio_stream_from_pcr(Descriptors, PCRPID),
-  io:format("Streams: ~p~n", [Descriptors1]),
+  % io:format("Streams: ~p~n", [Descriptors1]),
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
@@ -271,7 +278,7 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes,
             end,
             case DTS > Counter of
                 true ->
-                    io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    % io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
                     {TSLander, Pes#stream{counter = Counter + 1, type = audio}};
                 false ->
                     io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
@@ -375,7 +382,8 @@ slice_header(Bin, NalRefIdc) ->
         8 -> "p";
         9 -> "i"
     end,
-    io:format("~s~p:~p:~p:~p:~p ~n", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
+    ok.
+    % io:format("~s~p:~p:~p:~p:~p ~n", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
 
 exp_golomb_read(Bin) ->
     LeadingZeros = count_zeros(Bin,0),
