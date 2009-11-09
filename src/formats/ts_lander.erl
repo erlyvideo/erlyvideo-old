@@ -118,6 +118,9 @@ handle_info({http, {_RequestId, stream, Bin}}, #ts_lander{buffer = <<>>} = TSLan
 handle_info({http, {_RequestId, stream, Bin}}, #ts_lander{buffer = Buf} = TSLander) ->
   {noreply, synchronizer(TSLander, <<Buf/binary, Bin/binary>>)};
 
+handle_info({http, {_RequestId, {error, Reason}}}, #ts_lander{url = URL} = TSLander) ->
+  {stop, {http, Reason, URL}, TSLander};
+
 
 handle_info({http, {_RequestId, stream_end, _Headers}}, TSLander) ->
   io:format("MPEG TS end ~p~n", [_Headers]),
