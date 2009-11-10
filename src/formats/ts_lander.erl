@@ -348,55 +348,60 @@ nal_unit_start_code_finder(Bin, Offset) when Offset + 3 =< size(Bin) ->
 
 nal_unit_start_code_finder(_, _) -> false.
 
-decode_nal(Bin) ->
-    <<0:1, NalRefIdc:2, NalUnitType:5, Rest/binary>> = Bin,
-    case NalUnitType of
-        7 ->
-            <<ProfileId:8, _:3, 0:5, Level:8, AfterLevel/binary>> = Rest,
-            {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
-            {Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
-            Profile = case ProfileId of
-                66 -> "Baseline";
-                77 -> "Main";
-                88 -> "Extended";
-                100 -> "High";
-                110 -> "High 10";
-                122 -> "High 4:2:2";
-                144 -> "High 4:4:4";
-                _ -> "Uknkown "++integer_to_list(ProfileId)
-            end,
-            % io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
-            % io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
-            % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-            ok;
-        8 ->
-            % io:format("Picture parameter set [~p]~n", [size(Bin)]);
-            ok;
-        1 ->
-            %io:format("Coded slice of a non-IDR picture :: "),
-            slice_header(Rest, NalRefIdc);
-        2 ->
-            %io:format("Coded slice data partition A     :: "),
-            slice_header(Rest, NalRefIdc);
-        5 ->
-            % io:format("~nCoded slice of an IDR picture~n"),
-            slice_header(Rest, NalRefIdc);
-        9 ->
-            <<PrimaryPicTypeId:3, _:5, _/binary>> = Rest,
-            PrimaryPicType = case PrimaryPicTypeId of
-                0 -> "I";
-                1 -> "I, P";
-                2 -> "I, P, B";
-                3 -> "SI";
-                4 -> "SI, SP";
-                5 -> "I, SI";
-                6 -> "I, SI, P, SP";
-                7 -> "I, SI, P, SP, B"
-            end,
-            io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]);
-        _ ->
-            io:format("Unknown NAL unit type ~p~n", [NalUnitType])
-    end.
+
+decode_nal(<<0:1, NalRefIdc:2, 1:5, Rest/binary>>) ->
+  %io:format("Coded slice of a non-IDR picture :: "),
+  slice_header(Rest, NalRefIdc);
+
+decode_nal(<<0:1, NalRefIdc:2, 2:5, Rest/binary>>) ->
+  %io:format("Coded slice data partition A     :: "),
+  slice_header(Rest, NalRefIdc);
+
+decode_nal(<<0:1, NalRefIdc:2, 5:5, Rest/binary>>) ->
+  % io:format("~nCoded slice of an IDR picture~n"),
+  slice_header(Rest, NalRefIdc);
+
+decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>>) ->
+  % io:format("Picture parameter set [~p]~n", [size(Bin)]);
+  ok;
+
+decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>) ->
+  PrimaryPicType = case PrimaryPicTypeId of
+      0 -> "I";
+      1 -> "I, P";
+      2 -> "I, P, B";
+      3 -> "SI";
+      4 -> "SI, SP";
+      5 -> "I, SI";
+      6 -> "I, SI, P, SP";
+      7 -> "I, SI, P, SP, B"
+  end,
+  io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
+  ok;
+
+
+decode_nal(<<0:1, NalRefIdc:2, 7:5, ProfileId:8, _:3, 0:5, Level:8, AfterLevel/binary>>) ->
+  {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
+  {Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
+  Profile = case ProfileId of
+      66 -> "Baseline";
+      77 -> "Main";
+      88 -> "Extended";
+      100 -> "High";
+      110 -> "High 10";
+      122 -> "High 4:2:2";
+      144 -> "High 4:4:4";
+      _ -> "Uknkown "++integer_to_list(ProfileId)
+  end,
+  % io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
+  % io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
+  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+  ok;
+
+
+decode_nal(<<0:1, _NalRefIdc:2, NalUnitType:5, _/binary>>) ->
+  io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
+  ok.
 
 slice_header(Bin, NalRefIdc) ->
     {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
