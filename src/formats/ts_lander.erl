@@ -121,7 +121,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({http, Socket, {http_response, Version, 200, Reply}}, TSLander) ->
+handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, TSLander) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, TSLander};
 
@@ -165,14 +165,10 @@ synchronizer(TSLander, Bin) ->
 
 
 demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
-  % <<_TEI:1, PayloadStart:1, _Priority:1, TsPid:13, _Scrambling:2, _Adaptation:1, _Payload:1, _Counter:4, Payload/binary>> = Packet,
-  
   case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler, counter = OldCounter} = Stream ->
-      % io:format("Pid: ~p, handler ~p~n", [Pid, Handler, Counter]),
-      % ?D({Handler, Pid, PayloadStart, (OldCounter + 1) rem 15, Counter, Packet, extract_ts_payload(Packet)}),
-      ?MODULE:Handler(TSLander, Stream, PayloadStart, extract_ts_payload(Packet));
-      % TSLander1#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
+      % Counter = (OldCounter + 1) rem 15,
+      ?MODULE:Handler(TSLander, Stream#stream{counter = Counter}, PayloadStart, extract_ts_payload(Packet));
     #stream_out{handler = Handler} ->
       Handler ! {ts_packet, PayloadStart, extract_ts_payload(Packet)},
       TSLander;
@@ -235,7 +231,6 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
         Other
     end
   end, extract_pmt(PMT, [])),
-  % Descriptors1 = set_audio_stream_from_pcr(Descriptors, PCRPID),
   % io:format("Streams: ~p~n", [Descriptors1]),
   % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
   TSLander#ts_lander{pids = Descriptors1}.
@@ -247,20 +242,16 @@ extract_pmt(<<_CRC32:4/binary>>, Descriptors) ->
   % io:format("Unknown PMT: ~p~n", [PMT]),
   lists:keysort(#stream.pid, Descriptors).
 
-set_audio_stream_from_pcr(Descriptors, PCRPID) ->
-  Stream = lists:keyfind(PCRPID, #stream.pid, Descriptors),
-  lists:keyreplace(PCRPID, #stream.pid, Descriptors, Stream#stream{type = audio}).
-
 
 pes(#stream{synced = false, pid = Pid} = Stream) ->
   receive
     {ts_packet, 0, _} ->
       ?D({"Not synced pes", Pid}),
-      pes(Stream);
+      ?MODULE:pes(Stream);
     {ts_packet, 1, Packet} ->
       ?D({"Synced PES", Pid}),
       Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
-      pes(Stream1);
+      ?MODULE:pes(Stream1);
     Other ->
       ?D({"Undefined message to pid", Pid, Other})
   end;
@@ -269,13 +260,13 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
   receive
     {ts_packet, 0, Packet} ->
       Stream1 = Stream#stream{synced = true, ts_buffer = [Packet | Buf]},
-      pes(Stream1);
+      ?MODULE:pes(Stream1);
     {ts_packet, 1, Packet} ->
       PES = list_to_binary(lists:reverse(Buf)),
       % ?D({"Decode PES", Pid, Stream#stream.es_buffer, PES}),
       Stream1 = pes_packet(Stream, PES),
       Stream2 = Stream1#stream{ts_buffer = [Packet]},
-      pes(Stream2);
+      ?MODULE:pes(Stream2);
     Other ->
       ?D({"Undefined message to pid", Pid, Other})
   end.
@@ -424,8 +415,8 @@ slice_header(Bin, NalRefIdc) ->
         8 -> "p";
         9 -> "i"
     end,
+    % io:format("~s~p:~p:~p:~p:~p ~n", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]),
     ok.
-    % io:format("~s~p:~p:~p:~p:~p ~n", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]).
 
 exp_golomb_read(Bin) ->
     LeadingZeros = count_zeros(Bin,0),
