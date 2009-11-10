@@ -8,11 +8,15 @@
 
 
 -record(ts_lander, {
-  request_id,
+  socket,
   url,
   buffer = <<>>,
-  pids,
-  program_pids = []
+  pids
+}).
+
+-record(stream_out, {
+  pid,
+  handler
 }).
 
 -record(stream, {
@@ -30,7 +34,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--export([pat/4, pmt/4, pes/4]).
+-export([pat/4, pmt/4, pes/1]).
 
 % start() ->
 %     Pid = start(?HOST, ?PORT, ?PATH),
@@ -51,18 +55,28 @@
 %     Pid.
 
 
+% {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, http_bin}, {active, false}], 1000),
+% gen_tcp:send(Socket, "GET / HTTP/1.0\r\n\r\n"),
+% {ok, Reply} = gen_tcp:recv(Socket, 0, 1000),
+% Reply.
+
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
 
 start_link(URL) ->
   gen_server:start_link(?MODULE, [URL], []).
 
 init([URL]) ->
+  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
+  gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
+  ok = inet:setopts(Socket, [{active, once}]),
   
-  % {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream_to, self}], erlyvideo),
-  {ok, RequestId} = http:request(get, {URL, []}, [], [{sync, false}, {full_result, false}, {stream, self}]),
+  % timer:send_after(6*1000, {stop}),
+  
+  {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
+  
   % io:format("HTTP Request ~p~n", [RequestId]),
-  % timer:send_after(16*1000, {stop}),
-  {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
+  % {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
     
 
 
@@ -107,29 +121,32 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({http, {_RequestId, stream_start, _Headers}}, TSLander) ->
-  % io:format("MPEG TS headers ~p~n", [_Headers]),
+handle_info({http, Socket, {http_response, Version, 200, Reply}}, TSLander) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, TSLander};
+
+handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, TSLander) ->
+  inet:setopts(Socket, [{active, once}]),
   {noreply, TSLander};
 
 
-handle_info({http, {_RequestId, stream, Bin}}, #ts_lander{buffer = <<>>} = TSLander) ->
+handle_info({http, Socket, http_eoh}, TSLander) ->
+  inet:setopts(Socket, [{active, true}, {packet, raw}]),
+  {noreply, TSLander};
+
+
+handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>} = TSLander) ->
   {noreply, synchronizer(TSLander, Bin)};
 
-handle_info({http, {_RequestId, stream, Bin}}, #ts_lander{buffer = Buf} = TSLander) ->
+handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = Buf} = TSLander) ->
   {noreply, synchronizer(TSLander, <<Buf/binary, Bin/binary>>)};
 
-handle_info({http, {_RequestId, {error, Reason}}}, #ts_lander{url = URL} = TSLander) ->
-  {stop, {http, Reason, URL}, TSLander};
+handle_info({tcp_closed, Socket}, #ts_lander{socket = Socket} = TSLander) ->
+  {stop, normal, TSLander#ts_lander{socket = undefined}};
 
-
-handle_info({http, {_RequestId, stream_end, _Headers}}, TSLander) ->
-  io:format("MPEG TS end ~p~n", [_Headers]),
-  {stop, normal, TSLander};
-
-
-handle_info({stop}, #ts_lander{request_id = RequestId} = TSLander) ->
-  http:cancel_request(RequestId),
-  {stop, normal, TSLander#ts_lander{request_id = undefined}};
+handle_info({stop}, #ts_lander{socket = Socket} = TSLander) ->
+  gen_tcp:close(Socket),
+  {stop, normal, TSLander#ts_lander{socket = undefined}};
 
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
@@ -156,8 +173,11 @@ demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _:
       % ?D({Handler, Pid, PayloadStart, (OldCounter + 1) rem 15, Counter, Packet, extract_ts_payload(Packet)}),
       ?MODULE:Handler(TSLander, Stream, PayloadStart, extract_ts_payload(Packet));
       % TSLander1#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
+    #stream_out{handler = Handler} ->
+      Handler ! {ts_packet, PayloadStart, extract_ts_payload(Packet)},
+      TSLander;
     false ->
-      io:format("Unknown pid ~p~n", [Pid]),
+      % io:format("Unknown pid ~p~n", [Pid]),
       TSLander
   end.
   
@@ -186,7 +206,6 @@ pat(#ts_lander{pids = Pids} = TSLander, Stream, _, <<_PtField, 0, 2#10:2, 2#11:2
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs~n~n", [ProgramCount]),
   Descriptors = extract_pat(PAT, ProgramCount, []),
-  % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
 
 
@@ -206,10 +225,20 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
                              ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMT) ->
   SectionCount = round(SectionLength - 13),
   % io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
-  Descriptors1 = lists:map(fun(Stream) -> Stream#stream{program_num = ProgramNum, type = video} end, extract_pmt(PMT, [])),
+  Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
+    case lists:keyfind(Pid, #stream.pid, Pids) of
+      false ->
+        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, type = video}]),
+        ?D({"Starting", Handler}),
+        #stream_out{pid = Pid, handler = Handler};
+      Other ->
+        Other
+    end
+  end, extract_pmt(PMT, [])),
   % Descriptors1 = set_audio_stream_from_pcr(Descriptors, PCRPID),
   % io:format("Streams: ~p~n", [Descriptors1]),
-  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
+  % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
+  TSLander#ts_lander{pids = Descriptors1}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
   extract_pmt(Rest, [#stream{handler = pes, counter = 0, pid = Pid, type = StreamType}|Descriptors]);
@@ -223,30 +252,38 @@ set_audio_stream_from_pcr(Descriptors, PCRPID) ->
   lists:keyreplace(PCRPID, #stream.pid, Descriptors, Stream#stream{type = audio}).
 
 
-pes(TSLander, #stream{synced = false} = Pes, 0, Packet) ->
-  ?D("No sync pes"),
-  TSLander;
+pes(#stream{synced = false, pid = Pid} = Stream) ->
+  receive
+    {ts_packet, 0, _} ->
+      ?D({"Not synced pes", Pid}),
+      pes(Stream);
+    {ts_packet, 1, Packet} ->
+      ?D({"Synced PES", Pid}),
+      Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
+      pes(Stream1);
+    Other ->
+      ?D({"Undefined message to pid", Pid, Other})
+  end;
+  
+pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
+  receive
+    {ts_packet, 0, Packet} ->
+      Stream1 = Stream#stream{synced = true, ts_buffer = [Packet | Buf]},
+      pes(Stream1);
+    {ts_packet, 1, Packet} ->
+      PES = list_to_binary(lists:reverse(Buf)),
+      % ?D({"Decode PES", Pid, Stream#stream.es_buffer, PES}),
+      Stream1 = pes_packet(Stream, PES),
+      Stream2 = Stream1#stream{ts_buffer = [Packet]},
+      pes(Stream2);
+    Other ->
+      ?D({"Undefined message to pid", Pid, Other})
+  end.
+    
+      
 
-pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = false, pid = Pid} = Stream, 1, Packet)->
-  ?D({"Synced PES", Pid}),
-  Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
-  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
 
-pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, ts_buffer = Buf, pid = Pid} = Stream, 0, Packet)->
-  Stream1 = Stream#stream{synced = true, ts_buffer = [Packet | Buf]},
-  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, Pids, Stream1)};
-
-pes(#ts_lander{pids = Pids} = TSLander, #stream{synced = true, ts_buffer = Buf, pid = Pid} = Stream, 1, Packet) ->
-  PES = list_to_binary(lists:reverse(Buf)),
-  % ?D({"Decode PES", Pid, Stream#stream.es_buffer, PES}),
-  {TSLander1, Stream1} = pes_packet(TSLander, Stream, PES),
-  Stream2 = Stream1#stream{synced = true, ts_buffer = [Packet]},
-  TSLander#ts_lander{pids = lists:keyreplace(Pid, #stream.pid, TSLander1#ts_lander.pids, Stream2)}.
-
-
-
-
-pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes, 
+pes_packet(#stream{counter = Counter, pid = Pid} = Pes, 
                                             <<1:24,
                                             2#110:3, _StreamId:5,
                                             % _StreamId:8,
@@ -282,13 +319,13 @@ pes_packet(TSLander, #stream{counter = Counter, pid = Pid} = Pes,
             case DTS > Counter of
                 true ->
                     % io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-                    {TSLander, Pes#stream{counter = Counter + 1, type = audio}};
+                    Pes#stream{counter = Counter + 1, type = audio};
                 false ->
                     io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
-                    {TSLander, Pes#stream{counter = Counter + 1, type = audio}}
+                    Pes#stream{counter = Counter + 1, type = audio}
             end;
 
-pes_packet(TSLander, #stream{es_buffer = Buffer, pid = Pid} = Stream, 
+pes_packet(#stream{es_buffer = Buffer, pid = Pid} = Stream, 
                                                   <<_:3/binary, 
                                                   2#1110:4, StreamId:4,
                                                   _:4/binary,
@@ -301,13 +338,13 @@ pes_packet(TSLander, #stream{es_buffer = Buffer, pid = Pid} = Stream,
   Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
   Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
   case Offset2 of
-      false -> {TSLander, Stream#stream{es_buffer = Data}};
+      false -> Stream#stream{es_buffer = Data};
       _ ->
           Length = Offset2-Offset1-1,
           <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
           decode_nal(NAL),
           % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
-          {TSLander, Stream#stream{es_buffer = Rest1}}
+          Stream#stream{es_buffer = Rest1}
   end.
 
 nal_unit_start_code_finder(Bin, Offset) when Offset + 3 =< size(Bin) ->
@@ -337,11 +374,13 @@ decode_nal(Bin) ->
                 144 -> "High 4:4:4";
                 _ -> "Uknkown "++integer_to_list(ProfileId)
             end,
-            io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
-            io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
-            io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]);
+            % io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
+            % io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
+            % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+            ok;
         8 ->
-            io:format("Picture parameter set [~p]~n", [size(Bin)]);
+            % io:format("Picture parameter set [~p]~n", [size(Bin)]);
+            ok;
         1 ->
             %io:format("Coded slice of a non-IDR picture :: "),
             slice_header(Rest, NalRefIdc);
@@ -349,7 +388,7 @@ decode_nal(Bin) ->
             %io:format("Coded slice data partition A     :: "),
             slice_header(Rest, NalRefIdc);
         5 ->
-            io:format("~nCoded slice of an IDR picture~n"),
+            % io:format("~nCoded slice of an IDR picture~n"),
             slice_header(Rest, NalRefIdc);
         9 ->
             <<PrimaryPicTypeId:3, _:5, _/binary>> = Rest,
