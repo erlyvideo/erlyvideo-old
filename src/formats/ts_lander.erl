@@ -11,7 +11,8 @@
   socket,
   url,
   buffer = <<>>,
-  pids
+  pids,
+  byte_counter = 0
 }).
 
 -record(stream_out, {
@@ -72,6 +73,7 @@ init([URL]) ->
   ok = inet:setopts(Socket, [{active, once}]),
   
   % timer:send_after(6*1000, {stop}),
+  timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
   
@@ -135,14 +137,19 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   {noreply, TSLander};
 
 
-handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>} = TSLander) ->
-  {noreply, synchronizer(Bin, TSLander)};
+handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
+  {noreply, synchronizer(Bin, TSLander#ts_lander{byte_counter = Counter + size(Bin)})};
 
-handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = Buf} = TSLander) ->
-  {noreply, synchronizer(<<Buf/binary, Bin/binary>>, TSLander)};
+handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = Buf, byte_counter = Counter} = TSLander) ->
+  {noreply, synchronizer(<<Buf/binary, Bin/binary>>, TSLander#ts_lander{byte_counter = Counter + size(Bin)})};
 
 handle_info({tcp_closed, Socket}, #ts_lander{socket = Socket} = TSLander) ->
   {stop, normal, TSLander#ts_lander{socket = undefined}};
+  
+handle_info({byte_count}, #ts_lander{byte_counter = Counter} = TSLander) ->
+  ?D({"Bytes read", Counter}),
+  timer:send_after(3000, {byte_count}),
+  {noreply, TSLander};
 
 handle_info({stop}, #ts_lander{socket = Socket} = TSLander) ->
   gen_tcp:close(Socket),
@@ -153,8 +160,9 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 
-synchronizer(<<16#47, _:187/binary, 16#47, _:187, 16#47, _/binary>> = Packet, TSLander) ->
-  {Lander, Rest} = demux(TSLander, Packet),
+synchronizer(<<16#47, _:187/binary, 16#47, _/binary>> = Bin, TSLander) ->
+  {Packet, Rest} = split_binary(Bin, 188),
+  Lander = demux(TSLander, Packet),
   synchronizer(Rest, Lander);
 
 synchronizer(<<_, Bin/binary>>, TSLander) when size(Bin) >= 374 ->
@@ -164,20 +172,16 @@ synchronizer(Bin, TSLander) ->
   TSLander#ts_lander{buffer = Bin}.
 
 
-demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _:184/binary, _/binary>> = Bin) ->
+demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
   case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler, counter = _OldCounter} = Stream ->
-      {Packet, Rest} = split_binary(Bin, 188),
       % Counter = (OldCounter + 1) rem 15,
-      {?MODULE:Handler(extract_ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, PayloadStart), Rest};
+      ?MODULE:Handler(extract_ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, PayloadStart);
     #stream_out{handler = Handler} ->
-      {Packet, Rest} = split_binary(Bin, 188),
       Handler ! {ts_packet, PayloadStart, extract_ts_payload(Packet)},
-      {TSLander, Rest};
+      TSLander;
     false ->
-      % io:format("Unknown pid ~p~n", [Pid]),
-      {_, Rest} = split_binary(Bin, 188),
-      {TSLander, Rest}
+      TSLander
   end.
   
       
@@ -410,7 +414,7 @@ slice_header(Bin) ->
     {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
     <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
     _SliceType = slice_type(SliceTypeId),
-    io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
+    % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
     ok.
 
 slice_type(0) -> 'P';
