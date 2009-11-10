@@ -200,12 +200,12 @@ extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2,
 
 pat(#ts_lander{pids = Pids} = TSLander, Stream, _, <<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>>) -> % PAT
   ProgramCount = round((Length - 5)/4) - 1,
-  % io:format("PAT: ~p programs~n~n", [ProgramCount]),
+  % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
   Descriptors = extract_pat(PAT, ProgramCount, []),
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
 
 
-extract_pat(<<_CRC32:4/binary>>, 0, Descriptors) ->
+extract_pat(_CRC32, 0, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
 extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
   % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
@@ -218,9 +218,11 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
                            <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
                              ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
                              _LastSectionNumber, _:3, PCRPID:13, _:4, ProgramInfoLength:12, 
-                             ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMT) ->
+                             ProgramInfo:ProgramInfoLength/binary, PMT/binary>>) ->
   SectionCount = round(SectionLength - 13),
   % io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
+  Descriptors = extract_pmt(PMT, []),
+  io:format("Streams: ~p~n", [Descriptors]),
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
@@ -230,15 +232,14 @@ pmt(#ts_lander{pids = Pids} = TSLander, Stream, _,
       Other ->
         Other
     end
-  end, extract_pmt(PMT, [])),
-  % io:format("Streams: ~p~n", [Descriptors1]),
+  end, Descriptors),
   % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
   TSLander#ts_lander{pids = Descriptors1}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, ES:ESLength/binary, Rest/binary>>, Descriptors) ->
   extract_pmt(Rest, [#stream{handler = pes, counter = 0, pid = Pid, type = StreamType}|Descriptors]);
   
-extract_pmt(<<_CRC32:4/binary>>, Descriptors) ->
+extract_pmt(_CRC32, Descriptors) ->
   % io:format("Unknown PMT: ~p~n", [PMT]),
   lists:keysort(#stream.pid, Descriptors).
 
@@ -277,7 +278,6 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
 pes_packet(#stream{counter = Counter, pid = Pid} = Pes, 
                                             <<1:24,
                                             2#110:3, _StreamId:5,
-                                            % _StreamId:8,
                                             _PesPacketLength:16,
                                             2:2,
                                             _PESScramblingControl:2,
@@ -317,8 +317,8 @@ pes_packet(#stream{counter = Counter, pid = Pid} = Pes,
             end;
 
 pes_packet(#stream{es_buffer = Buffer, pid = Pid} = Stream, 
-                                                  <<_:3/binary, 
-                                                  2#1110:4, StreamId:4,
+                                                  <<1:24, 
+                                                  StreamId,
                                                   _:4/binary,
                                                   PESHeaderLength:8,
                                                   PESHeader:PESHeaderLength/binary,
@@ -350,11 +350,11 @@ nal_unit_start_code_finder(_, _) -> false.
 
 
 decode_nal(<<0:1, NalRefIdc:2, 1:5, Rest/binary>>) ->
-  %io:format("Coded slice of a non-IDR picture :: "),
+  % io:format("Coded slice of a non-IDR picture :: "),
   slice_header(Rest, NalRefIdc);
 
 decode_nal(<<0:1, NalRefIdc:2, 2:5, Rest/binary>>) ->
-  %io:format("Coded slice data partition A     :: "),
+  % io:format("Coded slice data partition A     :: "),
   slice_header(Rest, NalRefIdc);
 
 decode_nal(<<0:1, NalRefIdc:2, 5:5, Rest/binary>>) ->
@@ -362,7 +362,7 @@ decode_nal(<<0:1, NalRefIdc:2, 5:5, Rest/binary>>) ->
   slice_header(Rest, NalRefIdc);
 
 decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>>) ->
-  % io:format("Picture parameter set [~p]~n", [size(Bin)]);
+  % io:format("Picture parameter set~n"),
   ok;
 
 decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>) ->
@@ -400,7 +400,7 @@ decode_nal(<<0:1, NalRefIdc:2, 7:5, ProfileId:8, _:3, 0:5, Level:8, AfterLevel/b
 
 
 decode_nal(<<0:1, _NalRefIdc:2, NalUnitType:5, _/binary>>) ->
-  io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
+  % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
   ok.
 
 slice_header(Bin, NalRefIdc) ->
