@@ -136,10 +136,10 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
 
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>} = TSLander) ->
-  {noreply, synchronizer(TSLander, Bin)};
+  {noreply, synchronizer(Bin, TSLander)};
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = Buf} = TSLander) ->
-  {noreply, synchronizer(TSLander, <<Buf/binary, Bin/binary>>)};
+  {noreply, synchronizer(<<Buf/binary, Bin/binary>>, TSLander)};
 
 handle_info({tcp_closed, Socket}, #ts_lander{socket = Socket} = TSLander) ->
   {stop, normal, TSLander#ts_lander{socket = undefined}};
@@ -153,44 +153,47 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 
-synchronizer(TSLander, <<16#47, Body:187/binary, 16#47, Rest/binary>>) ->
-  Lander = demux(TSLander, Body),
-  synchronizer(Lander, <<16#47, Rest/binary>>);
+synchronizer(<<16#47, _:187/binary, 16#47, _:187, 16#47, _/binary>> = Packet, TSLander) ->
+  {Lander, Rest} = demux(TSLander, Packet),
+  synchronizer(Rest, Lander);
 
-synchronizer(TSLander, <<_, Bin/binary>>) when size(Bin) >= 374 ->
-  synchronizer(TSLander, Bin);
+synchronizer(<<_, Bin/binary>>, TSLander) when size(Bin) >= 374 ->
+  synchronizer(Bin, TSLander);
 
-synchronizer(TSLander, Bin) ->
+synchronizer(Bin, TSLander) ->
   TSLander#ts_lander{buffer = Bin}.
 
 
-demux(#ts_lander{pids = Pids} = TSLander, <<_:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
+demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _:184/binary, _/binary>> = Bin) ->
   case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler, counter = _OldCounter} = Stream ->
+      {Packet, Rest} = split_binary(Bin, 188),
       % Counter = (OldCounter + 1) rem 15,
-      ?MODULE:Handler(extract_ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, PayloadStart);
+      {?MODULE:Handler(extract_ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, PayloadStart), Rest};
     #stream_out{handler = Handler} ->
+      {Packet, Rest} = split_binary(Bin, 188),
       Handler ! {ts_packet, PayloadStart, extract_ts_payload(Packet)},
-      TSLander;
+      {TSLander, Rest};
     false ->
       % io:format("Unknown pid ~p~n", [Pid]),
-      TSLander
+      {_, Rest} = split_binary(Bin, 188),
+      {TSLander, Rest}
   end.
   
       
 
-extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
+extract_ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
               0:1, 1:1, _Counter:4, Payload/binary>>)  ->
   Payload;
 
-extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, 
+extract_ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, 
               _Scrambling:2, 1:1, 1:1, _Counter:4, 
               AdaptationLength, _AdaptationField:AdaptationLength/binary, Payload/binary>>) ->
   % io:format("~p bytes of adapt field pid ~p~n", [AdaptationLength, _Pid]),
   % ?D({_Pid, Packet, Payload}),
   Payload;
 
-extract_ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
+extract_ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
               _Adaptation:1, 0:1, _Counter:4, _Payload/binary>>)  ->
   io:format("Empty payload on pid ~p~n", [_Pid]),
   <<>>.
@@ -205,7 +208,7 @@ pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>>, #ts_
   TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
 
 
-extract_pat(_CRC32, 0, Descriptors) ->
+extract_pat(<<_CRC32/binary>>, 0, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
 extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
   % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
@@ -407,7 +410,7 @@ slice_header(Bin) ->
     {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
     <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
     _SliceType = slice_type(SliceTypeId),
-    % io:format("~s~p:~p:~p:~p:~p ~n", [SliceType, FrameNum, PicParameterSetId, FieldPicFlag, BottomFieldFlag, NalRefIdc]),
+    io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
     ok.
 
 slice_type(0) -> 'P';
@@ -430,8 +433,8 @@ exp_golomb_read(Bin) ->
 
 count_zeros(Bin, Offset) ->
     case Bin of
-        <<_:Offset, 1:1, _/bitstring>> -> Offset;
-        <<_:Offset, 0:1, _/bitstring>> -> count_zeros(Bin, Offset+1)
+        <<1:1, _/bitstring>> -> Offset;
+        <<0:1, Rest/bitstring>> -> count_zeros(Rest, Offset+1)
     end.
 
 
