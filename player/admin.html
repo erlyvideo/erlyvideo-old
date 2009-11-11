@@ -1,0 +1,26 @@
+<html>
+  <head>
+    <title>Erlyvideo admin</title>
+    <link rel="stylesheet" href="blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="blueprint/print.css" type="text/css" media="print">
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+  </head>
+  <body>
+    <script type="text/javascript">
+    </script>
+    <div class="container">
+      <div class="span-24 last"><h3><a href="/">Front</a></h3></div>
+      
+      <div class="span-24 last">
+        <ul>
+          {% for file in files %}
+          <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>
+          {% endfor %}
+        </ul>
+        
+      </div>
+    </div>
+  </body>
+</html>

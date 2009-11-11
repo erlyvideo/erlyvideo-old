@@ -40,6 +40,16 @@ handle('GET', [], Req) ->
     {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
+
+handle('GET', ["admin"], Req) ->
+  erlydtl:compile("player/admin.html", admin_template),
+  % {ok, Contents} = file:read_file("player/player.html"),
+
+  FileList = [],
+  {ok, Index} = admin_template:render([
+  {files, FileList}]),
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
+
   
 handle('POST', ["open", ChunkNumber], Req) ->
   error_logger:info_msg("Request: open/~p.\n", [ChunkNumber]),
