@@ -72,7 +72,7 @@ init([URL]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  % timer:send_after(18*1000, {stop}),
+  timer:send_after(6*1000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -333,36 +333,44 @@ pes_packet(<<1:24,
               
   decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
+
+decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
+  find_nal_end(Stream, 3);
+  
 decode_avc(#stream{es_buffer = Data} = Stream) ->
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
   Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
-  % case Offset1 of
-  %   0 -> ok;
-  %   _ -> ?D({"Offset", Offset1, size(Data)})
-  % end,
+  find_nal_end(Stream, Offset1).
+  
+find_nal_end(Stream, false) ->  
+  Stream;
+  
+find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
   Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
-  case Offset2 of
-      false -> Stream#stream{es_buffer = Data};
-      _ ->
-          Length = Offset2-Offset1-1,
-          <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
-          decode_nal(NAL),
-          % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
-          decode_avc(Stream#stream{es_buffer = Rest1})
+  extract_nal(Stream, Offset1, Offset2).
+
+extract_nal(Stream, _, false) ->
+  Stream;
+  
+extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
+  Length = Offset2-Offset1,
+  <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
+  decode_nal(NAL),
+  % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
+  decode_avc(Stream#stream{es_buffer = Rest1}).
+
+
+
+nal_unit_start_code_finder(Bin, Offset) ->
+  case Bin of
+    <<_:Offset/binary, Rest/binary>> -> find_nal_start_code(Rest, Offset);
+    _ -> false
   end.
 
-
-nal_unit_start_code_finder(Bin, Offset) when Offset + 3 =< size(Bin) ->
-    case Bin of
-        <<_:Offset/binary, 16#000001:24, _/binary>> ->
-            Offset;
-        _ ->
-            nal_unit_start_code_finder(Bin, Offset + 1)
-    end;
-
-nal_unit_start_code_finder(_, _) -> false.
-
+find_nal_start_code(<<16#000001:24, _/binary>>, Offset) -> Offset;
+find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
+find_nal_start_code(<<>>, _) -> false.
 
 decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>) ->
   % io:format("Coded slice of a non-IDR picture :: "),
