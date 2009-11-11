@@ -72,7 +72,7 @@ init([URL]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  timer:send_after(6*1000, {stop}),
+  % timer:send_after(6*1000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -431,8 +431,8 @@ slice_header(Bin) ->
     {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
     {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
-    % <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
-    % _SliceType = slice_type(SliceTypeId),
+    <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
+    _SliceType = slice_type(SliceTypeId),
     % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
     ok.
 
