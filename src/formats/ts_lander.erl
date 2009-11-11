@@ -72,7 +72,7 @@ init([URL]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  % timer:send_after(6*1000, {stop}),
+  % timer:send_after(18*1000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -239,6 +239,9 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
         Other
     end
   end, Descriptors),
+  % AllPids = [self() | lists:map(fun(A) -> element(#stream_out.handler, A) end, Descriptors1)],
+  % eprof:start(),
+  % eprof:start_profiling(AllPids),
   % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
   TSLander#ts_lander{pids = Descriptors1}.
 
@@ -327,10 +330,17 @@ pes_packet(<<1:24,
             PESHeaderLength:8,
             _PESHeader:PESHeaderLength/binary,
             Rest/binary>>, #stream{es_buffer = Buffer} = Stream) ->
-  Data = <<Buffer/binary, Rest/binary>>,
+              
+  decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
+
+decode_avc(#stream{es_buffer = Data} = Stream) ->
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
   Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
+  % case Offset1 of
+  %   0 -> ok;
+  %   _ -> ?D({"Offset", Offset1, size(Data)})
+  % end,
   Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
   case Offset2 of
       false -> Stream#stream{es_buffer = Data};
@@ -339,8 +349,9 @@ pes_packet(<<1:24,
           <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
           decode_nal(NAL),
           % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
-          Stream#stream{es_buffer = Rest1}
+          decode_avc(Stream#stream{es_buffer = Rest1})
   end.
+
 
 nal_unit_start_code_finder(Bin, Offset) when Offset + 3 =< size(Bin) ->
     case Bin of
@@ -412,8 +423,8 @@ slice_header(Bin) ->
     {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
     {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
-    <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
-    _SliceType = slice_type(SliceTypeId),
+    % <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
+    % _SliceType = slice_type(SliceTypeId),
     % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
     ok.
 
