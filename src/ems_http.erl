@@ -40,10 +40,6 @@ handle('GET', [], Req) ->
     {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
-handle('GET', ["player.swf"], Req) ->
-  io:format("GET /Player.swf~n"),
-  Req:file("player/Player.swf"),
-  Req:stream(close);
   
 handle('POST', ["open", ChunkNumber], Req) ->
   error_logger:info_msg("Request: open/~p.\n", [ChunkNumber]),
@@ -104,6 +100,17 @@ handle('GET', ["stream", Name], Req) ->
     Reason -> 
       Req:respond(500, [{"Content-Type", "text/plain"}], "500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])
   end;
+  
+handle('GET', Path, Req) ->
+  FileName = filename:absname(filename:join(["player" | Path])),
+  ?D({"GET", FileName, file:read_file_info(FileName)}),
+  case filelib:is_regular(FileName) of
+    true ->
+      Req:file(FileName);
+    false ->
+      Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req])
+  end;
+
   
 % handle the 404 page not found
 handle(_, Path, Req) ->
