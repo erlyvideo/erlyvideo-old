@@ -1,35 +1,36 @@
 <html>
-  <head><title>Erlyvideo: {{url}}</title></head>
+  <head>
+    <title>Erlyvideo: {{url}}</title>
+    <link rel="stylesheet" href="blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="blueprint/print.css" type="text/css" media="print">
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+  </head>
   <body>
     <script type="text/javascript">
     </script>
-    <table>
-      <tr>
-      <td>
+    <div class="container">
+      <div class="span-14">
         <object width="522" height="470" type="application/x-shockwave-flash" id="flash-program-player" name="flash-program-player" data="Player.swf">
           <param name="allowScriptAccess" value="always"/>
           <param name="allowFullScreen" value="true"/>
           <param name="wmode" value="transparent"/>
           <param name="flashvars" value="server={{hostname}}&file={{url}}&session={{session}}"/>
         </object>
-        
-      </td>
-      
-      <td>
+        <div class="span-14 last">
+          <a href="?file={{live_id}}">New live broadcast</a>
+        </div>
+          
+      </div>
+      <div class="span-10 last">
         <ul>
           {% for file in files %}
           <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>
           {% endfor %}
         </ul>
-      </td>
-
-
-      <td>
-      </td>
-      </tr>
-    <tr>
-      <td colspan="2"><a href="?file={{live_id}}">New live broadcast</a></td>
-    </tr>
-    </table>
+        
+      </div>
+    </div>
   </body>
 </html>
