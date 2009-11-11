@@ -26,7 +26,12 @@ handle('GET', [], Req) ->
     {"file", _File} -> _File;
     false -> "video.mp4"
   end,
-  {ok, FileList} = file:list_dir(file_play:file_dir()),
+  case file:list_dir(file_play:file_dir()) of
+    {ok, FileList} -> ok;
+    {error, Error} -> 
+      FileList = [],
+      error_logger:error_msg("Invalid HTTP root directory: ~p (~p)~n", [file_play:file_dir(), Error])
+  end,
   {ok, Index} = index_template:render([
     {files, FileList},
     {hostname, ems:get_var(host, "rtmp://localhost")},
