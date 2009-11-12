@@ -36,8 +36,9 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
+-include("../include/amf.hrl").
 
--compile(export_all).
+-export([encode/1, decode/1]).
 
 
 encode(#amf{command = Command, args = Args, id = Id, type = invoke}) -> 
