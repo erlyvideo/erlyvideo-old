@@ -199,17 +199,6 @@
 -record(ems_cluster, {
 	}).
 	
--record(ems_client, {
-    id,
-    user_id,
-    pid
-    }).
-
--record(ems_stream, {
-    id, 
-    type = wait,
-    pids = []
-    }).
 
 -record(ems_server, {
 	listener, % Listening socket
