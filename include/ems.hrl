@@ -254,8 +254,7 @@
 
 -record(ems_server, {
 	listener, % Listening socket
-	acceptor, % Asynchronous acceptor's internal reference
-	module    % FSM handling module
+	acceptor  % Asynchronous acceptor's internal reference
 	}).
 
 -record(ems_fsm, {

@@ -39,7 +39,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, clients/0]).
+-export([start_link/1, clients/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -57,13 +57,13 @@ clients() ->
   lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(ems_client_sup)).
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer(), Module) -> {ok, Pid} | {error, Reason}
+%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
 %%
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link(Port, Module) when is_integer(Port), is_atom(Module) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port, Module], []).
+start_link(Port) when is_integer(Port) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -79,7 +79,7 @@ start_link(Port, Module) when is_integer(Port), is_atom(Module) ->
 %%      Create listening socket.
 %% @end
 %%----------------------------------------------------------------------
-init([Port, Module]) ->
+init([Port]) ->
     process_flag(trap_exit, true),
     Opts = [binary, {packet, raw}, {reuseaddr, true},
             {keepalive, true}, {backlog, 30}, {active, false}],
@@ -88,8 +88,7 @@ init([Port, Module]) ->
             %%Create first accepting process
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
             {ok, #ems_server{listener = Listen_socket,
-                             acceptor = Ref,
-                             module   = Module}};
+                             acceptor = Ref}};
         {error, Reason} ->
             {stop, Reason}
     end.
@@ -139,7 +138,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
-            #ems_server{listener=ListSock, acceptor=Ref, module=Module} = State) ->
+            #ems_server{listener=ListSock, acceptor=Ref} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
@@ -147,7 +146,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         {ok, Pid} = ems_sup:start_client(),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
-        Module:set_socket(Pid, CliSocket),
+        ems_client:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
         {noreply, State#ems_server{acceptor=NewRef}};
