@@ -41,12 +41,12 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, StreamId}, #ems_fsm{client_buffer = ClientBuffer} = State) ->
+'WAIT_FOR_DATA'({play, Name, StreamId}, #ems_client{client_buffer = ClientBuffer} = State) ->
   case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
     {ok, PlayerPid} ->
       ?D({"Player starting", PlayerPid}),
       gen_fsm:send_event(PlayerPid, {start}),
-      {next_state, 'WAIT_FOR_DATA', State#ems_fsm{video_player = PlayerPid}, ?TIMEOUT};
+      {next_state, 'WAIT_FOR_DATA', State#ems_client{video_player = PlayerPid}, ?TIMEOUT};
     {notfound} ->
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -55,7 +55,7 @@
       {error, Reason}
   end;
 
-'WAIT_FOR_DATA'({stop}, #ems_fsm{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
+'WAIT_FOR_DATA'({stop}, #ems_client{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
   ?D({"Stopping video player", PlayerPid}),
   gen_fsm:send_event(PlayerPid, {stop}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -108,11 +108,11 @@ createStream(AMF, State) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-deleteStream(_AMF, #ems_fsm{video_player = undefined} = State) ->
+deleteStream(_AMF, #ems_client{video_player = undefined} = State) ->
   ?D("player is stopped when deleteStream called"),
   State;
   
-deleteStream(_AMF, #ems_fsm{video_player = Player} = State) when is_pid(Player) ->
+deleteStream(_AMF, #ems_client{video_player = Player} = State) when is_pid(Player) ->
   gen_fsm:send_event(Player, {stop}),
   ?D("invoke - deleteStream"),
   State.
@@ -126,7 +126,7 @@ deleteStream(_AMF, #ems_fsm{video_player = Player} = State) when is_pid(Player) 
 
 play(#amf{args = [_Null, {boolean, false} | _]} = AMF, State) -> stop(AMF, State);
 
-play(AMF, #ems_fsm{video_player = Player} = State) ->
+play(AMF, #ems_client{video_player = Player} = State) ->
   StreamId = 1,
   Channel = #channel{id = 5, timestamp = 0, stream = StreamId},
   [_Null,{string,Name}] = AMF#amf.args,
@@ -148,7 +148,7 @@ play(AMF, #ems_fsm{video_player = Player} = State) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(AMF, #ems_fsm{video_player = Player} = State) -> 
+pause(AMF, #ems_client{video_player = Player} = State) -> 
     ?D({"invoke - pause", AMF}),
     [_, {boolean, Pausing}, {number, _Timestamp}] = AMF#amf.args,
     
@@ -172,7 +172,7 @@ pauseRaw(AMF, State) -> pause(AMF, State).
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(AMF, #ems_fsm{video_player = Player} = State) -> 
+seek(AMF, #ems_client{video_player = Player} = State) -> 
   ?D({"invoke - seek", AMF#amf.args}),
   [_, {number, Timestamp}] = AMF#amf.args,
   StreamId = 1,

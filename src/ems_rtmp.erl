@@ -90,48 +90,48 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
   chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
-decode(#ems_fsm{buff = <<>>} = State) -> State;
-decode(#ems_fsm{} = State) -> decode_channel_id(State).
+decode(#ems_client{buff = <<>>} = State) -> State;
+decode(#ems_client{} = State) -> decode_channel_id(State).
 
 % First extracting channel id
-decode_channel_id(#ems_fsm{buff = <<>>} = State) ->
+decode_channel_id(#ems_client{buff = <<>>} = State) ->
   State;
-decode_channel_id(#ems_fsm{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
+decode_channel_id(#ems_client{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
   decode_channel_header(Rest, Format, Id + 64, State);
-decode_channel_id(#ems_fsm{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
+decode_channel_id(#ems_client{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
   decode_channel_header(Rest, Format, Id + 64, State);
-decode_channel_id(#ems_fsm{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
+decode_channel_id(#ems_client{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
   decode_channel_header(Rest, Format, Id, State).
 
 % Now extracting channel header
 decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_client.channels),
   decode_channel(Channel, Rest, State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_client.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff}, Rest, State);
 decode_channel_header(<<TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_client.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp}, Rest, State);
   
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_client.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff,length=Length,type=Type},Rest,State);
 	
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_fsm.channels),
+  {value, Channel} = lists:keysearch(Id, #channel.id, State#ems_client.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp,length=Length,type=Type},Rest,State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case lists:keysearch(Id, #channel.id, State#ems_fsm.channels) of
+  case lists:keysearch(Id, #channel.id, State#ems_client.channels) of
     {value, Channel} -> ok;
     _ -> Channel = #channel{}
   end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,length=Length,type=Type,stream=StreamId},Rest,State);
 	
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case lists:keysearch(Id, #channel.id, State#ems_fsm.channels) of
+  case lists:keysearch(Id, #channel.id, State#ems_client.channels) of
     {value, Channel} -> ok;
     _ -> Channel = #channel{}
   end,
@@ -141,7 +141,7 @@ decode_channel_header(_Rest,_Type, _Id,  State) -> % Still small buffer
   State.
 
 % Now trying to fill channel with required data
-bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_fsm{client_chunk_size = ChunkSize}) ->
+bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_client{client_chunk_size = ChunkSize}) ->
   RemainingBytes = Length - size(Msg),
   if
     RemainingBytes < ChunkSize -> RemainingBytes;
@@ -151,7 +151,7 @@ bytes_for_channel(#channel{length = Length, msg = Msg}, #ems_fsm{client_chunk_si
 
 decode_channel(Channel, Data, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
-  % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#ems_fsm.channels)}),
+  % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#ems_client.channels)}),
 	push_channel_packet(Channel, Data, State, BytesRequired).
 	
 	
@@ -163,24 +163,24 @@ push_channel_packet(#channel{} = _Channel, Data, State, BytesRequired) when size
 % And decode channel when bytes required are in buffer
 push_channel_packet(#channel{msg = Msg} = Channel, Data, State, BytesRequired) -> 
   <<Chunk:BytesRequired/binary, Rest/binary>> = Data,
-  decode_channel_packet(Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State#ems_fsm{buff = Rest}).
+  decode_channel_packet(Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State#ems_client{buff = Rest}).
 
 % When chunked packet hasn't arived, just accumulate it
-decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{channels = Channels} = State) when size(Msg) < Length ->
+decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_client{channels = Channels} = State) when size(Msg) < Length ->
   NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel),
-  decode(State#ems_fsm{channels=NextChannelList});
+  decode(State#ems_client{channels=NextChannelList});
 
 % Work with packet when it has accumulated and flush buffers
-decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_fsm{channels = Channels} = State) when size(Msg) == Length ->
+decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #ems_client{channels = Channels} = State) when size(Msg) == Length ->
   NewState = command(Channel, State), % Perform Commands here
   NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel#channel{msg = <<>>}),
-  decode(NewState#ems_fsm{channels=NextChannelList}).
+  decode(NewState#ems_client{channels=NextChannelList}).
 
-command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #ems_fsm{previous_ack = Prev} = State) ->
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #ems_client{previous_ack = Prev} = State) ->
   Time = timer:now_diff(erlang:now(), Prev)/1000,
   Speed = round(_Length*1000 / Time),
   % ?D({"Stream bytes read: ", _Length, round(Time/1000), round(Speed)}),
-	State#ems_fsm{previous_ack = erlang:now(), current_speed = Speed};
+	State#ems_client{previous_ack = erlang:now(), current_speed = Speed};
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
   ?D({"Window acknolegement size", WindowSize}),
@@ -188,7 +188,7 @@ command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-in
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
   % ?D({"Change Chunk Size",Channel,ChunkSize}),
-	State#ems_fsm{client_chunk_size = ChunkSize};
+	State#ems_client{client_chunk_size = ChunkSize};
 
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
@@ -196,13 +196,13 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 	State;	
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, 
-        #ems_fsm{video_player = Player} = State) ->
+        #ems_client{video_player = Player} = State) ->
   ?D({"Buffer size on stream id", BufferSize, _StreamId}),
   case Player of
     undefined -> ok;
     _ -> gen_fsm:send_event(Player, {client_buffer, BufferSize})
   end,
-	State#ems_fsm{client_buffer = BufferSize};	
+	State#ems_client{client_buffer = BufferSize};	
 
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/binary>>} = _Channel, State) ->

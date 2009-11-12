@@ -205,7 +205,7 @@
 	acceptor  % Asynchronous acceptor's internal reference
 	}).
 
--record(ems_fsm, {
+-record(ems_client, {
 	socket,    % client socket
 	addr,      % client address
 	port,

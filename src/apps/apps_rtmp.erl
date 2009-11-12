@@ -51,7 +51,7 @@ obj_to_integer({string, String}) ->
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(AMF, #ems_fsm{window_size = WindowAckSize} = State) ->
+connect(AMF, #ems_client{window_size = WindowAckSize} = State) ->
     ?D({"invoke - connect", AMF}),
     
     Channel = #channel{id = 2, timestamp = 0, stream = 0, msg = <<>>},
@@ -64,12 +64,12 @@ connect(AMF, #ems_fsm{window_size = WindowAckSize} = State) ->
 			  Session = rtmp_session:decode(Cookie),
         ?D({"Session:", Session}),
         
-				State#ems_fsm{player_info = PlayerInfo, user_id = UserId};
+				State#ems_client{player_info = PlayerInfo, user_id = UserId};
 	    [{object, PlayerInfo} | _] ->
-				State#ems_fsm{player_info = PlayerInfo, user_id = undefined}
+				State#ems_client{player_info = PlayerInfo, user_id = undefined}
 		end,
 		
-		NewState = NewState1#ems_fsm{previous_ack = erlang:now()},
+		NewState = NewState1#ems_client{previous_ack = erlang:now()},
     
     case lists:keyfind(objectEncoding, 1, PlayerInfo) of
       {objectEncoding, 0} -> ok;
