@@ -165,7 +165,7 @@ private function connect() : void
 	_connection = new NetConnection();
 	_connection.addEventListener(NetStatusEvent.NET_STATUS, onConnectionStatus);
 	_connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
-	_connection.objectEncoding = ObjectEncoding.AMF0;
+/*	_connection.objectEncoding = ObjectEncoding.AMF0;*/
 	_connection.connect(Application.application.parameters.server+"/", Application.application.parameters.session, 142);
   
 }
