@@ -1,7 +1,6 @@
 % luke: "is it possilbe to use lowercase names? 
 % uppercase breaks the syntax highlighting in textmate"
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
--define(MARK, io:format("MARK: ~p:~p ~p~n",[?MODULE, ?LINE])).
+-include("debug.hrl").
 -define(APPLICATION, erlmedia).
 
 -define(MAX_RESTART,      5).
@@ -53,12 +52,12 @@
 %-define(RTMP_TYPE_UNKNOWN,      12).
 %-define(RTMP_TYPE_UNKNOWN,      13).
 % -define(RTMP_TYPE_UNKNOWN,      14).
--define(RTMP_FLEX_STREAM_SEND,   15).
--define(RTMP_FLEX_SHARED_OBJECT, 16).
--define(RTMP_INVOKE_AMF3,        17).
--define(RTMP_TYPE_METADATA,      18).
--define(RTMP_TYPE_SHARED_OBJECT, 19).
--define(RTMP_INVOKE_AMF0,        20).
+-define(RTMP_TYPE_METADATA_AMF3,  15).
+-define(RTMP_TYPE_SO_AMF3,        16).
+-define(RTMP_INVOKE_AMF3,         17).
+-define(RTMP_TYPE_METADATA_AMF0,  18).
+-define(RTMP_TYPE_SO_AMF0,        19).
+-define(RTMP_INVOKE_AMF0,         20).
 
 -define(RTMP_CONTROL_STREAM_BEGIN,    0).
 -define(RTMP_CONTROL_STREAM_EOF,      1).
@@ -92,46 +91,6 @@
 -define(PING_PING_CLIENT, 6).
 -define(PING_PONG_SERVER, 7).
 %% Unknown: 8
-
-%% AMF0 data 
--define(AMF_NUMBER,        0).
--define(AMF_BOOLEAN,       1).
--define(AMF_STRING,        2).
--define(AMF_OBJECT,        3).
--define(AMF_MOVIECLIP,     4).
--define(AMF_NULL,          5).
--define(AMF_UNDEFINED,     6).
--define(AMF_REFERENCE,     7).
--define(AMF_MIXED_ARRAY,   8).
--define(AMF_END_OF_OBJECT, 9).
--define(AMF_ARRAY,        10).
--define(AMF_DATE,         11).
--define(AMF_LONG_STRING,  12).
--define(AMF_UNSUPPORTED,  13).
--define(AMF_RECORD_SET,   14).
--define(AMF_XML,          15).
--define(AMF_TYPED_OBJECT, 16).
--define(AMF_AMF3,         17).
-
-%% AMF3 data 
--define(AMF3_NULL,         1).
--define(AMF3_BOOLEAN_FALSE,2).
--define(AMF3_BOOLEAN_TRUE, 3).
--define(AMF3_INTEGER,      4).
--define(AMF3_NUMBER,       5).
--define(AMF3_STRING,       6).
--define(AMF3_XML_UNKNOWN,  7). 
--define(AMF3_DATE,         8).
--define(AMF3_ARRAY,        9).
--define(AMF3_OBJECT,      10).
--define(AMF3_XML,         11).
--define(AMF3_BYTE_ARRAY,  12).
-
-%% AMF object 
--define(AMF3_OBJECT_PROPERTY, 0).
--define(AMF3_OBJECT_EXTERNALIZABLE, 1).
--define(AMF3_OBJECT_VALUE, 2).
--define(AMF3_OBJECT_PROXY, 3).
 
 % AMF commands
 -define(AMF_COMMAND_ONMETADATA, "onMetaData").
@@ -240,28 +199,17 @@
 -record(ems_cluster, {
 	}).
 	
--record(ems_client, {
-    id,
-    user_id,
-    pid
-    }).
-
--record(ems_stream, {
-    id, 
-    type = wait,
-    pids = []
-    }).
 
 -record(ems_server, {
 	listener, % Listening socket
-	acceptor, % Asynchronous acceptor's internal reference
-	module    % FSM handling module
+	acceptor  % Asynchronous acceptor's internal reference
 	}).
 
--record(ems_fsm, {
+-record(ems_client, {
 	socket,    % client socket
 	addr,      % client address
 	port,
+	amf_version = 0,
 	channels    = [],
 	user_id     = undefined,
 	player_info = [],
@@ -345,6 +293,7 @@
 	
 
 -record(amf,{
+  version = 0,
 	command = [],
 	id      = [],
 	args    = [],

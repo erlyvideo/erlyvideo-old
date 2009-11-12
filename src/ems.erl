@@ -187,7 +187,7 @@ check_app([Module | Applications], Command, Arity) ->
   end;
 
 
-check_app(#ems_fsm{} = _State, Command, Arity) ->
+check_app(#ems_client{} = _State, Command, Arity) ->
   Applications = ems:get_var(applications, ['apps_rtmp']),
   check_app(Applications, Command, Arity).
 

@@ -86,13 +86,13 @@ start_ts_lander(URL) -> supervisor:start_child(ts_lander_sup, [URL]).
 %% @end 
 %%--------------------------------------------------------------------
 -spec init([]) -> any().
-init([ems_fsm]) ->
+init([ems_client]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % TCP Client
               {   undefined,                               % Id       = internal id
-                  {ems_fsm,start_link,[]},                  % StartFun = {M, F, A}
+                  {ems_client,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -137,7 +137,7 @@ init([Port]) when is_integer(Port) ->
         {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [ % EMS Listener
               {   ems_sup,                                 % Id       = internal id
-                  {ems_server,start_link,[Port,ems_fsm]},   % StartFun = {M, F, A}
+                  {ems_server,start_link,[Port]},          % StartFun = {M, F, A}
                   permanent,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -160,7 +160,7 @@ init([Port]) when is_integer(Port) ->
               },
               % EMS instance supervisor
               {   ems_client_sup,
-                  {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [ems_fsm]]},
+                  {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [ems_client]]},
                   permanent,                               % Restart  = permanent | transient | temporary
                   infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
                   supervisor,                              % Type     = worker | supervisor

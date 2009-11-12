@@ -1,0 +1,32 @@
+<html><head>
+
+<script type="text/javascript" src="/js/swfobject.js"></script>
+<script type="text/javascript" src="/js/jquery.js"></script>
+<script type="text/javascript" src="/js/jsSO.js"></script>
+
+<script type="text/javascript">
+
+$(':button').live('click', function(){
+	var rand = Math.random();
+	$('pre').append('send: '+rand+'\n');
+	jsSO.set('someVar', rand);
+});
+
+jsSO.onSync(function(event, updates, data) {
+	if (updates.someVar) {
+		$('pre').append('receive: '+data.someVar+'\n');
+	}
+});
+
+jsSO.connect('rtmp://localhost/SOSample', 'chat');
+
+</script>
+
+</head>
+<body>
+<form>
+	<input type="button" value="test" />
+	<pre></pre>
+</form>
+</body>
+</html>

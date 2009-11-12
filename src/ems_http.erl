@@ -113,9 +113,9 @@ handle('GET', ["stream", Name], Req) ->
   
 handle('GET', Path, Req) ->
   FileName = filename:absname(filename:join(["player" | Path])),
-  ?D({"GET", FileName, file:read_file_info(FileName)}),
   case filelib:is_regular(FileName) of
     true ->
+      ?D({"GET", FileName}),
       Req:file(FileName);
     false ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req])

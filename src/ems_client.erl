@@ -31,7 +31,7 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_fsm).
+-module(ems_client).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
@@ -83,7 +83,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 init([]) ->
     process_flag(trap_exit, true),
     random:seed(now()),
-    {ok, 'WAIT_FOR_SOCKET', #ems_fsm{}}.
+    {ok, 'WAIT_FOR_SOCKET', #ems_client{}}.
 
 
 
@@ -95,14 +95,14 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, _From, State) when is_pid(Socket) ->
-    {reply, ok, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket}, ?TIMEOUT}.
+    {reply, ok, 'WAIT_FOR_HANDSHAKE', State#ems_client{socket=Socket}, ?TIMEOUT}.
 
 
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
     % Now we own the socket
     inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
     {ok, {IP, Port}} = inet:peername(Socket),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
+    {next_state, 'WAIT_FOR_HANDSHAKE', State#ems_client{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
 
     
 'WAIT_FOR_SOCKET'(Other, State) ->
@@ -111,16 +111,16 @@ init([]) ->
     {next_state, 'WAIT_FOR_SOCKET', State}.
 
 %% Notification event coming from client
-'WAIT_FOR_HANDSHAKE'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN + 1 -> 
+'WAIT_FOR_HANDSHAKE'({data, Data}, #ems_client{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN + 1 -> 
 	Data2 = <<Buff/binary,Data/binary>>,
-	{next_state, 'WAIT_FOR_HANDSHAKE', State#ems_fsm{buff=Data2}, ?TIMEOUT};
+	{next_state, 'WAIT_FOR_HANDSHAKE', State#ems_client{buff=Data2}, ?TIMEOUT};
 
-'WAIT_FOR_HANDSHAKE'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
+'WAIT_FOR_HANDSHAKE'({data, Data}, #ems_client{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
 	case <<Buff/binary,Data/binary>> of
 		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
 			Reply = ems_rtmp:handshake(HandShake),
 			send_data(State, [?HS_HEADER, Reply]),
-			{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = Rest}, ?TIMEOUT};
+			{next_state, 'WAIT_FOR_HS_ACK', State#ems_client{buff = Rest}, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
 
@@ -134,13 +134,13 @@ init([]) ->
 
 
 %% Notification event coming from client
-'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
-	{next_state, 'WAIT_FOR_HS_ACK', State#ems_fsm{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
+'WAIT_FOR_HS_ACK'({data, Data}, #ems_client{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
+	{next_state, 'WAIT_FOR_HS_ACK', State#ems_client{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
 
-'WAIT_FOR_HS_ACK'({data, Data}, #ems_fsm{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
+'WAIT_FOR_HS_ACK'({data, Data}, #ems_client{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
 	case <<Buff/binary,Data/binary>> of
 		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
-			NewState = ems_rtmp:decode(State#ems_fsm{buff = Rest}),
+			NewState = ems_rtmp:decode(State#ems_client{buff = Rest}),
 			{next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
@@ -151,16 +151,16 @@ init([]) ->
 
 
 %% Notification event coming from client
-'WAIT_FOR_DATA'({data, Data}, #ems_fsm{buff = Buff} = State) ->
-  {next_state, 'WAIT_FOR_DATA', ems_rtmp:decode(State#ems_fsm{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
+'WAIT_FOR_DATA'({data, Data}, #ems_client{buff = Buff} = State) ->
+  {next_state, 'WAIT_FOR_DATA', ems_rtmp:decode(State#ems_client{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_fsm{server_chunk_size = OldChunkSize} = State) ->
+'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #ems_client{server_chunk_size = OldChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
   ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
 	send_data(State, Packet),
-  {next_state, 'WAIT_FOR_DATA', State#ems_fsm{server_chunk_size = ChunkSize}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State#ems_client{server_chunk_size = ChunkSize}, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #ems_fsm{server_chunk_size = ChunkSize} = State) ->
+'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #ems_client{server_chunk_size = ChunkSize} = State) ->
 	Packet = ems_rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
@@ -192,7 +192,7 @@ init([]) ->
     Reply -> Reply
   end.
 
-'WAIT_FOR_DATA'({info}, _From, #ems_fsm{addr = Address, port = Port} = State) ->
+'WAIT_FOR_DATA'({info}, _From, #ems_client{addr = Address, port = Port} = State) ->
   {reply, [{ip, Address, Port}], 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
@@ -226,10 +226,10 @@ handle_sync_event(Event, _From, StateName, StateData) ->
    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
-send_data(#ems_fsm{socket = Socket}, Data) when is_port(Socket) ->
+send_data(#ems_client{socket = Socket}, Data) when is_port(Socket) ->
   gen_tcp:send(Socket, Data);
 
-send_data(#ems_fsm{socket = Socket}, Data) when is_pid(Socket) ->
+send_data(#ems_client{socket = Socket}, Data) when is_pid(Socket) ->
   gen_fsm:send_event(Socket, {server_data, Data}).
 
 %%-------------------------------------------------------------------------
@@ -239,7 +239,7 @@ send_data(#ems_fsm{socket = Socket}, Data) when is_pid(Socket) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({tcp, Socket, Bin}, StateName, #ems_fsm{socket=Socket} = State) ->
+handle_info({tcp, Socket, Bin}, StateName, #ems_client{socket=Socket} = State) ->
     % Flow control: enable forwarding of next TCP message
 %	?D({"TCP",size(Bin)}),
 %	file:write_file("/sfe/temp/packet.txt",Bin),
@@ -247,11 +247,11 @@ handle_info({tcp, Socket, Bin}, StateName, #ems_fsm{socket=Socket} = State) ->
   ?MODULE:StateName({data, Bin}, State);
 
 handle_info({tcp_closed, Socket}, _StateName,
-            #ems_fsm{socket=Socket, addr=Addr, port = Port} = StateData) ->
+            #ems_client{socket=Socket, addr=Addr, port = Port} = StateData) ->
     error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
     {stop, normal, StateData};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_fsm{video_player = PlayerPid}= StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #ems_client{video_player = PlayerPid}= StateData) ->
   ?D({"Player died", PlayerPid, _Reason}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
   {next_state, StateName, StateData, ?TIMEOUT};
@@ -279,7 +279,7 @@ handle_info(_Info, StateName, StateData) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) ->
+terminate(_Reason, _StateName, #ems_client{socket=Socket, video_player = Player}) ->
   ?D({"FSM stopping", _StateName, _Reason}),
   (catch gen_fsm:send_event(Player, {exit})),
   (catch gen_tcp:close(Socket)),
@@ -292,7 +292,7 @@ terminate(_Reason, _StateName, #ems_fsm{socket=Socket, video_player = Player}) -
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(_OldVsn, StateName, #ems_fsm{video_player = PlayerPid} = StateData, _Extra) ->
+code_change(_OldVsn, StateName, #ems_client{video_player = PlayerPid} = StateData, _Extra) ->
   erlang:exit(PlayerPid, code_change),
   {ok, StateName, StateData}.
 
