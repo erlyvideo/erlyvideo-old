@@ -118,8 +118,12 @@ connect(AMF, #ems_client{window_size = WindowAckSize} = State) ->
 'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, State) ->
+'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, #ems_client{amf_version = 0} = State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, #ems_client{amf_version = 3} = State) ->
+  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF3, stream = Stream}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) -> 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, 0}, State);

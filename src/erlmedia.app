@@ -4,6 +4,8 @@
   {vsn, "0.0.6"},
   {id, "erlmedia"},
   {modules,      [
+		  amf0,
+		  amf3,
 			apps_push,
 			apps_recording,
 			apps_rtmp,
@@ -12,7 +14,6 @@
 			sha2,
 			uuid,
  			ems,
-			ems_amf,
 			ems_app,
 			ems_encoding,
 			ems_flv,

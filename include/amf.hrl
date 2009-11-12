@@ -19,11 +19,12 @@
 -define(AMF_AMF3,         17).
 
 %% AMF3 data 
+-define(AMF3_UNDEF,        0).
 -define(AMF3_NULL,         1).
--define(AMF3_BOOLEAN_FALSE,2).
--define(AMF3_BOOLEAN_TRUE, 3).
+-define(AMF3_FALSE,        2).
+-define(AMF3_TRUE,         3).
 -define(AMF3_INTEGER,      4).
--define(AMF3_NUMBER,       5).
+-define(AMF3_DOUBLE,       5).
 -define(AMF3_STRING,       6).
 -define(AMF3_XML_UNKNOWN,  7). 
 -define(AMF3_DATE,         8).

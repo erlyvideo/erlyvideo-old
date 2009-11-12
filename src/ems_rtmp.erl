@@ -46,8 +46,11 @@ handshake(C1) when is_binary(C1) ->
 encode(#channel{msg = Msg} = Channel) ->
     encode(Channel,Msg,<<>>).
 
-encode(#channel{} = Channel, #amf{} = AMF) -> 
+encode(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, #amf{} = AMF) -> 
 	encode(Channel,amf0:encode(AMF));
+
+encode(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, #amf{} = AMF) -> 
+	encode(Channel,amf3:encode(AMF));
 
 encode(#channel{} = Channel, Data) when is_binary(Data) -> 
 	encode(Channel,Data,<<>>).
@@ -218,6 +221,12 @@ command(#channel{type = Type} = Channel, State)
 
 command(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, State) ->
 	AMF = amf0:decode(Channel#channel.msg),
+	#amf{command = Command} = AMF,
+	App = ems:check_app(State,Command, 2),
+	App:Command(AMF, State);
+
+command(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, State) ->
+	AMF = amf3:decode(Channel#channel.msg),
 	#amf{command = Command} = AMF,
 	App = ems:check_app(State,Command, 2),
 	App:Command(AMF, State);
