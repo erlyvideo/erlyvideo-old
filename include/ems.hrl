@@ -209,6 +209,7 @@
 	socket,    % client socket
 	addr,      % client address
 	port,
+	amf_version = 0,
 	channels    = [],
 	user_id     = undefined,
 	player_info = [],
@@ -292,6 +293,7 @@
 	
 
 -record(amf,{
+  version = 0,
 	command = [],
 	id      = [],
 	args    = [],

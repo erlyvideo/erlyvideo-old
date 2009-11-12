@@ -69,19 +69,22 @@ connect(AMF, #ems_client{window_size = WindowAckSize} = State) ->
 				State#ems_client{player_info = PlayerInfo, user_id = undefined}
 		end,
 		
-		NewState = NewState1#ems_client{previous_ack = erlang:now()},
+		NewState2 = NewState1#ems_client{previous_ack = erlang:now()},
     
-    case lists:keyfind(objectEncoding, 1, PlayerInfo) of
-      {objectEncoding, 0} -> ok;
+    NewState3 = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
+      {objectEncoding, 0} -> NewState2#ems_client{amf_version = 0};
+      {objectEncoding, 3} -> NewState2#ems_client{amf_version = 3};
       {objectEncoding, _N} -> 
-        error_logger:error_msg("Warning! Cannot work with clients, using AMF3 encoding.
-        Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code"),
+        error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
+        Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
         throw(invalid_amf3_encoding);
       _ ->
         error_logger:error_msg("Warning! Client hasnt provided any encoding.
         Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code"),
         throw(invalid_amf_encoding)
     end,
+    
+    NewState = NewState3,
     
     NewAMF = AMF#amf{
         command = '_result', 

@@ -47,7 +47,7 @@ encode(#channel{msg = Msg} = Channel) ->
     encode(Channel,Msg,<<>>).
 
 encode(#channel{} = Channel, #amf{} = AMF) -> 
-	encode(Channel,ems_amf:encode(AMF));
+	encode(Channel,amf0:encode(AMF));
 
 encode(#channel{} = Channel, Data) when is_binary(Data) -> 
 	encode(Channel,Data,<<>>).
@@ -217,7 +217,7 @@ command(#channel{type = Type} = Channel, State)
 	State;
 
 command(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, State) ->
-	AMF = ems_amf:decode(Channel#channel.msg),
+	AMF = amf0:decode(Channel#channel.msg),
 	#amf{command = Command} = AMF,
 	App = ems:check_app(State,Command, 2),
 	App:Command(AMF, State);
