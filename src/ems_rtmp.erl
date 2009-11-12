@@ -214,7 +214,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/
 
 
 command(#channel{type = Type} = Channel, State) 
-	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA) ->
+	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
 %	?D({"Recording",Type}),
 	gen_fsm:send_event(self(), {publish, Channel}),
 	State;
@@ -230,7 +230,19 @@ command(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, State) ->
 	#amf{command = Command} = AMF,
 	App = ems:check_app(State,Command, 2),
 	App:Command(AMF, State);
+
+command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message} = Channel, State) ->
+  decode_shared_object_amf0(Message, State);
+  
+
 	
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
+
+
+decode_shared_object_amf0(<<>>, State) -> State;
+decode_shared_object_amf0(<<Length:16, SharedObject:Length/binary, VersionFlags:12/binary, EventType, 
+                            EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>, State) ->
+  State1 = apps_shared_objects:command({SharedObject, EventType, EventData}, State),
+  decode_shared_object_amf0(Rest, State1).

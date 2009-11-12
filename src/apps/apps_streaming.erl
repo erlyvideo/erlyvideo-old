@@ -63,7 +63,7 @@
 
 'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
   gen_fsm:send_event(self(), {send, {
-    #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA, stream = Stream}, 
+    #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA_AMF0, stream = Stream}, 
     <<(amf0:encode(Command))/binary, (amf0:encode_mixed_array(AMF))/binary>>}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
