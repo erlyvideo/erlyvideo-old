@@ -2,7 +2,7 @@
 
 %% @doc RTMP client, that connects to rtmp backend.
 
--module(rtmp_client).
+-module(rtmpt_client).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(gen_fsm).
@@ -17,7 +17,7 @@
 	watchdog = undefined
 	}).
 
--export([start_link/1]).
+-export([start/1]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
@@ -30,7 +30,7 @@
 %%% API
 %%%------------------------------------------------------------------------
 
-start_link(SessionId) ->
+start(SessionId) ->
     gen_fsm:start(?MODULE, [SessionId], []).
 
 
@@ -49,9 +49,9 @@ start_link(SessionId) ->
 watcher(Rtmp, Timeout) ->
     receive
         {rtmpt} ->
-            watcher(Rtmp, Timeout);
+            ?MODULE:watcher(Rtmp, Timeout);
         {rtmpt, NewTimeout} ->
-            watcher(Rtmp, NewTimeout);
+            ?MODULE:watcher(Rtmp, NewTimeout);
         {exit} ->
             ok
     after 
@@ -73,7 +73,7 @@ init([SessionId]) ->
     {ok, Rtmp} = gen_server:call(ems_server, {start}, ?RTMPT_TIMEOUT),
     link(Rtmp),
     io:format("Received upstream ~p~n", [Rtmp]),
-    Watchdog = spawn_link(rtmp_client, watcher, [self(), ?RTMPT_TIMEOUT*5]),
+    Watchdog = spawn_link(?MODULE, watcher, [self(), ?RTMPT_TIMEOUT*5]),
     ets:insert(rtmp_sessions, {SessionId, self()}),
     {ok, 'READY', #rtmp_fsm{session_id = SessionId, watchdog = Watchdog, upstream = Rtmp}, ?RTMP_TIMEOUT}.
         

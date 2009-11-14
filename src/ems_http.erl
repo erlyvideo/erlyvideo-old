@@ -55,7 +55,7 @@ handle('POST', ["open", ChunkNumber], Req) ->
   error_logger:info_msg("Request: open/~p.\n", [ChunkNumber]),
   SessionId = generate_session_id(),
   <<Timeout>> = Req:get(body),
-  {ok, _Pid} = rtmp_client:start_link(SessionId),
+  {ok, _Pid} = rtmpt_client:start(SessionId),
   error_logger:info_msg("Opened session ~p, timeout ~p.\n", [SessionId, Timeout]),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [SessionId, "\n"]);
   
