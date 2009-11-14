@@ -45,12 +45,12 @@
 'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
   Recorder = media_provider:open(Name, live),
   media_entry:subscribe(Recorder, self()),
-  {next_state, 'WAIT_FOR_DATA', State#ems_client{video_player = Recorder, video_state = publishing}};
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Recorder, video_state = publishing}};
 
 
 'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
   Recorder = media_provider:open(Name, record),
-  {next_state, 'WAIT_FOR_DATA', State#ems_client{video_player = Recorder, video_state = publishing}};
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Recorder, video_state = publishing}};
 
 %% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	
 'WAIT_FOR_DATA'({publish, append, Name}, State) when is_list(Name) ->
@@ -58,17 +58,17 @@
 	case file:open(FileName, [write, append]) of
 		{ok, IoDev} ->
 		  Recorder = #video_recorder{type=record_append, device = IoDev, file_name = FileName, ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', State#ems_client{video_player = Recorder}, ?TIMEOUT};
+			{next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Recorder}, ?TIMEOUT};
 	    _ ->
     		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
     end;	
     
-'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #ems_client{video_player = Recorder} = State) ->
+'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #rtmp_client{video_player = Recorder} = State) ->
   media_entry:publish(Recorder, Channel),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 
 
-'WAIT_FOR_DATA'({stop}, #ems_client{video_player = #video_recorder{
+'WAIT_FOR_DATA'({stop}, #rtmp_client{video_player = #video_recorder{
                                                  device = IoDev, 
                                                  buffer = Buffer,
                                                  timer_ref = TimerRef} = _Recorder} = State) ->
@@ -85,11 +85,11 @@
       _ -> gen_fsm:cancel_timer(TimerRef)
   end,
   ?D({"Stopping video recorder"}),
-  {next_state, 'WAIT_FOR_DATA', State#ems_client{video_player = undefined}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = undefined}, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({stop}, State) ->
-  ?D({"Invalid state in STOP", State#ems_client.video_player}),
+  ?D({"Invalid state in STOP", State#rtmp_client.video_player}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.

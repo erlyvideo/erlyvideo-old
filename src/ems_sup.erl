@@ -59,7 +59,7 @@ start_link() ->
 %% @end 
 %%--------------------------------------------------------------------
 -spec start_client() -> {'error',_} | {'ok',pid()}.
-start_client() -> supervisor:start_child(ems_client_sup, []).
+start_client() -> supervisor:start_child(rtmp_client_sup, []).
 
 
 %%--------------------------------------------------------------------
@@ -86,13 +86,13 @@ start_ts_lander(URL) -> supervisor:start_child(ts_lander_sup, [URL]).
 %% @end 
 %%--------------------------------------------------------------------
 -spec init([]) -> any().
-init([ems_client]) ->
+init([rtmp_client]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % TCP Client
               {   undefined,                               % Id       = internal id
-                  {ems_client,start_link,[]},                  % StartFun = {M, F, A}
+                  {rtmp_client,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -159,8 +159,8 @@ init([Port]) when is_integer(Port) ->
                   [ems_http]                               % Modules  = [Module] | dynamic
               },
               % EMS instance supervisor
-              {   ems_client_sup,
-                  {supervisor,start_link,[{local, ems_client_sup}, ?MODULE, [ems_client]]},
+              {   rtmp_client_sup,
+                  {supervisor,start_link,[{local, rtmp_client_sup}, ?MODULE, [rtmp_client]]},
                   permanent,                               % Restart  = permanent | transient | temporary
                   infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
                   supervisor,                              % Type     = worker | supervisor

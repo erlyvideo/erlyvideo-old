@@ -54,7 +54,7 @@
 %%----------------------------------------------------------------------
 clients() ->
   Timeout = 10,
-  lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(ems_client_sup)).
+  lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_client_sup)).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -146,7 +146,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         {ok, Pid} = ems_sup:start_client(),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
-        ems_client:set_socket(Pid, CliSocket),
+        rtmp_client:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
         {noreply, State#ems_server{acceptor=NewRef}};

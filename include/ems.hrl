@@ -205,7 +205,7 @@
 	acceptor  % Asynchronous acceptor's internal reference
 	}).
 
--record(ems_client, {
+-record(rtmp_client, {
 	socket,    % client socket
 	addr,      % client address
 	port,

@@ -17,7 +17,7 @@
 			ems_app,
 			ems_encoding,
 			ems_flv,
-			ems_client,
+			rtmp_client,
 			ems_http,
 			ems_rtmp,
 			ems_server,
