@@ -1,5 +1,5 @@
 -module(ts_lander).
--export([start_link/1]).
+-export([start_link/1, start_link/2]).
 -behaviour(gen_server).
 
 -include("../../include/ems.hrl").
@@ -12,6 +12,7 @@
   url,
   buffer = <<>>,
   pids,
+  consumer,
   byte_counter = 0
 }).
 
@@ -24,6 +25,7 @@
   pid,
   program_num,
   handler,
+  consumer,
   type,
   synced = false,
   ts_buffer = [],
@@ -64,9 +66,13 @@
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
 
 start_link(URL) ->
-  gen_server:start_link(?MODULE, [URL], []).
+  gen_server:start_link(?MODULE, [URL, self()], []).
 
-init([URL]) ->
+start_link(URL, Consumer) ->
+  gen_server:start_link(?MODULE, [URL, Consumer], []).
+
+
+init([URL, Consumer]) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
@@ -75,7 +81,7 @@ init([URL]) ->
   % timer:send_after(6*1000, {stop}),
   timer:send_after(3000, {byte_count}),
   
-  {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
+  {ok, #ts_lander{socket = Socket, url = URL, consumer = Consumer, pids = [#stream{pid = 0, handler = pat}]}}.
   
   % io:format("HTTP Request ~p~n", [RequestId]),
   % {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -224,7 +230,7 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, 
-    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids} = TSLander, _, _) ->
+    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids, consumer = Consumer} = TSLander, _, _) ->
   _SectionCount = round(SectionLength - 13),
   % io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
   Descriptors = extract_pmt(PMT, []),
@@ -232,7 +238,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, type = video}]),
+        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, type = video, consumer = Consumer}]),
         ?D({"Starting", Handler}),
         #stream_out{pid = Pid, handler = Handler};
       Other ->
@@ -353,10 +359,13 @@ find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
 extract_nal(Stream, _, false) ->
   Stream;
   
-extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
+extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
-  decode_nal(NAL),
+  % <<Begin:40/binary, _/binary>> = NAL,
+  % ?D({"AVC", Begin}),
+  % decode_nal(NAL),
+  gen_fsm:send_event({video, NAL}),
   % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
   decode_avc(Stream#stream{es_buffer = Rest1}).
 

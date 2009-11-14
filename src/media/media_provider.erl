@@ -86,6 +86,13 @@ connect_to_media(Server, Options) ->
 %       end
 %   end.
 
+open_file("http://"++_ = URL, Options) ->
+  case open(URL, http) of
+    undefined -> {notfound};
+    Server -> 
+      media_entry:subscribe(Server, proplists:get_value(consumer, Options))
+  end;
+
 
 open_file(Name, Options) ->
   case open(Name, file) of
