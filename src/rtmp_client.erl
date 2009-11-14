@@ -292,8 +292,7 @@ terminate(_Reason, _StateName, #rtmp_client{socket=Socket, video_player = Player
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(_OldVsn, StateName, #rtmp_client{video_player = PlayerPid} = StateData, _Extra) ->
-  erlang:exit(PlayerPid, code_change),
+code_change(_OldVsn, StateName, StateData, _Extra) ->
   {ok, StateName, StateData}.
 
 
