@@ -38,7 +38,7 @@
 -include("../include/ems.hrl").
 -include("../include/amf.hrl").
 
--export([encode/1, decode/1]).
+-export([encode/1, decode/1, encode_mixed_array/1]).
 
 
 encode(#amf{command = Command, args = Args, id = Id, type = invoke}) -> 
