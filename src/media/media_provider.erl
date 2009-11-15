@@ -90,7 +90,8 @@ open_file("http://"++_ = URL, Options) ->
   case open(URL, http) of
     undefined -> {notfound};
     Server -> 
-      media_entry:subscribe(Server, proplists:get_value(consumer, Options))
+      media_entry:subscribe(Server, proplists:get_value(consumer, Options)),
+      {ok, Server}
   end;
 
 
@@ -155,6 +156,9 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
       {reply, undefined, MediaProvider};
     {_, file} ->
       ok = media_entry:subscribe(Server, Opener),
+      {reply, Server, MediaProvider};
+    {_, http} ->
+      % ok = media_entry:subscribe(Server, Opener),
       {reply, Server, MediaProvider};
     {_, live} ->
       media_entry:set_owner(Server, Opener),

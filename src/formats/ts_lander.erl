@@ -365,7 +365,8 @@ extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Of
   % <<Begin:40/binary, _/binary>> = NAL,
   % ?D({"AVC", Begin}),
   % decode_nal(NAL),
-  gen_fsm:send_event({video, NAL}),
+  ?D("Frame"),
+  gen_fsm:send_event(Consumer, {video, NAL}),
   % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
   decode_avc(Stream#stream{es_buffer = Rest1}).
 

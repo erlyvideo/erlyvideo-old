@@ -66,7 +66,7 @@ init([URL, http]) ->
   error_logger:info_msg("HTTP MPEG TS ~p~n", [URL]),
   Clients = ets:new(clients, [set, private]),
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type=live, ts_prev = 0, clients = Clients},
+	Recorder = #media_info{type=live, file_name = URL, ts_prev = 0, clients = Clients},
 	{ok, Recorder, ?TIMEOUT};
   
 
