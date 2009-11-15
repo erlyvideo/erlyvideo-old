@@ -1,4 +1,5 @@
 -module(rtsp_server).
+-author('max@maxidoors.ru').
 
 -include("../include/ems.hrl").
 
