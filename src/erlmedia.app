@@ -40,7 +40,8 @@
   {applications, [kernel, stdlib]},
   {mod, {ems_app, []}},
   {env, [
-	{listen_port, 1935}, 
+	{rtmp_port, 1935}, 
+	{rtsp_port, 554},
 	{file_dir, "/tmp"},
 	{tmp_dir, "/tmp/erlyvideo"},
 	{host, "rtmp://localhost"},

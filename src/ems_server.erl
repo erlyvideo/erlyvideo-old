@@ -107,7 +107,7 @@ init([Port]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({start}, {From, _Ref}, State) ->
-  {ok, Pid} = ems_sup:start_client(),
+  {ok, Pid} = ems_sup:start_rtmp_client(),
   gen_fsm:sync_send_event(Pid, {socket_ready, From}),
   {reply, {ok, Pid}, State};
 
@@ -143,7 +143,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
         %% supervisor.
-        {ok, Pid} = ems_sup:start_client(),
+        {ok, Pid} = ems_sup:start_rtmp_client(),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
         rtmp_client:set_socket(Pid, CliSocket),

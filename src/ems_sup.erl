@@ -38,7 +38,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_client/0, start_media/2, start_ts_lander/1]).
+-export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, start_ts_lander/1]).
 
 
 %%--------------------------------------------------------------------
@@ -48,8 +48,7 @@
 %%--------------------------------------------------------------------
 -spec start_link() -> {'error',_} | {'ok',pid()}.
 start_link() ->
-	ListenPort = ems:get_var(listen_port, ?RTMP_PORT),
-	supervisor:start_link({local, ?MODULE}, ?MODULE, [ListenPort]).
+	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
 %%--------------------------------------------------------------------
@@ -58,8 +57,11 @@ start_link() ->
 %% To be called by the TCP listener process.
 %% @end 
 %%--------------------------------------------------------------------
--spec start_client() -> {'error',_} | {'ok',pid()}.
-start_client() -> supervisor:start_child(rtmp_client_sup, []).
+-spec start_rtmp_client() -> {'error',_} | {'ok',pid()}.
+start_rtmp_client() -> supervisor:start_child(rtmp_client_sup, []).
+
+-spec start_rtsp_client() -> {'error',_} | {'ok',pid()}.
+start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
 
 
 %%--------------------------------------------------------------------
@@ -101,6 +103,21 @@ init([rtmp_client]) ->
             ]
         }
     };
+init([rtsp_client]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {rtsp_client,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
 init([media_entry]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -131,60 +148,84 @@ init([ts_lander]) ->
             ]
         }
     };
-init([Port]) when is_integer(Port) ->
+init([]) ->
   ets:new(rtmp_sessions, [set, public, named_table]),
-    {ok,
-        {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [ % EMS Listener
-              {   ems_sup,                                 % Id       = internal id
-                  {ems_server,start_link,[Port]},          % StartFun = {M, F, A}
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [ems_server]                             % Modules  = [Module] | dynamic
-              },
-              {   media_provider_sup,                      % Id       = internal id
-                  {media_provider,start_link,[]},          % StartFun = {M, F, A}
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [media_provider]                         % Modules  = [Module] | dynamic
-              },
-              % EMS HTTP
-              {   ems_http_sup,                         % Id       = internal id
-                  {ems_http,start_link,[ems:get_var(http_port, 8082)]},             % StartFun = {M, F, A}
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [ems_http]                               % Modules  = [Module] | dynamic
-              },
-              % EMS instance supervisor
-              {   rtmp_client_sup,
-                  {supervisor,start_link,[{local, rtmp_client_sup}, ?MODULE, [rtmp_client]]},
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-                  supervisor,                              % Type     = worker | supervisor
-                  []                                       % Modules  = [Module] | dynamic
-              },
-              % Media entry supervisor
-              {   media_entry_sup,
-                  {supervisor,start_link,[{local, media_entry_sup}, ?MODULE, [media_entry]]},
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-                  supervisor,                              % Type     = worker | supervisor
-                  []                                       % Modules  = [Module] | dynamic
-              },
-              % MPEG TS Lander
-              {   ts_lander_sup,
-                  {supervisor,start_link,[{local, ts_lander_sup}, ?MODULE, [ts_lander]]},
-                  permanent,                               % Restart  = permanent | transient | temporary
-                  infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-                  supervisor,                              % Type     = worker | supervisor
-                  []                                       % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    }.
+  
+  Supervisors = [
+    % EMS HTTP
+    {   ems_http_sup,                         % Id       = internal id
+        {ems_http,start_link,[ems:get_var(http_port, 8082)]},             % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_http]                               % Modules  = [Module] | dynamic
+    },
+    % EMS instance supervisor
+    {   rtmp_client_sup,
+        {supervisor,start_link,[{local, rtmp_client_sup}, ?MODULE, [rtmp_client]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   rtsp_client_sup,
+        {supervisor,start_link,[{local, rtsp_client_sup}, ?MODULE, [rtsp_client]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   media_provider_sup,                      % Id       = internal id
+        {media_provider,start_link,[]},          % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [media_provider]                         % Modules  = [Module] | dynamic
+    },
+    % Media entry supervisor
+    {   media_entry_sup,
+        {supervisor,start_link,[{local, media_entry_sup}, ?MODULE, [media_entry]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    % MPEG TS Lander
+    {   ts_lander_sup,
+        {supervisor,start_link,[{local, ts_lander_sup}, ?MODULE, [ts_lander]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    }
+  ],
+  
+  Supervisors1 = case ems:get_var(rtmp_port) of
+    undefined -> Supervisors;
+    RTMPPort -> [% EMS Listener
+      {   ems_sup,                                 % Id       = internal id
+          {ems_server,start_link,[RTMPPort]},              % StartFun = {M, F, A}
+          permanent,                               % Restart  = permanent | transient | temporary
+          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+          worker,                                  % Type     = worker | supervisor
+          [ems_server]                             % Modules  = [Module] | dynamic
+      }|Supervisors]
+  end,
+
+  Supervisors2 = case ems:get_var(rtsp_port) of
+    undefined -> Supervisors;
+    RTSPPort -> [% EMS Listener
+      {   rtsp_sup,                                 % Id       = internal id
+          {rtsp_server,start_link,[RTSPPort]},              % StartFun = {M, F, A}
+          permanent,                               % Restart  = permanent | transient | temporary
+          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+          worker,                                  % Type     = worker | supervisor
+          [ems_server]                             % Modules  = [Module] | dynamic
+      }|Supervisors1]
+  end,
+  
+  
+    {ok, {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors2}}.
 
 
 %%----------------------------------------------------------------------
