@@ -356,13 +356,12 @@ find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
 extract_nal(Stream, _, false) ->
   Stream;
   
-extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Offset2) ->
+extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
   % <<Begin:40/binary, _/binary>> = NAL,
   % ?D({"AVC", Begin}),
-  % decode_nal(NAL),
-  gen_fsm:send_event(Consumer, {video, NAL}),
+  decode_nal(NAL, Stream),
   % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
   decode_avc(Stream#stream{es_buffer = Rest1}).
 
@@ -378,23 +377,23 @@ find_nal_start_code(<<16#000001:24, _/binary>>, Offset) -> Offset;
 find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
 find_nal_start_code(<<>>, _) -> false.
 
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, Stream) ->
   % io:format("Coded slice of a non-IDR picture :: "),
   slice_header(Rest);
 
-decode_nal(<<0:1, _NalRefIdc:2, 2:5, Rest/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, 2:5, Rest/binary>>, Stream) ->
   % io:format("Coded slice data partition A     :: "),
   slice_header(Rest);
 
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, Stream) ->
   % io:format("~nCoded slice of an IDR picture~n"),
   slice_header(Rest);
 
-decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>>, Stream) ->
   % io:format("Picture parameter set~n"),
   ok;
 
-decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
   PrimaryPicType = case PrimaryPicTypeId of
       0 -> "I";
       1 -> "I, P";
@@ -409,7 +408,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>) ->
   ok;
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, ProfileId:8, _:3, 0:5, _Level:8, AfterLevel/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, 7:5, ProfileId:8, _:3, 0:5, _Level:8, AfterLevel/binary>>, Stream) ->
   {_SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
   {_Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
   _Profile = profile_name(ProfileId),
@@ -419,7 +418,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 7:5, ProfileId:8, _:3, 0:5, _Level:8, AfterLevel
   ok;
 
 
-decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>) ->
+decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, Stream) ->
   % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
   ok.
 
@@ -462,8 +461,8 @@ exp_golomb_read(Bin) ->
 
 count_zeros(Bin, Offset) ->
     case Bin of
-        <<1:1, _/bitstring>> -> Offset;
-        <<0:1, Rest/bitstring>> -> count_zeros(Rest, Offset+1)
+      <<0:1, Rest/bitstring>> -> count_zeros(Rest, Offset+1);
+      _ -> Offset
     end.
 
 

@@ -118,6 +118,10 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
 %   
 
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
+  % <<Length:32, A:Length/binary, Length1:32, B:Length1/binary, Rest/binary>> = Data,
+  % ?D({"Frame", Length, Length1, size(Rest)}),
+  % <<Begin:40/binary, _/binary>> = Data,
+  % ?D({"Frame", Begin}),
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = Timestamp,
@@ -177,7 +181,7 @@ decoder_config(audio, #media_info{audio_decoder_config = DecoderConfig}) -> Deco
 
 
   
-parse_atom(Atom, Mp4Parser) when size(Atom) == 0 ->
+parse_atom(<<>>, Mp4Parser) ->
   Mp4Parser;
   
 parse_atom(Atom, _) when size(Atom) < 4 ->
@@ -318,7 +322,7 @@ decode_atom(esds, <<Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, 
   Mp4Track#mp4_track{decoder_config = esds_tag(DecoderConfig)};
 
 % avcC atom
-decode_atom(avcC, <<DecoderConfig/binary>>, #mp4_track{} = Mp4Track) ->
+decode_atom(avcC, DecoderConfig, #mp4_track{} = Mp4Track) ->
   % ?D({"Extracted video config"}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
