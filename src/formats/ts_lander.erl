@@ -360,7 +360,7 @@ find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
 extract_nal(Stream, _, false) ->
   Stream;
   
-extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
+extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
   % <<Begin:40/binary, _/binary>> = NAL,
@@ -368,6 +368,39 @@ extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
   Stream1 = decode_nal(NAL, Stream),
   decode_avc(Stream1#stream{es_buffer = Rest1}).
 
+send_decoder_config(#stream{consumer = Consumer} = Stream) ->
+  case decoder_config(Stream) of
+    ok -> ok;
+    DecoderConfig -> 
+      VideoFrame = #video_frame{       
+       	type          = ?FLV_TAG_TYPE_VIDEO,
+       	decoder_config = true,
+    		timestamp_abs = 0,
+    		body          = DecoderConfig,
+    		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
+    		codec_id      = ?FLV_VIDEO_CODEC_AVC,
+    	  raw_body      = false
+    	},
+    	case Consumer of
+    	  undefined -> ?D({"Decoder config", DecoderConfig});
+      	_ -> ems_play:send(Consumer, VideoFrame)
+      end
+  end.
+  
+
+decoder_config(#stream{parameters = Parameters} = Stream) ->
+  case {proplists:get_value(sps, Parameters), proplists:get_value(pps, Parameters)} of
+    {_, undefined} -> ok;
+    {undefined, _} -> ok;
+    {SPS, PPS} when is_list(SPS) andalso is_list(PPS) ->
+      LengthSize = 4-1,
+      Version = 1,
+      Profile = proplists:get_value(profile, Parameters),
+      ProfileCompat = proplists:get_value(profile_compat, Parameters, 0),
+      Level = proplists:get_value(level, Parameters),
+      iolist_to_binary([<<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 2#111:3, (length(SPS)):5>>,
+        SPS, <<(length(PPS))>>, PPS])
+  end.
 
 
 nal_unit_start_code_finder(Bin, Offset) ->
@@ -400,9 +433,11 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, Stream) ->
   % io:format("~nCoded slice of an IDR picture~n"),
   slice_header(Rest, Stream);
 
-decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>>, Stream) ->
-  % io:format("Picture parameter set~n"),
-  Stream;
+decode_nal(<<0:1, _NalRefIdc:2, 8:5, Rest/binary>>, #stream{parameters = Parameters} = Stream) ->
+  io:format("Picture parameter set: ~p~n", [Rest]),
+  Stream1 = Stream#stream{parameters = lists:merge([{pps, [Rest]}], Parameters)},
+  send_decoder_config(Stream1),
+  Stream1;
 
 decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
   PrimaryPicType = case PrimaryPicTypeId of
@@ -419,14 +454,25 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream
   Stream;
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:3, 0:5, Level, AfterLevel/binary>>, #stream{parameters = Parameters} = Stream) ->
-  {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
-  {Log2MaxFrameNumMinus4, AfterLog2} = exp_golomb_read(AfterSPSId),
+decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>>, #stream{parameters = Parameters} = Stream) ->
+  {SeqParameterSetId, Data2} = exp_golomb_read(Data1),
+  % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
+  % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
+  % case PicOrderCntType of
+  %   0 ->
+  %     {Log2MaxPicOrder, Data5} = exp_golomb_read(Data4);
+  %   1 ->
+  %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
+      
   ProfileName = profile_name(Profile),
   io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
-  io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
-  io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  Stream#stream{parameters = lists:keymerge(1, [{profile, Profile}, {level, Level}], Parameters)};
+  AfterSPSId = <<0:1, Data2/bitstring>>,
+  io:format("seq_parameter_set_id: ~p (~p)~n", [SeqParameterSetId, AfterSPSId]),
+  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+  Stream1 = Stream#stream{parameters = lists:keymerge(1, [{profile, Profile}, {level, Level}, {sps, [AfterSPSId]}], Parameters)},
+  send_decoder_config(Stream1),
+  Stream1;
+  
 
 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, Stream) ->
@@ -464,17 +510,31 @@ slice_type(8) -> 'p';
 slice_type(9) -> 'i'.
 
 
-exp_golomb_read(Bin) ->
-    LeadingZeros = count_zeros(Bin,0),
-    <<0:LeadingZeros, 1:1, ReadBits:LeadingZeros, Rest/bitstring>> = Bin,
-    CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
-    {CodeNum, Rest}.
+exp_golomb_read_list(Bin, List) ->
+  exp_golomb_read_list(Bin, List, []).
+  
+exp_golomb_read_list(Bin, [], Results) -> {Results, Bin};
+exp_golomb_read_list(Bin, [Key | Keys], Results) ->
+  {Value, Rest} = exp_golomb_read(Bin),
+  exp_golomb_read_list(Rest, Keys, [{Key, Value} | Results]).
 
-count_zeros(Bin, Offset) ->
-    case Bin of
-      <<0:1, Rest/bitstring>> -> count_zeros(Rest, Offset+1);
-      _ -> Offset
-    end.
+exp_golomb_read_s(Bin) ->
+  {Value, Rest} = exp_golomb_read(Bin),
+  case Value band 1 of
+    1 -> (Value + 1)/2;
+    _ -> - (Value/2)
+  end.
+
+exp_golomb_read(Bin) ->
+  exp_golomb_read(Bin, 0).
+  
+exp_golomb_read(<<0:1, Rest/bitstring>>, LeadingZeros) ->
+  exp_golomb_read(Rest, LeadingZeros + 1);
+
+exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
+  <<ReadBits:LeadingZeros, Rest/bitstring>> = Data,
+  CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
+  {CodeNum, Rest}.
 
 
 %%-------------------------------------------------------------------------

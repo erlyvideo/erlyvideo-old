@@ -215,12 +215,6 @@ handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, cli
 handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo};
   
-handle_info({'$gen_event', {video, Video}}, #media_info{type = mpeg_ts, clients = Clients} = MediaInfo) ->
-  % Packet = Channel#channel{id = ems_play:channel_id(video,1), timestamp = NextTimeStamp},
-  % ets:foldl(fun send_packet/2, Packet, Clients),
-  
-  {noreply, MediaInfo};
-  
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
     0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
@@ -245,6 +239,21 @@ handle_info({'$gen_event', {exit}}, State) ->
 
 handle_info({'$gen_event', {start}}, State) ->
   {noreply, State};
+
+handle_info({'$gen_event', {video, Video}}, #media_info{type = mpeg_ts, clients = Clients} = MediaInfo) ->
+  % Packet = Channel#channel{id = ems_play:channel_id(video,1), timestamp = NextTimeStamp},
+  % ets:foldl(fun send_packet/2, Packet, Clients),
+
+  {noreply, MediaInfo};
+
+handle_info({'$gen_event', {send, Packet}}, #media_info{type = mpeg_ts, clients = Clients} = MediaInfo) ->
+  % ?D(Frame),
+  % Packet = Channel#channel{id = ems_play:channel_id(video,1), timestamp = NextTimeStamp},
+  ets:foldl(fun send_packet/2, Packet, Clients),
+
+  {noreply, MediaInfo};
+
+
 
   
 handle_info(_Info, State) ->
@@ -276,7 +285,12 @@ code_change(_OldVsn, State, _Extra) ->
 send_packet({Client}, #channel{msg = Data} = Channel) ->
   % ?D({"Send to", Client}),
   gen_fsm:send_event(Client, {send, {Channel, Data}}),
-  Channel.
+  Channel;
+
+send_packet({Client}, Packet) ->
+  % ?D({"Send to", Client}),
+  gen_fsm:send_event(Client, {send, Packet}),
+  Packet.
   
 open_file(Name) ->
   FileName = filename:join([file_play:file_dir(), Name]), 

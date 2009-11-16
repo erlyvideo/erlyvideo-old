@@ -63,7 +63,10 @@ send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeS
 
 % rsaccon: TODO: streams per connections need to be stored and channelId retrieved from stream
 % idea: a  process per stream, mnesia RAM table (with streamid as key) contains stream process PID
+channel_id(meta, _StreamId) -> 4;
 channel_id(?FLV_TAG_TYPE_META, _StreamId) -> 4;
+channel_id(video, _StreamId) -> 5;
 channel_id(?FLV_TAG_TYPE_VIDEO, _StreamId) -> 5;
+channel_id(audio, _StreamId) -> 5;
 channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 5.
 % channel_id(?FLV_TAG_TYPE_AUDIO, _StreamId) -> 6.
