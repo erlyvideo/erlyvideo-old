@@ -324,6 +324,7 @@ decode_atom(esds, <<Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, 
 % avcC atom
 decode_atom(avcC, DecoderConfig, #mp4_track{} = Mp4Track) ->
   % ?D({"Extracted video config"}),
+  parse_avc_decoder_config(DecoderConfig),
   Mp4Track#mp4_track{decoder_config = DecoderConfig};
 
 decode_atom(btrt, <<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{} = Mp4Track) ->
@@ -429,6 +430,22 @@ next_atom(#media_info{device = Device}, Pos) ->
     {error, Reason} -> 
       {error, Reason}           
   end.
+
+
+parse_avc_decoder_config(<<Version, Profile, ProfileCompat, Level, _:6, LengthSize:2, _:3, SPSCount:5, Rest/binary>> = DecoderConfig) ->
+  ?D({DecoderConfig}),
+  {SPS, <<PPSCount, PPSRest/binary>>} = parse_avc_sps(Rest, SPSCount, []),
+  {PPS, Rest1} = parse_avc_pps(PPSRest, PPSCount, []),
+  % ?D({"Length size", LengthSize+1, SPSCount, Version, Profile, ProfileCompat, Level/10.0, SPS, PPS}),
+  ok.
+
+parse_avc_sps(Rest, 0, SPS) -> {SPS, Rest};
+parse_avc_sps(<<Length:16, SPSData:Length/binary, Rest/binary>>, SPSCount, SPS) -> 
+  parse_avc_sps(Rest, SPSCount - 1, [SPSData|SPS]).
+  
+parse_avc_pps(Rest, 0, PPS) -> {PPS, Rest};
+parse_avc_pps(<<Length:16, PPSData:Length/binary, Rest/binary>>, PPSCount, PPS) -> 
+  parse_avc_pps(Rest, PPSCount - 1, [PPSData|PPS]).
 
 % Internal structure to parse all moov data, untill it reaches mp4_frame table
 -record(mp4_frames, {

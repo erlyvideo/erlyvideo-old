@@ -1,5 +1,5 @@
 -module(ts_lander).
--export([start_link/2]).
+-export([start_link/1, start_link/2]).
 -behaviour(gen_server).
 
 -include("../../include/ems.hrl").
@@ -30,7 +30,8 @@
   synced = false,
   ts_buffer = [],
   es_buffer = <<>>,
-  counter = 0
+  counter = 0,
+  parameters = []
 }).
 
 %% gen_server callbacks
@@ -65,6 +66,9 @@
 
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
 
+start_link(URL) -> start_link(URL, undefined).
+  
+
 start_link(URL, Consumer) ->
   gen_server:start_link(?MODULE, [URL, Consumer], []).
 
@@ -75,7 +79,7 @@ init([URL, Consumer]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  % timer:send_after(6*1000, {stop}),
+  timer:send_after(16*1000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, consumer = Consumer, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -361,9 +365,8 @@ extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
   % <<Begin:40/binary, _/binary>> = NAL,
   % ?D({"AVC", Begin}),
-  decode_nal(NAL, Stream),
-  % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
-  decode_avc(Stream#stream{es_buffer = Rest1}).
+  Stream1 = decode_nal(NAL, Stream),
+  decode_avc(Stream1#stream{es_buffer = Rest1}).
 
 
 
@@ -379,19 +382,27 @@ find_nal_start_code(<<>>, _) -> false.
 
 decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, Stream) ->
   % io:format("Coded slice of a non-IDR picture :: "),
-  slice_header(Rest);
+  slice_header(Rest, Stream);
 
 decode_nal(<<0:1, _NalRefIdc:2, 2:5, Rest/binary>>, Stream) ->
   % io:format("Coded slice data partition A     :: "),
-  slice_header(Rest);
+  slice_header(Rest, Stream);
+
+decode_nal(<<0:1, _NalRefIdc:2, 3:5, Rest/binary>>, Stream) ->
+  % io:format("Coded slice data partition B     :: "),
+  slice_header(Rest, Stream);
+
+decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, Stream) ->
+  % io:format("Coded slice data partition C     :: "),
+  slice_header(Rest, Stream);
 
 decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, Stream) ->
   % io:format("~nCoded slice of an IDR picture~n"),
-  slice_header(Rest);
+  slice_header(Rest, Stream);
 
 decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>>, Stream) ->
   % io:format("Picture parameter set~n"),
-  ok;
+  Stream;
 
 decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
   PrimaryPicType = case PrimaryPicTypeId of
@@ -405,17 +416,17 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream
       7 -> "I, SI, P, SP, B"
   end,
   io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
-  ok;
+  Stream;
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, ProfileId:8, _:3, 0:5, _Level:8, AfterLevel/binary>>, Stream) ->
-  {_SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
-  {_Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
-  _Profile = profile_name(ProfileId),
-  % io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
-  % io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
-  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  ok;
+decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:3, 0:5, Level, AfterLevel/binary>>, #stream{parameters = Parameters} = Stream) ->
+  {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
+  {Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
+  ProfileName = profile_name(Profile),
+  io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
+  io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
+  io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+  Stream#stream{parameters = lists:keymerge(1, [{profile, Profile}, {level, Level}], Parameters)};
 
 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, Stream) ->
@@ -432,14 +443,14 @@ profile_name(144) -> "High 4:4:4";
 profile_name(Profile) -> "Unknown "++integer_to_list(Profile).
 
 
-slice_header(Bin) ->
+slice_header(Bin, Stream) ->
     {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
     {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
     <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
     _SliceType = slice_type(SliceTypeId),
     % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
-    ok.
+    Stream.
 
 slice_type(0) -> 'P';
 slice_type(1) -> 'B';
