@@ -61,12 +61,13 @@ init([Name, file]) ->
   end;
 
 
-init([URL, http]) ->
+init([URL, mpeg_ts]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("HTTP MPEG TS ~p~n", [URL]),
   Clients = ets:new(clients, [set, private]),
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type=live, file_name = URL, ts_prev = 0, clients = Clients},
+  Device = ems_sup:start_ts_lander(URL, self()),
+	Recorder = #media_info{type=mpeg_ts, file_name = URL, ts_prev = 0, clients = Clients, device = Device},
 	{ok, Recorder, ?TIMEOUT};
   
 
@@ -214,6 +215,11 @@ handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, cli
 handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo};
   
+handle_info({'$gen_event', {video, Video}}, #media_info{type = mpeg_ts, clients = Clients} = MediaInfo) ->
+  % Packet = Channel#channel{id = ems_play:channel_id(video,1), timestamp = NextTimeStamp},
+  % ets:foldl(fun send_packet/2, Packet, Clients),
+  
+  {noreply, MediaInfo};
   
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of

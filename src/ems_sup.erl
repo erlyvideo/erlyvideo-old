@@ -38,7 +38,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, start_ts_lander/1]).
+-export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, start_ts_lander/2]).
 
 
 %%--------------------------------------------------------------------
@@ -78,7 +78,7 @@ start_media(Name, Type) -> supervisor:start_child(media_entry_sup, [Name, Type])
 %% To be called by the media provider.
 %% @end 
 %%--------------------------------------------------------------------
-start_ts_lander(URL) -> supervisor:start_child(ts_lander_sup, [URL]).
+start_ts_lander(URL, Consumer) -> supervisor:start_child(ts_lander_sup, [URL, Consumer]).
 
 
 

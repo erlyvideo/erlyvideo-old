@@ -1,5 +1,5 @@
 -module(ts_lander).
--export([start_link/1, start_link/2]).
+-export([start_link/2]).
 -behaviour(gen_server).
 
 -include("../../include/ems.hrl").
@@ -64,9 +64,6 @@
 % Reply.
 
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
-
-start_link(URL) ->
-  gen_server:start_link(?MODULE, [URL, self()], []).
 
 start_link(URL, Consumer) ->
   gen_server:start_link(?MODULE, [URL, Consumer], []).
@@ -365,7 +362,6 @@ extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Of
   % <<Begin:40/binary, _/binary>> = NAL,
   % ?D({"AVC", Begin}),
   % decode_nal(NAL),
-  ?D("Frame"),
   gen_fsm:send_event(Consumer, {video, NAL}),
   % pes_packet(TSLander, Stream#stream{es_buffer = <<>>}, Rest1)
   decode_avc(Stream#stream{es_buffer = Rest1}).

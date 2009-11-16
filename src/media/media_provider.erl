@@ -87,7 +87,7 @@ connect_to_media(Server, Options) ->
 %   end.
 
 open_file("http://"++_ = URL, Options) ->
-  case open(URL, http) of
+  case open(URL, mpeg_ts) of
     undefined -> {notfound};
     Server -> 
       media_entry:subscribe(Server, proplists:get_value(consumer, Options)),
@@ -157,7 +157,7 @@ handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = O
     {_, file} ->
       ok = media_entry:subscribe(Server, Opener),
       {reply, Server, MediaProvider};
-    {_, http} ->
+    {_, mpeg_ts} ->
       % ok = media_entry:subscribe(Server, Opener),
       {reply, Server, MediaProvider};
     {_, live} ->
