@@ -41,95 +41,103 @@
 
 -export([file_dir/0, file_format/1, start/1, start/2]).
 
--behaviour(gen_fsm).
--export([init/1, handle_info/3, code_change/4, handle_event/3, handle_sync_event/4, terminate/3]).
--export([ready/2, ready/3, stop/2]).
+-export([init/2, ready/1]).
 
 
 start(MediaEntry) -> start(MediaEntry, []).
 
 start(MediaEntry, Options) ->
-  gen_fsm:start_link(?MODULE, [MediaEntry, Options], []).
+  {ok, spawn_link(?MODULE, init, [MediaEntry, Options])}.
 
   
-init([MediaEntry, Options]) ->
-  {ok, ready, #video_player{consumer = proplists:get_value(consumer, Options),
+init(MediaEntry, Options) ->
+  ready(#video_player{consumer = proplists:get_value(consumer, Options),
 	                          stream_id = proplists:get_value(stream_id, Options, 1),
 	                          pos = undefined,
 	                          media_info = MediaEntry,
 	                          client_buffer = proplists:get_value(client_buffer, Options, 10000),
-	                          timer_start = erlang:now()}}.
+	                          timer_start = erlang:now()}).
   
 	
-stop(_, State) ->
-  {stop, normal, State}.
+ready(#video_player{media_info = MediaInfo, 
+                    consumer = Consumer, 
+                    client_buffer = ClientBuffer,
+                    timer_ref = Timer,
+                    stream_id = StreamId} = State) ->
+  receive
+    {client_buffer, ClientBuffer} -> ready(State#video_player{client_buffer = ClientBuffer});
+    {start} ->
+      case media_entry:metadata(MediaInfo) of
+        undefined -> ok;
+        MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, 1})
+      end,
+    	self() ! {play},
+    	NextState = State#video_player{prepush = ClientBuffer},
+    	?D({"Player starting with pid", self(), MediaInfo}),
+      ?MODULE:ready(NextState);
+      
+    {pause} ->
+      ?D("Player paused"),
+      timer:cancel(Timer),
+      ?MODULE:ready(State);
 
-ready({client_buffer, ClientBuffer}, State) ->
-  {next_state, ready, State#video_player{client_buffer = ClientBuffer}};
+    {resume} ->
+      ?D("Player resumed"),
+      self() ! {play},
+      ?MODULE:ready(State);
 
+    {seek, Timestamp} ->
+      {Pos, NewTimestamp} = media_entry:seek(MediaInfo, Timestamp),
+      timer:cancel(Timer),
+      % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
+      self() ! {play},
+      ?MODULE:ready(State#video_player{pos = Pos, ts_prev = NewTimestamp, playing_from = NewTimestamp, prepush = ClientBuffer});
 
-ready({start}, #video_player{media_info = MediaInfo, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
-  case media_entry:metadata(MediaInfo) of
-    undefined -> ok;
-    MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, 1})
-  end,
-	Timer = gen_fsm:start_timer(1, play),
-	NextState = State#video_player{timer_ref  = Timer, prepush = ClientBuffer},
-	?D({"Player starting with pid", self(), MediaInfo}),
-  {next_state, ready, NextState};
+    {stop} -> 
+      ?D("Player stopping"),
+      timer:cancel(Timer),
+      ?MODULE:ready(State#video_player{ts_prev = 0, pos = media_entry:first(MediaInfo), playing_from = 0});
   
-ready({pause}, #video_player{timer_ref = Timer} = State) ->
-  ?D("Player paused"),
-  gen_fsm:cancel_timer(Timer),
-  {next_state, ready, State};
-
-ready({resume}, State) ->
-  ?D("Player resumed"),
-  {next_state, ready, State#video_player{timer_ref = gen_fsm:start_timer(1, play)}};
-
-ready({seek, Timestamp}, #video_player{timer_ref = Timer, client_buffer = ClientBuffer, media_info = MediaEntry} = State) ->
-  {Pos, NewTimestamp} = media_entry:seek(MediaEntry, Timestamp),
-  gen_fsm:cancel_timer(Timer),
-  % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
-  {next_state, ready, State#video_player{pos = Pos, ts_prev = NewTimestamp, timer_ref = gen_fsm:start_timer(0, play), playing_from = NewTimestamp, prepush = ClientBuffer}};
-
-ready({stop}, #video_player{timer_ref = Timer, media_info = MediaEntry} = State) ->
-  ?D("Player stopping"),
-  gen_fsm:cancel_timer(Timer),
-  {next_state, ready, State#video_player{ts_prev = 0, pos = media_entry:first(MediaEntry), playing_from = 0}};
-  
-ready({exit}, State) ->
-  {stop, normal, State};
-
-ready({timeout, _, play}, #video_player{stream_id = StreamId, media_info = MediaEntry, consumer = Consumer} = State) ->
-  {_, Sec1, MSec1} = erlang:now(),
-	case media_entry:read(MediaEntry, State) of
-		{ok, done} ->
-		  ?D("Video file finished"),
-		  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
-  		{next_state, ready, State};
-		{ok, #video_frame{type = _Type} = Frame, Player} -> 
-			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
-			ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-			{Timeout, Player1} = timeout(Frame, Player),
-      % ?D({"Frame", Frame#video_frame.timestamp_abs, Player#video_player.timer_start, TimeStamp, Timeout}),
-			NextState = Player1#video_player{
-			                  timer_ref = gen_fsm:start_timer(Timeout, play),
-											  ts_prev = Frame#video_frame.timestamp_abs,
-											  pos = Frame#video_frame.nextpos},
-			{_, Sec2, MSec2} = erlang:now(),
-      _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
-      % ?D({"Read frame", Delta}),
-			{next_state, ready, NextState};
-		{error, _Reason} ->
-			?D({"Ems player stopping", _Reason}),
-			{stop, _Reason, State}
-	end.
+    {exit} ->
+      ok;
+      
+    {play} ->
+      % {_, Sec1, MSec1} = erlang:now(),
+    	case media_entry:read(MediaInfo, State) of
+    		{ok, done} ->
+    		  ?D("Video file finished"),
+    		  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
+      		?MODULE:ready(State);
+    		{ok, #video_frame{type = _Type} = Frame, Player} -> 
+    			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
+    			ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+    			{Timeout, Player1} = timeout(Frame, Player),
+          % ?D({"Frame", Frame#video_frame.timestamp_abs, Player#video_player.timer_start, TimeStamp, Timeout}),
+    			NextState = Player1#video_player{
+    			                  timer_ref = timer:send_after(Timeout, {play}),
+    											  ts_prev = Frame#video_frame.timestamp_abs,
+    											  pos = Frame#video_frame.nextpos},
+          % {_, Sec2, MSec2} = erlang:now(),
+          %       _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
+          % ?D({"Read frame", Delta}),
+          ?MODULE:ready(NextState);
+    		{error, _Reason} ->
+    			?D({"Ems player stopping", _Reason}),
+    			erlang:error(_Reason)
+    	end;
+    	
+    	{tcp_closed, _Socket} ->
+        error_logger:info_msg("~p Video player lost connection.\n", [self()]),
+        ok;
+    	Else ->
+    	  ?D({"Unknown message", Else}),
+    	  ?MODULE:ready(State)
+    end.
 
 
 
-ready(file_name, _From, #video_player{media_info = MediaInfo} = State) ->
-  {reply, media_entry:file_name(MediaInfo), ready, State}.
+% ready(file_name, _From, #video_player{media_info = MediaInfo} = State) ->
+%   {reply, media_entry:file_name(MediaInfo), ready, State}.
 
 
 
@@ -158,31 +166,6 @@ file_format(Name) ->
       ".MKV" -> mkv
   end.
   
-handle_event(Event, StateName, StateData) ->
-  ?D({"Unknown event in player", Event, StateName}),
-    {stop, {StateName, undefined_event, Event}, StateData}.
-
-
-  
-handle_sync_event(Event, _From, StateName, StateData) ->
-  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
-  {stop, {StateName, undefined_event, Event}, StateData}.
-
-handle_info({tcp_closed, _Socket}, _StateName,
-            #video_player{} = StateData) ->
-    error_logger:info_msg("~p Video player lost connection.\n", [self()]),
-    {stop, normal, StateData};
-
-handle_info(_Info, StateName, StateData) ->
-  ?D({"Unknown info in player", _Info, StateName}),
-  {noreply, StateName, StateData}.
-
-terminate(_Reason, _StateName, _State) ->
-  ?D("Video player exit"),
-  ok.
- 
-code_change(_OldVsn, StateName, StateData, _Extra) ->
-    {ok, StateName, StateData}.
 
 %%-------------------------------------------------------------------------
 %% @spec (AbsTime::integer(), TimerStart::integer(), ClientBuffer::integer()) -> [TimeOut::integer() | 0]

@@ -45,7 +45,7 @@
   case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
     {ok, PlayerPid} ->
       ?D({"Player starting", PlayerPid}),
-      gen_fsm:send_event(PlayerPid, {start}),
+      PlayerPid ! {start},
       {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = PlayerPid}, ?TIMEOUT};
     {notfound} ->
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
@@ -57,7 +57,7 @@
 
 'WAIT_FOR_DATA'({stop}, #rtmp_client{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
   ?D({"Stopping video player", PlayerPid}),
-  gen_fsm:send_event(PlayerPid, {stop}),
+  PlayerPid ! {stop},
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
@@ -133,7 +133,7 @@ play(AMF, #rtmp_client{video_player = Player} = State) ->
   ?D({"invoke - play", Name, AMF}),
   case Player of
     undefined -> ok;
-    _ -> gen_fsm:send_event(Player, {stop})
+    _ -> Player ! {stop}
   end,
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
@@ -154,11 +154,11 @@ pause(AMF, #rtmp_client{video_player = Player} = State) ->
     
     case Pausing of
       true ->
-        gen_fsm:send_event(Player, {pause}),
+        Player ! {pause},
         gen_fsm:send_event(self(), {status, ?NS_PAUSE_NOTIFY, 1}),
         State;
       false ->
-        gen_fsm:send_event(Player, {resume}),
+        Player ! {resume},
         gen_fsm:send_event(self(), {status, ?NS_UNPAUSE_NOTIFY, 1}),
         State
     end.
@@ -176,7 +176,7 @@ seek(AMF, #rtmp_client{video_player = Player} = State) ->
   ?D({"invoke - seek", AMF#amf.args}),
   [_, {number, Timestamp}] = AMF#amf.args,
   StreamId = 1,
-  gen_fsm:send_event(Player, {seek, Timestamp}),
+  Player ! {seek, Timestamp},
   gen_fsm:send_event(self(), {status, ?NS_SEEK_NOTIFY, 1}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),

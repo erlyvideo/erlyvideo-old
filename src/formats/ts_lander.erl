@@ -421,7 +421,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream
 
 decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:3, 0:5, Level, AfterLevel/binary>>, #stream{parameters = Parameters} = Stream) ->
   {SeqParameterSetId, AfterSPSId} = exp_golomb_read(AfterLevel),
-  {Log2MaxFrameNumMinus4, _} = exp_golomb_read(AfterSPSId),
+  {Log2MaxFrameNumMinus4, AfterLog2} = exp_golomb_read(AfterSPSId),
   ProfileName = profile_name(Profile),
   io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
   io:format("seq_parameter_set_id: ~p~n", [SeqParameterSetId]),
