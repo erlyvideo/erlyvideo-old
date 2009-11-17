@@ -20,7 +20,7 @@
 			rtmp_client,
 			ems_http,
 			ems_rtmp,
-			ems_server,
+			rtmp_server,
 			ems_sup,
 			flv,
 			gen_format,

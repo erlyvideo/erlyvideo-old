@@ -44,7 +44,7 @@ init([Port]) ->
         {ok, Listen_socket} ->
             %%Create first accepting process
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
-            {ok, #ems_server{listener = Listen_socket,
+            {ok, #rtmp_server{listener = Listen_socket,
                              acceptor = Ref}};
         {error, Reason} ->
             {stop, Reason}
@@ -89,7 +89,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
-            #ems_server{listener=ListSock, acceptor=Ref} = State) ->
+            #rtmp_server{listener=ListSock, acceptor=Ref} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
@@ -100,17 +100,17 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         rtmp_client:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
-        {noreply, State#ems_server{acceptor=NewRef}};
+        {noreply, State#rtmp_server{acceptor=NewRef}};
     {error, Reason} ->
         error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
         {stop, Reason, State}
     end;
     
-handle_info({inet_async, ListSock, Ref, Error}, #ems_server{listener=ListSock, acceptor=Ref} = State) ->
+handle_info({inet_async, ListSock, Ref, Error}, #rtmp_server{listener=ListSock, acceptor=Ref} = State) ->
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
     
-handle_info({clients, _From}, #ems_server{} = State) ->
+handle_info({clients, _From}, #rtmp_server{} = State) ->
   ?D("Asked for clients list"),
   {noreply, State};
 
@@ -126,7 +126,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, State) ->
-    gen_tcp:close(State#ems_server.listener),
+    gen_tcp:close(State#rtmp_server.listener),
     ok.
 
 %%-------------------------------------------------------------------------

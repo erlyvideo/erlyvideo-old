@@ -90,6 +90,7 @@ open_file("http://"++_ = URL, Options) ->
   case open(URL, mpeg_ts) of
     undefined -> {notfound};
     Server -> 
+      ?D("Started MPEG TS lander"),
       media_entry:subscribe(Server, proplists:get_value(consumer, Options)),
       {ok, Server}
   end;

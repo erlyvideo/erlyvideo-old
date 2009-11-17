@@ -200,7 +200,7 @@
 	}).
 	
 
--record(ems_server, {
+-record(rtmp_server, {
 	listener, % Listening socket
 	acceptor  % Asynchronous acceptor's internal reference
 	}).

@@ -13,7 +13,7 @@ Structure is following:
   * ems_fsm.erl — worker fsm. One instance per client.
   * ems_http.erl — builtin HTTP server, required for RTMPT and can show you nice main page on http://localhost:8082/
   * ems_rtmp.erl — RTMP encoding/decoding module. Knows about all RTMP features.
-  * ems_server.erl — RTMP acceptor.
+  * rtmp_server.erl — RTMP acceptor.
   * ems_sup.erl — EMS supervisor.
   * gen_rtmp.erl — Module with functions, exported to flash.
 

@@ -205,11 +205,11 @@ init([]) ->
     undefined -> Supervisors;
     RTMPPort -> [% EMS Listener
       {   ems_sup,                                 % Id       = internal id
-          {ems_server,start_link,[RTMPPort]},              % StartFun = {M, F, A}
+          {rtmp_server,start_link,[RTMPPort]},              % StartFun = {M, F, A}
           permanent,                               % Restart  = permanent | transient | temporary
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
-          [ems_server]                             % Modules  = [Module] | dynamic
+          [rtmp_server]                             % Modules  = [Module] | dynamic
       }|Supervisors]
   end,
 
@@ -221,7 +221,7 @@ init([]) ->
           permanent,                               % Restart  = permanent | transient | temporary
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
-          [ems_server]                             % Modules  = [Module] | dynamic
+          [rtmp_server]                             % Modules  = [Module] | dynamic
       }|Supervisors1]
   end,
   

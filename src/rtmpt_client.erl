@@ -70,7 +70,7 @@ watcher(Rtmp, Timeout) ->
 %%-------------------------------------------------------------------------
 init([SessionId]) ->
     % process_flag(trap_exit, true),
-    {ok, Rtmp} = gen_server:call(ems_server, {start}, ?RTMPT_TIMEOUT),
+    {ok, Rtmp} = gen_server:call(rtmp_server, {start}, ?RTMPT_TIMEOUT),
     link(Rtmp),
     io:format("Received upstream ~p~n", [Rtmp]),
     Watchdog = spawn_link(?MODULE, watcher, [self(), ?RTMPT_TIMEOUT*5]),
