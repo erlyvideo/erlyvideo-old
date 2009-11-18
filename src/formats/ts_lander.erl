@@ -34,6 +34,19 @@
   parameters = []
 }).
 
+-define(TYPE_VIDEO_MPEG1, 1).
+-define(TYPE_VIDEO_MPEG2, 2).
+-define(TYPE_VIDEO_MPEG4, 16).
+-define(TYPE_VIDEO_H264,  27).
+-define(TYPE_VIDEO_VC1,   234).
+-define(TYPE_VIDEO_DIRAC, 209).
+-define(TYPE_AUDIO_MPEG1, 3).
+-define(TYPE_AUDIO_MPEG2, 4).
+-define(TYPE_AUDIO_AAC,   15).
+-define(TYPE_AUDIO_AC3,   129).
+-define(TYPE_AUDIO_DTS,   138).
+
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -239,7 +252,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, type = video, consumer = Consumer}]),
+        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, consumer = Consumer}]),
         ?D({"Starting", Handler}),
         #stream_out{pid = Pid, handler = Handler};
       Other ->
@@ -253,12 +266,17 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   TSLander#ts_lander{pids = Descriptors1}.
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, Descriptors) ->
-  extract_pmt(Rest, [#stream{handler = pes, counter = 0, pid = Pid, type = StreamType}|Descriptors]);
+  ?D({"Pid -> Type", Pid, StreamType}),
+  extract_pmt(Rest, [#stream{handler = pes, counter = 0, pid = Pid, type = stream_type(StreamType)}|Descriptors]);
   
 extract_pmt(_CRC32, Descriptors) ->
   % io:format("Unknown PMT: ~p~n", [PMT]),
   lists:keysort(#stream.pid, Descriptors).
 
+
+stream_type(?TYPE_VIDEO_H264) -> video;
+stream_type(?TYPE_AUDIO_AAC) -> audio;
+stream_type(_) -> unhandled.
 
 pes(#stream{synced = false, pid = Pid} = Stream) ->
   receive
@@ -292,7 +310,7 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
 
 
 pes_packet(<<1:24,
-            2#110:3, _StreamId:5,
+            _StreamId,
             _PesPacketLength:16,
             2:2,
             _PESScramblingControl:2,
@@ -309,7 +327,7 @@ pes_packet(<<1:24,
             _PESExtensionFlag:1,
             PESHeaderLength:8,
             _PESHeader:PESHeaderLength/binary,
-            _Data/binary>> = Packet, #stream{counter = Counter, pid = Pid} = Pes) ->
+            _Data/binary>> = Packet, #stream{counter = Counter, pid = Pid, type = audio} = Pes) ->
             % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
             DTS = case PTS_DTS_flags of
                 2#11 ->
@@ -324,21 +342,51 @@ pes_packet(<<1:24,
             end,
             case DTS > Counter of
                 true ->
-                    % io:format("New DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                  % io:format("New DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, audio, Pid]),
                     Pes#stream{counter = Counter + 1, type = audio};
                 false ->
-                    io:format("!!! DTS ~p, Delta ~p on ~p~n", [DTS, DTS-Counter, Pid]),
+                    % io:format("!!! DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, audio, Pid]),
                     Pes#stream{counter = Counter + 1, type = audio}
             end;
 
 pes_packet(<<1:24, 
             _StreamId,
-            _:4/binary,
+            _PesPacketLength:16,
+            2:2,
+            _PESScramblingControl:2,
+            _PESPriority:1,
+            _DataAlignmentIndicator:1,
+            _Copyright:1,
+            _OriginalOrCopy:1,
+            PTS_DTS_flags:2,
+            _ESCRFlag:1,
+            _ESRateFlag:1,
+            _DSMTrickModeFlag:1,
+            _AdditionalCopyInfoFlag:1,
+            _PESCRCFlag:1,
+            _PESExtensionFlag:1,
             PESHeaderLength:8,
             _PESHeader:PESHeaderLength/binary,
-            Rest/binary>>, #stream{es_buffer = Buffer} = Stream) ->
+            Rest/binary>>, #stream{es_buffer = Buffer, counter = Counter, pid = Pid, type = video} = Stream) ->
               
-  decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
+  DTS = case PTS_DTS_flags of
+      2#11 ->
+          <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = _PESHeader,
+          Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30);
+      2#10 ->
+          <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = _PESHeader,
+          Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30);
+      _ ->
+          %io:format("No DTS found~n"),
+          Counter + 1
+  end,
+  case DTS > Counter of
+      true ->
+          % io:format("New DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid]);
+      false ->
+          % io:format("!!! DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid])
+  end,
+  decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>, counter = Counter + 1}).
 
 
 decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
