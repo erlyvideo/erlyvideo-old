@@ -66,7 +66,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, clients/0, login/2, logout/0]).
+-export([start_link/1, clients/0, login/2, logout/0, send_to_user/2, send_to_channel/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -96,8 +96,33 @@ login(_, undefined) -> undefined;
 login(UserId, Channels) ->
   gen_server:call(?MODULE, {login, UserId, Channels}).
   
+%%--------------------------------------------------------------------
+%% @spec () -> {ok}
+%%
+%% @doc Logout user from server tables
+%% @end
+%%----------------------------------------------------------------------
 logout() ->
   gen_server:call(?MODULE, logout).
+
+%%--------------------------------------------------------------------
+%% @spec (UserId::integer(), Message::text) -> {ok}
+%%
+%% @doc Send message to all logged instances of userId
+%% @end
+%%----------------------------------------------------------------------
+send_to_user(UserId, Message) ->
+  gen_server:cast(?MODULE, {send_to_user, UserId, Message}).
+
+%%--------------------------------------------------------------------
+%% @spec (Channel::integer(), Message::text) -> {ok}
+%%
+%% @doc Send message to all, subscribed on channel
+%% @end
+%%----------------------------------------------------------------------
+send_to_channel(Channel, Message) ->
+  gen_server:cast(?MODULE, {send_to_channel, Channel, Message}).
+
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -184,6 +209,16 @@ handle_call(Request, _From, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_cast({send_to_user, UserId, Message}, #rtmp_server{user_ids = UserIds} = Server) ->
+  Clients = ets:lookup(UserIds, UserId),
+  lists:foreach(fun(Client) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
+  {noreply, Server};
+
+handle_cast({send_to_channel, Channel, Message}, #rtmp_server{channels = Channels} = Server) ->
+  Clients = ets:lookup(Channels, Channel),
+  lists:foreach(fun(Client) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
+  {noreply, Server};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
