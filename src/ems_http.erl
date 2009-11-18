@@ -17,8 +17,7 @@ handle_http(Req) ->
 
 
 handle('GET', [], Req) ->
-  erlydtl:compile("player/player.html", index_template),
-  % {ok, Contents} = file:read_file("player/player.html"),
+  erlydtl:compile("wwwroot/index.html", index_template),
   
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
@@ -42,12 +41,23 @@ handle('GET', [], Req) ->
 
 
 handle('GET', ["admin"], Req) ->
-  erlydtl:compile("player/admin.html", admin_template),
+  erlydtl:compile("wwwroot/admin.html", admin_template),
   % {ok, Contents} = file:read_file("player/player.html"),
 
   FileList = [],
   {ok, Index} = admin_template:render([
   {files, FileList}]),
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
+
+
+handle('GET', ["chat.html"], Req) ->
+  erlydtl:compile("wwwroot/chat.html", chat_template),
+  % {ok, Contents} = file:read_file("player/player.html"),
+
+  {ok, Index} = chat_template:render([
+    {hostname, ems:get_var(host, "rtmp://localhost")},
+    {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}])}
+  ]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
   
@@ -101,11 +111,18 @@ handle('POST', ["fcs", "ident2"], Req) ->
     error_logger:info_msg("Request: ident2.\n"),
     Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
   
-handle('POST', ["channel", ChannelS, "message"], Req) ->
+handle('POST', ["channels", ChannelS, "message"], Req) ->
   Message = proplists:get_value("message", Req:parse_post()),
   Channel = list_to_integer(ChannelS),
   rtmp_server:send_to_channel(Channel, Message),
-  Req:respond(302, [{"Content-Type", "text/plain"}], "302 Accepted~n");
+  Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
+
+handle('POST', ["users", UserS, "message"], Req) ->
+  Message = proplists:get_value("message", Req:parse_post()),
+  User = list_to_integer(UserS),
+  rtmp_server:send_to_user(User, Message),
+  Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
+
   
 handle('GET', ["stream", Name], Req) ->
   case media_provider:play(Name) of
@@ -118,7 +135,7 @@ handle('GET', ["stream", Name], Req) ->
   end;
   
 handle('GET', Path, Req) ->
-  FileName = filename:absname(filename:join(["player" | Path])),
+  FileName = filename:absname(filename:join(["wwwroot" | Path])),
   case filelib:is_regular(FileName) of
     true ->
       ?D({"GET", FileName}),

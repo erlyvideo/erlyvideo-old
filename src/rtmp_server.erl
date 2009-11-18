@@ -216,7 +216,6 @@ handle_cast({send_to_user, UserId, Message}, #rtmp_server{user_ids = UserIds} = 
 
 handle_cast({send_to_channel, Channel, Message}, #rtmp_server{channels = Channels} = Server) ->
   Clients = ets:lookup(Channels, Channel),
-  ?D({"Clients:", Clients}),
   lists:foreach(fun(#channel_entry{client = Client}) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
   {noreply, Server};
 
