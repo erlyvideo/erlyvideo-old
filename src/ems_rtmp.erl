@@ -193,8 +193,7 @@ command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>
   % ?D({"Change Chunk Size",Channel,ChunkSize}),
 	State#rtmp_client{client_chunk_size = ChunkSize};
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
-  ?D({"Pong replied, client keepalive"}),
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, _Timestamp:32/big-integer>>}, State) ->
 	State#rtmp_client{pinged = false};	
 
 	
@@ -235,7 +234,7 @@ command(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, State) ->
 	App = ems:check_app(State,Command, 2),
 	App:Command(AMF, State);
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message} = Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
   
 
@@ -246,7 +245,7 @@ command(#channel{type = Type}, State) ->
 
 
 decode_shared_object_amf0(<<>>, State) -> State;
-decode_shared_object_amf0(<<Length:16, SharedObject:Length/binary, VersionFlags:12/binary, EventType, 
+decode_shared_object_amf0(<<Length:16, SharedObject:Length/binary, _VersionFlags:12/binary, EventType, 
                             EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>, State) ->
   State1 = apps_shared_objects:command({SharedObject, EventType, EventData}, State),
   decode_shared_object_amf0(Rest, State1).

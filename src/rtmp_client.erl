@@ -175,8 +175,7 @@ init([]) ->
 
 
 'WAIT_FOR_DATA'(timeout, #rtmp_client{pinged = false} = State) ->
-  ?D({"Timeout, pinging"}),
-  gen_fsm:send_event({control, ?RTMP_CONTROL_STREAM_PING, 0}, self()),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_PING, 0}),
   {next_state, 'WAIT_FOR_DATA', State#rtmp_client{pinged = true}, ?TIMEOUT};    
 
 'WAIT_FOR_DATA'(timeout, State) ->
