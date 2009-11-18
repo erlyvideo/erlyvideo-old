@@ -36,10 +36,37 @@
 -author('luke@codegent.com').
 -include("../include/ems.hrl").
 
+-record(rtmp_server, {
+	listener, % Listening socket
+	acceptor,  % Asynchronous acceptor's internal reference
+	clients,
+	user_ids,
+	channels,
+	session_id = 0
+	}).
+
+
+-record(client_entry, {
+  session_id,
+  user_id,
+  channels,
+  client
+}).
+
+-record(user_id_entry, {
+  user_id,
+  client
+}).
+
+-record(channel_entry, {
+  channel,
+  client
+}).
+
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, clients/0]).
+-export([start_link/1, clients/0, login/2, logout/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -55,6 +82,22 @@
 clients() ->
   Timeout = 10,
   lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_client_sup)).
+
+
+%%--------------------------------------------------------------------
+%% @spec (UserId::integer(), Channels::[integer()]) -> {ok, SessionId::Integer()}
+%%
+%% @doc Register logged user in server tables
+%% @end
+%%----------------------------------------------------------------------
+login(undefined, _) -> undefined;
+login(_, undefined) -> undefined;
+
+login(UserId, Channels) ->
+  gen_server:call(?MODULE, {login, UserId, Channels}).
+  
+logout() ->
+  gen_server:call(?MODULE, logout).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -87,8 +130,11 @@ init([Port]) ->
         {ok, Listen_socket} ->
             %%Create first accepting process
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
-            {ok, #rtmp_server{listener = Listen_socket,
-                             acceptor = Ref}};
+            Clients = ets:new(clients, [set, {keypos, #client_entry.session_id}]),
+            UserIds = ets:new(clients, [bag, {keypos, #user_id_entry.user_id}]),
+            Channels = ets:new(clients, [bag, {keypos, #channel_entry.channel}]),
+            {ok, #rtmp_server{listener = Listen_socket, acceptor = Ref, 
+                              clients = Clients, user_ids = UserIds, channels = Channels}};
         {error, Reason} ->
             {stop, Reason}
     end.
@@ -111,6 +157,20 @@ handle_call({start}, {From, _Ref}, State) ->
   gen_fsm:sync_send_event(Pid, {socket_ready, From}),
   {reply, {ok, Pid}, State};
 
+handle_call({login, UserId, UserChannels}, Client, 
+  #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->
+  SessionId = LastSessionId + 1,
+  ets:insert(Clients, #client_entry{session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
+  ets:insert(UserIds, #user_id_entry{user_id = UserId, client = Client}),
+  lists:foreach(fun(Channel) -> ets:insert(Channels, #channel_entry{channel = Channel, client = Client}) end, UserChannels),
+  {reply, {ok, SessionId}, Server#rtmp_server{session_id = SessionId}};
+
+
+handle_call(logout, Client, #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
+  ets:match_delete(Clients, #client_entry{session_id = '_', user_id = '_', channels = '_', client = Client}),
+  ets:match_delete(UserIds, #user_id_entry{user_id = '_', client = Client}),
+  ets:match_delete(Channels, #channel_entry{channel = '_', client = Client}),
+  {reply, {ok}, Server};
 
 handle_call(Request, _From, State) ->
     {stop, {unknown_call, Request}, State}.

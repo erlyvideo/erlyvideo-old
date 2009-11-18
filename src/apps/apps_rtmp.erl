@@ -60,11 +60,13 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 		
 	  NewState1 = case AMF#amf.args of
 			[{object, PlayerInfo}, {string, Cookie}, UserIdObj] ->
-			  UserId = obj_to_integer(UserIdObj),
+        % UserId = obj_to_integer(UserIdObj),
 			  Session = rtmp_session:decode(Cookie),
         ?D({"Session:", Session}),
-        
-				State#rtmp_client{player_info = PlayerInfo, user_id = UserId};
+        UserId = proplists:get_value(user_id, Session),
+        Channels = proplists:get_value(channels, Session, []),
+        {ok, SessionId} = rtmp_server:login(UserId, Channels),
+				State#rtmp_client{player_info = PlayerInfo, user_id = UserId, session_id = SessionId};
 	    [{object, PlayerInfo} | _] ->
 				State#rtmp_client{player_info = PlayerInfo, user_id = undefined}
 		end,

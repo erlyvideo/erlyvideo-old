@@ -280,6 +280,7 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_client{socket=Socket, video_player = Player}) ->
+  rtmp_server:logout(),
   (catch gen_fsm:send_event(Player, {exit})),
   (catch gen_tcp:close(Socket)),
   ok.

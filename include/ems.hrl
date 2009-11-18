@@ -200,15 +200,12 @@
 	}).
 	
 
--record(rtmp_server, {
-	listener, % Listening socket
-	acceptor  % Asynchronous acceptor's internal reference
-	}).
 
 -record(rtmp_client, {
 	socket,    % client socket
 	addr,      % client address
 	port,
+	session_id,
 	amf_version = 0,
 	channels    = [],
 	user_id     = undefined,
