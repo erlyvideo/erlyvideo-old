@@ -7,16 +7,24 @@ currently it can:
   * record flv from camera
   * have possibility to auth users
   * broadcast flv between people
-  
+  * provide push channel to flash, just like juggernaut, just like AMQP (look doc/push.edoc)
+
+currently in development:
+  * good recording from flash camera. Currently there are problems.
+  * improve handling of background vlc/ffmpeg for them to recode uploaded videos
+  * reading of MPEG TS. It may be required for streaming and recording from video cameras
+
   
 future plans:
   * try to change quality on fly
-  * provide push channel to flash, just like juggernaut, just like AMQP
+  * RTSP/RTP to read from QuickTime Broadcaster
 
 
 What you can do right now?
 
   * use it for streaming flv and mp4 files
+  * use it as a replacement for long-poll push channels
+  * use it as a recorder of video camera
 
 
 How can You help?
@@ -29,7 +37,7 @@ How to launch:
   * git clone git://github.com/maxlapshin/erlyvideo.git
   * cd erlyvideo
   * cp src/erlmedia.app ebin/erlmedia.app
-  * mate ebin/erlmedia.app
+  * $EDITOR ebin/erlmedia.app
   * change /tmp to /Users/username/Movies
   * make
   * make run
