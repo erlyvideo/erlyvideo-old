@@ -28,6 +28,7 @@ private var _totalTime : Number;
 
 public function init()  : void
 {
+  System.useCodePage = true;
   connect();
   _totalTime = 0;
   _statusTimer = new Timer(100); // 1 second
