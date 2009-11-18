@@ -3,8 +3,6 @@ APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
 VSN=0.1
 
-include support/include.mk
-
 all: ebin/erlmedia.app
 	erl -make
 

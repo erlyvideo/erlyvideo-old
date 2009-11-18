@@ -3,12 +3,18 @@
     <title>Erlyvideo: {{url}}</title>
     <link rel="stylesheet" href="blueprint/screen.css" type="text/css" media="screen, projection">
     <link rel="stylesheet" href="blueprint/print.css" type="text/css" media="print">
+    <script type="text/javascript" src="/js/jquery.js"></script>
     <!--[if lt IE 8]>
       <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
     <![endif]-->
   </head>
   <body>
     <script type="text/javascript">
+    netconnection = {};
+    
+    netconnection.message = function(message) {
+      $("#chat").append("<div>"+message+"</div>");
+    }
     </script>
     <div class="container">
       <div class="span-24 last"><h3><a href="/admin">Admin</a></h3></div>
@@ -26,6 +32,14 @@
           
       </div>
       <div class="span-8 last">
+        <h3>Chat</h3>
+        <div id="chat" style="height: 300px; overflow: scroll">
+          
+        </div>
+        <form action="/channel/10/message" method="post" onsubmit="try {var post = $(this).serialize(); $(this).find('input').attr('disabled', true); $.post(this.action, post, function() {$(this).find('input').attr('disabled', null);}, 'json'); } catch(e) { alert(e);}; return false">
+          <input type="text" name="message">
+          <input type="submit" value="Send message">
+        </form>
         <ul>
           {% for file in files %}
           <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>

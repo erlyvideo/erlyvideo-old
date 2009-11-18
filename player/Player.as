@@ -231,8 +231,8 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
 		break;
 		
 	case "NetConnection.Message":
-/*        ExternalInterface.call("console.log", event.info.description);*/
-    _log.text = event.info.description;
+    ExternalInterface.call("netconnection.message", event.info.description);
+/*    _log.text = event.info.description;*/
     break;
     
   case "NetConnection.Connect.Failed":

@@ -101,6 +101,12 @@ handle('POST', ["fcs", "ident2"], Req) ->
     error_logger:info_msg("Request: ident2.\n"),
     Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
   
+handle('POST', ["channel", ChannelS, "message"], Req) ->
+  Message = proplists:get_value("message", Req:parse_post()),
+  Channel = list_to_integer(ChannelS),
+  rtmp_server:send_to_channel(Channel, Message),
+  Req:respond(302, [{"Content-Type", "text/plain"}], "302 Accepted~n");
+  
 handle('GET', ["stream", Name], Req) ->
   case media_provider:play(Name) of
     {ok, PlayerPid} ->

@@ -182,7 +182,7 @@ handle_call({start}, {From, _Ref}, State) ->
   gen_fsm:sync_send_event(Pid, {socket_ready, From}),
   {reply, {ok, Pid}, State};
 
-handle_call({login, UserId, UserChannels}, Client, 
+handle_call({login, UserId, UserChannels}, {Client, _Ref}, 
   #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->
   SessionId = LastSessionId + 1,
   ets:insert(Clients, #client_entry{session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
@@ -191,7 +191,7 @@ handle_call({login, UserId, UserChannels}, Client,
   {reply, {ok, SessionId}, Server#rtmp_server{session_id = SessionId}};
 
 
-handle_call(logout, Client, #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
+handle_call(logout, {Client, _Ref}, #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
   ets:match_delete(Clients, #client_entry{session_id = '_', user_id = '_', channels = '_', client = Client}),
   ets:match_delete(UserIds, #user_id_entry{user_id = '_', client = Client}),
   ets:match_delete(Channels, #channel_entry{channel = '_', client = Client}),
@@ -211,12 +211,13 @@ handle_call(Request, _From, State) ->
 %%-------------------------------------------------------------------------
 handle_cast({send_to_user, UserId, Message}, #rtmp_server{user_ids = UserIds} = Server) ->
   Clients = ets:lookup(UserIds, UserId),
-  lists:foreach(fun(Client) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
+  lists:foreach(fun(#channel_entry{client = Client}) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
   {noreply, Server};
 
 handle_cast({send_to_channel, Channel, Message}, #rtmp_server{channels = Channels} = Server) ->
   Clients = ets:lookup(Channels, Channel),
-  lists:foreach(fun(Client) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
+  ?D({"Clients:", Clients}),
+  lists:foreach(fun(#channel_entry{client = Client}) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
   {noreply, Server};
 
 handle_cast(_Msg, State) ->

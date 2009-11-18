@@ -6,6 +6,7 @@
 
 
 'WAIT_FOR_DATA'({message, Message}, State) ->
+  ?D({"NetConnection.Message", Message}),
   gen_fsm:send_event(self(), {status, "NetConnection.Message", 0, Message}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
