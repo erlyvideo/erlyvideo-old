@@ -13,7 +13,7 @@ stop() ->
 % callback on request received
 handle_http(Req) ->	
   random:seed(now()),
-  handle(Req:get(method), Req:resource([lowercase, urldecode]), Req).
+  handle(Req:get(method), Req:resource([urldecode]), Req).
 
 
 handle('GET', [], Req) ->
@@ -21,10 +21,7 @@ handle('GET', [], Req) ->
   
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
-  File = case lists:keyfind("file", 1, Query) of
-    {"file", _File} -> _File;
-    false -> "video.mp4"
-  end,
+  File = proplists:get_value("file", Query, "video.mp4"),
   case file:list_dir(file_play:file_dir()) of
     {ok, FileList} -> ok;
     {error, Error} -> 
