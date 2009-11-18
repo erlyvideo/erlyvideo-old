@@ -80,17 +80,6 @@
 -define(SO_DELETE_ATTRIBUTE,    10).
 -define(SO_INITIAL_DATA,        11).
 
-%% PING Codes
-%%
--define(PING_STREAM_CLEAR, 0).
--define(PING_STREAM_PLAY, 1).
-%% Unknown: 2
--define(PING_CLIENT_BUFFER, 3).
--define(PING_STREAM_RESET, 4).
-%% Unknown: 5
--define(PING_PING_CLIENT, 6).
--define(PING_PONG_SERVER, 7).
-%% Unknown: 8
 
 % AMF commands
 -define(AMF_COMMAND_ONMETADATA, "onMetaData").
@@ -218,7 +207,8 @@
 	video_state = undefined,
 	window_size = ?RTMP_WINDOW_SIZE,
 	previous_ack = undefined,
-	current_speed = 0
+	current_speed = 0,
+	pinged = false
 	}).
 
 

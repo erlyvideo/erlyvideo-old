@@ -125,7 +125,7 @@ init([]) ->
 	end;
 
 'WAIT_FOR_HANDSHAKE'(timeout, State) ->
-    error_logger:error_msg("~p Client connection timeout.\n", [self()]),
+    error_logger:error_msg("~p Client connection timeout during handshake.\n", [self()]),
     {stop, normal, State};
 
 'WAIT_FOR_HANDSHAKE'(Other, State) ->
@@ -174,10 +174,14 @@ init([]) ->
   {stop, normal, State};
 
 
+'WAIT_FOR_DATA'(timeout, #rtmp_client{pinged = false} = State) ->
+  ?D({"Timeout, pinging"}),
+  gen_fsm:send_event({control, ?RTMP_CONTROL_STREAM_PING, 0}, self()),
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{pinged = true}, ?TIMEOUT};    
 
 'WAIT_FOR_DATA'(timeout, State) ->
-    error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
-    {stop, normal, State};    
+  error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
+  {stop, normal, State};    
         
 'WAIT_FOR_DATA'(Message, State) ->
   case ems:try_method_chain('WAIT_FOR_DATA', [Message, State]) of
