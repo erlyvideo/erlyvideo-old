@@ -57,8 +57,8 @@ encode({object,List} = Object)     when is_list(List) -> encode_object(Object);
 encode({string,List} = _String)    when is_list(List) -> encode(List);
 encode([H|_] = List) when is_list(List), is_tuple(H) -> 
 	encode_object(List, <<>>);
-encode(List) when is_list(List) -> 
-  String = unicode:characters_to_binary(List),
+encode(List) when is_list(List) ->
+  String = list_to_binary(List),
 	<<?AMF_STRING, (size(String)):16/big-integer, String/binary>>;
 encode(_Value) -> 
 	?D(_Value),
