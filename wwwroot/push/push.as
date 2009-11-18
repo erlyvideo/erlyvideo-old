@@ -27,7 +27,7 @@ public class push extends Sprite
 		_connectTimer = new Timer(delay, repeat);
 		_connectTimer.addEventListener(TimerEvent.TIMER, connect);
 		
-		ExternalInterface.call("netconnection.message", "Server: "+_server + "\ncookie: "+_cookie);
+		ExternalInterface.call("netconnection.initialized", _server);
 	  connect();
 	}
 
