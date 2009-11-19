@@ -30,8 +30,11 @@
   synced = false,
   ts_buffer = [],
   es_buffer = <<>>,
+  parameters = [],
   counter = 0,
-  parameters = []
+  total_time,
+  delta_time = undefined,
+  send_decoder_config = false
 }).
 
 -define(TYPE_VIDEO_MPEG1, 1).
@@ -367,26 +370,34 @@ pes_packet(<<1:24,
             _PESExtensionFlag:1,
             PESHeaderLength:8,
             _PESHeader:PESHeaderLength/binary,
-            Rest/binary>>, #stream{es_buffer = Buffer, counter = Counter, pid = Pid, type = video} = Stream) ->
+            Rest/binary>>, #stream{es_buffer = Buffer, counter = Counter, pid = Pid, type = video, delta_time = DeltaTime} = Stream) ->
               
   DTS = case PTS_DTS_flags of
       2#11 ->
           <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = _PESHeader,
-          Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30);
+          (Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90000;
       2#10 ->
           <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = _PESHeader,
-          Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30);
+          (Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90000;
       _ ->
           %io:format("No DTS found~n"),
           Counter + 1
   end,
-  case DTS > Counter of
-      true ->
-          % io:format("New DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid]);
-      false ->
-          % io:format("!!! DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid])
+  DeltaTime1 = case DeltaTime of 
+    undefined -> DTS;
+    _ -> DeltaTime
   end,
-  decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>, counter = Counter + 1}).
+  % 
+  %   
+  % case DTS > Counter of
+  %     true ->
+  %         % io:format("New DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid]),
+  %         ok;
+  %     false ->
+  %         % io:format("!!! DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid]),
+  %         ok
+  % end,
+  decode_avc(Stream#stream{delta_time = DeltaTime1, total_time = DTS, es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
 decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
@@ -418,7 +429,7 @@ extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Of
 
 send_decoder_config(#stream{consumer = Consumer} = Stream) ->
   case decoder_config(Stream) of
-    ok -> ok;
+    ok -> Stream;
     DecoderConfig -> 
       VideoFrame = #video_frame{       
        	type          = ?FLV_TAG_TYPE_VIDEO,
@@ -427,12 +438,16 @@ send_decoder_config(#stream{consumer = Consumer} = Stream) ->
     		body          = DecoderConfig,
     		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
     		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-    	  raw_body      = false
+    	  raw_body      = false,
+    	  streamid      = 1
     	},
     	case Consumer of
     	  undefined -> ?D({"Decoder config", DecoderConfig});
-      	_ -> ems_play:send(Consumer, VideoFrame)
-      end
+      	_ -> 
+      	  ?D({"Send decoder config to", Consumer}),
+      	  ems_play:send(Consumer, VideoFrame)
+      end,
+      Stream#stream{send_decoder_config = true}
   end.
   
 
@@ -446,8 +461,11 @@ decoder_config(#stream{parameters = Parameters} = Stream) ->
       Profile = proplists:get_value(profile, Parameters),
       ProfileCompat = proplists:get_value(profile_compat, Parameters, 0),
       Level = proplists:get_value(level, Parameters),
-      iolist_to_binary([<<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 2#111:3, (length(SPS)):5>>,
-        SPS, <<(length(PPS))>>, PPS])
+      SPSBin = iolist_to_binary(SPS),
+      PPSBin = iolist_to_binary(PPS),
+      <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 
+        2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
+        (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>
   end.
 
 
@@ -461,9 +479,25 @@ find_nal_start_code(<<16#000001:24, _/binary>>, Offset) -> Offset;
 find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
 find_nal_start_code(<<>>, _) -> false.
 
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined} = Stream) ->
   % io:format("Coded slice of a non-IDR picture :: "),
   slice_header(Rest, Stream);
+
+decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>> = Data, #stream{send_decoder_config = true, total_time = TotalTime, delta_time = DeltaTime, consumer = Consumer} = Stream) ->
+  Timestamp = TotalTime - DeltaTime,
+  VideoFrame = #video_frame{
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		timestamp_abs = Timestamp,
+		body          = Data,
+		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
+		codec_id      = ?FLV_VIDEO_CODEC_AVC,
+	  raw_body      = false,
+	  streamid      = 1
+  },
+  ?D({"Send slice to", Consumer}),
+  ems_play:send(Consumer, VideoFrame),
+  Stream;
+
 
 decode_nal(<<0:1, _NalRefIdc:2, 2:5, Rest/binary>>, Stream) ->
   % io:format("Coded slice data partition A     :: "),
@@ -477,15 +511,29 @@ decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, Stream) ->
   % io:format("Coded slice data partition C     :: "),
   slice_header(Rest, Stream);
 
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, #stream{consumer = undefined} = Stream) ->
   % io:format("~nCoded slice of an IDR picture~n"),
   slice_header(Rest, Stream);
+  
+decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>> = Data, #stream{send_decoder_config = true, total_time = TotalTime, delta_time = DeltaTime, consumer = Consumer} = Stream) ->
+  Timestamp = TotalTime - DeltaTime,
+  VideoFrame = #video_frame{
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		timestamp_abs = Timestamp,
+		body          = Data,
+		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
+		codec_id      = ?FLV_VIDEO_CODEC_AVC,
+	  raw_body      = false,
+	  streamid      = 1
+  },
+  ?D({"Send keyframe to", Consumer}),
+  ems_play:send(Consumer, VideoFrame),
+  Stream;
 
-decode_nal(<<0:1, _NalRefIdc:2, 8:5, Rest/binary>>, #stream{parameters = Parameters} = Stream) ->
-  io:format("Picture parameter set: ~p~n", [Rest]),
-  Stream1 = Stream#stream{parameters = lists:merge([{pps, [Rest]}], Parameters)},
-  send_decoder_config(Stream1),
-  Stream1;
+decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, #stream{parameters = Parameters} = Stream) ->
+  % io:format("Picture parameter set: ~p~n", [PPS]),
+  Stream1 = Stream#stream{parameters = lists:merge([{pps, [remove_trailing_zero(PPS)]}], Parameters)},
+  send_decoder_config(Stream1);
 
 decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
   PrimaryPicType = case PrimaryPicTypeId of
@@ -502,7 +550,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream
   Stream;
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>>, #stream{parameters = Parameters} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>> = SPS, #stream{parameters = Parameters} = Stream) ->
   {SeqParameterSetId, Data2} = exp_golomb_read(Data1),
   % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
   % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
@@ -513,19 +561,23 @@ decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>>, #strea
   %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
       
   ProfileName = profile_name(Profile),
-  io:format("~nSequence parameter set ~p ~p~n", [Profile, Level/10]),
-  AfterSPSId = <<0:1, Data2/bitstring>>,
-  io:format("seq_parameter_set_id: ~p (~p)~n", [SeqParameterSetId, AfterSPSId]),
+  io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  Stream1 = Stream#stream{parameters = lists:keymerge(1, [{profile, Profile}, {level, Level}, {sps, [AfterSPSId]}], Parameters)},
-  send_decoder_config(Stream1),
-  Stream1;
+  Stream1 = Stream#stream{parameters = lists:keymerge(1, [{profile, Profile}, {level, Level}, {sps, [remove_trailing_zero(SPS)]}], Parameters)},
+  send_decoder_config(Stream1);
   
 
 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, Stream) ->
   % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
-  ok.
+  Stream.
+
+remove_trailing_zero(Bin) ->
+  Size = size(Bin) - 1,
+  case Bin of
+    <<Smaller:Size/binary, 0>> -> remove_trailing_zero(Smaller);
+    _ -> Bin
+  end.
 
 profile_name(66) -> "Baseline";
 profile_name(77) -> "Main";

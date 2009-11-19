@@ -51,6 +51,7 @@ read_frame(#video_player{pos = '$end_of_table'}, _MediaInfo) ->
   
 read_frame(#video_player{sent_video_config = false} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
+  ?D({"Decoder config", Config}),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
    	decoder_config = true,
@@ -118,11 +119,7 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
 %   
 
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
-  % <<Length:32, A:Length/binary, Length1:32, B:Length1/binary, Rest/binary>> = Data,
-  % ?D({"Frame", Length, Length1, size(Rest)}),
-  % <<Begin:40/binary, _/binary>> = Data,
-  % ?D({"Frame", Begin}),
-  #video_frame{       
+  #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = Timestamp,
 		body          = Data,
@@ -431,10 +428,22 @@ next_atom(#media_info{device = Device}, Pos) ->
       {error, Reason}           
   end.
 
+%  Decoder config from one file:
 %   <<1,77,0,50,255,225,0,22,103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192,1,0,4,104,238,60,128>>
-
+%     1,77,0,50,255,225,0,22,103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192,1,0,4,104,238,60,128
+% 1 — version
+% 77 — profile
+% 0 — Compat
+% 50 — Level 5.0
+% 2 bytes for slice length
+% 1 SPS
+% 22 bytes length of SPS:  103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192
+% 1 PPS
+% 4 bytes length of PPS: 104,238,60,128
+% 
+% Other decoder config
+% <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>
 parse_avc_decoder_config(<<Version, Profile, ProfileCompat, Level, _:6, LengthSize:2, _:3, SPSCount:5, Rest/binary>> = DecoderConfig) ->
-  ?D({DecoderConfig}),
   {SPS, <<PPSCount, PPSRest/binary>>} = parse_avc_sps(Rest, SPSCount, []),
   {PPS, Rest1} = parse_avc_pps(PPSRest, PPSCount, []),
   % ?D({"Length size", LengthSize+1, SPSCount, Version, Profile, ProfileCompat, Level/10.0, SPS, PPS}),

@@ -57,6 +57,8 @@ encode(#channel{} = Channel, Data) when is_binary(Data) ->
 
 encode(_Channel, <<>>, Packet) -> Packet;
 
+encode(#channel{timestamp = TimeStamp} = Channel, Data, Buffer) when is_float(TimeStamp) -> 
+  encode(Channel#channel{timestamp = round(TimeStamp)}, Data, Buffer);
 
 encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = _Channel, Data, <<>>) -> 
   % {Chunk,Rest} = chunk(Data, ChunkSize),
