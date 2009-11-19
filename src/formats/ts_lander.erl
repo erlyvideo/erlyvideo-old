@@ -380,7 +380,7 @@ pes_packet(<<1:24,
           <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = _PESHeader,
           (Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90000;
       _ ->
-          %io:format("No DTS found~n"),
+          % io:format("No DTS found ~p~n", [PTS_DTS_flags]),
           Counter + 1
   end,
   DeltaTime1 = case DeltaTime of 
@@ -397,7 +397,7 @@ pes_packet(<<1:24,
   %         % io:format("!!! DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, video, Pid]),
   %         ok
   % end,
-  decode_avc(Stream#stream{delta_time = DeltaTime1, total_time = DTS, es_buffer = <<Buffer/binary, Rest/binary>>}).
+  decode_avc(Stream#stream{delta_time = DeltaTime1, total_time = DTS, counter = Counter + 1, es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
 decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
@@ -422,8 +422,6 @@ extract_nal(Stream, _, false) ->
 extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
-  % <<Begin:40/binary, _/binary>> = NAL,
-  % ?D({"AVC", Begin}),
   Stream1 = decode_nal(NAL, Stream),
   decode_avc(Stream1#stream{es_buffer = Rest1}).
 
@@ -488,13 +486,13 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>> = Data, #stream{send_decoder_
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = Timestamp,
-		body          = Data,
+		body          = nal_with_size(Data),
 		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC,
 	  raw_body      = false,
 	  streamid      = 1
   },
-  ?D({"Send slice to", Consumer}),
+  ?D({"Send slice to", TotalTime, DeltaTime, Timestamp, Consumer}),
   ems_play:send(Consumer, VideoFrame),
   Stream;
 
@@ -520,7 +518,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>> = Data, #stream{send_decoder_
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = Timestamp,
-		body          = Data,
+		body          = nal_with_size(Data),
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC,
 	  raw_body      = false,
@@ -571,6 +569,9 @@ decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>> = SPS, 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, Stream) ->
   % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
   Stream.
+  
+  
+nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
 
 remove_trailing_zero(Bin) ->
   Size = size(Bin) - 1,

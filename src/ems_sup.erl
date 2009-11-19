@@ -214,7 +214,7 @@ init([]) ->
   end,
 
   Supervisors2 = case ems:get_var(rtsp_port) of
-    undefined -> Supervisors;
+    undefined -> Supervisors1;
     RTSPPort -> [% EMS Listener
       {   rtsp_sup,                                 % Id       = internal id
           {rtsp_server,start_link,[RTSPPort]},              % StartFun = {M, F, A}
