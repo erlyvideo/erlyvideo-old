@@ -380,7 +380,7 @@ pes_packet(<<1:24,
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   Stream1 = stream_timestamp(Packet, Stream, Header),
-  ?D({"Timestamp2", Stream1#stream.timestamp}),
+  % ?D({"Timestamp2", Stream1#stream.timestamp}),
   decode_avc(Stream1#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
@@ -390,17 +390,21 @@ stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, PESHeader:PESHeader
 
 stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, Header) ->
   <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = PESHeader,
-  % ?D("Have DTS & PTS"),
+  ?D("Have DTS & PTS"),
   normalize_timestamp(Stream#stream{timestamp = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)});
   
 
 stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, Header) ->
   <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = PESHeader,
-  % ?D("Have DTS"),
+  ?D("Have DTS"),
   normalize_timestamp(Stream#stream{timestamp = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90)});
 
-stream_timestamp(_, Stream, _) ->
-  Stream.
+% FIXME!!!
+% Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only OPCR, once a second,
+% thus I increment timestamp counter on each NAL, assuming, that there is 25 FPS.
+% This is very, very wrong, but I really don't know how to calculate it in other way.
+stream_timestamp(_, #stream{timestamp = TimeStamp} = Stream, _) ->
+  Stream#stream{timestamp = TimeStamp + 40}.
 
 % normalize_timestamp(Stream) -> Stream;
 normalize_timestamp(#stream{start_time = undefined, timestamp = TimeStamp} = Stream) -> Stream#stream{start_time = TimeStamp, timestamp = 0};
@@ -503,7 +507,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>> = Data, #stream{send_decoder_
 	  raw_body      = false,
 	  streamid      = 1
   },
-  ?D({"Send slice to", TimeStamp, Consumer}),
+  % ?D({"Send slice to", TimeStamp, Consumer}),
   ems_play:send(Consumer, VideoFrame),
   Stream;
 
