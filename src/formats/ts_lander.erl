@@ -102,7 +102,6 @@ init([URL, Consumer]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  timer:send_after(16*1000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, consumer = Consumer, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -304,7 +303,7 @@ extract_pmt(_CRC32, Descriptors) ->
 
 stream_type(?TYPE_VIDEO_H264) -> video;
 stream_type(?TYPE_AUDIO_AAC) -> audio;
-stream_type(_) -> unhandled.
+stream_type(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 pes(#stream{synced = false, pid = Pid} = Stream) ->
   receive
@@ -335,7 +334,7 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
   end.
     
       
-
+pes_packet(Packet, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
 
 pes_packet(<<1:24,
             _StreamId,
@@ -390,13 +389,13 @@ stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, PESHeader:PESHeader
 
 stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, Header) ->
   <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = PESHeader,
-  ?D("Have DTS & PTS"),
+  % ?D({"Have DTS & PTS", round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)}),
   normalize_timestamp(Stream#stream{timestamp = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)});
   
 
 stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, Header) ->
   <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = PESHeader,
-  ?D("Have DTS"),
+  % ?D("Have DTS"),
   normalize_timestamp(Stream#stream{timestamp = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90)});
 
 % FIXME!!!
