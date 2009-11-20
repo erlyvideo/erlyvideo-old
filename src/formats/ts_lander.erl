@@ -2,6 +2,8 @@
 -export([start_link/1, start_link/2]).
 -behaviour(gen_server).
 
+-export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
+
 -include("../../include/ems.hrl").
 
 % ems_sup:start_ts_lander("http://localhost:8080").
@@ -30,11 +32,15 @@
   synced = false,
   ts_buffer = [],
   es_buffer = <<>>,
-  parameters = [],
   counter = 0,
   start_time = 0,
   send_decoder_config = false,
-  timestamp = 0
+  timestamp = 0,
+  profile,
+  profile_compat = 0,
+  level,
+  sps,
+  pps
 }).
 
 -record(ts_header, {
@@ -177,7 +183,7 @@ handle_info({tcp_closed, Socket}, #ts_lander{socket = Socket} = TSLander) ->
   
 handle_info({byte_count}, #ts_lander{byte_counter = Counter} = TSLander) ->
   ?D({"Bytes read", Counter}),
-  timer:send_after(3000, {byte_count}),
+  % timer:send_after(3000, {byte_count}),
   {noreply, TSLander};
 
 handle_info({stop}, #ts_lander{socket = Socket} = TSLander) ->
@@ -239,7 +245,7 @@ parse_adaptation_field(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, 
 parse_adaptation_field(<<Pcr1:33, Pcr2:9, Rest/bitstring>>, 1, OPCR, Header) ->
   parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = (Pcr1 * 300 + Pcr2) / 27000});
 
-parse_adaptation_field(<<OPcr1:33, OPcr2:9, Rest/bitstring>>, 0, 1, Header) ->
+parse_adaptation_field(<<OPcr1:33, OPcr2:9, _Rest/bitstring>>, 0, 1, Header) ->
   Header#ts_header{opcr = (OPcr1 * 300 + OPcr2) / 27000};
   
 parse_adaptation_field(_, 0, 0, Field) -> Field.
@@ -325,7 +331,9 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
       ?MODULE:pes(Stream1);
     {ts_packet, #ts_header{payload_start = 1} = Header, Packet} ->
       PES = list_to_binary(lists:reverse(Buf)),
-      % ?D({"Decode PES", Pid, Stream#stream.es_buffer, PES}),
+      % ?D({"Decode PES", Pid, size(Stream#stream.es_buffer), length(Stream#stream.ts_buffer)}),
+      % ?D({"Decode PES", Pid, length(element(2, process_info(self(), binary)))}),
+      % ?D({"Decode PES", Pid, length(Stream#stream.parameters)}),
       Stream1 = pes_packet(PES, Stream, Header),
       Stream2 = Stream1#stream{ts_buffer = [Packet]},
       ?MODULE:pes(Stream2);
@@ -334,7 +342,7 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
   end.
     
       
-pes_packet(Packet, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
+pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
 
 pes_packet(<<1:24,
             _StreamId,
@@ -354,7 +362,7 @@ pes_packet(<<1:24,
             _PESExtensionFlag:1,
             PESHeaderLength:8,
             _PESHeader:PESHeaderLength/binary,
-            _Data/binary>> = Packet, #stream{counter = Counter, pid = Pid, type = audio} = Pes, _Header) ->
+            _Data/binary>> = Packet, #stream{counter = Counter, type = audio} = Pes, _Header) ->
             % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
             DTS = case PTS_DTS_flags of
                 2#11 ->
@@ -383,17 +391,17 @@ pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binar
   decode_avc(Stream1#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
-stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, #ts_header{timestamp = TimeStamp} = Header) when is_float(TimeStamp) andalso TimeStamp > 0 ->
+stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, _PESHeader:PESHeaderLength/binary, _/binary>>, Stream, #ts_header{timestamp = TimeStamp}) when is_float(TimeStamp) andalso TimeStamp > 0 ->
   % ?D({"No DTS, taking", TimeStamp}),
   normalize_timestamp(Stream#stream{timestamp = round(TimeStamp)});
 
-stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, Header) ->
+stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
   <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = PESHeader,
   % ?D({"Have DTS & PTS", round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)}),
   normalize_timestamp(Stream#stream{timestamp = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)});
   
 
-stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, Header) ->
+stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
   <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = PESHeader,
   % ?D("Have DTS"),
   normalize_timestamp(Stream#stream{timestamp = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90)});
@@ -433,7 +441,7 @@ find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
 extract_nal(Stream, _, false) ->
   Stream;
   
-extract_nal(#stream{es_buffer = Data, consumer = Consumer} = Stream, Offset1, Offset2) ->
+extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
   Stream1 = decode_nal(NAL, Stream),
@@ -463,23 +471,16 @@ send_decoder_config(#stream{consumer = Consumer, send_decoder_config = SendConfi
       Stream#stream{send_decoder_config = true}
   end.
   
-
-decoder_config(#stream{parameters = Parameters} = Stream) ->
-  case {proplists:get_value(sps, Parameters), proplists:get_value(pps, Parameters)} of
-    {_, undefined} -> ok;
-    {undefined, _} -> ok;
-    {SPS, PPS} when is_list(SPS) andalso is_list(PPS) ->
-      LengthSize = 4-1,
-      Version = 1,
-      Profile = proplists:get_value(profile, Parameters),
-      ProfileCompat = proplists:get_value(profile_compat, Parameters, 0),
-      Level = proplists:get_value(level, Parameters),
-      SPSBin = iolist_to_binary(SPS),
-      PPSBin = iolist_to_binary(PPS),
-      <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 
-        2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
-        (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>
-  end.
+decoder_config(#stream{sps = undefined}) -> ok;
+decoder_config(#stream{pps = undefined}) -> ok;
+decoder_config(#stream{pps = PPS, sps = SPS, profile = Profile, profile_compat = ProfileCompat, level = Level}) ->
+  LengthSize = 4-1,
+  Version = 1,
+  SPSBin = iolist_to_binary(SPS),
+  PPSBin = iolist_to_binary(PPS),
+  <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 
+    2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
+    (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
 
 
 nal_unit_start_code_finder(Bin, Offset) ->
@@ -496,7 +497,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined
   % io:format("Coded slice of a non-IDR picture :: "),
   slice_header(Rest, Stream);
 
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>> = Data, #stream{send_decoder_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{send_decoder_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = TimeStamp,
@@ -527,7 +528,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, #stream{consumer = undefined
   % io:format("~nCoded slice of an IDR picture~n"),
   slice_header(Rest, Stream);
   
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>> = Data, #stream{send_decoder_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{send_decoder_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = TimeStamp,
@@ -541,10 +542,9 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>> = Data, #stream{send_decoder_
   ems_play:send(Consumer, VideoFrame),
   Stream;
 
-decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, #stream{parameters = Parameters} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, Stream) ->
   % io:format("Picture parameter set: ~p~n", [PPS]),
-  Stream1 = Stream#stream{parameters = lists:merge([{pps, [remove_trailing_zero(PPS)]}], Parameters)},
-  send_decoder_config(Stream1);
+  send_decoder_config(Stream#stream{pps = [remove_trailing_zero(PPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
   PrimaryPicType = case PrimaryPicTypeId of
@@ -561,8 +561,8 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream
   Stream;
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>> = SPS, #stream{parameters = Parameters} = Stream) ->
-  {SeqParameterSetId, Data2} = exp_golomb_read(Data1),
+decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, _/binary>> = SPS, Stream) ->
+  % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
   % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
   % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
   % case PicOrderCntType of
@@ -571,11 +571,10 @@ decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, Data1/binary>> = SPS, 
   %   1 ->
   %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
       
-  ProfileName = profile_name(Profile),
+  % _ProfileName = profile_name(Profile),
   % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  Stream1 = Stream#stream{parameters = lists:keymerge(1, [{profile, Profile}, {level, Level}, {sps, [remove_trailing_zero(SPS)]}], Parameters)},
-  send_decoder_config(Stream1);
+  send_decoder_config(Stream#stream{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
   
 
 
@@ -633,7 +632,7 @@ exp_golomb_read_list(Bin, [Key | Keys], Results) ->
   exp_golomb_read_list(Rest, Keys, [{Key, Value} | Results]).
 
 exp_golomb_read_s(Bin) ->
-  {Value, Rest} = exp_golomb_read(Bin),
+  {Value, _Rest} = exp_golomb_read(Bin),
   case Value band 1 of
     1 -> (Value + 1)/2;
     _ -> - (Value/2)
