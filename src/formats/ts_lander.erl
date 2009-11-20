@@ -490,8 +490,24 @@ nal_unit_start_code_finder(Bin, Offset) ->
   end.
 
 find_nal_start_code(<<16#000001:24, _/binary>>, Offset) -> Offset;
-find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
-find_nal_start_code(<<>>, _) -> false.
+find_nal_start_code(<<_:1/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 1;
+find_nal_start_code(<<_:2/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 2;
+find_nal_start_code(<<_:3/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 3;
+find_nal_start_code(<<_:4/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 4;
+find_nal_start_code(<<_:5/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 5;
+find_nal_start_code(<<_:6/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 6;
+find_nal_start_code(<<_:7/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 7;
+find_nal_start_code(<<_:8/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 8;
+find_nal_start_code(<<_:9/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 9;
+find_nal_start_code(<<_:10/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 10;
+find_nal_start_code(<<_:11/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 11;
+find_nal_start_code(<<_:12/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 12;
+find_nal_start_code(<<_:13/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 13;
+find_nal_start_code(<<_:14/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 14;
+find_nal_start_code(<<_:15/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 15;
+find_nal_start_code(<<_:16/binary, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+16);
+% find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
+find_nal_start_code(_, _) -> false.
 
 decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined} = Stream) ->
   % io:format("Coded slice of a non-IDR picture :: "),
