@@ -52,6 +52,8 @@
 %% @end
 %%-------------------------------------------------------------------------
 
+send(undefined, _) -> {error, undefined_consumer};
+
 send(Consumer, #video_frame{type = Type, streamid=StreamId,timestamp_abs = TimeStamp,body=Body, raw_body = false} = Frame) when is_binary(Body) ->
 	Channel = #channel{id = channel_id(Type, StreamId),timestamp=TimeStamp,length=size(Body),type=Type,stream=StreamId},
 	gen_fsm:send_event(Consumer, {send, {Channel, ems_flv:encode(Frame)}});

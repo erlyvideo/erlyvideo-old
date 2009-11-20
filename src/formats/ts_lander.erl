@@ -33,8 +33,12 @@
   ts_buffer = [],
   es_buffer = <<>>,
   counter = 0,
-  start_time = 0,
-  send_decoder_config = false,
+  start_pcr = 0,
+  pcr = 0,
+  start_dts = 0,
+  dts = 0,
+  send_video_config = false,
+  send_audio_config = false,
   timestamp = 0,
   profile,
   profile_compat = 0,
@@ -59,6 +63,7 @@
 -define(TYPE_AUDIO_MPEG1, 3).
 -define(TYPE_AUDIO_MPEG2, 4).
 -define(TYPE_AUDIO_AAC,   15).
+-define(TYPE_AUDIO_AAC2,  17).
 -define(TYPE_AUDIO_AC3,   129).
 -define(TYPE_AUDIO_DTS,   138).
 
@@ -108,6 +113,7 @@ init([URL, Consumer]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
+  timer:send_after(10000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, consumer = Consumer, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -243,16 +249,16 @@ parse_adaptation_field(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, 
   parse_adaptation_field(Data, PCR, OPCR, Header).
 
 parse_adaptation_field(<<Pcr1:33, Pcr2:9, Rest/bitstring>>, 1, OPCR, Header) ->
-  parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = (Pcr1 * 300 + Pcr2) / 27000});
+  parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = round((Pcr1 * 300 + Pcr2) / 27000)});
 
 parse_adaptation_field(<<OPcr1:33, OPcr2:9, _Rest/bitstring>>, 0, 1, Header) ->
-  Header#ts_header{opcr = (OPcr1 * 300 + OPcr2) / 27000};
+  Header#ts_header{opcr = round((OPcr1 * 300 + OPcr2) / 27000)};
   
 parse_adaptation_field(_, 0, 0, Field) -> Field.
 
 
-packet_timestamp(#ts_header{pcr = PCR} = Header) when is_float(PCR) andalso PCR > 0 -> Header#ts_header{timestamp = PCR};
-packet_timestamp(#ts_header{opcr = OPCR} = Header) when is_float(OPCR) andalso OPCR > 0 -> Header#ts_header{timestamp = OPCR};
+packet_timestamp(#ts_header{pcr = PCR} = Header) when is_integer(PCR) andalso PCR > 0 -> Header#ts_header{timestamp = PCR};
+packet_timestamp(#ts_header{opcr = OPCR} = Header) when is_integer(OPCR) andalso OPCR > 0 -> Header#ts_header{timestamp = OPCR};
 packet_timestamp(Header) -> Header.
 
 
@@ -309,6 +315,7 @@ extract_pmt(_CRC32, Descriptors) ->
 
 stream_type(?TYPE_VIDEO_H264) -> video;
 stream_type(?TYPE_AUDIO_AAC) -> audio;
+stream_type(?TYPE_AUDIO_AAC2) -> audio;
 stream_type(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 pes(#stream{synced = false, pid = Pid} = Stream) ->
@@ -344,67 +351,33 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
       
 pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
 
-pes_packet(<<1:24,
-            _StreamId,
-            _PesPacketLength:16,
-            2:2,
-            _PESScramblingControl:2,
-            _PESPriority:1,
-            _DataAlignmentIndicator:1,
-            _Copyright:1,
-            _OriginalOrCopy:1,
-            PTS_DTS_flags:2,
-            _ESCRFlag:1,
-            _ESRateFlag:1,
-            _DSMTrickModeFlag:1,
-            _AdditionalCopyInfoFlag:1,
-            _PESCRCFlag:1,
-            _PESExtensionFlag:1,
-            PESHeaderLength:8,
-            _PESHeader:PESHeaderLength/binary,
-            _Data/binary>> = Packet, #stream{counter = Counter, type = audio} = Pes, _Header) ->
-            % io:format("Pid ~p, Stream ~p~n", [Pid, _StreamId]),
-            DTS = case PTS_DTS_flags of
-                2#11 ->
-                    <<_:9/binary, 3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer, _/binary>> = Packet,
-                    Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30);
-                2#10 ->
-                    <<_:9/binary, 2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer, _/binary>> = Packet,
-                    Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30);
-                _ ->
-                    %io:format("No DTS found~n"),
-                    Counter + 1
-            end,
-            case DTS > Counter of
-                true ->
-                  % io:format("New DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, audio, Pid]),
-                    Pes#stream{counter = Counter + 1, type = audio};
-                false ->
-                    % io:format("!!! DTS ~p, Delta ~p on ~p ~p~n", [DTS, DTS-Counter, audio, Pid]),
-                    Pes#stream{counter = Counter + 1, type = audio}
-            end;
-
+pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
+  Stream1 = stream_timestamp(Packet, Stream, Header),
+  ?D({"Audio", Stream1#stream.timestamp}),
+  % Stream1;
+  decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
+  
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   Stream1 = stream_timestamp(Packet, Stream, Header),
-  % ?D({"Timestamp2", Stream1#stream.timestamp}),
+  ?D({"Video", Stream1#stream.timestamp}),
   decode_avc(Stream1#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
-stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, _PESHeader:PESHeaderLength/binary, _/binary>>, Stream, #ts_header{timestamp = TimeStamp}) when is_float(TimeStamp) andalso TimeStamp > 0 ->
+stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, _PESHeader:PESHeaderLength/binary, _/binary>>, Stream, #ts_header{timestamp = TimeStamp}) when is_integer(TimeStamp) andalso TimeStamp > 0 ->
   % ?D({"No DTS, taking", TimeStamp}),
-  normalize_timestamp(Stream#stream{timestamp = round(TimeStamp)});
+  normalize_timestamp(Stream#stream{pcr = round(TimeStamp)});
 
 stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
   <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = PESHeader,
   % ?D({"Have DTS & PTS", round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)}),
-  normalize_timestamp(Stream#stream{timestamp = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)});
+  normalize_timestamp(Stream#stream{dts = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)});
   
 
 stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
   <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = PESHeader,
   % ?D("Have DTS"),
-  normalize_timestamp(Stream#stream{timestamp = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90)});
+  normalize_timestamp(Stream#stream{dts = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90)});
 
 % FIXME!!!
 % Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only OPCR, once a second,
@@ -414,13 +387,64 @@ stream_timestamp(_, #stream{timestamp = TimeStamp} = Stream, _) ->
   Stream#stream{timestamp = TimeStamp + 40}.
 
 % normalize_timestamp(Stream) -> Stream;
-normalize_timestamp(#stream{start_time = undefined, timestamp = TimeStamp} = Stream) -> Stream#stream{start_time = TimeStamp, timestamp = 0};
-normalize_timestamp(#stream{start_time = 0.0, timestamp = TimeStamp} = Stream) -> Stream#stream{start_time = TimeStamp, timestamp = 0};
-normalize_timestamp(#stream{start_time = 0, timestamp = TimeStamp} = Stream) -> Stream#stream{start_time = TimeStamp, timestamp = 0};
-normalize_timestamp(#stream{start_time = StartTime, timestamp = TimeStamp} = Stream) -> Stream#stream{timestamp = TimeStamp - StartTime}.
+normalize_timestamp(#stream{start_dts = 0, dts = DTS} = Stream) when is_integer(DTS) andalso DTS > 0 -> 
+  Stream#stream{start_dts = DTS, timestamp = 0, dts = 0};
+normalize_timestamp(#stream{start_dts = Start, dts = DTS} = Stream) when is_integer(DTS) andalso DTS > 0 -> 
+  Stream#stream{timestamp = DTS - Start, dts = 0};
+normalize_timestamp(#stream{start_pcr = 0, pcr = PCR} = Stream) when is_integer(PCR) andalso PCR > 0 -> 
+  Stream#stream{start_pcr = PCR, timestamp = 0, pcr = 0};
+normalize_timestamp(#stream{start_pcr = Start, pcr = PCR} = Stream) -> 
+  Stream#stream{timestamp = PCR - Start, pcr = 0}.
 % normalize_timestamp(Stream) -> Stream.
 
+% <<18,16,6>>
+decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
+  % Config = <<16#A:4, 3:2, 1:1, 1:1, 0>>,
+  Config = <<18,16,6>>,
+  AudioConfig = #video_frame{       
+   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	decoder_config = true,
+		timestamp_abs = 0,
+		body          = Config,
+	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+	  sound_rate	  = ?FLV_AUDIO_RATE_44,
+	  raw_body      = false
+	},
+  % ems_play:send(Consumer, AudioConfig),
+	?D({"Send audio config", AudioConfig}),
+	decode_aac(Stream#stream{send_audio_config = true});
+  
 
+decode_aac(#stream{es_buffer = <<Syncword:12, ID:1, Layer:2, 1:1, Profile:2, Sampling:4,
+                                 Private:1, Channel:3, Original:1, Home:1, Copyright:1, CopyrightStart:1,
+                                 FrameLength:13, ADTS:11, Count:2, CRC:16, Rest/binary>>} = Stream) ->
+  send_aac(Stream#stream{es_buffer = Rest});
+
+decode_aac(#stream{es_buffer = <<Syncword:12, ID:1, Layer:2, ProtectionAbsent:1, Profile:2, Sampling:4,
+                                 Private:1, Channel:3, Original:1, Home:1, Copyright:1, CopyrightStart:1,
+                                 FrameLength:13, ADTS:11, Count:2, Rest/binary>>} = Stream) ->
+  % ?D({"AAC", Syncword, ID, Layer, ProtectionAbsent, Profile, Sampling, Private, Channel, Original, Home,
+  % Copyright, CopyrightStart, FrameLength, ADTS, Count}),
+  send_aac(Stream#stream{es_buffer = Rest}).
+
+send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} = Stream) ->
+  ?D({"Audio", Stream#stream.timestamp}),
+  AudioFrame = #video_frame{       
+    type          = ?FLV_TAG_TYPE_AUDIO,
+    timestamp_abs = Timestamp,
+    streamid      = 1,
+    body          = Data,
+    sound_format  = ?FLV_AUDIO_FORMAT_AAC,
+    sound_type    = ?FLV_AUDIO_TYPE_STEREO,
+    sound_size    = ?FLV_AUDIO_SIZE_16BIT,
+    sound_rate    = ?FLV_AUDIO_RATE_44,
+    raw_body      = false
+  },
+  ems_play:send(Consumer, AudioFrame),
+  Stream#stream{es_buffer = <<>>}.
+  
 
 decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
   find_nal_end(Stream, 3);
@@ -447,7 +471,7 @@ extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
   Stream1 = decode_nal(NAL, Stream),
   decode_avc(Stream1#stream{es_buffer = Rest1}).
 
-send_decoder_config(#stream{consumer = Consumer, send_decoder_config = SendConfig} = Stream) ->
+send_video_config(#stream{consumer = Consumer, send_video_config = SendConfig} = Stream) ->
   case decoder_config(Stream) of
     ok -> Stream;
     DecoderConfig -> 
@@ -468,7 +492,7 @@ send_decoder_config(#stream{consumer = Consumer, send_decoder_config = SendConfi
       	  ems_play:send(Consumer, VideoFrame);
       	_ -> ok
       end,
-      Stream#stream{send_decoder_config = true}
+      Stream#stream{send_video_config = true}
   end.
   
 decoder_config(#stream{sps = undefined}) -> ok;
@@ -513,7 +537,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined
   % io:format("Coded slice of a non-IDR picture :: "),
   slice_header(Rest, Stream);
 
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{send_decoder_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{send_video_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = TimeStamp,
@@ -544,7 +568,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, #stream{consumer = undefined
   % io:format("~nCoded slice of an IDR picture~n"),
   slice_header(Rest, Stream);
   
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{send_decoder_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{send_video_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = TimeStamp,
@@ -560,7 +584,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{send_decoder_con
 
 decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, Stream) ->
   % io:format("Picture parameter set: ~p~n", [PPS]),
-  send_decoder_config(Stream#stream{pps = [remove_trailing_zero(PPS)]});
+  send_video_config(Stream#stream{pps = [remove_trailing_zero(PPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
   PrimaryPicType = case PrimaryPicTypeId of
@@ -590,7 +614,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, _/binary>> = SPS, Stre
   % _ProfileName = profile_name(Profile),
   % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  send_decoder_config(Stream#stream{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
+  send_video_config(Stream#stream{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
   
 
 

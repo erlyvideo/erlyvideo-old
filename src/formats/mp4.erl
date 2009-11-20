@@ -65,6 +65,7 @@ read_frame(#video_player{sent_video_config = false} = Player, #media_info{frames
 
 read_frame(#video_player{sent_audio_config = false} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
+  ?D({"Audio config", Config}),
   {ok, #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
@@ -443,9 +444,9 @@ next_atom(#media_info{device = Device}, Pos) ->
 % 
 % Other decoder config
 % <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>
-parse_avc_decoder_config(<<Version, Profile, ProfileCompat, Level, _:6, LengthSize:2, _:3, SPSCount:5, Rest/binary>> = DecoderConfig) ->
-  {SPS, <<PPSCount, PPSRest/binary>>} = parse_avc_sps(Rest, SPSCount, []),
-  {PPS, Rest1} = parse_avc_pps(PPSRest, PPSCount, []),
+parse_avc_decoder_config(<<_Version, _Profile, _ProfileCompat, _Level, _:6, _LengthSize:2, _:3, SPSCount:5, Rest/binary>> = _DecoderConfig) ->
+  {_SPS, <<PPSCount, PPSRest/binary>>} = parse_avc_sps(Rest, SPSCount, []),
+  {_PPS, _Rest1} = parse_avc_pps(PPSRest, PPSCount, []),
   % ?D({"Length size", LengthSize+1, SPSCount, Version, Profile, ProfileCompat, Level/10.0, SPS, PPS}),
   ok.
 
