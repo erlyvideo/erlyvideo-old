@@ -29,10 +29,15 @@ start_link() ->
 
 create(Name, Type) ->
   ?D({"Create", Name, Type}),
-  gen_server:call(?MODULE, {create, Name}).
+  Pid = open(Name, Type),
+  stream_media:set_owner(Pid, self()),
+  Pid.
 
 open(Name) ->
   gen_server:call(?MODULE, {open, Name}).
+
+open(Name, Type) ->
+  gen_server:call(?MODULE, {open, Name, Type}).
 
 find(Name) ->
   gen_server:call(?MODULE, {find, Name}).
@@ -93,10 +98,14 @@ handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
 handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
-  {reply, open_media_entry(Name, MediaProvider), MediaProvider};
+  {reply, open_media_entry(Name, detect_type(Name), MediaProvider), MediaProvider};
+
+handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
+  {reply, open_media_entry(Name, Type, MediaProvider), MediaProvider};
+
 
 handle_call(Request, _From, State) ->
-    {stop, {unknown_call, Request}, State}.
+  {stop, {unknown_call, Request}, State}.
 
 
 find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
@@ -105,10 +114,9 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
     _ -> undefined
   end.
 
-open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+open_media_entry(Name, Type, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
-      Type = detect_type(Name),
       case ems_sup:start_media(Name, Type) of
         {ok, Pid} ->
           link(Pid),

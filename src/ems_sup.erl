@@ -72,6 +72,7 @@ start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
 %%--------------------------------------------------------------------
 start_media(Name, file = Type) -> supervisor:start_child(file_media_sup, [Name, Type]);
 start_media(Name, mpeg_ts = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]);
+start_media(Name, record = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]);
 start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]).
 
 %%--------------------------------------------------------------------

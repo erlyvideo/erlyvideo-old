@@ -150,6 +150,10 @@ play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) -
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
   send_frame(Player, file_media:read_frame(MediaInfo, Key)).
+
+send_frame(Player, {ok, undefined}) ->
+  self() ! play,
+  ?MODULE:ready(Player);
   
 send_frame(#file_player{consumer = Consumer} = Player, {ok, done}) ->
   ?D("Video file finished"),

@@ -46,7 +46,7 @@
 
 
 'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #rtmp_client{video_player = Recorder} = State) ->
-  media_entry:publish(Recorder, Channel),
+  stream_media:publish(Recorder, Channel),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 
 
@@ -85,6 +85,7 @@
 publish(#amf{args = [{null,null},{string,Name},{string,"record"}]} = _AMF, State) -> 
   ?D({"Publish - Action - record",Name}),
   Recorder = media_provider:create(Name, record),
+  ?D({"Recording", Recorder}),
   State#rtmp_client{video_player = Recorder, video_state = publishing};
 
 
@@ -97,7 +98,6 @@ publish(#amf{args = [{null,null},{string,Name},{string,"append"}]} = _AMF, State
 publish(#amf{args = [{null,null},{string,Name},{string,"live"}]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
   Recorder = media_provider:create(Name, live),
-  media_entry:subscribe(Recorder, self()),
   State#rtmp_client{video_player = Recorder, video_state = publishing};
 
 publish(#amf{args = [{null,null},{string,Name}]} = _AMF, State) -> 
