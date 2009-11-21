@@ -38,21 +38,15 @@
 -include("../../include/mp4.hrl").
 -include("../../include/media_info.hrl").
 
--export([init/1, read_frame/2, metadata/1]).
+-export([init/1, read_frame/2, metadata/1, codec_config/2]).
 -behaviour(gen_format).
 
 % -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
 
-
-
-read_frame(#video_player{pos = '$end_of_table'}, _MediaInfo) ->
-  {ok, done};
-
-  
-read_frame(#video_player{sent_video_config = false} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
+codec_config(video, MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
-  ?D({"Decoder config", Config}),
-  {ok, #video_frame{       
+  ?D({"Video config", Config}),
+  #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
    	decoder_config = true,
 		timestamp_abs = 0,
@@ -60,13 +54,13 @@ read_frame(#video_player{sent_video_config = false} = Player, #media_info{frames
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC,
 	  raw_body      = false,
-	  nextpos       = ets:first(FrameTable)
-	}, Player#video_player{sent_video_config = true}};  
+	  nextpos       = 0
+	};
 
-read_frame(#video_player{sent_audio_config = false} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
+codec_config(audio, MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
   ?D({"Audio config", Config}),
-  {ok, #video_frame{       
+  #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
 		timestamp_abs = 0,
@@ -76,16 +70,17 @@ read_frame(#video_player{sent_audio_config = false} = Player, #media_info{frames
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
 	  raw_body      = false,
-	  nextpos       = ets:first(FrameTable)
-	}, Player#video_player{sent_audio_config = true}};
+	  nextpos       = 0
+	}.
 
-read_frame(#video_player{pos = Key} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
+
+read_frame(#media_info{frames = FrameTable} = MediaInfo, Key) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
 	case read_data(MediaInfo, Offset, Size) of
 		{ok, Data, _} ->
 		  VideoFrame = video_frame(Frame, Data),
-      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}};
     eof ->
       {ok, done};
     {error, Reason} ->

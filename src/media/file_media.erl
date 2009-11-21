@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, first/1, read/2, file_name/1, seek/2, metadata/1]).
+-export([start_link/2, codec_config/2, read_frame/2, file_name/1, seek/2, metadata/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -17,12 +17,11 @@
 
 start_link(Path, Type) ->
    gen_server:start_link(?MODULE, [Path, Type], []).
-   
-first(Server) ->
- gen_server:call(Server, {first}).
 
-read(Server, Player) ->
-  gen_server:call(Server, {read, Player}).
+
+codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
+   
+read_frame(MediaEntry, Key) -> gen_server:call(MediaEntry, {read, Key}).
 
 file_name(Server) ->
   gen_server:call(Server, {file_name}).
@@ -68,9 +67,17 @@ handle_call({create_player, Options}, _From, #media_info{file_name = Name, clien
 handle_call({first}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
   {reply, ets:first(FrameTable), MediaInfo};
 
+handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = MediaInfo) ->
+  {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};
 
-handle_call({read, State}, _From, #media_info{format = FileFormat} = MediaInfo) ->
-  {reply, FileFormat:read_frame(State, MediaInfo), MediaInfo};
+handle_call({read, '$end_of_table'}, _From, MediaInfo) ->
+  {reply, {ok, done}, MediaInfo};
+
+handle_call({read, undefined}, _From, #media_info{frames = FrameTable, format = FileFormat} = MediaInfo) ->
+  {reply, FileFormat:read_frame(MediaInfo, ets:first(FrameTable)), MediaInfo};
+
+handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
+  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
 
 handle_call({file_name}, _From, #media_info{file_name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};

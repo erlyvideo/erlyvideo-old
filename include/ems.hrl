@@ -223,22 +223,6 @@
 	}).
 
 	
--record(video_player, {
-  consumer,
-  media_info,
-  client_buffer = ?MIN_CLIENT_BUFFER,
-  sent_video_config = false,
-  sent_audio_config = false,
-  prepush = 0,
-	stream_id,
-	buffer,
-	timer_start,
-	timer_ref,
-	playing_from = 0,
-	ts_prev = 0,
-	pos = 0
-}).
-
 
 
 -record(file_frame, {

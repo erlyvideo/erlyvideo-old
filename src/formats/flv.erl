@@ -38,7 +38,7 @@
 -include("../../include/flv.hrl").
 -include("../../include/media_info.hrl").
 
--export([init/1, read_frame/2, read_frame_list/3, header/1]).
+-export([init/1, read_frame/2, codec_config/2, read_frame_list/3, header/1]).
 -behaviour(gen_format).
 
 
@@ -107,25 +107,19 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
       {error, Reason}
   end.
   
-
+codec_config(_, _) -> undefined.
 
 % Reads a tag from IoDev for position Pos.
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_frame(#video_player{pos = undefined} = Player, #media_info{frames = FrameTable} = MediaInfo) ->
-  read_frame(Player#video_player{pos = ets:first(FrameTable)}, MediaInfo);
-  
-read_frame(#video_player{pos = '$end_of_table'}, _MediaInfo) ->
-  {ok, done};
-  
-read_frame(#video_player{pos = Key} = Player, #media_info{device = IoDev, frames = FrameTable}) ->
+read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
 		{ok, Data} ->
 		  VideoFrame = video_frame(Frame, Data),
-      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}, Player};
+      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}};
     eof ->
       {ok, done};
     {error, Reason} ->

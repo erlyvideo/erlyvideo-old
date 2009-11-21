@@ -44,6 +44,26 @@
 -export([init/2, ready/1]).
 
 
+
+-record(file_player, {
+  consumer,
+  media_info,
+  client_buffer = ?MIN_CLIENT_BUFFER,
+  sent_video_config = false,
+  sent_audio_config = false,
+  prepush = 0,
+	stream_id,
+	buffer,
+	timer_start,
+	timer_ref,
+	playing_from = 0,
+	ts_prev = 0,
+	pos = 0,
+	paused = false
+}).
+
+
+
 start(MediaEntry) -> start(MediaEntry, []).
 
 start(MediaEntry, Options) ->
@@ -52,7 +72,7 @@ start(MediaEntry, Options) ->
   
 init(MediaEntry, Options) ->
   ?D({"Starting file play for consumer", proplists:get_value(consumer, Options)}),
-  ready(#video_player{consumer = proplists:get_value(consumer, Options),
+  ready(#file_player{consumer = proplists:get_value(consumer, Options),
                       stream_id = proplists:get_value(stream_id, Options, 1),
                       pos = undefined,
                       media_info = MediaEntry,
@@ -60,88 +80,98 @@ init(MediaEntry, Options) ->
                       timer_start = erlang:now()}).
   
 	
-ready(#video_player{media_info = MediaInfo, 
+ready(#file_player{media_info = MediaInfo, 
                     consumer = Consumer, 
                     client_buffer = ClientBuffer,
-                    timer_ref = Timer,
-                    stream_id = StreamId} = State) ->
+                    timer_ref = Timer} = State) ->
   receive
-    {client_buffer, ClientBuffer} -> ready(State#video_player{client_buffer = ClientBuffer});
+    {client_buffer, ClientBuffer} -> 
+      ready(State#file_player{client_buffer = ClientBuffer});
     start ->
-      case media_entry:metadata(MediaInfo) of
+      case file_media:metadata(MediaInfo) of
         undefined -> ok;
         MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, 1})
       end,
     	self() ! play,
-    	NextState = State#video_player{prepush = ClientBuffer},
     	?D({"Player starting with pid", self(), MediaInfo}),
-      ?MODULE:ready(NextState);
+      ?MODULE:ready(State#file_player{prepush = ClientBuffer, paused = false});
       
     pause ->
       ?D("Player paused"),
       timer:cancel(Timer),
-      ?MODULE:ready(State);
+      ?MODULE:ready(State#file_player{paused = true});
 
     resume ->
       ?D("Player resumed"),
       self() ! play,
-      ?MODULE:ready(State);
+      ?MODULE:ready(State#file_player{paused = false});
 
     {seek, Timestamp} ->
-      {Pos, NewTimestamp} = media_entry:seek(MediaInfo, Timestamp),
+      {Pos, NewTimestamp} = file_media:seek(MediaInfo, Timestamp),
       timer:cancel(Timer),
       % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
-      self() ! {play},
-      ?MODULE:ready(State#video_player{pos = Pos, ts_prev = NewTimestamp, playing_from = NewTimestamp, prepush = ClientBuffer});
+      self() ! play,
+      ?MODULE:ready(State#file_player{pos = Pos, ts_prev = NewTimestamp, playing_from = NewTimestamp, prepush = ClientBuffer});
 
     stop -> 
       ?D("Player stopping"),
       timer:cancel(Timer),
-      ?MODULE:ready(State#video_player{ts_prev = 0, pos = media_entry:first(MediaInfo), playing_from = 0});
+      ?MODULE:ready(State#file_player{ts_prev = 0, pos = undefined, playing_from = 0});
   
     exit ->
       ok;
       
     play ->
       % {_, Sec1, MSec1} = erlang:now(),
-    	case media_entry:read(MediaInfo, State) of
-    		{ok, done} ->
-    		  ?D("Video file finished"),
-    		  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
-      		?MODULE:ready(State);
-    		{ok, #video_frame{type = _Type} = Frame, Player} -> 
-    			TimeStamp = Frame#video_frame.timestamp_abs - State#video_player.ts_prev,
-    			ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-    			{Timeout, Player1} = timeout(Frame, Player),
-          % ?D({"Frame", Frame#video_frame.timestamp_abs, Player#video_player.timer_start, TimeStamp, Timeout}),
-    			NextState = Player1#video_player{
-    			                  timer_ref = timer:send_after(Timeout, play),
-    											  ts_prev = Frame#video_frame.timestamp_abs,
-    											  pos = Frame#video_frame.nextpos},
-          % {_, Sec2, MSec2} = erlang:now(),
-          %       _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
-          % ?D({"Read frame", Delta}),
-          ?MODULE:ready(NextState);
-    		{error, _Reason} ->
-    			?D({"Ems player stopping", _Reason}),
-    			erlang:error(_Reason)
-    	end;
+      play(State);
     	
-    	{tcp_closed, _Socket} ->
-        error_logger:info_msg("~p Video player lost connection.\n", [self()]),
-        ok;
-    	Else ->
-    	  ?D({"Unknown message", Else}),
-    	  ?MODULE:ready(State)
-    end.
+  	{tcp_closed, _Socket} ->
+      error_logger:info_msg("~p Video player lost connection.\n", [self()]),
+      ok;
+  	Else ->
+  	  ?D({"Unknown message", Else}),
+  	  ?MODULE:ready(State)
+  end.
 
 
 
-% ready(file_name, _From, #video_player{media_info = MediaInfo} = State) ->
-%   {reply, media_entry:file_name(MediaInfo), ready, State}.
+play(#file_player{paused = true} = State) ->
+  ?MODULE:ready(State);
 
 
+play(#file_player{sent_audio_config = false, media_info = MediaInfo, consumer = Consumer} = State) ->
+  ems_play:send(Consumer, file_media:codec_config(MediaInfo, audio)),
+  ?D({"Sent audio config"}),
+  play(State#file_player{sent_audio_config = true});
 
+play(#file_player{sent_video_config = false, media_info = MediaInfo, consumer = Consumer} = State) ->
+  ems_play:send(Consumer, file_media:codec_config(MediaInfo, video)),
+  ?D({"Sent video config"}),
+  play(State#file_player{sent_video_config = true});
+    
+
+play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
+  send_frame(Player, file_media:read_frame(MediaInfo, Key)).
+  
+send_frame(#file_player{consumer = Consumer} = Player, {ok, done}) ->
+  ?D("Video file finished"),
+  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
+	?MODULE:ready(Player);
+
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->
+  % ?D({"Frame", Key, Frame#video_frame.timestamp_abs, NextPos}),
+  TimeStamp = Frame#video_frame.timestamp_abs - Player#file_player.ts_prev,
+  ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+  {Timeout, Player1} = timeout(Frame, Player),
+  % ?D({"Frame", Consumer, Frame#video_frame.timestamp_abs, Player#file_player.timer_start, TimeStamp, Timeout}),
+  NextState = Player1#file_player{
+                    timer_ref = timer:send_after(Timeout, play),
+  								  ts_prev = Frame#video_frame.timestamp_abs,
+  								  pos = NextPos},
+  % {_, Sec2, MSec2} = erlang:now(),
+  %       _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
+  % ?D({"Read frame", Delta}),
+  ?MODULE:ready(NextState).
 
 
 
@@ -174,13 +204,13 @@ file_format(Name) ->
 %% @end
 %%-------------------------------------------------------------------------	
 
-timeout(#video_frame{timestamp_abs = AbsTime}, #video_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
+timeout(#video_frame{timestamp_abs = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
   SeekTime = AbsTime - PlayingFrom,
   Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
   % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
   if
   (Prepush > SeekTime) ->
-    {0, Player#video_player{prepush = Prepush - SeekTime}};
+    {0, Player#file_player{prepush = Prepush - SeekTime}};
 	(Timeout > 0) -> 
     {Timeout, Player}; 
   true -> 
