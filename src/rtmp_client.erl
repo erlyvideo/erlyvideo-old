@@ -284,7 +284,7 @@ handle_info(_Info, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_client{socket=Socket, video_player = Player}) ->
   rtmp_server:logout(),
-  Player ! exit,
+  (catch Player ! exit),
   (catch gen_tcp:close(Socket)),
   ok.
 

@@ -64,9 +64,6 @@ handle_call({create_player, Options}, _From, #media_info{file_name = Name, clien
   {reply, {ok, Pid}, MediaInfo};
 
 
-handle_call({first}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
-  {reply, ets:first(FrameTable), MediaInfo};
-
 handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};
 

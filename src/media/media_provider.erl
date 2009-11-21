@@ -115,7 +115,7 @@ open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvid
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
           ?D({"Opened", Type, Name, Pid}),
           Pid;
-        ignore ->
+        _ ->
           ?D({"Error opening", Type, Name}),
           {notfound, "Failed to open "++Name}
       end;
@@ -127,7 +127,7 @@ detect_type(Name) ->
   detect_mpeg_ts(Name).
 
 detect_mpeg_ts(Name) ->
-  {ok, Re} = re:compile("http://(.*).ts"),
+  {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
     {match, _Captured} -> mpeg_ts;
     _ -> detect_file(Name)

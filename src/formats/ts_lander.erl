@@ -74,25 +74,6 @@
 
 -export([pat/4, pmt/4, pes/1]).
 
-% start() ->
-%     Pid = start(?HOST, ?PORT, ?PATH),
-%     %VideoPesExPid = start_pes_extractor(start_pes_writer("video.264")),
-%     VideoPesExPid = start_pes_extractor(spawn(?MODULE, nal_receiver, [[]])),
-%     %AudioPesExPid = start_pes_extractor(start_pes_writer("audio.aac")),
-%     Pid ! {demuxer, {subscribe, 69, VideoPesExPid}},
-%     %Pid ! {demuxer, {subscribe, 68, AudioPesExPid}},
-%     %DtsCounterPid = start_dts_counter(),
-%     %VideoPesExPid = start_pes_extractor(DtsCounterPid),
-%     %AudioPesExPid = start_pes_extractor(DtsCounterPid),
-%     %Pid ! {demuxer, {subscribe, video, fun(P) -> P == 101 end, VideoPesExPid}},
-%     %Pid ! {demuxer, {subscribe, audio, fun(P) -> P == 100 end, AudioPesExPid}},
-% 
-%     %SubtitlesPesExPid = start_pes_extractor(start_pes_writer("subs.bin")),
-%     %Pid ! {demuxer, {subscribe, 66, SubtitlesPesExPid}},
-% 
-%     Pid.
-
-
 % {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, http_bin}, {active, false}], 1000),
 % gen_tcp:send(Socket, "GET / HTTP/1.0\r\n\r\n"),
 % {ok, Reply} = gen_tcp:recv(Socket, 0, 1000),
@@ -113,7 +94,6 @@ init([URL, Consumer]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  timer:send_after(10000, {stop}),
   timer:send_after(3000, {byte_count}),
   
   {ok, #ts_lander{socket = Socket, url = URL, consumer = Consumer, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -351,7 +331,7 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
       
 pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
 
-pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, _/binary>> = Packet, #stream{type = audio} = Stream, Header) ->
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
   Stream1 = stream_timestamp(Packet, Stream, Header),
   % ?D({"Audio", Stream1#stream.timestamp}),
   Stream1;
@@ -360,7 +340,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, _/binary>> = Pa
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   Stream1 = stream_timestamp(Packet, Stream, Header),
-  ?D({"Video", Stream1#stream.timestamp}),
+  % ?D({"Video", Stream1#stream.timestamp}),
   decode_avc(Stream1#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
@@ -412,7 +392,7 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
 	  raw_body      = false
 	},
-  ems_play:send(Consumer, AudioConfig),
+	Consumer ! {audio_config, AudioConfig},
 	?D({"Send audio config", AudioConfig}),
 	decode_aac(Stream#stream{send_audio_config = true});
   
@@ -430,7 +410,7 @@ decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsen
   send_aac(Stream#stream{es_buffer = Rest}).
 
 send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} = Stream) ->
-  ?D({"Audio", Stream#stream.timestamp}),
+  % ?D({"Audio", Stream#stream.timestamp}),
   AudioFrame = #video_frame{       
     type          = ?FLV_TAG_TYPE_AUDIO,
     timestamp_abs = Timestamp,
@@ -442,7 +422,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
     sound_rate    = ?FLV_AUDIO_RATE_44,
     raw_body      = false
   },
-  ems_play:send(Consumer, AudioFrame),
+  Consumer ! {audio, AudioFrame},
   Stream#stream{es_buffer = <<>>}.
   
 
@@ -486,7 +466,7 @@ send_video_config(#stream{consumer = Consumer} = Stream) ->
     	  streamid      = 1
     	},
   	  ?D({"Send decoder config to", Consumer}),
-  	  ems_play:send(Consumer, VideoFrame),
+  	  Consumer ! {video_config, VideoFrame},
       Stream#stream{video_config = DecoderConfig}
   end.
   
@@ -543,7 +523,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{timestamp = Time
 	  streamid      = 1
   },
   % ?D({"Send slice to", TimeStamp, Consumer}),
-  ems_play:send(Consumer, VideoFrame),
+  Consumer ! {video, VideoFrame},
   Stream;
 
 
@@ -574,7 +554,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{timestamp = Time
 	  streamid      = 1
   },
   % ?D({"Send keyframe to", Consumer}),
-  ems_play:send(Consumer, VideoFrame),
+  Consumer ! {video, VideoFrame},
   Stream;
 
 decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, Stream) ->
