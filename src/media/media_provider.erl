@@ -8,11 +8,10 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, open/2, create/2, play/1, play/2]).
+-export([start_link/0, create/2, play/1, play/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(media_provider, {
   opened_media
@@ -28,13 +27,15 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
-% Opens media of type Type, named Name
-open(Name, Type) ->
-  gen_server:call(?MODULE, {open, Name, Type}).
-
 create(Name, Type) ->
   ?D({"Create", Name, Type}),
-  gen_server:call(?MODULE, {open, Name, Type}).
+  gen_server:call(?MODULE, {create, Name}).
+
+open(Name) ->
+  gen_server:call(?MODULE, {open, Name}).
+
+find(Name) ->
+  gen_server:call(?MODULE, {find, Name}).
    
 
 % Plays media with default options
@@ -45,68 +46,26 @@ play(Name) -> play(Name, []).
 %   consumer: pid of media consumer
 %   stream_id: for RTMP, FLV stream id
 %  client_buffer: client buffer size
-play(Name, OriginalOptions) ->
-  case find(Name) of
-    undefined -> open_file(Name, Options);
-    Server -> connect_to_media(Server, Options)
+play(Name, Options) ->
+  case find_or_open(Name) of
+    {notfound, Reason} -> {notfound, Reason};
+    MediaEntry -> create_player(MediaEntry, Options)
   end.
   
-connect_to_media(Server, Options) ->
-  Consumer = proplists:get_value(consumer, OriginalOptions, self()),
-  case media_entry:is_stream(Server) of
-    true -> 
-      media_entry:subscribe(Server, Consumer),
-      {ok, Server};
-    _ -> 
-      file_play:start(Server, Options)
+find_or_open(Name) ->
+  case find(Name) of
+    undefined -> open(Name);
+    MediaEntry -> MediaEntry
   end.
 
-% init_file(Name, StreamId, State) ->
-%   case start_file_play(Name, State, StreamId) of
-%     {ok, Pid} -> {ok, Pid};
-%     _ -> init_mpeg_ts(Name, StreamId, State)
-%   end.
-% 
-% init_mpeg_ts(FileName, StreamId,  State) ->
-%   {ok, Re} = re:compile("http://(.*).ts"),
-%   case re:run(FileName, Re) of
-%     {match, _Captured} -> mpeg_ts:play(FileName, StreamId, State);
-%     _ -> init_stream(FileName, StreamId, State)
-%   end.
-% 
-% init_stream(Name, _StreamId, _State) ->
-%   case ems:get_var(netstream, undefined) of
-%     undefined -> {notfound};
-%     NetStreamNode -> case rpc:call(NetStreamNode, rtmp, start, [Name], ?TIMEOUT) of
-%       {ok, NetStream} ->
-%         link(NetStream),
-%         ?D({"Netstream created", NetStream}),
-%         {ok, NetStream};
-%       _ ->
-%         {notfound}
-%       end
-%   end.
 
-open_file("http://"++_ = URL, Options) ->
-  case open(URL, mpeg_ts) of
-    undefined -> {notfound};
-    Server -> 
-      ?D("Started MPEG TS lander"),
-      media_entry:subscribe(Server, proplists:get_value(consumer, Options)),
-      {ok, Server}
-  end;
-
-
-open_file(Name, Options) ->
-  case open(Name, file) of
-    undefined -> {notfound};
-    Server -> file_play:start(Server, Options)
-  end.
-   
-
-find(Name) ->
-  gen_server:call(?MODULE, {find, Name}).
-
+create_player({notfound, Reason}, _) ->
+  {notfound, Reason};
+  
+create_player(MediaEntry, Options) ->
+  gen_server:call(MediaEntry, {create_player, lists:keymerge(1, Options, [{consumer, self()}])}).
+  
+  
 
 init([]) ->
   process_flag(trap_exit, true),
@@ -130,51 +89,57 @@ init([]) ->
 %%-------------------------------------------------------------------------
 
 
-handle_call({find, Name}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Server = case ets:lookup(OpenedMedia, Name) of
-    [#media_entry{handler = Pid}] -> Pid;
-    [] -> undefined
-  end,
-  {reply, Server, MediaProvider};
+handle_call({find, Name}, _From, MediaProvider) ->
+  {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
+handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
+  {reply, open_media_entry(Name, MediaProvider), MediaProvider};
 
-handle_call({open, Name, Type}, {Opener, _Ref}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  ?D({"Lookup for media", Name, ets:lookup(OpenedMedia, Name)}),
-  Server = case ets:lookup(OpenedMedia, Name) of
+handle_call(Request, _From, State) ->
+    {stop, {unknown_call, Request}, State}.
+
+
+find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
+  case ets:lookup(OpenedMedia, Name) of
     [#media_entry{handler = Pid}] -> Pid;
-    [] -> 
+    _ -> undefined
+  end.
+
+open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  case find_in_cache(Name, MediaProvider) of
+    undefined ->
+      Type = detect_type(Name),
       case ems_sup:start_media(Name, Type) of
         {ok, Pid} ->
           link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
-          ?D({"Inserting", Name, Pid}),
+          ?D({"Opened", Type, Name, Pid}),
           Pid;
         ignore ->
-          undefined
-      end
-  end,
-  case {Server, Type} of
-    {undefined, _} -> 
-      {reply, undefined, MediaProvider};
-    {_, file} ->
-      ok = media_entry:subscribe(Server, Opener),
-      {reply, Server, MediaProvider};
-    {_, mpeg_ts} ->
-      % ok = media_entry:subscribe(Server, Opener),
-      {reply, Server, MediaProvider};
-    {_, live} ->
-      media_entry:set_owner(Server, Opener),
-      {reply, Server, MediaProvider};
-    {_, append} ->
-      media_entry:set_owner(Server, Opener),
-      {reply, Server, MediaProvider};
-    {_, record} ->
-      media_entry:set_owner(Server, Opener),
-      {reply, Server, MediaProvider}
-  end;
+          ?D({"Error opening", Type, Name}),
+          {notfound, "Failed to open "++Name}
+      end;
+    MediaEntry ->
+      MediaEntry
+  end.
   
-handle_call(Request, _From, State) ->
-    {stop, {unknown_call, Request}, State}.
+detect_type(Name) ->
+  detect_mpeg_ts(Name).
+
+detect_mpeg_ts(Name) ->
+  {ok, Re} = re:compile("http://(.*).ts"),
+  case re:run(Name, Re) of
+    {match, _Captured} -> mpeg_ts;
+    _ -> detect_file(Name)
+  end.
+
+detect_file(Name) ->
+  FileName = filename:join([file_play:file_dir(), Name]),
+  case filelib:is_regular(FileName) of
+    true -> file;
+    _ -> live
+  end.
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |

@@ -51,12 +51,13 @@ start(MediaEntry, Options) ->
 
   
 init(MediaEntry, Options) ->
+  ?D({"Starting file play for consumer", proplists:get_value(consumer, Options)}),
   ready(#video_player{consumer = proplists:get_value(consumer, Options),
-	                          stream_id = proplists:get_value(stream_id, Options, 1),
-	                          pos = undefined,
-	                          media_info = MediaEntry,
-	                          client_buffer = proplists:get_value(client_buffer, Options, 10000),
-	                          timer_start = erlang:now()}).
+                      stream_id = proplists:get_value(stream_id, Options, 1),
+                      pos = undefined,
+                      media_info = MediaEntry,
+                      client_buffer = proplists:get_value(client_buffer, Options, 10000),
+                      timer_start = erlang:now()}).
   
 	
 ready(#video_player{media_info = MediaInfo, 
@@ -66,24 +67,24 @@ ready(#video_player{media_info = MediaInfo,
                     stream_id = StreamId} = State) ->
   receive
     {client_buffer, ClientBuffer} -> ready(State#video_player{client_buffer = ClientBuffer});
-    {start} ->
+    start ->
       case media_entry:metadata(MediaInfo) of
         undefined -> ok;
         MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, 1})
       end,
-    	self() ! {play},
+    	self() ! play,
     	NextState = State#video_player{prepush = ClientBuffer},
     	?D({"Player starting with pid", self(), MediaInfo}),
       ?MODULE:ready(NextState);
       
-    {pause} ->
+    pause ->
       ?D("Player paused"),
       timer:cancel(Timer),
       ?MODULE:ready(State);
 
-    {resume} ->
+    resume ->
       ?D("Player resumed"),
-      self() ! {play},
+      self() ! play,
       ?MODULE:ready(State);
 
     {seek, Timestamp} ->
@@ -93,15 +94,15 @@ ready(#video_player{media_info = MediaInfo,
       self() ! {play},
       ?MODULE:ready(State#video_player{pos = Pos, ts_prev = NewTimestamp, playing_from = NewTimestamp, prepush = ClientBuffer});
 
-    {stop} -> 
+    stop -> 
       ?D("Player stopping"),
       timer:cancel(Timer),
       ?MODULE:ready(State#video_player{ts_prev = 0, pos = media_entry:first(MediaInfo), playing_from = 0});
   
-    {exit} ->
+    exit ->
       ok;
       
-    {play} ->
+    play ->
       % {_, Sec1, MSec1} = erlang:now(),
     	case media_entry:read(MediaInfo, State) of
     		{ok, done} ->
@@ -114,7 +115,7 @@ ready(#video_player{media_info = MediaInfo,
     			{Timeout, Player1} = timeout(Frame, Player),
           % ?D({"Frame", Frame#video_frame.timestamp_abs, Player#video_player.timer_start, TimeStamp, Timeout}),
     			NextState = Player1#video_player{
-    			                  timer_ref = timer:send_after(Timeout, {play}),
+    			                  timer_ref = timer:send_after(Timeout, play),
     											  ts_prev = Frame#video_frame.timestamp_abs,
     											  pos = Frame#video_frame.nextpos},
           % {_, Sec2, MSec2} = erlang:now(),

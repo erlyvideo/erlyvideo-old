@@ -43,11 +43,11 @@
 
 'WAIT_FOR_DATA'({play, Name, StreamId}, #rtmp_client{client_buffer = ClientBuffer} = State) ->
   case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
-    {ok, PlayerPid} ->
-      ?D({"Player starting", PlayerPid}),
-      PlayerPid ! {start},
-      {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = PlayerPid}, ?TIMEOUT};
-    {notfound} ->
+    {ok, Player} ->
+      ?D({"Player starting", Player}),
+      Player ! start,
+      {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Player}, ?TIMEOUT};
+    {notfound, _Reason} ->
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reason -> 
@@ -55,9 +55,9 @@
       {error, Reason}
   end;
 
-'WAIT_FOR_DATA'({stop}, #rtmp_client{video_player = PlayerPid} = State) when is_pid(PlayerPid) ->
-  ?D({"Stopping video player", PlayerPid}),
-  PlayerPid ! {stop},
+'WAIT_FOR_DATA'({stop}, #rtmp_client{video_player = Player} = State) when is_pid(Player) ->
+  ?D({"Stopping video player", Player}),
+  Player ! stop,
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
@@ -113,7 +113,7 @@ deleteStream(_AMF, #rtmp_client{video_player = undefined} = State) ->
   State;
   
 deleteStream(_AMF, #rtmp_client{video_player = Player} = State) when is_pid(Player) ->
-  gen_fsm:send_event(Player, {stop}),
+  Player ! stop,
   ?D("invoke - deleteStream"),
   State.
 
@@ -133,7 +133,7 @@ play(AMF, #rtmp_client{video_player = Player} = State) ->
   ?D({"invoke - play", Name, AMF}),
   case Player of
     undefined -> ok;
-    _ -> Player ! {stop}
+    _ -> Player ! stop
   end,
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
@@ -154,11 +154,11 @@ pause(AMF, #rtmp_client{video_player = Player} = State) ->
     
     case Pausing of
       true ->
-        Player ! {pause},
+        Player ! pause,
         gen_fsm:send_event(self(), {status, ?NS_PAUSE_NOTIFY, 1}),
         State;
       false ->
-        Player ! {resume},
+        Player ! resume,
         gen_fsm:send_event(self(), {status, ?NS_UNPAUSE_NOTIFY, 1}),
         State
     end.

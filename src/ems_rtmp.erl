@@ -208,7 +208,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:
   ?D({"Buffer size on stream id", BufferSize, _StreamId}),
   case Player of
     undefined -> ok;
-    _ -> gen_fsm:send_event(Player, {client_buffer, BufferSize})
+    _ -> Player ! {client_buffer, BufferSize}
   end,
 	State#rtmp_client{client_buffer = BufferSize};	
 

@@ -38,7 +38,7 @@ Media_stream may be a client of recorded stream from web camera or client of dec
 
 
 
-Media opening:
+Media playing:
 
 1. media_provider makes lookup in table. 
 

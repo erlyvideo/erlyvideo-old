@@ -1,6 +1,6 @@
 % Media entry is instance of some resource
 
--module(media_entry).
+-module(file_media).
 -author(max@maxidoors.ru).
 -include("../include/ems.hrl").
 -include("../include/media_info.hrl").
@@ -9,24 +9,20 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, subscribe/2, first/1, read/2, file_name/1, seek/2, metadata/1, publish/2, is_stream/1, set_owner/2]).
+-export([start_link/2, first/1, read/2, file_name/1, seek/2, metadata/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
 start_link(Path, Type) ->
    gen_server:start_link(?MODULE, [Path, Type], []).
    
-subscribe(Server, Client) ->
-  gen_server:call(Server, {subscribe, Client}).
-  
+first(Server) ->
+ gen_server:call(Server, {first}).
+
 read(Server, Player) ->
   gen_server:call(Server, {read, Player}).
-
-first(Server) ->
-  gen_server:call(Server, {first}).
 
 file_name(Server) ->
   gen_server:call(Server, {file_name}).
@@ -37,65 +33,14 @@ seek(Server, Timestamp) ->
 metadata(Server) ->
   gen_server:call(Server, {metadata}).
 
-publish(Server, Frame) ->
-  gen_server:call(Server, {publish, Frame}).
-
-is_stream(Server) ->
-  gen_server:call(Server, {is_stream}).
-  
-set_owner(Server, Owner) ->
-  gen_server:call(Server, {set_owner, Owner}).
-  
 
 init([Name, file]) ->
   process_flag(trap_exit, true),
-  FileName = filename:join([file_play:file_dir(), Name]),
-  case filelib:is_regular(FileName) of
-    true ->
-      error_logger:info_msg("Opening file ~p~n", [FileName]),
-      Clients = ets:new(clients, [set, private]),
-      {ok, Info} = open_file(FileName),
-      {ok, Info#media_info{clients = Clients, type = file}};
-    _ -> 
-      ignore
-  end;
-
-
-init([URL, mpeg_ts]) ->
-  process_flag(trap_exit, true),
-  error_logger:info_msg("HTTP MPEG TS ~p~n", [URL]),
+  error_logger:info_msg("Opening file ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
-  % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-  Device = ems_sup:start_ts_lander(URL, self()),
-	Recorder = #media_info{type=mpeg_ts, file_name = URL, ts_prev = 0, clients = Clients, device = Device},
-	{ok, Recorder, ?TIMEOUT};
-  
+  {ok, Info} = open_file(Name),
+  {ok, Info#media_info{clients = Clients, type = file}}.
 
-init([Name, live]) ->
-  process_flag(trap_exit, true),
-  error_logger:info_msg("Live streaming stream ~p~n", [Name]),
-  Clients = ets:new(clients, [set, private]),
-  % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type=live, ts_prev = 0, clients = Clients},
-	{ok, Recorder, ?TIMEOUT};
-
-
-init([Name, record]) ->
-  process_flag(trap_exit, true),
-  error_logger:info_msg("Recording stream ~p~n", [Name]),
-  Clients = ets:new(clients, [set, private]),
-	FileName = filename:join([file_play:file_dir(), Name ++ ".flv"]),
-	(catch file:delete(FileName)),
-	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	?D({"Recording to file", FileName}),
-	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
-		{ok, Device} ->
-		  file:write(Device, Header),
-		  Recorder = #media_info{type=record, device = Device, file_name = FileName, ts_prev = 0, clients = Clients},
-			{ok, Recorder, ?TIMEOUT};
-		_Error ->
-			ignore
-  end.
 
 
 
@@ -112,12 +57,12 @@ init([Name, record]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({subscribe, Client}, _From, #media_info{file_name = Name, clients = Clients} = MediaInfo) when is_pid(Client) ->
-  ets:insert(Clients, {Client}),
-  link(Client),
-  ?D({"Link from to", Name, self(), Client, ets:info(Clients, size)}),
-  % link(_From),
-  {reply, ok, MediaInfo};
+handle_call({create_player, Options}, _From, #media_info{file_name = Name, clients = Clients} = MediaInfo) ->
+  {ok, Pid} = file_play:start(self(), Options),
+  ets:insert(Clients, {Pid}),
+  link(Pid),
+  ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
+  {reply, {ok, Pid}, MediaInfo};
 
 
 handle_call({first}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
@@ -144,37 +89,6 @@ handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->
 handle_call({metadata}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
 
-
-handle_call({is_stream}, _From, #media_info{type = record} = MediaInfo) ->
-  {reply, true, MediaInfo};
-
-handle_call({is_stream}, _From, MediaInfo) ->
-  {reply, false, MediaInfo};
-
-
-handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
-  ?D({"Setting owner to", Owner}),
-  {reply, ok, MediaInfo#media_info{owner = Owner}};
-
-handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
-  {reply, {error, {owner_exists, Owner}}, MediaInfo};
-
-
-handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = Device, clients = Clients} = Recorder) ->
-  % ?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
-	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
-	case Device of
-	  undefined -> ok;
-	  _ -> file:write(Device, Tag)
-	end,
-	
-  NextTimeStamp = PrevTs + Channel#channel.timestamp,
-  %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-  Packet = Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp},
-  % ?D({"Broadcast to", ets:info(Clients, size)}),
-  ets:foldl(fun send_packet/2, Packet, Clients),
-	
-	{reply, ok, Recorder#media_info{ts_prev = NextTimeStamp}};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
@@ -231,30 +145,6 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   end,
   {noreply, MediaInfo};
 
-handle_info({'$gen_event', {stop}}, State) ->
-  {noreply, State};
-
-handle_info({'$gen_event', {exit}}, State) ->
-  {noreply, State};
-
-handle_info({'$gen_event', {start}}, State) ->
-  {noreply, State};
-
-handle_info({'$gen_event', {video, Video}}, #media_info{type = mpeg_ts, clients = Clients} = MediaInfo) ->
-  % Packet = Channel#channel{id = ems_play:channel_id(video,1), timestamp = NextTimeStamp},
-  % ets:foldl(fun send_packet/2, Packet, Clients),
-
-  {noreply, MediaInfo};
-
-handle_info({'$gen_event', {send, Packet}}, #media_info{type = mpeg_ts, clients = Clients} = MediaInfo) ->
-  % ?D(Frame),
-  % Packet = Channel#channel{id = ems_play:channel_id(video,1), timestamp = NextTimeStamp},
-  ets:foldl(fun send_packet/2, Packet, Clients),
-
-  {noreply, MediaInfo};
-
-
-
   
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
@@ -282,16 +172,6 @@ terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-send_packet({Client}, #channel{msg = Data} = Channel) ->
-  % ?D({"Send to", Client}),
-  gen_fsm:send_event(Client, {send, {Channel, Data}}),
-  Channel;
-
-send_packet({Client}, Packet) ->
-  % ?D({"Send to", Client}),
-  gen_fsm:send_event(Client, {send, Packet}),
-  Packet.
-  
 open_file(Name) ->
   FileName = filename:join([file_play:file_dir(), Name]), 
 	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),

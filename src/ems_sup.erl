@@ -70,7 +70,9 @@ start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
 %% To be called by the media provider.
 %% @end 
 %%--------------------------------------------------------------------
-start_media(Name, Type) -> supervisor:start_child(media_entry_sup, [Name, Type]).
+start_media(Name, file = Type) -> supervisor:start_child(file_media_sup, [Name, Type]);
+start_media(Name, mpeg_ts = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]);
+start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -119,17 +121,32 @@ init([rtsp_client]) ->
             ]
         }
     };
-init([media_entry]) ->
+init([file_media]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % MediaEntry
               {   undefined,                               % Id       = internal id
-                  {media_entry,start_link,[]},             % StartFun = {M, F, A}
+                  {file_media,start_link,[]},             % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
-                  [media_entry]                            % Modules  = [Module] | dynamic
+                  [file_media]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([stream_media]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {stream_media,start_link,[]},             % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [stream_media]                            % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -184,8 +201,15 @@ init([]) ->
         [media_provider]                         % Modules  = [Module] | dynamic
     },
     % Media entry supervisor
-    {   media_entry_sup,
-        {supervisor,start_link,[{local, media_entry_sup}, ?MODULE, [media_entry]]},
+    {   file_media_sup,
+        {supervisor,start_link,[{local, file_media_sup}, ?MODULE, [file_media]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   stream_media_sup,
+        {supervisor,start_link,[{local, stream_media_sup}, ?MODULE, [stream_media]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
