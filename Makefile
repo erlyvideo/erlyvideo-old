@@ -2,6 +2,7 @@ ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
 VSN=0.1
+MXMLC_PATH=mxmlc
 
 all: ebin/erlmedia.app
 	erl -make
@@ -23,6 +24,9 @@ clean-doc:
 	rm -fv doc/*.html
 	rm -fv doc/edoc-info
 	rm -fv doc/*.css
+
+player:
+	$(MXMLC_PATH) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
 run: ebin/erlmedia.app
 	$(ERL) +bin_opt_info +debug \
