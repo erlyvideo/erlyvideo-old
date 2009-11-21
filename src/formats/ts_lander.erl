@@ -37,7 +37,7 @@
   pcr = 0,
   start_dts = 0,
   dts = 0,
-  send_video_config = false,
+  video_config = undefined,
   send_audio_config = false,
   timestamp = 0,
   profile,
@@ -351,11 +351,11 @@ pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
       
 pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
 
-pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, _/binary>> = Packet, #stream{type = audio} = Stream, Header) ->
   Stream1 = stream_timestamp(Packet, Stream, Header),
-  ?D({"Audio", Stream1#stream.timestamp}),
-  % Stream1;
-  decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
+  % ?D({"Audio", Stream1#stream.timestamp}),
+  Stream1;
+  % decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
   
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
@@ -412,19 +412,19 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
 	  raw_body      = false
 	},
-  % ems_play:send(Consumer, AudioConfig),
+  ems_play:send(Consumer, AudioConfig),
 	?D({"Send audio config", AudioConfig}),
 	decode_aac(Stream#stream{send_audio_config = true});
   
 
-decode_aac(#stream{es_buffer = <<Syncword:12, ID:1, Layer:2, 1:1, Profile:2, Sampling:4,
-                                 Private:1, Channel:3, Original:1, Home:1, Copyright:1, CopyrightStart:1,
-                                 FrameLength:13, ADTS:11, Count:2, CRC:16, Rest/binary>>} = Stream) ->
+decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, 1:1, _Profile:2, _Sampling:4,
+                                 _Private:1, _Channel:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+                                 _FrameLength:13, _ADTS:11, _Count:2, _CRC:16, Rest/binary>>} = Stream) ->
   send_aac(Stream#stream{es_buffer = Rest});
 
-decode_aac(#stream{es_buffer = <<Syncword:12, ID:1, Layer:2, ProtectionAbsent:1, Profile:2, Sampling:4,
-                                 Private:1, Channel:3, Original:1, Home:1, Copyright:1, CopyrightStart:1,
-                                 FrameLength:13, ADTS:11, Count:2, Rest/binary>>} = Stream) ->
+decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsent:1, _Profile:2, _Sampling:4,
+                                 _Private:1, _Channel:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+                                 _FrameLength:13, _ADTS:11, _Count:2, Rest/binary>>} = Stream) ->
   % ?D({"AAC", Syncword, ID, Layer, ProtectionAbsent, Profile, Sampling, Private, Channel, Original, Home,
   % Copyright, CopyrightStart, FrameLength, ADTS, Count}),
   send_aac(Stream#stream{es_buffer = Rest}).
@@ -471,7 +471,7 @@ extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
   Stream1 = decode_nal(NAL, Stream),
   decode_avc(Stream1#stream{es_buffer = Rest1}).
 
-send_video_config(#stream{consumer = Consumer, send_video_config = SendConfig} = Stream) ->
+send_video_config(#stream{consumer = Consumer} = Stream) ->
   case decoder_config(Stream) of
     ok -> Stream;
     DecoderConfig -> 
@@ -485,14 +485,9 @@ send_video_config(#stream{consumer = Consumer, send_video_config = SendConfig} =
     	  raw_body      = false,
     	  streamid      = 1
     	},
-    	case {Consumer, SendConfig} of
-    	  {undefined, _} -> ?D({"Decoder config", DecoderConfig});
-      	{_, false} -> 
-      	  ?D({"Send decoder config to", Consumer}),
-      	  ems_play:send(Consumer, VideoFrame);
-      	_ -> ok
-      end,
-      Stream#stream{send_video_config = true}
+  	  ?D({"Send decoder config to", Consumer}),
+  	  ems_play:send(Consumer, VideoFrame),
+      Stream#stream{video_config = DecoderConfig}
   end.
   
 decoder_config(#stream{sps = undefined}) -> ok;
@@ -537,7 +532,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined
   % io:format("Coded slice of a non-IDR picture :: "),
   slice_header(Rest, Stream);
 
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{send_video_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = TimeStamp,
@@ -568,7 +563,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, #stream{consumer = undefined
   % io:format("~nCoded slice of an IDR picture~n"),
   slice_header(Rest, Stream);
   
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{send_video_config = true, timestamp = TimeStamp, consumer = Consumer} = Stream) ->
+decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		timestamp_abs = TimeStamp,
