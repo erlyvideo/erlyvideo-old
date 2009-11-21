@@ -139,15 +139,13 @@ play(#file_player{paused = true} = State) ->
   ?MODULE:ready(State);
 
 
-play(#file_player{sent_audio_config = false, media_info = MediaInfo, consumer = Consumer} = State) ->
-  ems_play:send(Consumer, file_media:codec_config(MediaInfo, audio)),
+play(#file_player{sent_audio_config = false, media_info = MediaInfo} = Player) ->
   ?D({"Sent audio config"}),
-  play(State#file_player{sent_audio_config = true});
+  send_frame(Player#file_player{sent_audio_config = true}, {ok, file_media:codec_config(MediaInfo, audio)});
 
-play(#file_player{sent_video_config = false, media_info = MediaInfo, consumer = Consumer} = State) ->
-  ems_play:send(Consumer, file_media:codec_config(MediaInfo, video)),
+play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) ->
   ?D({"Sent video config"}),
-  play(State#file_player{sent_video_config = true});
+  send_frame(Player#file_player{sent_video_config = true}, {ok, file_media:codec_config(MediaInfo, video)});
     
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
@@ -162,12 +160,9 @@ send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok
   % ?D({"Frame", Key, Frame#video_frame.timestamp_abs, NextPos}),
   TimeStamp = Frame#video_frame.timestamp_abs - Player#file_player.ts_prev,
   ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-  {Timeout, Player1} = timeout(Frame, Player),
+  Player1 = timeout_play(Frame, Player),
   % ?D({"Frame", Consumer, Frame#video_frame.timestamp_abs, Player#file_player.timer_start, TimeStamp, Timeout}),
-  NextState = Player1#file_player{
-                    timer_ref = timer:send_after(Timeout, play),
-  								  ts_prev = Frame#video_frame.timestamp_abs,
-  								  pos = NextPos},
+  NextState = Player1#file_player{ts_prev = Frame#video_frame.timestamp_abs, pos = NextPos},
   % {_, Sec2, MSec2} = erlang:now(),
   %       _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
   % ?D({"Read frame", Delta}),
@@ -204,17 +199,19 @@ file_format(Name) ->
 %% @end
 %%-------------------------------------------------------------------------	
 
-timeout(#video_frame{timestamp_abs = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
+timeout_play(#video_frame{timestamp_abs = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
   SeekTime = AbsTime - PlayingFrom,
   Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
   % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
   if
   (Prepush > SeekTime) ->
-    {0, Player#file_player{prepush = Prepush - SeekTime}};
+    self() ! play,
+    Player#file_player{prepush = Prepush - SeekTime};
 	(Timeout > 0) -> 
-    {Timeout, Player}; 
+    Player#file_player{timer_ref = timer:send_after(Timeout, play)};
   true -> 
-    {0, Player}
+    self() ! play,
+    Player
   end.
 
  

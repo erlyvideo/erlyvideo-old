@@ -54,7 +54,7 @@ codec_config(video, MediaInfo) ->
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC,
 	  raw_body      = false,
-	  nextpos       = 0
+	  nextpos       = undefined
 	};
 
 codec_config(audio, MediaInfo) ->
@@ -70,7 +70,7 @@ codec_config(audio, MediaInfo) ->
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
 	  raw_body      = false,
-	  nextpos       = 0
+	  nextpos       = undefined
 	}.
 
 
