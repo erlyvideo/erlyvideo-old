@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, open/2, play/1, play/2]).
+-export([start_link/0, open/2, create/2, play/1, play/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -31,6 +31,10 @@ start_link() ->
 % Opens media of type Type, named Name
 open(Name, Type) ->
   gen_server:call(?MODULE, {open, Name, Type}).
+
+create(Name, Type) ->
+  ?D({"Create", Name, Type}),
+  gen_server:call(?MODULE, {open, Name, Type}).
    
 
 % Plays media with default options
@@ -42,16 +46,13 @@ play(Name) -> play(Name, []).
 %   stream_id: for RTMP, FLV stream id
 %  client_buffer: client buffer size
 play(Name, OriginalOptions) ->
-  Consumer = proplists:get_value(consumer, OriginalOptions, self()),
-  Options = [{consumer, Consumer} | OriginalOptions],
-  
   case find(Name) of
     undefined -> open_file(Name, Options);
     Server -> connect_to_media(Server, Options)
   end.
   
 connect_to_media(Server, Options) ->
-  Consumer = proplists:get_value(consumer, Options),
+  Consumer = proplists:get_value(consumer, OriginalOptions, self()),
   case media_entry:is_stream(Server) of
     true -> 
       media_entry:subscribe(Server, Consumer),

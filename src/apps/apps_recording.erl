@@ -42,27 +42,9 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({publish, live, Name}, State) when is_list(Name) ->
-  Recorder = media_provider:open(Name, live),
-  media_entry:subscribe(Recorder, self()),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Recorder, video_state = publishing}};
 
 
-'WAIT_FOR_DATA'({publish, record, Name}, State) when is_list(Name) ->
-  Recorder = media_provider:open(Name, record),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Recorder, video_state = publishing}};
 
-%% rsaccon: TODO get last timstamp of the exisiting FLV file, without that it won't playback propperly 	
-'WAIT_FOR_DATA'({publish, append, Name}, State) when is_list(Name) ->
-	FileName = filename:join([file_play:file_dir(), Name]),
-	case file:open(FileName, [write, append]) of
-		{ok, IoDev} ->
-		  Recorder = #video_recorder{type=record_append, device = IoDev, file_name = FileName, ts_prev=0},
-			{next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Recorder}, ?TIMEOUT};
-	    _ ->
-    		{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}
-    end;	
-    
 'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #rtmp_client{video_player = Recorder} = State) ->
   media_entry:publish(Recorder, Channel),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
@@ -102,8 +84,8 @@
 
 publish(#amf{args = [{null,null},{string,Name},{string,"record"}]} = _AMF, State) -> 
   ?D({"Publish - Action - record",Name}),
-  gen_fsm:send_event(self(), {publish, record, Name}),
-  State;
+  Recorder = media_provider:create(Name, record),
+  State#rtmp_client{video_player = Recorder, video_state = publishing};
 
 
 publish(#amf{args = [{null,null},{string,Name},{string,"append"}]} = _AMF, State) -> 
@@ -114,8 +96,9 @@ publish(#amf{args = [{null,null},{string,Name},{string,"append"}]} = _AMF, State
 
 publish(#amf{args = [{null,null},{string,Name},{string,"live"}]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
-  gen_fsm:send_event(self(), {publish, live, Name}),
-  State;
+  Recorder = media_provider:create(Name, live),
+  media_entry:subscribe(Recorder, self()),
+  State#rtmp_client{video_player = Recorder, video_state = publishing};
 
 publish(#amf{args = [{null,null},{string,Name}]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
