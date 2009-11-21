@@ -25,9 +25,12 @@ private var _camera : Camera;
 private var _microphone : Microphone;
 private var _statusTimer : Timer;
 private var _totalTime : Number;
+private var _connectTimer : Timer = null;
 
 public function init()  : void
 {
+	var delay : int = 2000;
+	var repeat : int = 0;
   System.useCodePage = true;
   connect();
   _totalTime = 0;
@@ -36,13 +39,10 @@ public function init()  : void
   pauseButton.enabled = false;
   playButton.enabled = false;
   recordButton.enabled = false;
+
+	_connectTimer = new Timer(delay, repeat);
+	_connectTimer.addEventListener(TimerEvent.TIMER, connect);
   
-	var video : Video = new Video(320, 240);
-	video.deblocking = 2;
-	video.smoothing = true;
-	video_container.addChild(video);
-	_video = video;
-	
 	_sound = new SoundTransform();
 	
 	if (Application.application.parameters.file) {
@@ -88,6 +88,14 @@ public function record() : void
     _stream.attachCamera(null);
     _recording = false;
   } else {
+    if (_video) {
+  	  video_container.removeChild(_video);
+  	}
+  	_video = new Video(320, 240);
+  	_video.deblocking = 2;
+  	_video.smoothing = true;
+  	video_container.addChild(_video);
+  	
     if (!_camera) {
       _camera = Camera.getCamera();
       _camera.setMode(320,240,20, false);
@@ -149,6 +157,9 @@ public function stop() : void
   if (_playing) {
     _stream.play(false);
   }
+  if (_stream) {
+    _stream.close();
+  }
   _playing = false;
   _pausing = true;
   _video.clear();
@@ -165,7 +176,9 @@ private function connect() : void
   _log.text = "Connecting";
 	_connection = new NetConnection();
 	_connection.addEventListener(NetStatusEvent.NET_STATUS, onConnectionStatus);
+	_connection.addEventListener(IOErrorEvent.IO_ERROR, onError);
 	_connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
+	_connection.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onError);
 	_connection.objectEncoding = ObjectEncoding.AMF0;
 	_connection.connect(Application.application.parameters.server+"/", Application.application.parameters.session, 142);
   
@@ -184,6 +197,7 @@ private function onStreamStatus( event : NetStatusEvent ) : void
 	switch(event.info.code){
   	case "NetStream.Play.StreamNotFound":
   		trace("File not found");
+  		_log.text = "Stream not found";
   		stop();
   		break;
   		
@@ -212,10 +226,18 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
   	var listener : Object = new Object();
   	_stream = new NetStream(_connection);
   	_stream.addEventListener(NetStatusEvent.NET_STATUS, onStreamStatus);
-  	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onAsyncError);
+  	_stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onError);
     _stream.bufferTime = 1;
   	listener.onMetaData = onMetaData;
   	_stream.client = listener;
+
+  	if (_video) {
+  	  video_container.removeChild(_video);
+  	}
+  	_video = new Video(320, 240);
+  	_video.deblocking = 2;
+  	_video.smoothing = true;
+  	video_container.addChild(_video);
   	_video.attachNetStream(_stream);
 
     _sound.volume = volSlider.value;
@@ -237,8 +259,10 @@ private function onConnectionStatus( event : NetStatusEvent ) : void
     break;
     
   case "NetConnection.Connect.Failed":
+    _log.text = "Connection failed";
     _stream = null;
     _playing = false;
+		_connectTimer.start();
     break;
 	
 	}
@@ -248,6 +272,10 @@ private function onSecurityError( event : SecurityErrorEvent ) : void
 {
 }
 
-private function onAsyncError( event : AsyncErrorEvent ) : void
+private function onError( event : Object ) : void
 {
+  _log.text = "Connection failed async";
+  _stream = null;
+  _playing = false;
+	_connectTimer.start();
 }
