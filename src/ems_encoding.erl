@@ -3,6 +3,8 @@
 
 % ems_encoding:encode("/Users/max/Movies/imgp7615.avi", "/Users/max/Movies/imgp7615.mp4").
 
+% /Applications/VLC.app/Contents/MacOS/VLC -vvv -I dummy  canoneos1000d640x480.flv  ":sout=#transcode{venc=x264{bframes=3,cabac,level=51,keyint=25,bpyramid=none,profile=main,qpmin=20,qpmax=55,partitions=slow},vcodec=x264,vb=1000,width=640,height=480,fps=25,acodec=mp4a,ab=128}:standard{access=file,mux=mp4,dst=\"canon.mp4\"}" --sout-mp4-faststart  vlc://quit
+
 -module(ems_encoding).
 -include("../include/ems.hrl").
 -export([encode/2, status/1]).
