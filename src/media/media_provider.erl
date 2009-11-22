@@ -101,10 +101,10 @@ handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
 handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
-  {reply, open_media_entry(Name, detect_type(Name), MediaProvider), MediaProvider};
+  {reply, open_media_entry(detect_type(Name), MediaProvider), MediaProvider};
 
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
-  {reply, open_media_entry(Name, Type, MediaProvider), MediaProvider};
+  {reply, open_media_entry({Name, Type}, MediaProvider), MediaProvider};
 
 handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   Entries = lists:map(
@@ -124,7 +124,11 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
     _ -> undefined
   end.
 
-open_media_entry(Name, Type, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+
+open_media_entry({Name, notfound}, _) ->
+  {notfound, "No file "++Name};
+
+open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
       case ems_sup:start_media(Name, Type) of
@@ -147,17 +151,32 @@ detect_type(Name) ->
 detect_mpeg_ts(Name) ->
   {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
-    {match, _Captured} -> mpeg_ts;
+    {match, _Captured} -> {Name, mpeg_ts};
     _ -> detect_file(Name)
   end.
 
 detect_file(Name) ->
-  FileName = filename:join([file_play:file_dir(), Name]),
-  case filelib:is_regular(FileName) of
-    true -> file;
-    _ -> live
+  case check_path(Name) of
+    true -> {Name, file};
+    _ -> detect_prefixed_file(Name)
   end.
 
+detect_prefixed_file("flv:"++Name) ->
+  case check_path(Name) of
+    true -> {Name, file};
+    _ -> {Name, notfound}
+  end;
+
+detect_prefixed_file("mp4:"++Name) ->
+  case check_path(Name) of
+    true -> 
+      ?D({"File found", Name}),
+      {Name, file};
+    _ -> {Name, notfound}
+  end.
+
+check_path(Name) ->
+  filelib:is_regular(filename:join([file_play:file_dir(), Name])).
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |

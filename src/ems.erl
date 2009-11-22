@@ -178,7 +178,7 @@ try_method_chain([Module | Applications], Method, Args) ->
 %%--------------------------------------------------------------------
 	
 check_app([], _Command, _Arity) ->
-  'apps_rtmp';
+  unhandled;
 
 check_app([Module | Applications], Command, Arity) ->
   case respond_to(Module, Command, Arity) of

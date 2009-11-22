@@ -37,7 +37,8 @@
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
 
--export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2]).
+-export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
+         getStreamLength/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
@@ -166,6 +167,10 @@ pause(AMF, #rtmp_client{video_player = Player} = State) ->
 
 pauseRaw(AMF, State) -> pause(AMF, State).
 
+
+getStreamLength(AMF, #rtmp_client{video_player = Player} = State) ->
+  ?D({"getStreamLength", AMF}),
+  State.
 
 %%-------------------------------------------------------------------------
 %% @spec (AMF::tuple(),Channel::tuple) -> any()

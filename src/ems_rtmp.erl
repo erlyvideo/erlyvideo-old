@@ -227,14 +227,12 @@ command(#channel{type = Type} = Channel, State)
 command(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, State) ->
 	AMF = amf0:decode(Channel#channel.msg),
 	#amf{command = Command} = AMF,
-	App = ems:check_app(State,Command, 2),
-	App:Command(AMF, State);
+	call_function(ems:check_app(State,Command, 2), Command, State, AMF);
 
 command(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, State) ->
 	AMF = amf3:decode(Channel#channel.msg),
 	#amf{command = Command} = AMF,
-	App = ems:check_app(State,Command, 2),
-	App:Command(AMF, State);
+	call_function(ems:check_app(State,Command, 2), Command, State, AMF);
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
@@ -244,6 +242,13 @@ command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
 command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
+
+call_function(unhandled, Command, #rtmp_client{addr = IP, port = Port} = State, #amf{args = Args}) ->
+  error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p", [IP, Port, Command, length(Args)]),
+  State;
+
+call_function(App, Command, State, AMF) ->
+	App:Command(AMF, State).
 
 
 decode_shared_object_amf0(<<>>, State) -> State;
