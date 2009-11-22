@@ -465,7 +465,7 @@ send_video_config(#stream{consumer = Consumer} = Stream) ->
     	  raw_body      = false,
     	  streamid      = 1
     	},
-  	  ?D({"Send decoder config to", Consumer}),
+      % ?D({"Send decoder config to", Consumer}),
   	  Consumer ! {video_config, VideoFrame},
       Stream#stream{video_config = DecoderConfig}
   end.

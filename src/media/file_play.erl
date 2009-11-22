@@ -171,7 +171,7 @@ send_frame(Player, {ok, undefined}) ->
 send_frame(#file_player{consumer = Consumer} = Player, {ok, done}) ->
   ?D("Video file finished"),
   gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
-	?MODULE:ready(Player#file_player{sent_video_config = false, sent_audio_config = false, ts_prev = 0, pos = undefined});
+  ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->
   % ?D({"Frame", Key, Frame#video_frame.timestamp_abs, NextPos}),

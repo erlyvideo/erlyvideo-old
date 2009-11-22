@@ -94,6 +94,13 @@ handle_call({create_player, Options}, {Caller, _Ref},
   ems_play:send(Pid, Audio),
   {reply, {ok, self()}, MediaInfo};
 
+
+handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
+  Entries = lists:map(
+    fun([Pid]) -> gen_fsm:sync_send_event(Pid, info) end,
+  ets:match(Clients, {'$1'})),
+  {reply, Entries, MediaInfo};
+
 handle_call({codec_config, video}, _From, #media_info{video_decoder_config = Config} = MediaInfo) ->
   {reply, Config, MediaInfo};
 
