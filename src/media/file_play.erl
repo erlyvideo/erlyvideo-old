@@ -39,7 +39,7 @@
 
 -include("../../include/ems.hrl").
 
--export([file_dir/0, file_format/1, start/1, start/2]).
+-export([file_dir/0, file_format/1, start/1, start/2, client/1]).
 
 -export([init/2, ready/1]).
 
@@ -68,6 +68,15 @@ start(MediaEntry) -> start(MediaEntry, []).
 
 start(MediaEntry, Options) ->
   {ok, spawn_link(?MODULE, init, [MediaEntry, Options])}.
+  
+client(Player) ->
+  Ref = erlang:make_ref(),
+  Player ! {client, self(), Ref},
+  receive 
+    {Info, Ref} -> Info
+  after 10 ->
+    {undefined, undefined}
+  end.
 
   
 init(MediaEntry, Options) ->
@@ -95,6 +104,10 @@ ready(#file_player{media_info = MediaInfo,
     	self() ! play,
     	?D({"Player starting with pid", self(), MediaInfo}),
       ?MODULE:ready(State#file_player{prepush = ClientBuffer, paused = false});
+      
+    {client, Pid, Ref} ->
+      Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
+      ?MODULE:ready(State);
       
     pause ->
       ?D("Player paused"),
@@ -140,11 +153,11 @@ play(#file_player{paused = true} = State) ->
 
 
 play(#file_player{sent_audio_config = false, media_info = MediaInfo} = Player) ->
-  ?D({"Sent audio config"}),
+  % ?D({"Sent audio config"}),
   send_frame(Player#file_player{sent_audio_config = true}, {ok, file_media:codec_config(MediaInfo, audio)});
 
 play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) ->
-  ?D({"Sent video config"}),
+  % ?D({"Sent video config"}),
   send_frame(Player#file_player{sent_video_config = true}, {ok, file_media:codec_config(MediaInfo, video)});
     
 

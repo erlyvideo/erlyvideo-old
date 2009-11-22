@@ -63,6 +63,11 @@ handle_call({create_player, Options}, _From, #media_info{file_name = Name, clien
   ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
   {reply, {ok, Pid}, MediaInfo};
 
+handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
+  Entries = lists:map(
+    fun([Pid]) -> file_play:client(Pid) end,
+  ets:match(Clients, {'$1'})),
+  {reply, Entries, MediaInfo};
 
 handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};

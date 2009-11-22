@@ -16,8 +16,14 @@
       
       <div class="span-24 last">
         <ul>
-          {% for file in files %}
-          <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>
+          {% for name, clients in entries %}
+          <li><a href="?file={{name}}&autostart=true">{{name}}</a>
+            <ul>
+              {% for addr, port in clients %}
+              <li>{{addr}}:{{port}}</li>
+              {% endfor %}
+            </ul>
+          </li>
           {% endfor %}
         </ul>
         

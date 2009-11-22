@@ -195,8 +195,8 @@ init([]) ->
     Reply -> Reply
   end.
 
-'WAIT_FOR_DATA'({info}, _From, #rtmp_client{addr = Address, port = Port} = State) ->
-  {reply, [{ip, Address, Port}], 'WAIT_FOR_DATA', State, ?TIMEOUT};
+'WAIT_FOR_DATA'(info, _From, #rtmp_client{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
+  {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port}, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
 'WAIT_FOR_DATA'(Data, _From, State) ->
@@ -225,6 +225,7 @@ handle_event(Event, StateName, StateData) ->
 %%          {stop, Reason, Reply, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
+
 handle_sync_event(Event, _From, StateName, StateData) ->
    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.

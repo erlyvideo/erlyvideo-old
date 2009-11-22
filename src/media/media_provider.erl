@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, create/2, play/1, play/2]).
+-export([start_link/0, create/2, play/1, play/2, entries/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -41,6 +41,9 @@ open(Name, Type) ->
 
 find(Name) ->
   gen_server:call(?MODULE, {find, Name}).
+
+entries() ->
+  gen_server:call(?MODULE, entries).
    
 
 % Plays media with default options
@@ -103,6 +106,13 @@ handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
   {reply, open_media_entry(Name, Type, MediaProvider), MediaProvider};
 
+handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  Entries = lists:map(
+    fun([Name, Handler]) -> 
+      {Name, gen_server:call(Handler, clients)}
+    end,
+  ets:match(OpenedMedia, {'_', '$1', '$2'})),
+  {reply, Entries, MediaProvider};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.

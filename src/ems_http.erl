@@ -41,9 +41,9 @@ handle('GET', ["admin"], Req) ->
   erlydtl:compile("wwwroot/admin.html", admin_template),
   % {ok, Contents} = file:read_file("player/player.html"),
 
-  FileList = [],
+  Entries = media_provider:entries(),
   {ok, Index} = admin_template:render([
-  {files, FileList}]),
+  {entries, Entries}]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 
