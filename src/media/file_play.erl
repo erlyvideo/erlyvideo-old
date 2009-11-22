@@ -95,7 +95,8 @@ ready(#file_player{media_info = MediaInfo,
                     timer_ref = Timer} = State) ->
   receive
     {client_buffer, ClientBuffer} -> 
-      ready(State#file_player{client_buffer = ClientBuffer});
+      ?MODULE:ready(State#file_player{client_buffer = ClientBuffer});
+      
     start ->
       case file_media:metadata(MediaInfo) of
         undefined -> ok;

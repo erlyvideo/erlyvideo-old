@@ -134,7 +134,9 @@ play(AMF, #rtmp_client{video_player = Player} = State) ->
   ?D({"invoke - play", Name, AMF}),
   case Player of
     undefined -> ok;
-    _ -> Player ! stop
+    _ -> 
+      ?D({"Stop current player", Player}),
+      Player ! exit
   end,
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
