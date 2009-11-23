@@ -103,6 +103,11 @@ public function record() : void
     }
     if (!_microphone) {
       _microphone = Microphone.getMicrophone();
+      _microphone.codec = SoundCodec.SPEEX;
+      _microphone.encodeQuality = 10;
+      _microphone.rate = 44;
+      _microphone.framesPerPacket = 2;
+      _microphone.gain = 50;
       _microphone.setUseEchoSuppression(true);
     }
     if (_camera) {
