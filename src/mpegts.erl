@@ -102,8 +102,10 @@ handle_msg(#http_player{req = Req, streamer = Streamer} = HTTPPlayer, #video_fra
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1})
   end;
 
-handle_msg(#http_player{player = Player}, {'EXIT', _, _}) ->
-  ?D({"MPEG TS reader disconnected"}),
+handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'EXIT', _, _}) ->
+  ?D({"MPEG TS reader disconnected", Streamer}),
+  {_Streamer1, Bin} = pad_continuity_counters(Streamer),
+  Req:stream(Bin),
   Player ! stop,
   ok;
 
@@ -130,31 +132,37 @@ increment_counter(#streamer{video_counter = C} = Streamer, ?VIDEO_PID) ->
 % 4 bytes header, 1 byte syncwork, 188 packet, so data is 183
 
 
-adaptation_field(Data) when size(Data) >= ?TS_PACKET -> 
+adaptation_field(Data, _Pid) when size(Data) >= ?TS_PACKET -> 
   {0, <<>>};
   
-adaptation_field(Data) when is_binary(Data) ->
+adaptation_field(Data, _Pid) when is_binary(Data) ->
   Field = padding(<<0>>, ?TS_PACKET - size(Data) - 1),
   {1, <<(size(Field)), Field/binary>>};
 
-adaptation_field({Timestamp, Data}) ->
-  adaptation_field({Timestamp, 0, Data});
+adaptation_field({Timestamp, Data}, Pid) ->
+  adaptation_field({Timestamp, 0, Data}, Pid);
   
-adaptation_field({Timestamp, Keyframe, Data}) ->
-  PCR = round(Timestamp * 27000),
-  PCR1 = round(Timestamp * 90),
-  PCR2 = PCR rem 300,
+adaptation_field({Timestamp, Keyframe, Data}, Pid) ->
   % ?D({"PCR", PCR}),
   Discontinuity = 0,
   RandomAccess = Keyframe,
   Priority = 0,
-  HasPCR = 1,
+  {HasPCR, PCR} = case Pid of
+    ?PCR_PID ->
+      FullPCR = round(Timestamp * 27000),
+      PCR1 = round(Timestamp * 90),
+      PCR2 = FullPCR rem 300,
+      PCRBin = <<PCR1:33, 2#111111:6, PCR2:9>>,
+      {1, PCRBin};
+    _ ->
+      {0, <<>>}
+  end,
   HasOPCR = 0,
   Splice = 0,
   Private = 0,
   Ext = 0,
 
-  Adaptation = <<Discontinuity:1, RandomAccess:1, Priority:1, HasPCR:1, HasOPCR:1, Splice:1, Private:1, Ext:1, PCR1:33, 2#111111:6, PCR2:9>>,
+  Adaptation = <<Discontinuity:1, RandomAccess:1, Priority:1, HasPCR:1, HasOPCR:1, Splice:1, Private:1, Ext:1, PCR/bitstring>>,
   Field = padding(Adaptation, ?TS_PACKET - 1 - size(Data)),
   % ?D({"Adaptation PCR", Timestamp}),
   % ?D({"Adapt", size(Adaptation), size(Field)+1, size(Data)}),
@@ -162,19 +170,23 @@ adaptation_field({Timestamp, Keyframe, Data}) ->
 
 
 mux_parts(Data, Streamer, Pid, Start, Accumulator) ->
-  {Adaptation, Field} = adaptation_field(Data),
+  {Adaptation, Field} = adaptation_field(Data, Pid),
   {Counter, Streamer1} = increment_counter(Streamer, Pid),
-  HasPayload = 1,
+  % ?D({Pid,Counter}),
   Scrambling = 0,
   Priority = 0,
   TEI = 0,
 
-  Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adaptation:1, HasPayload:1, Counter:4, Field/binary>>,
   Payload = case Data of
     {_, _, Bin} -> Bin;
     {_, Bin} -> Bin;
     _ -> Data
   end,
+  HasPayload = case size(Payload) of
+    0 -> 0;
+    _ -> 1
+  end,
+  Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adaptation:1, HasPayload:1, Counter:4, Field/binary>>,
   send_ts(Header, Payload, Streamer1, Pid, Accumulator).
   
 send_ts(Header, Data, Streamer, _Pid, Accumulator) when size(Data) + size(Header) == 188 ->
@@ -407,6 +419,36 @@ handle_frame(#streamer{} = Streamer, #video_frame{type = audio} = Frame) ->
 
 handle_frame(#streamer{} = Streamer, #video_frame{type = metadata}) ->
   {Streamer, none}.
+
+
+-define(END_COUNTER, 15).
+
+pad_continuity_counters(Streamer) ->
+  pad_continuity_counters(Streamer, <<>>).
+
+% pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+%   ?D({pad, audio, Streamer#streamer.audio_counter}),
+%   {Streamer1, Bin} = mux_parts(<<>>, Streamer, ?AUDIO_PID, 0, <<>>),
+%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+
+pad_continuity_counters(#streamer{video_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+  % ?D({pad, video, Streamer#streamer.video_counter}),
+  {Streamer1, Bin} = mux_parts(<<0,0,0,1>>, Streamer, ?VIDEO_PID, 0, <<>>),
+  pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+
+% pad_continuity_counters(#streamer{pat_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+%   ?D({pad, pat, Streamer#streamer.pat_counter}),
+%   {Streamer1, Bin} = mux_parts(<<>>, Streamer, ?PAT_PID, 0, <<>>),
+%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+% 
+% pad_continuity_counters(#streamer{pmt_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+%   ?D({pad, pmt, Streamer#streamer.pmt_counter}),
+%   {Streamer1, Bin} = mux_parts(<<>>, Streamer, ?PMT_PID, 0, <<>>),
+%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+
+pad_continuity_counters(Streamer, Accum) ->
+  {Streamer, Accum}.
+
 
   
   
