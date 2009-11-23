@@ -426,10 +426,10 @@ handle_frame(#streamer{} = Streamer, #video_frame{type = metadata}) ->
 pad_continuity_counters(Streamer) ->
   pad_continuity_counters(Streamer, <<>>).
 
-% pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-%   ?D({pad, audio, Streamer#streamer.audio_counter}),
-%   {Streamer1, Bin} = mux_parts(<<>>, Streamer, ?AUDIO_PID, 0, <<>>),
-%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+  % ?D({pad, audio, Streamer#streamer.audio_counter}),
+  {Streamer1, Bin} = mux_parts(<<0>>, Streamer, ?AUDIO_PID, 0, <<>>),
+  pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
 pad_continuity_counters(#streamer{video_counter = Counter} = Streamer, Accum) when Counter > 0 ->
   % ?D({pad, video, Streamer#streamer.video_counter}),
