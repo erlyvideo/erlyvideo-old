@@ -120,7 +120,7 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
 
 handle_call({publish, Channel}, _From, #media_info{device = Device, clients = Clients} = Recorder) ->
 	Tag = ems_flv:to_tag(Channel),
-  ?D({"Record",Channel#channel.id, Channel#channel.type,Channel#channel.timestamp}),
+	?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg), Channel#channel.delta, Channel#channel.timestamp}),
 	case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, Tag)

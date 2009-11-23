@@ -215,6 +215,7 @@
 -record(channel,{
 	id        = undefined,
 	timestamp = undefined,
+	delta     = undefined,
 	length    = undefined,
 	type      = undefined,
 	stream    = undefined,
