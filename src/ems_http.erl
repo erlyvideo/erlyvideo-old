@@ -213,7 +213,7 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   
   {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
   SegmentList = lists:map(fun(N) ->
-    io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n#EXT-X-DISCONTINUITY~n", [SegmentLength, Name, N])
+    io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
   end, lists:seq(Start, Start + Count - 1)),
   EndList = case Type of
     stream -> "";

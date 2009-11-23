@@ -59,7 +59,7 @@ start_link(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
-  media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'after', Number * ?STREAM_TIME}}, {duration, {'after', ?STREAM_TIME}}, {client_buffer, ?STREAM_TIME}]).
+  media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}, {client_buffer, ?STREAM_TIME*2}]).
 
 find_(Host, Name, Number) ->
   gen_server:call(?MODULE, {find, Host, Name, Number}).
