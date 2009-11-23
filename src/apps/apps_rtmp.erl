@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
 
--export([connect/2]).
+-export([connect/2, reply/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
@@ -88,18 +88,21 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
     
     NewState = NewState3,
     
-    NewAMF = AMF#amf{
-        command = '_result', 
-        id = 1, %% muriel: dirty too, but the only way I can make this work
-        type = invoke,
-        args= [
-            [{capabilities, 31}, {fmsVer, "RubyIZUMI/0,1,2,0"}],
-            [{code, ?NC_CONNECT_SUCCESS},
-            {level, "status"}, 
-            {description, "Connection succeeded."}]]},
-    gen_fsm:send_event(self(), {invoke, NewAMF}),
+    reply(1, [
+        [{capabilities, 31}, {fmsVer, "Erlyvideo 1.0"}],
+        [{code, ?NC_CONNECT_SUCCESS},
+        {level, "status"}, 
+        {description, "Connection succeeded."}]]),
     NewState.
 
+
+reply(Id, Args) ->
+  gen_fsm:send_event(self(), {invoke, #amf{
+                              command = '_result', 
+                              id = Id, %% muriel: dirty too, but the only way I can make this work
+                              type = invoke,
+                              args= Args}}).
+  
 
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->

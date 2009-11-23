@@ -93,13 +93,14 @@
 %%-------------------------------------------------------------------------
 createStream(AMF, State) -> 
     ?D({"invoke - createStream", AMF}),
-    Id = 1, % New stream ID
-    NewAMF = AMF#amf{
-      id = 2.0,
-    	command = '_result',
-    	args = [null, Id]},
-    % gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2},NewAMF}}),
-    gen_fsm:send_event(self(), {invoke, NewAMF}),
+    % Id = 1, % New stream ID
+    % NewAMF = AMF#amf{
+    %   id = 2.0,
+    %   command = '_result',
+    %   args = [null, Id]},
+    % % gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2},NewAMF}}),
+    % gen_fsm:send_event(self(), {invoke, NewAMF}),
+    apps_rtmp:reply(2.0, [null, 1]),
     gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
     State.
 

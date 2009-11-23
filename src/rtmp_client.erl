@@ -118,7 +118,7 @@ init([]) ->
 'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_client{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
 	case <<Buff/binary,Data/binary>> of
 		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
-			Reply = ems_rtmp:handshake(HandShake),
+			Reply = rtmp:handshake(HandShake),
 			send_data(State, [?HS_HEADER, Reply]),
 			{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_client{buff = Rest}, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
@@ -140,7 +140,7 @@ init([]) ->
 'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_client{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
 	case <<Buff/binary,Data/binary>> of
 		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
-			NewState = ems_rtmp:decode(State#rtmp_client{buff = Rest}),
+			NewState = rtmp:decode(State#rtmp_client{buff = Rest}),
 			{next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
@@ -152,16 +152,16 @@ init([]) ->
 
 %% Notification event coming from client
 'WAIT_FOR_DATA'({data, Data}, #rtmp_client{buff = Buff} = State) ->
-  {next_state, 'WAIT_FOR_DATA', ems_rtmp:decode(State#rtmp_client{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', rtmp:decode(State#rtmp_client{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_client{server_chunk_size = OldChunkSize} = State) ->
-	Packet = ems_rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
+	Packet = rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
   ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State#rtmp_client{server_chunk_size = ChunkSize}, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_client{server_chunk_size = ChunkSize} = State) ->
-	Packet = ems_rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
+	Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 

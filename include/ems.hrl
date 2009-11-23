@@ -219,7 +219,7 @@
 	type      = undefined,
 	stream    = undefined,
 	msg       = <<>>,
-	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into ems_rtmp:encode
+	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into rtmp:encode
 	}).
 
 	
