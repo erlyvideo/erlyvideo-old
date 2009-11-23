@@ -37,7 +37,7 @@
 -include("../include/ems.hrl").
 -include("../include/flv.hrl").
 
--export([to_tag/2, encode/1]).
+-export([to_tag/1, encode/1]).
 
 
 encode(#video_frame{type = ?FLV_TAG_TYPE_AUDIO,
@@ -81,15 +81,14 @@ encode(_Frame) ->
   ?D({"Request to encode undefined", _Frame}).
 
 
-to_tag(#channel{msg = Msg,timestamp = FullTimeStamp, type = Type, stream = StreamId}, PrevTimeStamp) ->
+to_tag(#channel{msg = Msg, type = Type, stream = StreamId, timestamp = CurrentTimeStamp}) ->
 	BodyLength = size(Msg),	
-	{TimeStampExt, TimeStamp} = case PrevTimeStamp of
+	{TimeStampExt, TimeStamp} = case CurrentTimeStamp of
 		<<TimeStampExt1:8,TimeStamp1:32>> -> 
 			{TimeStampExt1, TimeStamp1};
 		_ ->
-			{0, PrevTimeStamp}
+			{0, CurrentTimeStamp}
 	end,			
 	PrevTagSize = size(Msg) + 11,
-	{<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>,
-	 FullTimeStamp + PrevTimeStamp}.
+	<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>.
 

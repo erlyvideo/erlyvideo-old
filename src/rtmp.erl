@@ -66,7 +66,7 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, c
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
   %   NextPacket = <<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little,Chunk/binary>>,
   % encode(Channel, Rest, NextPacket);
-  [<<BinId/binary,TimeStamp:24/big-integer,(size(Data)):24/big-integer,Type:8,StreamId:32/little>> | ChunkList].
+  [<<BinId/binary,TimeStamp:24,(size(Data)):24,Type:8,StreamId:32/little>> | ChunkList].
 
 % encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) -> 
 %   {Chunk,Rest} = chunk(Data, ChunkSize, Id),
@@ -116,17 +116,18 @@ decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
 decode_channel_header(<<16#ffffff:24, TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff}, Rest, State);
-decode_channel_header(<<TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
-  decode_channel(Channel#channel{timestamp = TimeStamp}, Rest, State);
+  
+decode_channel_header(<<Delta:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
+  {value, #channel{timestamp = TimeStamp, type = Type} = Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
+  decode_channel(Channel#channel{timestamp = TimeStamp + Delta}, Rest, State);
   
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
   {value, Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff,length=Length,type=Type},Rest,State);
 	
-decode_channel_header(<<TimeStamp:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
-	decode_channel(Channel#channel{timestamp=TimeStamp,length=Length,type=Type},Rest,State);
+decode_channel_header(<<Delta:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
+  {value, #channel{timestamp = TimeStamp} = Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
+	decode_channel(Channel#channel{timestamp=TimeStamp + Delta,length=Length,type=Type},Rest,State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case lists:keysearch(Id, #channel.id, State#rtmp_client.channels) of
@@ -158,7 +159,6 @@ decode_channel(Channel, Data, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
   % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#rtmp_client.channels)}),
 	push_channel_packet(Channel, Data, State, BytesRequired).
-	
 	
 % Nothing to do when buffer is small
 

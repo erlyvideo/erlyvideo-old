@@ -41,8 +41,6 @@
 -export([init/1, read_frame/2, metadata/1, codec_config/2]).
 -behaviour(gen_format).
 
-% -export([read_header/1,read_frame/1,read_frame/2,to_tag/2,header/1, parse_meta/1, encodeTag/2]).
-
 codec_config(video, MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
   % ?D({"Video config", Config}),

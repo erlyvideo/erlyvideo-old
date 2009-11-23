@@ -118,21 +118,16 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
   {reply, {error, {owner_exists, Owner}}, MediaInfo};
 
 
-handle_call({publish, Channel}, _From, #media_info{ts_prev = PrevTs, device = Device, clients = Clients} = Recorder) ->
-  % ?D({"Record",Channel#channel.id, Channel#channel.type,size(Channel#channel.msg),Channel#channel.timestamp,PrevTs}),
-	{Tag,NextTimeStamp} = ems_flv:to_tag(Channel,PrevTs),
+handle_call({publish, Channel}, _From, #media_info{device = Device, clients = Clients} = Recorder) ->
+	Tag = ems_flv:to_tag(Channel),
+  ?D({"Record",Channel#channel.id, Channel#channel.type,Channel#channel.timestamp}),
 	case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, Tag)
 	end,
-	
-  NextTimeStamp = PrevTs + Channel#channel.timestamp,
-  %	?D({"Broadcast",Channel#channel.id,Channel#channel.type,size(Channel#channel.msg),NextTimeStamp}),
-  Packet = Channel#channel{id = ems_play:channel_id(Channel#channel.type,1), timestamp = NextTimeStamp},
-  % ?D({"Broadcast to", ets:info(Clients, size)}),
+  Packet = Channel#channel{id = ems_play:channel_id(Channel#channel.type,1)},
   ets:foldl(fun send_packet/2, Packet, Clients),
-	
-	{reply, ok, Recorder#media_info{ts_prev = NextTimeStamp}};
+	{reply, ok, Recorder};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
@@ -211,6 +206,15 @@ handle_info({audio_config, Audio}, #media_info{clients = Clients} = MediaInfo) -
   {noreply, MediaInfo#media_info{audio_decoder_config = Audio}};
 
 handle_info(start, State) ->
+  {noreply, State};
+
+handle_info(stop, State) ->
+  {noreply, State};
+
+handle_info(pause, State) ->
+  {noreply, State};
+
+handle_info(resume, State) ->
   {noreply, State};
 
 handle_info(_Info, State) ->

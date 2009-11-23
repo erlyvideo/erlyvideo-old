@@ -102,6 +102,6 @@ publish(#amf{args = [{null,null},{string,Name},{string,"live"}]} = _AMF, State) 
 
 publish(#amf{args = [{null,null},{string,Name}]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
-  gen_fsm:send_event(self(), {publish, live, Name}),
-  State.
+  Recorder = media_provider:create(Name, live),
+  State#rtmp_client{video_player = Recorder, video_state = publishing}.
 
