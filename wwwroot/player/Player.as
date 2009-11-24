@@ -107,7 +107,7 @@ public function record() : void
       _microphone.encodeQuality = 10;
       _microphone.rate = 44;
       _microphone.framesPerPacket = 2;
-      _microphone.gain = 50;
+      _microphone.gain = 80;
       _microphone.setUseEchoSuppression(true);
     }
     if (_camera) {

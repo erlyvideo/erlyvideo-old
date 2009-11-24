@@ -71,7 +71,7 @@
 
 
 'WAIT_FOR_DATA'({stop}, State) ->
-  ?D({"Invalid state in STOP", State#rtmp_client.video_player}),
+  ?D({"Stop command, while not recording", State#rtmp_client.video_player}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
