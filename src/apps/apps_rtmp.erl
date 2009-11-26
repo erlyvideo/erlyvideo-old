@@ -80,10 +80,7 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
         error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
         Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
         throw(invalid_amf3_encoding);
-      _ ->
-        error_logger:error_msg("Warning! Client hasnt provided any encoding.
-        Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code"),
-        throw(invalid_amf_encoding)
+      _ -> NewState2#rtmp_client{amf_version = 0}
     end,
     
     ConnectObj = [{capabilities, 31}, {fmsVer, <<"Erlyvideo 1.0">>}],
