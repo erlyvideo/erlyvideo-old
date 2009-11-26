@@ -99,7 +99,7 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 reply(Id, Args) ->
   gen_fsm:send_event(self(), {invoke, #amf{
                               command = '_result', 
-                              id = Id, %% muriel: dirty too, but the only way I can make this work
+                              id = Id,
                               type = invoke,
                               args= Args}}).
   

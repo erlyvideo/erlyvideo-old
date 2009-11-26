@@ -120,8 +120,14 @@ decode_list(List, Data) ->
 decode(Bin) ->	
   {string, Command, Rest} = parse(Bin),
   FullArguments = decode_list([], Rest),
-  [_Num | Arguments] = FullArguments,
-  #amf{command = list_to_atom(Command), args = Arguments, type = invoke}.
+  % ?D({"Rest", Rest, FullArguments}),
+  case FullArguments of
+    [{number, Id} | Arguments] -> #amf{command = list_to_atom(Command), args = Arguments, type = invoke, id = Id};
+    Arguments -> #amf{command = list_to_atom(Command), args = Arguments, type = notify}
+  end.
+  % [{number, Id} | Arguments] = FullArguments,
+  % #amf{command = list_to_atom(Command), args = Arguments, type = invoke, id = Id}.
+
   % case parse(Rest) of
   %   {{mixed_array, Rest2}, _Rest3} -> %without id,  set type to notify
   %     Args = decode_args(Rest2, []),

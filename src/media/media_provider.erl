@@ -133,7 +133,6 @@ open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = Med
     undefined ->
       case ems_sup:start_media(Name, Type) of
         {ok, Pid} ->
-          ?D({"ZZZ:", Type, Pid}),
           link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
           ?D({"Opened", Type, Name, Pid}),

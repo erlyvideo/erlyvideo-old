@@ -272,7 +272,7 @@ command(#channel{type = Type}, State) ->
   State.
 
 call_function(unhandled, Command, #rtmp_client{addr = IP, port = Port} = State, #amf{args = Args}) ->
-  error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p", [IP, Port, Command, length(Args)]),
+  error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p~n", [IP, Port, Command, length(Args)]),
   State;
 
 call_function(App, Command, State, AMF) ->
