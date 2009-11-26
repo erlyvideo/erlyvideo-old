@@ -57,6 +57,7 @@ init([Name, record]) ->
   Clients = ets:new(clients, [set, private]),
 	FileName = filename:join([file_play:file_dir(), Name ++ ".flv"]),
 	(catch file:delete(FileName)),
+	ok = filelib:ensure_dir(FileName),
 	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	?D({"Recording to file", FileName}),
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
@@ -65,6 +66,7 @@ init([Name, record]) ->
 		  Recorder = #media_info{type=record, device = Device, file_name = FileName, ts_prev = 0, clients = Clients},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
+		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, _Error]),
 			ignore
   end.
 
@@ -120,7 +122,7 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
 
 handle_call({publish, Channel}, _From, #media_info{device = Device, clients = Clients} = Recorder) ->
 	Tag = ems_flv:to_tag(Channel),
-  ?D({"Record",Channel#channel.type, Channel#channel.timestamp}),
+  % ?D({"Record",Channel#channel.type, Channel#channel.timestamp}),
 	case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, Tag)
