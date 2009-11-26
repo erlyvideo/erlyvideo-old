@@ -2,6 +2,7 @@ ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
 VSN=0.1
+MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
 all: ebin/erlmedia.app
@@ -33,6 +34,7 @@ run: ebin/erlmedia.app
 	-pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
+	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME)
 	
 start: ebin/erlmedia.app
@@ -41,5 +43,6 @@ start: ebin/erlmedia.app
   -kernel error_logger '{file, "erlang.log"}' \
 	-boot start_sasl \
 	-s $(APP_NAME) \
+	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME) \
 	-detached
