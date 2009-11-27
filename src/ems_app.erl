@@ -48,15 +48,18 @@
 
 start(_Type, _Args) -> 
   application:start(crypto),
-  ems_sup:start_link().
+  mnesia:create_schema([node()]),
+  mnesia:start(),
+  Start = ems_sup:start_link(),
+  ok = ems:start_modules(),
+  Start.
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()
 %% @doc Stop ErlMedia Application
 %% @end 
 %%--------------------------------------------------------------------
 stop(_S) -> 
-  % application:stop(crypto),
-  % inets:stop(httpc, erlyvideo),
+  ems:stop_modules(),
   ok.
 
 
