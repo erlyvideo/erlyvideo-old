@@ -45,4 +45,5 @@ start: ebin/erlmedia.app
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME) \
+	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-detached

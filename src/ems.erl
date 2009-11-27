@@ -38,7 +38,8 @@
 -include("../include/ems.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
--export ([get_var/1,get_var/2, check_app/3, try_method_chain/2]).
+-export([get_var/1,get_var/2, check_app/3, try_method_chain/2]).
+-export([start_modules/0, stop_modules/0]).
 
 
 %%--------------------------------------------------------------------
@@ -179,6 +180,46 @@ stop_modules([Module|Modules]) ->
     _ -> ok
   end,
   stop_modules(Modules).
+
+%%--------------------------------------------------------------------
+%% @spec () -> ok | {error, Reason}
+%% @doc Initializes all modules
+%% @end 
+%%--------------------------------------------------------------------
+start_modules() -> start_modules(ems:get_var(applications, [])).
+
+start_modules([]) -> 
+  ok;
+start_modules([Module|Modules]) ->
+  case respond_to(Module, start, 0) of
+    true -> 
+      ?D({"Init module", Module}),
+      ok = Module:start();
+    _ ->
+      ok
+  end,
+  start_modules(Modules).
+  
+
+%%--------------------------------------------------------------------
+%% @spec () -> ok | {error, Reason}
+%% @doc Shutdown all modules
+%% @end 
+%%--------------------------------------------------------------------
+stop_modules() -> stop_modules(ems:get_var(applications, [])).
+
+stop_modules([]) -> 
+  ok;
+stop_modules([Module|Modules]) ->
+  case respond_to(Module, stop, 0) of
+    true -> 
+      ok = Module:stop();
+    _ ->
+      ok
+  end,
+  stop_modules(Modules).
+  
+
 
 %%--------------------------------------------------------------------
 %% @spec (Opt::atom(), Command::atom(), Arity::integer()) -> any()
