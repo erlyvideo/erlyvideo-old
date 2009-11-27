@@ -275,8 +275,15 @@ call_function(unhandled, Command, #rtmp_client{addr = IP, port = Port} = State, 
   error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p~n", [IP, Port, Command, length(Args)]),
   State;
 
-call_function(App, Command, State, AMF) ->
-	App:Command(AMF, State).
+call_function(App, Command, State, #amf{id = Id} = AMF) ->
+  try
+  	App:Command(AMF, State)
+  catch
+    _:Error ->
+      error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p~n", [App, Command, AMF, State, Error]),
+      apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
+      State
+  end.
 
 
 decode_shared_object_amf0(<<>>, State) -> State;

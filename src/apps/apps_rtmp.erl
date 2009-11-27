@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
 
--export([connect/2, reply/2]).
+-export([connect/2, reply/2, fail/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
@@ -97,11 +97,10 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 
 
 reply(Id, Args) ->
-  gen_fsm:send_event(self(), {invoke, #amf{
-                              command = '_result', 
-                              id = Id,
-                              type = invoke,
-                              args= Args}}).
+  gen_fsm:send_event(self(), {invoke, #amf{command = '_result', id = Id, type = invoke,args= Args}}).
+
+fail(Id, Args) ->
+  gen_fsm:send_event(self(), {invoke, #amf{command = '_error', id = Id, type = invoke,args= Args}}).
   
 
 
