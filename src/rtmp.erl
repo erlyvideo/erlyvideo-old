@@ -280,8 +280,8 @@ call_function(App, Command, State, #amf{id = Id} = AMF) ->
   	App:Command(AMF, State)
   catch
     _:Error ->
-      error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p~n", [App, Command, AMF, State, Error]),
-      apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
+      error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p~n~p~n", [App, Command, AMF, State, Error, erlang:get_stacktrace()]),
+      % apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
       State
   end.
 
