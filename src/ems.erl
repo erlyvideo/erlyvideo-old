@@ -49,9 +49,7 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
-	Start = application:start(?APPLICATION),
-	start_modules(),
-	Start.
+	application:start(?APPLICATION).
 
 
 %%--------------------------------------------------------------------
@@ -61,7 +59,6 @@ start() ->
 %%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
-	stop_modules(),
 	application:stop(?APPLICATION),
 	application:unload(?APPLICATION).
 
@@ -152,34 +149,6 @@ respond_to(Module, Command, Arity) ->
 		_ -> false
 	end.
   
-start_modules() ->
-  start_modules(ems:get_var(applications, [])).
-  
-start_modules([]) -> 
-  ok;
-start_modules([Module|Modules]) ->
-  case respond_to(Module, start, 0) of
-    true ->
-      ?D({"Init module", Module}),
-      ok = Module:start();
-    _ -> ok
-  end,
-  start_modules(Modules).
-
-
-stop_modules() ->
-  stop_modules(ems:get_var(applications, [])).
-
-stop_modules([]) -> 
-  ok;
-stop_modules([Module|Modules]) ->
-  case respond_to(Module, stop, 0) of
-    true ->
-      ?D({"Stop module", Module}),
-      ok = Module:stop();
-    _ -> ok
-  end,
-  stop_modules(Modules).
 
 %%--------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
