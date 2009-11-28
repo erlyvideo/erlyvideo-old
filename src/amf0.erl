@@ -55,7 +55,7 @@ encode(Number) when is_number(Number) -> <<?AMF_NUMBER, Number:64/big-float>>;
 encode({mixed_array,List} = Array) when is_list(List) -> encode_mixed_array(Array);
 encode({object,List} = Object)     when is_list(List) -> encode_object(Object);
 encode({string,List} = _String)    when is_list(List) -> encode(List);
-encode({xml,XML}) -> 
+encode({xml,XML}) when is_list(XML) -> 
   <<?AMF_XML, (size(XML)):32, (list_to_binary(XML))/binary>>;
 encode([H|_] = List) when is_list(List), is_tuple(H) -> 
 	encode_object(List, <<>>);
