@@ -276,14 +276,17 @@ call_function(unhandled, Command, #rtmp_client{addr = IP, port = Port} = State, 
   State;
 
 call_function(App, Command, State, #amf{id = Id} = AMF) ->
-  try
-  	App:Command(AMF, State)
-  catch
-    _:Error ->
-      error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p~n~p~n", [App, Command, AMF, State, Error, erlang:get_stacktrace()]),
-      % apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
-      State
-  end.
+	App:Command(AMF, State).
+  % try
+  %   App:Command(AMF, State)
+  % catch
+  %   _:login_failed ->
+  %     throw(login_failed);
+  %   What:Error ->
+  %     error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p:~p~n~p~n", [App, Command, AMF, State, What, Error, erlang:get_stacktrace()]),
+  %     % apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
+  %     State
+  % end.
 
 
 decode_shared_object_amf0(<<>>, State) -> State;

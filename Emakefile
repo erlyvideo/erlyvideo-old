@@ -2,6 +2,7 @@
 {"src/crypt/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/apps/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/media/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
+{"src/auth/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/formats/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/plugins/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"deps/misultin/src/*", [{outdir, "ebin"}, {i, "deps/misultin/include"}]}.

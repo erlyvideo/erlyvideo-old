@@ -1,6 +1,21 @@
--module(rtmp_session).
+-module(json_session).
 -author(max@maxidoors.ru).
--export([decode/1, encode/1]).
+-include("../../include/ems.hrl").
+-export([decode/1, encode/1, client_login/2]).
+
+
+
+client_login(State, [{string, Cookie}, _UserIdObj]) ->
+  Session = rtmp_session:decode(Cookie),
+  ?D({"Authed session:", Session}),
+  UserId = proplists:get_value(user_id, Session),
+  Channels = proplists:get_value(channels, Session, []),
+  {ok, SessionId} = rtmp_server:login(UserId, Channels),
+	State#rtmp_client{user_id = UserId, session_id = SessionId};
+
+client_login(State, _) ->
+  throw(login_failed).
+
 
 decode(Session) when is_binary(Session) ->
   decode(0, Session);

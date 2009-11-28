@@ -61,12 +61,8 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
 		NewState1 =	State#rtmp_client{player_info = PlayerInfo, previous_ack = erlang:now()},
 
-		NewState2 = case ems:get_var(secret_key, undefined) of
-      undefined ->
-        login_user_insecure(NewState1, AuthInfo);
-      _ ->
-        login_user_secure(NewState1, AuthInfo)
-    end,
+    AuthModule = ems:get_var(auth_module, trusted_login),
+    NewState2 = AuthModule:client_login(NewState1, AuthInfo),
     
     NewState3 = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
       {objectEncoding, 0} -> NewState2#rtmp_client{amf_version = 0};
@@ -98,25 +94,7 @@ fail(Id, Args) ->
   gen_fsm:send_event(self(), {invoke, #amf{command = '_error', id = Id, type = invoke,args= Args}}).
   
 
-login_user_secure(State, [{string, Cookie}, _UserIdObj]) ->
-  Session = rtmp_session:decode(Cookie),
-  ?D({"Authed session:", Session}),
-  UserId = proplists:get_value(user_id, Session),
-  Channels = proplists:get_value(channels, Session, []),
-  {ok, SessionId} = rtmp_server:login(UserId, Channels),
-	State#rtmp_client{user_id = UserId, session_id = SessionId};
 
-login_user_secure(State, _) ->
-  throw(auth_failed).
-
-login_user_insecure(State, [_SessionData, {number, UserId}]) ->
-  ?D({"Untrusted session", UserId}),
-  {ok, SessionId} = rtmp_server:login(UserId, []),
-	State#rtmp_client{user_id = UserId, session_id = SessionId};
-	
-login_user_insecure(State, _) ->
-  ?D({"Fully untrusted session"}),
-  State#rtmp_client{user_id = undefined}.
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL, stream = 0}, <<Type:16/big, Stream:32/big>>}}),

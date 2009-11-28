@@ -33,7 +33,7 @@ handle('GET', [], Req) ->
     {hostname, ems:get_var(host, "rtmp://localhost")},
     {live_id, uuid:to_string(uuid:v4())},
     {url, File},
-    {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
+    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 
@@ -53,7 +53,7 @@ handle('GET', ["chat.html"], Req) ->
 
   {ok, Index} = chat_template:render([
     {hostname, ems:get_var(host, "rtmp://localhost")},
-    {session, rtmp_session:encode([{channels, [10, 12]}, {user_id, 5}])}
+    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}])}
   ]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 

@@ -8,9 +8,10 @@ currently it can:
   * have possibility to auth users
   * broadcast flv between people
   * provide push channel to flash, just like juggernaut, just like AMQP (look doc/push.edoc)
+  * read video from MPEG TS
+  * handle different types of authorization. Look at json_session for example of authorization
 
 currently in development:
-  * good recording from flash camera. Currently there are problems.
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * reading of MPEG TS. It may be required for streaming and recording from video cameras
 

@@ -52,6 +52,11 @@ start(_Type, _Args) ->
   mnesia:start(),
   Start = ems_sup:start_link(),
   ok = ems:start_modules(),
+  case ems:get_var(auth_module, undefined) of
+    undefined ->
+      error_logger:error_msg("Warning! By default Erlyvideo trust every client.~nTo turn on proper authorization, tune parameter {auth_module, ModuleName}, for example {auth_module, json_session}~n");
+    _ -> ok
+  end,
   Start.
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()
