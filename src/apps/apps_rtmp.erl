@@ -61,7 +61,7 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
 	  _FlashVer = proplists:get_value(flashVer, PlayerInfo),
 	  _SwfUrl = proplists:get_value(swfUrl, PlayerInfo),
-	  _TcUrl = proplists:get_value(swfUrl, PlayerInfo),
+	  _TcUrl = proplists:get_value(tcUrl, PlayerInfo),
 	  _Fpad = proplists:get_value(fpad, PlayerInfo),
 	  _AudioCodecs = proplists:get_value(audioCodecs, PlayerInfo),
 	  _VideoCodecs = proplists:get_value(videoCodecs, PlayerInfo),
