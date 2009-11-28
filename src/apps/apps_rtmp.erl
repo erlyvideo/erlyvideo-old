@@ -59,6 +59,14 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
 		
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
+	  _FlashVer = proplists:get_value(flashVer, PlayerInfo),
+	  _SwfUrl = proplists:get_value(swfUrl, PlayerInfo),
+	  _TcUrl = proplists:get_value(swfUrl, PlayerInfo),
+	  _Fpad = proplists:get_value(fpad, PlayerInfo),
+	  _AudioCodecs = proplists:get_value(audioCodecs, PlayerInfo),
+	  _VideoCodecs = proplists:get_value(videoCodecs, PlayerInfo),
+	  _VideoFunction = proplists:get_value(videoFunction, PlayerInfo),
+	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
 		NewState1 =	State#rtmp_client{player_info = PlayerInfo, previous_ack = erlang:now()},
 
     AuthModule = ems:get_var(auth_module, trusted_login),
