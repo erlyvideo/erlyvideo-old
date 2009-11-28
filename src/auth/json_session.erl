@@ -1,12 +1,12 @@
 -module(json_session).
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
--export([decode/1, encode/1, client_login/2]).
+-export([decode/1, encode/1, client_login/2, binary_to_hexbin/1]).
 
 
 
 client_login(State, [{string, Cookie}, _UserIdObj]) ->
-  Session = rtmp_session:decode(Cookie),
+  Session = decode(Cookie),
   ?D({"Authed session:", Session}),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),

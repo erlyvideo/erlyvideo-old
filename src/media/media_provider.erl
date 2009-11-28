@@ -126,7 +126,7 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
 
 
 open_media_entry({Name, notfound}, _) ->
-  {notfound, "No file "++Name};
+  {notfound, <<"No file ", Name/binary>>};
 
 open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
@@ -139,7 +139,7 @@ open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = Med
           Pid;
         _ ->
           ?D({"Error opening", Type, Name}),
-          {notfound, "Failed to open "++Name}
+          {notfound, <<"Failed to open ", Name/binary>>}
       end;
     MediaEntry ->
       MediaEntry
@@ -161,19 +161,24 @@ detect_file(Name) ->
     _ -> detect_prefixed_file(Name)
   end.
 
-detect_prefixed_file("flv:"++Name) ->
+detect_prefixed_file(<<"flv:", Name/binary>>) ->
   case check_path(Name) of
     true -> {Name, file};
     _ -> {Name, notfound}
   end;
 
-detect_prefixed_file("mp4:"++Name) ->
+detect_prefixed_file(<<"mp4:", Name/binary>>) ->
   case check_path(Name) of
     true -> 
       ?D({"File found", Name}),
       {Name, file};
     _ -> {Name, notfound}
   end.
+
+
+
+check_path(Name) when is_binary(Name) ->
+  check_path(binary_to_list(Name));
 
 check_path(Name) ->
   filelib:is_regular(filename:join([file_play:file_dir(), Name])).

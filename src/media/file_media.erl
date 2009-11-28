@@ -181,6 +181,9 @@ terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+open_file(Name) when is_binary(Name) ->
+  open_file(binary_to_list(Name));
+  
 open_file(Name) ->
   FileName = filename:join([file_play:file_dir(), Name]), 
 	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),

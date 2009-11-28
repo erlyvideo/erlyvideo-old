@@ -55,7 +55,7 @@ init([Name, record]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Recording stream ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
-	FileName = filename:join([file_play:file_dir(), Name ++ ".flv"]),
+	FileName = filename:join([file_play:file_dir(), binary_to_list(Name) ++ ".flv"]),
 	(catch file:delete(FileName)),
 	ok = filelib:ensure_dir(FileName),
 	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),

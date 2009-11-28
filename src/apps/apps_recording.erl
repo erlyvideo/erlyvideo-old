@@ -82,20 +82,20 @@
 %% @end
 %%-------------------------------------------------------------------------
 
-publish(#amf{args = [{null,null},{string,Name},{string,"record"}]} = _AMF, State) -> 
+publish(#amf{args = [{null,null},{string,Name},{string,<<"record">>}]} = _AMF, State) -> 
   ?D({"Publish - Action - record",Name}),
   Recorder = media_provider:create(Name, record),
   ?D({"Recording", Recorder}),
   State#rtmp_client{video_player = Recorder, video_state = publishing};
 
 
-publish(#amf{args = [{null,null},{string,Name},{string,"append"}]} = _AMF, State) -> 
+publish(#amf{args = [{null,null},{string,Name},{string,<<"append">>}]} = _AMF, State) -> 
   ?D({"Publish - Action - append",Name}),
   gen_fsm:send_event(self(), {publish, append, Name}),
   State;
 
 
-publish(#amf{args = [{null,null},{string,Name},{string,"live"}]} = _AMF, State) -> 
+publish(#amf{args = [{null,null},{string,Name},{string,<<"live">>}]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
   Recorder = media_provider:create(Name, live),
   State#rtmp_client{video_player = Recorder, video_state = publishing};

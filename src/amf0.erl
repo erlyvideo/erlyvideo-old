@@ -124,8 +124,8 @@ decode(Bin) ->
   FullArguments = decode_list([], Rest),
   % ?D({"Rest", Rest, FullArguments}),
   case FullArguments of
-    [{number, Id} | Arguments] -> #amf{command = list_to_atom(Command), args = Arguments, type = invoke, id = Id};
-    Arguments -> #amf{command = list_to_atom(Command), args = Arguments, type = notify}
+    [{number, Id} | Arguments] -> #amf{command = binary_to_existing_atom(Command, utf8), args = Arguments, type = invoke, id = Id};
+    Arguments -> #amf{command = binary_to_existing_atom(Command, utf8), args = Arguments, type = notify}
   end.
   % [{number, Id} | Arguments] = FullArguments,
   % #amf{command = list_to_atom(Command), args = Arguments, type = invoke, id = Id}.
@@ -156,11 +156,11 @@ parse(<<?AMF_BOOLEAN:8/integer, 0:8/integer, Rest/binary>>) ->
 parse(<<?AMF_BOOLEAN:8/integer, 1:8/integer, Rest/binary>>) ->
 	{boolean,true,Rest};
 parse(<<?AMF_STRING:8/integer, Length:16/big-integer, Binary:Length/binary, Rest/binary>>) ->
-	{string,binary_to_list(Binary), Rest};
+	{string, Binary, Rest};
 parse(<<?AMF_LONG_STRING:8/integer, Length:32/big-integer, String:Length/binary, Rest/binary>>) ->
-	{string, binary_to_list(String), Rest};
+	{string, String, Rest};
 parse(<<?AMF_XML:8/integer, Length:32/big-integer, String:Length/binary, Rest/binary>>) ->
-	{string, binary_to_list(String), Rest};
+	{string, String, Rest};
 parse(<<?AMF_OBJECT:8/integer, Rest/binary>>) ->
 	parse_object(Rest,[]);
 parse(<<?AMF_NULL:8/integer,Rest/binary>>) ->
@@ -197,13 +197,13 @@ parse_object(Data, KeyValueList) ->
   {Key, Rest} = parse_string(Data),
   case parse(Rest) of
 	  {Value, Rest2} -> 
-			parse_object(Rest2, [{list_to_atom(Key), Value} | KeyValueList]);
+			parse_object(Rest2, [{binary_to_existing_atom(Key, utf8), Value} | KeyValueList]);
     {_Type, Value, Rest2} ->
-			parse_object(Rest2, [{list_to_atom(Key), Value} | KeyValueList])
+			parse_object(Rest2, [{binary_to_existing_atom(Key, utf8), Value} | KeyValueList])
   end. 
 
 parse_string(<<Len:16/big-integer, String:Len/binary, Rest/binary>>) ->
-    {binary_to_list(String), Rest}.
+    {String, Rest}.
 
 
 to_number(String) ->
