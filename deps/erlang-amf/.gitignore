@@ -1,0 +1,14 @@
+Makefile
+autom4te.cache
+config.log
+config.status
+*.beam
+*.app
+*.rel
+*.boot
+*.script
+src/*.html
+src/overview.edoc
+src/edoc-info
+src/erlang.png
+src/stylesheet.css

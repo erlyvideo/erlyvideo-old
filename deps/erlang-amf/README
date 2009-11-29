@@ -1,0 +1,17 @@
+Action Message Format (AMF) is a compact binary format that is used to
+serialize ActionScript object graphs. Once serialized an AMF encoded object
+graph may be used to persist and retrieve the public state of an application
+across sessions or allow two endpoints to communicate through the exchange
+of strongly typed data.
+
+AMF was introduced in Flash Player 6 in 2001 and remained unchanged with the
+introduction of ActionScript 2.0 in Flash Player 7 and with the release of
+Flash Player 8. This version of AMF is referred to as AMF0.
+In Flash Player 9, ActionScript 3.0 was introduced along with a new
+ActionScript Virtual Machine (AVM+). The new data types and language
+features made possible by these improvements prompted AMF to be updated.
+Given the opportunity to relase a new version of AMF, several optimizations
+were also made to the encoding format to remove redundant information from
+serialized data. The new AMF format is referred to as AMF3.
+
+This library supports both AMF0 and AMF3.
