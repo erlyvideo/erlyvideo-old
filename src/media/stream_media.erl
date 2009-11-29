@@ -125,7 +125,7 @@ handle_call({publish, #channel{timestamp = TS} = Channel}, _From, #media_info{ba
 
 handle_call({publish, #channel{timestamp = TS} = Channel}, _From, 
             #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
-  ?D({"Record",Channel#channel.type, TS - BaseTS}),
+  % ?D({"Record",Channel#channel.type, TS - BaseTS}),
   Channel1 = Channel#channel{timestamp = TS - BaseTS},
 	Tag = ems_flv:to_tag(Channel1),
 	case Device of

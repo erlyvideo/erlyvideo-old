@@ -177,7 +177,7 @@ send_frame(#file_player{consumer = Consumer}, {ok, done}) ->
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->
   TimeStamp = Frame#video_frame.timestamp_abs - Player#file_player.ts_prev,
   ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-  ?D({"Frame", Player#file_player.ts_prev, TimeStamp}),
+  % ?D({"Frame", Player#file_player.ts_prev, TimeStamp}),
   Player1 = timeout_play(Frame, Player),
   NextState = Player1#file_player{ts_prev = Frame#video_frame.timestamp_abs, pos = NextPos},
   ?MODULE:ready(NextState).
