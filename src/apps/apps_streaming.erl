@@ -202,7 +202,12 @@ stop(_AMF, State) ->
 %% @doc  Processes a closeStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-closeStream(_AMF, State) ->
+closeStream(_AMF, #rtmp_client{video_player = undefined} = State) ->
   ?D("invoke - closeStream"),
+  State;
+
+closeStream(_AMF, #rtmp_client{video_player = Player} = State) ->
+  ?D("invoke - closeStream and stop player"),
+  Player ! stop,
   State.
 

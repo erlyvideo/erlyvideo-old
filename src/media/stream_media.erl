@@ -213,6 +213,9 @@ handle_info(start, State) ->
 handle_info(stop, State) ->
   {noreply, State};
 
+handle_info(exit, State) ->
+  {noreply, State};
+
 handle_info(pause, State) ->
   {noreply, State};
 
