@@ -31,6 +31,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_server).
+-author(max@maxidoors.ru).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
@@ -214,12 +215,18 @@ handle_call(Request, _From, State) ->
 %%-------------------------------------------------------------------------
 handle_cast({send_to_user, UserId, Message}, #rtmp_server{user_ids = UserIds} = Server) ->
   Clients = ets:lookup(UserIds, UserId),
-  lists:foreach(fun(#channel_entry{client = Client}) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
+  F = fun(#user_id_entry{client = Client}) -> 
+    gen_fsm:send_event(Client, {message, Message}) 
+  end,
+  lists:foreach(F, Clients),
   {noreply, Server};
 
 handle_cast({send_to_channel, Channel, Message}, #rtmp_server{channels = Channels} = Server) ->
   Clients = ets:lookup(Channels, Channel),
-  lists:foreach(fun(#channel_entry{client = Client}) -> gen_fsm:send_event(Client, {message, Message}) end, Clients),
+  F = fun(#channel_entry{client = Client}) -> 
+    gen_fsm:send_event(Client, {message, Message}) 
+  end,
+  lists:foreach(F, Clients),
   {noreply, Server};
 
 handle_cast(_Msg, State) ->
