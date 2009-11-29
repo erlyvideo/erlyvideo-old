@@ -38,11 +38,18 @@
 -include("../../include/ems.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
-         getStreamLength/2]).
+         getStreamLength/2, prepareStream/1]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, StreamId}, #rtmp_client{client_buffer = ClientBuffer} = State) ->
+'WAIT_FOR_DATA'({play, Name, StreamId}, #rtmp_client{video_player = CurrentPlayer, client_buffer = ClientBuffer} = State) ->
+  case CurrentPlayer of
+    undefined -> ok;
+    _ -> 
+      ?D({"Stop current player", CurrentPlayer}),
+      CurrentPlayer ! exit
+  end,
+  prepareStream(StreamId),
   case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
     {ok, Player} ->
       ?D({"Player starting", Player}),
@@ -93,13 +100,6 @@
 %%-------------------------------------------------------------------------
 createStream(AMF, State) -> 
     ?D({"invoke - createStream", AMF}),
-    % Id = 1, % New stream ID
-    % NewAMF = AMF#amf{
-    %   id = 2.0,
-    %   command = '_result',
-    %   args = [null, Id]},
-    % % gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2},NewAMF}}),
-    % gen_fsm:send_event(self(), {invoke, NewAMF}),
     apps_rtmp:reply(2.0, [null, 1]),
     gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
     State.
@@ -128,24 +128,19 @@ deleteStream(_AMF, #rtmp_client{video_player = Player} = State) when is_pid(Play
 
 play(#amf{args = [_Null, {boolean, false} | _]} = AMF, State) -> stop(AMF, State);
 
-play(AMF, #rtmp_client{video_player = Player} = State) ->
+play(#amf{args = [_Null,{string,Name}]} = AMF, State) ->
   StreamId = 1,
-  Channel = #channel{id = 5, timestamp = 0, stream = StreamId},
-  [_Null,{string,Name}] = AMF#amf.args,
-  ?D({"invoke - play", Name, AMF}),
-  case Player of
-    undefined -> ok;
-    _ -> 
-      ?D({"Stop current player", Player}),
-      Player ! exit
-  end,
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, 1}),
-  gen_fsm:send_event(self(), {play, Name, Channel#channel.stream}),
+  ?D({"invoke - play", Name}),
+  gen_fsm:send_event(self(), {play, Name, StreamId}),
   State.
 
+prepareStream(StreamId) ->
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, StreamId}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, StreamId}).
+  
+  
 
 %%-------------------------------------------------------------------------
 %% @spec (AMF::tuple(),Channel::tuple) -> any()
