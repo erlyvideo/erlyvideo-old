@@ -169,21 +169,17 @@ send_frame(Player, {ok, undefined}) ->
   self() ! play,
   ?MODULE:ready(Player);
   
-send_frame(#file_player{consumer = Consumer} = Player, {ok, done}) ->
+send_frame(#file_player{consumer = Consumer}, {ok, done}) ->
   ?D("Video file finished"),
   gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->
-  % ?D({"Frame", Key, Frame#video_frame.timestamp_abs, NextPos}),
   TimeStamp = Frame#video_frame.timestamp_abs - Player#file_player.ts_prev,
   ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+  ?D({"Frame", Player#file_player.ts_prev, TimeStamp}),
   Player1 = timeout_play(Frame, Player),
-  % ?D({"Frame", Consumer, Frame#video_frame.timestamp_abs, Player#file_player.timer_start, TimeStamp, Timeout}),
   NextState = Player1#file_player{ts_prev = Frame#video_frame.timestamp_abs, pos = NextPos},
-  % {_, Sec2, MSec2} = erlang:now(),
-  %       _Delta = (Sec2*1000 + MSec2) - (Sec1*1000 + MSec1),
-  % ?D({"Read frame", Delta}),
   ?MODULE:ready(NextState).
 
 

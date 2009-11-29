@@ -38,7 +38,7 @@ init([URL, mpeg_ts]) ->
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
   {ok, Device} = ems_sup:start_ts_lander(URL, self()),
   link(Device),
-	Recorder = #media_info{type=mpeg_ts, file_name = URL, ts_prev = 0, clients = Clients, device = Device},
+	Recorder = #media_info{type=mpeg_ts, file_name = URL, clients = Clients, device = Device},
 	{ok, Recorder, ?TIMEOUT};
   
 
@@ -47,7 +47,7 @@ init([Name, live]) ->
   error_logger:info_msg("Live streaming stream ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type=live, ts_prev = 0, clients = Clients},
+	Recorder = #media_info{type=live, clients = Clients},
 	{ok, Recorder, ?TIMEOUT};
 
 
@@ -63,7 +63,7 @@ init([Name, record]) ->
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),
-		  Recorder = #media_info{type=record, device = Device, file_name = FileName, ts_prev = 0, clients = Clients},
+		  Recorder = #media_info{type=record, device = Device, file_name = FileName, clients = Clients},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
 		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, _Error]),
@@ -120,20 +120,27 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
   {reply, {error, {owner_exists, Owner}}, MediaInfo};
 
 
-handle_call({publish, Channel}, _From, #media_info{device = Device, clients = Clients} = Recorder) ->
-	Tag = ems_flv:to_tag(Channel),
-  % ?D({"Record",Channel#channel.type, Channel#channel.timestamp}),
+handle_call({publish, #channel{timestamp = TS} = Channel}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
+  handle_call({publish, Channel}, _From, Recorder#media_info{base_timestamp = TS});
+
+handle_call({publish, #channel{timestamp = TS} = Channel}, _From, 
+            #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
+  ?D({"Record",Channel#channel.type, TS - BaseTS}),
+  Channel1 = Channel#channel{timestamp = TS - BaseTS},
+	Tag = ems_flv:to_tag(Channel1),
 	case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, Tag)
 	end,
-  Packet = Channel#channel{id = ems_play:channel_id(Channel#channel.type,1)},
+  Packet = Channel1#channel{id = ems_play:channel_id(Channel1#channel.type,1)},
   ets:foldl(fun send_packet/2, Packet, Clients),
 	{reply, ok, Recorder};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
   {stop, {unknown_call, Request}, State}.
+
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |

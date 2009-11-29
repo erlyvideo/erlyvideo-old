@@ -16,5 +16,5 @@
 	frames = undefined,
 	owner = undefined,
 	clients = undefined,
-	ts_prev % Timestamp of previous written frame. Only for recording streams.
+	base_timestamp = undefined % Timestamp of first frame
 }).
