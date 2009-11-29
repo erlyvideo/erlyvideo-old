@@ -280,7 +280,7 @@ encode(Array, Strings, Objects, Traits) when is_list(Array) ->
 	noref ->
 	    Key = gb_trees:size(Objects),
 	    Objects1 = gb_trees:insert(Key, Array, Objects),
-	    F = fun({K, _V}) when is_binary(K) -> true;
+	    F = fun({K, _V}) when is_binary(K) or is_atom(K) -> true;
 		   (_V) -> false
 		end,
 	    {AssocList, DenseList} = lists:partition(F, Array),
@@ -404,6 +404,9 @@ encode_as_reference(Value, Iterator0) ->
 	    throw(noref)
     end.
 
+encode_assoc([{Key, Value} | Rest], Acc, Strings, Objects, Traits) when is_atom(Key) ->
+  encode_assoc([{atom_to_binary(Key, utf8), Value} | Rest], Acc, Strings, Objects, Traits);
+  
 encode_assoc([{Key, Value} | Rest], Acc, Strings, Objects, Traits)
   when is_binary(Key) ->
     {KeyBin, Strings1} = encode_string(Key, Strings),

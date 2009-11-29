@@ -86,14 +86,13 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
         throw(invalid_amf_encoding)
     end,
     
-    NewState = NewState3,
-    
     ConnectObj = [{capabilities, 31}, {fmsVer, <<"Erlyvideo 1.0">>}],
     StatusObj = [{code, <<?NC_CONNECT_SUCCESS>>},
                  {level, <<"status">>}, 
-                 {description, <<"Connection succeeded.">>}],
-    reply(1, [{object, ConnectObj}, {object, StatusObj}]),
-    NewState.
+                 {description, <<"Connection succeeded.">>},
+                 {objectEncoding, NewState3#rtmp_client.amf_version}],
+    reply(1, [ConnectObj, StatusObj]),
+    NewState3.
 
 
 reply(Id, Args) ->
@@ -142,6 +141,7 @@ fail(Id, Args) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, #rtmp_client{amf_version = 3} = State) ->
+  ?D({"AMF3 invoke", AMF#amf.command}),
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF3, stream = Stream}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
