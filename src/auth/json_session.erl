@@ -5,7 +5,7 @@
 
 
 
-client_login(State, [{string, Cookie}, _UserIdObj]) ->
+client_login(State, [Cookie, _UserIdObj]) ->
   Session = decode(Cookie),
   ?D({"Authed session:", Session}),
   UserId = proplists:get_value(user_id, Session),
@@ -13,7 +13,7 @@ client_login(State, [{string, Cookie}, _UserIdObj]) ->
   {ok, SessionId} = rtmp_server:login(UserId, Channels),
 	State#rtmp_client{user_id = UserId, session_id = SessionId};
 
-client_login(State, _) ->
+client_login(_, _) ->
   throw(login_failed).
 
 

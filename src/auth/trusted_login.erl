@@ -4,7 +4,8 @@
 -include("../../include/ems.hrl").
 -export([client_login/2]).
 
-client_login(State, [_SessionData, {number, UserId}]) ->
+client_login(State, [_SessionData, UserIdF]) ->
+  UserId = round(UserIdF),
   ?D({"Untrusted session", UserId}),
   {ok, SessionId} = rtmp_server:login(UserId, []),
 	State#rtmp_client{user_id = UserId, session_id = SessionId};

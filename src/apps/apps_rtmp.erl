@@ -67,7 +67,7 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 	  _VideoFunction = proplists:get_value(videoFunction, PlayerInfo),
 	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
 
-    ?D({"invoke - connect", _PageUrl}),
+    ?D({"CONNECT", _PageUrl}),
 		NewState1 =	State#rtmp_client{player_info = PlayerInfo, previous_ack = erlang:now()},
 
     AuthModule = ems:get_var(auth_module, trusted_login),

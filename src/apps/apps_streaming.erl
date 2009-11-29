@@ -63,10 +63,6 @@
       {error, Reason}
   end;
 
-'WAIT_FOR_DATA'({stop}, #rtmp_client{video_player = Player} = State) when is_pid(Player) ->
-  ?D({"Stopping video player", Player}),
-  Player ! stop,
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
@@ -98,10 +94,9 @@
 %% @doc  Processes a createStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-createStream(#amf{id = TxId} = AMF, State) -> 
-    ?D({"invoke - createStream", AMF}),
-    apps_rtmp:reply(TxId, [null, 1]),
-    gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
+createStream(#amf{id = TxId}, State) -> 
+  apps_rtmp:reply(TxId, [null, 1]),
+  gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
     State.
 
 
@@ -111,12 +106,10 @@ createStream(#amf{id = TxId} = AMF, State) ->
 %% @end
 %%-------------------------------------------------------------------------
 deleteStream(_AMF, #rtmp_client{video_player = undefined} = State) ->
-  ?D("player is stopped when deleteStream called"),
   State;
   
 deleteStream(_AMF, #rtmp_client{video_player = Player} = State) when is_pid(Player) ->
   Player ! stop,
-  ?D("invoke - deleteStream"),
   State.
 
 
@@ -130,7 +123,7 @@ play(#amf{args = [_Null, false | _]} = AMF, State) -> stop(AMF, State);
 
 play(#amf{args = [_Null, Name]}, State) ->
   StreamId = 1,
-  ?D({"invoke - play", Name}),
+  ?D({"PLAY", Name}),
   gen_fsm:send_event(self(), {play, Name, StreamId}),
   State.
 
@@ -147,9 +140,8 @@ prepareStream(StreamId) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(AMF, #rtmp_client{video_player = Player} = State) -> 
-    ?D({"invoke - pause", AMF}),
-    [_, {boolean, Pausing}, {number, _Timestamp}] = AMF#amf.args,
+pause(#amf{args = [null, Pausing, NewTs]}, #rtmp_client{video_player = Player} = State) -> 
+    ?D({"PAUSE", Pausing, round(NewTs)}),
     
     case Pausing of
       true ->
@@ -191,10 +183,14 @@ seek(#amf{args = [_, Timestamp]}, #rtmp_client{video_player = Player} = State) -
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(_AMF, State) -> 
-    ?D({"invoke - stop", _AMF#amf.args}),
-    gen_fsm:send_event(self(), {stop}),
-    State.
+stop(_AMF, #rtmp_client{video_player = undefined} = State) -> 
+  ?D({"Requested to stop dead player"}),
+  State;
+  
+stop(_AMF, #rtmp_client{video_player = Player} = State) -> 
+  ?D({"Stopping video player", Player}),
+  Player ! stop,
+  State.
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
@@ -202,11 +198,11 @@ stop(_AMF, State) ->
 %% @end
 %%-------------------------------------------------------------------------
 closeStream(_AMF, #rtmp_client{video_player = undefined} = State) ->
-  ?D("invoke - closeStream"),
+  % ?D("invoke - closeStream"),
   State;
 
 closeStream(_AMF, #rtmp_client{video_player = Player} = State) ->
-  ?D("invoke - closeStream and stop player"),
+  % ?D("invoke - closeStream and stop player"),
   Player ! stop,
   State.
 

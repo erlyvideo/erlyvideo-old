@@ -223,12 +223,12 @@ command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} =
   % ?D({"Stream bytes read: ", _Length, round(Time/1000), round(Speed)}),
 	State#rtmp_client{previous_ack = erlang:now(), current_speed = Speed};
 
-command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = _Channel, State) ->
-  ?D({"Window acknolegement size", WindowSize}),
+command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<_WindowSize:32/big-integer>>} = _Channel, State) ->
+  %?D({"Window acknolegement size", WindowSize}),
   State;
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
-  ?D({"Change Chunk Size",ChunkSize}),
+  %?D({"Change Chunk Size",ChunkSize}),
 	State#rtmp_client{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, _Timestamp:32/big-integer>>}, State) ->
@@ -241,7 +241,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, 
         #rtmp_client{video_player = Player} = State) ->
-  ?D({"Buffer size on stream id", BufferSize, _StreamId}),
+  %?D({"Buffer size on stream id", BufferSize, _StreamId}),
   case Player of
     undefined -> ok;
     _ -> Player ! {client_buffer, BufferSize}
@@ -249,8 +249,8 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:
 	State#rtmp_client{client_buffer = BufferSize};	
 
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, _/binary>>} = _Channel, State) ->
-	?D({"Ping - ignoring", EventType}),
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<_EventType:16/big-integer, _/binary>>} = _Channel, State) ->
+	%?D({"Ping - ignoring", EventType}),
 	State;	
 
 
