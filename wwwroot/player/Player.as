@@ -175,7 +175,7 @@ public function setVolume(volume : Number) : void
   _stream.soundTransform = _sound;
 }
 
-private function connect() : void
+private function connect(e:Event = null) : void
 {
   _connected = false;
   _log.text = "Connecting";

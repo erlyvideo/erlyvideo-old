@@ -62,7 +62,7 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 	  _SwfUrl = proplists:get_value(swfUrl, PlayerInfo),
 	  _TcUrl = proplists:get_value(tcUrl, PlayerInfo),
 	  _Fpad = proplists:get_value(fpad, PlayerInfo),
-	  _AudioCodecs = proplists:get_value(audioCodecs, PlayerInfo),
+	  _AudioCodecs = round(proplists:get_value(audioCodecs, PlayerInfo, 0)),
 	  _VideoCodecs = proplists:get_value(videoCodecs, PlayerInfo),
 	  _VideoFunction = proplists:get_value(videoFunction, PlayerInfo),
 	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
@@ -128,6 +128,14 @@ fail(Id, Args) ->
 
 'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
+
+
+
+% 'WAIT_FOR_DATA'({invoke, #amf{args = [{object, _ConnectObj}, {object, [{code, <<?NC_CONNECT_SUCCESS>>}|_]}]} = AMF, Stream},
+%                  State) ->
+%   ?D({"Replying to connect with amf0"}),
+%   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),
+%   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, #rtmp_client{amf_version = 0} = State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),

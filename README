@@ -14,6 +14,7 @@ currently it can:
 currently in development:
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * reading of MPEG TS. It may be required for streaming and recording from video cameras
+  * support AMF0 and AMF3 encoding via mujaheed/erlang-amf. Connection still fail
 
   
 future plans:

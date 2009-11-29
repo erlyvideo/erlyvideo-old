@@ -293,6 +293,9 @@ encode(Array, Strings, Objects, Traits) when is_list(Array) ->
 		   DenseBin/binary>>,
 	    {Bin, Strings3, Objects3, Traits3}
     end;
+encode({object, Members}, Strings, Objects, Traits) ->
+    encode({object, <<"Object">>, Members}, Strings, Objects, Traits);
+  
 encode({object, Class, Members} = Object, Strings, Objects, Traits) ->
     try encode_as_reference(Object, gb_trees:iterator(Objects)) of
 	Bin ->
