@@ -72,7 +72,7 @@
 'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
   gen_fsm:send_event(self(), {send, {
     #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA_AMF0, stream = Stream}, 
-    <<(amf0:encode(Command))/binary, (amf0:encode_mixed_array(AMF))/binary>>}}),
+    <<(amf0:encode(list_to_binary(Command)))/binary, (amf0:encode({object, AMF}))/binary>>}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({metadata, Command, AMF}, State) -> 'WAIT_FOR_DATA'({metadata, Command, AMF, 0}, State);
@@ -98,9 +98,9 @@
 %% @doc  Processes a createStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-createStream(AMF, State) -> 
+createStream(#amf{id = TxId} = AMF, State) -> 
     ?D({"invoke - createStream", AMF}),
-    apps_rtmp:reply(2.0, [null, 1]),
+    apps_rtmp:reply(TxId, [null, 1]),
     gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
     State.
 
@@ -126,9 +126,9 @@ deleteStream(_AMF, #rtmp_client{video_player = Player} = State) when is_pid(Play
 %% @end
 %%-------------------------------------------------------------------------
 
-play(#amf{args = [_Null, {boolean, false} | _]} = AMF, State) -> stop(AMF, State);
+play(#amf{args = [_Null, false | _]} = AMF, State) -> stop(AMF, State);
 
-play(#amf{args = [_Null,{string,Name}]} = AMF, State) ->
+play(#amf{args = [_Null, Name]}, State) ->
   StreamId = 1,
   ?D({"invoke - play", Name}),
   gen_fsm:send_event(self(), {play, Name, StreamId}),
@@ -166,8 +166,8 @@ pause(AMF, #rtmp_client{video_player = Player} = State) ->
 pauseRaw(AMF, State) -> pause(AMF, State).
 
 
-getStreamLength(AMF, #rtmp_client{video_player = Player} = State) ->
-  ?D({"getStreamLength", AMF}),
+getStreamLength(#amf{args = [null | Args]}, #rtmp_client{} = State) ->
+  ?D({"getStreamLength", Args}),
   State.
 
 %%-------------------------------------------------------------------------
@@ -175,9 +175,8 @@ getStreamLength(AMF, #rtmp_client{video_player = Player} = State) ->
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(AMF, #rtmp_client{video_player = Player} = State) -> 
-  ?D({"invoke - seek", AMF#amf.args}),
-  [_, {number, Timestamp}] = AMF#amf.args,
+seek(#amf{args = [_, Timestamp]}, #rtmp_client{video_player = Player} = State) -> 
+  ?D({"invoke - seek", Timestamp}),
   StreamId = 1,
   Player ! {seek, Timestamp},
   gen_fsm:send_event(self(), {status, ?NS_SEEK_NOTIFY, 1}),

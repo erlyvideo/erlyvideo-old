@@ -85,7 +85,8 @@ handle_call({file_name}, _From, #media_info{file_name = FileName} = MediaInfo) -
   {reply, FileName, MediaInfo};
   
 handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
+  TimestampInt = round(Timestamp),
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Id, FrameTimestamp}
   end)),
   [Item | _] = lists:reverse(Ids),

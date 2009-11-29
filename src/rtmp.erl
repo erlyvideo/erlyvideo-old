@@ -47,10 +47,10 @@ encode(#channel{msg = Msg} = Channel) ->
     encode(Channel,Msg,<<>>).
 
 encode(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, #amf{} = AMF) -> 
-	encode(Channel,amf0:encode(AMF));
+	encode(Channel, encode_funcall(amf0, AMF));
 
 encode(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, #amf{} = AMF) -> 
-	encode(Channel,amf3:encode(AMF));
+	encode(Channel, encode_funcall(amf3, AMF));
 
 encode(#channel{} = Channel, Data) when is_binary(Data) -> 
 	encode(Channel,Data,<<>>).
@@ -74,6 +74,19 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, c
 %   NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
 %   encode(Channel, Rest, NextPacket).
 
+
+encode_funcall(Module, #amf{command = Command, args = Args, id = Id, type = invoke}) -> 
+  <<(Module:encode(atom_to_binary(Command, utf8)))/binary, (Module:encode(Id))/binary, 
+    (encode_list(<<>>, Module, Args))/binary>>;
+ 
+encode_funcall(Module, #amf{command = Command, args = Args, type = notify}) -> 
+<<(Module:encode(atom_to_binary(Command, utf8)))/binary,
+  (encode_list(<<>>, Module, Args))/binary>>.
+
+encode_list(Message, _, []) -> Message;
+encode_list(Message, Module, [Arg | Args]) ->
+  AMF = Module:encode(Arg),
+  encode_list(<<Message/binary, AMF/binary>>, Module, Args).
 
 encode_id(Type, Id) when Id > 319 -> 
 	<<Type:2,?RTMP_HDR_LRG_ID:6, (Id - 64):16/big-integer>>;
@@ -252,15 +265,11 @@ command(#channel{type = Type} = Channel, State)
 	gen_fsm:send_event(self(), {publish, Channel}),
 	State;
 
-command(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, State) ->
-	AMF = amf0:decode(Channel#channel.msg),
-	#amf{command = Command} = AMF,
-	call_function(ems:check_app(State,Command, 2), Command, State, AMF);
+command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Message}, State) ->
+  decode_and_invoke(Message, amf0, State);
 
-command(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, State) ->
-	AMF = amf3:decode(Channel#channel.msg),
-	#amf{command = Command} = AMF,
-	call_function(ems:check_app(State,Command, 2), Command, State, AMF);
+command(#channel{type = ?RTMP_INVOKE_AMF3, msg = Message}, State) ->
+  decode_and_invoke(Message, amf3, State);
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
@@ -271,11 +280,28 @@ command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
 
+decode_and_invoke(Message, Module, State) ->
+	{CommandBin, Rest1} = Module:decode(Message),
+	Command = binary_to_existing_atom(CommandBin, utf8),
+	FullArguments = decode_list(Rest1, amf0, []),
+	AMF = case FullArguments of
+    [Id | Arguments] when is_float(Id) or is_integer(Id) -> #amf{command = Command, args = Arguments, type = invoke, id = Id};
+    Arguments -> #amf{command = Command, args = Arguments, type = notify}
+  end,
+	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
+  
+
+decode_list(<<>>, _, Acc) -> lists:reverse(Acc);
+
+decode_list(Body, Module, Acc) ->
+  {Element, Rest} = Module:decode(Body),
+  decode_list(Rest, Module, [Element | Acc]).
+
 call_function(unhandled, Command, #rtmp_client{addr = IP, port = Port} = State, #amf{args = Args}) ->
   error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p~n", [IP, Port, Command, length(Args)]),
   State;
 
-call_function(App, Command, State, #amf{id = Id} = AMF) ->
+call_function(App, Command, State, #amf{id = _Id} = AMF) ->
 	App:Command(AMF, State).
   % try
   %   App:Command(AMF, State)

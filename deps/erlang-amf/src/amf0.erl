@@ -186,6 +186,10 @@ encode(List, Objects) when is_list(List) ->
 
 encode_members([], Acc, Objects) ->
     {list_to_binary(lists:reverse([<<0:16, ?OBJECTEND>> | Acc])), Objects};
+
+encode_members([{Key, Val} | Rest], Acc, Objects) when is_atom(Key) ->
+  encode_members([{atom_to_binary(Key, utf8), Val} | Rest], Acc, Objects);
+  
 encode_members([{Key, Val} | Rest], Acc, Objects) ->
     {ValBin, Objects1} = encode(Val, Objects),
     Bin = <<(size(Key)):16, Key/binary, ValBin/binary>>,
