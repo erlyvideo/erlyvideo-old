@@ -32,6 +32,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(apps_streaming).
+-author(max@maxidoors.ru).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
@@ -49,7 +50,6 @@
       ?D({"Stop current player", CurrentPlayer}),
       CurrentPlayer ! exit
   end,
-  prepareStream(StreamId),
   case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
     {ok, Player} ->
       ?D({"Player starting", Player}),
@@ -124,6 +124,7 @@ play(#amf{args = [_Null, false | _]} = AMF, State) -> stop(AMF, State);
 play(#amf{args = [_Null, Name]}, State) ->
   StreamId = 1,
   ?D({"PLAY", Name}),
+  prepareStream(StreamId),
   gen_fsm:send_event(self(), {play, Name, StreamId}),
   State.
 
