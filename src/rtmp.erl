@@ -46,6 +46,11 @@ handshake(C1) when is_binary(C1) ->
 encode(#channel{msg = Msg} = Channel) ->
     encode(Channel,Msg,<<>>).
 
+% Red5: net.rtmp.codec.RTMPProtocolEncoder
+% // Response to initial connect, always use AMF0
+encode(Channel, #amf{args = [{object, _Connect}, {object, [{code, <<?NC_CONNECT_SUCCESS>>} | _]}]} = AMF) -> 
+	encode(Channel#channel{type = ?RTMP_INVOKE_AMF0}, encode_funcall(amf0, AMF));
+
 encode(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, #amf{} = AMF) -> 
 	encode(Channel, encode_funcall(amf0, AMF));
 
@@ -76,11 +81,11 @@ encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, c
 
 
 encode_funcall(Module, #amf{command = Command, args = Args, id = Id, type = invoke}) -> 
-  <<(Module:encode(atom_to_binary(Command, utf8)))/binary, (Module:encode(Id))/binary, 
+  <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 
     (encode_list(<<>>, Module, Args))/binary>>;
  
 encode_funcall(Module, #amf{command = Command, args = Args, type = notify}) -> 
-<<(Module:encode(atom_to_binary(Command, utf8)))/binary,
+<<(amf0:encode(atom_to_binary(Command, utf8)))/binary,
   (encode_list(<<>>, Module, Args))/binary>>.
 
 encode_list(Message, _, []) -> Message;
@@ -268,7 +273,10 @@ command(#channel{type = Type} = Channel, State)
 command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Message}, State) ->
   decode_and_invoke(Message, amf0, State);
 
-command(#channel{type = ?RTMP_INVOKE_AMF3, msg = Message}, State) ->
+% Red5: net.rtmp.codec.RTMPProtocolDecoder
+% // TODO: Unknown byte, probably encoding as with Flex SOs?
+% in.skip(1);
+command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Message/binary>>}, State) -> 
   decode_and_invoke(Message, amf3, State);
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
@@ -280,14 +288,12 @@ command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
 
-decode_and_invoke(Message, Module, State) ->
-	{CommandBin, Rest1} = Module:decode(Message),
+decode_and_invoke(Message, _Module, State) ->
+	{CommandBin, Rest1} = amf0:decode(Message),
 	Command = binary_to_existing_atom(CommandBin, utf8),
-	FullArguments = decode_list(Rest1, amf0, []),
-	AMF = case FullArguments of
-    [Id | Arguments] when is_float(Id) or is_integer(Id) -> #amf{command = Command, args = Arguments, type = invoke, id = Id};
-    Arguments -> #amf{command = Command, args = Arguments, type = notify}
-  end,
+	{InvokeId, Rest2} = amf0:decode(Rest1),
+	Arguments = decode_list(Rest2, amf0, []),
+	AMF = #amf{command = Command, args = Arguments, type = invoke, id = InvokeId},
 	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
   
 
