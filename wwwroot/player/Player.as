@@ -29,8 +29,7 @@ private var _connectTimer : Timer = null;
 
 public function init()  : void
 {
-	var delay : int = 2000;
-	var repeat : int = 0;
+	var delay : int = 5000;
   System.useCodePage = true;
   connect();
   _totalTime = 0;
@@ -40,7 +39,7 @@ public function init()  : void
   playButton.enabled = false;
   recordButton.enabled = false;
 
-	_connectTimer = new Timer(delay, repeat);
+	_connectTimer = new Timer(delay, 1);
 	_connectTimer.addEventListener(TimerEvent.TIMER, connect);
   
 	_sound = new SoundTransform();
