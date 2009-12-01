@@ -187,9 +187,9 @@ init([]) ->
     {unhandled} ->
     	case Message of
     		{record,Channel} when is_record(Channel,channel) -> 
-    			io:format("~p Ignoring data: ~p\n", [self(), Channel#channel{msg = <<>>}]);
+    			?D({"Ignoring channel message:", Channel#channel{msg = <<>>}});
     		Data -> 
-    			io:format("~p Ignoring data: ~p\n", [self(), Data])
+    		  ?D({"Ignoring message:", Data})
     	end,
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reply -> Reply

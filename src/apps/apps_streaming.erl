@@ -57,7 +57,7 @@
       Player ! start,
       {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = Player}, ?TIMEOUT};
     {notfound, _Reason} ->
-      gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, 1}),
+      gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, proplists:get_value(stream_id, Options)}),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reason -> 
       ?D({"Failed to start video player", Reason}),
@@ -156,17 +156,17 @@ prepareStream(StreamId) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(#amf{args = [null, Pausing, NewTs]}, #rtmp_client{video_player = Player} = State) -> 
+pause(#amf{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_client{video_player = Player} = State) -> 
     ?D({"PAUSE", Pausing, round(NewTs)}),
     
     case Pausing of
       true ->
         Player ! pause,
-        gen_fsm:send_event(self(), {status, ?NS_PAUSE_NOTIFY, 1}),
+        gen_fsm:send_event(self(), {status, ?NS_PAUSE_NOTIFY, StreamId}),
         State;
       false ->
         Player ! resume,
-        gen_fsm:send_event(self(), {status, ?NS_UNPAUSE_NOTIFY, 1}),
+        gen_fsm:send_event(self(), {status, ?NS_UNPAUSE_NOTIFY, StreamId}),
         State
     end.
 
@@ -192,14 +192,13 @@ getStreamLength(#amf{args = [null | Args]}, #rtmp_client{} = State) ->
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#amf{args = [_, Timestamp]}, #rtmp_client{video_player = Player} = State) -> 
+seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_client{video_player = Player} = State) -> 
   ?D({"invoke - seek", Timestamp}),
-  StreamId = 1,
   Player ! {seek, Timestamp},
-  gen_fsm:send_event(self(), {status, ?NS_SEEK_NOTIFY, 1}),
+  gen_fsm:send_event(self(), {status, ?NS_SEEK_NOTIFY, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, 1}),
+  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, StreamId}),
   State.
   
 

@@ -32,6 +32,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(apps_rtmp).
+-author('max@maxiodors.ru').
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
@@ -112,21 +113,14 @@ fail(AMF) ->
       command = 'onStatus',
       type = invoke,
       id = 0,
+      stream_id = Stream,
       args = [null, {object, [{code, Code}, 
                               {level, <<"status">>}, 
                               {description, Description}]}]},
-  'WAIT_FOR_DATA'({invoke, AMF, Stream}, State);
+  'WAIT_FOR_DATA'({invoke, AMF}, State);
 
 'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
-
-
-
-% 'WAIT_FOR_DATA'({invoke, #amf{args = [{object, _ConnectObj}, {object, [{code, <<?NC_CONNECT_SUCCESS>>}|_]}]} = AMF, Stream},
-%                  State) ->
-%   ?D({"Replying to connect with amf0"}),
-%   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),
-%   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_client{amf_version = 0} = State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
@@ -137,4 +131,4 @@ fail(AMF) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
-'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
+'WAIT_FOR_DATA'(_Message, #rtmp_client{} =_State) -> {unhandled}.
