@@ -10,11 +10,11 @@ currently it can:
   * provide push channel to flash, just like juggernaut, just like AMQP (look doc/push.edoc)
   * read video from MPEG TS
   * handle different types of authorization. Look at json_session for example of authorization
+  * both AMF0 and AMF3 encoding are possible
 
 currently in development:
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * reading of MPEG TS. It may be required for streaming and recording from video cameras
-  * support AMF0 and AMF3 encoding via mujaheed/erlang-amf. Connection still fail
   * add support for extended play command (with initial seek, length, ets)
   * Shared Objects
 
