@@ -43,14 +43,14 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, StreamId}, #rtmp_client{video_player = CurrentPlayer, client_buffer = ClientBuffer} = State) ->
+'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_client{video_player = CurrentPlayer, client_buffer = ClientBuffer} = State) ->
   case CurrentPlayer of
     undefined -> ok;
     _ -> 
       ?D({"Stop current player", CurrentPlayer}),
       CurrentPlayer ! exit
   end,
-  case media_provider:play(Name, [{stream_id, StreamId}, {client_buffer, ClientBuffer}]) of
+  case media_provider:play(Name, [{client_buffer, ClientBuffer} | Options]) of
     {ok, Player} ->
       ?D({"Player starting", Player}),
       Player ! start,
@@ -121,12 +121,22 @@ deleteStream(_AMF, #rtmp_client{video_player = Player} = State) when is_pid(Play
 
 play(#amf{args = [_Null, false | _]} = AMF, State) -> stop(AMF, State);
 
-play(#amf{args = [_Null, Name]}, State) ->
+play(#amf{args = [_Null, Name | Args]}, State) ->
   StreamId = 1,
-  ?D({"PLAY", Name}),
+  Options = [{stream_id, StreamId} | extract_play_args(Args)],
+  ?D({"PLAY", Name, Options}),
   prepareStream(StreamId),
-  gen_fsm:send_event(self(), {play, Name, StreamId}),
+  gen_fsm:send_event(self(), {play, Name, Options}),
   State.
+
+
+% Part of RTMP specification.
+extract_play_args([]) -> [];
+extract_play_args([Start]) -> [{start, Start}];
+extract_play_args([Start, Duration]) -> [{start, Start}, {duration, Duration}];
+extract_play_args([Start, Duration, Reset]) -> [{start, Start}, {duration, Duration}, {reset, Reset}].
+
+
 
 prepareStream(StreamId) ->
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),

@@ -15,6 +15,7 @@ currently in development:
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * reading of MPEG TS. It may be required for streaming and recording from video cameras
   * support AMF0 and AMF3 encoding via mujaheed/erlang-amf. Connection still fail
+  * add support for extended play command (with initial seek, length, ets)
 
   
 future plans:
@@ -33,7 +34,8 @@ What you can do right now?
 How can You help?
   
   * Launch it and test on your content;
-  * make fork on github, add your improvements and push them to me.
+  * make fork on github, add your improvements and push them to me;
+  * take any of “currently in development” issues or future plans and try to make them
 
 How to launch:
 
