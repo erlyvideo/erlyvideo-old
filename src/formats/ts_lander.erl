@@ -334,8 +334,10 @@ pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
   Stream1 = stream_timestamp(Packet, Stream, Header),
   % ?D({"Audio", Stream1#stream.timestamp}),
-  Stream1;
-  % decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
+  case true of
+    true -> Stream1;
+    _ -> decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>})
+  end;
   
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),

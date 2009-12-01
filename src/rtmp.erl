@@ -280,7 +280,7 @@ command(#channel{type = ?RTMP_INVOKE_AMF0, stream_id = StreamId, msg = Message},
 command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Message/binary>>}, State) -> 
   decode_and_invoke(Message, amf3, State, StreamId);
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF0, stream_id = StreamId, msg = Message}, State) ->
+command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
   
 

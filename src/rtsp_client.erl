@@ -126,7 +126,7 @@ handle_request(#rtsp_client{request = ["ANNOUNCE" = Method, Url], socket = Socke
   gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\n">>),
   State;
 
-handle_request(#rtsp_client{request = [Method, Url], socket = Socket} = State) ->
+handle_request(#rtsp_client{request = [Method, Url]} = State) ->
   ?D({"Request", Method, Url}),
   
   State.

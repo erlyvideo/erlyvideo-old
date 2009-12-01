@@ -272,7 +272,7 @@ handle_info({audio, Data}, StateName, State) ->
   gen_fsm:send_event(self(), {audio, Data}),
   {next_state, StateName, State, ?TIMEOUT};
 
-handle_info({Port, {data, Line}}, StateName, State) when is_port(Port) ->
+handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State, ?TIMEOUT};
 

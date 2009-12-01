@@ -41,11 +41,6 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-obj_to_integer({number, Int}) -> Int;
-obj_to_integer({string, String}) -> 
-  {Int, _} = string:to_integer(String),
-  Int.
-
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a connect command and responds
