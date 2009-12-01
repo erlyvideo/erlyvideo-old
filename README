@@ -16,6 +16,7 @@ currently in development:
   * reading of MPEG TS. It may be required for streaming and recording from video cameras
   * support AMF0 and AMF3 encoding via mujaheed/erlang-amf. Connection still fail
   * add support for extended play command (with initial seek, length, ets)
+  * Shared Objects
 
   
 future plans:
