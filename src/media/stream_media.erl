@@ -263,11 +263,11 @@ code_change(_OldVsn, State, _Extra) ->
 
 send_packet({Client}, #channel{msg = Data} = Channel) ->
   % ?D({"Send to", Client}),
-  gen_fsm:send_event(Client, {send, {Channel, Data}}),
+  Client ! {data, {Channel, Data}},
   Channel;
 
 send_packet({Client}, Packet) ->
   % ?D({"Send to", Client}),
-  gen_fsm:send_event(Client, {send, Packet}),
+  Client ! {data, Packet},
   Packet.
   

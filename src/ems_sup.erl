@@ -79,7 +79,7 @@ start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name
 
 
 start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, Options]).
-start_stream_play(MediaEntry, Options) -> supervisor:start_child(file_stream_sup, [MediaEntry, Options]).
+start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup, [MediaEntry, Options]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()

@@ -105,6 +105,10 @@ ready(#stream_player{media_info = MediaInfo,
     {seek, Timestamp} ->
       ?D({"Requested to seek in stream", Timestamp}),
       ?MODULE:ready(State);
+      
+    {data, Data} ->
+      gen_fsm:send_event(Consumer, {send, Data}),
+      ?MODULE:ready(State);      
 
     stop -> 
       ok;
