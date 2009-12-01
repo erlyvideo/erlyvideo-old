@@ -35,6 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
 -include("../../include/recorder.hrl").
 
@@ -48,26 +49,6 @@
 'WAIT_FOR_DATA'({publish, #channel{} = Channel}, #rtmp_client{video_player = Recorder} = State) ->
   stream_media:publish(Recorder, Channel),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
-
-
-'WAIT_FOR_DATA'({stop}, #rtmp_client{video_player = #video_recorder{
-                                                 device = IoDev, 
-                                                 buffer = Buffer,
-                                                 timer_ref = TimerRef} = _Recorder} = State) ->
-	case Buffer of
-		undefined -> ok;
-		_ -> file:write(IoDev, lists:reverse(Buffer))
-	end,
-  case IoDev of
-      undefined -> ok;
-      _ -> file:close(IoDev)
-  end,
-  case TimerRef of
-      undefined -> ok;
-      _ -> gen_fsm:cancel_timer(TimerRef)
-  end,
-  ?D({"Stopping video recorder"}),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{video_player = undefined}, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'({stop}, State) ->

@@ -39,7 +39,7 @@
 
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, 
-          start_file_play/1, start_file_play/2,
+          start_file_play/2, start_stream_play/2,
           start_ts_lander/1, start_ts_lander/2]).
 
 
@@ -78,8 +78,8 @@ start_media(Name, record = Type) -> supervisor:start_child(stream_media_sup, [Na
 start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]).
 
 
-start_file_play(MediaEntry) -> start_file_play(MediaEntry, []).
 start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, Options]).
+start_stream_play(MediaEntry, Options) -> supervisor:start_child(file_stream_sup, [MediaEntry, Options]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -188,6 +188,21 @@ init([file_play]) ->
             ]
         }
     };
+init([stream_play]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {stream_play,start_link,[]},             % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [stream_play]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
 init([]) ->
   ets:new(rtmp_sessions, [set, public, named_table]),
   
@@ -239,6 +254,13 @@ init([]) ->
     },
     {   file_play_sup,
         {supervisor,start_link,[{local, file_play_sup}, ?MODULE, [file_play]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   stream_play_sup,
+        {supervisor,start_link,[{local, stream_play_sup}, ?MODULE, [stream_play]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, codec_config/2, read_frame/2, file_name/1, seek/2, metadata/1]).
+-export([start_link/2, codec_config/2, read_frame/2, name/1, seek/2, metadata/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -23,8 +23,8 @@ codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Typ
    
 read_frame(MediaEntry, Key) -> gen_server:call(MediaEntry, {read, Key}).
 
-file_name(Server) ->
-  gen_server:call(Server, {file_name}).
+name(Server) ->
+  gen_server:call(Server, {name}).
 
 seek(Server, Timestamp) ->
   gen_server:call(Server, {seek, Timestamp}).
@@ -56,7 +56,7 @@ init([Name, file]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{file_name = Name, clients = Clients} = MediaInfo) ->
+handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_file_play(self(), Options),
   ets:insert(Clients, {Pid}),
   link(Pid),
@@ -81,7 +81,7 @@ handle_call({read, undefined}, _From, #media_info{frames = FrameTable, format = 
 handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
 
-handle_call({file_name}, _From, #media_info{file_name = FileName} = MediaInfo) ->
+handle_call({name}, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};
   
 handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
@@ -128,7 +128,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, clients = Clients} = MediaInfo) ->
+handle_info({graceful}, #media_info{owner = undefined, name = FileName, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
     0 -> ?D({"No readers for file", FileName}),
          {stop, normal, MediaInfo};
@@ -146,7 +146,7 @@ handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clien
   end,
   {noreply, MediaInfo#media_info{owner = Owner}};
 
-handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients, file_name = FileName} = MediaInfo) ->
+handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients, name = FileName} = MediaInfo) ->
   ets:delete(Clients, Client),
   ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size)}),
   case ets:info(Clients, size) of
@@ -170,7 +170,6 @@ handle_info(_Info, State) ->
 %%-------------------------------------------------------------------------
 terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
   (catch file:close(Device)),
-  ?D({"Media entry terminating", _Reason}),
   ok.
 
 %%-------------------------------------------------------------------------
@@ -191,7 +190,7 @@ open_file(Name) ->
 	FileFormat = file_play:file_format(FileName),
 	MediaInfo = #media_info{
 	  device = Device,
-	  file_name = FileName,
+	  name = FileName,
     format = FileFormat
 	},
 	case FileFormat:init(MediaInfo) of

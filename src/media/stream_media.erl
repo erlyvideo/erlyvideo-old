@@ -12,8 +12,7 @@
 -export([start_link/2, codec_config/2, metadata/1, publish/2, set_owner/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
 start_link(Path, Type) ->
@@ -38,7 +37,7 @@ init([URL, mpeg_ts]) ->
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
   {ok, Device} = ems_sup:start_ts_lander(URL, self()),
   link(Device),
-	Recorder = #media_info{type=mpeg_ts, file_name = URL, clients = Clients, device = Device},
+	Recorder = #media_info{type=mpeg_ts, name = URL, clients = Clients, device = Device},
 	{ok, Recorder, ?TIMEOUT};
   
 
@@ -63,7 +62,7 @@ init([Name, record]) ->
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),
-		  Recorder = #media_info{type=record, device = Device, file_name = FileName, clients = Clients},
+		  Recorder = #media_info{type=record, device = Device, name = Name, path = FileName, clients = Clients},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
 		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, _Error]),
@@ -85,17 +84,22 @@ init([Name, record]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, {Caller, _Ref}, 
-  #media_info{file_name = Name, clients = Clients, video_decoder_config = Video, audio_decoder_config = Audio} = MediaInfo) ->
-  % {ok, Pid} = stream_play:start(self(), Options),
-  Pid = proplists:get_value(consumer, Options, Caller),
+handle_call({create_player, Options}, _From, 
+  #media_info{name = Name, clients = Clients, video_decoder_config = Video, audio_decoder_config = Audio} = MediaInfo) ->
+  {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   ets:insert(Clients, {Pid}),
   link(Pid),
-  ?D({"Creating media player for", Name, "client", Pid}),
-  ems_play:send(Pid, Video),
-  ems_play:send(Pid, Audio),
-  {reply, {ok, self()}, MediaInfo};
+  Pid ! {video, Video},
+  Pid ! {audio, Audio},
+  ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
+  {reply, {ok, Pid}, MediaInfo};
 
+  % Pid = proplists:get_value(consumer, Options, Caller),
+  % ets:insert(Clients, {Pid}),
+  % link(Pid),
+  % ?D({"Creating media player for", Name, "client", Pid}),
+  % {reply, {ok, self()}, MediaInfo};
+  % 
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(
@@ -113,7 +117,7 @@ handle_call({metadata}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
-  ?D({"Setting owner to", Owner}),
+  ?D({self(), "Setting owner to", Owner}),
   {reply, ok, MediaInfo#media_info{owner = Owner}};
 
 handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
@@ -137,7 +141,7 @@ handle_call({publish, #channel{timestamp = TS} = Channel}, _From,
 	{reply, ok, Recorder};
 
 handle_call(Request, _From, State) ->
-  ?D({"Undefined call", Request, _From}),
+  ?D({"Undefined call", Request, _From, State}),
   {stop, {unknown_call, Request}, State}.
 
 
@@ -166,9 +170,9 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({graceful}, #media_info{owner = undefined, file_name = FileName, clients = Clients} = MediaInfo) ->
+handle_info({graceful}, #media_info{owner = undefined, name = Name, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
-    0 -> ?D({"No readers for file", FileName}),
+    0 -> ?D({"No readers for stream", Name}),
          {stop, normal, MediaInfo};
     _ -> {noreply, MediaInfo}
   end;
@@ -178,6 +182,7 @@ handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo};
   
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
+  ?D({self(), "Owner exits", Owner}),
   case ets:info(Clients, size) of
     0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
     _ -> ok
@@ -217,8 +222,9 @@ handle_info({audio_config, Audio}, #media_info{clients = Clients} = MediaInfo) -
 handle_info(start, State) ->
   {noreply, State};
 
-handle_info(stop, State) ->
-  {noreply, State};
+handle_info(stop, #media_info{name = Name} = MediaInfo) ->
+  media_provider:remove(Name),
+  {noreply, MediaInfo};
 
 handle_info(exit, State) ->
   {noreply, State};

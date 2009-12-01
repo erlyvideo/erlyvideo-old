@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, create/2, play/1, play/2, clients/0]).
+-export([start_link/0, create/2, play/1, play/2, clients/0, remove/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -42,11 +42,11 @@ open(Name, Type) ->
 find(Name) ->
   gen_server:call(?MODULE, {find, Name}).
 
-entries() ->
-  gen_server:call(?MODULE, entries).
-   
 clients() ->
   gen_server:call(?MODULE, clients).
+  
+remove(Name) ->
+  gen_server:cast(?MODULE, {remove, Name}).
 
 
 % Plays media with default options
@@ -109,10 +109,11 @@ handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
   {reply, open_media_entry({Name, Type}, MediaProvider), MediaProvider};
 
+
 handle_call(clients, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   Entries = lists:map(
     fun([Name, Handler]) -> 
-      {Name, gen_server:call(Handler, clients)}
+      {Name, gen_server:call(Handler, clients, 100)}
     end,
   ets:match(OpenedMedia, {'_', '$1', '$2'})),
   {reply, Entries, MediaProvider};
@@ -199,6 +200,10 @@ check_path(Name) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_cast({remove, Name}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  (catch ets:delete(OpenedMedia, Name)),
+  {noreply, MediaProvider};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -213,6 +218,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({'EXIT', Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  ?D({"Closing media", Media, _Reason}),
   case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
     [] -> 
       {noreply, MediaProvider};
