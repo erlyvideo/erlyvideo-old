@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, create/2, play/1, play/2, entries/0, clients/0]).
+-export([start_link/0, create/2, play/1, play/2, clients/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -108,10 +108,6 @@ handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
 
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
   {reply, open_media_entry({Name, Type}, MediaProvider), MediaProvider};
-
-handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Entries = lists:map(fun([Key]) -> Key end, ets:match(OpenedMedia, {'_', '$1', '_'})),
-  {reply, Entries, MediaProvider};
 
 handle_call(clients, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   Entries = lists:map(
