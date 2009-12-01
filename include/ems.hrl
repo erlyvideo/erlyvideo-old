@@ -218,7 +218,7 @@
 	delta     = undefined,
 	length    = undefined,
 	type      = undefined,
-	stream    = undefined,
+	stream_id = 0,
 	msg       = <<>>,
 	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into rtmp:encode
 	}).
@@ -269,5 +269,6 @@
 	command = [],
 	id      = [],
 	args    = [],
+	stream_id = 0,
 	type 	= invoke %if invoke then id, otherwise notify
 	}).

@@ -66,9 +66,9 @@
 
 
 
-'WAIT_FOR_DATA'({metadata, Command, AMF, Stream}, State) ->
+'WAIT_FOR_DATA'({metadata, Command, AMF, StreamId}, State) ->
   gen_fsm:send_event(self(), {send, {
-    #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA_AMF0, stream = Stream}, 
+    #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA_AMF0, stream_id = StreamId}, 
     <<(amf0:encode(list_to_binary(Command)))/binary, (amf0:encode({object, AMF}))/binary>>}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
@@ -78,11 +78,15 @@
 
 
 'WAIT_FOR_DATA'({video, Data}, State) ->
-  Channel = #channel{id=5,timestamp=0, length=size(Data),type = ?RTMP_TYPE_VIDEO,stream=1},
+  % FIXME: handle StreamId
+  StreamId = 1,
+  Channel = #channel{id=5,timestamp=0, length=size(Data),type = ?RTMP_TYPE_VIDEO,stream_id = StreamId},
   'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
 
 'WAIT_FOR_DATA'({audio, Data}, State) ->
-  Channel = #channel{id=4,timestamp=0, length=size(Data),type = ?RTMP_TYPE_AUDIO,stream=1},
+  % FIXME: handle StreamId
+  StreamId = 1,
+  Channel = #channel{id=4,timestamp=0, length=size(Data),type = ?RTMP_TYPE_AUDIO,stream_id = StreamId},
   'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
 
 
@@ -95,9 +99,9 @@
 %% @doc  Processes a createStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-createStream(#amf{id = TxId}, State) -> 
-  apps_rtmp:reply(TxId, [null, 1]),
-  gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, stream = 0, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
+createStream(AMF, State) -> 
+  apps_rtmp:reply(AMF#amf{args = [null, 1]}),
+  gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
     State.
 
 

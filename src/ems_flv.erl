@@ -81,7 +81,7 @@ encode(_Frame) ->
   ?D({"Request to encode undefined", _Frame}).
 
 
-to_tag(#channel{msg = Msg, type = Type, stream = StreamId, timestamp = CurrentTimeStamp}) ->
+to_tag(#channel{msg = Msg, type = Type, stream_id = StreamId, timestamp = CurrentTimeStamp}) ->
 	BodyLength = size(Msg),	
 	{TimeStampExt, TimeStamp} = case CurrentTimeStamp of
 		<<TimeStampExt1:8,TimeStamp1:32>> -> 

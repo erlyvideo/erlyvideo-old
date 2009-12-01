@@ -65,7 +65,7 @@ encode(_Channel, <<>>, Packet) -> Packet;
 encode(#channel{timestamp = TimeStamp} = Channel, Data, Buffer) when is_float(TimeStamp) -> 
   encode(Channel#channel{timestamp = round(TimeStamp)}, Data, Buffer);
 
-encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream = StreamId, chunk_size = ChunkSize} = _Channel, Data, <<>>) -> 
+encode(#channel{id = Id, timestamp = TimeStamp, type= Type, stream_id = StreamId, chunk_size = ChunkSize} = _Channel, Data, <<>>) -> 
   % {Chunk,Rest} = chunk(Data, ChunkSize),
   ChunkList = chunk(Data, ChunkSize, Id),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
@@ -168,7 +168,7 @@ decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeSta
     {value, Channel} -> ok;
     _ -> Channel = #channel{}
   end,
-	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream=StreamId},Rest,State);
+	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 	
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case lists:keysearch(Id, #channel.id, State#rtmp_client.channels) of
@@ -179,7 +179,7 @@ decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/bi
   %   8 -> ?D({"      New", Id, Type, 0, TimeStamp});
   %   _ -> ok
   % end,
-	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream=StreamId},Rest,State);
+	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 
 decode_channel_header(_Rest,_Type, _Id,  State) -> % Still small buffer
   State.
@@ -247,6 +247,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, 
         #rtmp_client{video_player = Player} = State) ->
   %?D({"Buffer size on stream id", BufferSize, _StreamId}),
+  % FIXME: we need to fix here detection of what stream player exits
   case Player of
     undefined -> ok;
     _ -> Player ! {client_buffer, BufferSize}
@@ -264,22 +265,22 @@ command(#channel{type = Type, delta = 0}, State)
   ?D({"Throw away garbage audio"}),
   State;
 
-command(#channel{type = Type} = Channel, State) 
+command(#channel{type = Type} = Channel, State)
 	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
 %	?D({"Recording",Type}),
 	gen_fsm:send_event(self(), {publish, Channel}),
 	State;
 
-command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Message}, State) ->
-  decode_and_invoke(Message, amf0, State);
+command(#channel{type = ?RTMP_INVOKE_AMF0, stream_id = StreamId, msg = Message}, State) ->
+  decode_and_invoke(Message, amf0, State, StreamId);
 
 % Red5: net.rtmp.codec.RTMPProtocolDecoder
 % // TODO: Unknown byte, probably encoding as with Flex SOs?
 % in.skip(1);
-command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Message/binary>>}, State) -> 
-  decode_and_invoke(Message, amf3, State);
+command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Message/binary>>}, State) -> 
+  decode_and_invoke(Message, amf3, State, StreamId);
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
+command(#channel{type = ?RTMP_TYPE_SO_AMF0, stream_id = StreamId, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
   
 
@@ -288,12 +289,12 @@ command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
 
-decode_and_invoke(Message, _Module, State) ->
+decode_and_invoke(Message, _Module, State, StreamId) ->
 	{CommandBin, Rest1} = amf0:decode(Message),
 	Command = binary_to_existing_atom(CommandBin, utf8),
 	{InvokeId, Rest2} = amf0:decode(Rest1),
 	Arguments = decode_list(Rest2, amf0, []),
-	AMF = #amf{command = Command, args = Arguments, type = invoke, id = InvokeId},
+	AMF = #amf{command = Command, args = Arguments, stream_id = StreamId, type = invoke, id = InvokeId},
 	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
   
 

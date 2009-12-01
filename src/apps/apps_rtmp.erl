@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
 
--export([connect/2, reply/2, fail/2]).
+-export([connect/2, reply/1, fail/1]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
@@ -53,7 +53,7 @@ obj_to_integer({string, String}) ->
 %%-------------------------------------------------------------------------
 connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
     
-    Channel = #channel{id = 2, timestamp = 0, stream = 0, msg = <<>>},
+    Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
 		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}}),
 		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
 		
@@ -88,21 +88,21 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
                  {level, <<"status">>}, 
                  {description, <<"Connection succeeded.">>},
                  {objectEncoding, NewState3#rtmp_client.amf_version}],
-    reply(1, [{object, ConnectObj}, {object, StatusObj}]),
+    reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
     NewState3.
 
 
-reply(Id, Args) ->
-  gen_fsm:send_event(self(), {invoke, #amf{command = '_result', id = Id, type = invoke,args= Args}}).
+reply(AMF) ->
+  gen_fsm:send_event(self(), {invoke, AMF#amf{command = '_result', type = invoke}}).
 
-fail(Id, Args) ->
-  gen_fsm:send_event(self(), {invoke, #amf{command = '_error', id = Id, type = invoke,args= Args}}).
+fail(AMF) ->
+  gen_fsm:send_event(self(), {invoke, AMF#amf{command = '_error', type = invoke}}).
   
 
 
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL, stream = 0}, <<Type:16/big, Stream:32/big>>}}),
+  gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL}, <<Type:16/big, Stream:32/big>>}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
@@ -133,15 +133,13 @@ fail(Id, Args) ->
 %   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),
 %   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, #rtmp_client{amf_version = 0} = State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream = Stream}, AMF}}),
+'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_client{amf_version = 0} = State) ->
+  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF, Stream}, #rtmp_client{amf_version = 3} = State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF3, stream = Stream}, AMF}}),
+'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_client{amf_version = 3} = State) ->
+  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF3, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({invoke, #amf{} = AMF}, State) -> 'WAIT_FOR_DATA'({invoke, #amf{} = AMF, 0}, State);
 
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
