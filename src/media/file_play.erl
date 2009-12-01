@@ -59,7 +59,9 @@
 	playing_from = 0,
 	ts_prev = 0,
 	pos = 0,
-	paused = false
+	paused = false,
+	send_audio = true,
+	send_video = true
 }).
 
 
@@ -119,6 +121,14 @@ ready(#file_player{media_info = MediaInfo,
       ?D("Player resumed"),
       self() ! play,
       ?MODULE:ready(State#file_player{paused = false});
+      
+    {send_audio, Audio} ->
+      ?D({"Send audio", Audio}),
+      ?MODULE:ready(State#file_player{send_audio = Audio});
+
+    {send_video, Video} ->
+      ?D({"Send video", Video}),
+      ?MODULE:ready(State#file_player{send_video = Video});
 
     {seek, Timestamp} ->
       {Pos, NewTimestamp} = file_media:seek(MediaInfo, Timestamp),

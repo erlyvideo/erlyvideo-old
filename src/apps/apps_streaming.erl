@@ -39,6 +39,7 @@
 -include("../../include/ems.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
+         receiveAudio/2, receiveVideo/2,
          getStreamLength/2, prepareStream/1]).
 -export(['WAIT_FOR_DATA'/2]).
 
@@ -167,6 +168,15 @@ pause(#amf{args = [null, Pausing, NewTs]}, #rtmp_client{video_player = Player} =
 
 
 pauseRaw(AMF, State) -> pause(AMF, State).
+
+
+receiveAudio(#amf{args = [null, Audio]}, #rtmp_client{video_player = Player} = State) ->
+  (catch Player ! {send_audio, Audio}),
+  State.
+
+receiveVideo(#amf{args = [null, Video]}, #rtmp_client{video_player = Player} = State) ->
+  (catch Player ! {send_video, Video}),
+  State.
 
 
 getStreamLength(#amf{args = [null | Args]}, #rtmp_client{} = State) ->
