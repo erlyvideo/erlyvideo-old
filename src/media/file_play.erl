@@ -39,7 +39,7 @@
 
 -include("../../include/ems.hrl").
 
--export([file_dir/0, file_format/1, start/1, start/2, client/1]).
+-export([file_dir/0, file_format/1, start_link/1, start_link/2, client/1]).
 
 -export([init/2, ready/1]).
 
@@ -64,9 +64,9 @@
 
 
 
-start(MediaEntry) -> start(MediaEntry, []).
+start_link(MediaEntry) -> start_link(MediaEntry, []).
 
-start(MediaEntry, Options) ->
+start_link(MediaEntry, Options) ->
   {ok, spawn_link(?MODULE, init, [MediaEntry, Options])}.
   
 client(Player) ->
