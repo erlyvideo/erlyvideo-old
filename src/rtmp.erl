@@ -90,7 +90,7 @@ encode_funcall(Module, #amf{command = Command, args = Args, type = notify}) ->
 
 encode_list(Message, _, []) -> Message;
 encode_list(Message, Module, [Arg | Args]) ->
-  AMF = Module:encode(Arg),
+  AMF = amf0:encode(Arg),
   encode_list(<<Message/binary, AMF/binary>>, Module, Args).
 
 encode_id(Type, Id) when Id > 319 -> 
@@ -278,7 +278,7 @@ command(#channel{type = ?RTMP_INVOKE_AMF0, stream_id = StreamId, msg = Message},
 % // TODO: Unknown byte, probably encoding as with Flex SOs?
 % in.skip(1);
 command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Message/binary>>}, State) -> 
-  decode_and_invoke(Message, amf3, State, StreamId);
+  decode_and_invoke(Message, amf0, State, StreamId);
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
