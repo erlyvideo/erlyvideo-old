@@ -247,17 +247,13 @@
 	timestamp      = undefined,
 	timestamp_ext  = undefined,
 	stream_id      = 0,
-	pos            = undefined,
 	body           = <<>>,
 	codec_id 	     = undefined,
 	frame_type     = undefined,
 	sound_type	   = undefined,
 	sound_size	   = undefined,
 	sound_rate	   = undefined,
-	sound_format	 = undefined,
-	height		     = undefined,
-	width		       = undefined,
-	amf_data       = undefined
+	sound_format	 = undefined
 	}).
 	
 
