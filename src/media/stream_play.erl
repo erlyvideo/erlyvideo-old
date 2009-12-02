@@ -48,8 +48,11 @@
 	stream_id,
 	paused = false,
 	base_ts = undefined,
+	prev_ts = undefined,
 	send_audio = true,
-	send_video = true
+	send_video = true,
+	sent_video_decoder = false,
+	sent_audio_decoder = false
 }).
 
 
@@ -113,23 +116,13 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
       gen_fsm:send_event(Consumer, {send, Data}),
       ?MODULE:ready(State);
 
-    {video, Frame} ->
+    #video_frame{} = Frame ->
       send_frame(State, Frame);
       
     #channel{msg = Body} = Channel ->
       gen_fsm:send_event(Consumer, {send, {Channel, Body}}),
       ?MODULE:ready(State);
 
-    {video_config, Frame} ->
-      % ?D({"Decoder config in MPEG TS"}),
-      send_frame(State, Frame);
-
-    {audio, Frame} ->
-      send_frame(State, Frame);
-
-    {audio_config, Frame} ->
-      send_frame(State, Frame);
-      
     eof ->
       gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
       ?MODULE:ready(State);
@@ -148,14 +141,27 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
   	  ?MODULE:ready(State)
   end.
 
+send_frame(#stream_player{sent_video_decoder = true} = Player, 
+           #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO}) ->
+  ?MODULE:ready(Player);
+
+send_frame(#stream_player{sent_audio_decoder = true} = Player, 
+           #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO}) ->
+  ?MODULE:ready(Player);
+
 
 send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) ->
   send_frame(Player#stream_player{base_ts = Ts}, Frame);
 
-send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, #video_frame{timestamp = Ts} = Frame) ->
-  % TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
+send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, 
+           #video_frame{timestamp = Ts, decoder_config = Decoder, type = Type} = Frame) ->
   ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Ts - BaseTs}),
-  % ?D({"Frame", Ts, BaseTs, self()}),
-  ?MODULE:ready(Player).
+  % ?D({"Frame", Ts, BaseTs, Player#stream_player.sent_audio_decoder, Player#stream_player.sent_video_decoder, self()}),
+  Player1 = case {Decoder, Type} of
+    {true, ?FLV_TAG_TYPE_AUDIO} -> Player#stream_player{sent_audio_decoder = true};
+    {true, ?FLV_TAG_TYPE_VIDEO} -> Player#stream_player{sent_video_decoder = true};
+    _ -> Player
+  end,
+  ?MODULE:ready(Player1).
 
 

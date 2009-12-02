@@ -86,10 +86,17 @@ init([Name, record]) ->
 
 handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
-  Clients1 = [Pid | Clients],
   link(Pid),
   ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
-  {reply, {ok, Pid}, MediaInfo#media_info{clients = Clients1}};
+  case MediaInfo#media_info.video_decoder_config of
+    undefined -> ok;
+    VideoConfig -> Pid ! VideoConfig
+  end,
+  case MediaInfo#media_info.audio_decoder_config of
+    undefined -> ok;
+    AudioConfig -> Pid ! AudioConfig
+  end,
+  {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
@@ -191,20 +198,20 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   end,
   {noreply, MediaInfo#media_info{clients = Clients}};
 
-handle_info({video, _Video} = Data, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Data end, Clients),
+handle_info({video, Video}, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Video end, Clients),
   {noreply, MediaInfo};
 
-handle_info({video_config, Video} = Data, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Data end, Clients),
+handle_info({video_config, Video}, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Video end, Clients),
   {noreply, MediaInfo#media_info{video_decoder_config = Video}};
 
-handle_info({audio, _Audio} = Data, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Data end, Clients),
+handle_info({audio, Audio}, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Audio end, Clients),
   {noreply, MediaInfo};
 
-handle_info({audio_config, Audio} = Data, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Data end, Clients),
+handle_info({audio_config, Audio}, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Audio end, Clients),
   {noreply, MediaInfo#media_info{audio_decoder_config = Audio}};
 
 handle_info(start, State) ->
