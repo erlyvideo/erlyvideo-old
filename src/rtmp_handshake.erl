@@ -114,21 +114,21 @@ s1() ->
 
 
 
+% Flash from 10.0.32.18
 clientDigest(<<_:5/binary, 0, 3, 2, _:764/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
-  ?D("New player"),
 	Offset = (P1+P2+P3+P4) rem 728 + 776,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed;
 
 
+% Flash before 10.0.32.18
 clientDigest(<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
-  ?D("Old player"),
 	Offset = (P1+P2+P3+P4) rem 728 + 12,
 	<<_:Offset/binary, Seed:32/binary, _/binary>> = C1,
   Seed.
 
+% Special case for VLC
 s2(<<0:64, _:1528/binary>> = C1) ->
-  ?D("VLC connected"),
   C1;
 
 s2(C1) ->
@@ -136,4 +136,3 @@ s2(C1) ->
   <<S2:1504/binary, _/binary>> = s1(),
   ServerSign = hmac256:digest(ServerDigest, S2),
   [S2, ServerSign].
-  % <<S2/binary, (list_to_binary(ServerSign))/binary>>.
