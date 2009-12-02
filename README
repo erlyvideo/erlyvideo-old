@@ -8,14 +8,13 @@ currently it can:
   * have possibility to auth users
   * broadcast flv between people
   * provide push channel to flash, just like juggernaut, just like AMQP (look doc/push.edoc)
-  * read video from MPEG TS
+  * read MPEG TS and restream it to flash clients.
   * handle different types of authorization. Look at json_session for example of authorization
   * both AMF0 and AMF3 encoding are possible
   * got support for many netstreams. It mean, that videoconference is possible.
 
 currently in development:
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
-  * reading of MPEG TS. It may be required for streaming and recording from video cameras
   * add support for extended play command (with initial seek, length, ets)
   * Shared Objects
 
