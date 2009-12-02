@@ -11,6 +11,7 @@ currently it can:
   * read video from MPEG TS
   * handle different types of authorization. Look at json_session for example of authorization
   * both AMF0 and AMF3 encoding are possible
+  * got support for many netstreams. It mean, that videoconference is possible.
 
 currently in development:
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
