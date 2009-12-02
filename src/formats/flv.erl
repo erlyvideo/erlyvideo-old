@@ -81,7 +81,7 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
 			  ?FLV_TAG_TYPE_VIDEO ->
 				  {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(Device, Offset),
 				  KeyFrame = case FrameType of
-				    1 -> true;
+				    ?FLV_VIDEO_FRAME_TYPE_KEYFRAME -> true;
 				    _ -> false
 			    end,
 			    PreparedFrame#file_frame{
@@ -122,8 +122,7 @@ read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
     {error, Reason} -> {error, Reason}
   end.
   
-video_frame(Frame, Data) ->
-  #file_frame{type = Type, timestamp = Timestamp} = Frame,
+video_frame(#file_frame{type = Type, timestamp = Timestamp, keyframe = Keyframe} = Frame, Data) ->
   #video_frame{type = Type, raw_body = true, body = Data, timestamp = Timestamp}.
 
 	

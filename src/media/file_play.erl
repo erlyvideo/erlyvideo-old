@@ -177,7 +177,11 @@ play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) -
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
   {Frame, Next} = file_media:read_frame(MediaInfo, Key),
-  send_frame(Player#file_player{pos = Next}, Frame).
+  send_frame(Player#file_player{pos = Next}, Frame);
+  
+play(Else) ->
+  ?D(Else),
+  ok.
 
 send_frame(Player, undefined) ->
   self() ! play,

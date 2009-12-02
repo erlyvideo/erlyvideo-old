@@ -257,7 +257,7 @@ handle_info({tcp_closed, Socket}, _StateName,
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_client{streams = _Streams} = StateData) ->
   % FIXME: proper lookup of dead player between Streams and notify right stream
-  ?D({"Player died", PlayerPid, _Reason}),
+  % ?D({"Player died", PlayerPid, _Reason}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
   {next_state, StateName, StateData, ?TIMEOUT};
 
