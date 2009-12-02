@@ -52,10 +52,6 @@
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 
 
-'WAIT_FOR_DATA'({stop}, State) ->
-  ?D({"Stop command, while not recording", State#rtmp_client.video_player}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 
 %%-------------------------------------------------------------------------

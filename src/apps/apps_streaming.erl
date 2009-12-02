@@ -215,10 +215,6 @@ seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_client{streams = S
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(_AMF, #rtmp_client{video_player = undefined} = State) -> 
-  
-  State;
-  
 stop(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
   case array:get(StreamId, Streams) of
     undefined -> 

@@ -255,7 +255,8 @@ handle_info({tcp_closed, Socket}, _StateName,
     error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
     {stop, normal, StateData};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_client{video_player = PlayerPid}= StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_client{streams = Streams} = StateData) ->
+  % FIXME: proper lookup of dead player between Streams and notify right stream
   ?D({"Player died", PlayerPid, _Reason}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
   {next_state, StateName, StateData, ?TIMEOUT};
@@ -288,9 +289,8 @@ handle_info(_Info, StateName, StateData) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_client{socket=Socket, video_player = Player}) ->
+terminate(_Reason, _StateName, #rtmp_client{socket=Socket}) ->
   rtmp_server:logout(),
-  (catch Player ! exit),
   (catch gen_tcp:close(Socket)),
   ok.
 

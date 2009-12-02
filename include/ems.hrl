@@ -204,7 +204,6 @@
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
 	streams      = undefined,
-	video_player = undefined,
 	window_size = ?RTMP_WINDOW_SIZE,
 	previous_ack = undefined,
 	current_speed = 0,

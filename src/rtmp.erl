@@ -239,13 +239,10 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
   gen_fsm:send_event(self(), {send, {Channel, <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>}}),
 	State;	
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, _StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, 
-        #rtmp_client{video_player = Player} = State) ->
-  %?D({"Buffer size on stream id", BufferSize, _StreamId}),
-  % FIXME: we need to fix here detection of what stream player exits
-  case Player of
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, #rtmp_client{streams = Streams} = State) ->
+  case array:get(StreamId, Streams) of
     undefined -> ok;
-    _ -> Player ! {client_buffer, BufferSize}
+    Player -> Player ! {client_buffer, BufferSize}
   end,
 	State#rtmp_client{client_buffer = BufferSize};	
 
@@ -257,7 +254,10 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<_EventType:16/big-integer, _
 
 command(#channel{type = Type, delta = 0}, State) 
 	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
-  ?D({"Throw away garbage audio"}),
+  State;
+
+command(#channel{type = Type, length = 0}, State) 
+	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
   State;
 
 command(#channel{type = Type} = Channel, State)

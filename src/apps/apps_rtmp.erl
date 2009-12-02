@@ -105,9 +105,6 @@ fail(AMF) ->
 'WAIT_FOR_DATA'({status, Code, Stream, Description}, State) when is_list(Code) ->
   'WAIT_FOR_DATA'({status, list_to_binary(Code), Stream, Description}, State);
 
-'WAIT_FOR_DATA'({status, Code, Stream, Description}, State) when is_list(Description) ->
-  'WAIT_FOR_DATA'({status, Code, Stream, list_to_binary(Description)}, State);
-  
 'WAIT_FOR_DATA'({status, Code, Stream, Description}, State) ->
   AMF = #amf{
       command = 'onStatus',
