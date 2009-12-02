@@ -196,7 +196,7 @@
 	port,
 	session_id,
 	amf_version = 0,
-	channels    = [],
+	channels    = undefined,
 	user_id     = undefined,
 	player_info = [],
 	buff        = <<>>,

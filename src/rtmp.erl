@@ -128,57 +128,52 @@ decode_channel_id(#rtmp_client{buff = <<Format:2, Id:6,Rest/binary>>} = State) -
 
 % Now extracting channel header
 decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
-  {value, #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_client.channels),
+  #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
   Channel1 = case size(Msg) of
     0 -> Channel#channel{timestamp = Timestamp + Delta};
     _ -> Channel
   end,
-  % case Channel#channel.type of
-  %   8 -> ?D({"    Continue", Id, size(Msg), size(Rest), Channel1#channel.length, Delta, Channel1#channel.timestamp});
-  %   _ -> ok
-  % end,
   decode_channel(Channel1, Rest, State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_client.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff, delta = undefined}, Rest, State);
   
 decode_channel_header(<<Delta:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  {value, #channel{timestamp = TimeStamp} = Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
-  % case Channel#channel.type of
-  %   8 -> ?D({"        TSDelta", Id, size(Channel#channel.msg), size(Rest), Channel#channel.length, Delta, TimeStamp+Delta});
-  %   _ -> ok
-  % end,
+  Channel = array:get(Id, State#rtmp_client.channels),
+  #channel{timestamp = TimeStamp} = Channel,
   decode_channel(Channel#channel{timestamp = TimeStamp + Delta, delta = Delta}, Rest, State);
   
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  {value, Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_client.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff, delta = undefined, length=Length,type=Type},Rest,State);
 	
 decode_channel_header(<<Delta:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  {value, #channel{timestamp = TimeStamp} = Channel} = lists:keysearch(Id, #channel.id, State#rtmp_client.channels),
-  % case Channel#channel.type of
-  %   8 -> ?D({"          NewTS", Id, size(Channel#channel.msg), Length, Channel#channel.length, Delta, TimeStamp+Delta});
-  %   _ -> ok
-  % end,
+  Channel = array:get(Id, State#rtmp_client.channels),
+  #channel{timestamp = TimeStamp} = Channel,
 	decode_channel(Channel#channel{timestamp=TimeStamp + Delta, delta = Delta, length=Length,type=Type},Rest,State);
 
+decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, 
+  #rtmp_client{channels = Channels} = State) when size(Channels) < Id ->
+  decode_channel(#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
+
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case lists:keysearch(Id, #channel.id, State#rtmp_client.channels) of
-    {value, Channel} -> ok;
+  case array:get(Id, State#rtmp_client.channels) of
+    #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 	
+decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, 
+  #rtmp_client{channels = Channels} = State) when size(Channels) < Id ->
+	decode_channel(#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
+    
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case lists:keysearch(Id, #channel.id, State#rtmp_client.channels) of
-    {value, Channel} -> ok;
+  case array:get(Id, State#rtmp_client.channels) of
+    #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
-  % case Type of
-  %   8 -> ?D({"      New", Id, Type, 0, TimeStamp});
-  %   _ -> ok
-  % end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 
 decode_channel_header(_Rest,_Type, _Id,  State) -> % Still small buffer
@@ -213,13 +208,13 @@ push_channel_packet(#channel{msg = Msg} = Channel, Data, State, BytesRequired) -
 
 % When chunked packet hasn't arived, just accumulate it
 decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_client{channels = Channels} = State) when size(Msg) < Length ->
-  NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel),
+  NextChannelList = array:set(Channel#channel.id, Channel, Channels),
   decode(State#rtmp_client{channels=NextChannelList});
 
 % Work with packet when it has accumulated and flush buffers
 decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_client{channels = Channels} = State) when size(Msg) == Length ->
   NewState = command(Channel, State), % Perform Commands here
-  NextChannelList = lists:keystore(Channel#channel.id, #channel.id, Channels, Channel#channel{msg = <<>>}),
+  NextChannelList = array:set(Channel#channel.id, Channel#channel{msg = <<>>}, Channels),
   decode(NewState#rtmp_client{channels=NextChannelList}).
 
 command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #rtmp_client{previous_ack = Prev} = State) ->
