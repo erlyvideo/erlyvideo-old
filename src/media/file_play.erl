@@ -82,9 +82,8 @@ client(Player) ->
 
   
 init(MediaEntry, Options) ->
-  ?D({"Starting file play for consumer", proplists:get_value(consumer, Options)}),
   ready(#file_player{consumer = proplists:get_value(consumer, Options),
-                      stream_id = proplists:get_value(stream_id, Options, 1),
+                      stream_id = proplists:get_value(stream_id, Options),
                       pos = undefined,
                       media_info = MediaEntry,
                       client_buffer = proplists:get_value(client_buffer, Options, 10000),
@@ -94,6 +93,7 @@ init(MediaEntry, Options) ->
 ready(#file_player{media_info = MediaInfo, 
                     consumer = Consumer, 
                     client_buffer = ClientBuffer,
+                    stream_id = StreamId,
                     timer_ref = Timer} = State) ->
   receive
     {client_buffer, ClientBuffer} -> 
@@ -102,10 +102,9 @@ ready(#file_player{media_info = MediaInfo,
     start ->
       case file_media:metadata(MediaInfo) of
         undefined -> ok;
-        MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, 1})
+        MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, StreamId})
       end,
     	self() ! play,
-    	?D({"Player starting with pid", self(), MediaInfo}),
       ?MODULE:ready(State#file_player{prepush = ClientBuffer, paused = false});
       
     {client, Pid, Ref} ->
@@ -146,7 +145,6 @@ ready(#file_player{media_info = MediaInfo,
       ok;
       
     play ->
-      % {_, Sec1, MSec1} = erlang:now(),
       play(State);
     	
   	{tcp_closed, _Socket} ->
@@ -179,9 +177,8 @@ send_frame(Player, {ok, undefined}) ->
   self() ! play,
   ?MODULE:ready(Player);
   
-send_frame(#file_player{consumer = Consumer}, {ok, done}) ->
-  ?D("Video file finished"),
-  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, 1}),
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId}, {ok, done}) ->
+  gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->

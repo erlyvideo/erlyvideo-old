@@ -56,11 +56,10 @@ init([Name, file]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients} = MediaInfo) ->
+handle_call({create_player, Options}, _From, #media_info{clients = Clients} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_file_play(self(), Options),
   ets:insert(Clients, {Pid}),
   link(Pid),
-  ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
   {reply, {ok, Pid}, MediaInfo};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->

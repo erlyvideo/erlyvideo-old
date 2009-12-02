@@ -83,7 +83,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 init([]) ->
     process_flag(trap_exit, true),
     random:seed(now()),
-    {ok, 'WAIT_FOR_SOCKET', #rtmp_client{channels = array:new(20), streams = array:new(5)}}.
+    {ok, 'WAIT_FOR_SOCKET', #rtmp_client{channels = array:new(), streams = array:new()}}.
 
 
 
@@ -255,7 +255,7 @@ handle_info({tcp_closed, Socket}, _StateName,
     error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
     {stop, normal, StateData};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_client{streams = Streams} = StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_client{streams = _Streams} = StateData) ->
   % FIXME: proper lookup of dead player between Streams and notify right stream
   ?D({"Player died", PlayerPid, _Reason}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),

@@ -241,8 +241,8 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, #rtmp_client{streams = Streams} = State) ->
   case array:get(StreamId, Streams) of
-    undefined -> ok;
-    Player -> Player ! {client_buffer, BufferSize}
+    Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
+    _ -> ok
   end,
 	State#rtmp_client{client_buffer = BufferSize};	
 

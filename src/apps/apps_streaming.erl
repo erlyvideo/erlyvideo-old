@@ -48,14 +48,13 @@
   StreamId = proplists:get_value(stream_id, Options),
   
   case array:get(StreamId, Streams) of
-    undefined -> ok;
-    CurrentPlayer -> 
+    CurrentPlayer when is_pid(CurrentPlayer) -> 
       ?D({"Stop current player", CurrentPlayer}),
-      CurrentPlayer ! exit
+      CurrentPlayer ! exit;
+    _ -> ok
   end,
   case media_provider:play(Name, [{client_buffer, ClientBuffer} | Options]) of
     {ok, Player} ->
-      ?D({"Player starting", Player}),
       Player ! start,
       {next_state, 'WAIT_FOR_DATA', State#rtmp_client{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
     {notfound, _Reason} ->
@@ -98,14 +97,15 @@
 %% @end
 %%-------------------------------------------------------------------------
 createStream(AMF, State) -> 
-  apps_rtmp:reply(AMF#amf{args = [null, next_stream(State)]}),
+  {State1, StreamId} = next_stream(State),
+  apps_rtmp:reply(AMF#amf{args = [null, StreamId]}),
   gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
-    State.
+  State1.
 
 next_stream(State) -> next_stream(State, 1).
 next_stream(#rtmp_client{streams = Streams} = State, Stream) ->
   case array:get(Stream, Streams) of
-    undefined -> Stream;
+    undefined -> {State#rtmp_client{streams = array:set(Stream, null, Streams)}, Stream};
     _ -> next_stream(State, Stream + 1)
   end.
 

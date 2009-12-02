@@ -218,7 +218,6 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({'EXIT', Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  ?D({"Closing media", Media, _Reason}),
   case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
     [] -> 
       {noreply, MediaProvider};
