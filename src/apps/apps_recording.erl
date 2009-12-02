@@ -67,7 +67,7 @@ publish(#amf{args = [null,Name, <<"record">>]} = _AMF, State) ->
   ?D({"Publish - Action - record",Name}),
   Recorder = media_provider:create(Name, record),
   ?D({"Recording", Recorder}),
-  State#rtmp_client{video_player = Recorder, video_state = publishing};
+  State#rtmp_client{video_player = Recorder};
 
 
 publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) -> 
@@ -79,10 +79,10 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
 publish(#amf{args = [null,Name,<<"live">>]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
   Recorder = media_provider:create(Name, live),
-  State#rtmp_client{video_player = Recorder, video_state = publishing};
+  State#rtmp_client{video_player = Recorder};
 
 publish(#amf{args = [null,Name]} = _AMF, State) -> 
   ?D({"Publish - Action - live",Name}),
   Recorder = media_provider:create(Name, live),
-  State#rtmp_client{video_player = Recorder, video_state = publishing}.
+  State#rtmp_client{video_player = Recorder}.
 
