@@ -4,7 +4,6 @@
   <![CDATA[
 	private var _video:Video;
 	private var stream : VideoStream;
-	private var recording : Boolean = false;
 	import VideoSourceEvent;
 	import mx.events.SliderEvent;
 	import mx.controls.Alert;
@@ -41,12 +40,11 @@
 	}
 
 	public function onStop(e:Event):void {
-		stream.stop();
-		if (recording) {
-			recording = false;
+		if (stream.recording) {
 	    video.attachCamera(null);
 	    video.clear();
 		}
+		stream.stop();
 		playButton.enabled = true;
 		pauseButton.enabled = false;
 		stopButton.enabled = true;
@@ -100,8 +98,12 @@
 	
 	public function onRecord(e:Event) : void
 	{
-		stream.record(url.text, video);
-		recording = true;
+		if(stream.record(url.text, video)) {
+			playButton.enabled = false;
+			pauseButton.enabled = false;
+			stopButton.enabled = true;
+			recordButton.enabled = false;
+		}
 	}
 
 	

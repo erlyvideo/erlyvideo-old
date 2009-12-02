@@ -6,6 +6,7 @@
 	
 	<mx:Script source="Player.as" />
 	<local:VideoPlayer id="player1" />
+	<local:VideoPlayer id="player2" />
   <mx:Label id="_log" text="" color="#FFFFFF" width="273" height="15"/>
 	
 </mx:Application>
