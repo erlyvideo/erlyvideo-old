@@ -151,7 +151,7 @@ send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp_
 send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, #video_frame{timestamp_abs = Ts} = Frame) ->
   % TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
   ems_play:send(Consumer, Frame#video_frame{streamid = StreamId, timestamp_abs = Ts - BaseTs}),
-  ?D({"Frame", Ts, BaseTs}),
+  % ?D({"Frame", Ts, BaseTs}),
   ?MODULE:ready(Player).
 
 
