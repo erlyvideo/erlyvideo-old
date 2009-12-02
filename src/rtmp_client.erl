@@ -265,14 +265,6 @@ handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   ?D({"Died child", Pid, _Reason}),
   {next_state, StateName, StateData, ?TIMEOUT};
 
-handle_info({video, Data}, StateName, State) ->
-  gen_fsm:send_event(self(), {video, Data}),
-  {next_state, StateName, State, ?TIMEOUT};
-
-handle_info({audio, Data}, StateName, State) ->
-  gen_fsm:send_event(self(), {audio, Data}),
-  {next_state, StateName, State, ?TIMEOUT};
-
 handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State, ?TIMEOUT};

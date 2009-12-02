@@ -68,8 +68,10 @@ client(Player) ->
 
   
 init(MediaEntry, Options) ->
-  ?D({"Starting stream play for consumer", proplists:get_value(consumer, Options)}),
-  ?MODULE:ready(#stream_player{consumer = proplists:get_value(consumer, Options),
+  Consumer = proplists:get_value(consumer, Options),
+  ?D({"Starting stream play for consumer", Consumer}),
+  link(Consumer),
+  ?MODULE:ready(#stream_player{consumer = Consumer,
                       stream_id = proplists:get_value(stream_id, Options, 1),
                       media_info = MediaEntry}).
   
@@ -145,7 +147,8 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
 
 
 send_frame(#stream_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
-  TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
+  % TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
+  TimeStamp = 1,
   ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
   % ?D({"Frame", Player#stream_player.ts_prev, TimeStamp}),
   NextState = Player#stream_player{ts_prev = Frame#video_frame.timestamp_abs},

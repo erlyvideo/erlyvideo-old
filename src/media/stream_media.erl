@@ -183,7 +183,7 @@ handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_
   {stop, normal, MediaInfo};
 
 handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInfo) ->
-  Clients1 = lists:remove(Client, Clients),
+  Clients1 = lists:delete(Client, Clients),
   ?D({"Removing client", Client, "left", length(Clients1)}),
   case length(Clients1) of
     0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
