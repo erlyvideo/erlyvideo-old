@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Box verticalScrollPolicy="off" width="100%" backgroundColor="#505050" backgroundAlpha="0.6" xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:local="*" horizontalAlign="center" paddingTop="10" paddingBottom="10">
+  <mx:Script>
+  <![CDATA[
+	private var _video:Video;
+	private var stream : VideoStream;
+	private var recording : Boolean = false;
+	import VideoSourceEvent;
+	import mx.events.SliderEvent;
+	import mx.controls.Alert;
+
+	public function get video():Video
+	{
+	  if (!_video) {
+		  _video = new Video(320, 240);
+      _video.deblocking = 2;
+      _video.smoothing = true;
+	  }
+		if (!stream) {
+			stream = new VideoStream(VideoSource.source);
+			stream.addEventListener(VideoSourceEvent.TICK, setProgressBar);
+			stream.addEventListener(VideoSourceEvent.METADATA, setMetadata);
+		}
+	  return _video;
+	}
+	
+	public function onHideClicked(e:Event):void {
+	  visible = false;
+	}
+	
+	public function onPlay(e:Event):void {
+		playButton.enabled = false;
+		if (stream.play(url.text, video)) {
+			playButton.enabled = false;
+			pauseButton.enabled = true;
+			stopButton.enabled = true;
+			recordButton.enabled = false;
+		} else {
+			playButton.enabled = true;
+		}
+	}
+
+	public function onStop(e:Event):void {
+		stream.stop();
+		if (recording) {
+			recording = false;
+	    video.attachCamera(null);
+	    video.clear();
+		}
+		playButton.enabled = true;
+		pauseButton.enabled = false;
+		stopButton.enabled = true;
+		recordButton.enabled = false;
+		
+	}
+	
+	public function onPause(e:Event):void {
+		if (stream.paused) {
+			stream.resume();
+			pauseButton.label = "Pause";
+		} else {
+			if (stream.pause()) {
+				pauseButton.label = "Resume";
+			}
+		}
+	}
+	
+	public function setVolume(volume : Number) : void
+	{
+		stream.volume = volume;
+	}
+	
+	public function setMetadata(event : VideoSourceEvent) : void
+	{
+		var metadata : Object = event.payload;
+	  videoContainer.width = metadata.width;
+	  videoContainer.height = metadata.height;
+	  progressBar.maximum = metadata.duration;
+		if (metadata.duration > 0) {
+			progressBar.visible = true;
+		}
+	}
+
+	public function startSeek(event:SliderEvent) : void
+	{
+		stream.startSeek();
+	}
+
+	public function setProgressBar(event:VideoSourceEvent) : void
+	{
+		progressBar.value = int(event.payload);
+	}
+
+	public function seek(event:SliderEvent) : void
+	{
+	  var thumb:Object = progressBar.getThumbAt(0)
+		stream.seek(event.value);
+	  progressBar.value = event.value;
+	}
+	
+	public function onRecord(e:Event) : void
+	{
+		stream.record(url.text, video);
+		recording = true;
+	}
+
+	
+  ]]>
+  </mx:Script>
+  <local:VideoContainer video="{video}" id="videoContainer"  width="320" height="240" top="0"/>
+	<mx:HSlider id="progressBar" minimum="0" maximum="0" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="100%" visible="false"/>
+
+  
+  
+  <mx:HBox>
+		<mx:TextInput id="url" width="100" text="video.mp4" />
+    <mx:Button label="Stop" click="onStop(event)" id="stopButton" enabled="false"/>
+  
+    <mx:Button label="Play" click="onPlay(event)" id="playButton"/>
+    <mx:Button label="Pause" click="onPause(event)" id="pauseButton"/>
+    <mx:Button label="Record" click="onRecord(event)" id="recordButton"/>
+
+		<mx:HSlider id="volSlider" liveDragging="true" minimum="0.0" maximum="1.0" value="1.0" snapInterval="0.01" change="setVolume(volSlider.value)" width="100"/>
+  </mx:HBox>
+</mx:Box>

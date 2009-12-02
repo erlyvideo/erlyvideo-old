@@ -1,62 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical" 
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:local="*" layout="vertical" 
 	backgroundGradientColors="[#FFFCFC, #000000]" 
 	backgroundGradientAlphas="[1.0, 0.93]" horizontalAlign="center" viewSourceURL="srcview/index.html"
 	creationComplete="init()">
 	
 	<mx:Script source="Player.as" />
-  <!-- <mx:Script>
-    <![CDATA[
-    import mx.events.VideoEvent;
-      
-    private var mute : Boolean = false;
-      
-    private function muteHandler(event:MouseEvent):void{
-      if (!mute) {
-        player.volume = 0;
-        mute = true;
-        muteBtn.label = "Unmute";
-      }
-      else{
-        player.volume = volSlider.value;
-        mute = false;
-        muteBtn.label = "Mute";
-      }
-    }
-      
-    private function formatTime(value:int):String
-    {
-      var result:String = (value % 60).toString();
-          if (result.length == 1)
-              result = Math.floor(value / 60).toString() + ":0" + result;
-          else 
-              result = Math.floor(value / 60).toString() + ":" + result;
-          return result;
-    }
-    
-    private function videoDisplay_playheadUpdate(event:VideoEvent):void{
-      progressBar.setProgress(event.playheadTime, player.totalTime);
-    }
-    
-    ]]>
-  </mx:Script> -->
-	
-	<mx:UIComponent id="video_container" width="500" height="480" />
-	<mx:HSlider id="progressBar" minimum="0" maximum="0" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="{video_container.width}"/>
-	<mx:HBox width="500">
-	  <mx:TextInput id="player_url" width="100" text="video.mp4" />
-		<mx:Button label="Play" click="play()" id="playButton"/>
-		<mx:Button label="Pause" click="pause()" id="pauseButton"/>
-		<mx:Button label="Record" click="record()" id="recordButton"/>
-    <!-- <mx:Button id="muteBtn" label="Mute" click="muteHandler(event)" width="70"/> -->
-		<mx:HSlider id="volSlider" 
-			liveDragging="true" 
-			minimum="0.0"
-		    maximum="1.0"
-		    value="1.0"
-		    snapInterval="0.01"
-		    change="setVolume(volSlider.value)" width="100"/>
-	</mx:HBox>
+	<local:VideoPlayer id="player1" />
   <mx:Label id="_log" text="" color="#FFFFFF" width="273" height="15"/>
 	
 </mx:Application>
