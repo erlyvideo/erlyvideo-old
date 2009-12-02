@@ -14,7 +14,7 @@ package
 	import flash.media.Microphone;
 	import flash.media.SoundCodec;
 	
-	
+	import mx.controls.Alert;
 	public class VideoStream extends EventDispatcher
 	{
 		private var _source:VideoSource;
