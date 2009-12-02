@@ -19,6 +19,7 @@ package
 		private var _connectTimer : Timer = null;
 		public var delay : int = 2000;
 		public var connection:NetConnection;
+		public var connected : Boolean = false;
 		
 		public static function get source():VideoSource
 		{
@@ -50,6 +51,7 @@ package
 		{
 			switch(event.info.code){
 				case "NetConnection.Connect.Success":
+					connected = true;
 					dispatchEvent(new VideoSourceEvent(VideoSourceEvent.CONNECTED));
 				break;
 
@@ -57,6 +59,7 @@ package
 		    break;
 
 		  case "NetConnection.Connect.Failed":
+				connected = false;
 				dispatchEvent(new VideoSourceEvent(VideoSourceEvent.DISCONNECT));
 				_connectTimer.start();
 		    break;

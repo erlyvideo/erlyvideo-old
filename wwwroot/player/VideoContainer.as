@@ -24,14 +24,14 @@ package
 
 		public function set video(video:Video):void
 		{
-			if (_video != null)
+			if (_video)
 			{
 				rawChildren.removeChild(_video);
 			}
 
 			_video = video;
 
-			if (_video != null)
+			if (_video)
 			{
 				_video.width = width;
 				_video.height = height;

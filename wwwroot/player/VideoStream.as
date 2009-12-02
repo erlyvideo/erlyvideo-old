@@ -18,7 +18,7 @@ package
 	public class VideoStream extends EventDispatcher
 	{
 		private var _source:VideoSource;
-		private var _stream : NetStream;
+		public var _stream : NetStream;
 		private var sound : SoundTransform;
 		public var width : int;
 		public var height : int;
@@ -28,7 +28,8 @@ package
 		public var recording : Boolean = false;
 		public var paused : Boolean = false;
 		
-		
+		private static var number : int = 0;
+		public var id : int;
 		
 		public function VideoStream(s:VideoSource):void
 		{
@@ -37,6 +38,10 @@ package
 			_source.addEventListener(VideoSourceEvent.DISCONNECT, onDisconnect);
 		  statusTimer = new Timer(100); // 1 second
 		  statusTimer.addEventListener(TimerEvent.TIMER, progressTick);
+			id = ++number;
+			if (_source.connected) {
+				onConnect(null);
+			}
 		}
 		
 		public function onConnect(event : VideoSourceEvent) : void

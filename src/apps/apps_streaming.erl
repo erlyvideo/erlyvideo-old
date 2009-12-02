@@ -98,6 +98,7 @@
 %%-------------------------------------------------------------------------
 createStream(AMF, State) -> 
   {State1, StreamId} = next_stream(State),
+  ?D({"Create stream", StreamId}),
   apps_rtmp:reply(AMF#amf{args = [null, StreamId]}),
   gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
   State1.
@@ -117,8 +118,8 @@ next_stream(#rtmp_client{streams = Streams} = State, Stream) ->
 %%-------------------------------------------------------------------------
 deleteStream(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) ->
   case array:get(StreamId, Streams) of
-    undefined -> ok;
-    Player -> Player ! stop
+    Player when is_pid(Player) -> Player ! stop;
+    _ -> ok
   end,
   State#rtmp_client{streams = array:reset(StreamId, Streams)}.
 
