@@ -55,7 +55,7 @@ codec_config(video, MediaInfo) ->
 
 codec_config(audio, MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
-  ?D({"Audio config", Config}),
+  % ?D({"Audio config", Config}),
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,

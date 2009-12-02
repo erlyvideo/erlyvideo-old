@@ -395,7 +395,7 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
 	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	},
 	Consumer ! {audio_config, AudioConfig},
-	?D({"Send audio config", AudioConfig}),
+  % ?D({"Send audio config", AudioConfig}),
 	decode_aac(Stream#stream{send_audio_config = true});
   
 

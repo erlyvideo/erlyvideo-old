@@ -11,6 +11,7 @@ package
     public static const METADATA:String = "METADATA";
     public static const TICK:String = "TICK";
     public static const FILE_NOT_FOUND:String = "FILE_NOT_FOUND";
+    public static const FINISHED:String = "FINISHED";
     
 		public var payload : Object;
 

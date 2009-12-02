@@ -124,6 +124,7 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
       ?MODULE:ready(State);
 
     eof ->
+      ?D("MPEG TS finished"),
       gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
       ?MODULE:ready(State);
     

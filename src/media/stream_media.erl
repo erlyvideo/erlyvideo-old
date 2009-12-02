@@ -185,7 +185,6 @@ handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner} = MediaInfo) ->
   {noreply, MediaInfo#media_info{owner = undefined}};
 
 handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
-  ?D("MPEG TS finished"),
   lists:foreach(fun(Client) -> Client ! eof end, Clients),
   {stop, normal, MediaInfo};
 

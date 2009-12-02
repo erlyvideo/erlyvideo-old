@@ -39,6 +39,7 @@
 		stream.addEventListener(VideoSourceEvent.METADATA, setMetadata);
 		stream.addEventListener(VideoSourceEvent.STREAM_READY, onReady);
 		stream.addEventListener(VideoSourceEvent.FILE_NOT_FOUND, onStop);
+		stream.addEventListener(VideoSourceEvent.FINISHED, onFinish);
 
 		//playButton.label = "Play "+stream.id;
 	}
@@ -119,6 +120,11 @@
 		  stream.seek(event.value);
 	    //progressBar.value = event.value;
     }
+	}
+	
+	public function onFinish(e:Event) : void
+	{
+  	stream.play(player_url.text, video);
 	}
 	
 	public function onRecord(e:Event) : void

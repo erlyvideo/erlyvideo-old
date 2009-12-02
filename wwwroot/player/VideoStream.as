@@ -196,6 +196,7 @@ package
 		      break;
 
 		  	case "NetStream.Play.Complete":
+				  dispatchEvent(new VideoSourceEvent(VideoSourceEvent.FINISHED));
 		  	  break;
 
 			default:
