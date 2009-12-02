@@ -114,8 +114,10 @@
 
 	public function seek(event:SliderEvent) : void
 	{
-		stream.seek(event.value);
-	  //progressBar.value = event.value;
+    if (duration > 0) {
+		  stream.seek(event.value);
+	    //progressBar.value = event.value;
+    }
 	}
 	
 	public function onRecord(e:Event) : void

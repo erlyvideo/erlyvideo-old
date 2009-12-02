@@ -38,6 +38,7 @@ package
 			_source.addEventListener(VideoSourceEvent.DISCONNECT, onDisconnect);
 		  statusTimer = new Timer(100); // 1 second
 		  statusTimer.addEventListener(TimerEvent.TIMER, progressTick);
+		  sound = new SoundTransform();
 			id = ++number;
 			if (_source.connected) {
 				onConnect(null);
