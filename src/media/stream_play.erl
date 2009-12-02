@@ -148,10 +148,8 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
 
 send_frame(#stream_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
   % TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
-  TimeStamp = 1,
-  ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+  ems_play:send(Consumer, Frame#video_frame{streamid = StreamId}),
   % ?D({"Frame", Player#stream_player.ts_prev, TimeStamp}),
-  NextState = Player#stream_player{ts_prev = Frame#video_frame.timestamp_abs},
-  ?MODULE:ready(NextState).
+  ?MODULE:ready(Player).
 
 
