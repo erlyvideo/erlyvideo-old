@@ -58,6 +58,7 @@
       Player ! start,
       {next_state, 'WAIT_FOR_DATA', State#rtmp_client{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
     {notfound, _Reason} ->
+      ?D({"File not found", Name}),
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, StreamId}),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reason -> 
@@ -218,11 +219,10 @@ seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_client{streams = S
 %%-------------------------------------------------------------------------
 stop(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
   case array:get(StreamId, Streams) of
-    undefined -> 
-      ?D({"Requested to stop dead player"});
-    Player ->
+    Player when is_pid(Player) ->
       ?D({"Stopping video player", Player}),
-      Player ! stop
+      Player ! stop;
+    _ -> ok
   end,
   State.    
 

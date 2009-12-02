@@ -38,6 +38,7 @@
 		stream.addEventListener(VideoSourceEvent.TICK, setProgressBar);
 		stream.addEventListener(VideoSourceEvent.METADATA, setMetadata);
 		stream.addEventListener(VideoSourceEvent.STREAM_READY, onReady);
+		stream.addEventListener(VideoSourceEvent.FILE_NOT_FOUND, onStop);
 
 		//playButton.label = "Play "+stream.id;
 	}
@@ -53,8 +54,8 @@
 	
 	public function onPlay(e:Event):void {
 		playButton = false;
-		Alert.show("Play "+stream.id);
-		if (stream.play(url, video)) {
+		//Alert.show("Play "+stream.id);
+		if (stream.play(player_url.text, video)) {
 			playButton = false;
 			pauseButton = true;
 			stopButton = true;
@@ -119,24 +120,23 @@
 	
 	public function onRecord(e:Event) : void
 	{
-		if(stream.record(url, video)) {
+		if(stream.record(player_url.text, video)) {
 			playButton = false;
 			pauseButton = false;
 			stopButton = true;
 			recordButton = false;
 		}
 	}
-
 	
   ]]>
   </mx:Script>
   <local:VideoContainer video="{video}" width="{videoWidth}" height="{videoHeight}" top="0"/>
-	<mx:HSlider minimum="0" maximum="{duration}" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="100%" visible="{duration > 0}"/>
+	<mx:HSlider value="{currentTime}" minimum="0" maximum="{duration}" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="100%" visible="{duration > 0}"/>
 
   
   
   <mx:HBox>
-		<mx:TextInput width="100" text="{url}" />
+		<mx:TextInput width="100" id="player_url" text="video.mp4" />
     <mx:Button label="Stop" click="onStop(event)" enabled="{stopButton}"/>
   
     <mx:Button label="Play" click="onPlay(event)" enabled="{playButton}"/>

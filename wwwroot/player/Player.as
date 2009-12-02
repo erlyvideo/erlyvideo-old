@@ -16,9 +16,9 @@ public function init()  : void
   VideoSource.source.connect();
 	
 	if (Application.application.parameters.file) {
-  	player1.url = Application.application.parameters.file;
+  	player1.player_url.text = Application.application.parameters.file;
 	}
-	player2.url = "video.flv";
+	player2.player_url.text = "video.flv";
 	
 //	Alert.show("z:"+(player1.stream == player2.stream));
 }

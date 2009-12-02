@@ -10,6 +10,7 @@ package
     public static const STREAM_FAILED:String = "STREAM_FAILED";
     public static const METADATA:String = "METADATA";
     public static const TICK:String = "TICK";
+    public static const FILE_NOT_FOUND:String = "FILE_NOT_FOUND";
     
 		public var payload : Object;
 

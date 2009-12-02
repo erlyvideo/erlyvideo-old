@@ -187,7 +187,7 @@ package
 		{
 			switch(event.info.code){
 		  	case "NetStream.Play.StreamNotFound":
-					dispatchEvent(event);
+					dispatchEvent(new VideoSourceEvent(VideoSourceEvent.FILE_NOT_FOUND));
 		  		break;
 
 		  	case "NetStream.Seek.Notify":

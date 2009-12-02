@@ -188,7 +188,6 @@ check_path(Name) when is_binary(Name) ->
   check_path(binary_to_list(Name));
 
 check_path(Name) ->
-  ?D({"Check",filename:join([file_play:file_dir(), Name]), filelib:is_regular(filename:join([file_play:file_dir(), Name]))}),
   filelib:is_regular(filename:join([file_play:file_dir(), Name])).
 
 %%-------------------------------------------------------------------------
