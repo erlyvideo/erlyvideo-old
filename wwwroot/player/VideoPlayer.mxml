@@ -50,6 +50,7 @@
 
 	public function onReady(e:Event):void {
 		playButton = true;
+		recordButton = true;
 	}
 	
 	public function onPlay(e:Event):void {
