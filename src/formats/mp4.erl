@@ -50,8 +50,7 @@ codec_config(video, MediaInfo) ->
 		timestamp      = 0,
 		body          = Config,
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-	  nextpos       = undefined
+		codec_id      = ?FLV_VIDEO_CODEC_AVC
 	};
 
 codec_config(audio, MediaInfo) ->
@@ -65,8 +64,7 @@ codec_config(audio, MediaInfo) ->
 	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
 	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-	  sound_rate	  = ?FLV_AUDIO_RATE_44,
-	  nextpos       = undefined
+	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	}.
 
 
@@ -74,13 +72,9 @@ read_frame(#media_info{frames = FrameTable} = MediaInfo, Key) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
 	case read_data(MediaInfo, Offset, Size) of
-		{ok, Data, _} ->
-		  VideoFrame = video_frame(Frame, Data),
-      VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)};
-    eof ->
-      done;
-    {error, Reason} ->
-      {error, Reason}
+		{ok, Data, _} -> video_frame(Frame, Data);
+    eof -> done;
+    {error, Reason} -> {error, Reason}
   end.
   
 

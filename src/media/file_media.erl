@@ -74,11 +74,13 @@ handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = Medi
 handle_call({read, '$end_of_table'}, _From, MediaInfo) ->
   {reply, done, MediaInfo};
 
-handle_call({read, undefined}, _From, #media_info{frames = FrameTable, format = FileFormat} = MediaInfo) ->
-  {reply, FileFormat:read_frame(MediaInfo, ets:first(FrameTable)), MediaInfo};
+handle_call({read, undefined}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
+  handle_call({read, ets:first(FrameTable)}, _From, MediaInfo);
 
-handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
-  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
+handle_call({read, Key}, _From, #media_info{frames = FrameTable, format = FileFormat} = MediaInfo) ->
+  Frame = FileFormat:read_frame(MediaInfo, Key),
+  Next = ets:next(FrameTable, Key),
+  {reply, {Frame, Next}, MediaInfo};
 
 handle_call({name}, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};

@@ -176,7 +176,8 @@ play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) -
     
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
-  send_frame(Player, file_media:read_frame(MediaInfo, Key)).
+  {Frame, Next} = file_media:read_frame(MediaInfo, Key),
+  send_frame(Player#file_player{pos = Next}, Frame).
 
 send_frame(Player, undefined) ->
   self() ! play,
@@ -186,13 +187,10 @@ send_frame(#file_player{consumer = Consumer, stream_id = StreamId}, done) ->
   gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
   ok;
 
-send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{nextpos = NextPos} = Frame) ->
-  TimeStamp = Frame#video_frame.timestamp - Player#file_player.ts_prev,
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
   ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId}),
-  ?D({"Frame", Frame#video_frame.timestamp, Player#file_player.ts_prev, TimeStamp}),
   Player1 = timeout_play(Frame, Player),
-  NextState = Player1#file_player{ts_prev = Frame#video_frame.timestamp, pos = NextPos},
-  ?MODULE:ready(NextState).
+  ?MODULE:ready(Player1).
 
 
 

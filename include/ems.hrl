@@ -248,7 +248,6 @@
 	timestamp_ext  = undefined,
 	stream_id      = 0,
 	pos            = undefined,
-	nextpos        = undefined,
 	body           = <<>>,
 	codec_id 	     = undefined,
 	frame_type     = undefined,

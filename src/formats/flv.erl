@@ -117,13 +117,9 @@ read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
 	case file:pread(IoDev, Offset, Size) of
-		{ok, Data} ->
-		  VideoFrame = video_frame(Frame, Data),
-      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}};
-    eof ->
-      {ok, done};
-    {error, Reason} ->
-      {error, Reason}
+		{ok, Data} -> video_frame(Frame, Data);
+    eof -> done;
+    {error, Reason} -> {error, Reason}
   end.
   
 video_frame(Frame, Data) ->
