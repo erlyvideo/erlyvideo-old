@@ -58,14 +58,16 @@ play(Name) -> play(Name, []).
 %   stream_id: for RTMP, FLV stream id
 %  client_buffer: client buffer size
 play(Name, Options) ->
+  ?D({"Play", Name}),
   case find_or_open(Name) of
     {notfound, Reason} -> {notfound, Reason};
-    MediaEntry -> create_player(MediaEntry, Options)
+    MediaEntry -> ?D({"create_player", MediaEntry, Name}),
+    create_player(MediaEntry, Options)
   end.
   
 find_or_open(Name) ->
   case find(Name) of
-    undefined -> open(Name);
+    undefined -> ?D("not found"), open(Name);
     MediaEntry -> MediaEntry
   end.
 
@@ -104,6 +106,7 @@ handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
 handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
+  ?D({"Open", Name}),
   {reply, open_media_entry(detect_type(Name), MediaProvider), MediaProvider};
 
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
@@ -133,6 +136,7 @@ open_media_entry({Name, notfound}, _) ->
   {notfound, <<"No file ", Name/binary>>};
 
 open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  ?D({"Open", Name, Type}),
   case find_in_cache(Name, MediaProvider) of
     undefined ->
       case ems_sup:start_media(Name, Type) of

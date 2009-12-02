@@ -33,7 +33,7 @@ set_owner(Server, Owner) ->
 init([URL, mpeg_ts]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("HTTP MPEG TS ~p~n", [URL]),
-  Clients = ets:new(clients, [set, private]),
+  Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
   {ok, Device} = ems_sup:start_ts_lander(URL, self()),
   link(Device),
@@ -53,7 +53,7 @@ init([Name, live]) ->
 init([Name, record]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Recording stream ~p~n", [Name]),
-  Clients = ets:new(clients, [set, private]),
+  Clients = [],
 	FileName = filename:join([file_play:file_dir(), binary_to_list(Name)]),
 	(catch file:delete(FileName)),
 	ok = filelib:ensure_dir(FileName),
@@ -84,27 +84,15 @@ init([Name, record]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, 
-  #media_info{name = Name, clients = Clients, video_decoder_config = Video, audio_decoder_config = Audio} = MediaInfo) ->
+handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
-  ets:insert(Clients, {Pid}),
+  Clients1 = [Pid | Clients],
   link(Pid),
-  Pid ! {video, Video},
-  Pid ! {audio, Audio},
   ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
-  {reply, {ok, Pid}, MediaInfo};
-
-  % Pid = proplists:get_value(consumer, Options, Caller),
-  % ets:insert(Clients, {Pid}),
-  % link(Pid),
-  % ?D({"Creating media player for", Name, "client", Pid}),
-  % {reply, {ok, self()}, MediaInfo};
-  % 
+  {reply, {ok, Pid}, MediaInfo#media_info{clients = Clients1}};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
-  Entries = lists:map(
-    fun([Pid]) -> gen_fsm:sync_send_event(Pid, info) end,
-  ets:match(Clients, {'$1'})),
+  Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
   {reply, Entries, MediaInfo};
 
 handle_call({codec_config, video}, _From, #media_info{video_decoder_config = Config} = MediaInfo) ->
@@ -137,7 +125,7 @@ handle_call({publish, #channel{timestamp = TS} = Channel}, _From,
 	  _ -> file:write(Device, Tag)
 	end,
   Packet = Channel1#channel{id = ems_play:channel_id(Channel1#channel.type,1)},
-  ets:foldl(fun send_packet/2, Packet, Clients),
+  lists:foreach(fun(Pid) -> Pid ! Packet end, Clients),
 	{reply, ok, Recorder};
 
 handle_call(Request, _From, State) ->
@@ -170,53 +158,53 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({graceful}, #media_info{owner = undefined, name = Name, clients = Clients} = MediaInfo) ->
-  case ets:info(Clients, size) of
-    0 -> ?D({"No readers for stream", Name}),
-         {stop, normal, MediaInfo};
-    _ -> {noreply, MediaInfo}
-  end;
+handle_info({graceful}, #media_info{owner = undefined, name = Name, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
+  ?D({"No readers for stream", Name}),
+  {stop, normal, MediaInfo};
+
+handle_info({graceful}, #media_info{owner = undefined} = MediaInfo) ->
+  {noreply, MediaInfo};
 
 
 handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo};
   
-handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
+handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
   ?D({self(), "Owner exits", Owner}),
-  case ets:info(Clients, size) of
-    0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
-    _ -> ok
-  end,
-  {noreply, MediaInfo#media_info{owner = Owner}};
+  {stop, normal, MediaInfo};
+
+handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner} = MediaInfo) ->
+  timer:send_after(?FILE_CACHE_TIME, {graceful}),
+  {noreply, MediaInfo#media_info{owner = undefined}};
 
 handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
   ?D("MPEG TS finished"),
-  ets:foldl(fun({Client}, Packet) -> gen_fsm:send_event(Client, Packet), Packet end, {status, ?NS_PLAY_COMPLETE, 1}, Clients),
+  lists:foreach(fun(Client) -> Client ! eof end, Clients),
   {stop, normal, MediaInfo};
 
 handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInfo) ->
-  ets:delete(Clients, Client),
-  ?D({"Removing client", Client, "left", ets:info(Clients, size)}),
-  case ets:info(Clients, size) of
+  Clients1 = lists:remove(Client, Clients),
+  ?D({"Removing client", Client, "left", length(Clients1)}),
+  case length(Clients1) of
     0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
     _ -> ok
   end,
+  {noreply, MediaInfo#media_info{clients = Clients}};
+
+handle_info({video, _Video} = Data, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Data end, Clients),
   {noreply, MediaInfo};
 
-handle_info({video, Video}, #media_info{clients = Clients} = MediaInfo) ->
-  ets:foldl(fun({Client}, Packet) -> ems_play:send(Client, Packet), Packet end, Video, Clients),
-  {noreply, MediaInfo};
-
-handle_info({video_config, Video}, #media_info{clients = Clients} = MediaInfo) ->
-  ets:foldl(fun({Client}, Packet) -> ems_play:send(Client, Packet), Packet end, Video, Clients),
+handle_info({video_config, Video} = Data, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Data end, Clients),
   {noreply, MediaInfo#media_info{video_decoder_config = Video}};
 
-handle_info({audio, Audio}, #media_info{clients = Clients} = MediaInfo) ->
-  ets:foldl(fun({Client}, Packet) -> ems_play:send(Client, Packet), Packet end, Audio, Clients),
+handle_info({audio, _Audio} = Data, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Data end, Clients),
   {noreply, MediaInfo};
 
-handle_info({audio_config, Audio}, #media_info{clients = Clients} = MediaInfo) ->
-  ets:foldl(fun({Client}, Packet) -> ems_play:send(Client, Packet), Packet end, Audio, Clients),
+handle_info({audio_config, Audio} = Data, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Data end, Clients),
   {noreply, MediaInfo#media_info{audio_decoder_config = Audio}};
 
 handle_info(start, State) ->
@@ -261,13 +249,3 @@ terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-send_packet({Client}, #channel{msg = Data} = Channel) ->
-  % ?D({"Send to", Client}),
-  Client ! {data, {Channel, Data}},
-  Channel;
-
-send_packet({Client}, Packet) ->
-  % ?D({"Send to", Client}),
-  Client ! {data, Packet},
-  Packet.
-  

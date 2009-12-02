@@ -47,6 +47,7 @@
   media_info,
 	stream_id,
 	paused = false,
+	ts_prev = 0,
 	send_audio = true,
 	send_video = true
 }).
@@ -68,17 +69,18 @@ client(Player) ->
   
 init(MediaEntry, Options) ->
   ?D({"Starting stream play for consumer", proplists:get_value(consumer, Options)}),
-  ready(#stream_player{consumer = proplists:get_value(consumer, Options),
+  ?MODULE:ready(#stream_player{consumer = proplists:get_value(consumer, Options),
                       stream_id = proplists:get_value(stream_id, Options, 1),
                       media_info = MediaEntry}).
   
 	
-ready(#stream_player{consumer = Consumer} = State) ->
+ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
   receive
     {client_buffer, _ClientBuffer} ->
       ?MODULE:ready(State);
       
     start ->
+      erlang:yield(),
       ?MODULE:ready(State);
       
     {client, Pid, Ref} ->
@@ -109,6 +111,23 @@ ready(#stream_player{consumer = Consumer} = State) ->
       gen_fsm:send_event(Consumer, {send, Data}),
       ?MODULE:ready(State);      
 
+    {video, Frame} ->
+      send_frame(State, Frame);
+
+    {video_config, Frame} ->
+      % ?D({"Decoder config in MPEG TS"}),
+      send_frame(State, Frame);
+
+    {audio, Frame} ->
+      send_frame(State, Frame);
+
+    {audio_config, Frame} ->
+      send_frame(State, Frame);
+      
+    eof ->
+      gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
+      ?MODULE:ready(State);
+    
     stop -> 
       ok;
   
@@ -125,12 +144,11 @@ ready(#stream_player{consumer = Consumer} = State) ->
 
 
 
-% send_frame(#stream_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->
-%   TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
-%   ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-%   % ?D({"Frame", Player#stream_player.ts_prev, TimeStamp}),
-%   Player1 = timeout_play(Frame, Player),
-%   NextState = Player1#stream_player{ts_prev = Frame#video_frame.timestamp_abs, pos = NextPos},
-%   ?MODULE:ready(NextState).
+send_frame(#stream_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
+  TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
+  ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
+  % ?D({"Frame", Player#stream_player.ts_prev, TimeStamp}),
+  NextState = Player#stream_player{ts_prev = Frame#video_frame.timestamp_abs},
+  ?MODULE:ready(NextState).
 
 

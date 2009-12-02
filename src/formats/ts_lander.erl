@@ -88,6 +88,9 @@ start_link(URL, Consumer) ->
   gen_server:start_link(?MODULE, [URL, Consumer], []).
 
 
+init([URL, Consumer]) when is_binary(URL)->
+  init([binary_to_list(URL), Consumer]);
+  
 init([URL, Consumer]) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
@@ -334,10 +337,8 @@ pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
   Stream1 = stream_timestamp(Packet, Stream, Header),
   % ?D({"Audio", Stream1#stream.timestamp}),
-  case true of
-    true -> Stream1;
-    _ -> decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>})
-  end;
+  Stream1;
+  % decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
   
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
