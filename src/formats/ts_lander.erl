@@ -336,9 +336,9 @@ pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer 
 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
   Stream1 = stream_timestamp(Packet, Stream, Header),
-  % ?D({"Audio", Stream1#stream.timestamp}),
-  Stream1;
-  % decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
+  % ?D({"Audio", <<Buffer/binary, Data/binary>>}),
+  % Stream1;
+  decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
   
 pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
@@ -416,7 +416,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
   AudioFrame = #video_frame{       
     type          = ?FLV_TAG_TYPE_AUDIO,
     timestamp     = Timestamp,
-    body          = Data,
+    body          = <<Timestamp:24, Data/binary>>,
     sound_format  = ?FLV_AUDIO_FORMAT_AAC,
     sound_type    = ?FLV_AUDIO_TYPE_STEREO,
     sound_size    = ?FLV_AUDIO_SIZE_16BIT,
