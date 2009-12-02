@@ -387,13 +387,12 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
   AudioConfig = #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
-		timestamp_abs = 0,
+		timestamp      = 0,
 		body          = Config,
 	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
 	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-	  sound_rate	  = ?FLV_AUDIO_RATE_44,
-	  raw_body      = false
+	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	},
 	Consumer ! {audio_config, AudioConfig},
 	?D({"Send audio config", AudioConfig}),
@@ -416,14 +415,12 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
   % ?D({"Audio", Stream#stream.timestamp}),
   AudioFrame = #video_frame{       
     type          = ?FLV_TAG_TYPE_AUDIO,
-    timestamp_abs = Timestamp,
-    streamid      = 1,
+    timestamp     = Timestamp,
     body          = Data,
     sound_format  = ?FLV_AUDIO_FORMAT_AAC,
     sound_type    = ?FLV_AUDIO_TYPE_STEREO,
     sound_size    = ?FLV_AUDIO_SIZE_16BIT,
-    sound_rate    = ?FLV_AUDIO_RATE_44,
-    raw_body      = false
+    sound_rate    = ?FLV_AUDIO_RATE_44
   },
   Consumer ! {audio, AudioFrame},
   Stream#stream{es_buffer = <<>>}.
@@ -461,12 +458,10 @@ send_video_config(#stream{consumer = Consumer} = Stream) ->
       VideoFrame = #video_frame{       
        	type          = ?FLV_TAG_TYPE_VIDEO,
        	decoder_config = true,
-    		timestamp_abs = 0,
+    		timestamp     = 0,
     		body          = DecoderConfig,
     		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
-    		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-    	  raw_body      = false,
-    	  streamid      = 1
+    		codec_id      = ?FLV_VIDEO_CODEC_AVC
     	},
       % ?D({"Send decoder config to", Consumer}),
   	  Consumer ! {video_config, VideoFrame},
@@ -518,12 +513,10 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined
 decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
-		timestamp_abs = TimeStamp,
+		timestamp     = TimeStamp,
 		body          = nal_with_size(Data),
 		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-	  raw_body      = false,
-	  streamid      = 1
+		codec_id      = ?FLV_VIDEO_CODEC_AVC
   },
   % ?D({"Send slice to", TimeStamp, Consumer}),
   Consumer ! {video, VideoFrame},
@@ -549,12 +542,10 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, #stream{consumer = undefined
 decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{timestamp = TimeStamp, consumer = Consumer} = Stream) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
-		timestamp_abs = TimeStamp,
+		timestamp     = TimeStamp,
 		body          = nal_with_size(Data),
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-	  raw_body      = false,
-	  streamid      = 1
+		codec_id      = ?FLV_VIDEO_CODEC_AVC
   },
   % ?D({"Send keyframe to", Consumer}),
   Consumer ! {video, VideoFrame},

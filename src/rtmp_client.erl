@@ -282,7 +282,10 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_client{socket=Socket, streams = Streams}) ->
-  lists:foreach(fun(Player) when is_pid(Player) -> erlang:exit(Player);
+  lists:foreach(fun(Player) when is_pid(Player) -> Player ! exit;
+                   (_) -> ok end, array:sparse_to_list(Streams)),
+
+  lists:foreach(fun(Player) when is_pid(Player) -> (catch erlang:exit(Player));
                    (_) -> ok end, array:sparse_to_list(Streams)),
   rtmp_server:logout(),
   (catch gen_tcp:close(Socket)),

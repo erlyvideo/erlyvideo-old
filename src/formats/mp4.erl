@@ -47,11 +47,10 @@ codec_config(video, MediaInfo) ->
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_VIDEO,
    	decoder_config = true,
-		timestamp_abs = 0,
+		timestamp      = 0,
 		body          = Config,
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-	  raw_body      = false,
 	  nextpos       = undefined
 	};
 
@@ -61,13 +60,12 @@ codec_config(audio, MediaInfo) ->
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
-		timestamp_abs = 0,
+		timestamp     = 0,
 		body          = Config,
 	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
 	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44,
-	  raw_body      = false,
 	  nextpos       = undefined
 	}.
 
@@ -78,9 +76,9 @@ read_frame(#media_info{frames = FrameTable} = MediaInfo, Key) ->
 	case read_data(MediaInfo, Offset, Size) of
 		{ok, Data, _} ->
 		  VideoFrame = video_frame(Frame, Data),
-      {ok, VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)}};
+      VideoFrame#video_frame{nextpos = ets:next(FrameTable, Key)};
     eof ->
-      {ok, done};
+      done;
     {error, Reason} ->
       {error, Reason}
   end.
@@ -115,27 +113,24 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
   #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
-		timestamp_abs = Timestamp,
+		timestamp     = Timestamp,
 		body          = Data,
 		frame_type    = case Keyframe of
 		  true ->	?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
 		  _ -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME
 	  end,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC,
-	  raw_body      = false
+		codec_id      = ?FLV_VIDEO_CODEC_AVC
   };  
 
 video_frame(#file_frame{type = audio, timestamp = Timestamp}, Data) ->
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
-  	timestamp_abs = Timestamp,
-  	streamid      = 1,
+  	timestamp     = Timestamp,
   	body          = Data,
     sound_format	= ?FLV_AUDIO_FORMAT_AAC,
     sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
     sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-    sound_rate	  = ?FLV_AUDIO_RATE_44,
-    raw_body      = false
+    sound_rate	  = ?FLV_AUDIO_RATE_44
   }.
 
 

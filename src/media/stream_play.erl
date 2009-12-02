@@ -149,12 +149,12 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
   end.
 
 
-send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp_abs = Ts} = Frame) ->
+send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) ->
   send_frame(Player#stream_player{base_ts = Ts}, Frame);
 
-send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, #video_frame{timestamp_abs = Ts} = Frame) ->
+send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, #video_frame{timestamp = Ts} = Frame) ->
   % TimeStamp = Frame#video_frame.timestamp_abs - Player#stream_player.ts_prev,
-  ems_play:send(Consumer, Frame#video_frame{streamid = StreamId, timestamp_abs = Ts - BaseTs}),
+  ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Ts - BaseTs}),
   % ?D({"Frame", Ts, BaseTs, self()}),
   ?MODULE:ready(Player).
 

@@ -128,7 +128,7 @@ read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
   
 video_frame(Frame, Data) ->
   #file_frame{type = Type, timestamp = Timestamp} = Frame,
-  #video_frame{type = Type, raw_body = true, body = Data, timestamp_abs = Timestamp}.
+  #video_frame{type = Type, raw_body = true, body = Data, timestamp = Timestamp}.
 
 	
 % Extracts width and height from video frames.

@@ -60,6 +60,7 @@
 	ts_prev = 0,
 	pos = 0,
 	paused = false,
+	stopped = false,
 	send_audio = true,
 	send_video = true
 }).
@@ -82,7 +83,9 @@ client(Player) ->
 
   
 init(MediaEntry, Options) ->
-  ready(#file_player{consumer = proplists:get_value(consumer, Options),
+  Consumer = proplists:get_value(consumer, Options),
+  link(Consumer),
+  ready(#file_player{consumer = Consumer,
                       stream_id = proplists:get_value(stream_id, Options),
                       pos = undefined,
                       media_info = MediaEntry,
@@ -105,7 +108,7 @@ ready(#file_player{media_info = MediaInfo,
         MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, StreamId})
       end,
     	self() ! play,
-      ?MODULE:ready(State#file_player{prepush = ClientBuffer, paused = false});
+      ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
       
     {client, Pid, Ref} ->
       Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
@@ -139,7 +142,7 @@ ready(#file_player{media_info = MediaInfo,
     stop -> 
       ?D("Player stopping"),
       timer:cancel(Timer),
-      ?MODULE:ready(State#file_player{ts_prev = 0, pos = undefined, playing_from = 0});
+      ?MODULE:ready(State#file_player{ts_prev = 0, pos = undefined, stopped = true, playing_from = 0});
   
     exit ->
       ok;
@@ -156,6 +159,8 @@ ready(#file_player{media_info = MediaInfo,
   end.
 
 
+play(#file_player{stopped = true} = State) ->
+  ?MODULE:ready(State);
 
 play(#file_player{paused = true} = State) ->
   ?MODULE:ready(State);
@@ -163,30 +168,30 @@ play(#file_player{paused = true} = State) ->
 
 play(#file_player{sent_audio_config = false, media_info = MediaInfo} = Player) ->
   % ?D({"Sent audio config"}),
-  send_frame(Player#file_player{sent_audio_config = true}, {ok, file_media:codec_config(MediaInfo, audio)});
+  send_frame(Player#file_player{sent_audio_config = true}, file_media:codec_config(MediaInfo, audio));
 
 play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) ->
   % ?D({"Sent video config"}),
-  send_frame(Player#file_player{sent_video_config = true}, {ok, file_media:codec_config(MediaInfo, video)});
+  send_frame(Player#file_player{sent_video_config = true}, file_media:codec_config(MediaInfo, video));
     
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
   send_frame(Player, file_media:read_frame(MediaInfo, Key)).
 
-send_frame(Player, {ok, undefined}) ->
+send_frame(Player, undefined) ->
   self() ! play,
   ?MODULE:ready(Player);
   
-send_frame(#file_player{consumer = Consumer, stream_id = StreamId}, {ok, done}) ->
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId}, done) ->
   gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
   ok;
 
-send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {ok, #video_frame{nextpos = NextPos} = Frame}) ->
-  TimeStamp = Frame#video_frame.timestamp_abs - Player#file_player.ts_prev,
-  ems_play:send(Consumer, Frame#video_frame{timestamp=TimeStamp, streamid = StreamId}),
-  % ?D({"Frame", Player#file_player.ts_prev, TimeStamp}),
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{nextpos = NextPos} = Frame) ->
+  TimeStamp = Frame#video_frame.timestamp - Player#file_player.ts_prev,
+  ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId}),
+  ?D({"Frame", Frame#video_frame.timestamp, Player#file_player.ts_prev, TimeStamp}),
   Player1 = timeout_play(Frame, Player),
-  NextState = Player1#file_player{ts_prev = Frame#video_frame.timestamp_abs, pos = NextPos},
+  NextState = Player1#file_player{ts_prev = Frame#video_frame.timestamp, pos = NextPos},
   ?MODULE:ready(NextState).
 
 
@@ -221,7 +226,7 @@ file_format(Name) ->
 %% @end
 %%-------------------------------------------------------------------------	
 
-timeout_play(#video_frame{timestamp_abs = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
+timeout_play(#video_frame{timestamp = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
   SeekTime = AbsTime - PlayingFrom,
   Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
   % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),

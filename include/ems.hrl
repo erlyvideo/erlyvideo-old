@@ -242,12 +242,11 @@
 		
 -record(video_frame,{
   decoder_config = false,
-  raw_body       = true,
+  raw_body       = false,
 	type           = undefined,
 	timestamp      = undefined,
 	timestamp_ext  = undefined,
-	timestamp_abs  = undefined,
-	streamid       = 0,
+	stream_id      = 0,
 	pos            = undefined,
 	nextpos        = undefined,
 	body           = <<>>,
