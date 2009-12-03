@@ -300,20 +300,19 @@ terminate(_Reason, _StateName, #rtmp_client{socket=Socket, streams = Streams}) -
 %% @private
 %%-------------------------------------------------------------------------
 code_change(OldVersion, StateName, State, Extra) ->
-  plugins_code_change(OldVersion, StateName, State, Extra, ems:get_var(applications, [])),
-  {ok, StateName, State}.
+  plugins_code_change(OldVersion, StateName, State, Extra, ems:get_var(applications, [])).
 
-plugins_code_change(_OldVersion, _StateName, _State, _Extra, []) -> ok;
+plugins_code_change(_OldVersion, StateName, State, _Extra, []) -> {ok, StateName, State};
 
 plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) -> 
   case ems:respond_to(Module, code_change, 4) of
     true ->
       error_logger:info_msg("Code change in module ~p~n", [Module]),
-      ok = Module:code_change(OldVersion, StateName, State, Extra);
+      {ok, NewStateName, NewState} = Module:code_change(OldVersion, StateName, State, Extra);
     _ ->
-      ok
+      {NewStateName, NewState} = {StateName, State}
   end,
-  plugins_code_change(OldVersion, StateName, State, Extra, Modules).
+  plugins_code_change(OldVersion, NewStateName, NewState, Extra, Modules).
 
 
 
