@@ -40,7 +40,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, 
           start_file_play/2, start_stream_play/2,
-          start_ts_lander/1]).
+          start_mpegts_media/1]).
 
 
 %%--------------------------------------------------------------------
@@ -73,7 +73,7 @@ start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
 %% @end 
 %%--------------------------------------------------------------------
 start_media(Name, file = Type) -> supervisor:start_child(file_media_sup, [Name, Type]);
-start_media(Name, mpeg_ts = Type) -> supervisor:start_child(ts_lander_sup, [Name]);
+start_media(Name, mpeg_ts = Type) -> supervisor:start_child(mpegts_media_sup, [Name]);
 start_media(Name, record = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]);
 start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]).
 
@@ -87,7 +87,7 @@ start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup
 %% To be called by the media provider.
 %% @end 
 %%--------------------------------------------------------------------
-start_ts_lander(URL) -> supervisor:start_child(ts_lander_sup, [URL]).
+start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
 
 
 
@@ -157,17 +157,17 @@ init([stream_media]) ->
             ]
         }
     };
-init([ts_lander]) ->
+init([mpegts_media]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % MediaEntry
               {   undefined,                               % Id       = internal id
-                  {ts_lander,start_link,[]},               % StartFun = {M, F, A}
+                  {mpegts_media,start_link,[]},               % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
-                  [ts_lander]                              % Modules  = [Module] | dynamic
+                  [mpegts_media]                              % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -266,8 +266,8 @@ init([]) ->
         []                                       % Modules  = [Module] | dynamic
     },
     % MPEG TS Lander
-    {   ts_lander_sup,
-        {supervisor,start_link,[{local, ts_lander_sup}, ?MODULE, [ts_lander]]},
+    {   mpegts_media_sup,
+        {supervisor,start_link,[{local, mpegts_media_sup}, ?MODULE, [mpegts_media]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

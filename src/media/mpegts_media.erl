@@ -1,4 +1,4 @@
--module(ts_lander).
+-module(mpegts_media).
 -export([start_link/1]).
 -behaviour(gen_server).
 
