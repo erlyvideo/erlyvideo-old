@@ -125,7 +125,7 @@ handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Cli
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
   end,
-  case TSLander#ts_lander.video_config of
+  case TSLander#ts_lander.audio_config of
     undefined -> ok;
     AudioConfig -> Pid ! AudioConfig
   end,
