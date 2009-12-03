@@ -132,7 +132,7 @@ handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Cli
   {reply, {ok, Pid}, TSLander#ts_lander{clients = [Pid | Clients]}};
 
 handle_call(clients, _From, #ts_lander{clients = Clients} = TSLander) ->
-  Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
+  Entries = lists:map(fun(Pid) -> file_play:client(Pid) end, Clients),
   {reply, Entries, TSLander};
 
 handle_call(Request, _From, State) ->
@@ -186,10 +186,11 @@ handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Fr
 handle_info(#video_frame{} = Frame, TSLander) ->
   {noreply, send_frame(Frame, TSLander)};
 
+
 handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
   Clients1 = lists:delete(Client, Clients),
   ?D({"Removing client", Client, "left", length(Clients1)}),
-  {noreply, TSLander#ts_lander{clients = Clients}};
+  {noreply, TSLander#ts_lander{clients = Clients1}};
 
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->

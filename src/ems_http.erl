@@ -49,8 +49,6 @@ handle('GET', ["admin"], Req) ->
 
 handle('GET', ["chat.html"], Req) ->
   erlydtl:compile("wwwroot/chat.html", chat_template),
-  % {ok, Contents} = file:read_file("player/player.html"),
-
   {ok, Index} = chat_template:render([
     {hostname, ems:get_var(host, "rtmp://localhost")},
     {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}])}

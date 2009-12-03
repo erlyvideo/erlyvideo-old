@@ -77,8 +77,8 @@ client(Player) ->
   Player ! {client, self(), Ref},
   receive 
     {Info, Ref} -> Info
-  after 100 ->
-    {undefined, undefined}
+  after 1000 ->
+    {undefined, undefined, Player}
   end.
 
   

@@ -196,7 +196,7 @@ init([]) ->
   end.
 
 'WAIT_FOR_DATA'(info, _From, #rtmp_client{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
-  {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port}, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
 'WAIT_FOR_DATA'(Data, _From, State) ->
