@@ -12,9 +12,11 @@
 -record(ts_lander, {
   socket,
   url,
+  audio_config = undefined,
+  video_config = undefined,
   buffer = <<>>,
   pids,
-  consumer,
+  clients = [],
   byte_counter = 0
 }).
 
@@ -118,6 +120,25 @@ init([URL, Consumer]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Clients} = TSLander) ->
+  {ok, Pid} = ems_sup:start_stream_play(self(), Options),
+  link(Pid),
+  ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options)}),
+  case MediaInfo#media_info.video_config of
+    undefined -> ok;
+    VideoConfig -> Pid ! VideoConfig
+  end,
+  case MediaInfo#media_info.audio_config of
+    undefined -> ok;
+    AudioConfig -> Pid ! AudioConfig
+  end,
+  {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}};
+
+handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
+  Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
+  {reply, Entries, MediaInfo};
+
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
   {stop, {unknown_call, Request}, State}.
@@ -160,6 +181,7 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   inet:setopts(Socket, [{active, true}, {packet, raw}]),
   {noreply, TSLander};
 
+handle_info()
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
   {noreply, synchronizer(Bin, TSLander#ts_lander{byte_counter = Counter + size(Bin)})};
@@ -266,7 +288,7 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, 
-    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids, consumer = Consumer} = TSLander, _, _) ->
+    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids} = TSLander, _, _) ->
   _SectionCount = round(SectionLength - 13),
   % io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
   Descriptors = extract_pmt(PMT, []),
@@ -274,8 +296,8 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, consumer = Consumer}]),
-        ?D({"Starting", Handler}),
+        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, consumer = self()}]),
+        ?D({"Starting PID", Pid, Handler}),
         #stream_out{pid = Pid, handler = Handler};
       Other ->
         Other
@@ -394,7 +416,7 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	},
-	Consumer ! {audio_config, AudioConfig},
+	Consumer ! AudioConfig,
   % ?D({"Send audio config", AudioConfig}),
 	decode_aac(Stream#stream{send_audio_config = true});
   
@@ -422,7 +444,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
     sound_size    = ?FLV_AUDIO_SIZE_16BIT,
     sound_rate    = ?FLV_AUDIO_RATE_44
   },
-  Consumer ! {audio, AudioFrame},
+  Consumer ! AudioFrame,
   Stream#stream{es_buffer = <<>>}.
   
 
@@ -464,7 +486,7 @@ send_video_config(#stream{consumer = Consumer} = Stream) ->
     		codec_id      = ?FLV_VIDEO_CODEC_AVC
     	},
       % ?D({"Send decoder config to", Consumer}),
-  	  Consumer ! {video_config, VideoFrame},
+  	  Consumer ! VideoFrame,
       Stream#stream{video_config = DecoderConfig}
   end.
   
@@ -519,7 +541,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{timestamp = Time
 		codec_id      = ?FLV_VIDEO_CODEC_AVC
   },
   % ?D({"Send slice to", TimeStamp, Consumer}),
-  Consumer ! {video, VideoFrame},
+  Consumer ! VideoFrame,
   Stream;
 
 
@@ -548,7 +570,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{timestamp = Time
 		codec_id      = ?FLV_VIDEO_CODEC_AVC
   },
   % ?D({"Send keyframe to", Consumer}),
-  Consumer ! {video, VideoFrame},
+  Consumer ! VideoFrame,
   Stream;
 
 decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, Stream) ->
