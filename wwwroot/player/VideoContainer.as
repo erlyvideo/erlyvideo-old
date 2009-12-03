@@ -8,37 +8,27 @@ package
 	public class VideoContainer extends Canvas
 	{
 		private var _video:Video;
+		private static var number : int = 0;
+		public var my_id : int;
 
 		public function VideoContainer()
 		{
 			super();
+			my_id = ++number;
+			_video = new Video(width, height);
+	    _video.deblocking = 2;
+	    _video.smoothing = true;
+			_video.width = width;
+			_video.height = height;
+			rawChildren.addChild(_video);
 			addEventListener(Event.RESIZE, resizeHandler);
-			//setStyle("paddingLeft", "10");
-			//setStyle("paddingTop", "10");
 		}
 		
-		public function get video():Video
+		public function get video() : Video
 		{
 			return _video;
 		}
-
-		public function set video(video:Video):void
-		{
-			if (_video)
-			{
-				rawChildren.removeChild(_video);
-			}
-
-			_video = video;
-
-			if (_video)
-			{
-				_video.width = width;
-				_video.height = height;
-				rawChildren.addChild(_video);
-			}
-		}
-
+		
 		private function resizeHandler(event:Event):void
 		{
 			if (_video != null)

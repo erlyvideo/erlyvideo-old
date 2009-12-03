@@ -96,7 +96,7 @@ package
 			if (!_stream) {
 				return false;
 			}
-			//Alert.show("Play "+id+","+_stream+" "+video );
+/*			Alert.show("Play "+id+","+_stream+" "+video );*/
 			video.attachNetStream(_stream);
 			statusTimer.start();
 			_stream.play(url);

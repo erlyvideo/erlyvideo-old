@@ -2,12 +2,11 @@
 <mx:Box verticalScrollPolicy="off" width="100%" backgroundColor="#505050" backgroundAlpha="0.6" xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:local="*" horizontalAlign="center" paddingTop="10" paddingBottom="10" creationComplete="loadVideoPlayer()">
   <mx:Script>
   <![CDATA[
-	[Bindable]
-	private var video:Video;
 	public var stream : VideoStream;
 	import VideoSourceEvent;
 	import mx.events.SliderEvent;
 	import mx.controls.Alert;
+	import mx.core.Application;
 	
 	[Bindable]
 	private var playButton:Boolean = false;
@@ -30,9 +29,6 @@
 	
 	public function loadVideoPlayer():void
 	{
-	  video = new Video(320, 240);
-    video.deblocking = 2;
-    video.smoothing = true;
 
 		stream = new VideoStream(VideoSource.source);
 		stream.addEventListener(VideoSourceEvent.TICK, setProgressBar);
@@ -40,8 +36,6 @@
 		stream.addEventListener(VideoSourceEvent.STREAM_READY, onReady);
 		stream.addEventListener(VideoSourceEvent.FILE_NOT_FOUND, onStop);
 		stream.addEventListener(VideoSourceEvent.FINISHED, onFinish);
-
-		//playButton.label = "Play "+stream.id;
 	}
 
 	
@@ -56,8 +50,10 @@
 	
 	public function onPlay(e:Event):void {
 		playButton = false;
-		//Alert.show("Play "+stream.id);
-		if (stream.play(player_url.text, video)) {
+		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+
+		                (stream._stream == Application.application.parameters.player2.stream._stream) + " "+
+		                videoContainer.my_id);
+		if (stream.play(player_url.text, videoContainer.video)) {
 			playButton = false;
 			pauseButton = true;
 			stopButton = true;
@@ -69,10 +65,11 @@
 
 	public function onStop(e:Event):void {
 		if (stream.recording) {
-	    video.attachCamera(null);
-	    video.clear();
+	    videoContainer.video.attachCamera(null);
+	    videoContainer.video.clear();
 		}
 		stream.stop();
+		duration = 0;
 		playButton = true;
 		pauseButton = false;
 		stopButton = true;
@@ -124,12 +121,12 @@
 	
 	public function onFinish(e:Event) : void
 	{
-  	stream.play(player_url.text, video);
+  	stream.play(player_url.text, videoContainer.video);
 	}
 	
 	public function onRecord(e:Event) : void
 	{
-		if(stream.record(player_url.text, video)) {
+		if(stream.record(player_url.text, videoContainer.video)) {
 			playButton = false;
 			pauseButton = false;
 			stopButton = true;
@@ -139,7 +136,7 @@
 	
   ]]>
   </mx:Script>
-  <local:VideoContainer video="{video}" width="{videoWidth}" height="{videoHeight}" top="0"/>
+  <local:VideoContainer id="videoContainer" width="{videoWidth}" height="{videoHeight}" top="0" backgroundColor="#CFCFCF"/>
 	<mx:HSlider value="{currentTime}" minimum="0" maximum="{duration}" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="100%" visible="{duration > 0}"/>
 
   

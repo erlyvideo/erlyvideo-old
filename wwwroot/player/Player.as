@@ -18,10 +18,15 @@ public function init()  : void
 	if (Application.application.parameters.file) {
   	player1.player_url.text = Application.application.parameters.file;
 	}
-	player2.player_url.text = "video.flv";
+	player2.player_url.text = "dragonball.mp4";
 	
-//	Alert.show("z:"+(player1.stream == player2.stream));
+	Application.application.parameters.player1 = player1;
+	Application.application.parameters.player2 = player2;
 }
 
-
+public function check() : void
+{
+/*	Alert.show("z:"+(Application.application.parameters.player1.stream._stream == Application.application.parameters.player2.stream._stream));*/
+	Application.application.parameters.player2.videoContainer.video.visible = false;
+}
 
