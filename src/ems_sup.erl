@@ -40,7 +40,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, 
           start_file_play/2, start_stream_play/2,
-          start_ts_lander/1, start_ts_lander/2]).
+          start_ts_lander/1]).
 
 
 %%--------------------------------------------------------------------
@@ -88,7 +88,6 @@ start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup
 %% @end 
 %%--------------------------------------------------------------------
 start_ts_lander(URL) -> supervisor:start_child(ts_lander_sup, [URL]).
-start_ts_lander(URL, Consumer) -> supervisor:start_child(ts_lander_sup, [URL, Consumer]).
 
 
 

@@ -1,5 +1,5 @@
 -module(ts_lander).
--export([start_link/1, start_link/2]).
+-export([start_link/1]).
 -behaviour(gen_server).
 
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
@@ -83,17 +83,14 @@
 
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
 
-start_link(URL) -> start_link(URL, undefined).
+start_link(URL) ->
+  gen_server:start_link(?MODULE, [URL], []).
+
+
+init([URL]) when is_binary(URL)->
+  init([binary_to_list(URL)]);
   
-
-start_link(URL, Consumer) ->
-  gen_server:start_link(?MODULE, [URL, Consumer], []).
-
-
-init([URL, Consumer]) when is_binary(URL)->
-  init([binary_to_list(URL), Consumer]);
-  
-init([URL, Consumer]) ->
+init([URL]) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
@@ -101,7 +98,7 @@ init([URL, Consumer]) ->
   
   timer:send_after(3000, {byte_count}),
   
-  {ok, #ts_lander{socket = Socket, url = URL, consumer = Consumer, pids = [#stream{pid = 0, handler = pat}]}}.
+  {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
   
   % io:format("HTTP Request ~p~n", [RequestId]),
   % {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -125,19 +122,19 @@ handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Cli
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
   ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options)}),
-  case MediaInfo#media_info.video_config of
+  case TSLander#ts_lander.video_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
   end,
-  case MediaInfo#media_info.audio_config of
+  case TSLander#ts_lander.video_config of
     undefined -> ok;
     AudioConfig -> Pid ! AudioConfig
   end,
-  {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}};
+  {reply, {ok, Pid}, TSLander#ts_lander{clients = [Pid | Clients]}};
 
-handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
+handle_call(clients, _From, #ts_lander{clients = Clients} = TSLander) ->
   Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
-  {reply, Entries, MediaInfo};
+  {reply, Entries, TSLander};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
@@ -181,7 +178,20 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   inet:setopts(Socket, [{active, true}, {packet, raw}]),
   {noreply, TSLander};
 
-handle_info()
+handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO} = Frame, TSLander) ->
+  {noreply, send_frame(Frame, TSLander#ts_lander{audio_config = Frame})};
+
+handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Frame, TSLander) ->
+  {noreply, send_frame(Frame, TSLander#ts_lander{video_config = Frame})};
+
+handle_info(#video_frame{} = Frame, TSLander) ->
+  {noreply, send_frame(Frame, TSLander)};
+
+handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
+  Clients1 = lists:delete(Client, Clients),
+  ?D({"Removing client", Client, "left", length(Clients1)}),
+  {noreply, TSLander#ts_lander{clients = Clients}};
+
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
   {noreply, synchronizer(Bin, TSLander#ts_lander{byte_counter = Counter + size(Bin)})};
@@ -205,6 +215,10 @@ handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
   {noreply, State}.
 
+
+send_frame(Frame, #ts_lander{clients = Clients} = TSLander) ->
+  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  TSLander.
 
 synchronizer(<<16#47, _:187/binary, 16#47, _/binary>> = Bin, TSLander) ->
   {Packet, Rest} = split_binary(Bin, 188),
