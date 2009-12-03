@@ -106,7 +106,6 @@ handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
 handle_call({open, Name}, {_Opener, _Ref}, MediaProvider) ->
-  ?D({"Open", Name}),
   {reply, open_media_entry(detect_type(Name), MediaProvider), MediaProvider};
 
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
@@ -136,14 +135,12 @@ open_media_entry({Name, notfound}, _) ->
   {notfound, <<"No file ", Name/binary>>};
 
 open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  ?D({"Open", Name, Type}),
   case find_in_cache(Name, MediaProvider) of
     undefined ->
       case ems_sup:start_media(Name, Type) of
         {ok, Pid} ->
           link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
-          ?D({"Opened", Type, Name, Pid}),
           Pid;
         _ ->
           ?D({"Error opening", Type, Name}),

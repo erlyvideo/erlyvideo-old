@@ -30,17 +30,6 @@ set_owner(Server, Owner) ->
   gen_server:call(Server, {set_owner, Owner}).
   
 
-init([URL, mpeg_ts]) ->
-  process_flag(trap_exit, true),
-  error_logger:info_msg("HTTP MPEG TS ~p~n", [URL]),
-  Clients = [],
-  % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-  {ok, Device} = ems_sup:start_ts_lander(URL, self()),
-  link(Device),
-	Recorder = #media_info{type=mpeg_ts, name = URL, clients = Clients, device = Device},
-	{ok, Recorder, ?TIMEOUT};
-  
-
 init([Name, live]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Live streaming stream ~p~n", [Name]),

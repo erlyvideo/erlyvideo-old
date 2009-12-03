@@ -97,7 +97,6 @@ init([URL]) ->
   ok = inet:setopts(Socket, [{active, once}]),
   
   timer:send_after(3000, {byte_count}),
-  
   {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
   
   % io:format("HTTP Request ~p~n", [RequestId]),
@@ -207,7 +206,7 @@ handle_info({byte_count}, #ts_lander{byte_counter = Counter} = TSLander) ->
   % timer:send_after(3000, {byte_count}),
   {noreply, TSLander};
 
-handle_info({stop}, #ts_lander{socket = Socket} = TSLander) ->
+handle_info(stop, #ts_lander{socket = Socket} = TSLander) ->
   gen_tcp:close(Socket),
   {stop, normal, TSLander#ts_lander{socket = undefined}};
 
