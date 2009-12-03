@@ -142,40 +142,58 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
   	  ?MODULE:ready(State)
   end.
 
-% , frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME
-
-send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts, decoder_config = false, type = ?FLV_TAG_TYPE_VIDEO} = Frame) when is_number(Ts)->
-  send_frame(Player#stream_player{base_ts = Ts}, Frame);
-
-% send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO}) ->
-%   ?MODULE:ready(Player);
-
-send_frame(#stream_player{consumer = Consumer} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Frame) ->
-  ?D({"Frame", Consumer, Frame#video_frame.timestamp, video}),
-  ems_play:send(Consumer, Frame),
-  ?MODULE:ready(Player#stream_player{sent_video_decoder = true});
-
-% send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO}) ->
-%   ?MODULE:ready(Player);
-
-send_frame(#stream_player{consumer = Consumer} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO} = Frame) ->
-  ?D({"Frame", Consumer, Frame#video_frame.timestamp, audio}),
-  ems_play:send(Consumer, Frame),
-  ?MODULE:ready(Player#stream_player{sent_audio_decoder = true});
-
-send_frame(#stream_player{sent_video_decoder = false} = Player, #video_frame{decoder_config = false, type = ?FLV_TAG_TYPE_VIDEO} = Frame) ->
+send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO}) ->
   ?MODULE:ready(Player);
 
-send_frame(#stream_player{sent_audio_decoder = false} = Player, #video_frame{decoder_config = false, type = ?FLV_TAG_TYPE_AUDIO} = Frame) ->
+send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO}) ->
   ?MODULE:ready(Player);
+
+% % , frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME
+% 
+% send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) -> % , decoder_config = false, type = ?FLV_TAG_TYPE_VIDEO
+%   send_frame(Player#stream_player{base_ts = Ts}, Frame);
+% 
+% 
+% send_frame(#stream_player{consumer = Consumer} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Frame) ->
+%   ?D({"VideoConfig", Consumer, Frame#video_frame.timestamp, size(Frame#video_frame.body), video}),
+%   ems_play:send(Consumer, Frame),
+%   ?MODULE:ready(Player#stream_player{sent_video_decoder = true});
+% 
+% 
+% send_frame(#stream_player{consumer = Consumer} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO} = Frame) ->
+%   ?D({"AudioConfig", Consumer, Frame#video_frame.timestamp, size(Frame#video_frame.body), audio}),
+%   ems_play:send(Consumer, Frame),
+%   ?MODULE:ready(Player#stream_player{sent_audio_decoder = true});
+% 
+% send_frame(#stream_player{sent_video_decoder = false} = Player, #video_frame{decoder_config = false}) ->
+%   ?MODULE:ready(Player);
+%   
+% send_frame(#stream_player{base_ts = undefined} = Player, Frame) ->
+%   ?D({"Unsynced frame", Frame#video_frame.timestamp, Frame#video_frame.type}),
+%   ?MODULE:ready(Player);
+% 
+% send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, #video_frame{timestamp = Ts, type = Type} = Frame) ->
+%   ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Ts - BaseTs}),
+%   % ?D({"Frame", Consumer, Ts - BaseTs, Type, size(Frame#video_frame.body)}),
+%   ?MODULE:ready(Player).
+
+
+
   
-send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts, type = Type} = Frame) ->
-  ?D({"Unsynced frame", Ts, Type}),
-  ?MODULE:ready(Player);
-
-send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, #video_frame{timestamp = Ts, type = Type} = Frame) ->
-  ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Ts - BaseTs}),
-  ?D({"Frame", Consumer, Ts, Ts - BaseTs, Type}),
-  ?MODULE:ready(Player).
+  
+  
+  send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) when is_number(Ts)->
+    send_frame(Player#stream_player{base_ts = Ts}, Frame);
+  
+  send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, 
+             #video_frame{timestamp = Ts, decoder_config = Decoder, type = Type} = Frame) ->
+    ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Ts - BaseTs}),
+    % ?D({"Frame", Ts - BaseTs, Type, Decoder}),
+    Player1 = case {Decoder, Type} of
+      {true, ?FLV_TAG_TYPE_AUDIO} -> Player#stream_player{sent_audio_decoder = true};
+      {true, ?FLV_TAG_TYPE_VIDEO} -> Player#stream_player{sent_video_decoder = true};
+      _ -> Player
+    end,
+    ?MODULE:ready(Player1).
 
 

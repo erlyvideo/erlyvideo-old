@@ -162,6 +162,7 @@ init([]) ->
 
 'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_client{server_chunk_size = ChunkSize} = State) ->
 	Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
+  % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
