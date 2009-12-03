@@ -190,7 +190,7 @@ handle_info(#video_frame{} = Frame, TSLander) ->
 handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
   Clients1 = lists:delete(Client, Clients),
   ?D({"Removing client", Client, "left", length(Clients1)}),
-  {noreply, TSLander#ts_lander{clients = Clients1}};
+  {noreply, TSLander#ts_lander{clients = lists:delete(Client, Clients)}};
 
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
