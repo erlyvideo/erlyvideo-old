@@ -19,7 +19,7 @@
           {% for name, clients in entries %}
           <li><a href="?file={{name}}&autostart=true">{{name}}</a>
             <ul>
-              {% for addr, port in clients %}
+              {% for addr, port, pid in clients %}
               <li>{{addr}}:{{port}}</li>
               {% endfor %}
             </ul>

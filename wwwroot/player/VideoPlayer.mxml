@@ -152,6 +152,6 @@
     <mx:Button label="Pause" click="onPause(event)" enabled="{pauseButton}"/>
     <mx:Button label="Record" click="onRecord(event)" enabled="{recordButton}"/>
 
-		<mx:HSlider id="volSlider" liveDragging="true" value="{currentTime}" minimum="0.0" maximum="1.0" snapInterval="0.01" change="setVolume(volSlider.value)" width="100"/>
+		<mx:HSlider id="volSlider" liveDragging="true" value="0.9" minimum="0.0" maximum="1.0" snapInterval="0.01" change="setVolume(volSlider.value)" width="100"/>
   </mx:HBox>
 </mx:Box>
