@@ -50,9 +50,9 @@
 	
 	public function onPlay(e:Event):void {
 		playButton = false;
-		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+
-		                (stream._stream == Application.application.parameters.player2.stream._stream) + " "+
-		                videoContainer.my_id);
+//		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+
+//		                (stream._stream == Application.application.parameters.player2.stream._stream) + " "+
+//		                videoContainer.my_id);
 		if (stream.play(player_url.text, videoContainer.video)) {
 			playButton = false;
 			pauseButton = true;
