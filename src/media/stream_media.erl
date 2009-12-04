@@ -209,7 +209,8 @@ handle_info(stop, #media_info{name = Name} = MediaInfo) ->
   media_provider:remove(Name),
   {noreply, MediaInfo};
 
-handle_info(exit, State) ->
+handle_info(exit, #media_info{name = Name} = State) ->
+  media_provider:remove(Name),
   {noreply, State};
 
 handle_info(pause, State) ->
