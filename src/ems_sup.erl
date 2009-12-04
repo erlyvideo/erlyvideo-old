@@ -275,7 +275,7 @@ init([]) ->
     }
   ],
   
-  Supervisors1 = case ems:get_var(rtmp_port) of
+  Supervisors1 = case ems:get_var(rtmp_port, undefined) of
     undefined -> Supervisors;
     RTMPPort -> [% EMS Listener
       {   ems_sup,                                 % Id       = internal id
@@ -287,7 +287,7 @@ init([]) ->
       }|Supervisors]
   end,
 
-  Supervisors2 = case ems:get_var(rtsp_port) of
+  Supervisors2 = case ems:get_var(rtsp_port, undefined) of
     undefined -> Supervisors1;
     RTSPPort -> [% EMS Listener
       {   rtsp_sup,                                 % Id       = internal id
