@@ -91,12 +91,12 @@ init([URL]) when is_binary(URL)->
   init([binary_to_list(URL)]);
   
 init([URL]) ->
+  process_flag(trap_exit, true),
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  timer:send_after(3000, {byte_count}),
   {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
   
   % io:format("HTTP Request ~p~n", [RequestId]),
@@ -120,7 +120,7 @@ init([URL]) ->
 handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Clients} = TSLander) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
-  ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options)}),
+  ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
   case TSLander#ts_lander.video_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
@@ -188,9 +188,12 @@ handle_info(#video_frame{} = Frame, TSLander) ->
 
 
 handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
-  Clients1 = lists:delete(Client, Clients),
-  ?D({"Removing client", Client, "left", length(Clients1)}),
-  {noreply, TSLander#ts_lander{clients = lists:delete(Client, Clients)}};
+  case lists:member(Client, Clients) of
+    true ->
+      {noreply, TSLander#ts_lander{clients = lists:delete(Client, Clients)}};
+    _ ->
+      {stop, {exit, Client, _Reason}, TSLander}
+  end;
 
 
 handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
@@ -202,11 +205,6 @@ handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = Buf, byte_counter = Counter
 handle_info({tcp_closed, Socket}, #ts_lander{socket = Socket} = TSLander) ->
   {stop, normal, TSLander#ts_lander{socket = undefined}};
   
-handle_info({byte_count}, #ts_lander{byte_counter = Counter} = TSLander) ->
-  ?D({"Bytes read", Counter}),
-  % timer:send_after(3000, {byte_count}),
-  {noreply, TSLander};
-
 handle_info(stop, #ts_lander{socket = Socket} = TSLander) ->
   gen_tcp:close(Socket),
   {stop, normal, TSLander#ts_lander{socket = undefined}};
