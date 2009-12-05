@@ -34,7 +34,18 @@
 
 
 start_link() ->
-    gen_fsm:start_link(?MODULE, [], []).
+  % All possible headers:
+  'ANNOUNCE', 'PLAY', 'SETUP', 'OPTIONS', 'DESCRIBE', 'PAUSE', 'RECORD',
+  'TEARDOWN', 'GET_PARAMETER', 'SET_PARAMETER',
+  'Accept', 'Accept-Encoding', 'Accept-Language', 'Allow', 'Authorization', 'Bandwidth',
+  'Blocksize', 'Cache-Control', 'Conference', 'Connection', 'Content-Base', 'Content-Encoding',
+  'Content-Language', 'Content-Length', 'Content-Location', 'Content-Type', 'Cseq',
+  'Date', 'Expires', 'From', 'Host', 'If-Match', 'If-Modiﬁed-Since', 'Last-Modiﬁed', 
+  'Location', 'Proxy-Authenticate', 'Proxy-Require', 'Public', 'Range', 
+  'Referer', 'Retry-After', 'Require', 'RTP-Info', 'Scale', 'Speed', 'Server',
+  'Session', 'Timestamp', 'Transport', 'Unsupported', 'User-Agent', 'Vary', 'Via',
+  'WWW-Authenticate',
+  gen_fsm:start_link(?MODULE, [], []).
 
 set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
     gen_fsm:send_event(Pid, {socket_ready, Socket}).
@@ -75,8 +86,9 @@ init([]) ->
   ?D({"Request", Request}),
   {match, [_, Method, URL, "RTSP", "1.0"]} = re:run(Request, RequestRe, [{capture, all, list}]),
   % {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
+  MethodName = binary_to_existing_atom(list_to_binary(Method), utf8),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{request = [Method, URL], headers = []}, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{request = [MethodName, URL], headers = []}, ?TIMEOUT}.
 
 'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_client{socket = Socket} = State) ->
   Length = list_to_integer(binary_to_list(LengthBin)),
@@ -84,7 +96,7 @@ init([]) ->
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{content_length = Length}, ?TIMEOUT};
 
-'WAIT_FOR_HEADERS'({header, <<"Cseq">>, SessionId}, #rtsp_client{socket = Socket} = State) ->
+'WAIT_FOR_HEADERS'({header, 'Cseq', SessionId}, #rtsp_client{socket = Socket} = State) ->
   ?D({"SessionId", SessionId}),
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{session_id = SessionId}, ?TIMEOUT};
@@ -132,11 +144,22 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
 
 
-handle_request(#rtsp_client{request = [Method, URL], body = Body, socket = Socket, session_id = SessionId} = State) ->
-  ?D({"Request", Method, URL}),
-  RequestBody = lists:reverse(Body),
+handle_request(#rtsp_client{request = [Method, URL], body = Body} = State) ->
+  ?D({"Handling", Method, URL}),
+  State1 = run_request(State#rtsp_client{body = lists:reverse(Body)}),
+  State1#rtsp_client{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
+  
+
+run_request(#rtsp_client{request = ['SETUP', URL], body = Body, socket = Socket, session_id = SessionId} = State) ->
+  ?D({"SessionId", SessionId}),
+  Transport = proplists:get_value('Transport', Body),
+  gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\nSession: 42\r\n\r\n">>),
+  State;
+
+run_request(#rtsp_client{request = [Method, URL], socket = Socket, session_id = SessionId} = State) ->
+  ?D({"SessionId", SessionId}),
   gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\n\r\n">>),
-  State#rtsp_client{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
+  State.
   
 
 decode_line(Message, #rtsp_client{rtsp_re = RtspRe, body = Body} = State) ->
@@ -179,18 +202,23 @@ handle_sync_event(Event, _From, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 handle_info({tcp, _Socket, Bin}, 'WAIT_FOR_HEADERS' = StateName, State) ->
   case erlang:decode_packet(httph_bin, <<Bin/binary, "pad">>, []) of
-    {ok, {http_header, _, Name, _, Value}, <<"pad">>} -> ?MODULE:StateName({header, Name, Value}, State);
+    {ok, {http_header, _, Name, _, Value}, <<"pad">>} -> 
+      Key = case Name of
+        _ when is_binary(Name) -> binary_to_existing_atom(Name, utf8);
+        _ when is_atom(Name) -> Name
+      end,
+      ?MODULE:StateName({header, Key, Value}, State);
     {ok, http_eoh, <<"pad">>} -> ?MODULE:StateName(end_of_headers, State)
   end;
 
 handle_info({tcp, _Socket, Bin}, StateName, State) ->
   ?MODULE:StateName({data, Bin}, State);
 
-handle_info({http, _Socket, {http_header, _, Name, _, Value}}, StateName, State) ->
-  ?MODULE:StateName({header, Name, Value}, State);
-
-handle_info({http, _Socket, http_eoh}, StateName, State) ->
-  ?MODULE:StateName(end_of_headers, State);
+% handle_info({http, _Socket, {http_header, _, Name, _, Value}}, StateName, State) ->
+%   ?MODULE:StateName({header, Name, Value}, State);
+% 
+% handle_info({http, _Socket, http_eoh}, StateName, State) ->
+%   ?MODULE:StateName(end_of_headers, State);
 
 
 handle_info({tcp_closed, Socket}, _StateName, #rtsp_client{socket=Socket, addr=Addr, port = Port} = StateData) ->
