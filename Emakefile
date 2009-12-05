@@ -4,6 +4,8 @@
 {"src/media/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/auth/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/formats/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
+{"src/protocols/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
+{"src/protocols/*/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/plugins/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"deps/misultin/src/*", [{outdir, "ebin"}, {i, "deps/misultin/include"}]}.
 {"deps/erlang-amf/src/*", [{outdir, "ebin"}, {i, "deps/erlang-amf/src"}]}.
