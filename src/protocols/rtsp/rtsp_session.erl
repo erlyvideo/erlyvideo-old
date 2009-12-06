@@ -10,13 +10,14 @@
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
+-export([binarize_header/1, handle_request/1]).
+
 %% FSM States
 -export([
   'WAIT_FOR_SOCKET'/2,
 	'WAIT_FOR_REQUEST'/2,
 	'WAIT_FOR_HEADERS'/2,
-  'WAIT_FOR_DATA'/2,
-  handle_request/1]).
+  'WAIT_FOR_DATA'/2]).
 
 -record(rtsp_session, {
   socket,
@@ -148,26 +149,27 @@ split_params(String) ->
   end end, string:tokens(binary_to_list(String), ";")).
 
 
-handle_request(#rtsp_session{request = [Method, URL], body = Body} = State) ->
-  ?D({"Handling", Method, URL}),
+handle_request(#rtsp_session{request = [_Method, _URL], body = Body} = State) ->
   State1 = run_request(State#rtsp_session{body = lists:reverse(Body)}),
   State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
 
-run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = Socket, sequence = Sequence} = State) ->
+run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
+  reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]),
+  State;
+
+run_request(#rtsp_session{request = ['SETUP', _URL], headers = Headers} = State) ->
   Transport = proplists:get_value('Transport', Headers),
   TransportOpts = split_params(Transport),
   ?D({"Transport", TransportOpts}),
   % ClientPorts = proplists:get_value("client_port", TransportOpts),
   {ok, {RTCP, RTP}} = rtp_server:port(),
-  Reply = io_lib:format("RTSP/1.0 200 OK\r\nCseq: ~p\r\nSession: 42\r\nTransport: ~s;server_port=~p-~p\r\n\r\n",
-    [Sequence, Transport, RTCP, RTP]),
-  gen_tcp:send(Socket, Reply),
+  ReplyHeaders = [{"Session", "42"}, {"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTCP, RTP])}],
+  reply(State, "200 OK", ReplyHeaders),
   State;
 
-run_request(#rtsp_session{request = [Method, URL], socket = Socket, sequence = Sequence} = State) ->
-  ?D({"Sequence", Sequence}),
-  gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", Sequence/binary, "\r\n\r\n">>),
+run_request(#rtsp_session{request = [_Method, _URL]} = State) ->
+  reply(State, "200 OK", []),
   State.
   
 
@@ -176,6 +178,27 @@ decode_line(Message, #rtsp_session{rtsp_re = RtspRe, body = Body} = State) ->
   io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
   State#rtsp_session{body = [{Key, Value} | Body]}.
 
+
+reply(#rtsp_session{socket = Socket, sequence = Sequence}, Code, Headers) ->
+  ReplyList = lists:map(fun binarize_header/1, [["RTSP/1.0", Code] | [{'Cseq', Sequence} | Headers]]),
+  Reply = iolist_to_binary([ReplyList, <<"\r\n">>]),
+  io:format("[RTSP] ~s", [Reply]),
+  gen_tcp:send(Socket, Reply).
+  
+binarize_header({Key, Value}) when is_atom(Key) ->
+  binarize_header({atom_to_binary(Key, latin1), Value});
+
+binarize_header({Key, Value}) when is_list(Key) ->
+  binarize_header({list_to_binary(Key), Value});
+
+binarize_header({Key, Value}) when is_integer(Value) ->
+  binarize_header({Key, integer_to_list(Value)});
+  
+binarize_header({Key, Value}) ->
+  [Key, <<": ">>, Value, <<"\r\n">>];
+
+binarize_header([Key, Value]) ->
+  [Key, <<" ">>, Value, <<"\r\n">>].
 
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3
