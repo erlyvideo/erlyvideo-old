@@ -25,13 +25,15 @@
   port,
   request_re,
   rtsp_re,
+  url_re,
   content_length,
   bytes_read = 0,
   request,
   headers,
   body,
   session_id,
-  sequence
+  sequence,
+  session
 }).
 
 
@@ -65,7 +67,8 @@ init([]) ->
   random:seed(now()),
   {ok, RequestRe} = re:compile("([^ ]+) ([^ ]+) (\\w+)/([\\d]+\\.[\\d]+)"),
   {ok, RtspRe} = re:compile("(\\w)=(.*)\\r\\n$"),
-  {ok, 'WAIT_FOR_SOCKET', #rtsp_session{request_re = RequestRe, rtsp_re = RtspRe}}.
+  {ok, UrlRe} = re:compile("rtsp://([^/]+)/(.*)$"),
+  {ok, 'WAIT_FOR_SOCKET', #rtsp_session{request_re = RequestRe, rtsp_re = RtspRe, url_re = UrlRe}}.
 
 
 
@@ -153,6 +156,11 @@ handle_request(#rtsp_session{request = [_Method, _URL], body = Body} = State) ->
   State1 = run_request(State#rtsp_session{body = lists:reverse(Body)}),
   State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
+
+run_request(#rtsp_session{request = ['ANNOUNCE', URL], url_re = UrlRe, body = Body} = State) ->
+  {match, [_, Host, Path]} = re:run(Message, RtspRe, [{capture, all, list}]),
+  Session = media_provider:create(Path, live),
+  reply(State#rtsp_session{session = Session}, "200 OK", []);
 
 run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
   reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]),

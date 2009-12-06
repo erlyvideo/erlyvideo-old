@@ -8,17 +8,13 @@
 	rtp_listener,
 	rtcp_port,
 	rtp_port,
-	streams = []
+	streams
 	}).
 	
--record(rtp_stream, {
-  stream_id
-}).
-
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, decoder/1]).
+-export([start_link/0, register/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -43,6 +39,10 @@ start_link()  ->
 port() ->
   gen_server:call(?MODULE, port).
 
+
+register(Address, Port, Handler) ->
+  gen_server:call(?MODULE, {register, Address, Port, Handler}).
+
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
 %%                            {ok, State, Timeout}  |
@@ -54,16 +54,19 @@ port() ->
 %% @end
 %%----------------------------------------------------------------------
 init([]) ->
-    Opts = [binary, {active, once}],
+  process_flag(trap_exit, true),
+  Opts = [binary, {active, once}],
 
-    RTCP = 6256,
-    RTP = RTCP + 1,
-    
-    {ok, RTCPListen} = gen_udp:open(RTCP, Opts),
-    {ok, RTPListen} = gen_udp:open(RTP, Opts),
-    
-    {ok, #rtp_server{rtcp_listener = RTCPListen, rtp_listener = RTPListen, 
-                       rtcp_port = RTCP, rtp_port = RTP}}.
+  RTCP = 6256,
+  RTP = RTCP + 1,
+  
+  {ok, RTCPListen} = gen_udp:open(RTCP, Opts),
+  {ok, RTPListen} = gen_udp:open(RTP, Opts),
+  
+  Streams = ets:new(streams, [set, {keypos, 1}]),
+  {ok, #rtp_server{rtcp_listener = RTCPListen, rtp_listener = RTPListen, 
+                     rtcp_port = RTCP, rtp_port = RTP,
+                     streams = Streams}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -80,9 +83,14 @@ init([]) ->
 
 handle_call(port, _From, #rtp_server{rtcp_port = RTCP, rtp_port = RTP} = State) ->
   {reply, {ok, {RTCP, RTP}}, State};
+  
+handle_call({register, Address, Port, Handler}, #rtp_server{streams = Streams} = State) ->
+  ets:insert(Streams, {{Address, Port}, Handler}),
+  link(Handler),
+  {reply, ok, State)};
 
 handle_call(Request, _From, State) ->
-    {stop, {unknown_call, Request}, State}.
+  {stop, {unknown_call, Request}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -114,6 +122,12 @@ handle_info({udp,Socket,Host,Port,Bin}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, State1};
     
+handle_info({'EXIT', Pid, _Reason}, #rtp_server{streams = Streams} = State) ->
+  ets:match_delete(Streams, {'_', Pid}),
+  ?D({"Died linked process", Pid, _Reason}),
+  {noreply, State};
+    
+  
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -123,18 +137,28 @@ decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:1
   {Stream, State1} = case proplists:get_value(StreamId, Streams, undefined) of
     Pid when is_pid(Pid) -> {Pid, State};
     undefined -> 
-      Pid = spawn_link(?MODULE, decoder, [#rtp_stream{stream_id = StreamId}]),
+      Pid = spawn_link(?MODULE, decoder, [#rtp_stream{stream_id = StreamId, payload_type = PayloadType, timestamp = Timestamp}]),
       {Pid, State#rtp_server{streams = [{StreamId, Pid} | Streams]}}
   end,
   Stream ! {data, Marker, PayloadType, Sequence, Timestamp, Rest},
   State1.
   
   
-decoder(#rtp_stream{stream_id = StreamId} = Stream) ->
+decoder(#rtp_stream{stream_id = StreamId, buffer = Buffer} = Stream) ->
   receive
-    {data, Marker, PayloadType, Sequence, Timestamp, Rest} ->
-      ?D({Marker, PayloadType, Sequence, Timestamp, StreamId}),
-      ?MODULE:decoder(Stream);
+    {data, Marker, PayloadType, Sequence, Timestamp, Bin} ->
+      NextStream = case {Marker, Buffer} of
+        {1, undefined} -> 
+          Stream#rtp_stream{buffer = Bin, timestamp = Timestamp};
+        {1, _} -> 
+          Stream1 = handle_rtp_packet(Stream),
+          Stream1#rtp_stream{buffer = Bin, timestamp = Timestamp};
+        {0, undefined} ->
+          Stream;
+        {0, _} ->
+          Stream#rtp_stream{buffer = <<Buffer/binary, Bin/binary>>}
+      end,
+      ?MODULE:decoder(NextStream);
     exit ->
       ?D({"RTP stream exit", StreamId}),
       ok
@@ -143,6 +167,12 @@ decoder(#rtp_stream{stream_id = StreamId} = Stream) ->
       ?D({"RTP stream timeout", StreamId}),
       ok
   end.
+  
+
+handle_rtp_packet(#rtp_stream{payload_type = PayloadType, timestamp = Timestamp, buffer = Buffer} = Stream) ->
+  ?D({PayloadType, Timestamp, size(Buffer)}),
+  Stream.
+  
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
