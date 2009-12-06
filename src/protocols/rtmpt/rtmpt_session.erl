@@ -2,11 +2,11 @@
 
 %% @doc RTMP client, that connects to rtmp backend.
 
--module(rtmpt_client).
+-module(rtmpt_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(gen_fsm).
--include("../include/ems.hrl").
+-include("../../../include/ems.hrl").
 
 -record(rtmp_fsm, {
 	upstream = undefined,   % backend process
