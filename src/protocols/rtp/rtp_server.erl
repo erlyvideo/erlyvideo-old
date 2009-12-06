@@ -103,7 +103,7 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 
 handle_info({udp,Socket,Host,Port,Bin}, State) ->
-  ?D({"UDP message", Host, Port, Bin}),
+  ?D({"UDP message", Host, Port, size(Bin)}),
   inet:setopts(Socket, [{active, once}]),
   {noreply, State};
     

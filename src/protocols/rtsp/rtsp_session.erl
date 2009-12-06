@@ -2,7 +2,7 @@
 -author('max@maxidoors.ru').
 
 -behaviour(gen_fsm).
--include("../include/ems.hrl").
+-include("../../../include/ems.hrl").
 
 -export([start_link/0, set_socket/2]).
 
