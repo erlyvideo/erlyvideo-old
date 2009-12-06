@@ -29,7 +29,8 @@
   request,
   headers,
   body,
-  session_id
+  session_id,
+  sequence
 }).
 
 
@@ -83,29 +84,27 @@ init([]) ->
   {stop, normal, State};
 
 'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, request_re = RequestRe} = State) ->
-  ?D({"Request", Request}),
   {match, [_, Method, URL, "RTSP", "1.0"]} = re:run(Request, RequestRe, [{capture, all, list}]),
   % {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   MethodName = binary_to_existing_atom(list_to_binary(Method), latin1),
+  io:format("[RTSP] ~s ~s RTSP/1.0~n", [Method, URL]),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{request = [MethodName, URL], headers = []}, ?TIMEOUT}.
 
 'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_session{socket = Socket} = State) ->
   Length = list_to_integer(binary_to_list(LengthBin)),
-  ?D({"Content length", Length}),
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{content_length = Length}, ?TIMEOUT};
 
-'WAIT_FOR_HEADERS'({header, 'Cseq', SessionId}, #rtsp_session{socket = Socket} = State) ->
-  ?D({"SessionId", SessionId}),
+'WAIT_FOR_HEADERS'({header, 'Cseq', Sequence}, #rtsp_session{socket = Socket} = State) ->
   inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{session_id = SessionId}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{sequence = Sequence}, ?TIMEOUT};
 
 'WAIT_FOR_HEADERS'(timeout, State) ->
   {stop, normal, State};
 
 'WAIT_FOR_HEADERS'({header, Name, Value}, #rtsp_session{socket = Socket, headers = Headers} = State) ->
-  ?D({"Header", Name, Value}),
+  io:format("[RTSP] ~s: ~s~n", [Name, Value]),
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{headers = [{Name, Value} | Headers]}, ?TIMEOUT};
 
@@ -116,7 +115,6 @@ init([]) ->
   
 
 'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_session{socket = Socket} = State) ->
-  ?D({"Headers finished", State#rtsp_session.content_length}),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
   {next_state, 'WAIT_FOR_DATA', State#rtsp_session{body = []}, ?TIMEOUT}.
 
@@ -129,7 +127,6 @@ init([]) ->
   State1 = decode_line(Message, State),
   State2 = handle_request(State1),
   inet:setopts(Socket, [{active, once}]),
-  ?D({"Request handled", State2#rtsp_session.content_length}),
   {next_state, 'WAIT_FOR_REQUEST', State2, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({data, Message}, #rtsp_session{bytes_read = BytesRead, socket = Socket} = State) ->
@@ -157,26 +154,26 @@ handle_request(#rtsp_session{request = [Method, URL], body = Body} = State) ->
   State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
 
-run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = Socket, session_id = SessionId} = State) ->
+run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = Socket, sequence = Sequence} = State) ->
   Transport = proplists:get_value('Transport', Headers),
   TransportOpts = split_params(Transport),
-  ?D({"SessionId", TransportOpts}),
+  ?D({"Transport", TransportOpts}),
   % ClientPorts = proplists:get_value("client_port", TransportOpts),
   {ok, {RTCP, RTP}} = rtp_server:port(),
   Reply = io_lib:format("RTSP/1.0 200 OK\r\nCseq: ~p\r\nSession: 42\r\nTransport: ~s;server_port=~p-~p\r\n\r\n",
-    [SessionId, Transport, RTCP, RTP]),
+    [Sequence, Transport, RTCP, RTP]),
   gen_tcp:send(Socket, Reply),
   State;
 
-run_request(#rtsp_session{request = [Method, URL], socket = Socket, session_id = SessionId} = State) ->
-  ?D({"SessionId", SessionId}),
-  gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\n\r\n">>),
+run_request(#rtsp_session{request = [Method, URL], socket = Socket, sequence = Sequence} = State) ->
+  ?D({"Sequence", Sequence}),
+  gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", Sequence/binary, "\r\n\r\n">>),
   State.
   
 
 decode_line(Message, #rtsp_session{rtsp_re = RtspRe, body = Body} = State) ->
   {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, list}]),
-  ?D({"RTSP", Key, Value}),
+  io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
   State#rtsp_session{body = [{Key, Value} | Body]}.
 
 
