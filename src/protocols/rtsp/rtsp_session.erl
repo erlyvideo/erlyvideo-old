@@ -1,4 +1,4 @@
--module(rtsp_client).
+-module(rtsp_session).
 -author('max@maxidoors.ru').
 
 -behaviour(gen_fsm).
@@ -18,7 +18,7 @@
   'WAIT_FOR_DATA'/2,
   handle_request/1]).
 
--record(rtsp_client, {
+-record(rtsp_session, {
   socket,
   addr,
   port,
@@ -63,7 +63,7 @@ init([]) ->
   random:seed(now()),
   {ok, RequestRe} = re:compile("([^ ]+) ([^ ]+) (\\w+)/([\\d]+\\.[\\d]+)"),
   {ok, RtspRe} = re:compile("(\\w)=(.*)\\r\\n$"),
-  {ok, 'WAIT_FOR_SOCKET', #rtsp_client{request_re = RequestRe, rtsp_re = RtspRe}}.
+  {ok, 'WAIT_FOR_SOCKET', #rtsp_session{request_re = RequestRe, rtsp_re = RtspRe}}.
 
 
 
@@ -77,66 +77,66 @@ init([]) ->
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) ->
   inet:setopts(Socket, [{active, once}, {packet, line}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
-  {next_state, 'WAIT_FOR_REQUEST', State#rtsp_client{socket=Socket, addr=IP, port = Port}, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_REQUEST', State#rtsp_session{socket=Socket, addr=IP, port = Port}, ?TIMEOUT}.
 
 'WAIT_FOR_REQUEST'(timeout, State) ->
   {stop, normal, State};
 
-'WAIT_FOR_REQUEST'({data, Request}, #rtsp_client{socket = Socket, request_re = RequestRe} = State) ->
+'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, request_re = RequestRe} = State) ->
   ?D({"Request", Request}),
   {match, [_, Method, URL, "RTSP", "1.0"]} = re:run(Request, RequestRe, [{capture, all, list}]),
   % {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   MethodName = binary_to_existing_atom(list_to_binary(Method), utf8),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{request = [MethodName, URL], headers = []}, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{request = [MethodName, URL], headers = []}, ?TIMEOUT}.
 
-'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_client{socket = Socket} = State) ->
+'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_session{socket = Socket} = State) ->
   Length = list_to_integer(binary_to_list(LengthBin)),
   ?D({"Content length", Length}),
   inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{content_length = Length}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{content_length = Length}, ?TIMEOUT};
 
-'WAIT_FOR_HEADERS'({header, 'Cseq', SessionId}, #rtsp_client{socket = Socket} = State) ->
+'WAIT_FOR_HEADERS'({header, 'Cseq', SessionId}, #rtsp_session{socket = Socket} = State) ->
   ?D({"SessionId", SessionId}),
   inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{session_id = SessionId}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{session_id = SessionId}, ?TIMEOUT};
 
 'WAIT_FOR_HEADERS'(timeout, State) ->
   {stop, normal, State};
 
-'WAIT_FOR_HEADERS'({header, Name, Value}, #rtsp_client{socket = Socket, headers = Headers} = State) ->
+'WAIT_FOR_HEADERS'({header, Name, Value}, #rtsp_session{socket = Socket, headers = Headers} = State) ->
   ?D({"Header", Name, Value}),
   inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_client{headers = [{Name, Value} | Headers]}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{headers = [{Name, Value} | Headers]}, ?TIMEOUT};
 
-'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_client{socket = Socket, content_length = undefined} = State) ->
+'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_session{socket = Socket, content_length = undefined} = State) ->
   State1 = handle_request(State),
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_REQUEST', State1, ?TIMEOUT};
   
 
-'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_client{socket = Socket} = State) ->
-  ?D({"Headers finished", State#rtsp_client.content_length}),
+'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_session{socket = Socket} = State) ->
+  ?D({"Headers finished", State#rtsp_session.content_length}),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_DATA', State#rtsp_client{body = []}, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_DATA', State#rtsp_session{body = []}, ?TIMEOUT}.
 
 
 'WAIT_FOR_DATA'(timeout, State) ->
   ?D({"Client timeout"}),
   {stop, normal, State};
 
-'WAIT_FOR_DATA'({data, Message}, #rtsp_client{bytes_read = BytesRead, content_length = ContentLength, socket = Socket} = State) when BytesRead + size(Message) == ContentLength ->
+'WAIT_FOR_DATA'({data, Message}, #rtsp_session{bytes_read = BytesRead, content_length = ContentLength, socket = Socket} = State) when BytesRead + size(Message) == ContentLength ->
   State1 = decode_line(Message, State),
   State2 = handle_request(State1),
   inet:setopts(Socket, [{active, once}]),
-  ?D({"Request handled", State2#rtsp_client.content_length}),
+  ?D({"Request handled", State2#rtsp_session.content_length}),
   {next_state, 'WAIT_FOR_REQUEST', State2, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({data, Message}, #rtsp_client{bytes_read = BytesRead, socket = Socket} = State) ->
+'WAIT_FOR_DATA'({data, Message}, #rtsp_session{bytes_read = BytesRead, socket = Socket} = State) ->
   NewBytesRead = BytesRead + size(Message),
   State1 = decode_line(Message, State),
   inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_DATA', State1#rtsp_client{bytes_read = NewBytesRead}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State1#rtsp_session{bytes_read = NewBytesRead}, ?TIMEOUT};
 
 
 'WAIT_FOR_DATA'(Message, State) ->
@@ -144,28 +144,28 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
 
 
-handle_request(#rtsp_client{request = [Method, URL], body = Body} = State) ->
+handle_request(#rtsp_session{request = [Method, URL], body = Body} = State) ->
   ?D({"Handling", Method, URL}),
-  State1 = run_request(State#rtsp_client{body = lists:reverse(Body)}),
-  State1#rtsp_client{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
+  State1 = run_request(State#rtsp_session{body = lists:reverse(Body)}),
+  State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
 
-run_request(#rtsp_client{request = ['SETUP', URL], body = Body, socket = Socket, session_id = SessionId} = State) ->
+run_request(#rtsp_session{request = ['SETUP', URL], body = Body, socket = Socket, session_id = SessionId} = State) ->
   ?D({"SessionId", SessionId}),
   Transport = proplists:get_value('Transport', Body),
   gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\nSession: 42\r\n\r\n">>),
   State;
 
-run_request(#rtsp_client{request = [Method, URL], socket = Socket, session_id = SessionId} = State) ->
+run_request(#rtsp_session{request = [Method, URL], socket = Socket, session_id = SessionId} = State) ->
   ?D({"SessionId", SessionId}),
   gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\n\r\n">>),
   State.
   
 
-decode_line(Message, #rtsp_client{rtsp_re = RtspRe, body = Body} = State) ->
+decode_line(Message, #rtsp_session{rtsp_re = RtspRe, body = Body} = State) ->
   {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, list}]),
   ?D({"RTSP", Key, Value}),
-  State#rtsp_client{body = [{Key, Value} | Body]}.
+  State#rtsp_session{body = [{Key, Value} | Body]}.
 
 
 %%-------------------------------------------------------------------------
@@ -221,7 +221,7 @@ handle_info({tcp, _Socket, Bin}, StateName, State) ->
 %   ?MODULE:StateName(end_of_headers, State);
 
 
-handle_info({tcp_closed, Socket}, _StateName, #rtsp_client{socket=Socket, addr=Addr, port = Port} = StateData) ->
+handle_info({tcp_closed, Socket}, _StateName, #rtsp_session{socket=Socket, addr=Addr, port = Port} = StateData) ->
   error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
   {stop, normal, StateData};
 
@@ -241,7 +241,7 @@ handle_info(_Info, StateName, StateData) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtsp_client{socket=Socket}) ->
+terminate(_Reason, _StateName, #rtsp_session{socket=Socket}) ->
   ?D({"RTSP stopping", _StateName, _Reason}),
   (catch gen_tcp:close(Socket)),
   ok.

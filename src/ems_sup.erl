@@ -39,7 +39,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_rtmp_session/0, start_rtsp_client/0, start_media/2, 
+-export ([start_rtmp_session/0, start_rtsp_session/0, start_media/2, 
           start_file_play/2, start_stream_play/2,
           start_mpegts_media/1]).
 
@@ -63,8 +63,8 @@ start_link() ->
 -spec start_rtmp_session() -> {'error',_} | {'ok',pid()}.
 start_rtmp_session() -> supervisor:start_child(rtmp_session_sup, []).
 
--spec start_rtsp_client() -> {'error',_} | {'ok',pid()}.
-start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
+-spec start_rtsp_session() -> {'error',_} | {'ok',pid()}.
+start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
 
 
 %%--------------------------------------------------------------------
@@ -113,13 +113,28 @@ init([rtmp_session]) ->
             ]
         }
     };
-init([rtsp_client]) ->
+init([rtsp_session]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % TCP Client
               {   undefined,                               % Id       = internal id
-                  {rtsp_client,start_link,[]},                  % StartFun = {M, F, A}
+                  {rtsp_session,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([rtp_session]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {rtp_session,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -223,8 +238,15 @@ init([]) ->
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     },
-    {   rtsp_client_sup,
-        {supervisor,start_link,[{local, rtsp_client_sup}, ?MODULE, [rtsp_client]]},
+    {   rtsp_session_sup,
+        {supervisor,start_link,[{local, rtsp_session_sup}, ?MODULE, [rtsp_session]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   rtp_client_sup,
+        {supervisor,start_link,[{local, rtp_client_sup}, ?MODULE, [rtp_session]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
