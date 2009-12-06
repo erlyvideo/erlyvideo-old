@@ -221,7 +221,7 @@ stop(#amf{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) ->
       Player ! exit,
-      State#rtmp_client{streams = array:set(StreamId, null, Streams)};
+      State#rtmp_session{streams = array:set(StreamId, null, Streams)};
     _ -> State
   end.
 
