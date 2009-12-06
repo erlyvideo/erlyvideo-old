@@ -11,7 +11,7 @@ client_login(State, [Cookie, _UserIdObj]) ->
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = rtmp_listener:login(UserId, Channels),
-	State#rtmp_client{user_id = UserId, session_id = SessionId};
+	State#rtmp_session{user_id = UserId, session_id = SessionId};
 
 client_login(_, _) ->
   throw(login_failed).

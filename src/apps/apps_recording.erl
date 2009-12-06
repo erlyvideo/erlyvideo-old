@@ -46,7 +46,7 @@
 
 
 
-'WAIT_FOR_DATA'({publish, #channel{stream_id = StreamId} = Channel}, #rtmp_client{streams = Streams} = State) ->
+'WAIT_FOR_DATA'({publish, #channel{stream_id = StreamId} = Channel}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
   stream_media:publish(Recorder, Channel),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
@@ -60,11 +60,11 @@
 %% @end
 %%-------------------------------------------------------------------------
 
-publish(#amf{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
+publish(#amf{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   ?D({"Publish - Action - record",Name}),
   Recorder = media_provider:create(Name, record),
   ?D({"Recording", Recorder}),
-  State#rtmp_client{streams = array:set(StreamId, Recorder, Streams)};
+  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
 
 publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) -> 
@@ -73,13 +73,13 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
   State;
 
 
-publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
+publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   ?D({"Publish - Action - live",Name}),
   Recorder = media_provider:create(Name, live),
-  State#rtmp_client{streams = array:set(StreamId, Recorder, Streams)};
+  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
-publish(#amf{args = [null,Name], stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
+publish(#amf{args = [null,Name], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   ?D({"Publish - Action - default live",Name}),
   Recorder = media_provider:create(Name, live),
-  State#rtmp_client{streams = array:set(StreamId, Recorder, Streams)}.
+  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)}.
 

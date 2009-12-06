@@ -38,7 +38,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_rtmp_client/0, start_rtsp_client/0, start_media/2, 
+-export ([start_rtmp_session/0, start_rtsp_client/0, start_media/2, 
           start_file_play/2, start_stream_play/2,
           start_mpegts_media/1]).
 
@@ -59,8 +59,8 @@ start_link() ->
 %% To be called by the TCP listener process.
 %% @end 
 %%--------------------------------------------------------------------
--spec start_rtmp_client() -> {'error',_} | {'ok',pid()}.
-start_rtmp_client() -> supervisor:start_child(rtmp_client_sup, []).
+-spec start_rtmp_session() -> {'error',_} | {'ok',pid()}.
+start_rtmp_session() -> supervisor:start_child(rtmp_session_sup, []).
 
 -spec start_rtsp_client() -> {'error',_} | {'ok',pid()}.
 start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
@@ -97,13 +97,13 @@ start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
 %% @end 
 %%--------------------------------------------------------------------
 -spec init([]) -> any().
-init([rtmp_client]) ->
+init([rtmp_session]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % TCP Client
               {   undefined,                               % Id       = internal id
-                  {rtmp_client,start_link,[]},                  % StartFun = {M, F, A}
+                  {rtmp_session,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -215,8 +215,8 @@ init([]) ->
         [ems_http]                               % Modules  = [Module] | dynamic
     },
     % EMS instance supervisor
-    {   rtmp_client_sup,
-        {supervisor,start_link,[{local, rtmp_client_sup}, ?MODULE, [rtmp_client]]},
+    {   rtmp_session_sup,
+        {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

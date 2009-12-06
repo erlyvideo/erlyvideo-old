@@ -113,22 +113,22 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
   chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
-decode(#rtmp_client{buff = <<>>} = State) -> State;
-decode(#rtmp_client{} = State) -> decode_channel_id(State).
+decode(#rtmp_session{buff = <<>>} = State) -> State;
+decode(#rtmp_session{} = State) -> decode_channel_id(State).
 
 % First extracting channel id
-decode_channel_id(#rtmp_client{buff = <<>>} = State) ->
+decode_channel_id(#rtmp_session{buff = <<>>} = State) ->
   State;
-decode_channel_id(#rtmp_client{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
+decode_channel_id(#rtmp_session{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
   decode_channel_header(Rest, Format, Id + 64, State);
-decode_channel_id(#rtmp_client{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
+decode_channel_id(#rtmp_session{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
   decode_channel_header(Rest, Format, Id + 64, State);
-decode_channel_id(#rtmp_client{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
+decode_channel_id(#rtmp_session{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
   decode_channel_header(Rest, Format, Id, State).
 
 % Now extracting channel header
 decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
-  Channel = array:get(Id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_session.channels),
   #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
   Channel1 = case size(Msg) of
     0 -> Channel#channel{timestamp = Timestamp + Delta};
@@ -137,40 +137,40 @@ decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
   decode_channel(Channel1, Rest, State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  Channel = array:get(Id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_session.channels),
   decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff, delta = undefined}, Rest, State);
   
 decode_channel_header(<<Delta:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  Channel = array:get(Id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_session.channels),
   #channel{timestamp = TimeStamp} = Channel,
   decode_channel(Channel#channel{timestamp = TimeStamp + Delta, delta = Delta}, Rest, State);
   
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:24,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  Channel = array:get(Id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_session.channels),
 	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff, delta = undefined, length=Length,type=Type},Rest,State);
 	
 decode_channel_header(<<Delta:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  Channel = array:get(Id, State#rtmp_client.channels),
+  Channel = array:get(Id, State#rtmp_session.channels),
   #channel{timestamp = TimeStamp} = Channel,
 	decode_channel(Channel#channel{timestamp=TimeStamp + Delta, delta = Delta, length=Length,type=Type},Rest,State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, 
-  #rtmp_client{channels = Channels} = State) when size(Channels) < Id ->
+  #rtmp_session{channels = Channels} = State) when size(Channels) < Id ->
   decode_channel(#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:24,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case array:get(Id, State#rtmp_client.channels) of
+  case array:get(Id, State#rtmp_session.channels) of
     #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 	
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, 
-  #rtmp_client{channels = Channels} = State) when size(Channels) < Id ->
+  #rtmp_session{channels = Channels} = State) when size(Channels) < Id ->
 	decode_channel(#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
     
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case array:get(Id, State#rtmp_client.channels) of
+  case array:get(Id, State#rtmp_session.channels) of
     #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
@@ -183,15 +183,15 @@ decode_channel_header(_Rest,_Type, _Id,  State) -> % Still small buffer
 bytes_for_channel(#channel{length = Length, msg = Msg}, _) when size(Msg) == Length ->
   0;
 
-bytes_for_channel(#channel{length = Length, msg = Msg}, #rtmp_client{client_chunk_size = ChunkSize}) when Length - size(Msg) < ChunkSize ->
+bytes_for_channel(#channel{length = Length, msg = Msg}, #rtmp_session{client_chunk_size = ChunkSize}) when Length - size(Msg) < ChunkSize ->
   Length - size(Msg);
   
-bytes_for_channel(_, #rtmp_client{client_chunk_size = ChunkSize}) -> ChunkSize.
+bytes_for_channel(_, #rtmp_session{client_chunk_size = ChunkSize}) -> ChunkSize.
   
 
 decode_channel(Channel, Data, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
-  % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#rtmp_client.channels)}),
+  % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#rtmp_session.channels)}),
 	push_channel_packet(Channel, Data, State, BytesRequired).
 	
 % Nothing to do when buffer is small
@@ -202,26 +202,26 @@ push_channel_packet(#channel{} = _Channel, Data, State, BytesRequired) when size
 % And decode channel when bytes required are in buffer
 push_channel_packet(#channel{msg = Msg} = Channel, Data, State, BytesRequired) -> 
   <<Chunk:BytesRequired/binary, Rest/binary>> = Data,
-  decode_channel_packet(Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State#rtmp_client{buff = Rest}).
+  decode_channel_packet(Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State#rtmp_session{buff = Rest}).
 
 
 
 % When chunked packet hasn't arived, just accumulate it
-decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_client{channels = Channels} = State) when size(Msg) < Length ->
+decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_session{channels = Channels} = State) when size(Msg) < Length ->
   NextChannelList = array:set(Channel#channel.id, Channel, Channels),
-  decode(State#rtmp_client{channels=NextChannelList});
+  decode(State#rtmp_session{channels=NextChannelList});
 
 % Work with packet when it has accumulated and flush buffers
-decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_client{channels = Channels} = State) when size(Msg) == Length ->
+decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_session{channels = Channels} = State) when size(Msg) == Length ->
   NewState = command(Channel, State), % Perform Commands here
   NextChannelList = array:set(Channel#channel.id, Channel#channel{msg = <<>>}, Channels),
-  decode(NewState#rtmp_client{channels=NextChannelList}).
+  decode(NewState#rtmp_session{channels=NextChannelList}).
 
-command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #rtmp_client{previous_ack = Prev} = State) ->
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #rtmp_session{previous_ack = Prev} = State) ->
   Time = timer:now_diff(erlang:now(), Prev)/1000,
   Speed = round(_Length*1000 / Time),
   % ?D({"Stream bytes read: ", _Length, round(Time/1000), round(Speed)}),
-	State#rtmp_client{previous_ack = erlang:now(), current_speed = Speed};
+	State#rtmp_session{previous_ack = erlang:now(), current_speed = Speed};
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<_WindowSize:32/big-integer>>} = _Channel, State) ->
   %?D({"Window acknolegement size", WindowSize}),
@@ -229,22 +229,22 @@ command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<_WindowSize:32/big-i
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
   %?D({"Change Chunk Size",ChunkSize}),
-	State#rtmp_client{client_chunk_size = ChunkSize};
+	State#rtmp_session{client_chunk_size = ChunkSize};
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, _Timestamp:32/big-integer>>}, State) ->
-	State#rtmp_client{pinged = false};	
+	State#rtmp_session{pinged = false};	
 
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
   gen_fsm:send_event(self(), {send, {Channel, <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>}}),
 	State;	
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, #rtmp_client{streams = Streams} = State) ->
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, #rtmp_session{streams = Streams} = State) ->
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
     _ -> ok
   end,
-	State#rtmp_client{client_buffer = BufferSize};	
+	State#rtmp_session{client_buffer = BufferSize};	
 
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<_EventType:16/big-integer, _/binary>>} = _Channel, State) ->
@@ -299,7 +299,7 @@ decode_list(Body, Module, Acc) ->
   {Element, Rest} = Module:decode(Body),
   decode_list(Rest, Module, [Element | Acc]).
 
-call_function(unhandled, Command, #rtmp_client{addr = IP, port = Port} = State, #amf{args = Args}) ->
+call_function(unhandled, Command, #rtmp_session{addr = IP, port = Port} = State, #amf{args = Args}) ->
   error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p~n", [IP, Port, Command, length(Args)]),
   State;
 

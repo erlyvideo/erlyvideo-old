@@ -31,12 +31,12 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(rtmp_client).
+-module(rtmp_session).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
--include("../include/ems.hrl").
+-include("../../../include/ems.hrl").
 
 -behaviour(gen_fsm).
 
@@ -83,7 +83,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 init([]) ->
     process_flag(trap_exit, true),
     random:seed(now()),
-    {ok, 'WAIT_FOR_SOCKET', #rtmp_client{channels = array:new(), streams = array:new()}}.
+    {ok, 'WAIT_FOR_SOCKET', #rtmp_session{channels = array:new(), streams = array:new()}}.
 
 
 
@@ -95,14 +95,14 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, _From, State) when is_pid(Socket) ->
-    {reply, ok, 'WAIT_FOR_HANDSHAKE', State#rtmp_client{socket=Socket}, ?TIMEOUT}.
+    {reply, ok, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket=Socket}, ?TIMEOUT}.
 
 
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
     % Now we own the socket
     inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
     {ok, {IP, Port}} = inet:peername(Socket),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_client{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
+    {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
 
     
 'WAIT_FOR_SOCKET'(Other, State) ->
@@ -111,16 +111,16 @@ init([]) ->
     {next_state, 'WAIT_FOR_SOCKET', State}.
 
 %% Notification event coming from client
-'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_client{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN + 1 -> 
+'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN + 1 -> 
 	Data2 = <<Buff/binary,Data/binary>>,
-	{next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_client{buff=Data2}, ?TIMEOUT};
+	{next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{buff=Data2}, ?TIMEOUT};
 
-'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_client{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
+'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
 	case <<Buff/binary,Data/binary>> of
 		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
 			Reply = rtmp:handshake(HandShake),
 			send_data(State, [?HS_HEADER, Reply]),
-			{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_client{buff = Rest}, ?TIMEOUT};
+			{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_session{buff = Rest}, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
 
@@ -134,13 +134,13 @@ init([]) ->
 
 
 %% Notification event coming from client
-'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_client{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
-	{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_client{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
+'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
+	{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_session{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
 
-'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_client{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
+'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
 	case <<Buff/binary,Data/binary>> of
 		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
-			NewState = rtmp:decode(State#rtmp_client{buff = Rest}),
+			NewState = rtmp:decode(State#rtmp_session{buff = Rest}),
 			{next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
@@ -151,16 +151,16 @@ init([]) ->
 
 
 %% Notification event coming from client
-'WAIT_FOR_DATA'({data, Data}, #rtmp_client{buff = Buff} = State) ->
-  {next_state, 'WAIT_FOR_DATA', rtmp:decode(State#rtmp_client{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
+'WAIT_FOR_DATA'({data, Data}, #rtmp_session{buff = Buff} = State) ->
+  {next_state, 'WAIT_FOR_DATA', rtmp:decode(State#rtmp_session{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_client{server_chunk_size = OldChunkSize} = State) ->
+'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_session{server_chunk_size = OldChunkSize} = State) ->
 	Packet = rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
 	send_data(State, Packet),
   % ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{server_chunk_size = ChunkSize}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{server_chunk_size = ChunkSize}, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_client{server_chunk_size = ChunkSize} = State) ->
+'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_session{server_chunk_size = ChunkSize} = State) ->
 	Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
   % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
 	send_data(State, Packet),
@@ -175,9 +175,9 @@ init([]) ->
   {stop, normal, State};
 
 
-'WAIT_FOR_DATA'(timeout, #rtmp_client{pinged = false} = State) ->
+'WAIT_FOR_DATA'(timeout, #rtmp_session{pinged = false} = State) ->
   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_PING, 0}),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_client{pinged = true}, ?TIMEOUT};    
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{pinged = true}, ?TIMEOUT};    
 
 'WAIT_FOR_DATA'(timeout, State) ->
   error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
@@ -196,7 +196,7 @@ init([]) ->
     Reply -> Reply
   end.
 
-'WAIT_FOR_DATA'(info, _From, #rtmp_client{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
+'WAIT_FOR_DATA'(info, _From, #rtmp_session{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
   {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State, ?TIMEOUT};
         
 
@@ -231,10 +231,10 @@ handle_sync_event(Event, _From, StateName, StateData) ->
    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
-send_data(#rtmp_client{socket = Socket}, Data) when is_port(Socket) ->
+send_data(#rtmp_session{socket = Socket}, Data) when is_port(Socket) ->
   gen_tcp:send(Socket, Data);
 
-send_data(#rtmp_client{socket = Socket}, Data) when is_pid(Socket) ->
+send_data(#rtmp_session{socket = Socket}, Data) when is_pid(Socket) ->
   gen_fsm:send_event(Socket, {server_data, Data}).
 
 %%-------------------------------------------------------------------------
@@ -244,7 +244,7 @@ send_data(#rtmp_client{socket = Socket}, Data) when is_pid(Socket) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({tcp, Socket, Bin}, StateName, #rtmp_client{socket=Socket} = State) ->
+handle_info({tcp, Socket, Bin}, StateName, #rtmp_session{socket=Socket} = State) ->
     % Flow control: enable forwarding of next TCP message
 %	?D({"TCP",size(Bin)}),
 %	file:write_file("/sfe/temp/packet.txt",Bin),
@@ -252,11 +252,11 @@ handle_info({tcp, Socket, Bin}, StateName, #rtmp_client{socket=Socket} = State) 
   ?MODULE:StateName({data, Bin}, State);
 
 handle_info({tcp_closed, Socket}, _StateName,
-            #rtmp_client{socket=Socket, addr=Addr, port = Port} = StateData) ->
+            #rtmp_session{socket=Socket, addr=Addr, port = Port} = StateData) ->
     error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
     {stop, normal, StateData};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_client{streams = _Streams} = StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = _Streams} = StateData) ->
   % FIXME: proper lookup of dead player between Streams and notify right stream
   % ?D({"Player died", PlayerPid, _Reason}),
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
@@ -282,7 +282,7 @@ handle_info(_Info, StateName, StateData) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_client{socket=Socket, streams = Streams}) ->
+terminate(_Reason, _StateName, #rtmp_session{socket=Socket, streams = Streams}) ->
   lists:foreach(fun(Player) when is_pid(Player) -> Player ! exit;
                    (_) -> ok end, array:sparse_to_list(Streams)),
 

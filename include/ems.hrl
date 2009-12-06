@@ -190,7 +190,7 @@
 	
 
 
--record(rtmp_client, {
+-record(rtmp_session, {
 	socket,    % client socket
 	addr,      % client address
 	port,

@@ -44,7 +44,7 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_client{streams = Streams, client_buffer = ClientBuffer} = State) ->
+'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{streams = Streams, client_buffer = ClientBuffer} = State) ->
   StreamId = proplists:get_value(stream_id, Options),
   
   case array:get(StreamId, Streams) of
@@ -56,7 +56,7 @@
   case media_provider:play(Name, [{client_buffer, ClientBuffer} | Options]) of
     {ok, Player} ->
       Player ! start,
-      {next_state, 'WAIT_FOR_DATA', State#rtmp_client{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
+      {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
     {notfound, _Reason} ->
       ?D({"File not found", Name}),
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, StreamId}),
@@ -105,9 +105,9 @@ createStream(AMF, State) ->
   State1.
 
 next_stream(State) -> next_stream(State, 1).
-next_stream(#rtmp_client{streams = Streams} = State, Stream) ->
+next_stream(#rtmp_session{streams = Streams} = State, Stream) ->
   case array:get(Stream, Streams) of
-    undefined -> {State#rtmp_client{streams = array:set(Stream, null, Streams)}, Stream};
+    undefined -> {State#rtmp_session{streams = array:set(Stream, null, Streams)}, Stream};
     _ -> next_stream(State, Stream + 1)
   end.
 
@@ -117,12 +117,12 @@ next_stream(#rtmp_client{streams = Streams} = State, Stream) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-deleteStream(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) ->
+deleteStream(#amf{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) ->
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! stop;
     _ -> ok
   end,
-  State#rtmp_client{streams = array:reset(StreamId, Streams)}.
+  State#rtmp_session{streams = array:reset(StreamId, Streams)}.
 
 
 %%-------------------------------------------------------------------------
@@ -163,7 +163,7 @@ prepareStream(StreamId) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(#amf{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_client{streams = Streams} = State) -> 
+pause(#amf{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) -> 
     ?D({"PAUSE", Pausing, round(NewTs)}),
     Player = array:get(StreamId, Streams),
     case Pausing of
@@ -181,18 +181,18 @@ pause(#amf{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_client{st
 pauseRaw(AMF, State) -> pause(AMF, State).
 
 
-receiveAudio(#amf{args = [null, Audio], stream_id = StreamId}, #rtmp_client{streams = Streams} = State) ->
+receiveAudio(#amf{args = [null, Audio], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) ->
   Player = array:get(StreamId, Streams),
   (catch Player ! {send_audio, Audio}),
   State.
 
-receiveVideo(#amf{args = [null, Video], stream_id = StreamId}, #rtmp_client{streams = Streams} = State) ->
+receiveVideo(#amf{args = [null, Video], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) ->
   Player = array:get(StreamId, Streams),
   (catch Player ! {send_video, Video}),
   State.
 
 
-getStreamLength(#amf{args = [null | Args]}, #rtmp_client{} = State) ->
+getStreamLength(#amf{args = [null | Args]}, #rtmp_session{} = State) ->
   ?D({"getStreamLength", Args}),
   State.
 
@@ -201,7 +201,7 @@ getStreamLength(#amf{args = [null | Args]}, #rtmp_client{} = State) ->
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_client{streams = Streams} = State) -> 
+seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) -> 
   ?D({"invoke - seek", Timestamp}),
   Player = array:get(StreamId, Streams),
   Player ! {seek, Timestamp},
@@ -217,7 +217,7 @@ seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_client{streams = S
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
+stop(#amf{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) ->
       ?D({"Stopping video player", Player}),
@@ -232,12 +232,12 @@ stop(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State)
 %% @end
 %%-------------------------------------------------------------------------
 
-closeStream(#amf{stream_id = StreamId} = _AMF, #rtmp_client{streams = Streams} = State) -> 
+closeStream(#amf{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
 case array:get(StreamId, Streams) of
   undefined -> State;
   Player ->
     Player ! exit,
-    State#rtmp_client{streams = array:reset(StreamId, Streams)}
+    State#rtmp_session{streams = array:reset(StreamId, Streams)}
 end.
 
 

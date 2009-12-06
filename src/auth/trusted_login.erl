@@ -8,8 +8,8 @@ client_login(State, [_SessionData, UserIdF]) ->
   UserId = round(UserIdF),
   ?D({"Untrusted session", UserId}),
   {ok, SessionId} = rtmp_listener:login(UserId, []),
-	State#rtmp_client{user_id = UserId, session_id = SessionId};
+	State#rtmp_session{user_id = UserId, session_id = SessionId};
 	
 client_login(State, _) ->
   ?D({"Fully untrusted session"}),
-  State#rtmp_client{user_id = undefined}.
+  State#rtmp_session{user_id = undefined}.

@@ -82,7 +82,7 @@
 %%----------------------------------------------------------------------
 clients() ->
   Timeout = 10,
-  lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_client_sup)).
+  lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_session_sup)).
 
 
 %%--------------------------------------------------------------------
@@ -182,7 +182,7 @@ init([Port]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({start}, {From, _Ref}, State) ->
-  {ok, Pid} = ems_sup:start_rtmp_client(),
+  {ok, Pid} = ems_sup:start_rtmp_session(),
   gen_fsm:sync_send_event(Pid, {socket_ready, From}),
   {reply, {ok, Pid}, State};
 
@@ -248,10 +248,10 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
         %% supervisor.
-        {ok, Pid} = ems_sup:start_rtmp_client(),
+        {ok, Pid} = ems_sup:start_rtmp_session(),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
-        rtmp_client:set_socket(Pid, CliSocket),
+        rtmp_session:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
         {noreply, State#rtmp_listener{acceptor=NewRef}};

@@ -17,7 +17,7 @@
 			ems_app,
 			ems_encoding,
 			ems_flv,
-			rtmp_client,
+			rtmp_session,
 			ems_http,
 			rtmp,
 			rtmp_listener,
@@ -32,7 +32,7 @@
 			mpeg_ts,
 			mochijson2,
 			mochinum,
-			rtmp_client,
+			rtmp_session,
 			rtmp_handshake,
 			rtmp_session
  				]},

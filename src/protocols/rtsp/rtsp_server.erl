@@ -105,7 +105,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         {ok, Pid} = ems_sup:start_rtsp_client(),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
-        rtmp_client:set_socket(Pid, CliSocket),
+        rtmp_session:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
         {noreply, State#rtsp_server{acceptor=NewRef}};

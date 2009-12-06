@@ -47,7 +47,7 @@
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
+connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
     
     Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
 		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}}),
@@ -64,26 +64,26 @@ connect(AMF, #rtmp_client{window_size = WindowAckSize} = State) ->
 	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
 
     ?D({"CONNECT", _PageUrl}),
-		NewState1 =	State#rtmp_client{player_info = PlayerInfo, previous_ack = erlang:now()},
+		NewState1 =	State#rtmp_session{player_info = PlayerInfo, previous_ack = erlang:now()},
 
     AuthModule = ems:get_var(auth_module, trusted_login),
     NewState2 = AuthModule:client_login(NewState1, AuthInfo),
     
     NewState3 = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
-      {objectEncoding, 0.0} -> NewState2#rtmp_client{amf_version = 0};
-      {objectEncoding, 3.0} -> NewState2#rtmp_client{amf_version = 3};
+      {objectEncoding, 0.0} -> NewState2#rtmp_session{amf_version = 0};
+      {objectEncoding, 3.0} -> NewState2#rtmp_session{amf_version = 3};
       {objectEncoding, _N} -> 
         error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
         Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
         throw(invalid_amf3_encoding);
-      _ -> NewState2#rtmp_client{amf_version = 0}
+      _ -> NewState2#rtmp_session{amf_version = 0}
     end,
     
     ConnectObj = [{capabilities, 31}, {fmsVer, <<"Erlyvideo 1.0">>}],
     StatusObj = [{code, <<?NC_CONNECT_SUCCESS>>},
                  {level, <<"status">>}, 
                  {description, <<"Connection succeeded.">>},
-                 {objectEncoding, NewState3#rtmp_client.amf_version}],
+                 {objectEncoding, NewState3#rtmp_session.amf_version}],
     reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
     NewState3.
 
@@ -119,13 +119,13 @@ fail(AMF) ->
 'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
-'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_client{amf_version = 0} = State) ->
+'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 0} = State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_client{amf_version = 3} = State) ->
+'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 3} = State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
-'WAIT_FOR_DATA'(_Message, #rtmp_client{} =_State) -> {unhandled}.
+'WAIT_FOR_DATA'(_Message, #rtmp_session{} =_State) -> {unhandled}.
