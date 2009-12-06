@@ -51,9 +51,9 @@ init([Port]) ->
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
             {ok, #rtsp_listener{listener = Listen_socket,
                              acceptor = Ref}};
-        {error, eacces} ->
+        {error, eaccess} ->
             error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
-            {stop, eacces};
+            {stop, eaccess};
         {error, Reason} ->
             {stop, Reason}
     end.

@@ -161,9 +161,9 @@ init([Port]) ->
             Channels = ets:new(clients, [bag, {keypos, #channel_entry.channel}]),
             {ok, #rtmp_listener{listener = Listen_socket, acceptor = Ref, 
                               clients = Clients, user_ids = UserIds, channels = Channels}};
-        {error, eacces} ->
+        {error, eaccess} ->
             error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
-            {stop, eacces};
+            {stop, eaccess};
         {error, Reason} ->
             {stop, Reason}
     end.
