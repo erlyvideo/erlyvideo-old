@@ -157,41 +157,52 @@ handle_request(#rtsp_session{request = [_Method, _URL], body = Body} = State) ->
   State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
 
-run_request(#rtsp_session{request = ['ANNOUNCE', URL], url_re = UrlRe, body = Body} = State) ->
-  {match, [_, Host, Path]} = re:run(Message, RtspRe, [{capture, all, list}]),
-  Session = media_provider:create(Path, live),
-  reply(State#rtsp_session{session = Session}, "200 OK", []);
+run_request(#rtsp_session{request = ['ANNOUNCE', _URL], body = Body} = State) ->
+  Path = path(State),
+  Session = media_provider:open(Path, live),
+  Streams = parse_announce(Body),
+  ?D(Streams),
+  reply(State#rtsp_session{session = Session, session_id = 42}, "200 OK", []);
 
 run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
-  reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]),
-  State;
+  reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
 
-run_request(#rtsp_session{request = ['SETUP', _URL], headers = Headers} = State) ->
+run_request(#rtsp_session{request = ['RECORD', _URL]} = State) ->
+  reply(State, "200 OK", []);
+
+run_request(#rtsp_session{request = ['SETUP', _URL], headers = Headers, socket = Socket, session = Session} = State) ->
   Transport = proplists:get_value('Transport', Headers),
   TransportOpts = split_params(Transport),
   ?D({"Transport", TransportOpts}),
-  % ClientPorts = proplists:get_value("client_port", TransportOpts),
+  ClientPorts = string:tokens(proplists:get_value("client_port", TransportOpts), "-"),
+  ClientPort = list_to_integer(hd(ClientPorts)),
+  {ok, {Address, _}} = inet:peername(Socket),
+  rtp_server:register(Address, ClientPort, Session),
   {ok, {RTCP, RTP}} = rtp_server:port(),
-  ReplyHeaders = [{"Session", "42"}, {"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTCP, RTP])}],
-  reply(State, "200 OK", ReplyHeaders),
-  State;
+  ReplyHeaders = [{"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTCP, RTP])}],
+  reply(State, "200 OK", ReplyHeaders);
 
 run_request(#rtsp_session{request = [_Method, _URL]} = State) ->
-  reply(State, "200 OK", []),
-  State.
+  reply(State, "200 OK", []).
   
 
 decode_line(Message, #rtsp_session{rtsp_re = RtspRe, body = Body} = State) ->
-  {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, list}]),
+  {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, binary}]),
   io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
-  State#rtsp_session{body = [{Key, Value} | Body]}.
+  State#rtsp_session{body = [{binary_to_existing_atom(Key, latin1), Value} | Body]}.
 
 
-reply(#rtsp_session{socket = Socket, sequence = Sequence}, Code, Headers) ->
-  ReplyList = lists:map(fun binarize_header/1, [["RTSP/1.0", Code] | [{'Cseq', Sequence} | Headers]]),
-  Reply = iolist_to_binary([ReplyList, <<"\r\n">>]),
+reply(#rtsp_session{socket = Socket, sequence = Sequence, session_id = SessionId} = State, Code, Headers) ->
+  Headers1 = [{'Cseq', Sequence} | Headers],
+  Headers2 = case SessionId of
+    undefined -> Headers1;
+    _ -> [{'Session', SessionId} | Headers1]
+  end,
+  ReplyList = lists:map(fun binarize_header/1, Headers2),
+  Reply = iolist_to_binary(["RTSP/1.0 ", Code, <<"\r\n">>, ReplyList, <<"\r\n">>]),
   io:format("[RTSP] ~s", [Reply]),
-  gen_tcp:send(Socket, Reply).
+  gen_tcp:send(Socket, Reply),
+  State.
   
 binarize_header({Key, Value}) when is_atom(Key) ->
   binarize_header({atom_to_binary(Key, latin1), Value});
@@ -207,6 +218,65 @@ binarize_header({Key, Value}) ->
 
 binarize_header([Key, Value]) ->
   [Key, <<" ">>, Value, <<"\r\n">>].
+  
+  
+path(#rtsp_session{url_re = UrlRe, request = [_, URL]}) ->
+  {match, [_, _Host, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
+  Path.
+  
+parse_announce(Announce) -> parse_announce(Announce, [], undefined).
+
+parse_announce([], Streams, undefined) ->
+  Streams;
+
+parse_announce([], Streams, Stream) ->
+  [Stream | Streams];
+  
+parse_announce([{v, _} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{o, _} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{s, _} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{c, _} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{t, _} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{a, _} | Announce], Streams, undefined) ->
+  parse_announce(Announce, Streams, undefined);
+
+parse_announce([{m, Info} | Announce], Streams, Stream) when is_list(Stream) ->
+  parse_announce([{m, Info} | Announce], [Stream | Streams], undefined);
+
+parse_announce([{m, Info} | Announce], Streams, undefined) ->
+  [TypeS, _, "RTP/AVP", S] = string:tokens(binary_to_list(Info), " "),
+  Type = binary_to_existing_atom(list_to_binary(TypeS), latin1),
+  parse_announce(Announce, Streams, [{type, Type}, {stream_id, list_to_integer(S)}]);
+
+parse_announce([{b, Info} | Announce], Streams, Stream) when is_list(Stream) ->
+  ["AS", S] = string:tokens(binary_to_list(Info), ":"),
+  parse_announce(Announce, Streams, [{bitrate, list_to_integer(S)} | Stream]);
+
+parse_announce([{a, <<"rtpmap:", _Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
+  {ok, Re} = re:compile("([^=]+)=(.*)"),
+  [_, OptList] = string:tokens(binary_to_list(Info), " "),
+  Opts = lists:map(fun(Opt) ->
+    {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
+    {Key, Value}
+  end, string:tokens(OptList, ";")),
+  parse_announce(Announce, Streams, Stream ++ Opts);
+
+parse_announce([{a, Info} | Announce], Streams, Stream) when is_list(Stream) ->
+  parse_announce(Announce, Streams, Stream).
+  
 
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3

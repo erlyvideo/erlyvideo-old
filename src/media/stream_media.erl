@@ -36,9 +36,9 @@ set_owner(Server, Owner) ->
 init([Name, live]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Live streaming stream ~p~n", [Name]),
-  Clients = ets:new(clients, [set, private]),
+  Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type=live, clients = Clients},
+	Recorder = #media_info{type=live, name = Name, clients = Clients},
 	{ok, Recorder, ?TIMEOUT};
 
 

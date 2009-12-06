@@ -84,10 +84,11 @@ init([]) ->
 handle_call(port, _From, #rtp_server{rtcp_port = RTCP, rtp_port = RTP} = State) ->
   {reply, {ok, {RTCP, RTP}}, State};
   
-handle_call({register, Address, Port, Handler}, #rtp_server{streams = Streams} = State) ->
+handle_call({register, Address, Port, Handler}, _From, #rtp_server{streams = Streams} = State) ->
   ets:insert(Streams, {{Address, Port}, Handler}),
+  ?D({"Registering", Address, Port, Handler}),
   link(Handler),
-  {reply, ok, State)};
+  {reply, ok, State};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -134,44 +135,15 @@ handle_info(_Info, State) ->
 
 % Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Other
 decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Rest/binary>>, #rtp_server{streams = Streams} = State, Local, Port) ->
-  {Stream, State1} = case proplists:get_value(StreamId, Streams, undefined) of
-    Pid when is_pid(Pid) -> {Pid, State};
-    undefined -> 
-      Pid = spawn_link(?MODULE, decoder, [#rtp_stream{stream_id = StreamId, payload_type = PayloadType, timestamp = Timestamp}]),
-      {Pid, State#rtp_server{streams = [{StreamId, Pid} | Streams]}}
-  end,
-  Stream ! {data, Marker, PayloadType, Sequence, Timestamp, Rest},
-  State1.
+  % {Stream, State1} = case proplists:get_value(StreamId, Streams, undefined) of
+  %   Pid when is_pid(Pid) -> {Pid, State};
+  %   undefined -> 
+  %     Pid = spawn_link(?MODULE, decoder, [#rtp_stream{stream_id = StreamId, payload_type = PayloadType, timestamp = Timestamp}]),
+  %     {Pid, State#rtp_server{streams = [{StreamId, Pid} | Streams]}}
+  % end,
+  % Stream ! {data, Marker, PayloadType, Sequence, Timestamp, Rest},
+  State.
   
-  
-decoder(#rtp_stream{stream_id = StreamId, buffer = Buffer} = Stream) ->
-  receive
-    {data, Marker, PayloadType, Sequence, Timestamp, Bin} ->
-      NextStream = case {Marker, Buffer} of
-        {1, undefined} -> 
-          Stream#rtp_stream{buffer = Bin, timestamp = Timestamp};
-        {1, _} -> 
-          Stream1 = handle_rtp_packet(Stream),
-          Stream1#rtp_stream{buffer = Bin, timestamp = Timestamp};
-        {0, undefined} ->
-          Stream;
-        {0, _} ->
-          Stream#rtp_stream{buffer = <<Buffer/binary, Bin/binary>>}
-      end,
-      ?MODULE:decoder(NextStream);
-    exit ->
-      ?D({"RTP stream exit", StreamId}),
-      ok
-  after
-    20000 ->
-      ?D({"RTP stream timeout", StreamId}),
-      ok
-  end.
-  
-
-handle_rtp_packet(#rtp_stream{payload_type = PayloadType, timestamp = Timestamp, buffer = Buffer} = Stream) ->
-  ?D({PayloadType, Timestamp, size(Buffer)}),
-  Stream.
   
 
 %%-------------------------------------------------------------------------
