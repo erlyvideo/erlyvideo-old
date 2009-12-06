@@ -1,9 +1,9 @@
--module(rtsp_server).
+-module(rtsp_listener).
 -author('max@maxidoors.ru').
 
--include("../include/ems.hrl").
+-include("../../../include/ems.hrl").
 
--record(rtsp_server, {
+-record(rtsp_listener, {
 	listener, % Listening socket
 	acceptor  % Asynchronous acceptor's internal reference
 	}).
@@ -49,7 +49,7 @@ init([Port]) ->
         {ok, Listen_socket} ->
             %%Create first accepting process
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
-            {ok, #rtsp_server{listener = Listen_socket,
+            {ok, #rtsp_listener{listener = Listen_socket,
                              acceptor = Ref}};
         {error, eacces} ->
             error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
@@ -97,7 +97,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
-            #rtsp_server{listener=ListSock, acceptor=Ref} = State) ->
+            #rtsp_listener{listener=ListSock, acceptor=Ref} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
@@ -108,17 +108,17 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         rtmp_session:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
-        {noreply, State#rtsp_server{acceptor=NewRef}};
+        {noreply, State#rtsp_listener{acceptor=NewRef}};
     {error, Reason} ->
         error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
         {stop, Reason, State}
     end;
     
-handle_info({inet_async, ListSock, Ref, Error}, #rtsp_server{listener=ListSock, acceptor=Ref} = State) ->
+handle_info({inet_async, ListSock, Ref, Error}, #rtsp_listener{listener=ListSock, acceptor=Ref} = State) ->
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
     
-handle_info({clients, _From}, #rtsp_server{} = State) ->
+handle_info({clients, _From}, #rtsp_listener{} = State) ->
   ?D("Asked for clients list"),
   {noreply, State};
 
@@ -134,7 +134,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, State) ->
-    gen_tcp:close(State#rtsp_server.listener),
+    gen_tcp:close(State#rtsp_listener.listener),
     ok.
 
 %%-------------------------------------------------------------------------

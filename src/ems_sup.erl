@@ -34,6 +34,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 -behaviour(supervisor).
 
@@ -291,12 +292,18 @@ init([]) ->
     undefined -> Supervisors1;
     RTSPPort -> [% EMS Listener
       {   rtsp_sup,                                 % Id       = internal id
-          {rtsp_server,start_link,[RTSPPort]},              % StartFun = {M, F, A}
+          {rtsp_listener,start_link,[RTSPPort]},              % StartFun = {M, F, A}
           permanent,                               % Restart  = permanent | transient | temporary
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
-          [rtmp_listener]                             % Modules  = [Module] | dynamic
-      }|Supervisors1]
+          [rtsp_listener]                             % Modules  = [Module] | dynamic
+      }, {rtp_sup,                                 % Id       = internal id
+          {rtp_listener,start_link,[]},              % StartFun = {M, F, A}
+          permanent,                               % Restart  = permanent | transient | temporary
+          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+          worker,                                  % Type     = worker | supervisor
+          [rtp_listener]                             % Modules  = [Module] | dynamic
+      }] ++ Supervisors1
   end,
   
   
