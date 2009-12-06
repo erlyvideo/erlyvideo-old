@@ -30,14 +30,14 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(rtmp_server).
+-module(rtmp_listener).
 -author(max@maxidoors.ru).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--include("../include/ems.hrl").
+-include("../../../include/ems.hrl").
 
--record(rtmp_server, {
+-record(rtmp_listener, {
 	listener, % Listening socket
 	acceptor,  % Asynchronous acceptor's internal reference
 	clients,
@@ -159,7 +159,7 @@ init([Port]) ->
             Clients = ets:new(clients, [set, {keypos, #client_entry.session_id}]),
             UserIds = ets:new(clients, [bag, {keypos, #user_id_entry.user_id}]),
             Channels = ets:new(clients, [bag, {keypos, #channel_entry.channel}]),
-            {ok, #rtmp_server{listener = Listen_socket, acceptor = Ref, 
+            {ok, #rtmp_listener{listener = Listen_socket, acceptor = Ref, 
                               clients = Clients, user_ids = UserIds, channels = Channels}};
         {error, eacces} ->
             error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
@@ -187,15 +187,15 @@ handle_call({start}, {From, _Ref}, State) ->
   {reply, {ok, Pid}, State};
 
 handle_call({login, UserId, UserChannels}, {Client, _Ref}, 
-  #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->
+  #rtmp_listener{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->
   SessionId = LastSessionId + 1,
   ets:insert(Clients, #client_entry{session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
   ets:insert(UserIds, #user_id_entry{user_id = UserId, client = Client}),
   lists:foreach(fun(Channel) -> ets:insert(Channels, #channel_entry{channel = Channel, client = Client}) end, UserChannels),
-  {reply, {ok, SessionId}, Server#rtmp_server{session_id = SessionId}};
+  {reply, {ok, SessionId}, Server#rtmp_listener{session_id = SessionId}};
 
 
-handle_call(logout, {Client, _Ref}, #rtmp_server{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
+handle_call(logout, {Client, _Ref}, #rtmp_listener{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
   ets:match_delete(Clients, #client_entry{session_id = '_', user_id = '_', channels = '_', client = Client}),
   ets:match_delete(UserIds, #user_id_entry{user_id = '_', client = Client}),
   ets:match_delete(Channels, #channel_entry{channel = '_', client = Client}),
@@ -213,7 +213,7 @@ handle_call(Request, _From, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast({send_to_user, UserId, Message}, #rtmp_server{user_ids = UserIds} = Server) ->
+handle_cast({send_to_user, UserId, Message}, #rtmp_listener{user_ids = UserIds} = Server) ->
   Clients = ets:lookup(UserIds, UserId),
   F = fun(#user_id_entry{client = Client}) -> 
     gen_fsm:send_event(Client, {message, Message}) 
@@ -221,7 +221,7 @@ handle_cast({send_to_user, UserId, Message}, #rtmp_server{user_ids = UserIds} = 
   lists:foreach(F, Clients),
   {noreply, Server};
 
-handle_cast({send_to_channel, Channel, Message}, #rtmp_server{channels = Channels} = Server) ->
+handle_cast({send_to_channel, Channel, Message}, #rtmp_listener{channels = Channels} = Server) ->
   Clients = ets:lookup(Channels, Channel),
   F = fun(#channel_entry{client = Client}) -> 
     gen_fsm:send_event(Client, {message, Message}) 
@@ -243,7 +243,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
-            #rtmp_server{listener=ListSock, acceptor=Ref} = State) ->
+            #rtmp_listener{listener=ListSock, acceptor=Ref} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
@@ -254,17 +254,17 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
         rtmp_client:set_socket(Pid, CliSocket),
         %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
-        {noreply, State#rtmp_server{acceptor=NewRef}};
+        {noreply, State#rtmp_listener{acceptor=NewRef}};
     {error, Reason} ->
         error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
         {stop, Reason, State}
     end;
     
-handle_info({inet_async, ListSock, Ref, Error}, #rtmp_server{listener=ListSock, acceptor=Ref} = State) ->
+handle_info({inet_async, ListSock, Ref, Error}, #rtmp_listener{listener=ListSock, acceptor=Ref} = State) ->
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
     
-handle_info({clients, _From}, #rtmp_server{} = State) ->
+handle_info({clients, _From}, #rtmp_listener{} = State) ->
   ?D("Asked for clients list"),
   {noreply, State};
 
@@ -280,7 +280,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, State) ->
-    gen_tcp:close(State#rtmp_server.listener),
+    gen_tcp:close(State#rtmp_listener.listener),
     ok.
 
 %%-------------------------------------------------------------------------

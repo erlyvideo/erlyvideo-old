@@ -40,7 +40,7 @@
 
 
 
-play(Name, PlayerPid, Req) ->
+play(_Name, PlayerPid, Req) ->
   ?D({"Player starting", PlayerPid}),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}]),
   Req:stream(<<"MPEG TS\r\n\n\n">>),

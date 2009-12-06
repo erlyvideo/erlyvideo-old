@@ -7,7 +7,7 @@
 client_login(State, [_SessionData, UserIdF]) ->
   UserId = round(UserIdF),
   ?D({"Untrusted session", UserId}),
-  {ok, SessionId} = rtmp_server:login(UserId, []),
+  {ok, SessionId} = rtmp_listener:login(UserId, []),
 	State#rtmp_client{user_id = UserId, session_id = SessionId};
 	
 client_login(State, _) ->

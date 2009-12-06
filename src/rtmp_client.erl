@@ -288,7 +288,7 @@ terminate(_Reason, _StateName, #rtmp_client{socket=Socket, streams = Streams}) -
 
   lists:foreach(fun(Player) when is_pid(Player) -> (catch erlang:exit(Player));
                    (_) -> ok end, array:sparse_to_list(Streams)),
-  rtmp_server:logout(),
+  rtmp_listener:logout(),
   (catch gen_tcp:close(Socket)),
   ok.
 

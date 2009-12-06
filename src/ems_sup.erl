@@ -73,7 +73,7 @@ start_rtsp_client() -> supervisor:start_child(rtsp_client_sup, []).
 %% @end 
 %%--------------------------------------------------------------------
 start_media(Name, file = Type) -> supervisor:start_child(file_media_sup, [Name, Type]);
-start_media(Name, mpeg_ts = Type) -> supervisor:start_child(mpegts_media_sup, [Name]);
+start_media(Name, mpeg_ts) -> supervisor:start_child(mpegts_media_sup, [Name]);
 start_media(Name, record = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]);
 start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]).
 
@@ -279,11 +279,11 @@ init([]) ->
     undefined -> Supervisors;
     RTMPPort -> [% EMS Listener
       {   ems_sup,                                 % Id       = internal id
-          {rtmp_server,start_link,[RTMPPort]},              % StartFun = {M, F, A}
+          {rtmp_listener,start_link,[RTMPPort]},              % StartFun = {M, F, A}
           permanent,                               % Restart  = permanent | transient | temporary
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
-          [rtmp_server]                             % Modules  = [Module] | dynamic
+          [rtmp_listener]                             % Modules  = [Module] | dynamic
       }|Supervisors]
   end,
 
@@ -295,7 +295,7 @@ init([]) ->
           permanent,                               % Restart  = permanent | transient | temporary
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
-          [rtmp_server]                             % Modules  = [Module] | dynamic
+          [rtmp_listener]                             % Modules  = [Module] | dynamic
       }|Supervisors1]
   end,
   
