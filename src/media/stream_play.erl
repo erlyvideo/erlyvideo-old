@@ -74,6 +74,7 @@ init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
   ?D({"Starting stream play for consumer", Consumer}),
   link(Consumer),
+  link(MediaEntry),
   ?MODULE:ready(#stream_player{consumer = Consumer,
                       stream_id = proplists:get_value(stream_id, Options, 1),
                       media_info = MediaEntry}).
@@ -129,9 +130,12 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
       ?MODULE:ready(State);
     
     stop -> 
+      ?D({"stream play stop", self()}),
       ok;
   
     exit ->
+      link(State#stream_player.media_info),
+      ?D({"stream play exit", self(), State#stream_player.media_info}),
       ok;
       
   	{tcp_closed, _Socket} ->

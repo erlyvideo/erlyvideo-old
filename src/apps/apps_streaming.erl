@@ -220,11 +220,10 @@ seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_session{streams = 
 stop(#amf{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) ->
-      ?D({"Stopping video player", Player}),
-      Player ! stop;
-    _ -> ok
-  end,
-  State.    
+      Player ! exit,
+      State#rtmp_client{streams = array:set(StreamId, null, Streams)};
+    _ -> State
+  end.
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
