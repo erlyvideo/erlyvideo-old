@@ -128,21 +128,6 @@ init([rtsp_session]) ->
             ]
         }
     };
-init([rtp_session]) ->
-    {ok,
-        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % TCP Client
-              {   undefined,                               % Id       = internal id
-                  {rtp_session,start_link,[]},                  % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  []                                       % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
 init([file_media]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -245,13 +230,6 @@ init([]) ->
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     },
-    {   rtp_client_sup,
-        {supervisor,start_link,[{local, rtp_client_sup}, ?MODULE, [rtp_session]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
     {   media_provider_sup,                      % Id       = internal id
         {media_provider,start_link,[]},          % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
@@ -320,11 +298,11 @@ init([]) ->
           worker,                                  % Type     = worker | supervisor
           [rtsp_listener]                             % Modules  = [Module] | dynamic
       }, {rtp_sup,                                 % Id       = internal id
-          {rtp_listener,start_link,[]},              % StartFun = {M, F, A}
+          {rtp_server,start_link,[]},              % StartFun = {M, F, A}
           permanent,                               % Restart  = permanent | transient | temporary
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
-          [rtp_listener]                             % Modules  = [Module] | dynamic
+          [rtp_server]                             % Modules  = [Module] | dynamic
       }] ++ Supervisors1
   end,
   

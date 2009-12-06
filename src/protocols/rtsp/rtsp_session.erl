@@ -86,7 +86,7 @@ init([]) ->
   ?D({"Request", Request}),
   {match, [_, Method, URL, "RTSP", "1.0"]} = re:run(Request, RequestRe, [{capture, all, list}]),
   % {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  MethodName = binary_to_existing_atom(list_to_binary(Method), utf8),
+  MethodName = binary_to_existing_atom(list_to_binary(Method), latin1),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{request = [MethodName, URL], headers = []}, ?TIMEOUT}.
 
@@ -144,16 +144,28 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
 
 
+split_params(String) ->
+  lists:map(fun(Opt) -> case string:tokens(Opt, "=") of
+    [Key] -> Key;
+    [Key, Value] -> {Key, Value}
+  end end, string:tokens(binary_to_list(String), ";")).
+
+
 handle_request(#rtsp_session{request = [Method, URL], body = Body} = State) ->
   ?D({"Handling", Method, URL}),
   State1 = run_request(State#rtsp_session{body = lists:reverse(Body)}),
   State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
 
-run_request(#rtsp_session{request = ['SETUP', URL], body = Body, socket = Socket, session_id = SessionId} = State) ->
-  ?D({"SessionId", SessionId}),
-  Transport = proplists:get_value('Transport', Body),
-  gen_tcp:send(Socket, <<"RTSP/1.0 200 OK\r\nCseq: ", SessionId/binary, "\r\nSession: 42\r\n\r\n">>),
+run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = Socket, session_id = SessionId} = State) ->
+  Transport = proplists:get_value('Transport', Headers),
+  TransportOpts = split_params(Transport),
+  ?D({"SessionId", TransportOpts}),
+  % ClientPorts = proplists:get_value("client_port", TransportOpts),
+  {ok, {RTCP, RTP}} = rtp_server:port(),
+  Reply = io_lib:format("RTSP/1.0 200 OK\r\nCseq: ~p\r\nSession: 42\r\nTransport: ~s;server_port=~p-~p\r\n\r\n",
+    [SessionId, Transport, RTCP, RTP]),
+  gen_tcp:send(Socket, Reply),
   State;
 
 run_request(#rtsp_session{request = [Method, URL], socket = Socket, session_id = SessionId} = State) ->

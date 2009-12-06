@@ -1,12 +1,13 @@
--module(rtp_listener).
+-module(rtp_server).
 -author('max@maxidoors.ru').
 
 -include("../../../include/ems.hrl").
 
--record(rtp_listener, {
-	listener, % Listening socket
-	acceptor,  % Asynchronous acceptor's internal reference
-	port
+-record(rtp_server, {
+	rtcp_listener,
+	rtp_listener,
+	rtcp_port,
+	rtp_port
 	}).
 
 -behaviour(gen_server).
@@ -48,22 +49,16 @@ port() ->
 %% @end
 %%----------------------------------------------------------------------
 init([]) ->
-    process_flag(trap_exit, true),
-    Opts = [binary, {packet, raw}, {reuseaddr, true},
-            {keepalive, true}, {backlog, 30}, {active, false}],
-    case gen_tcp:listen(0, Opts) of
-        {ok, ListenSocket} ->
-          {ok, {_Address, Port}} = inet:sockname(ListenSocket),
-          ?D({"RTP binded to some port", Port}),
-            %%Create first accepting process
-            {ok, Ref} = prim_inet:async_accept(ListenSocket, -1),
-            {ok, #rtp_listener{listener = ListenSocket, acceptor = Ref, port = Port}};
-        {error, eaccess} ->
-            error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", []),
-            {stop, eaccess};
-        {error, Reason} ->
-            {stop, Reason}
-    end.
+    Opts = [binary, {active, once}],
+
+    RTCP = 6256,
+    RTP = RTCP + 1,
+    
+    {ok, RTCPListen} = gen_udp:open(RTCP, Opts),
+    {ok, RTPListen} = gen_udp:open(RTP, Opts),
+    
+    {ok, #rtp_server{rtcp_listener = RTCPListen, rtp_listener = RTPListen, 
+                       rtcp_port = RTCP, rtp_port = RTP}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -78,8 +73,8 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call(port, _From, #rtp_listener{port = Port} = State) ->
-  {reply, {ok, Port}, State};
+handle_call(port, _From, #rtp_server{rtcp_port = RTCP, rtp_port = RTP} = State) ->
+  {reply, {ok, {RTCP, RTP}}, State};
 
 handle_call(Request, _From, State) ->
     {stop, {unknown_call, Request}, State}.
@@ -106,34 +101,14 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
-            #rtp_listener{listener=ListSock, acceptor=Ref} = State) ->
-    case set_sockopt(ListSock, CliSocket) of
-    ok ->
-        %% New client connected - spawn a new process using the simple_one_for_one
-        %% supervisor.
-        {ok, Pid} = ems_sup:start_rtp_session(),
-        gen_tcp:controlling_process(CliSocket, Pid),
-        %% Instruct the new FSM that it owns the socket.
-        rtmp_session:set_socket(Pid, CliSocket),
-        %% Signal the network driver that we are ready to accept another connection
-        {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
-        {noreply, State#rtp_listener{acceptor=NewRef}};
-    {error, Reason} ->
-        error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
-        {stop, Reason, State}
-    end;
-    
-handle_info({inet_async, ListSock, Ref, Error}, #rtp_listener{listener=ListSock, acceptor=Ref} = State) ->
-    error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
-    {stop, Error, State};
-    
-handle_info({clients, _From}, #rtp_listener{} = State) ->
-  ?D("Asked for clients list"),
-  {noreply, State};
 
+handle_info({udp,Socket,Host,Port,Bin}, State) ->
+  ?D({"UDP message", Host, Port, Bin}),
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, State};
+    
 handle_info(_Info, State) ->
-    {noreply, State}.
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
@@ -143,9 +118,10 @@ handle_info(_Info, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, State) ->
-    gen_tcp:close(State#rtp_listener.listener),
-    ok.
+terminate(_Reason, #rtp_server{rtcp_listener = RTCP, rtp_listener = RTP} = State) ->
+  gen_udp:close(RTCP),
+  gen_udp:close(RTP),
+  ok.
 
 %%-------------------------------------------------------------------------
 %% @spec (OldVsn, State, Extra) -> {ok, NewState}
@@ -159,17 +135,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%------------------------------------------------------------------------
 %%% Internal functions
 %%%------------------------------------------------------------------------
-
-%% Taken from prim_inet.  We are merely copying some socket options from the
-%% listening socket to the new client socket.
-set_sockopt(ListSock, CliSocket) ->
-    true = inet_db:register_socket(CliSocket, inet_tcp),
-    case prim_inet:getopts(ListSock, [active, nodelay, keepalive, delay_send, priority, tos]) of
-    {ok, Opts} ->
-        case prim_inet:setopts(CliSocket, Opts) of
-        ok    -> ok;
-        Error -> gen_tcp:close(CliSocket), Error
-        end;
-    Error ->
-        gen_tcp:close(CliSocket), Error
-    end.
