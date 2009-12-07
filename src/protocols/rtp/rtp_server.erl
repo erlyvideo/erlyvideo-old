@@ -2,6 +2,7 @@
 -author('max@maxidoors.ru').
 
 -include("../../../include/ems.hrl").
+-include("../../../include/h264.hrl").
 
 -record(rtp_server, {
 	rtcp_listener,
@@ -119,10 +120,11 @@ handle_cast(_Msg, State) ->
 handle_info({udp,Socket,Host,Port,Bin}, #rtp_server{streams = StreamTable} = State) ->
   % ?D({"UDP message", Host, Port, size(Bin)}),
   % {ok, {Address, Local}} = inet:sockname(Socket),
-  case ets:match_object(StreamTable, {{Host, Port}, '_', '_'}) of
+  Streams1 = case ets:match_object(StreamTable, {{Host, Port}, '_', '_'}) of
     [{_, Handler, Streams}] -> decode(Bin, Handler, Streams);
-    _ -> ?D({"Undefined", Host, Port})
+    _ -> decode(Bin, {Host, Port}, [])
   end,
+  ets:update_element(StreamTable, {Host, Port}, {3, Streams1}),
   inet:setopts(Socket, [{active, once}]),
   {noreply, State};
     
@@ -140,26 +142,32 @@ handle_info(_Info, State) ->
 decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Rest/binary>>, Handler, Streams) ->
   VideoFrame = #video_frame{body = Rest},
   case lists:keyfind(PayloadType, 1, Streams) of
-    {_, audio, ClockMap, Stream} ->
+    {PayloadType, audio, ClockMap, Stream} ->
       % ?D({audio, Timestamp / ClockMap, size(Rest)}),
-      Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_AUDIO, codec_id = ?FLV_AUDIO_FORMAT_AAC};
-    {_, video, ClockMap, Stream} ->
+      Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_AUDIO, codec_id = ?FLV_AUDIO_FORMAT_AAC},
+      Streams;
+    {PayloadType, video, ClockMap, Stream} ->
+      H264 = case lists:keyfind(h264, 1, Stream) of
+        false -> #h264{};
+        Else -> Else
+      end,
       % ?D({video, Timestamp / ClockMap, size(Rest)}),
-      Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_VIDEO, codec_id = ?FLV_VIDEO_CODEC_AVC};
+      % decode_video(Handler, VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_VIDEO, codec_id = ?FLV_VIDEO_CODEC_AVC});
+      {H264_1, Frame} = h264:decode_nal(Rest, H264),
+      Stream1 = lists:keystore(h264, 1, Stream, H264_1),
+      Streams1 = lists:keystore(PayloadType, 1, Streams, {PayloadType, video, ClockMap, Stream1}),
+      case Frame of
+        undefined -> ok;
+        #video_frame{} -> 
+          ?D({"H264 Frame", Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
+          Handler ! Frame#video_frame{timestamp = Timestamp / ClockMap}
+      end,
+      Streams1;
     _ ->
-      ?D({"Undefined payload", PayloadType})
-  end,
-  % {Stream, State1} = case proplists:get_value(StreamId, Streams, undefined) of
-  %   Pid when is_pid(Pid) -> {Pid, State};
-  %   undefined -> 
-  %     Pid = spawn_link(?MODULE, decoder, [#rtp_stream{stream_id = StreamId, payload_type = PayloadType, timestamp = Timestamp}]),
-  %     {Pid, State#rtp_server{streams = [{StreamId, Pid} | Streams]}}
-  % end,
-  % Stream ! {data, Marker, PayloadType, Sequence, Timestamp, Rest},
-  ok.
+      ?D({"Undefined payload", PayloadType, Timestamp, Handler, size(Rest)}),
+      Streams
+  end.
   
-  
-
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
 %% @doc  Callback executed on server shutdown. It is only invoked if

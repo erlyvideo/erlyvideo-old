@@ -179,8 +179,8 @@ run_request(#rtsp_session{request = ['SETUP', _URL], headers = Headers, socket =
   ClientPort = list_to_integer(hd(ClientPorts)),
   {ok, {Address, _}} = inet:peername(Socket),
   rtp_server:register({Address, ClientPort}, Session, Streams),
-  {ok, {RTCP, RTP}} = rtp_server:port(),
-  ReplyHeaders = [{"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTCP, RTP])}],
+  {ok, {RTP, RTCP}} = rtp_server:port(),
+  ReplyHeaders = [{"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTP, RTCP])}],
   reply(State, "200 OK", ReplyHeaders);
 
 run_request(#rtsp_session{request = [_Method, _URL]} = State) ->
