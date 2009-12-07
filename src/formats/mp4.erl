@@ -459,8 +459,13 @@ fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = Decod
   calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
 
 
+
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
-  calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track).
+  calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+  
+fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
+  ?D({"Uknown data format", Unknown}),
+  MediaInfo.
   
 
 
