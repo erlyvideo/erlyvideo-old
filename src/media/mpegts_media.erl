@@ -2,9 +2,9 @@
 -export([start_link/1]).
 -behaviour(gen_server).
 
--export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 
 -include("../../include/ems.hrl").
+-include("../../include/h264.hrl").
 
 % ems_sup:start_ts_lander("http://localhost:8080").
 
@@ -42,11 +42,7 @@
   video_config = undefined,
   send_audio_config = false,
   timestamp = 0,
-  profile,
-  profile_compat = 0,
-  level,
-  sps,
-  pps
+  h264
 }).
 
 -record(ts_header, {
@@ -308,7 +304,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, consumer = self()}]),
+        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, consumer = self(), h264 = #h264{}}]),
         ?D({"Starting PID", Pid, Handler}),
         #stream_out{pid = Pid, handler = Handler};
       Other ->
@@ -479,40 +475,15 @@ find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
 extract_nal(Stream, _, false) ->
   Stream;
   
-extract_nal(#stream{es_buffer = Data} = Stream, Offset1, Offset2) ->
+extract_nal(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp, h264 = H264} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
-  Stream1 = decode_nal(NAL, Stream),
-  decode_avc(Stream1#stream{es_buffer = Rest1}).
-
-send_video_config(#stream{consumer = Consumer} = Stream) ->
-  case decoder_config(Stream) of
-    ok -> Stream;
-    DecoderConfig -> 
-      VideoFrame = #video_frame{       
-       	type          = ?FLV_TAG_TYPE_VIDEO,
-       	decoder_config = true,
-    		timestamp     = 0,
-    		body          = DecoderConfig,
-    		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
-    		codec_id      = ?FLV_VIDEO_CODEC_AVC
-    	},
-      % ?D({"Send decoder config to", Consumer}),
-  	  Consumer ! VideoFrame,
-      Stream#stream{video_config = DecoderConfig}
-  end.
-  
-decoder_config(#stream{sps = undefined}) -> ok;
-decoder_config(#stream{pps = undefined}) -> ok;
-decoder_config(#stream{pps = PPS, sps = SPS, profile = Profile, profile_compat = ProfileCompat, level = Level}) ->
-  LengthSize = 4-1,
-  Version = 1,
-  SPSBin = iolist_to_binary(SPS),
-  PPSBin = iolist_to_binary(PPS),
-  <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 
-    2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
-    (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
-
+  {H264_1, Frame} = h264:decode_nal(NAL, H264),
+  case Frame of
+    undefined -> ok;
+    #video_frame{} -> Consumer ! Frame#video_frame{timestamp = Timestamp}
+  end,
+  decode_avc(Stream#stream{es_buffer = Rest1, h264 = H264_1}).
 
 nal_unit_start_code_finder(Bin, Offset) ->
   case Bin of
@@ -539,158 +510,6 @@ find_nal_start_code(<<_:15/binary, 16#000001:24, _/binary>>, Offset) -> Offset +
 find_nal_start_code(<<_:16/binary, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+16);
 % find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
 find_nal_start_code(_, _) -> false.
-
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, Rest/binary>>, #stream{consumer = undefined} = Stream) ->
-  % io:format("Coded slice of a non-IDR picture :: "),
-  slice_header(Rest, Stream);
-
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, #stream{timestamp = TimeStamp, consumer = Consumer} = Stream) ->
-  VideoFrame = #video_frame{
-   	type          = ?FLV_TAG_TYPE_VIDEO,
-		timestamp     = TimeStamp,
-		body          = nal_with_size(Data),
-		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC
-  },
-  % ?D({"Send slice to", TimeStamp, Consumer}),
-  Consumer ! VideoFrame,
-  Stream;
-
-
-decode_nal(<<0:1, _NalRefIdc:2, 2:5, Rest/binary>>, Stream) ->
-  % io:format("Coded slice data partition A     :: "),
-  slice_header(Rest, Stream);
-
-decode_nal(<<0:1, _NalRefIdc:2, 3:5, Rest/binary>>, Stream) ->
-  % io:format("Coded slice data partition B     :: "),
-  slice_header(Rest, Stream);
-
-decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, Stream) ->
-  % io:format("Coded slice data partition C     :: "),
-  slice_header(Rest, Stream);
-
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, Rest/binary>>, #stream{consumer = undefined} = Stream) ->
-  % io:format("~nCoded slice of an IDR picture~n"),
-  slice_header(Rest, Stream);
-  
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, #stream{timestamp = TimeStamp, consumer = Consumer} = Stream) ->
-  VideoFrame = #video_frame{
-   	type          = ?FLV_TAG_TYPE_VIDEO,
-		timestamp     = TimeStamp,
-		body          = nal_with_size(Data),
-		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC
-  },
-  % ?D({"Send keyframe to", Consumer}),
-  Consumer ! VideoFrame,
-  Stream;
-
-decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, Stream) ->
-  % io:format("Picture parameter set: ~p~n", [PPS]),
-  send_video_config(Stream#stream{pps = [remove_trailing_zero(PPS)]});
-
-decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, Stream) ->
-  PrimaryPicType = case PrimaryPicTypeId of
-      0 -> "I";
-      1 -> "I, P";
-      2 -> "I, P, B";
-      3 -> "SI";
-      4 -> "SI, SP";
-      5 -> "I, SI";
-      6 -> "I, SI, P, SP";
-      7 -> "I, SI, P, SP, B"
-  end,
-  io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
-  Stream;
-
-
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, _/binary>> = SPS, Stream) ->
-  % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
-  % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
-  % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
-  % case PicOrderCntType of
-  %   0 ->
-  %     {Log2MaxPicOrder, Data5} = exp_golomb_read(Data4);
-  %   1 ->
-  %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
-      
-  % _ProfileName = profile_name(Profile),
-  % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
-  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  send_video_config(Stream#stream{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
-  
-
-
-decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, Stream) ->
-  % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
-  Stream.
-  
-  
-nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
-
-remove_trailing_zero(Bin) ->
-  Size = size(Bin) - 1,
-  case Bin of
-    <<Smaller:Size/binary, 0>> -> remove_trailing_zero(Smaller);
-    _ -> Bin
-  end.
-
-profile_name(66) -> "Baseline";
-profile_name(77) -> "Main";
-profile_name(88) -> "Extended";
-profile_name(100) -> "High";
-profile_name(110) -> "High 10";
-profile_name(122) -> "High 4:2:2";
-profile_name(144) -> "High 4:4:4";
-profile_name(Profile) -> "Unknown "++integer_to_list(Profile).
-
-
-slice_header(Bin, Stream) ->
-    {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
-    {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
-    {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
-    <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
-    _SliceType = slice_type(SliceTypeId),
-    % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
-    Stream.
-
-slice_type(0) -> 'P';
-slice_type(1) -> 'B';
-slice_type(2) -> 'I';
-slice_type(3) -> 'p';
-slice_type(4) -> 'i';
-slice_type(5) -> 'P';
-slice_type(6) -> 'B';
-slice_type(7) -> 'I';
-slice_type(8) -> 'p';
-slice_type(9) -> 'i'.
-
-
-exp_golomb_read_list(Bin, List) ->
-  exp_golomb_read_list(Bin, List, []).
-  
-exp_golomb_read_list(Bin, [], Results) -> {Results, Bin};
-exp_golomb_read_list(Bin, [Key | Keys], Results) ->
-  {Value, Rest} = exp_golomb_read(Bin),
-  exp_golomb_read_list(Rest, Keys, [{Key, Value} | Results]).
-
-exp_golomb_read_s(Bin) ->
-  {Value, _Rest} = exp_golomb_read(Bin),
-  case Value band 1 of
-    1 -> (Value + 1)/2;
-    _ -> - (Value/2)
-  end.
-
-exp_golomb_read(Bin) ->
-  exp_golomb_read(Bin, 0).
-  
-exp_golomb_read(<<0:1, Rest/bitstring>>, LeadingZeros) ->
-  exp_golomb_read(Rest, LeadingZeros + 1);
-
-exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
-  <<ReadBits:LeadingZeros, Rest/bitstring>> = Data,
-  CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
-  {CodeNum, Rest}.
 
 
 %%-------------------------------------------------------------------------
