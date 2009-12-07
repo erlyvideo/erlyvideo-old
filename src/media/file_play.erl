@@ -216,6 +216,7 @@ file_format(Name) ->
       ".mp4" -> mp4;
       ".MP4" -> mp4;
       ".mov" -> mp4;
+      ".m4v" -> mp4;
       ".mkv" -> mkv;
       ".MKV" -> mkv;
       _ -> flv
