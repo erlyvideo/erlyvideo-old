@@ -40,8 +40,8 @@ port() ->
   gen_server:call(?MODULE, port).
 
 
-register(Address, Port, Handler) ->
-  gen_server:call(?MODULE, {register, Address, Port, Handler}).
+register(Key, Handler, Streams) ->
+  gen_server:call(?MODULE, {register, Key, Handler, Streams}).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -84,9 +84,9 @@ init([]) ->
 handle_call(port, _From, #rtp_server{rtcp_port = RTCP, rtp_port = RTP} = State) ->
   {reply, {ok, {RTCP, RTP}}, State};
   
-handle_call({register, Address, Port, Handler}, _From, #rtp_server{streams = Streams} = State) ->
-  ets:insert(Streams, {{Address, Port}, Handler}),
-  ?D({"Registering", Address, Port, Handler}),
+handle_call({register, Key, Handler, Streams}, _From, #rtp_server{streams = StreamTable} = State) ->
+  ets:insert(StreamTable, {Key, Handler, Streams}),
+  ?D({"Registering", Key, Handler}),
   link(Handler),
   {reply, ok, State};
 
@@ -116,12 +116,15 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({udp,Socket,Host,Port,Bin}, State) ->
+handle_info({udp,Socket,Host,Port,Bin}, #rtp_server{streams = StreamTable} = State) ->
   % ?D({"UDP message", Host, Port, size(Bin)}),
-  {ok, {Address, Local}} = inet:sockname(Socket),
-  State1 = decode(Bin, State, Local, Port),
+  % {ok, {Address, Local}} = inet:sockname(Socket),
+  case ets:match_object(StreamTable, {{Host, Port}, '_', '_'}) of
+    [{_, Handler, Streams}] -> decode(Bin, Handler, Streams);
+    _ -> ?D({"Undefined", Host, Port})
+  end,
   inet:setopts(Socket, [{active, once}]),
-  {noreply, State1};
+  {noreply, State};
     
 handle_info({'EXIT', Pid, _Reason}, #rtp_server{streams = Streams} = State) ->
   ets:match_delete(Streams, {'_', Pid}),
@@ -134,7 +137,18 @@ handle_info(_Info, State) ->
 
 
 % Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Other
-decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Rest/binary>>, #rtp_server{streams = Streams} = State, Local, Port) ->
+decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Rest/binary>>, Handler, Streams) ->
+  VideoFrame = #video_frame{body = Rest},
+  case lists:keyfind(PayloadType, 1, Streams) of
+    {_, audio, ClockMap, Stream} ->
+      % ?D({audio, Timestamp / ClockMap, size(Rest)}),
+      Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_AUDIO, codec_id = ?FLV_AUDIO_FORMAT_AAC};
+    {_, video, ClockMap, Stream} ->
+      % ?D({video, Timestamp / ClockMap, size(Rest)}),
+      Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_VIDEO, codec_id = ?FLV_VIDEO_CODEC_AVC};
+    _ ->
+      ?D({"Undefined payload", PayloadType})
+  end,
   % {Stream, State1} = case proplists:get_value(StreamId, Streams, undefined) of
   %   Pid when is_pid(Pid) -> {Pid, State};
   %   undefined -> 
@@ -142,7 +156,7 @@ decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:1
   %     {Pid, State#rtp_server{streams = [{StreamId, Pid} | Streams]}}
   % end,
   % Stream ! {data, Marker, PayloadType, Sequence, Timestamp, Rest},
-  State.
+  ok.
   
   
 
