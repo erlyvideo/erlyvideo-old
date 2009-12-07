@@ -40,7 +40,7 @@
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2,
-         getStreamLength/2, prepareStream/1]).
+         getStreamLength/2, prepareStream/1, checkBandwidth/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
@@ -239,4 +239,10 @@ case array:get(StreamId, Streams) of
     State#rtmp_session{streams = array:reset(StreamId, Streams)}
 end.
 
+% Required for latest flash players like (http://www.longtailvideo.com/players/jw-flv-player/)
+% http://www.adobe.com/devnet/flashmediaserver/articles/dynamic_stream_switching_04.html
+% TODO Stub at this point, need to determine proper response to this call
 
+checkBandwidth(#amf{args = [null | Args]}, #rtmp_session{} = State) ->
+  ?D({"checkBandwidth", Args}),
+  State.
