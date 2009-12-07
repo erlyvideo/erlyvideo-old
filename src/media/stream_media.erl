@@ -88,27 +88,27 @@ handle_call({create_player, Options}, _From, #media_info{name = Name, clients = 
     undefined -> ok;
     AudioConfig -> Pid ! AudioConfig
   end,
-  {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}};
+  {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
-  {reply, Entries, MediaInfo};
+  {reply, Entries, MediaInfo, ?TIMEOUT};
 
 handle_call({codec_config, video}, _From, #media_info{video_decoder_config = Config} = MediaInfo) ->
-  {reply, Config, MediaInfo};
+  {reply, Config, MediaInfo, ?TIMEOUT};
 
 handle_call({codec_config, audio}, _From, #media_info{audio_decoder_config = Config} = MediaInfo) ->
-  {reply, Config, MediaInfo};
+  {reply, Config, MediaInfo, ?TIMEOUT};
 
 handle_call({metadata}, _From, MediaInfo) ->
-  {reply, undefined, MediaInfo};
+  {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
   ?D({self(), "Setting owner to", Owner}),
-  {reply, ok, MediaInfo#media_info{owner = Owner}};
+  {reply, ok, MediaInfo#media_info{owner = Owner}, ?TIMEOUT};
 
 handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
-  {reply, {error, {owner_exists, Owner}}, MediaInfo};
+  {reply, {error, {owner_exists, Owner}}, MediaInfo, ?TIMEOUT};
 
 
 handle_call({publish, #channel{timestamp = TS} = Channel}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
@@ -125,7 +125,7 @@ handle_call({publish, #channel{timestamp = TS} = Channel}, _From,
 	end,
   Packet = Channel1#channel{id = ems_play:channel_id(Channel1#channel.type,1)},
   lists:foreach(fun(Pid) -> Pid ! Packet end, Clients),
-	{reply, ok, Recorder};
+	{reply, ok, Recorder, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From, State}),
@@ -144,7 +144,7 @@ handle_call(Request, _From, State) ->
 %%-------------------------------------------------------------------------
 handle_cast(_Msg, State) ->
   ?D({"Undefined cast", _Msg}),
-  {noreply, State}.
+  {noreply, State, ?TIMEOUT}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -162,11 +162,11 @@ handle_info({graceful}, #media_info{owner = undefined, name = Name, clients = Cl
   {stop, normal, MediaInfo};
 
 handle_info({graceful}, #media_info{owner = undefined} = MediaInfo) ->
-  {noreply, MediaInfo};
+  {noreply, MediaInfo, ?TIMEOUT};
 
 
 handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
-  {noreply, MediaInfo};
+  {noreply, MediaInfo, ?TIMEOUT};
   
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
   ?D({self(), "Owner exits", Owner}),
@@ -174,7 +174,7 @@ handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clien
 
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner} = MediaInfo) ->
   timer:send_after(?FILE_CACHE_TIME, {graceful}),
-  {noreply, MediaInfo#media_info{owner = undefined}};
+  {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT};
 
 handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
   lists:foreach(fun(Client) -> Client ! eof end, Clients),
@@ -187,44 +187,36 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
     0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
     _ -> ok
   end,
-  {noreply, MediaInfo#media_info{clients = Clients}};
+  {noreply, MediaInfo#media_info{clients = Clients}, ?TIMEOUT};
 
-handle_info({video, Video}, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Video end, Clients),
-  {noreply, MediaInfo};
-
-handle_info({video_config, Video}, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Video end, Clients),
-  {noreply, MediaInfo#media_info{video_decoder_config = Video}};
-
-handle_info({audio, Audio}, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Audio end, Clients),
-  {noreply, MediaInfo};
-
-handle_info({audio_config, Audio}, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Audio end, Clients),
-  {noreply, MediaInfo#media_info{audio_decoder_config = Audio}};
+handle_info(#video_frame{} = Frame, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  {noreply, MediaInfo, ?TIMEOUT};
 
 handle_info(start, State) ->
-  {noreply, State};
+  {noreply, State, ?TIMEOUT};
 
 handle_info(stop, #media_info{name = Name} = MediaInfo) ->
   media_provider:remove(Name),
-  {noreply, MediaInfo};
+  {noreply, MediaInfo, ?TIMEOUT};
 
 handle_info(exit, #media_info{name = Name} = State) ->
   media_provider:remove(Name),
-  {noreply, State};
+  {noreply, State, ?TIMEOUT};
+
+handle_info(timeout, #media_info{name = Name} = State) ->
+  media_provider:remove(Name),
+  {stop, normal, State};
 
 handle_info(pause, State) ->
-  {noreply, State};
+  {noreply, State, ?TIMEOUT};
 
 handle_info(resume, State) ->
-  {noreply, State};
+  {noreply, State, ?TIMEOUT};
 
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
-  {noreply, State}.
+  {noreply, State, ?TIMEOUT}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
