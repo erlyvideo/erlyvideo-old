@@ -263,9 +263,10 @@ parse_announce([{m, Info} | Announce], Streams, Stream) when is_list(Stream) ->
   parse_announce([{m, Info} | Announce], [Stream | Streams], undefined);
 
 parse_announce([{m, Info} | Announce], Streams, undefined) ->
-  [TypeS, _, "RTP/AVP", S] = string:tokens(binary_to_list(Info), " "),
+  [TypeS, PortS, "RTP/AVP", S] = string:tokens(binary_to_list(Info), " "),
   Type = binary_to_existing_atom(list_to_binary(TypeS), latin1),
-  parse_announce(Announce, Streams, [{type, Type}, {payload_type, list_to_integer(S)}]);
+  Port = list_to_integer(PortS),
+  parse_announce(Announce, Streams, [{type, Type}, {port, Port}, {payload_type, list_to_integer(S)}]);
 
 parse_announce([{b, Info} | Announce], Streams, Stream) when is_list(Stream) ->
   ["AS", S] = string:tokens(binary_to_list(Info), ":"),
@@ -289,11 +290,22 @@ parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when
   [_, OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
-    {Key, Value}
+    {binary_to_existing_atom(list_to_binary(Key), latin1), Value}
   end, string:tokens(OptList, ";")),
-  parse_announce(Announce, Streams, Stream ++ Opts);
+  
+  {value, {_, "1"}, Opts1} = lists:keytake('packetization-mode', 1, lists:keysort(1, Opts)),
+  {value, {_, ProfileLevelId}, Opts2} = lists:keytake('profile-level-id', 1, Opts1),
+  ProfileId = erlang:list_to_integer(string:sub_string(ProfileLevelId, 1, 2), 16),
+  ProfileIop = erlang:list_to_integer(string:sub_string(ProfileLevelId, 3, 4), 16),
+  LevelIdc = erlang:list_to_integer(string:sub_string(ProfileLevelId, 5, 6), 16),
+  Opts3 = lists:keymerge(1, Opts2, [{profile_id, ProfileId}, {profile_iop, ProfileIop}, {level_idc, LevelIdc}]),
+  
+  {value, {_, Sprop}, Opts4} = lists:keytake('sprop-parameter-sets', 1, Opts3),
+  Props = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
+  Opts5 = [{parameter_sets, Props} | Opts4],
+  parse_announce(Announce, Streams, Stream ++ Opts5);
 
-parse_announce([{a, Info} | Announce], Streams, Stream) when is_list(Stream) ->
+parse_announce([{a, _Info} | Announce], Streams, Stream) when is_list(Stream) ->
   parse_announce(Announce, Streams, Stream).
   
 

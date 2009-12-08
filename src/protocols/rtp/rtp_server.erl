@@ -166,7 +166,6 @@ video(Media, Stream) ->
   Video = #video{media = Media, clock_map = ClockMap, h264 = #h264{}, 
                  width = Width, height = Height, payload_type = PayloadType},
   link(Media),
-  ?D({"Starting rtp video", Video}),
   video(Video).
   
 video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media} = Video) ->
