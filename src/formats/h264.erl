@@ -105,6 +105,19 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
 decode_nal(<<0:1, _NRI:2, ?NAL_STAR_A:5, Rest/binary>>, H264) ->
   decode_stara(Rest, [], H264);
 
+decode_nal(<<0:1, _NRI:2, ?NAL_STAR_B:5, Rest/binary>>, H264) ->
+  error(h264_star_b_unsupported);
+
+decode_nal(<<0:1, _NRI:2, ?NAL_MTAP16:5, Rest/binary>>, H264) ->
+  error(h264_mtap16_unsupported);
+
+decode_nal(<<0:1, _NRI:2, ?NAL_MTAP24:5, Rest/binary>>, H264) ->
+  error(h264_mtap24_unsupported);
+
+decode_nal(<<0:1, _NRI:2, ?NAL_FUB:5, Rest/binary>>, H264) ->
+  error(h264_fub_unsupported);
+
+
 %          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, Type:6,  _Rest/binary>>
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, _Type:6, Rest/binary>>, H264) ->
   {H264#h264{buffer = Rest}, []};
