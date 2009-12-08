@@ -172,13 +172,11 @@ video(Media, Stream) ->
 video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media} = Video) ->
   receive
     {data, Body, Sequence, Timestamp, PayloadType} ->
-      {H264_1, Frame} = h264:decode_nal(Body, H264),
-      case Frame of
-        undefined -> ok;
-        #video_frame{} -> 
-          ?D({"H264 Frame", Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
-          Media ! Frame#video_frame{timestamp = Timestamp / ClockMap}
-      end,
+      {H264_1, Frames} = h264:decode_nal(Body, H264),
+      lists:foreach(fun(Frame) ->
+        ?D({"H264 Frame", Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
+        Media ! Frame#video_frame{timestamp = Timestamp / ClockMap}
+      end, Frames),
       
       ?MODULE:video(Video#video{sequence = Sequence + 1, timestamp = Timestamp, h264 = H264_1});
     Else ->

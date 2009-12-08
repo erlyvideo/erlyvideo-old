@@ -478,11 +478,10 @@ extract_nal(Stream, _, false) ->
 extract_nal(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp, h264 = H264} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
-  {H264_1, Frame} = h264:decode_nal(NAL, H264),
-  case Frame of
-    undefined -> ok;
-    #video_frame{} -> Consumer ! Frame#video_frame{timestamp = Timestamp}
-  end,
+  {H264_1, Frames} = h264:decode_nal(NAL, H264),
+  lists:foreach(fun(Frame) ->
+    Consumer ! Frame#video_frame{timestamp = Timestamp}
+  end, Frames),
   decode_avc(Stream#stream{es_buffer = Rest1, h264 = H264_1}).
 
 nal_unit_start_code_finder(Bin, Offset) ->
