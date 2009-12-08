@@ -5,7 +5,7 @@
 -include("../../include/ems.hrl").
 -include("../../include/h264.hrl").
 
--export([decode_nal/2]).
+-export([decode_nal/2, video_config/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 
 video_config(H264) ->
@@ -68,6 +68,21 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, H264) ->
   },
   {H264, [VideoFrame]};
 
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, H264) ->
+  % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
+  % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
+  % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
+  % case PicOrderCntType of
+  %   0 ->
+  %     {Log2MaxPicOrder, Data5} = exp_golomb_read(Data4);
+  %   1 ->
+  %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
+
+  % _ProfileName = profile_name(Profile),
+  % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
+  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+  video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
+
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, H264) ->
   % io:format("Picture parameter set: ~p~n", [PPS]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
@@ -87,20 +102,6 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) 
   {H264, []};
 
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, H264) ->
-  % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
-  % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
-  % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
-  % case PicOrderCntType of
-  %   0 ->
-  %     {Log2MaxPicOrder, Data5} = exp_golomb_read(Data4);
-  %   1 ->
-  %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
-      
-  % _ProfileName = profile_name(Profile),
-  % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
-  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
   
 decode_nal(<<0:1, _NRI:2, ?NAL_STAR_A:5, Rest/binary>>, H264) ->
   decode_stara(Rest, [], H264);

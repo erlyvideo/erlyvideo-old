@@ -189,6 +189,14 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   end,
   {noreply, MediaInfo#media_info{clients = Clients}, ?TIMEOUT};
 
+handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO} = Frame, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  {noreply, MediaInfo#media_info{audio_decoder_config = Frame}, ?TIMEOUT};
+
+handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Frame, #media_info{clients = Clients} = MediaInfo) ->
+  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  {noreply, MediaInfo#media_info{video_decoder_config = Frame}, ?TIMEOUT};
+
 handle_info(#video_frame{} = Frame, #media_info{clients = Clients} = MediaInfo) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
   {noreply, MediaInfo, ?TIMEOUT};

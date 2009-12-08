@@ -275,7 +275,7 @@ parse_announce([{b, Info} | Announce], Streams, Stream) when is_list(Stream) ->
 parse_announce([{a, <<"rtpmap:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
   {ok, Re} = re:compile("\\d+ [^/]+/(\\d+)"),
   {match, [_, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
-  parse_announce(Announce, Streams, [{clock_map, list_to_integer(ClockMap)} | Stream]);
+  parse_announce(Announce, Streams, [{clock_map, list_to_integer(ClockMap)/1000} | Stream]);
 
 parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),
@@ -297,8 +297,10 @@ parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when
   {value, {_, ProfileLevelId}, Opts2} = lists:keytake('profile-level-id', 1, Opts1),
   ProfileId = erlang:list_to_integer(string:sub_string(ProfileLevelId, 1, 2), 16),
   ProfileIop = erlang:list_to_integer(string:sub_string(ProfileLevelId, 3, 4), 16),
+  <<Constraint1:1, Constraint2:1, Constraint3:1, 0:5>> = <<ProfileIop>>,
+  ?D({Constraint1, Constraint2, Constraint3}),
   LevelIdc = erlang:list_to_integer(string:sub_string(ProfileLevelId, 5, 6), 16),
-  Opts3 = lists:keymerge(1, Opts2, [{profile_id, ProfileId}, {profile_iop, ProfileIop}, {level_idc, LevelIdc}]),
+  Opts3 = lists:keymerge(1, Opts2, [{profile, ProfileId}, {level, LevelIdc}]),
   
   {value, {_, Sprop}, Opts4} = lists:keytake('sprop-parameter-sets', 1, Opts3),
   Props = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),

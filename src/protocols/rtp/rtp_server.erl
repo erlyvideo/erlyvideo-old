@@ -17,6 +17,7 @@
   media,
   clock_map,
   sequence = 0,
+  base_ts = undefined,
   timestamp,
   width,
   height,
@@ -163,21 +164,37 @@ video(Media, Stream) ->
   Width = proplists:get_value(width, Stream),
   Height = proplists:get_value(height, Stream),
   PayloadType = proplists:get_value(payload_type, Stream),
-  Video = #video{media = Media, clock_map = ClockMap, h264 = #h264{}, 
+  [SPS, PPS] = proplists:get_value(parameter_sets, Stream),
+  H264 = #h264{},
+  {H264_1, _} = h264:decode_nal(SPS, H264),
+  {H264_2, Configs} = h264:decode_nal(PPS, H264_1),
+  
+  Video = #video{media = Media, clock_map = ClockMap, h264 = H264_2,
                  width = Width, height = Height, payload_type = PayloadType},
   link(Media),
+  
+  lists:foreach(fun(Frame) ->
+    Media ! Frame#video_frame{timestamp = 0}
+  end, Configs),
+  
   video(Video).
   
-video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media} = Video) ->
+video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, base_ts = BaseTs} = Video) ->
   receive
-    {data, Body, Sequence, Timestamp, PayloadType} ->
+    {data, Body, Sequence, RtpTs, PayloadType} ->
+      ScaledTs = round(RtpTs / ClockMap),
+      NewBaseTs = case BaseTs of
+        undefined -> ScaledTs;
+        _ -> BaseTs
+      end,
+      Timestamp = ScaledTs - NewBaseTs,
       {H264_1, Frames} = h264:decode_nal(Body, H264),
       lists:foreach(fun(Frame) ->
-        ?D({"H264 Frame", Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
-        Media ! Frame#video_frame{timestamp = Timestamp / ClockMap}
+        ?D({"Frame", Timestamp}),
+        Media ! Frame#video_frame{timestamp = Timestamp}
       end, Frames),
       
-      ?MODULE:video(Video#video{sequence = Sequence + 1, timestamp = Timestamp, h264 = H264_1});
+      ?MODULE:video(Video#video{sequence = Sequence + 1, timestamp = Timestamp, h264 = H264_1, base_ts = NewBaseTs});
     Else ->
       ?D({"Unknown", Else})
   after
