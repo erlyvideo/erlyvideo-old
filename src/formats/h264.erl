@@ -37,7 +37,7 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
 
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 1:5, _/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, H264) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),
@@ -59,7 +59,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, H264) ->
   % io:format("Coded slice data partition C     :: "),
   slice_header(Rest, H264);
 
-decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, H264) ->
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),
@@ -68,7 +68,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 5:5, _/binary>> = Data, H264) ->
   },
   {H264, VideoFrame};
 
-decode_nal(<<0:1, _NalRefIdc:2, 8:5, _/binary>> = PPS, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, H264) ->
   % io:format("Picture parameter set: ~p~n", [PPS]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
 
@@ -87,7 +87,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) 
   {H264, undefined};
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, _/binary>> = SPS, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, H264) ->
   % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
   % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
   % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
@@ -102,12 +102,39 @@ decode_nal(<<0:1, _NalRefIdc:2, 7:5, Profile, _:8, Level, _/binary>> = SPS, H264
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
   
+decode_nal(<<0:1, _NRI:2, ?NAL_STAR_A:5, Rest/binary>>, H264) ->
+  {H264, decode_stara(Rest)};
+
+%          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, Type:6,  _Rest/binary>>
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, _Type:6, Rest/binary>>, H264) ->
+  {H264#h264{buffer = Rest}, undefined};
+
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, _Type:6, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+  {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, undefined};
+
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, _Type:6, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+  Data = <<Buf/binary, Rest/binary>>,
+  VideoFrame = #video_frame{
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		body          = nal_with_size(Data),
+		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
+		codec_id      = ?FLV_VIDEO_CODEC_AVC
+  },
+  {H264#h264{buffer = <<>>}, VideoFrame};
 
 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, H264) ->
   % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
   {H264, undefined}.
   
+decode_stara(<<Size:16, NAL:Size/binary, Rest/binary>>) ->
+  <<0:1, _NalRefIdc:2, Type:5, _/binary>> = NAL,
+  ?D({"STARA", Type, Size}),
+  decode_stara(Rest);
+  
+decode_stara(Rest) ->
+  ?D({"STARA finished", Rest}),
+  undefined.
   
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
 

@@ -34,7 +34,7 @@
   session_id,
   sequence,
   streams,
-  session
+  media
 }).
 
 
@@ -160,10 +160,10 @@ handle_request(#rtsp_session{request = [_Method, _URL], body = Body} = State) ->
 
 run_request(#rtsp_session{request = ['ANNOUNCE', _URL], body = Body} = State) ->
   Path = path(State),
-  Session = media_provider:open(Path, live),
+  Media = media_provider:open(Path, live),
   Streams = parse_announce(Body),
   ?D(Streams),
-  reply(State#rtsp_session{session = Session, session_id = 42, streams = Streams}, "200 OK", []);
+  reply(State#rtsp_session{media = Media, session_id = 42, streams = Streams}, "200 OK", []);
 
 run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
   reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
@@ -171,14 +171,21 @@ run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
 run_request(#rtsp_session{request = ['RECORD', _URL]} = State) ->
   reply(State, "200 OK", []);
 
-run_request(#rtsp_session{request = ['SETUP', _URL], headers = Headers, socket = Socket, streams = Streams, session = Session} = State) ->
+run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = Socket, streams = Streams, media = Media} = State) ->
+  {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
+  {match, [_, _Host, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
+  TrackId = list_to_integer(TrackIdS),
   Transport = proplists:get_value('Transport', Headers),
   TransportOpts = split_params(Transport),
-  ?D({"Transport", TransportOpts}),
   ClientPorts = string:tokens(proplists:get_value("client_port", TransportOpts), "-"),
   ClientPort = list_to_integer(hd(ClientPorts)),
   {ok, {Address, _}} = inet:peername(Socket),
-  rtp_server:register({Address, ClientPort}, Session, Streams),
+  
+  Stream = hd(lists:filter(fun(S) ->
+    lists:member({track_id, TrackId}, S)
+  end, Streams)),
+  
+  rtp_server:register({Address, ClientPort}, Media, Stream),
   {ok, {RTP, RTCP}} = rtp_server:port(),
   ReplyHeaders = [{"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTP, RTCP])}],
   reply(State, "200 OK", ReplyHeaders);
@@ -226,12 +233,7 @@ path(#rtsp_session{url_re = UrlRe, request = [_, URL]}) ->
   Path.
   
 parse_announce(Announce) -> 
-  lists:map(fun(Stream) ->
-    {value, {stream_id, StreamId}, Stream1} = lists:keytake(stream_id, 1, Stream),
-    {value, {type, Type}, Stream2} = lists:keytake(type, 1, Stream1),
-    {value, {clock_map, ClockMap}, Stream3} = lists:keytake(clock_map, 1, Stream2),
-    {StreamId, Type, ClockMap, Stream3}
-  end, parse_announce(Announce, [], undefined)).
+  parse_announce(Announce, [], undefined).
 
 parse_announce([], Streams, undefined) ->
   Streams;
@@ -263,7 +265,7 @@ parse_announce([{m, Info} | Announce], Streams, Stream) when is_list(Stream) ->
 parse_announce([{m, Info} | Announce], Streams, undefined) ->
   [TypeS, _, "RTP/AVP", S] = string:tokens(binary_to_list(Info), " "),
   Type = binary_to_existing_atom(list_to_binary(TypeS), latin1),
-  parse_announce(Announce, Streams, [{type, Type}, {stream_id, list_to_integer(S)}]);
+  parse_announce(Announce, Streams, [{type, Type}, {payload_type, list_to_integer(S)}]);
 
 parse_announce([{b, Info} | Announce], Streams, Stream) when is_list(Stream) ->
   ["AS", S] = string:tokens(binary_to_list(Info), ":"),
@@ -277,6 +279,10 @@ parse_announce([{a, <<"rtpmap:", Info/binary>>} | Announce], Streams, Stream) wh
 parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),
   parse_announce(Announce, Streams, [{height, list_to_integer(Height)} | [{width, list_to_integer(Width)} | Stream]]);
+
+parse_announce([{a, <<"control:trackid=", Track/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
+  TrackId = list_to_integer(binary_to_list(Track)),
+  parse_announce(Announce, Streams, [{track_id, TrackId} | Stream]);
 
 parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
   {ok, Re} = re:compile("([^=]+)=(.*)"),

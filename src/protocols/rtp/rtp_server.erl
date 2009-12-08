@@ -12,6 +12,18 @@
 	streams
 	}).
 	
+	
+-record(video, {
+  media,
+  clock_map,
+  sequence = 0,
+  timestamp,
+  width,
+  height,
+  payload_type,
+  h264
+}).
+	
 -behaviour(gen_server).
 
 %% External API
@@ -21,7 +33,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--export([port/0]).
+-export([port/0, video/2, audio/2, video/1, audio/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -85,10 +97,11 @@ init([]) ->
 handle_call(port, _From, #rtp_server{rtcp_port = RTCP, rtp_port = RTP} = State) ->
   {reply, {ok, {RTCP, RTP}}, State};
   
-handle_call({register, Key, Handler, Streams}, _From, #rtp_server{streams = StreamTable} = State) ->
-  ets:insert(StreamTable, {Key, Handler, Streams}),
-  ?D({"Registering", Key, Handler}),
-  link(Handler),
+handle_call({register, Key, Media, Stream}, _From, #rtp_server{streams = StreamTable} = State) ->
+  Type = proplists:get_value(type, Stream),
+  Decoder = spawn_link(?MODULE, Type, [Media, Stream]),
+  ets:insert(StreamTable, {Key, Decoder}),
+  ?D({"Registering", Key, Type, Decoder}),
   {reply, ok, State};
 
 handle_call(Request, _From, State) ->
@@ -117,14 +130,14 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({udp,Socket,Host,Port,Bin}, #rtp_server{streams = StreamTable} = State) ->
+handle_info({udp,Socket,Host,Port, <<2:2, _Padding:1, _Extension:1, 0:4, _Marker:1, PayloadType:7, 
+         Sequence:16, Timestamp:32, _StreamId:32, Body/binary>>}, #rtp_server{streams = StreamTable} = State) ->
   % ?D({"UDP message", Host, Port, size(Bin)}),
   % {ok, {Address, Local}} = inet:sockname(Socket),
-  Streams1 = case ets:match_object(StreamTable, {{Host, Port}, '_', '_'}) of
-    [{_, Handler, Streams}] -> decode(Bin, Handler, Streams);
-    _ -> decode(Bin, {Host, Port}, [])
+  case ets:match_object(StreamTable, {{Host, Port}, '_'}) of
+    [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType};
+    _ -> ?D({"Unknown payload", Host, Port})
   end,
-  ets:update_element(StreamTable, {Host, Port}, {3, Streams1}),
   inet:setopts(Socket, [{active, once}]),
   {noreply, State};
     
@@ -138,35 +151,54 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 
-% Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Other
-decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Rest/binary>>, Handler, Streams) ->
-  VideoFrame = #video_frame{body = Rest},
-  case lists:keyfind(PayloadType, 1, Streams) of
-    {PayloadType, audio, ClockMap, Stream} ->
-      % ?D({audio, Timestamp / ClockMap, size(Rest)}),
-      Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_AUDIO, codec_id = ?FLV_AUDIO_FORMAT_AAC},
-      Streams;
-    {PayloadType, video, ClockMap, Stream} ->
-      H264 = case lists:keyfind(h264, 1, Stream) of
-        false -> #h264{};
-        Else -> Else
-      end,
-      % ?D({video, Timestamp / ClockMap, size(Rest)}),
-      % decode_video(Handler, VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_VIDEO, codec_id = ?FLV_VIDEO_CODEC_AVC});
-      {H264_1, Frame} = h264:decode_nal(Rest, H264),
-      Stream1 = lists:keystore(h264, 1, Stream, H264_1),
-      Streams1 = lists:keystore(PayloadType, 1, Streams, {PayloadType, video, ClockMap, Stream1}),
+audio(_Media, _Stream) ->
+  audio(_Stream).
+  
+audio(_) -> ok.
+
+
+
+video(Media, Stream) ->
+  ClockMap = proplists:get_value(clock_map, Stream),
+  Width = proplists:get_value(width, Stream),
+  Height = proplists:get_value(height, Stream),
+  PayloadType = proplists:get_value(payload_type, Stream),
+  Video = #video{media = Media, clock_map = ClockMap, h264 = #h264{}, 
+                 width = Width, height = Height, payload_type = PayloadType},
+  link(Media),
+  ?D({"Starting rtp video", Video}),
+  video(Video).
+  
+video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media} = Video) ->
+  receive
+    {data, Body, Sequence, Timestamp, PayloadType} ->
+      {H264_1, Frame} = h264:decode_nal(Body, H264),
       case Frame of
         undefined -> ok;
         #video_frame{} -> 
           ?D({"H264 Frame", Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
-          Handler ! Frame#video_frame{timestamp = Timestamp / ClockMap}
+          Media ! Frame#video_frame{timestamp = Timestamp / ClockMap}
       end,
-      Streams1;
-    _ ->
-      ?D({"Undefined payload", PayloadType, Timestamp, Handler, size(Rest)}),
-      Streams
+      
+      ?MODULE:video(Video#video{sequence = Sequence + 1, timestamp = Timestamp, h264 = H264_1});
+    Else ->
+      ?D({"Unknown", Else})
+  after
+    50000 ->
+      ?D("RTP video timeout")
   end.
+  
+
+% Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Other
+% decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, StreamId:32, Rest/binary>>, Handler, Streams) ->
+%   VideoFrame = #video_frame{body = Rest},
+%   case lists:keyfind(PayloadType, 1, Streams) of
+%     {PayloadType, audio, ClockMap, Stream} ->
+%       % ?D({audio, Timestamp / ClockMap, size(Rest)}),
+%       Handler ! VideoFrame#video_frame{timestamp = Timestamp / ClockMap, type = ?FLV_TAG_TYPE_AUDIO, codec_id = ?FLV_AUDIO_FORMAT_AAC},
+%       Streams;
+%   end.
+
   
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
@@ -176,7 +208,7 @@ decode(<<2:2, _Padding:1, _Extension:1, 0:4, Marker:1, PayloadType:7, Sequence:1
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #rtp_server{rtcp_listener = RTCP, rtp_listener = RTP} = State) ->
+terminate(_Reason, #rtp_server{rtcp_listener = RTCP, rtp_listener = RTP}) ->
   gen_udp:close(RTCP),
   gen_udp:close(RTP),
   ok.
