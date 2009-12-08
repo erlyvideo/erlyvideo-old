@@ -17,11 +17,12 @@
   media,
   clock_map,
   sequence = 0,
-  timestamp,
+  timestamp = undefined,
   width,
   height,
   payload_type,
-  h264
+  h264,
+  buffer = []
 }).
 	
 -behaviour(gen_server).
@@ -143,13 +144,13 @@ handle_cast(_Msg, State) ->
 %  |                             ....                              |
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-handle_info({udp,Socket,Host,Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, PayloadType:7, 
+handle_info({udp,Socket,Host,Port, <<2:2, 0:1, _Extension:1, 0:4, Marker:1, PayloadType:7, 
          Sequence:16, Timestamp:32, _StreamId:32, Body/binary>> = _Bin}, #rtp_server{streams = StreamTable} = State) ->
   % ?D({"UDP message", Host, Port, size(Bin)}),
   % ?D({"UDP", _Marker, Timestamp, Sequence}),
   % {ok, {Address, Local}} = inet:sockname(Socket),
   case ets:match_object(StreamTable, {{Host, Port}, '_'}) of
-    [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType};
+    [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType, Marker};
     _ -> 
       % ?D({"Unknown payload", Host, Port}),
       ok
@@ -194,15 +195,10 @@ video(Media, Stream) ->
   
   video(Video).
   
-video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media} = Video) ->
+video(Video) ->
   receive
-    {data, Body, Sequence, RtpTs, PayloadType} ->
-      {H264_1, Frames} = h264:decode_nal(Body, H264),
-      lists:foreach(fun(Frame) ->
-        Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap)}
-      end, Frames),
-      
-      ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1});
+    {data, _, _, _, _, _} = Packet ->
+      read_video(Video, Packet);
     Else ->
       ?D({"Unknown", Else}),
       ok
@@ -210,6 +206,26 @@ video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, medi
     50000 ->
       ?D("RTP video timeout")
   end.
+  
+
+read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp, _, _} = Packet) ->
+  read_video(Video#video{timestamp = Timestamp}, Packet);
+
+read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp, PayloadType, Marker}) ->
+  {H264_1, Frames} = h264:decode_nal(Body, H264),
+  NAL = lists:map(fun(#video_frame{body = N}) -> N end, Frames),
+  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ NAL});
+  
+read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs, PayloadType, Marker}) ->
+
+  {H264_1, Frames} = h264:decode_nal(Body, H264),
+
+  Frame = hd(Frames),
+  ?D({"Glue", length(Buffer), round(RtpTs / ClockMap)}),
+  Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), body = iolist_to_binary(Buffer)},
+  
+  NAL = lists:map(fun(#video_frame{body = N}) -> N end, Frames),
+  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = NAL, timestamp = NewRtpTs}).
   
 
 %%-------------------------------------------------------------------------
