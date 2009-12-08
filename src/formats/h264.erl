@@ -103,7 +103,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
   
 decode_nal(<<0:1, _NRI:2, ?NAL_STAR_A:5, Rest/binary>>, H264) ->
-  {H264, decode_stara(Rest)};
+  decode_stara(Rest, [], H264);
 
 %          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, Type:6,  _Rest/binary>>
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, _Type:6, Rest/binary>>, H264) ->
@@ -127,14 +127,12 @@ decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, H264) ->
   % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
   {H264, []}.
   
-decode_stara(<<Size:16, NAL:Size/binary, Rest/binary>>) ->
-  <<0:1, _NalRefIdc:2, Type:5, _/binary>> = NAL,
-  ?D({"STARA", Type, Size}),
-  decode_stara(Rest);
+decode_stara(<<Size:16, NAL:Size/binary, Rest/binary>>, Frames, H264) ->
+  {H264_1, NewFrames} = decode_nal(NAL, H264),
+  decode_stara(Rest, Frames ++ NewFrames, H264_1);
   
-decode_stara(Rest) ->
-  ?D({"STARA finished", Rest}),
-  [].
+decode_stara(Rest, Frames, H264) ->
+  {H264, Frames}.
   
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
 
