@@ -23,7 +23,7 @@ metadata(Server) ->
 
 codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
 
-publish(undefined, Frame) ->
+publish(undefined, _Frame) ->
   {error, no_stream};
 
 publish(Server, Frame) ->
