@@ -186,13 +186,17 @@ send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{deco
   
   
   
-  send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) when is_number(Ts)->
+  send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) when is_number(Ts) andalso Ts > 0 ->
     send_frame(Player#stream_player{base_ts = Ts}, Frame);
   
   send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, 
              #video_frame{timestamp = Ts, decoder_config = Decoder, type = Type} = Frame) ->
-    ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Ts - BaseTs}),
-    % ?D({"Frame", Ts - BaseTs, Type, Decoder}),
+    Timestamp = case BaseTs of
+      undefined -> 0;
+      _ -> Ts - BaseTs
+    end,
+    ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId, timestamp = Timestamp}),
+    % ?D({"Frame", Timestamp, Type, Decoder, Frame#video_frame.frame_type}),
     Player1 = case {Decoder, Type} of
       {true, ?FLV_TAG_TYPE_AUDIO} -> Player#stream_player{sent_audio_decoder = true};
       {true, ?FLV_TAG_TYPE_VIDEO} -> Player#stream_player{sent_video_decoder = true};
