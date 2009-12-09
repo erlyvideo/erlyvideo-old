@@ -103,10 +103,10 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) 
 
 
   
-decode_nal(<<0:1, _NRI:2, ?NAL_STAR_A:5, Rest/binary>>, H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_STAP_A:5, Rest/binary>>, H264) ->
   decode_stara(Rest, [], H264);
 
-decode_nal(<<0:1, _NRI:2, ?NAL_STAR_B:5, _/binary>>, _H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_STAP_B:5, _/binary>>, _H264) ->
   erlang:error(h264_star_b_unsupported);
 
 decode_nal(<<0:1, _NRI:2, ?NAL_MTAP16:5, _/binary>>, _H264) ->
@@ -119,22 +119,15 @@ decode_nal(<<0:1, _NRI:2, ?NAL_FUB:5, _/binary>>, _H264) ->
   erlang:error(h264_fub_unsupported);
 
 
-%          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, Type:6,  _Rest/binary>>
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, _Type:6, Rest/binary>>, H264) ->
+%          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, R:1, Type:1,  _Rest/binary>>
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, _Type:5, Rest/binary>>, H264) ->
   {H264#h264{buffer = Rest}, []};
 
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, _Type:6, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, []};
 
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, _Type:6, Rest/binary>>, #h264{buffer = Buf} = H264) ->
-  Data = <<Buf/binary, Rest/binary>>,
-  VideoFrame = #video_frame{
-   	type          = ?FLV_TAG_TYPE_VIDEO,
-		body          = nal_with_size(Data),
-		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC
-  },
-  {H264#h264{buffer = <<>>}, [VideoFrame]};
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+  decode_nal(<<0:1, _NRI:2, Type:5, Buf/binary, Rest/binary>>, H264#h264{buffer = <<>>});
 
 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, H264) ->
