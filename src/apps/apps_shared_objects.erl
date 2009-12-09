@@ -10,10 +10,12 @@
 
 
 
-
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 
-% command({Object, ?SO_CONNECT, }, State) ->
+command({{Name, Version, Persistent}, ?SO_CONNECT, _}, State) ->
+  Object = shared_objects:connect(Name, Version, Persistent),
+  ?D({"Connecting to object", Object}),
+  State;
 
 command(Command, State) ->
   ?D({"SO command", Command}),
@@ -24,3 +26,4 @@ getServiceList(_AMF, State) ->
   ?D({"getServiceList", _AMF#amf.args, _AMF}),
   % gen_fsm:send_event(self(), {publish, record, Name}),
   State.
+

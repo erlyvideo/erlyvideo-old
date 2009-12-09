@@ -37,7 +37,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/1]).
+-export([encode/1, encode/2, handshake/1, decode/1, decode_list/2]).
 
 
 handshake(C1) when is_binary(C1) -> 
@@ -292,6 +292,8 @@ decode_and_invoke(Message, _Module, State, StreamId) ->
 	AMF = #amf{command = Command, args = Arguments, stream_id = StreamId, type = invoke, id = InvokeId},
 	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
   
+  
+decode_list(AMF, Module) -> decode_list(AMF, Module, []).
 
 decode_list(<<>>, _, Acc) -> lists:reverse(Acc);
 
@@ -324,5 +326,5 @@ decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, Persist:3
     2 -> true;
     _ -> false
   end,
-  State1 = apps_shared_objects:command({Name, EventType, EventData, Version, Persistent}, State),
+  State1 = apps_shared_objects:command({{Name, Version, Persistent}, EventType, EventData}, State),
   decode_shared_object_amf0(Rest, State1).
