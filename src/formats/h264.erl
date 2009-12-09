@@ -106,7 +106,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) 
 
   
 decode_nal(<<0:1, _NRI:2, ?NAL_STAP_A:5, Rest/binary>>, H264) ->
-  decode_stara(Rest, [], H264);
+  decode_stapa(Rest, [], H264);
 
 decode_nal(<<0:1, _NRI:2, ?NAL_STAP_B:5, _/binary>>, _H264) ->
   erlang:error(h264_star_b_unsupported);
@@ -136,11 +136,11 @@ decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, H264) ->
   % io:format("Unknown NAL unit type ~p~n", [NalUnitType]),
   {H264, []}.
   
-decode_stara(<<Size:16, NAL:Size/binary, Rest/binary>>, Frames, H264) ->
+decode_stapa(<<Size:16, NAL:Size/binary, Rest/binary>>, Frames, H264) ->
   {H264_1, NewFrames} = decode_nal(NAL, H264),
-  decode_stara(Rest, Frames ++ NewFrames, H264_1);
+  decode_stapa(Rest, Frames ++ NewFrames, H264_1);
   
-decode_stara(<<>>, Frames, H264) ->
+decode_stapa(<<>>, Frames, H264) ->
   {H264, Frames}.
   
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
