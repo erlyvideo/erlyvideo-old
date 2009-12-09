@@ -38,6 +38,7 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
 
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, H264) ->
+  % ?D("P-frame"),
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),
@@ -60,6 +61,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, H264) ->
   slice_header(Rest, H264);
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, H264) ->
+  % ?D("I-frame"),
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),

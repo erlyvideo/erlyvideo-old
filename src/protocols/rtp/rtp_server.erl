@@ -225,7 +225,7 @@ read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap,
 
   {H264_1, Frames} = h264:decode_nal(Body, H264),
 
-  ?D({round(RtpTs / ClockMap), Frame#video_frame.frame_type}),
+  % ?D({round(RtpTs / ClockMap), Frame#video_frame.frame_type}),
   Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), body = iolist_to_binary(Buffer)},
   
   NAL = lists:map(fun(#video_frame{body = N}) -> N end, Frames),
