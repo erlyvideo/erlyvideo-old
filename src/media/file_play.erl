@@ -213,6 +213,7 @@ file_format(Name) ->
   case filename:extension(Name) of
       ".flv" -> flv;
       ".FLV" -> flv;
+      ".3gp" -> mp4;
       ".mp4" -> mp4;
       ".MP4" -> mp4;
       ".mov" -> mp4;
