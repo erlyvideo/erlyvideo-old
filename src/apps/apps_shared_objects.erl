@@ -1,6 +1,7 @@
 -module(apps_shared_objects).
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
+-include("../../include/shared_objects.hrl").
 
 -export(['WAIT_FOR_DATA'/2]).
 -export([command/2]).
@@ -9,8 +10,10 @@
 
 
 
+
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 
+% command({Object, ?SO_CONNECT, }, State) ->
 
 command(Command, State) ->
   ?D({"SO command", Command}),

@@ -318,7 +318,11 @@ call_function(App, Command, State, #amf{id = _Id} = AMF) ->
 
 
 decode_shared_object_amf0(<<>>, State) -> State;
-decode_shared_object_amf0(<<Length:16, SharedObject:Length/binary, _VersionFlags:12/binary, EventType, 
+decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, Persist:32, _:32, EventType, 
                             EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>, State) ->
-  State1 = apps_shared_objects:command({SharedObject, EventType, EventData}, State),
+  Persistent = case Persist of
+    2 -> true;
+    _ -> false
+  end,
+  State1 = apps_shared_objects:command({Name, EventType, EventData, Version, Persistent}, State),
   decode_shared_object_amf0(Rest, State1).
