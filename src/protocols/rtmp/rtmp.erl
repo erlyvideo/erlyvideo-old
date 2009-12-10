@@ -277,6 +277,9 @@ command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Mess
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
+
+command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Message}, State) ->
+  decode_shared_object_amf0(Message, State);
   
 
 	

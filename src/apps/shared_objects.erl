@@ -33,7 +33,6 @@ start_link()  ->
 
 connect(Name, Version, Persistent) -> 
   {ok, Object} = open(Name, Persistent),
-  ?D({"SO", Object}),
   shared_object:connect(Object, Version).
 
 open(Name, Persistent) ->
