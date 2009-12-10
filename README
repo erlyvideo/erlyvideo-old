@@ -21,7 +21,11 @@ currently in development:
   
 future plans:
   * try to change quality on fly
-  * RTSP/RTP to read from QuickTime Broadcaster
+
+
+abandoned plans:
+  * RTSP/RTP to read from QuickTime Broadcaster is currently imposible. Quicktime Broadcaster creates H264 stream, that is not playable in
+Flash. VLC cannot announce itself via RTSP. Wirecast is too strict in RTSP protocol. Reverse MPEG TS is the solution.
 
 
 What you can do right now?
