@@ -7,12 +7,12 @@
 
 -record(shared_object, {
   name,
-  version,
+  version = 0,
   persistent,
   clients = []
 }).
 
--export([start_link/1]).
+-export([start_link/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -26,8 +26,8 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link(SharedObject)  ->
-   gen_server:start_link(?MODULE, [SharedObject], []).
+start_link(SharedObject, Persistent)  ->
+   gen_server:start_link(?MODULE, [SharedObject, Persistent], []).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -47,9 +47,9 @@ connect(Object, Version) ->
 %%      Create listening socket.
 %% @end
 %%----------------------------------------------------------------------
-init([{Name, Version, Persistent}]) ->
+init([Name, Persistent]) ->
   process_flag(trap_exit, true),
-  {ok, #shared_object{name = Name, version = Version, persistent = Persistent}}.
+  {ok, #shared_object{name = Name, persistent = Persistent}}.
   
 
 %%-------------------------------------------------------------------------

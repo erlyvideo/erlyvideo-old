@@ -33,6 +33,7 @@ start_link()  ->
 
 connect(Name, Version, Persistent) -> 
   {ok, Object} = open(Name, Persistent),
+  ?D({"SO", Object}),
   shared_object:connect(Object, Version).
 
 open(Name, Persistent) ->
@@ -69,9 +70,9 @@ init([]) ->
 
 handle_call({open, Name, Persistent}, _From, #shared_objects{objects = Objects} = State) ->
   case ets:lookup(Objects, Name) of
-    [Object] -> ok;
+    [{Name, Object}] -> ok;
     _ -> 
-      Object = ems_sup:start_shared_object(Name, Persistent),
+      {ok, Object} = ems_sup:start_shared_object(Name, Persistent),
       ets:insert(Objects, {Name, Object})
   end,
   {reply, {ok, Object}, State};

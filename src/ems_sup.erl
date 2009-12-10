@@ -297,7 +297,7 @@ init([]) ->
         [shared_objects]                                       % Modules  = [Module] | dynamic
     },
     {   shared_object_sup,
-        {supervisor,start_link,[{local, shared_objects_sup}, ?MODULE, [shared_object]]},
+        {supervisor,start_link,[{local, shared_object_sup}, ?MODULE, [shared_object]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
