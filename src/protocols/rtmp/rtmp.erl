@@ -338,7 +338,10 @@ encode_shared_object_events_amf0(Body, []) ->
 
 encode_shared_object_events_amf0(Body, [{EventType, Event} | Events]) ->
   EventData = amf0:encode(Event),
-  encode_shared_object_events_amf0(<<Body/binary, EventType, (size(EventData)):32, EventData/binary>>, Events).
+  encode_shared_object_events_amf0(<<Body/binary, EventType, (size(EventData)):32, EventData/binary>>, Events);
+
+encode_shared_object_events_amf0(Body, [EventType | Events]) ->
+  encode_shared_object_events_amf0(<<Body/binary, EventType, 0:32>>, Events).
 
 
 decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, 2:32, _:32, Events/binary>>) ->
@@ -351,7 +354,7 @@ decode_shared_object_events_amf0(<<>>, #so_message{events = Events} = Message) -
   Message#so_message{events = lists:reverse(Events)};
 
 decode_shared_object_events_amf0(<<EventType, 0:32, Rest/binary>>, #so_message{events = Events} = Message) ->
-  decode_shared_object_events_amf0(Rest, Message#so_message{events = [{EventType, true}|Events]});
+  decode_shared_object_events_amf0(Rest, Message#so_message{events = [EventType|Events]});
 
 decode_shared_object_events_amf0(<<EventType, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
   #so_message{events = Events} = Message) ->

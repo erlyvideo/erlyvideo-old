@@ -12,6 +12,10 @@ $(':button').live('click', function(){
 	jsSO.set('someVar', rand);
 });
 
+jsSO.onConnect(function(event) {
+	$('pre').append('connect\n');
+});
+
 jsSO.onSync(function(event, updates, data) {
 	if (updates.someVar) {
 		$('pre').append('receive: '+data.someVar+'\n');

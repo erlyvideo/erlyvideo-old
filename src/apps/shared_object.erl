@@ -1,6 +1,7 @@
 -module(shared_object).
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
+-include("../../include/shared_objects.hrl").
 
 
 -behaviour(gen_server).
@@ -19,7 +20,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
          
--export([connect/2]).
+-export([message/2]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -35,8 +36,8 @@ start_link(SharedObject, Persistent)  ->
 %%%------------------------------------------------------------------------
 
 
-connect(Object, Version) ->
-  gen_server:call(Object, {connect, Version}).
+message(Object, Message) ->
+  gen_server:call(Object, {message, Message}).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -50,7 +51,7 @@ connect(Object, Version) ->
 %%----------------------------------------------------------------------
 init([Name, Persistent]) ->
   process_flag(trap_exit, true),
-  {ok, #shared_object{name = Name, persistent = Persistent}}.
+  {ok, #shared_object{name = Name, persistent = Persistent, data = [{a, 1}, {b, <<"zz">>}]}}.
   
 
 %%-------------------------------------------------------------------------
@@ -66,15 +67,27 @@ init([Name, Persistent]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({connect, _Version}, {Caller, _Ref}, #shared_object{clients = Clients} = State) ->
-  link(Caller),
-  ?D({"Client connected to", State#shared_object.name, Caller}),
+handle_call({message, #so_message{events = Events} = Message}, {Client, _Ref}, State) ->
+  {State1, Replies} = parse_event(Events, Client, State, []),
   
-  % gen_server:cast(self(), {update}),
-  {reply, ok, State#shared_object{clients = [Caller | Clients]}};
+  Reply = Message#so_message{events = Replies},
+  gen_fsm:send_event(Client, {send, {#channel{id = 12, timestamp = 0, type = ?RTMP_TYPE_SO_AMF0, stream_id = 0}, Reply}}),
+  {reply, ok, State1};
 
 handle_call(Request, _From, State) ->
  {stop, {unknown_call, Request}, State}.
+
+
+parse_event([], _, State, Reply) ->
+  {State, Reply};
+
+parse_event([?SO_CONNECT | Events], Client, #shared_object{clients = Clients, data = Data} = State, Replies) ->
+  link(Client),
+  ?D({"Client connected to", State#shared_object.name, Client}),
+  
+  parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, 
+              [?SO_INITIAL_DATA, ?SO_CLEAR_DATA |Replies]).
+  
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |

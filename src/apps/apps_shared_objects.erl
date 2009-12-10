@@ -9,22 +9,18 @@
 
 
 
-% 'WAIT_FOR_DATA'({shared_object, Events}, _State) -> {unhandled}.
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 
-command({{Name, Version, Persistent}, ?SO_CONNECT, _}, State) ->
-  Object = shared_objects:connect(Name, Version, Persistent),
-  ?D({"Connecting to object", Object}),
-  State;
-
-command(Command, State) ->
-  ?D({"SO command", Command}),
+command(#so_message{name = Name, persistent = Persistent} = Message, State) ->
+  Object = shared_objects:open(Name, Persistent),
+  shared_object:message(Object, Message),
+  ?D({"SO command", Object, Message}),
   State.
 
 
-getServiceList(_AMF, State) -> 
-  ?D({"getServiceList", _AMF#amf.args, _AMF}),
+getServiceList(AMF, State) -> 
+  apps_rtmp:reply(AMF#amf{args = [null, [<<"hello">>, <<"setData">>, <<"getData">>]]}),
   % gen_fsm:send_event(self(), {publish, record, Name}),
   State.
 

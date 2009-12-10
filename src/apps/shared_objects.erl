@@ -2,7 +2,6 @@
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
 
-
 -behaviour(gen_server).
 
 -export([start_link/0]).
@@ -11,7 +10,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
          
--export([connect/3]).
+-export([open/2]).
          
 -record(shared_objects, {
   objects
@@ -31,12 +30,9 @@ start_link()  ->
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
 
-connect(Name, Version, Persistent) -> 
-  {ok, Object} = open(Name, Persistent),
-  shared_object:connect(Object, Version).
-
 open(Name, Persistent) ->
-  gen_server:call(?MODULE, {open, Name, Persistent}).
+  {ok, Object} = gen_server:call(?MODULE, {open, Name, Persistent}),
+  Object.
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
