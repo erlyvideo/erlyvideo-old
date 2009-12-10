@@ -122,7 +122,7 @@ read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
     {error, Reason} -> {error, Reason}
   end.
   
-video_frame(#file_frame{type = Type, timestamp = Timestamp, keyframe = Keyframe} = Frame, Data) ->
+video_frame(#file_frame{type = Type, timestamp = Timestamp}, Data) ->
   #video_frame{type = Type, raw_body = true, body = Data, timestamp = Timestamp}.
 
 	

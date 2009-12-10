@@ -152,20 +152,7 @@ handle_info({udp,Socket,Host,Port, <<2:2, 0:1, _Extension:1, 0:4, Marker:1, Payl
   Key = {Host, Port},
   case ets:match_object(StreamTable, {Key, '_'}) of
     [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType, Marker};
-    _ ->
-      case Port band 1 of
-        0 -> 
-          {IP1,IP2,IP3,IP4} = Host,
-          Name = <<"mystream.sdp">>,
-          ?D({"Autoregistering stream",Name}),
-          Media = media_provider:open(Name, live),
-          Decoder = spawn_link(?MODULE, video, [Media, []]),
-          ets:insert(StreamTable, {Key, Decoder}),
-          ?D({"Registering", Key, video, Decoder}),
-          ok;
-        _ ->
-          ok
-      end
+    _ -> ?D({"Unknown client", Host, Port})
   end,
   inet:setopts(Socket, [{active, once}]),
   {noreply, State};
@@ -227,11 +214,11 @@ video(Video) ->
 read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp, _, _} = Packet) ->
   read_video(Video#video{timestamp = Timestamp}, Packet);
 
-read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp, PayloadType, Marker}) ->
+read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp, _PayloadType, _Marker}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ Frames});
   
-read_video(#video{h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs, PayloadType, Marker}) ->
+read_video(#video{h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs, _PayloadType, _Marker}) ->
 
   {H264_1, Frames} = h264:decode_nal(Body, H264),
 
