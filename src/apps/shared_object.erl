@@ -67,6 +67,7 @@ init([Name, Persistent]) ->
 
 handle_call({connect, _Version}, {Caller, _Ref}, #shared_object{clients = Clients} = State) ->
   link(Caller),
+  gen_server:cast(self(), {update}),
   {reply, ok, State#shared_object{clients = [Caller | Clients]}};
 
 handle_call(Request, _From, State) ->
