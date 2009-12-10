@@ -57,8 +57,11 @@ encode(#channel{type = ?RTMP_INVOKE_AMF0} = Channel, #amf{} = AMF) ->
 encode(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, #amf{} = AMF) -> 
 	encode(Channel, encode_funcall(amf3, AMF));
 
+encode(#channel{type = ?RTMP_TYPE_SO_AMF0} = Channel, #so_message{} = Message) ->
+  encode(Channel, encode_shared_object_amf0(Message));
+
 encode(#channel{} = Channel, Data) when is_binary(Data) -> 
-	encode(Channel,Data,<<>>).
+	encode(Channel,Data,<<>>).	
 
 encode(_Channel, <<>>, Packet) -> Packet;
 
@@ -275,11 +278,14 @@ command(#channel{type = ?RTMP_INVOKE_AMF0, stream_id = StreamId, msg = Message},
 command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Message/binary>>}, State) -> 
   decode_and_invoke(Message, amf0, State, StreamId);
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
-  decode_shared_object_amf0(Message, State);
+command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Body}, State) ->
+  Message = decode_shared_object_amf0(Body),
+  apps_shared_objects:command(Message, State);
+  
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Message}, State) ->
-  decode_shared_object_amf0(Message, State);
+command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Body}, State) ->
+  Message = decode_shared_object_amf0(Body),
+  apps_shared_objects:command(Message, State);
   
 
 	
@@ -321,13 +327,33 @@ call_function(App, Command, State, #amf{id = _Id} = AMF) ->
   %     State
   % end.
 
+encode_shared_object_amf0(#so_message{name = Name, version = Version, persistent = true, events = Events}) ->
+  encode_shared_object_events_amf0(<<(size(Name)):16, Name/binary, Version:32, 2:32, 0:32>>, Events);
 
-decode_shared_object_amf0(<<>>, State) -> State;
-decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, Persist:32, _:32, EventType, 
-                            EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>, State) ->
-  Persistent = case Persist of
-    2 -> true;
-    _ -> false
-  end,
-  State1 = apps_shared_objects:command({{Name, Version, Persistent}, EventType, EventData}, State),
-  decode_shared_object_amf0(Rest, State1).
+encode_shared_object_amf0(#so_message{name = Name, version = Version, persistent = false, events = Events}) ->
+  encode_shared_object_events_amf0(<<(size(Name)):16, Name/binary, Version:32, 0:32, 0:32>>, Events).
+
+encode_shared_object_events_amf0(Body, []) ->
+  Body;
+
+encode_shared_object_events_amf0(Body, [{EventType, Event} | Events]) ->
+  EventData = amf0:encode(Event),
+  encode_shared_object_events_amf0(<<Body/binary, EventType, (size(EventData)):32, EventData/binary>>, Events).
+
+
+decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, 2:32, _:32, Events/binary>>) ->
+  decode_shared_object_events_amf0(Events, #so_message{name = Name, version = Version, persistent = true});
+
+decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, 0:32, _:32, Events/binary>>) ->
+  decode_shared_object_events_amf0(Events, #so_message{name = Name, version = Version, persistent = false}).
+
+decode_shared_object_events_amf0(<<>>, #so_message{events = Events} = Message) ->
+  Message#so_message{events = lists:reverse(Events)};
+
+decode_shared_object_events_amf0(<<EventType, 0:32, Rest/binary>>, #so_message{events = Events} = Message) ->
+  decode_shared_object_events_amf0(Rest, Message#so_message{events = [{EventType, true}|Events]});
+
+decode_shared_object_events_amf0(<<EventType, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
+  #so_message{events = Events} = Message) ->
+  Event = amf0:decode(EventData),
+  decode_shared_object_events_amf0(Rest, Message#so_message{events = [{EventType, Event}|Events]}).

@@ -9,6 +9,7 @@
   name,
   version = 0,
   persistent,
+  data = [],
   clients = []
 }).
 
@@ -67,7 +68,9 @@ init([Name, Persistent]) ->
 
 handle_call({connect, _Version}, {Caller, _Ref}, #shared_object{clients = Clients} = State) ->
   link(Caller),
-  gen_server:cast(self(), {update}),
+  ?D({"Client connected to", State#shared_object.name, Caller}),
+  
+  % gen_server:cast(self(), {update}),
   {reply, ok, State#shared_object{clients = [Caller | Clients]}};
 
 handle_call(Request, _From, State) ->
@@ -99,6 +102,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({'EXIT', Client, _Reason}, #shared_object{clients = Clients} = State) ->
   NewClients = lists:delete(Client, Clients),
+  ?D({"Client diconnected from", State#shared_object.name, Client}),
   case length(NewClients) of
     0 -> {stop, normal, State};
     _ -> {noreply, State#shared_object{clients = NewClients}}
@@ -119,6 +123,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
+  ?D({"Shared object stop", self(), _State#shared_object.name}),
  ok.
 
 %%-------------------------------------------------------------------------

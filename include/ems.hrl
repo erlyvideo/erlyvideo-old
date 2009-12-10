@@ -252,3 +252,10 @@
 	stream_id = 0,
 	type 	= invoke %if invoke then id, otherwise notify
 	}).
+
+-record(so_message, {
+  name,
+  version,
+  persistent,
+  events = []
+}).

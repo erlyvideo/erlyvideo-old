@@ -9,6 +9,7 @@
 
 
 
+% 'WAIT_FOR_DATA'({shared_object, Events}, _State) -> {unhandled}.
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 

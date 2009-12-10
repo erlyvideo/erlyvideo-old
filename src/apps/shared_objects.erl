@@ -72,6 +72,7 @@ handle_call({open, Name, Persistent}, _From, #shared_objects{objects = Objects} 
     [{Name, Object}] -> ok;
     _ -> 
       {ok, Object} = ems_sup:start_shared_object(Name, Persistent),
+      link(Object),
       ets:insert(Objects, {Name, Object})
   end,
   {reply, {ok, Object}, State};
@@ -102,6 +103,13 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 % 
+
+handle_info({'EXIT', Object, _Reason}, #shared_objects{objects = Objects} = State) ->
+  ets:match_delete(Objects, {'_', Object}),
+  ?D({"Died linked process", Object, _Reason}),
+  {noreply, State};
+  
+
 handle_info(_Info, State) ->
   ?D({"Unknown message", _Info}),
   {noreply, State}.
