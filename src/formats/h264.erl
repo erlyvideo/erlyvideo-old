@@ -73,16 +73,16 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_fil
   {H264, [VideoFrame]};
 
 
-decode_nal(<<0:1, _NalRefIdc:2, 2:5, Rest/binary>>, H264) ->
-  % io:format("Coded slice data partition A     :: "),
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_A:5, Rest/binary>>, H264) ->
+  io:format("Coded slice data partition A~n"),
   slice_header(Rest, H264);
 
-decode_nal(<<0:1, _NalRefIdc:2, 3:5, Rest/binary>>, H264) ->
-  % io:format("Coded slice data partition B     :: "),
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_B:5, Rest/binary>>, H264) ->
+  io:format("Coded slice data partition B~n"),
   slice_header(Rest, H264);
 
-decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, H264) ->
-  % io:format("Coded slice data partition C     :: "),
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, Rest/binary>>, H264) ->
+  io:format("Coded slice data partition C~n"),
   slice_header(Rest, H264);
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
@@ -107,17 +107,17 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
   %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
 
   % _ProfileName = profile_name(Profile),
-  % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
+  io:format("Sequence parameter set ~p ~p~n", [profile_name(Profile), Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   ?DUMP_H264(File, SPS),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, #h264{dump_file = File} = H264) ->
   ?DUMP_H264(File, PPS),
-  % io:format("Picture parameter set: ~p~n", [PPS]),
+  io:format("Picture parameter set: ~p~n", [PPS]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
 
-decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) ->
   PrimaryPicType = case PrimaryPicTypeId of
       0 -> "I";
       1 -> "I, P";
@@ -128,7 +128,7 @@ decode_nal(<<0:1, _NalRefIdc:2, 9:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) 
       6 -> "I, SI, P, SP";
       7 -> "I, SI, P, SP, B"
   end,
-  io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
+  % io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
   {H264, []};
 
 
