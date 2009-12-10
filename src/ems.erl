@@ -40,6 +40,7 @@
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
 -export([get_var/1,get_var/2, check_app/3, try_method_chain/2]).
 -export([start_modules/0, stop_modules/0]).
+-export([call_modules/2]).
 
 
 %%--------------------------------------------------------------------
@@ -155,19 +156,20 @@ respond_to(Module, Command, Arity) ->
 %% @doc Initializes all modules
 %% @end 
 %%--------------------------------------------------------------------
-start_modules() -> start_modules(ems:get_var(applications, [])).
+start_modules() -> call_modules(start, []).
 
-start_modules([]) -> 
+call_modules(Function, Args) -> call_modules(Function, Args, ems:get_var(applications, [])).
+
+call_modules(_, _, []) -> 
   ok;
-start_modules([Module|Modules]) ->
-  case respond_to(Module, start, 0) of
+call_modules(Function, Args, [Module|Modules]) ->
+  case respond_to(Module, Function, length(Args)) of
     true -> 
-      ?D({"Init module", Module}),
-      ok = Module:start();
+      ok = erlang:apply(Module, Function, Args);
     _ ->
       ok
   end,
-  start_modules(Modules).
+  call_modules(Function, Args, Modules).
   
 
 %%--------------------------------------------------------------------
@@ -175,19 +177,8 @@ start_modules([Module|Modules]) ->
 %% @doc Shutdown all modules
 %% @end 
 %%--------------------------------------------------------------------
-stop_modules() -> stop_modules(ems:get_var(applications, [])).
+stop_modules() -> call_modules(stop, []).
 
-stop_modules([]) -> 
-  ok;
-stop_modules([Module|Modules]) ->
-  case respond_to(Module, stop, 0) of
-    true -> 
-      ok = Module:stop();
-    _ ->
-      ok
-  end,
-  stop_modules(Modules).
-  
 
 
 %%--------------------------------------------------------------------

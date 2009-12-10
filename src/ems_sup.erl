@@ -41,7 +41,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/0, start_rtsp_session/0, start_media/2, 
           start_file_play/2, start_stream_play/2,
-          start_mpegts_media/1]).
+          start_mpegts_media/1, start_shared_object/2]).
 
 
 %%--------------------------------------------------------------------
@@ -90,7 +90,7 @@ start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup
 %%--------------------------------------------------------------------
 start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
 
-
+start_shared_object(Name, Persistent) -> supervisor:start_child(shared_object_sup, [Name, Persistent]).
 
 %%--------------------------------------------------------------------
 %% @spec (List::list()) -> any()
@@ -203,6 +203,21 @@ init([stream_play]) ->
             ]
         }
     };
+init([shared_object]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {shared_object,start_link,[]},             % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [shared_object]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
 init([]) ->
   ets:new(rtmp_sessions, [set, public, named_table]),
   
@@ -269,6 +284,20 @@ init([]) ->
     % MPEG TS Lander
     {   mpegts_media_sup,
         {supervisor,start_link,[{local, mpegts_media_sup}, ?MODULE, [mpegts_media]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   shared_objects_sup,
+        {shared_objects,start_link,[]},          % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [shared_objects]                                       % Modules  = [Module] | dynamic
+    },
+    {   shared_object_sup,
+        {supervisor,start_link,[{local, shared_object_sup}, ?MODULE, [shared_object]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

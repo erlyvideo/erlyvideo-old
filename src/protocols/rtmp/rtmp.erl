@@ -37,7 +37,7 @@
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/1]).
+-export([encode/1, encode/2, handshake/1, decode/1, decode_list/2]).
 
 
 handshake(C1) when is_binary(C1) -> 
@@ -277,6 +277,9 @@ command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Mess
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Message}, State) ->
   decode_shared_object_amf0(Message, State);
+
+command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Message}, State) ->
+  decode_shared_object_amf0(Message, State);
   
 
 	
@@ -292,6 +295,8 @@ decode_and_invoke(Message, _Module, State, StreamId) ->
 	AMF = #amf{command = Command, args = Arguments, stream_id = StreamId, type = invoke, id = InvokeId},
 	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
   
+  
+decode_list(AMF, Module) -> decode_list(AMF, Module, []).
 
 decode_list(<<>>, _, Acc) -> lists:reverse(Acc);
 
@@ -318,7 +323,11 @@ call_function(App, Command, State, #amf{id = _Id} = AMF) ->
 
 
 decode_shared_object_amf0(<<>>, State) -> State;
-decode_shared_object_amf0(<<Length:16, SharedObject:Length/binary, _VersionFlags:12/binary, EventType, 
+decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, Persist:32, _:32, EventType, 
                             EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>, State) ->
-  State1 = apps_shared_objects:command({SharedObject, EventType, EventData}, State),
+  Persistent = case Persist of
+    2 -> true;
+    _ -> false
+  end,
+  State1 = apps_shared_objects:command({{Name, Version, Persistent}, EventType, EventData}, State),
   decode_shared_object_amf0(Rest, State1).
