@@ -43,7 +43,7 @@ start_link() ->
   'ANNOUNCE', 'PLAY', 'SETUP', 'OPTIONS', 'DESCRIBE', 'PAUSE', 'RECORD',
   'TEARDOWN', 'GET_PARAMETER', 'SET_PARAMETER',
   'Accept', 'Accept-Encoding', 'Accept-Language', 'Allow', 'Authorization', 'Bandwidth',
-  'Blocksize', 'Cache-Control', 'Conference', 'Connection', 'Content-Base', 'Content-Encoding',
+  'Blocksize', 'Cache-Control', 'ClientChallenge', 'Conference', 'Connection', 'Content-Base', 'Content-Encoding',
   'Content-Language', 'Content-Length', 'Content-Location', 'Content-Type', 'Cseq',
   'Date', 'Expires', 'From', 'Host', 'If-Match', 'If-Modiﬁed-Since', 'Last-Modiﬁed', 
   'Location', 'Proxy-Authenticate', 'Proxy-Require', 'Public', 'Range', 
@@ -292,7 +292,7 @@ parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when
   [_, OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
-    {binary_to_atom(list_to_binary(Key), latin1), Value}
+    {binary_to_existing_atom(list_to_binary(Key), latin1), Value}
   end, string:tokens(OptList, ";")),
 
   {value, {_, "1"}, Opts1} = lists:keytake('packetization-mode', 1, lists:keysort(1, Opts)),

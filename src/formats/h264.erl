@@ -97,16 +97,6 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file =
   {H264, [VideoFrame]};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
-  % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
-  % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
-  % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
-  % case PicOrderCntType of
-  %   0 ->
-  %     {Log2MaxPicOrder, Data5} = exp_golomb_read(Data4);
-  %   1 ->
-  %     <<DeltaPicAlwaysZero:1, Data4_1/bitstring>> = Data4,
-
-  % _ProfileName = profile_name(Profile),
   io:format("Sequence parameter set ~p ~p~n", [profile_name(Profile), Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   ?DUMP_H264(File, SPS),
@@ -114,22 +104,29 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, #h264{dump_file = File} = H264) ->
   ?DUMP_H264(File, PPS),
-  io:format("Picture parameter set: ~p~n", [PPS]),
+  % io:format("Picture parameter set: ~p~n", [PPS]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, PrimaryPicTypeId:3, _:5, _/binary>>, H264) ->
-  PrimaryPicType = case PrimaryPicTypeId of
-      0 -> "I";
-      1 -> "I, P";
-      2 -> "I, P, B";
-      3 -> "SI";
-      4 -> "SI, SP";
-      5 -> "I, SI";
-      6 -> "I, SI, P, SP";
-      7 -> "I, SI, P, SP, B"
-  end,
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary>> = Delimiter, #h264{dump_file = File} = H264) ->
+  % PrimaryPicType = case PrimaryPicTypeId of
+  %     0 -> "I";
+  %     1 -> "I, P";
+  %     2 -> "I, P, B";
+  %     3 -> "SI";
+  %     4 -> "SI, SP";
+  %     5 -> "I, SI";
+  %     6 -> "I, SI, P, SP";
+  %     7 -> "I, SI, P, SP, B"
+  % end,
+  ?DUMP_H264(File, Delimiter),
+  VideoFrame = #video_frame{
+   	type          = ?FLV_TAG_TYPE_VIDEO,
+		body          = nal_with_size(Delimiter),
+		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
+		codec_id      = ?FLV_VIDEO_CODEC_AVC
+  },
   % io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
-  {H264, []};
+  {H264, [VideoFrame]};
 
 
   
@@ -197,7 +194,7 @@ slice_header(Bin, H264) ->
     <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
     _SliceType = slice_type(SliceTypeId),
     % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
-    {H264, undefined}.
+    {H264, []}.
 
 slice_type(0) -> 'P';
 slice_type(1) -> 'B';
@@ -208,7 +205,8 @@ slice_type(5) -> 'P';
 slice_type(6) -> 'B';
 slice_type(7) -> 'I';
 slice_type(8) -> 'p';
-slice_type(9) -> 'i'.
+slice_type(9) -> 'i';
+slice_type(_) -> undefined.
 
 
 exp_golomb_read_list(Bin, List) ->

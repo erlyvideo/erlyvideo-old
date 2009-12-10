@@ -22,8 +22,7 @@
   height,
   payload_type,
   h264,
-  buffer = [],
-  last_frame
+  buffer = []
 }).
 	
 -behaviour(gen_server).
@@ -150,11 +149,23 @@ handle_info({udp,Socket,Host,Port, <<2:2, 0:1, _Extension:1, 0:4, Marker:1, Payl
   % ?D({"UDP message", Host, Port, size(Bin)}),
   % ?D({"UDP", _Marker, Timestamp, Sequence}),
   % {ok, {Address, Local}} = inet:sockname(Socket),
-  case ets:match_object(StreamTable, {{Host, Port}, '_'}) of
+  Key = {Host, Port},
+  case ets:match_object(StreamTable, {Key, '_'}) of
     [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType, Marker};
-    _ -> 
-      % ?D({"Unknown payload", Host, Port}),
-      ok
+    _ ->
+      case Port band 1 of
+        0 -> 
+          {IP1,IP2,IP3,IP4} = Host,
+          Name = <<"mystream.sdp">>,
+          ?D({"Autoregistering stream",Name}),
+          Media = media_provider:open(Name, live),
+          Decoder = spawn_link(?MODULE, video, [Media, []]),
+          ets:insert(StreamTable, {Key, Decoder}),
+          ?D({"Registering", Key, video, Decoder}),
+          ok;
+        _ ->
+          ok
+      end
   end,
   inet:setopts(Socket, [{active, once}]),
   {noreply, State};
@@ -177,14 +188,18 @@ audio(_) -> ok.
 
 
 video(Media, Stream) ->
-  ClockMap = proplists:get_value(clock_map, Stream),
-  Width = proplists:get_value(width, Stream),
-  Height = proplists:get_value(height, Stream),
-  PayloadType = proplists:get_value(payload_type, Stream),
-  [SPS, PPS] = proplists:get_value(parameter_sets, Stream),
+  ClockMap = proplists:get_value(clock_map, Stream, 90000),
+  Width = proplists:get_value(width, Stream, 320),
+  Height = proplists:get_value(height, Stream, 240),
+  PayloadType = proplists:get_value(payload_type, Stream, 96),
   H264 = #h264{},
-  {H264_1, _} = h264:decode_nal(SPS, H264),
-  {H264_2, Configs} = h264:decode_nal(PPS, H264_1),
+  case proplists:get_value(parameter_sets, Stream) of
+    [SPS, PPS] -> {H264_1, _} = h264:decode_nal(SPS, H264),
+                  {H264_2, Configs} = h264:decode_nal(PPS, H264_1);
+    _ -> H264_2 = H264,
+         Configs = []
+  end,
+    
   
   Video = #video{media = Media, clock_map = ClockMap, h264 = H264_2,
                  width = Width, height = Height, payload_type = PayloadType},
@@ -212,24 +227,23 @@ video(Video) ->
 read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp, _, _} = Packet) ->
   read_video(Video#video{timestamp = Timestamp}, Packet);
 
-read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = Timestamp, last_frame = PrevFrame} = Video, {data, Body, Sequence, Timestamp, PayloadType, Marker}) ->
+read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp, PayloadType, Marker}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
-  NAL = lists:map(fun(#video_frame{body = N}) -> N end, Frames),
-  LastFrame = case Frames of
-    [] -> PrevFrame;
-    [Frame | _] -> Frame
+  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ Frames});
+  
+read_video(#video{h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs, PayloadType, Marker}) ->
+
+  {H264_1, Frames} = h264:decode_nal(Body, H264),
+
+  Frame = lists:foldl(fun(_, undefined) -> undefined;
+                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> F#video_frame{body = <<NALs/binary, NAL/binary>>}
+  end, #video_frame{body = <<>>}, Buffer),
+  case Frame of
+    undefined -> ok;
+    _ -> Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), type = ?FLV_TAG_TYPE_VIDEO}
   end,
-  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ NAL, last_frame = LastFrame});
   
-read_video(#video{payload_type = PayloadType, h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs, last_frame = Frame} = Video, {data, Body, Sequence, NewRtpTs, PayloadType, Marker}) ->
-
-  {H264_1, Frames} = h264:decode_nal(Body, H264),
-
-  % ?D({round(RtpTs / ClockMap), Frame#video_frame.frame_type}),
-  Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), body = iolist_to_binary(Buffer)},
-  
-  NAL = lists:map(fun(#video_frame{body = N}) -> N end, Frames),
-  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = NAL, timestamp = NewRtpTs}).
+  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
   
 
 %%-------------------------------------------------------------------------
