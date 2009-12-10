@@ -8,6 +8,27 @@
 -export([decode_nal/2, video_config/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 
+
+
+fake_open_dump() -> ok.
+fake_dump_nal(_File, _Nal) -> ok.
+
+open_dump() ->
+  {ok, File} = file:open("out.x264", [write, binary]),
+  File.
+  
+dump_nal(File, NAL) ->
+  file:write(File, <<0,0,1, NAL/binary>>).
+
+
+-ifdef(dump_h264).
+-define(OPEN_H264_OUT, open_dump).
+-define(DUMP_H264, dump_nal).
+-else.
+-define(OPEN_H264_OUT, fake_open_dump).
+-define(DUMP_H264, fake_dump_nal).
+-endif.
+
 video_config(H264) ->
   case decoder_config(H264) of
     ok -> {H264, []};
@@ -36,9 +57,13 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
     (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
 
 
+decode_nal(NAL, #h264{dump_file = undefined} = H264) ->
+  File = ?OPEN_H264_OUT(),
+  decode_nal(NAL, H264#h264{dump_file = File});
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
   % ?D("P-frame"),
+  ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),
@@ -60,8 +85,9 @@ decode_nal(<<0:1, _NalRefIdc:2, 4:5, Rest/binary>>, H264) ->
   % io:format("Coded slice data partition C     :: "),
   slice_header(Rest, H264);
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
   % ?D("I-frame"),
+  ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),
@@ -70,7 +96,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, H264) ->
   },
   {H264, [VideoFrame]};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
   % {_SeqParameterSetId, _Data2} = exp_golomb_read(Data1),
   % {Log2MaxFrameNumMinus4, Data3} = exp_golomb_read(Data2),
   % {PicOrderCntType, Data4} = exp_golomb_read(Data3),
@@ -83,9 +109,11 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
   % _ProfileName = profile_name(Profile),
   % io:format("~nSequence parameter set ~p ~p~n", [ProfileName, Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+  ?DUMP_H264(File, SPS),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, #h264{dump_file = File} = H264) ->
+  ?DUMP_H264(File, PPS),
   % io:format("Picture parameter set: ~p~n", [PPS]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
 

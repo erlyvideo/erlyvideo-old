@@ -286,26 +286,31 @@ parse_announce([{a, <<"control:trackid=", Track/binary>>} | Announce], Streams, 
   parse_announce(Announce, Streams, [{track_id, TrackId} | Stream]);
 
 parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
+  case proplists:get_value(type, Stream) of
+  video ->
   {ok, Re} = re:compile("([^=]+)=(.*)"),
   [_, OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
-    {binary_to_existing_atom(list_to_binary(Key), latin1), Value}
+    {binary_to_atom(list_to_binary(Key), latin1), Value}
   end, string:tokens(OptList, ";")),
-  
+
   {value, {_, "1"}, Opts1} = lists:keytake('packetization-mode', 1, lists:keysort(1, Opts)),
   {value, {_, ProfileLevelId}, Opts2} = lists:keytake('profile-level-id', 1, Opts1),
   ProfileId = erlang:list_to_integer(string:sub_string(ProfileLevelId, 1, 2), 16),
-  ProfileIop = erlang:list_to_integer(string:sub_string(ProfileLevelId, 3, 4), 16),
-  <<Constraint1:1, Constraint2:1, Constraint3:1, 0:5>> = <<ProfileIop>>,
-  ?D({Constraint1, Constraint2, Constraint3}),
+  % ProfileIop = erlang:list_to_integer(string:sub_string(ProfileLevelId, 3, 4), 16),
+  % <<Constraint1:1, Constraint2:1, Constraint3:1, 0:5>> = <<ProfileIop>>,
+  % ?D({Constraint1, Constraint2, Constraint3}),
   LevelIdc = erlang:list_to_integer(string:sub_string(ProfileLevelId, 5, 6), 16),
   Opts3 = lists:keymerge(1, Opts2, [{profile, ProfileId}, {level, LevelIdc}]),
-  
+
   {value, {_, Sprop}, Opts4} = lists:keytake('sprop-parameter-sets', 1, Opts3),
   Props = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
   Opts5 = [{parameter_sets, Props} | Opts4],
   parse_announce(Announce, Streams, Stream ++ Opts5);
+  _ ->
+    parse_announce(Announce, Streams, Stream)
+  end;
 
 parse_announce([{a, _Info} | Announce], Streams, Stream) when is_list(Stream) ->
   parse_announce(Announce, Streams, Stream).
