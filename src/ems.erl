@@ -38,7 +38,7 @@
 -include("../include/ems.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
--export([get_var/2, get_var/3, check_app/3, try_method_chain/2]).
+-export([get_var/2, get_var/3, check_app/3, try_method_chain/3]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 
@@ -197,8 +197,8 @@ stop_modules() -> call_modules(stop, []).
 %% @end 
 %%--------------------------------------------------------------------
 
-try_method_chain(Method, Args) ->
-  try_method_chain(ems:get_var(applications, ['apps_rtmp']), Method, Args).
+try_method_chain(Host, Method, Args) when is_atom(Host) ->
+  try_method_chain(ems:get_var(applications, Host, ['apps_rtmp']), Method, Args);
 
 try_method_chain([], _Method, _Args) ->
   {unhandled};
@@ -229,8 +229,8 @@ check_app([Module | Applications], Command, Arity) ->
   end;
 
 
-check_app(#rtmp_session{} = _State, Command, Arity) ->
-  Applications = ems:get_var(applications, ['apps_rtmp']),
+check_app(#rtmp_session{host = Host} = _State, Command, Arity) ->
+  Applications = ems:get_var(applications, Host, ['apps_rtmp']),
   check_app(Applications, Command, Arity).
 
 

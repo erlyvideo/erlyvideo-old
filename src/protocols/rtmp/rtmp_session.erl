@@ -183,8 +183,8 @@ init([]) ->
   error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
   {stop, normal, State};    
         
-'WAIT_FOR_DATA'(Message, State) ->
-  case ems:try_method_chain('WAIT_FOR_DATA', [Message, State]) of
+'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
+  case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
     {unhandled} ->
     	case Message of
     		{record,Channel} when is_record(Channel,channel) -> 
@@ -300,8 +300,8 @@ terminate(_Reason, _StateName, #rtmp_session{socket=Socket, streams = Streams} =
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(OldVersion, StateName, State, Extra) ->
-  plugins_code_change(OldVersion, StateName, State, Extra, ems:get_var(applications, [])).
+code_change(OldVersion, StateName, #rtmp_session{host = Host} = State, Extra) ->
+  plugins_code_change(OldVersion, StateName, State, Extra, ems:get_var(applications, Host, [])).
 
 plugins_code_change(_OldVersion, StateName, State, _Extra, []) -> {ok, StateName, State};
 

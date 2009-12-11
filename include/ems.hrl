@@ -178,6 +178,8 @@
 
 
 -record(rtmp_session, {
+  host,
+  path,
 	socket,    % client socket
 	addr,      % client address
 	port,

@@ -1,12 +1,13 @@
 -module(json_session).
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
--export([decode/1, encode/1, client_login/2, binary_to_hexbin/1]).
+-export([decode/2, encode/2, client_login/2, binary_to_hexbin/1]).
 
 
 
-client_login(State, [Cookie, _UserIdObj]) ->
-  Session = decode(Cookie),
+client_login(#rtmp_session{host = Host} = State, [Cookie, _UserIdObj]) ->
+  Secret = ems:get_var(secret_key, Host, undefined),
+  Session = decode(Cookie, Secret),
   ?D({"Authed session:", Session}),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
@@ -17,16 +18,16 @@ client_login(_, _) ->
   throw(login_failed).
 
 
-decode(Session) when is_binary(Session) ->
-  decode(0, Session);
+decode(Session, Secret) when is_binary(Session) ->
+  decode(0, Session, Secret);
 
-decode(Session) when is_list(Session) ->
-  decode(0, list_to_binary(Session)).
+decode(Session, Secret) when is_list(Session) ->
+  decode(0, list_to_binary(Session), Secret).
   
-encode(Session) when is_list(Session) ->
+encode(Session, Secret) when is_list(Session) ->
   Json = iolist_to_binary(mochijson2:encode({struct, Session})),
   Json64 = base64:encode(Json),
-  Sign = session_sign(Json64),
+  Sign = session_sign(Json64, Secret),
   <<Json64/binary, "--", Sign/binary>>.
   
 binary_to_hexbin(L) ->
@@ -40,16 +41,16 @@ hex(N) when N < 10 ->
 hex(N) when N >= 10, N < 16 ->
   $a + (N-10).
   
-session_sign(Session) ->
-  binary_to_hexbin(crypto:sha_mac(ems:get_var(secret_key, undefined), Session)).
+session_sign(Session, Secret) ->
+  binary_to_hexbin(crypto:sha_mac(Secret, Session)).
   
-decode(Offset, Subscription) when Offset >= size(Subscription) - 2 ->
+decode(Offset, Subscription, Secret) when Offset >= size(Subscription) - 2 ->
   {error};
 
-decode(Offset, Subscription) ->
+decode(Offset, Subscription, Secret) ->
   case Subscription of
     <<Session64:Offset/binary, "--", Sign/binary>> ->
-      GeneratedSign = session_sign(Session64),
+      GeneratedSign = session_sign(Session64, Secret),
       case Sign of
         GeneratedSign ->
           {struct, Session} = mochijson2:decode(base64:decode(Session64)),

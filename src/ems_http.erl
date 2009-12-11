@@ -22,18 +22,19 @@ handle('GET', [], Req) ->
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
   File = proplists:get_value("file", Query, "video.mp4"),
-  case file:list_dir(file_play:file_dir()) of
+  case file:list_dir(file_play:file_dir(Req:host())) of
     {ok, FileList} -> ok;
     {error, Error} -> 
       FileList = [],
-      error_logger:error_msg("Invalid HTTP root directory: ~p (~p)~n", [file_play:file_dir(), Error])
+      error_logger:error_msg("Invalid HTTP root directory: ~p (~p)~n", [file_play:file_dir(Req:host()), Error])
   end,
+  Secret = ems:get_var(secret_key, Req:host(), undefined),
   {ok, Index} = index_template:render([
     {files, FileList},
-    {hostname, ems:get_var(host, "rtmp://localhost")},
+    {hostname, ems:get_var(host, Req:host(), "rtmp://localhost")},
     {live_id, uuid:to_string(uuid:v4())},
     {url, File},
-    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}]) }]),
+    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 
@@ -49,9 +50,10 @@ handle('GET', ["admin"], Req) ->
 
 handle('GET', ["chat.html"], Req) ->
   erlydtl:compile("wwwroot/chat.html", chat_template),
+  Secret = ems:get_var(secret_key, Req:host(), undefined),
   {ok, Index} = chat_template:render([
-    {hostname, ems:get_var(host, "rtmp://localhost")},
-    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}])}
+    {hostname, ems:get_var(host, Req:host(), "rtmp://localhost")},
+    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}
   ]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 

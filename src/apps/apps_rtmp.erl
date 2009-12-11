@@ -56,17 +56,21 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
 	  _FlashVer = proplists:get_value(flashVer, PlayerInfo),
 	  _SwfUrl = proplists:get_value(swfUrl, PlayerInfo),
-	  _TcUrl = proplists:get_value(tcUrl, PlayerInfo),
+	  ConnectUrl = proplists:get_value(tcUrl, PlayerInfo),
 	  _Fpad = proplists:get_value(fpad, PlayerInfo),
 	  _AudioCodecs = round(proplists:get_value(audioCodecs, PlayerInfo, 0)),
 	  _VideoCodecs = proplists:get_value(videoCodecs, PlayerInfo),
 	  _VideoFunction = proplists:get_value(videoFunction, PlayerInfo),
 	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
 
-    ?D({"CONNECT", _PageUrl}),
-		NewState1 =	State#rtmp_session{player_info = PlayerInfo, previous_ack = erlang:now()},
+    {ok, UrlRe} = re:compile("(.*)://([^/]+)/(.*)$"),
+    {match, [_, Proto, HostName, Path]} = re:run(ConnectUrl, UrlRe, [{capture, all, binary}]),
+    Host = binary_to_existing_atom(HostName, utf8),
+    
+    ?D({"CONNECT", Host, _PageUrl}),
+		NewState1 =	State#rtmp_session{player_info = PlayerInfo, previous_ack = erlang:now(), host = Host, path = Path},
 
-    AuthModule = ems:get_var(auth_module, trusted_login),
+    AuthModule = ems:get_var(auth_module, Host, trusted_login),
     NewState2 = AuthModule:client_login(NewState1, AuthInfo),
     
     NewState3 = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
