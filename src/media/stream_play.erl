@@ -134,7 +134,6 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
       ok;
   
     exit ->
-      link(State#stream_player.media_info),
       ?D({"stream play exit", self(), State#stream_player.media_info}),
       ok;
       
