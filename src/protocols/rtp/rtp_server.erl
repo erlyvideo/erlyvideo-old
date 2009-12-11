@@ -14,6 +14,7 @@
   sequence = 0,
   timestamp = undefined,
   h264,
+  synced = false,
   buffer = []
 }).
 
@@ -153,16 +154,26 @@ read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, 
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ Frames});
   
-read_video(#video{h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs}) ->
+read_video(#video{h264 = H264, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs}) ->
 
+  Video1 = send_video(Video),
   {H264_1, Frames} = h264:decode_nal(Body, H264),
 
+  ?MODULE:video(Video1#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
+ 
+send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} | _]} = Video) ->
+  Video#video{buffer = []};
+
+send_video(#video{buffer = []} = Video) ->
+  Video;
+
+send_video(#video{clock_map = ClockMap, media = Media, buffer = Frames, timestamp = RtpTs} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
-                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> F#video_frame{body = <<NALs/binary, NAL/binary>>}
-  end, #video_frame{body = <<>>}, Buffer),
+                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
+                                F#video_frame{body = <<NALs/binary, NAL/binary>>}
+  end, #video_frame{body = <<>>}, Frames),
   case Frame of
     undefined -> ok;
     _ -> Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), type = ?FLV_TAG_TYPE_VIDEO}
   end,
-  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
-  
+  Video#video{synced = true, buffer = []}.
