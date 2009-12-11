@@ -98,10 +98,12 @@ init([]) ->
 
 'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_session{socket = Socket} = State) ->
   Length = list_to_integer(binary_to_list(LengthBin)),
+  io:format("[RTSP] Content-Length: ~s~n", [LengthBin]),
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{content_length = Length}, ?TIMEOUT};
 
 'WAIT_FOR_HEADERS'({header, 'Cseq', Sequence}, #rtsp_session{socket = Socket} = State) ->
+  io:format("[RTSP] Cseq: ~s~n", [Sequence]),
   inet:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{sequence = Sequence}, ?TIMEOUT};
 
@@ -163,7 +165,7 @@ run_request(#rtsp_session{request = ['ANNOUNCE', _URL], body = Body} = State) ->
   Media = media_provider:open(Path, live),
   Streams = parse_announce(Body),
   ?D(Streams),
-  reply(State#rtsp_session{media = Media, session_id = 42, streams = Streams}, "200 OK", []);
+  reply(State#rtsp_session{media = Media, streams = Streams}, "200 OK", []);
 
 run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
   reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
@@ -187,8 +189,11 @@ run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = 
   
   rtp_server:register({Address, ClientPort}, Media, Stream),
   {ok, {RTP, RTCP}} = rtp_server:port(),
-  ReplyHeaders = [{"Transport", io_lib:format("~s;server_port=~p-~p",[Transport, RTP, RTCP])}],
-  reply(State, "200 OK", ReplyHeaders);
+  Date = httpd_util:rfc1123_date(),
+  TransportReply = io_lib:format("~s;server_port=~p-~p;source=127.0.0.1",[Transport, RTP, RTCP]),
+  % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",
+  ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
+  reply(State#rtsp_session{session_id = 42}, "200 OK", ReplyHeaders);
 
 run_request(#rtsp_session{request = [_Method, _URL]} = State) ->
   reply(State, "200 OK", []).

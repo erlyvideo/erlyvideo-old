@@ -152,7 +152,9 @@ handle_info({udp,Socket,Host,Port, <<2:2, 0:1, _Extension:1, 0:4, Marker:1, Payl
   Key = {Host, Port},
   case ets:match_object(StreamTable, {Key, '_'}) of
     [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType, Marker};
-    _ -> ?D({"Unknown client", Host, Port})
+    _ -> 
+      % ?D({"Unknown client", Host, Port}),
+      ok
   end,
   inet:setopts(Socket, [{active, once}]),
   {noreply, State};
@@ -229,7 +231,6 @@ read_video(#video{h264 = H264, clock_map = ClockMap, media = Media, buffer = Buf
     undefined -> ok;
     _ -> Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), type = ?FLV_TAG_TYPE_VIDEO}
   end,
-  
   ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
   
 
