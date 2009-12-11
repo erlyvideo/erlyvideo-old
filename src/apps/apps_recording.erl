@@ -41,7 +41,7 @@
 
 -export([publish/2]).
 -export(['WAIT_FOR_DATA'/2]).
-
+-export(['FCPublish'/2, 'FCUnpublish'/2]).
 
 
 
@@ -60,6 +60,14 @@
 %% @end
 %%-------------------------------------------------------------------------
 
+'FCPublish'(#amf{args = Args} = _AMF, State) -> 
+  ?D({"FCpublish", Args}),
+  State.
+
+'FCUnpublish'(#amf{args = Args} = _AMF, State) -> 
+  ?D({"FCunpublish", Args}),
+  State.
+
 publish(#amf{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   ?D({"Publish - Action - record",Name}),
   Recorder = media_provider:create(Name, record),
@@ -72,6 +80,11 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
   gen_fsm:send_event(self(), {publish, append, Name}),
   State;
 
+
+publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+  ?D({"Publish - Action - live",Name}),
+  Recorder = media_provider:create(Name, live),
+  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
 publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
   ?D({"Publish - Action - live",Name}),
