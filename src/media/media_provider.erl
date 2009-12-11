@@ -33,12 +33,21 @@ create(Name, Type) ->
   stream_media:set_owner(Pid, self()),
   Pid.
 
+open(Name) when is_list(Name)->
+  open(list_to_binary(Name));
+  
 open(Name) ->
   gen_server:call(?MODULE, {open, Name}).
+
+open(Name, Type) when is_list(Name)->
+  open(list_to_binary(Name), Type);
 
 open(Name, Type) ->
   gen_server:call(?MODULE, {open, Name, Type}).
 
+find(Name) when is_list(Name)->
+  find(list_to_binary(Name));
+  
 find(Name) ->
   gen_server:call(?MODULE, {find, Name}).
 

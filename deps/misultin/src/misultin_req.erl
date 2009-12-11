@@ -45,7 +45,7 @@
 % API
 -export([raw/0]).
 -export([ok/1, ok/2, ok/3, respond/2, respond/3, respond/4, stream/1, stream/2, stream/3]).
--export([get/1, host/0, parse_qs/0, parse_post/0, file/1, file/2, resource/1]).
+-export([get/1, host/0, socket/0, parse_qs/0, parse_post/0, file/1, file/2, resource/1]).
 
 % includes
 -include("../include/misultin.hrl").
@@ -121,6 +121,9 @@ get(body) ->
 
 host() ->
   Req#req.host.
+  
+socket() ->
+  Req#req.socket.
 
 % Description: Parse QueryString
 parse_qs() ->
