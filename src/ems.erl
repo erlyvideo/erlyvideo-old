@@ -38,7 +38,7 @@
 -include("../include/ems.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
--export([get_var/1,get_var/2, check_app/3, try_method_chain/2]).
+-export([get_var/2, get_var/3, check_app/3, try_method_chain/2]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 
@@ -115,13 +115,6 @@ reload([H|T]) ->
 	
 	
 %%--------------------------------------------------------------------
-%% @spec (Opt::atom()) -> any()
-%% @doc Gets application enviroment variable. User defined varaibles in 
-%% .config file override application default varabiles. Default [].
-%% @end 
-%%--------------------------------------------------------------------
-get_var(Opt) -> get_var(Opt, []).
-%%--------------------------------------------------------------------
 %% @spec (Opt::atom(), Default::any()) -> any()
 %% @doc Gets application enviroment variable. Returns Default if no 
 %% varaible named Opt is found. User defined varaibles in .config file
@@ -140,6 +133,23 @@ get_var(Opt, Default) ->
 		{ok, [[Val | _] | _]} -> Val;
 		error		-> Default
 		end
+	end.
+
+
+get_var(Key, Host, Hosts, Default) when is_list(Hosts) ->
+  case proplists:get_value(Host, Hosts) of
+    Config when is_list(Config) -> proplists:get_value(Key, Config, Default);
+    _ -> Default 
+  end.
+
+get_var(Key, Host, Default) ->
+	case lists:keysearch(?APPLICATION, 1, application:loaded_applications()) of
+		false -> application:load(?APPLICATION);
+		_ -> ok
+	end,
+	case application:get_env(?APPLICATION, vhosts) of
+	  {ok, Hosts} -> get_var(Key, Host, Hosts, Default);
+    _ -> Default
 	end.
 
 

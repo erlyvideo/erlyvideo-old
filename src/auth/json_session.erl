@@ -41,7 +41,7 @@ hex(N) when N >= 10, N < 16 ->
   $a + (N-10).
   
 session_sign(Session) ->
-  binary_to_hexbin(crypto:sha_mac(ems:get_var(secret_key), Session)).
+  binary_to_hexbin(crypto:sha_mac(ems:get_var(secret_key, undefined), Session)).
   
 decode(Offset, Subscription) when Offset >= size(Subscription) - 2 ->
   {error};
