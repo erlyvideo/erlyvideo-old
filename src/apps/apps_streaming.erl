@@ -44,7 +44,7 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{streams = Streams, client_buffer = ClientBuffer} = State) ->
+'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{streams = Streams, client_buffer = ClientBuffer, host = Host} = State) ->
   StreamId = proplists:get_value(stream_id, Options),
   
   case array:get(StreamId, Streams) of
@@ -53,7 +53,7 @@
       CurrentPlayer ! exit;
     _ -> ok
   end,
-  case media_provider:play(Name, [{client_buffer, ClientBuffer} | Options]) of
+  case media_provider:play(Name, [{client_buffer, ClientBuffer}, {host, Host} | Options]) of
     {ok, Player} ->
       Player ! start,
       {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};

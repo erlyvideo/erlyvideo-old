@@ -221,6 +221,20 @@ init([shared_object]) ->
 init([]) ->
   ets:new(rtmp_sessions, [set, public, named_table]),
   
+
+  MediaProviders = lists:map(fun({Host, _}) ->
+    {   binary_to_atom(<<"media_provider_sup.", (atom_to_binary(Host, latin1))/binary>>, latin1), % Id       = internal id
+        {media_provider,start_link,[Host]},      % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [media_provider]                         % Modules  = [Module] | dynamic
+    }
+  end, ems:get_var(vhosts, [])),
+  
+  
+  
+  
   Supervisors = [
     % EMS HTTP
     {   ems_http_sup,                         % Id       = internal id
@@ -244,13 +258,6 @@ init([]) ->
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
-    },
-    {   media_provider_sup,                      % Id       = internal id
-        {media_provider,start_link,[]},          % StartFun = {M, F, A}
-        permanent,                               % Restart  = permanent | transient | temporary
-        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [media_provider]                         % Modules  = [Module] | dynamic
     },
     % Media entry supervisor
     {   file_media_sup,
@@ -303,7 +310,8 @@ init([]) ->
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     }
-  ],
+  | MediaProviders],
+  
   
   Supervisors1 = case ems:get_var(rtmp_port, undefined) of
     undefined -> Supervisors;
