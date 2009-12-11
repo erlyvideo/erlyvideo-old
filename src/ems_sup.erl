@@ -41,7 +41,8 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/0, start_rtsp_session/0, start_media/2, 
           start_file_play/2, start_stream_play/2,
-          start_mpegts_media/1, start_shared_object/2]).
+          start_mpegts_media/1, start_shared_object/2,
+          start_rtp_server/3]).
 
 
 %%--------------------------------------------------------------------
@@ -92,6 +93,8 @@ start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup
 start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
 
 start_shared_object(Name, Persistent) -> supervisor:start_child(shared_object_sup, [Name, Persistent]).
+
+start_rtp_server(Media, Type, Opts) -> supervisor:start_child(rtp_server_sup, [Media, Type, Opts]).
 
 %%--------------------------------------------------------------------
 %% @spec (List::list()) -> any()
@@ -219,6 +222,21 @@ init([shared_object]) ->
             ]
         }
     };
+init([rtp_server]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {rtp_server,start_link,[]},             % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [shared_object]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
 init([]) ->
   ets:new(rtmp_sessions, [set, public, named_table]),
   
@@ -232,20 +250,6 @@ init([]) ->
         [ems_http]                               % Modules  = [Module] | dynamic
     },
     % EMS instance supervisor
-    {   rtmp_session_sup,
-        {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   rtsp_session_sup,
-        {supervisor,start_link,[{local, rtsp_session_sup}, ?MODULE, [rtsp_session]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
     {   media_provider_sup,                      % Id       = internal id
         {media_provider,start_link,[]},          % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
@@ -315,7 +319,15 @@ init([]) ->
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
           [rtmp_listener]                             % Modules  = [Module] | dynamic
-      }|Supervisors]
+      },
+      {   rtmp_session_sup,
+          {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
+          permanent,                               % Restart  = permanent | transient | temporary
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      }
+      |Supervisors]
   end,
 
   Supervisors2 = case ems:get_var(rtsp_port, undefined) of
@@ -327,13 +339,22 @@ init([]) ->
           2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
           worker,                                  % Type     = worker | supervisor
           [rtsp_listener]                             % Modules  = [Module] | dynamic
-      }, {rtp_sup,                                 % Id       = internal id
-          {rtp_server,start_link,[]},              % StartFun = {M, F, A}
+      },
+      {   rtsp_session_sup,
+          {supervisor,start_link,[{local, rtsp_session_sup}, ?MODULE, [rtsp_session]]},
           permanent,                               % Restart  = permanent | transient | temporary
-          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-          worker,                                  % Type     = worker | supervisor
-          [rtp_server]                             % Modules  = [Module] | dynamic
-      }] ++ Supervisors1
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      },
+      {   rtp_server_sup,
+          {supervisor,start_link,[{local, rtp_server_sup}, ?MODULE, [rtp_server]]},
+          permanent,                               % Restart  = permanent | transient | temporary
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      }
+      ] ++ Supervisors1
   end,
   
   

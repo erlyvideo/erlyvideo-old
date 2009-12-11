@@ -148,11 +148,11 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State}.
 
 
-split_params(String) ->
-  lists:map(fun(Opt) -> case string:tokens(Opt, "=") of
-    [Key] -> Key;
-    [Key, Value] -> {Key, Value}
-  end end, string:tokens(binary_to_list(String), ";")).
+% split_params(String) ->
+%   lists:map(fun(Opt) -> case string:tokens(Opt, "=") of
+%     [Key] -> Key;
+%     [Key, Value] -> {Key, Value}
+%   end end, string:tokens(binary_to_list(String), ";")).
 
 
 handle_request(#rtsp_session{request = [_Method, _URL], body = Body} = State) ->
@@ -173,22 +173,17 @@ run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
 run_request(#rtsp_session{request = ['RECORD', _URL]} = State) ->
   reply(State, "200 OK", []);
 
-run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, socket = Socket, streams = Streams, media = Media} = State) ->
+run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
   {match, [_, _Host, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
   TrackId = list_to_integer(TrackIdS),
   Transport = proplists:get_value('Transport', Headers),
-  TransportOpts = split_params(Transport),
-  ClientPorts = string:tokens(proplists:get_value("client_port", TransportOpts), "-"),
-  ClientPort = list_to_integer(hd(ClientPorts)),
-  {ok, {Address, _}} = inet:peername(Socket),
   
   Stream = hd(lists:filter(fun(S) ->
     lists:member({track_id, TrackId}, S)
   end, Streams)),
   
-  rtp_server:register({Address, ClientPort}, Media, Stream),
-  {ok, {RTP, RTCP}} = rtp_server:port(),
+  {ok, Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), Stream),
   Date = httpd_util:rfc1123_date(),
   TransportReply = io_lib:format("~s;server_port=~p-~p;source=127.0.0.1",[Transport, RTP, RTCP]),
   % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",
@@ -278,8 +273,12 @@ parse_announce([{b, Info} | Announce], Streams, Stream) when is_list(Stream) ->
   parse_announce(Announce, Streams, [{bitrate, list_to_integer(S)} | Stream]);
 
 parse_announce([{a, <<"rtpmap:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
-  {ok, Re} = re:compile("\\d+ [^/]+/(\\d+)"),
-  {match, [_, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
+  {ok, Re} = re:compile("\\d+ ([^/]+)/(\\d+)"),
+  {match, [_, Codec, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
+  case proplists:get_value(type, Stream) of
+    video ->  "H264" = Codec;
+    audio -> "mpeg4-generic" = Codec
+  end,
   parse_announce(Announce, Streams, [{clock_map, list_to_integer(ClockMap)/1000} | Stream]);
 
 parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
