@@ -130,6 +130,9 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 		{http, Sock, {http_header, _, 'Connection', _, Val}} ->
 			KeepAlive = keep_alive(Req#req.vsn, Val),
 			headers(C, Req#req{connection = KeepAlive}, [{'Connection', Val}|H], HeaderCount + 1);
+		{http, Sock, {http_header, _, 'Host', _, Val}} ->
+		  Host = list_to_binary(hd(string:tokens(Val, ":"))),
+			headers(C, Req#req{host = binary_to_existing_atom(Host, utf8)}, [{'Host', Host}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, Header, _, Val}} ->
 			headers(C, Req, [{Header, Val}|H], HeaderCount + 1);
 		{http, Sock, {http_error, "\r\n"}} ->
