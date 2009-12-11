@@ -17,6 +17,7 @@ handle_http(Req) ->
 
 
 handle('GET', [], Req) ->
+  localhost,
   erlydtl:compile("wwwroot/index.html", index_template),
   
   Query = Req:parse_qs(),
@@ -141,6 +142,12 @@ handle('GET', Path, Req) ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req])
   end;
 
+handle('PUT', ["stream", Name], Req) ->
+  ?D({"Stream", Name}),
+  Stream = media_provider:create(Name, mpeg_ts_passive),
+  gen_tcp:controlling_process(Req:socket(), Stream),
+  gen_server:call(Stream, {set_socket, Req:socket()}),
+  exit(leave);
   
 % handle the 404 page not found
 handle(_, Path, Req) ->

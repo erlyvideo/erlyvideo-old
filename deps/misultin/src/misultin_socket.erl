@@ -132,7 +132,7 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 			headers(C, Req#req{connection = KeepAlive}, [{'Connection', Val}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, 'Host', _, Val}} ->
 		  Host = list_to_binary(hd(string:tokens(Val, ":"))),
-			headers(C, Req#req{host = binary_to_existing_atom(Host, utf8)}, [{'Host', Host}|H], HeaderCount + 1);
+			headers(C, Req#req{host = Host}, [{'Host', Host}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, Header, _, Val}} ->
 			headers(C, Req, [{Header, Val}|H], HeaderCount + 1);
 		{http, Sock, {http_error, "\r\n"}} ->
@@ -214,6 +214,17 @@ body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 							exit(normal)
 					end
 			end;
+		'PUT' ->
+		  inet:setopts(Sock, [{packet, raw}, {active, false}]),
+			Close = handle_get(C, Req#req{socket = Sock}),
+			case Close of
+				close ->
+					gen_tcp:close(Sock);
+				keep_alive ->
+					% TODO: REMOVE inet:setopts(Sock, [{packet, http}]),
+					% inet:setopts(Sock, [{active, false}, {packet, 0}]),
+					request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
+			end;
 		_Other ->
 			?DEBUG(debug, "method not implemented: ~p", [_Other]),
 			send(Sock, ?NOT_IMPLEMENTED_501),
@@ -288,6 +299,8 @@ call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 			% loop exited normally, kill listening socket
 			SocketPid ! shutdown
 	catch	
+		exit:leave ->
+		  exit(normal);
 		_Class:_Error ->
 			?DEBUG(error, "worker crash: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
       error_logger:error_msg("FAIL ~p ~p~n~p:~p:~p", [Req:get(method), Req:get(uri), _Class, _Error, erlang:get_stacktrace()]),

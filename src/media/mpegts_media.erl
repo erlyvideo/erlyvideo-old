@@ -1,5 +1,6 @@
 -module(mpegts_media).
--export([start_link/1]).
+-author(max@maxidoors.ru).
+-export([start_link/2]).
 -behaviour(gen_server).
 
 
@@ -79,14 +80,18 @@
 
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
 
-start_link(URL) ->
-  gen_server:start_link(?MODULE, [URL], []).
+start_link(URL, Type) ->
+  gen_server:start_link(?MODULE, [URL, Type], []).
 
 
-init([URL]) when is_binary(URL)->
-  init([binary_to_list(URL)]);
+init([URL, Type]) when is_binary(URL)->
+  init([binary_to_list(URL), Type]);
+
+init([URL, mpeg_ts_passive]) ->
+  process_flag(trap_exit, true),
+  {ok, #ts_lander{url = URL, pids = [#stream{pid = 0, handler = pat}]}};
   
-init([URL]) ->
+init([URL, mpeg_ts]) ->
   process_flag(trap_exit, true),
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
@@ -113,6 +118,11 @@ init([URL]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
+handle_call({set_socket, Socket}, _From, TSLander) ->
+  inet:setopts(Socket, [{active, true}, {packet, raw}]),
+  ?D({"MPEG TS received socket"}),
+  {reply, ok, TSLander#ts_lander{socket = Socket}};
+
 handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Clients} = TSLander) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
@@ -130,6 +140,11 @@ handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Cli
 handle_call(clients, _From, #ts_lander{clients = Clients} = TSLander) ->
   Entries = lists:map(fun(Pid) -> file_play:client(Pid) end, Clients),
   {reply, Entries, TSLander};
+
+handle_call({set_owner, _}, _From, TSLander) ->
+  {reply, ok, TSLander};
+
+
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
