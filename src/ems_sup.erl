@@ -242,7 +242,7 @@ init([]) ->
   
 
   MediaProviders = lists:map(fun({Host, _}) ->
-    {   binary_to_atom(<<"media_provider_sup.", (atom_to_binary(Host, latin1))/binary>>, latin1), % Id       = internal id
+    {   binary_to_atom(<<"media_provider_sup_", (atom_to_binary(Host, latin1))/binary>>, latin1), % Id       = internal id
         {media_provider,start_link,[Host]},      % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity

@@ -31,6 +31,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_app).
+-author(max@maxidoors.ru).
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
@@ -53,6 +54,8 @@ start(_Type, _Args) ->
   Start = ems_sup:start_link(),
   ok = ems:start_modules(),
   Start.
+
+
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()
 %% @doc Stop ErlMedia Application

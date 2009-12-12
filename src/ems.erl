@@ -41,6 +41,7 @@
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
+-export([host/1]).
 
 
 %%--------------------------------------------------------------------
@@ -50,7 +51,23 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
-	application:start(?APPLICATION).
+	Start = application:start(?APPLICATION),
+	ets:new(vhosts, [set, named_table, public]),
+  case application:get_env(?APPLICATION, vhosts) of
+    {ok, Hosts} when is_list(Hosts) -> init_vhosts(Hosts);
+    _ -> ok
+  end,
+  Start.
+
+init_vhosts([]) ->
+  ok;
+
+init_vhosts([{Name, Host} | Hosts]) ->
+  ets:insert(vhosts, {Name, [{name, Name} | Host]}),
+  lists:foreach(fun(Hostname) ->
+    ets:insert(vhosts, {Hostname, Name})
+  end, proplists:get_value(hostname, Host)),
+  init_vhosts(Hosts).
 
 
 %%--------------------------------------------------------------------
@@ -61,7 +78,8 @@ start() ->
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
 	application:stop(?APPLICATION),
-	application:unload(?APPLICATION).
+	application:unload(?APPLICATION),
+  (catch ets:delete(vhosts)).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -136,21 +154,13 @@ get_var(Opt, Default) ->
 	end.
 
 
-get_var(Key, Host, Hosts, Default) when is_list(Hosts) ->
-  case proplists:get_value(Host, Hosts) of
-    Config when is_list(Config) -> proplists:get_value(Key, Config, Default);
-    _ -> Default 
-  end.
-
 get_var(Key, Host, Default) ->
 	case lists:keysearch(?APPLICATION, 1, application:loaded_applications()) of
 		false -> application:load(?APPLICATION);
 		_ -> ok
 	end,
-	case application:get_env(?APPLICATION, vhosts) of
-	  {ok, Hosts} -> get_var(Key, Host, Hosts, Default);
-    _ -> Default
-	end.
+	Config = host(Host),
+	proplists:get_value(Key, Config, Default).
 
 
 respond_to(Module, Command, Arity) ->
@@ -160,6 +170,14 @@ respond_to(Module, Command, Arity) ->
 		_ -> false
 	end.
   
+  
+host(Hostname) when is_binary(Hostname) -> host(binary_to_list(Hostname));
+
+host(Hostname) ->
+  case ets:lookup_element(vhosts, Hostname, 2) of
+    Host when is_list(Host) -> Host;
+    Name when is_atom(Name) -> ets:lookup_element(vhosts, Name, 2)
+  end.
 
 %%--------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
@@ -218,7 +236,10 @@ try_method_chain([Module | Applications], Method, Args) ->
 %% @doc Look whan module in loaded plugins can handle required method
 %% @end 
 %%--------------------------------------------------------------------
-	
+
+check_app(_, connect, _) ->
+  apps_rtmp;
+  
 check_app([], _Command, _Arity) ->
   unhandled;
 
