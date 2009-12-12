@@ -4,37 +4,36 @@
 -include("../../../include/ems.hrl").
 -include("../../../include/h264.hrl").
 
--record(rtp_server, {
-	rtcp_listener,
-	rtp_listener,
+-record(video, {
+	rtcp_socket,
+	rtp_socket,
 	rtcp_port,
 	rtp_port,
-	streams
-	}).
-	
-	
--record(video, {
   media,
   clock_map,
   sequence = 0,
   timestamp = undefined,
-  width,
-  height,
-  payload_type,
   h264,
+  synced = false,
   buffer = []
 }).
+
+-record(audio, {
+	rtcp_socket,
+	rtp_socket,
+	rtcp_port,
+	rtp_port,
+  media,
+  clock_map
+}).
 	
--behaviour(gen_server).
 
 %% External API
--export([start_link/0, register/3]).
+-export([start_link/3]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
 
--export([port/0, video/2, audio/2, video/1, audio/1]).
+-export([video/2, video/1, audio/2]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -42,94 +41,51 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link()  ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%%%------------------------------------------------------------------------
-%%% Callback functions from gen_server
-%%%------------------------------------------------------------------------
+start_link(Media, Type, Opts)  ->
+  {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
+  Pid = spawn_link(?MODULE, Type, [init(Type, {RTP, RTCP, Media}), Opts]),
+  link(Pid),
+  gen_udp:controlling_process(RTPSocket, Pid),
+  gen_udp:controlling_process(RTCPSocket, Pid),
+  Pid ! {socket, RTPSocket, RTCPSocket},
+  {ok, Pid, {RTP, RTCP}}.
 
 
-port() ->
-  gen_server:call(?MODULE, port).
+init(video, {RTP, RTCP, Media}) ->
+  #video{rtp_port = RTP, rtcp_port = RTCP, media = Media};
 
-
-register(Key, Handler, Streams) ->
-  gen_server:call(?MODULE, {register, Key, Handler, Streams}).
-
-%%----------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, State}           |
-%%                            {ok, State, Timeout}  |
-%%                            ignore                |
-%%                            {stop, Reason}
-%%
-%% @doc Called by gen_server framework at process startup.
-%%      Create listening socket.
-%% @end
-%%----------------------------------------------------------------------
-init([]) ->
-  process_flag(trap_exit, true),
-  Opts = [binary, {active, once}],
-
-  RTCP = 6256,
-  RTP = RTCP + 1,
+init(audio, {RTP, RTCP, Media}) ->
+  #audio{rtp_port = RTP, rtcp_port = RTCP, media = Media}.
   
-  {ok, RTCPListen} = gen_udp:open(RTCP, Opts),
-  {ok, RTPListen} = gen_udp:open(RTP, Opts),
+
+open_ports(audio) ->
+  try_rtp(8000);
+
+open_ports(video) ->
+  try_rtp(5000).
+
+try_rtp(40000) ->
+  error;
   
-  Streams = ets:new(streams, [set, {keypos, 1}]),
-  {ok, #rtp_server{rtcp_listener = RTCPListen, rtp_listener = RTPListen, 
-                     rtcp_port = RTCP, rtp_port = RTP,
-                     streams = Streams}}.
+try_rtp(Port) ->
+  case gen_udp:open(Port, [binary, {active, false}]) of
+    {ok, RTPSocket} ->
+      try_rtcp(Port, RTPSocket);
+    {error, _} ->
+      try_rtp(Port + 2)
+  end.
 
-%%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-
-handle_call(port, _From, #rtp_server{rtcp_port = RTCP, rtp_port = RTP} = State) ->
-  {reply, {ok, {RTCP, RTP}}, State};
+try_rtcp(RTP, RTPSocket) ->
+  RTCP = RTP+1,
+  case gen_udp:open(RTCP, [binary, {active, false}]) of
+    {ok, RTCPSocket} ->
+      {RTP, RTPSocket, RTCP, RTCPSocket};
+    {error, _} ->
+      gen_udp:close(RTPSocket),
+      try_rtp(RTP + 2)
+  end.
   
-handle_call({register, Key, Media, Stream}, _From, #rtp_server{streams = StreamTable} = State) ->
-  Type = proplists:get_value(type, Stream),
-  Decoder = spawn_link(?MODULE, Type, [Media, Stream]),
-  ets:insert(StreamTable, {Key, Decoder}),
-  ?D({"Registering", Key, Type, Decoder}),
-  {reply, ok, State};
-
-handle_call(Request, _From, State) ->
-  {stop, {unknown_call, Request}, State}.
-
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for messages sent directly to server's mailbox.
-%%      If `{stop, ...}' tuple is returned, the server is stopped and
-%%      `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
 % 
 %  0                   1                   2                   3
 %  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -144,64 +100,45 @@ handle_cast(_Msg, State) ->
 %  |                             ....                              |
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-handle_info({udp,Socket,Host,Port, <<2:2, 0:1, _Extension:1, 0:4, Marker:1, PayloadType:7, 
-         Sequence:16, Timestamp:32, _StreamId:32, Body/binary>> = _Bin}, #rtp_server{streams = StreamTable} = State) ->
-  % ?D({"UDP message", Host, Port, size(Bin)}),
-  % ?D({"UDP", _Marker, Timestamp, Sequence}),
-  % {ok, {Address, Local}} = inet:sockname(Socket),
-  Key = {Host, Port},
-  case ets:match_object(StreamTable, {Key, '_'}) of
-    [{_, Decoder}] -> Decoder ! {data, Body, Sequence, Timestamp, PayloadType, Marker};
-    _ -> ?D({"Unknown client", Host, Port})
-  end,
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, State};
-    
-handle_info({'EXIT', Pid, _Reason}, #rtp_server{streams = Streams} = State) ->
-  ets:match_delete(Streams, {'_', Pid}),
-  ?D({"Died linked process", Pid, _Reason}),
-  {noreply, State};
-    
-  
-handle_info(_Info, State) ->
-  {noreply, State}.
 
+audio(#audio{}, _Opts) ->
+  ok.
 
-audio(_Media, _Stream) ->
-  audio(_Stream).
-  
-audio(_) -> ok.
-
-
-
-video(Media, Stream) ->
-  ClockMap = proplists:get_value(clock_map, Stream, 90000),
-  Width = proplists:get_value(width, Stream, 320),
-  Height = proplists:get_value(height, Stream, 240),
-  PayloadType = proplists:get_value(payload_type, Stream, 96),
+video(#video{media = Media} = Video, Opts) ->
+  ClockMap = proplists:get_value(clock_map, Opts, 90),
   H264 = #h264{},
-  case proplists:get_value(parameter_sets, Stream) of
+  case proplists:get_value(parameter_sets, Opts) of
     [SPS, PPS] -> {H264_1, _} = h264:decode_nal(SPS, H264),
                   {H264_2, Configs} = h264:decode_nal(PPS, H264_1);
     _ -> H264_2 = H264,
          Configs = []
   end,
     
-  
-  Video = #video{media = Media, clock_map = ClockMap, h264 = H264_2,
-                 width = Width, height = Height, payload_type = PayloadType},
+  Video1 = Video#video{clock_map = ClockMap, h264 = H264_2},
   link(Media),
   
   lists:foreach(fun(Frame) ->
     Media ! Frame#video_frame{timestamp = 0}
   end, Configs),
-  
-  video(Video).
-  
-video(Video) ->
+
   receive
-    {data, _, _, _, _, _} = Packet ->
-      read_video(Video, Packet);
+    {socket, RTPSocket, RTCPSocket} ->
+      inet:setopts(RTPSocket, [{active, once}]),
+      inet:setopts(RTCPSocket, [{active, once}]),
+      ?MODULE:video(Video1#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket})
+  end.
+  
+video(#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket} = Video) ->
+  receive
+    {udp,RTPSocket,_Host,_Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, 
+             Sequence:16, Timestamp:32, _StreamId:32, Body/binary>> = _Bin} ->
+      inet:setopts(RTPSocket, [{active, once}]),
+      read_video(Video, {data, Body, Sequence, Timestamp});
+
+    {udp,RTCPSocket,_Host,_Port, _Bin} ->
+      ?D("RTCP"),
+      inet:setopts(RTPSocket, [{active, once}]),
+      ?MODULE:video(Video);
     Else ->
       ?D({"Unknown", Else}),
       ok
@@ -209,52 +146,34 @@ video(Video) ->
     50000 ->
       ?D("RTP video timeout")
   end.
-  
 
-read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp, _, _} = Packet) ->
+read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
   read_video(Video#video{timestamp = Timestamp}, Packet);
 
-read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp, _PayloadType, _Marker}) ->
+read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ Frames});
   
-read_video(#video{h264 = H264, clock_map = ClockMap, media = Media, buffer = Buffer, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs, _PayloadType, _Marker}) ->
+read_video(#video{h264 = H264, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs}) ->
 
+  Video1 = send_video(Video),
   {H264_1, Frames} = h264:decode_nal(Body, H264),
 
+  ?MODULE:video(Video1#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
+ 
+send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} | _]} = Video) ->
+  Video#video{buffer = []};
+
+send_video(#video{buffer = []} = Video) ->
+  Video;
+
+send_video(#video{clock_map = ClockMap, media = Media, buffer = Frames, timestamp = RtpTs} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
-                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> F#video_frame{body = <<NALs/binary, NAL/binary>>}
-  end, #video_frame{body = <<>>}, Buffer),
+                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
+                                F#video_frame{body = <<NALs/binary, NAL/binary>>}
+  end, #video_frame{body = <<>>}, Frames),
   case Frame of
     undefined -> ok;
     _ -> Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), type = ?FLV_TAG_TYPE_VIDEO}
   end,
-  
-  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
-  
-
-%%-------------------------------------------------------------------------
-%% @spec (Reason, State) -> any
-%% @doc  Callback executed on server shutdown. It is only invoked if
-%%       `process_flag(trap_exit, true)' is set by the server process.
-%%       The return value is ignored.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-terminate(_Reason, #rtp_server{rtcp_listener = RTCP, rtp_listener = RTP}) ->
-  gen_udp:close(RTCP),
-  gen_udp:close(RTP),
-  ok.
-
-%%-------------------------------------------------------------------------
-%% @spec (OldVsn, State, Extra) -> {ok, NewState}
-%% @doc  Convert process state when code is changed.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-%%%------------------------------------------------------------------------
-%%% Internal functions
-%%%------------------------------------------------------------------------
+  Video#video{synced = true, buffer = []}.

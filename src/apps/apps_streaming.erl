@@ -39,7 +39,7 @@
 -include("../../include/ems.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
-         receiveAudio/2, receiveVideo/2,
+         receiveAudio/2, receiveVideo/2, releaseStream/2,
          getStreamLength/2, prepareStream/1, checkBandwidth/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
@@ -103,6 +103,10 @@ createStream(AMF, State) ->
   apps_rtmp:reply(AMF#amf{args = [null, StreamId]}),
   gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
   State1.
+
+releaseStream(#amf{args = Args} = AMF, State) -> 
+  ?D({"Release stream", Args}),
+  State.
 
 next_stream(State) -> next_stream(State, 1).
 next_stream(#rtmp_session{streams = Streams} = State, Stream) ->
