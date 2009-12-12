@@ -51,22 +51,7 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
-	ok = application:start(?APPLICATION),
-	vhosts = ets:new(vhosts, [set, named_table, public]),
-  case application:get_env(?APPLICATION, vhosts) of
-    {ok, Hosts} when is_list(Hosts) -> init_vhosts(Hosts);
-    _ -> ok
-  end.
-
-init_vhosts([]) ->
-  ok;
-
-init_vhosts([{Name, Host} | Hosts]) ->
-  true = ets:insert(vhosts, {Name, [{name, Name} | Host]}),
-  lists:foreach(fun(Hostname) ->
-    true = ets:insert(vhosts, {Hostname, Name})
-  end, proplists:get_value(hostname, Host)),
-  init_vhosts(Hosts).
+	application:start(?APPLICATION).
 
 
 %%--------------------------------------------------------------------
@@ -77,8 +62,7 @@ init_vhosts([{Name, Host} | Hosts]) ->
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
 	application:stop(?APPLICATION),
-	application:unload(?APPLICATION),
-  (catch ets:delete(vhosts)).
+	application:unload(?APPLICATION).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -154,10 +138,6 @@ get_var(Opt, Default) ->
 
 
 get_var(Key, Host, Default) ->
-	case lists:keysearch(?APPLICATION, 1, application:loaded_applications()) of
-		false -> application:load(?APPLICATION);
-		_ -> ok
-	end,
 	Config = host_config(Host),
 	proplists:get_value(Key, Config, Default).
 

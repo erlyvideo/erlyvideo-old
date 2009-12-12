@@ -48,12 +48,31 @@
 %%--------------------------------------------------------------------
 
 start(_Type, _Args) -> 
+  application:load(?APPLICATION),
+  
+  vhosts = ets:new(vhosts, [set, named_table, public]),
+  case application:get_env(?APPLICATION, vhosts) of
+    {ok, Hosts} when is_list(Hosts) -> init_vhosts(Hosts);
+    _ -> ok
+  end,
+	
   application:start(crypto),
   mnesia:create_schema([node()]),
   mnesia:start(),
   Start = ems_sup:start_link(),
   ok = ems:start_modules(),
   Start.
+
+init_vhosts([]) ->
+  ok;
+
+init_vhosts([{Name, Host} | Hosts]) ->
+  true = ets:insert(vhosts, {Name, [{name, Name} | Host]}),
+  lists:foreach(fun(Hostname) ->
+    true = ets:insert(vhosts, {Hostname, Name})
+  end, proplists:get_value(hostname, Host)),
+  init_vhosts(Hosts).
+
 
 
 %%--------------------------------------------------------------------
@@ -63,6 +82,7 @@ start(_Type, _Args) ->
 %%--------------------------------------------------------------------
 stop(_S) -> 
   ems:stop_modules(),
+  ets:delete(vhosts),
   ok.
 
 
