@@ -39,7 +39,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_rtmp_session/0, start_rtsp_session/0, start_media/2, 
+-export ([start_rtmp_session/0, start_rtsp_session/0, start_media/3, 
           start_file_play/2, start_stream_play/2,
           start_mpegts_media/1, start_shared_object/2,
           start_rtp_server/3]).
@@ -74,11 +74,11 @@ start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
 %% To be called by the media provider.
 %% @end 
 %%--------------------------------------------------------------------
-start_media(Name, file = Type) -> supervisor:start_child(file_media_sup, [Name, Type]);
-start_media(Name, mpeg_ts = Type) -> supervisor:start_child(mpegts_media_sup, [Name, Type]);
-start_media(Name, mpeg_ts_passive = Type) -> supervisor:start_child(mpegts_media_sup, [Name, Type]);
-start_media(Name, record = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]);
-start_media(Name, live = Type) -> supervisor:start_child(stream_media_sup, [Name, Type]).
+start_media(Name, file = Type, Opts) -> supervisor:start_child(file_media_sup, [Name, Type, Opts]);
+start_media(Name, mpeg_ts = Type, Opts) -> supervisor:start_child(mpegts_media_sup, [Name, Type, Opts]);
+start_media(Name, mpeg_ts_passive = Type, Opts) -> supervisor:start_child(mpegts_media_sup, [Name, Type, Opts]);
+start_media(Name, record = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
+start_media(Name, live = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]).
 
 
 start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, Options]).

@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/2, open/2, open/3, play/2, entries/1, remove/2]).
+-export([start_link/1, create/3, open/2, open/3, play/2, entries/1, remove/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -30,9 +30,9 @@ name(Host) ->
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
 
-create(Name, Type) ->
+create(Host, Name, Type) ->
   ?D({"Create", Name, Type}),
-  Pid = open(Name, Type),
+  Pid = open(Host, Name, Type),
   stream_media:set_owner(Pid, self()),
   Pid.
 
@@ -152,10 +152,10 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
 open_media_entry({Name, notfound}, _) ->
   {notfound, <<"No file ", Name/binary>>};
 
-open_media_entry({Name, Type}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+open_media_entry({Name, Type}, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
-      case ems_sup:start_media(Name, Type) of
+      case ems_sup:start_media(Name, Type, [{host, Host}]) of
         {ok, Pid} ->
           link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),

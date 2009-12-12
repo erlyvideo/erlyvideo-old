@@ -1,6 +1,6 @@
 -module(mpegts_media).
 -author(max@maxidoors.ru).
--export([start_link/2]).
+-export([start_link/3]).
 -behaviour(gen_server).
 
 
@@ -80,18 +80,18 @@
 
 % {ok, Pid1} = ems_sup:start_ts_lander("http://localhost:8080").
 
-start_link(URL, Type) ->
-  gen_server:start_link(?MODULE, [URL, Type], []).
+start_link(URL, Type, Opts) ->
+  gen_server:start_link(?MODULE, [URL, Type, Opts], []).
 
 
-init([URL, Type]) when is_binary(URL)->
-  init([binary_to_list(URL), Type]);
+init([URL, Type, Opts]) when is_binary(URL)->
+  init([binary_to_list(URL), Type, Opts]);
 
-init([URL, mpeg_ts_passive]) ->
+init([URL, mpeg_ts_passive, Opts]) ->
   process_flag(trap_exit, true),
   {ok, #ts_lander{url = URL, pids = [#stream{pid = 0, handler = pat}]}};
   
-init([URL, mpeg_ts]) ->
+init([URL, mpeg_ts, Opts]) ->
   process_flag(trap_exit, true),
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),

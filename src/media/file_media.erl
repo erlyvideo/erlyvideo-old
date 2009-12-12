@@ -9,14 +9,14 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, codec_config/2, read_frame/2, name/1, seek/2, metadata/1]).
+-export([start_link/3, codec_config/2, read_frame/2, name/1, seek/2, metadata/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
-start_link(Path, Type) ->
-   gen_server:start_link(?MODULE, [Path, Type], []).
+start_link(Path, Type, Opts) ->
+   gen_server:start_link(?MODULE, [Path, Type, Opts], []).
 
 
 codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
@@ -33,12 +33,13 @@ metadata(Server) ->
   gen_server:call(Server, {metadata}).
 
 
-init([Name, file]) ->
+init([Name, file, Opts]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Opening file ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
-  {ok, Info} = open_file(Name),
-  {ok, Info#media_info{clients = Clients, type = file}}.
+  Host = proplists:get_value(host, Opts),
+  {ok, Info} = open_file(Name, Host),
+  {ok, Info#media_info{clients = Clients, type = file, host = Host}}.
 
 
 
@@ -185,11 +186,11 @@ terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-open_file(Name) when is_binary(Name) ->
-  open_file(binary_to_list(Name));
+open_file(Name, Host) when is_binary(Name) ->
+  open_file(binary_to_list(Name), Host);
   
-open_file(Name) ->
-  FileName = filename:join([file_play:file_dir(), Name]), 
+open_file(Name, Host) ->
+  FileName = filename:join([file_play:file_dir(Host), Name]), 
 	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
 	FileFormat = file_play:file_format(FileName),
 	MediaInfo = #media_info{

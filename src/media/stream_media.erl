@@ -9,14 +9,14 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2, codec_config/2, metadata/1, publish/2, set_owner/2]).
+-export([start_link/3, codec_config/2, metadata/1, publish/2, set_owner/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
-start_link(Path, Type) ->
-   gen_server:start_link(?MODULE, [Path, Type], []).
+start_link(Path, Type, Opts) ->
+   gen_server:start_link(?MODULE, [Path, Type, Opts], []).
    
 metadata(Server) ->
   gen_server:call(Server, {metadata}).
@@ -33,7 +33,7 @@ set_owner(Server, Owner) ->
   gen_server:call(Server, {set_owner, Owner}).
   
 
-init([Name, live]) ->
+init([Name, live, Opts]) ->
   process_flag(trap_exit, true),
   error_logger:info_msg("Live streaming stream ~p~n", [Name]),
   Clients = [],
@@ -42,11 +42,12 @@ init([Name, live]) ->
 	{ok, Recorder, ?TIMEOUT};
 
 
-init([Name, record]) ->
+init([Name, record, Opts]) ->
+  Host = proplists:get_value(host, Opts),
   process_flag(trap_exit, true),
   error_logger:info_msg("Recording stream ~p~n", [Name]),
   Clients = [],
-	FileName = filename:join([file_play:file_dir(), binary_to_list(Name)]),
+	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
 	(catch file:delete(FileName)),
 	ok = filelib:ensure_dir(FileName),
 	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
@@ -54,7 +55,7 @@ init([Name, record]) ->
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),
-		  Recorder = #media_info{type=record, device = Device, name = Name, path = FileName, clients = Clients},
+		  Recorder = #media_info{type=record, host = Host, device = Device, name = Name, path = FileName, clients = Clients},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
 		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, _Error]),
@@ -204,16 +205,16 @@ handle_info(#video_frame{} = Frame, #media_info{clients = Clients} = MediaInfo) 
 handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
 
-handle_info(stop, #media_info{name = Name} = MediaInfo) ->
-  media_provider:remove(Name),
+handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
+  media_provider:remove(Host, Name),
   {noreply, MediaInfo, ?TIMEOUT};
 
-handle_info(exit, #media_info{name = Name} = State) ->
-  media_provider:remove(Name),
+handle_info(exit, #media_info{host = Host, name = Name} = State) ->
+  media_provider:remove(Host, Name),
   {noreply, State, ?TIMEOUT};
 
-handle_info(timeout, #media_info{name = Name} = State) ->
-  media_provider:remove(Name),
+handle_info(timeout, #media_info{host = Host, name = Name} = State) ->
+  media_provider:remove(Host, Name),
   {stop, normal, State};
 
 handle_info(pause, State) ->

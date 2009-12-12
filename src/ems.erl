@@ -41,7 +41,7 @@
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
--export([host/1]).
+-export([host/1, host_config/1]).
 
 
 %%--------------------------------------------------------------------
@@ -159,7 +159,7 @@ get_var(Key, Host, Default) ->
 		false -> application:load(?APPLICATION);
 		_ -> ok
 	end,
-	Config = host(Host),
+	Config = host_config(Host),
 	proplists:get_value(Key, Config, Default).
 
 
@@ -172,12 +172,11 @@ respond_to(Module, Command, Arity) ->
   
   
 host(Hostname) when is_binary(Hostname) -> host(binary_to_list(Hostname));
+host(Hostname) when is_atom(Hostname) -> Hostname;
+host(Hostname) -> ets:lookup_element(vhosts, Hostname, 2).
+  
 
-host(Hostname) ->
-  case ets:lookup_element(vhosts, Hostname, 2) of
-    Host when is_list(Host) -> Host;
-    Name when is_atom(Name) -> ets:lookup_element(vhosts, Name, 2)
-  end.
+host_config(Hostname) -> ets:lookup_element(vhosts, host(Hostname), 2).
 
 %%--------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}

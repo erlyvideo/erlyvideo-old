@@ -1,6 +1,7 @@
 -define(FILE_CACHE_TIME, 10000).
 
 -record(media_info, {
+  host,
   type = undefined,
   device = undefined,
   header = undefined,
