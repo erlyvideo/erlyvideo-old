@@ -104,8 +104,9 @@ createStream(AMF, State) ->
   gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
   State1.
 
-releaseStream(#amf{args = Args} = AMF, State) -> 
+releaseStream(#amf{args = Args, stream_id = StreamId} = AMF, State) -> 
   ?D({"Release stream", Args}),
+  apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 
 next_stream(State) -> next_stream(State, 1).

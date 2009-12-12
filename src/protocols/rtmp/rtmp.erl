@@ -299,6 +299,7 @@ decode_and_invoke(Message, _Module, State, StreamId) ->
 	{InvokeId, Rest2} = amf0:decode(Rest1),
 	Arguments = decode_list(Rest2, amf0, []),
 	AMF = #amf{command = Command, args = Arguments, stream_id = StreamId, type = invoke, id = InvokeId},
+	?D({"Call", Command, InvokeId, StreamId, Arguments}),
 	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
   
   

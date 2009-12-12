@@ -60,17 +60,27 @@
 %% @end
 %%-------------------------------------------------------------------------
 
-'FCPublish'(#amf{args = Args} = _AMF, State) -> 
-  ?D({"FCpublish", Args}),
+'FCPublish'(#amf{args = [null, Name], stream_id = StreamId} = AMF, State) -> 
+  ?D({"FCpublish", Name}),
+  Start = AMF#amf{
+      id = 0,
+      stream_id = 0,
+      command = 'onFCPublish',
+      args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
+                              {description, Name}]}]},
+  gen_fsm:send_event(self(), {invoke, Start}),
+  
+  apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 
-'FCUnpublish'(#amf{args = Args} = _AMF, State) -> 
+'FCUnpublish'(#amf{args = Args} = AMF, State) -> 
   ?D({"FCunpublish", Args}),
+  apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 
-publish(#amf{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+publish(#amf{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
   ?D({"Publish - Action - record",Name}),
-  Recorder = media_provider:create(Name, record),
+  Recorder = media_provider:create(Host, Name, record),
   ?D({"Recording", Recorder}),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
@@ -81,19 +91,34 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
   State;
 
 
-publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = AMF, #rtmp_session{streams = Streams} = State) -> 
-  ?D({"Publish - Action - live",Name}),
-  Recorder = media_provider:create(Name, live),
-  apps_rtmp:reply(AMF#amf{args = [null, Name]}),
+publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
+  ?D({"Publish - Action - LIVE",Name}),
+  Recorder = media_provider:create(Host, Name, live),
+  % gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
+  
+  Start = #amf{
+      command = 'onStatus',
+      type = invoke,
+      id = 0,
+      stream_id = StreamId,
+      args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
+                              {level, <<"status">>}, 
+                              {description, <<"Stream recorded">>},
+                              {clientid, <<"Wirecast">>}]}]},
+  gen_fsm:send_event(self(), {invoke, Start}),
+  % gen_fsm:send_event(self(), {status, ?NS_RECORD_START, StreamId}),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
-publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
   ?D({"Publish - Action - live",Name}),
-  Recorder = media_provider:create(Name, live),
+  Recorder = media_provider:create(Host, Name, live),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
-publish(#amf{args = [null,Name], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+publish(#amf{args = [null, false]} = AMF, State) ->
+  apps_streaming:stop(AMF, State);
+  
+publish(#amf{args = [null,Name], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
   ?D({"Publish - Action - default live",Name}),
-  Recorder = media_provider:create(Name, live),
+  Recorder = media_provider:create(Host, Name, live),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)}.
 

@@ -83,7 +83,7 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
       _ -> NewState2#rtmp_session{amf_version = 0}
     end,
     
-    ConnectObj = [{capabilities, 31}, {fmsVer, <<"Erlyvideo 1.0">>}],
+    ConnectObj = [{capabilities, 31}, {fmsVer, <<"Erlyvideo 1.0">>}, {mode, 1}],
     StatusObj = [{code, <<?NC_CONNECT_SUCCESS>>},
                  {level, <<"status">>}, 
                  {description, <<"Connection succeeded.">>},
@@ -124,6 +124,7 @@ fail(AMF) ->
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
 'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 0} = State) ->
+  ?D({"Invokation", AMF}),
   gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
