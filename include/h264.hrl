@@ -4,6 +4,7 @@
 -define(NAL_SLICE_B, 3).
 -define(NAL_SLICE_C, 4).
 -define(NAL_IDR, 5).
+-define(NAL_SEI, 6).
 -define(NAL_SPS, 7).
 -define(NAL_PPS, 8).
 -define(NAL_DELIM, 9).
