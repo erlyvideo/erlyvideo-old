@@ -60,7 +60,7 @@
 %% @end
 %%-------------------------------------------------------------------------
 
-'FCPublish'(#amf{args = [null, Name], stream_id = StreamId} = AMF, State) -> 
+'FCPublish'(#amf{args = [null, Name]} = AMF, State) -> 
   ?D({"FCpublish", Name}),
   Start = AMF#amf{
       id = 0,

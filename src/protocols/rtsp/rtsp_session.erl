@@ -21,6 +21,7 @@
 
 -record(rtsp_session, {
   socket,
+  host,
   addr,
   port,
   request_re,
@@ -88,13 +89,13 @@ init([]) ->
 'WAIT_FOR_REQUEST'(timeout, State) ->
   {stop, normal, State};
 
-'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, request_re = RequestRe} = State) ->
-  {match, [_, Method, URL, "RTSP", "1.0"]} = re:run(Request, RequestRe, [{capture, all, list}]),
-  % {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  MethodName = binary_to_existing_atom(list_to_binary(Method), latin1),
+'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, url_re = UrlRe, request_re = RequestRe} = State) ->
+  {match, [_, Method, URL, <<"RTSP">>, <<"1.0">>]} = re:run(Request, RequestRe, [{capture, all, binary}]),
+  MethodName = binary_to_existing_atom(Method, latin1),
+  {match, [_, Host, _Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   io:format("[RTSP] ~s ~s RTSP/1.0~n", [Method, URL]),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{request = [MethodName, URL], headers = []}, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{request = [MethodName, URL], headers = [], host = ems:host(Host)}, ?TIMEOUT}.
 
 'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_session{socket = Socket} = State) ->
   Length = list_to_integer(binary_to_list(LengthBin)),
@@ -160,9 +161,9 @@ handle_request(#rtsp_session{request = [_Method, _URL], body = Body} = State) ->
   State1#rtsp_session{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
   
 
-run_request(#rtsp_session{request = ['ANNOUNCE', _URL], body = Body} = State) ->
+run_request(#rtsp_session{request = ['ANNOUNCE', _URL], host = Host, body = Body} = State) ->
   Path = path(State),
-  Media = media_provider:open(Path, live),
+  Media = media_provider:open(Host, Path, live),
   Streams = parse_announce(Body),
   ?D(Streams),
   reply(State#rtsp_session{media = Media, streams = Streams}, "200 OK", []);

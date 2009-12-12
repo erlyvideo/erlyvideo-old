@@ -89,6 +89,7 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
                  {description, <<"Connection succeeded.">>},
                  {objectEncoding, NewState3#rtmp_session.amf_version}],
     reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
+    % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
     NewState3.
 
 
