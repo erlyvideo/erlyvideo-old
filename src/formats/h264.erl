@@ -63,6 +63,7 @@ decode_nal(NAL, #h264{dump_file = undefined} = H264) ->
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
   % ?D("P-frame"),
+  (catch slice_header(Data)),
   ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
@@ -75,18 +76,22 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_fil
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_A:5, Rest/binary>>, H264) ->
   io:format("Coded slice data partition A~n"),
-  slice_header(Rest, H264);
+  % slice_header(Rest, H264);
+  {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_B:5, Rest/binary>>, H264) ->
   io:format("Coded slice data partition B~n"),
-  slice_header(Rest, H264);
+  % slice_header(Rest, H264);
+  {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, Rest/binary>>, H264) ->
   io:format("Coded slice data partition C~n"),
-  slice_header(Rest, H264);
+  % slice_header(Rest, H264);
+  {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
   % ?D("I-frame"),
+  (catch slice_header(Data)),
   ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
@@ -187,14 +192,18 @@ profile_name(144) -> "High 4:4:4";
 profile_name(Profile) -> "Unknown "++integer_to_list(Profile).
 
 
-slice_header(Bin, H264) ->
+slice_header(Bin) ->
     {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
     {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
     <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
     _SliceType = slice_type(SliceTypeId),
+    case _PicParameterSetId of
+      0 -> ok;
+      _ -> io:format("~s ~p~n", [_SliceType, _PicParameterSetId])
+    end,
     % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
-    {H264, []}.
+    ok.
 
 slice_type(0) -> 'P';
 slice_type(1) -> 'B';
