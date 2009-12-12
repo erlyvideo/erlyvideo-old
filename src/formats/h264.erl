@@ -103,13 +103,14 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file =
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
   ?DUMP_H264(File, Data),
-  VideoFrame = #video_frame{
+  _VideoFrame = #video_frame{
    	type          = ?FLV_TAG_TYPE_VIDEO,
 		body          = nal_with_size(Data),
 		frame_type    = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME,
 		codec_id      = ?FLV_VIDEO_CODEC_AVC
   },
-  {H264, [VideoFrame]};
+  
+  {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
   io:format("Sequence parameter set ~p ~p~n", [profile_name(Profile), Level/10]),

@@ -34,11 +34,12 @@ set_owner(Server, Owner) ->
   
 
 init([Name, live, Opts]) ->
+  Host = proplists:get_value(host, Opts),
   process_flag(trap_exit, true),
-  error_logger:info_msg("Live streaming stream ~p~n", [Name]),
+  error_logger:info_msg("Stream media ~p ~p~n", [Host, Name]),
   Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type=live, name = Name, clients = Clients},
+	Recorder = #media_info{type=live, name = Name, host = Host, clients = Clients},
 	{ok, Recorder, ?TIMEOUT};
 
 
@@ -80,7 +81,7 @@ init([Name, record, Opts]) ->
 handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
-  ?D({"Creating media player for", Name, "client", proplists:get_value(consumer, Options)}),
+  ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options)}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
