@@ -118,9 +118,11 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
   ?DUMP_H264(File, SPS),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, #h264{dump_file = File} = H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{dump_file = File} = H264) ->
   ?DUMP_H264(File, PPS),
-  io:format("Picture parameter set: ~p~n", [PPS]),
+  {_PPSId, Rest1} = exp_golomb_read(Bin),
+  {_SPSId, _Rest} = exp_golomb_read(Rest1),
+  io:format("Picture parameter set: ~p/~p~n", [_PPSId, _SPSId]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary>> = Delimiter, #h264{dump_file = File} = H264) ->
