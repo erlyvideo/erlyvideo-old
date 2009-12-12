@@ -81,9 +81,10 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
   State;
 
 
-publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = AMF, #rtmp_session{streams = Streams} = State) -> 
   ?D({"Publish - Action - live",Name}),
   Recorder = media_provider:create(Name, live),
+  apps_rtmp:reply(AMF#amf{args = [null, Name]}),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
 publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
