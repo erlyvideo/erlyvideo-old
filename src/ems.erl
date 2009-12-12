@@ -173,7 +173,11 @@ respond_to(Module, Command, Arity) ->
   
 host(Hostname) when is_binary(Hostname) -> host(binary_to_list(Hostname));
 host(Hostname) when is_atom(Hostname) -> Hostname;
-host(Hostname) -> ets:lookup_element(vhosts, Hostname, 2).
+host(Hostname) -> 
+  case ets:lookup(vhosts, Hostname) of
+    [{Hostname, Host}] -> Host;
+    [] -> default
+  end.
   
 
 host_config(Hostname) -> ets:lookup_element(vhosts, host(Hostname), 2).

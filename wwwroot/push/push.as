@@ -20,7 +20,7 @@ public class push extends Sprite
 	public function push()  : void
 	{
 		var delay : int = 2000;
-		var repeat : int = 0;
+		var repeat : int = 1;
 		var parameters : Object = this.loaderInfo.parameters;
 		_server = parameters.server + "/";
 		_cookie = parameters.session;
@@ -31,7 +31,7 @@ public class push extends Sprite
 	  connect();
 	}
 
-	private function connect() : void
+	private function connect(a:Object = null) : void
 	{
 	  _connected = false;
 		_connection = new NetConnection();

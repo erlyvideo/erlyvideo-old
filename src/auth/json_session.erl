@@ -59,5 +59,5 @@ decode(Offset, Subscription, Secret) ->
           {invalid_signature}
       end;
     _ ->
-      decode(Offset + 1, Subscription)
+      decode(Offset + 1, Subscription, Secret)
   end.

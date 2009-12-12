@@ -63,7 +63,6 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
 	  _VideoFunction = proplists:get_value(videoFunction, PlayerInfo),
 	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
 
-    ?D(PlayerInfo),
     {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
     {match, [_, Proto, HostName, Path]} = re:run(ConnectUrl, UrlRe, [{capture, all, binary}]),
     Host = ems:host(HostName),
