@@ -51,21 +51,20 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
-	Start = application:start(?APPLICATION),
-	ets:new(vhosts, [set, named_table, public]),
+	ok = application:start(?APPLICATION),
+	vhosts = ets:new(vhosts, [set, named_table, public]),
   case application:get_env(?APPLICATION, vhosts) of
     {ok, Hosts} when is_list(Hosts) -> init_vhosts(Hosts);
     _ -> ok
-  end,
-  Start.
+  end.
 
 init_vhosts([]) ->
   ok;
 
 init_vhosts([{Name, Host} | Hosts]) ->
-  ets:insert(vhosts, {Name, [{name, Name} | Host]}),
+  true = ets:insert(vhosts, {Name, [{name, Name} | Host]}),
   lists:foreach(fun(Hostname) ->
-    ets:insert(vhosts, {Hostname, Name})
+    true = ets:insert(vhosts, {Hostname, Name})
   end, proplists:get_value(hostname, Host)),
   init_vhosts(Hosts).
 
@@ -174,7 +173,7 @@ respond_to(Module, Command, Arity) ->
 host(Hostname) when is_binary(Hostname) -> host(binary_to_list(Hostname));
 host(Hostname) when is_atom(Hostname) -> Hostname;
 host(Hostname) -> 
-  case ets:lookup(vhosts, Hostname) of
+  case ets:match_object(vhosts, {Hostname, '$1'}) of
     [{Hostname, Host}] -> Host;
     [] -> default
   end.
