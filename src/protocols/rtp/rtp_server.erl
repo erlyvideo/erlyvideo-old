@@ -34,7 +34,7 @@
 
 %% gen_server callbacks
 
--export([video/2, video/1, audio/2]).
+-export([video/2, video/1, audio/2, audio/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -102,8 +102,58 @@ try_rtcp(RTP, RTPSocket) ->
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-audio(#audio{}, _Opts) ->
-  ok.
+audio(#audio{media = Media} = Audio, Opts) ->
+  Config = <<18,16,6>>,
+  AudioConfig = #video_frame{       
+   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	decoder_config = true,
+		timestamp      = 0,
+		body          = Config,
+	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+	  sound_rate	  = ?FLV_AUDIO_RATE_44
+	},
+	Media ! AudioConfig,
+  ClockMap = proplists:get_value(clock_map, Opts, 90),
+  
+  receive
+    {socket, RTPSocket, RTCPSocket} ->
+      inet:setopts(RTPSocket, [{active, true}]),
+      inet:setopts(RTCPSocket, [{active, true}]),
+      ?MODULE:audio(Audio#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, clock_map = ClockMap})
+  end.
+  
+audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, media = Media, clock_map = ClockMap} = Audio) ->
+  receive
+    {udp,RTPSocket,_Host,_Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, 
+             Sequence:16, RtpTs:32, _StreamId:32, Data/binary>> = _Bin} ->
+      % read_video(Video, {data, Body, Sequence, Timestamp});
+      Timestamp = round(RtpTs / ClockMap),
+      AudioFrame = #video_frame{       
+        type          = ?FLV_TAG_TYPE_AUDIO,
+        timestamp     = Timestamp,
+        body          = Data,
+        sound_format  = ?FLV_AUDIO_FORMAT_AAC,
+        sound_type    = ?FLV_AUDIO_TYPE_STEREO,
+        sound_size    = ?FLV_AUDIO_SIZE_16BIT,
+        sound_rate    = ?FLV_AUDIO_RATE_44
+      },
+      Media ! AudioFrame,
+      ?MODULE:audio(Audio);
+
+    {udp,RTCPSocket,_Host,_Port, _Bin} ->
+      ?D("RTCP audio"),
+      % inet:setopts(RTPSocket, [{active, once}]),
+      ?MODULE:audio(Audio);
+    Else ->
+      ?D({"Unknown", Else}),
+      ok
+  after
+    50000 ->
+      ?D("RTP audio timeout")
+  end.
+
 
 video(#video{media = Media} = Video, Opts) ->
   ClockMap = proplists:get_value(clock_map, Opts, 90),
@@ -136,7 +186,7 @@ video(#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket} = Video) ->
       read_video(Video, {data, Body, Sequence, Timestamp});
 
     {udp,RTCPSocket,_Host,_Port, _Bin} ->
-      ?D("RTCP"),
+      ?D("RTCP video"),
       % inet:setopts(RTPSocket, [{active, once}]),
       ?MODULE:video(Video);
     Else ->
@@ -165,7 +215,7 @@ read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, 
 read_video(#video{h264 = H264, timestamp = RtpTs, broken = Broken} = Video, {data, Body, Sequence, NewRtpTs}) ->
 
   Video1 = case Broken of
-    true -> ?D({"Drop broken frame", RtpTs}), Video;
+    true -> ?D({"Drop broken video frame", RtpTs}), Video;
     false -> send_video(Video)
   end,
   {H264_1, Frames} = h264:decode_nal(Body, H264),

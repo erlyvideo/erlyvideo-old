@@ -15,6 +15,7 @@ currently it can:
   * support virtual hosts. Look at src/erlmedia.app for examples
 
 currently in development:
+  * RTSP/RTP to read from QuickTime Broadcaster and Wirecast. Video already works!
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * add support for extended play command (with initial seek, length, ets)
   * Shared Objects
@@ -25,8 +26,6 @@ future plans:
 
 
 abandoned plans:
-  * RTSP/RTP to read from QuickTime Broadcaster is currently imposible. Quicktime Broadcaster creates H264 stream, that is not playable in
-Flash. VLC cannot announce itself via RTSP. Wirecast is too strict in RTSP protocol. Reverse MPEG TS is the solution.
 
 
 What you can do right now?

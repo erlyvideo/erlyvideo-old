@@ -67,7 +67,7 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
 	  _PageUrl = proplists:get_value(pageUrl, PlayerInfo),
 
     {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
-    {match, [_, Proto, HostName, Path]} = re:run(ConnectUrl, UrlRe, [{capture, all, binary}]),
+    {match, [_, _Proto, HostName, Path]} = re:run(ConnectUrl, UrlRe, [{capture, all, binary}]),
     Host = ems:host(HostName),
     
     ?D({"CONNECT", Host, _PageUrl}),
@@ -106,7 +106,6 @@ fail(AMF) ->
 
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
-  ?D({"Control", Type, Stream}),
   gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL}, <<Type:16/big, Stream:32/big>>}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 

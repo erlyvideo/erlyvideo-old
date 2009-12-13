@@ -294,14 +294,15 @@ parse_announce([{a, <<"control:trackid=", Track/binary>>} | Announce], Streams, 
   parse_announce(Announce, Streams, [{track_id, TrackId} | Stream]);
 
 parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
-  case proplists:get_value(type, Stream) of
-  video ->
   {ok, Re} = re:compile("([^=]+)=(.*)"),
   [_, OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
     {binary_to_existing_atom(list_to_binary(Key), utf8), Value}
   end, string:tokens(OptList, ";")),
+
+  case proplists:get_value(type, Stream) of
+  video ->
 
   {value, {_, "1"}, Opts1} = lists:keytake('packetization-mode', 1, lists:keysort(1, Opts)),
   {value, {_, ProfileLevelId}, Opts2} = lists:keytake('profile-level-id', 1, Opts1),
@@ -316,8 +317,15 @@ parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when
   Props = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
   Opts5 = [{parameter_sets, Props} | Opts4],
   parse_announce(Announce, Streams, Stream ++ Opts5);
-  _ ->
-    parse_announce(Announce, Streams, Stream)
+  
+  audio ->
+  {value, {_, _Mode}, Opts1} = lists:keytake('mode', 1, lists:keysort(1, Opts)),
+  {value, {_, Config}, Opts2} = lists:keytake('config', 1, Opts1),
+  lists:keytake('sizelength', 1, Opts2),
+  lists:keytake('indexlength', 1, Opts2),
+  lists:keytake('indexdeltalength', 1, Opts2),
+  
+  parse_announce(Announce, Streams, [{config, Config} | Stream])
   end;
 
 parse_announce([{a, _Info} | Announce], Streams, Stream) when is_list(Stream) ->
