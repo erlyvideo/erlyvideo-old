@@ -91,7 +91,7 @@ init([]) ->
 
 'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, url_re = UrlRe, request_re = RequestRe} = State) ->
   {match, [_, Method, URL, <<"RTSP">>, <<"1.0">>]} = re:run(Request, RequestRe, [{capture, all, binary}]),
-  MethodName = binary_to_existing_atom(Method, latin1),
+  MethodName = binary_to_existing_atom(Method, utf8),
   {match, [_, Host, _Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   io:format("[RTSP] ~s ~s RTSP/1.0~n", [Method, URL]),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
@@ -174,6 +174,9 @@ run_request(#rtsp_session{request = ['OPTIONS', _URL]} = State) ->
 run_request(#rtsp_session{request = ['RECORD', _URL]} = State) ->
   reply(State, "200 OK", []);
 
+run_request(#rtsp_session{request = ['PAUSE', _URL]} = State) ->
+  reply(State, "200 OK", []);
+
 run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
   {match, [_, _Host, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
@@ -198,7 +201,7 @@ run_request(#rtsp_session{request = [_Method, _URL]} = State) ->
 decode_line(Message, #rtsp_session{rtsp_re = RtspRe, body = Body} = State) ->
   {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, binary}]),
   io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
-  State#rtsp_session{body = [{binary_to_existing_atom(Key, latin1), Value} | Body]}.
+  State#rtsp_session{body = [{binary_to_existing_atom(Key, utf8), Value} | Body]}.
 
 
 reply(#rtsp_session{socket = Socket, sequence = Sequence, session_id = SessionId} = State, Code, Headers) ->
@@ -265,7 +268,7 @@ parse_announce([{m, Info} | Announce], Streams, Stream) when is_list(Stream) ->
 
 parse_announce([{m, Info} | Announce], Streams, undefined) ->
   [TypeS, PortS, "RTP/AVP", S] = string:tokens(binary_to_list(Info), " "),
-  Type = binary_to_existing_atom(list_to_binary(TypeS), latin1),
+  Type = binary_to_existing_atom(list_to_binary(TypeS), utf8),
   Port = list_to_integer(PortS),
   parse_announce(Announce, Streams, [{type, Type}, {port, Port}, {payload_type, list_to_integer(S)}]);
 
@@ -297,7 +300,7 @@ parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, Stream) when
   [_, OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
-    {binary_to_existing_atom(list_to_binary(Key), latin1), Value}
+    {binary_to_existing_atom(list_to_binary(Key), utf8), Value}
   end, string:tokens(OptList, ";")),
 
   {value, {_, "1"}, Opts1} = lists:keytake('packetization-mode', 1, lists:keysort(1, Opts)),
