@@ -99,12 +99,10 @@
 %%-------------------------------------------------------------------------
 createStream(AMF, State) -> 
   {State1, StreamId} = next_stream(State),
-  ?D({"Create stream", StreamId}),
   apps_rtmp:reply(AMF#amf{args = [null, StreamId]}),
   State1.
 
-releaseStream(#amf{args = Args, stream_id = StreamId} = AMF, State) -> 
-  ?D({"Release stream", Args}),
+releaseStream(_AMF, State) -> 
   % apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 

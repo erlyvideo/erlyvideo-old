@@ -7,7 +7,7 @@
 
 -export([decode_nal/2, video_config/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
-
+-export([open_dump/0, dump_nal/2, fake_open_dump/0, fake_dump_nal/2]).
 
 
 fake_open_dump() -> ok.
@@ -74,17 +74,17 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_fil
   {H264, [VideoFrame]};
 
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_A:5, Rest/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_A:5, _Rest/binary>> = _Data, H264) ->
   io:format("Coded slice data partition A~n"),
   % slice_header(Rest, H264);
   {H264, []};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_B:5, Rest/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_B:5, _Rest/binary>> = _Data, H264) ->
   io:format("Coded slice data partition B~n"),
   % slice_header(Rest, H264);
   {H264, []};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, Rest/binary>> = Data, H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, _Rest/binary>> = _Data, H264) ->
   io:format("Coded slice data partition C~n"),
   % slice_header(Rest, H264);
   {H264, []};

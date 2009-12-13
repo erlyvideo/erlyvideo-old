@@ -87,11 +87,11 @@ start_link(URL, Type, Opts) ->
 init([URL, Type, Opts]) when is_binary(URL)->
   init([binary_to_list(URL), Type, Opts]);
 
-init([URL, mpeg_ts_passive, Opts]) ->
+init([URL, mpeg_ts_passive, _Opts]) ->
   process_flag(trap_exit, true),
   {ok, #ts_lander{url = URL, pids = [#stream{pid = 0, handler = pat}]}};
   
-init([URL, mpeg_ts, Opts]) ->
+init([URL, mpeg_ts, _Opts]) ->
   process_flag(trap_exit, true),
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),

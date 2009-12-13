@@ -102,9 +102,9 @@ try_rtcp(RTP, RTPSocket) ->
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-audio(#audio{media = Media} = Audio, Opts) ->
+audio(#audio{media = _Media} = Audio, Opts) ->
   Config = <<18,16,6>>,
-  AudioConfig = #video_frame{       
+  _AudioConfig = #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
 		timestamp      = 0,
@@ -143,9 +143,9 @@ audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket,clock_map = ClockM
       ?D("RTP audio timeout")
   end.
 
-read_audio(#audio{media = Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, Sequence, Timestamp} = Packet) ->
+read_audio(#audio{media = _Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, _Sequence, Timestamp}) ->
   ?D({F, S, ElementId, Fbits, Lbits, Timestamp}),
-  AudioFrame = #video_frame{       
+  _AudioFrame = #video_frame{       
     type          = ?FLV_TAG_TYPE_AUDIO,
     timestamp     = Timestamp,
     body          = Data,

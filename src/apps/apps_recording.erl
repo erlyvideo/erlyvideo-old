@@ -60,7 +60,7 @@
 %% @end
 %%-------------------------------------------------------------------------
 
-'FCPublish'(#amf{args = [null, Name]} = AMF, State) -> 
+'FCPublish'(#amf{args = [null, Name]} = _AMF, State) -> 
   ?D({"FCpublish", Name}),
   % Start = AMF#amf{
   %     id = 0,

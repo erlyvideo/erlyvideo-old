@@ -44,7 +44,7 @@ hex(N) when N >= 10, N < 16 ->
 session_sign(Session, Secret) ->
   binary_to_hexbin(crypto:sha_mac(Secret, Session)).
   
-decode(Offset, Subscription, Secret) when Offset >= size(Subscription) - 2 ->
+decode(Offset, Subscription, _Secret) when Offset >= size(Subscription) - 2 ->
   {error};
 
 decode(Offset, Subscription, Secret) ->

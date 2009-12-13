@@ -81,7 +81,7 @@ handle_call(Request, _From, State) ->
 parse_event([], _, State, Reply) ->
   {State, Reply};
 
-parse_event([?SO_CONNECT | Events], Client, #shared_object{clients = Clients, data = Data} = State, Replies) ->
+parse_event([?SO_CONNECT | Events], Client, #shared_object{clients = Clients, data = _Data} = State, Replies) ->
   link(Client),
   ?D({"Client connected to", State#shared_object.name, Client}),
   

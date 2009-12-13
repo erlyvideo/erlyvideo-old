@@ -190,7 +190,7 @@ run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams =
     lists:member({track_id, TrackId}, S)
   end, Streams)),
   
-  {ok, Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), Stream),
+  {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), Stream),
   Date = httpd_util:rfc1123_date(),
   TransportReply = io_lib:format("~s;server_port=~p-~p;source=~p.~p.~p.~p",[Transport, RTP, RTCP, IP1, IP2, IP3, IP4]),
   % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",
