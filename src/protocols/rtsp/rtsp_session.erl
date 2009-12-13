@@ -179,7 +179,10 @@ run_request(#rtsp_session{request = ['PAUSE', _URL]} = State) ->
 
 run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
-  {match, [_, _Host, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
+  {match, [_, HostPort, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
+  HostName = hd(string:tokens(HostPort, ":")),
+  {ok, {hostent, _, _, inet, _, [HostAddr | _]}} = inet:gethostbyname(HostName),
+  {IP1, IP2, IP3, IP4} = HostAddr,
   TrackId = list_to_integer(TrackIdS),
   Transport = proplists:get_value('Transport', Headers),
   
@@ -189,7 +192,7 @@ run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams =
   
   {ok, Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), Stream),
   Date = httpd_util:rfc1123_date(),
-  TransportReply = io_lib:format("~s;server_port=~p-~p;source=127.0.0.1",[Transport, RTP, RTCP]),
+  TransportReply = io_lib:format("~s;server_port=~p-~p;source=~p.~p.~p.~p",[Transport, RTP, RTCP, IP1, IP2, IP3, IP4]),
   % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",
   ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State#rtsp_session{session_id = 42}, "200 OK", ReplyHeaders);
