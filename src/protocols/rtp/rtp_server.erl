@@ -114,7 +114,7 @@ audio(#audio{media = Media} = Audio, Opts) ->
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	},
-	Media ! AudioConfig,
+  % Media ! AudioConfig,
   ClockMap = proplists:get_value(clock_map, Opts, 90),
   
   receive
@@ -124,23 +124,12 @@ audio(#audio{media = Media} = Audio, Opts) ->
       ?MODULE:audio(Audio#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, clock_map = ClockMap})
   end.
   
-audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, media = Media, clock_map = ClockMap} = Audio) ->
+audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket,clock_map = ClockMap} = Audio) ->
   receive
     {udp,RTPSocket,_Host,_Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, 
              Sequence:16, RtpTs:32, _StreamId:32, Data/binary>> = _Bin} ->
       % read_video(Video, {data, Body, Sequence, Timestamp});
-      Timestamp = round(RtpTs / ClockMap),
-      AudioFrame = #video_frame{       
-        type          = ?FLV_TAG_TYPE_AUDIO,
-        timestamp     = Timestamp,
-        body          = Data,
-        sound_format  = ?FLV_AUDIO_FORMAT_AAC,
-        sound_type    = ?FLV_AUDIO_TYPE_STEREO,
-        sound_size    = ?FLV_AUDIO_SIZE_16BIT,
-        sound_rate    = ?FLV_AUDIO_RATE_44
-      },
-      Media ! AudioFrame,
-      ?MODULE:audio(Audio);
+      read_audio(Audio, {data, Data, Sequence, round(RtpTs / ClockMap)});
 
     {udp,RTCPSocket,_Host,_Port, _Bin} ->
       ?D("RTCP audio"),
@@ -154,6 +143,20 @@ audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, media = Media, cl
       ?D("RTP audio timeout")
   end.
 
+read_audio(#audio{media = Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, Sequence, Timestamp} = Packet) ->
+  ?D({F, S, ElementId, Fbits, Lbits, Timestamp}),
+  AudioFrame = #video_frame{       
+    type          = ?FLV_TAG_TYPE_AUDIO,
+    timestamp     = Timestamp,
+    body          = Data,
+    sound_format  = ?FLV_AUDIO_FORMAT_AAC,
+    sound_type    = ?FLV_AUDIO_TYPE_STEREO,
+    sound_size    = ?FLV_AUDIO_SIZE_16BIT,
+    sound_rate    = ?FLV_AUDIO_RATE_44
+  },
+  % Media ! AudioFrame,
+  ?MODULE:audio(Audio).
+  
 
 video(#video{media = Media} = Video, Opts) ->
   ClockMap = proplists:get_value(clock_map, Opts, 90),

@@ -151,7 +151,15 @@ send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{deco
 send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO}) ->
   ?MODULE:ready(Player);
 
-% % , frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME
+send_frame(#stream_player{synced = false} = Player, #video_frame{decoder_config = false, frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME}) ->
+  ?D({"Skip unsynced"}),
+  ?MODULE:ready(Player);
+
+send_frame(#stream_player{synced = false} = Player, #video_frame{decoder_config = false, frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME} = VideoFrame) ->
+  ?D({"Sync"}),
+  send_frame(Player#stream_player{synced = true}, VideoFrame);
+
+% % , frame_type = ?
 % 
 % send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) -> % , decoder_config = false, type = ?FLV_TAG_TYPE_VIDEO
 %   send_frame(Player#stream_player{base_ts = Ts}, Frame);
