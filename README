@@ -13,6 +13,7 @@ currently it can:
   * both AMF0 and AMF3 encoding are possible
   * got support for many netstreams. It mean, that videoconference is possible.
   * support virtual hosts. Look at src/erlmedia.app for examples
+  * save last GOP of incoming stream, so that client can start looking video much faster
 
 currently in development:
   * RTSP/RTP to read from QuickTime Broadcaster and Wirecast. Video already works!

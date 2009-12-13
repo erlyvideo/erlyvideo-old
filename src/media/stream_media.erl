@@ -229,12 +229,13 @@ handle_info(_Info, State) ->
   ?D({"Undefined info", _Info, State}),
   {noreply, State, ?TIMEOUT}.
 
-store_last_gop(#media_info{gop = GOP} = MediaInfo, #video_frame{type = ?FLV_TAG_TYPE_VIDEO, frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} = Frame) ->
-  MediaInfo#media_info{gop = [Frame | GOP]};
-
 store_last_gop(MediaInfo, #video_frame{type = ?FLV_TAG_TYPE_VIDEO, frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME} = Frame) ->
   ?D({"New GOP", Frame#video_frame.timestamp}),
   MediaInfo#media_info{gop = [Frame]};
+
+store_last_gop(#media_info{gop = GOP} = MediaInfo, Frame) ->
+  MediaInfo#media_info{gop = [Frame | GOP]};
+
   
 store_last_gop(MediaInfo, _) ->
   MediaInfo.
