@@ -18,5 +18,6 @@
 	frames = undefined,
 	owner = undefined,
 	clients = undefined,
-	base_timestamp = undefined % Timestamp of first frame
+	base_timestamp = undefined, % Timestamp of first frame
+	gop = []
 }).

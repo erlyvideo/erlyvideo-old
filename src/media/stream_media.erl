@@ -78,7 +78,7 @@ init([Name, record, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients} = MediaInfo) ->
+handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients, gop = GOP} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
   ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options)}),
@@ -90,6 +90,7 @@ handle_call({create_player, Options}, _From, #media_info{name = Name, clients = 
     undefined -> ok;
     AudioConfig -> Pid ! AudioConfig
   end,
+  lists:foreach(fun(Frame) -> Pid ! Frame end, lists:reverse(GOP)),
   {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
@@ -201,7 +202,7 @@ handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Fr
 
 handle_info(#video_frame{} = Frame, #media_info{clients = Clients} = MediaInfo) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
-  {noreply, MediaInfo, ?TIMEOUT};
+  {noreply, store_last_gop(MediaInfo, Frame), ?TIMEOUT};
 
 handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
@@ -225,8 +226,18 @@ handle_info(resume, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(_Info, State) ->
-  ?D({"Undefined info", _Info}),
+  ?D({"Undefined info", _Info, State}),
   {noreply, State, ?TIMEOUT}.
+
+store_last_gop(#media_info{gop = GOP} = MediaInfo, #video_frame{type = ?FLV_TAG_TYPE_VIDEO, frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} = Frame) ->
+  MediaInfo#media_info{gop = [Frame | GOP]};
+
+store_last_gop(MediaInfo, #video_frame{type = ?FLV_TAG_TYPE_VIDEO, frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME} = Frame) ->
+  ?D({"New GOP", Frame#video_frame.timestamp}),
+  MediaInfo#media_info{gop = [Frame]};
+  
+store_last_gop(MediaInfo, _) ->
+  MediaInfo.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
