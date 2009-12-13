@@ -101,12 +101,11 @@ createStream(AMF, State) ->
   {State1, StreamId} = next_stream(State),
   ?D({"Create stream", StreamId}),
   apps_rtmp:reply(AMF#amf{args = [null, StreamId]}),
-  gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
   State1.
 
 releaseStream(#amf{args = Args, stream_id = StreamId} = AMF, State) -> 
   ?D({"Release stream", Args}),
-  apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
+  % apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 
 next_stream(State) -> next_stream(State, 1).

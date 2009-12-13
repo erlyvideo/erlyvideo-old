@@ -50,8 +50,11 @@
 connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
     
     Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
-		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}}),
-		gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<0,16#26, 16#25,16#a0, 16#02>>}}),
+    % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
+    gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}}),
+    gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<WindowAckSize:32, 16#02>>}}),
+    gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, 0}),
+    gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
 		
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
 	  _FlashVer = proplists:get_value(flashVer, PlayerInfo),
@@ -83,13 +86,13 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
       _ -> NewState2#rtmp_session{amf_version = 0}
     end,
     
-    ConnectObj = [{capabilities, 31}, {fmsVer, <<"Erlyvideo 1.0">>}, {mode, 1}],
+    ConnectObj = [{capabilities, 31}, {fmsVer, <<"FMS/3,0,1,123">>}, {mode, 1}],
     StatusObj = [{code, <<?NC_CONNECT_SUCCESS>>},
                  {level, <<"status">>}, 
                  {description, <<"Connection succeeded.">>},
-                 {objectEncoding, NewState3#rtmp_session.amf_version}],
+                 {objectEncoding, NewState3#rtmp_session.amf_version},
+                 {clientid, 1716786930}],
     reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
-    % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
     NewState3.
 
 
@@ -103,6 +106,7 @@ fail(AMF) ->
 
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
+  ?D({"Control", Type, Stream}),
   gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL}, <<Type:16/big, Stream:32/big>>}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
@@ -125,11 +129,11 @@ fail(AMF) ->
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
 'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 0} = State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
+  gen_fsm:send_event(self(), {send, {#channel{id = 3, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 3} = State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 16, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
+  gen_fsm:send_event(self(), {send, {#channel{id = 3, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 

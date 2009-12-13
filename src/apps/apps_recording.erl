@@ -62,15 +62,15 @@
 
 'FCPublish'(#amf{args = [null, Name]} = AMF, State) -> 
   ?D({"FCpublish", Name}),
-  Start = AMF#amf{
-      id = 0,
-      stream_id = 0,
-      command = 'onFCPublish',
-      args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
-                              {description, Name}]}]},
-  gen_fsm:send_event(self(), {invoke, Start}),
-  
-  apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
+  % Start = AMF#amf{
+  %     id = 0,
+  %     stream_id = 0,
+  %     command = 'onFCPublish',
+  %     args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
+  %                             {description, Name}]}]},
+  % gen_fsm:send_event(self(), {invoke, Start}),
+  % 
+  % apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 
 'FCUnpublish'(#amf{args = Args} = AMF, State) -> 
@@ -92,9 +92,9 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
 
 
 publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
-  ?D({"Publish - Action - LIVE",Name}),
+  ?D({"Publish - Action - LIVE",Name, StreamId}),
   Recorder = media_provider:create(Host, Name, live),
-  % gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
+  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
   
   Start = #amf{
       command = 'onStatus',
@@ -103,10 +103,9 @@ publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_
       stream_id = StreamId,
       args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
                               {level, <<"status">>}, 
-                              {description, <<"Stream recorded">>},
-                              {clientid, <<"Wirecast">>}]}]},
+                              {description, <<"Publishing ", Name/binary, ".">>},
+                              {clientid, 1716786930}]}]},
   gen_fsm:send_event(self(), {invoke, Start}),
-  % gen_fsm:send_event(self(), {status, ?NS_RECORD_START, StreamId}),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
 publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
