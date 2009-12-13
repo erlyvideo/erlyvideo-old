@@ -69,7 +69,7 @@ try_rtp(40000) ->
   error;
   
 try_rtp(Port) ->
-  case gen_udp:open(Port, [binary, {active, false}]) of
+  case gen_udp:open(Port, [binary, {active, false}, {recbuf, 1048576}]) of
     {ok, RTPSocket} ->
       try_rtcp(Port, RTPSocket);
     {error, _} ->
@@ -123,21 +123,25 @@ video(#video{media = Media} = Video, Opts) ->
 
   receive
     {socket, RTPSocket, RTCPSocket} ->
-      inet:setopts(RTPSocket, [{active, once}]),
-      inet:setopts(RTCPSocket, [{active, once}]),
+      inet:setopts(RTPSocket, [{active, true}]),
+      inet:setopts(RTCPSocket, [{active, true}]),
       ?MODULE:video(Video1#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket})
   end.
   
-video(#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket} = Video) ->
+video(#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, sequence = PrevSeq} = Video) ->
   receive
     {udp,RTPSocket,_Host,_Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, 
              Sequence:16, Timestamp:32, _StreamId:32, Body/binary>> = _Bin} ->
-      inet:setopts(RTPSocket, [{active, once}]),
+      % inet:setopts(RTPSocket, [{active, once}]),
+      case PrevSeq + 1 of
+        Sequence -> ok;
+        _ -> ?D({PrevSeq+1, Sequence})
+      end,
       read_video(Video, {data, Body, Sequence, Timestamp});
 
     {udp,RTCPSocket,_Host,_Port, _Bin} ->
       ?D("RTCP"),
-      inet:setopts(RTPSocket, [{active, once}]),
+      % inet:setopts(RTPSocket, [{active, once}]),
       ?MODULE:video(Video);
     Else ->
       ?D({"Unknown", Else}),
@@ -152,14 +156,14 @@ read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Pack
 
 read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
-  ?MODULE:video(Video#video{sequence = Sequence + 1, h264 = H264_1, buffer = Buffer ++ Frames});
+  ?MODULE:video(Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames});
   
 read_video(#video{h264 = H264, timestamp = RtpTs} = Video, {data, Body, Sequence, NewRtpTs}) ->
 
   Video1 = send_video(Video),
   {H264_1, Frames} = h264:decode_nal(Body, H264),
 
-  ?MODULE:video(Video1#video{sequence = Sequence + 1, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
+  ?MODULE:video(Video1#video{sequence = Sequence, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
  
 send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} | _]} = Video) ->
   Video#video{buffer = []};
