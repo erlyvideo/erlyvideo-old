@@ -70,7 +70,7 @@ init_vhosts([{Name, Host} | Hosts]) ->
   true = ets:insert(vhosts, {Name, [{name, Name} | Host]}),
   lists:foreach(fun(Hostname) ->
     true = ets:insert(vhosts, {Hostname, Name})
-  end, proplists:get_value(hostname, Host)),
+  end, proplists:get_value(hostname, Host, [])),
   init_vhosts(Hosts).
 
 
