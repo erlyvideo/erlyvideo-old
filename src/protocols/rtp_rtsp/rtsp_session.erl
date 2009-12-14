@@ -3,6 +3,7 @@
 
 -behaviour(gen_fsm).
 -include("../../../include/ems.hrl").
+-include("../../../include/rtsp.hrl").
 
 -export([start_link/0, set_socket/2]).
 
@@ -210,9 +211,7 @@ run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams =
   TrackId = list_to_integer(TrackIdS),
   Transport = proplists:get_value('Transport', Headers),
   
-  Stream = hd(lists:filter(fun(S) ->
-    lists:member({track_id, TrackId}, S)
-  end, Streams)),
+  Stream = lists:keyfind(TrackId, #rtsp_stream.id, Streams),
   
   TransportOpts = string:tokens(binary_to_list(Transport), ";"),
   Proto = case hd(TransportOpts) of
@@ -220,7 +219,7 @@ run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams =
     "RTP/AVP/TCP" -> tcp
   end,
   
-  {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), [{proto, Proto} | Stream]),
+  {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, Stream#rtsp_stream.type, Stream),
   Date = httpd_util:rfc1123_date(),
   TransportReply = io_lib:format("~s;server_port=~p-~p;source=~p.~p.~p.~p",[Transport, RTP, RTCP, IP1, IP2, IP3, IP4]),
   % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",

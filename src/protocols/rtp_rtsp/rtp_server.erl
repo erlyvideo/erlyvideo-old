@@ -3,6 +3,7 @@
 
 -include("../../../include/ems.hrl").
 -include("../../../include/h264.hrl").
+-include("../../../include/rtsp.hrl").
 
 -record(video, {
 	rtcp_socket,
@@ -43,10 +44,9 @@
 %% @end
 %%----------------------------------------------------------------------
 
-start_link(Media, Type, Opts)  ->
-  Proto = proplists:get_value(proto, Opts),
+start_link(Media, Type, Stream)  ->
   {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
-  Pid = spawn_link(?MODULE, Type, [init(Type, {RTP, RTCP, Media}), Opts]),
+  Pid = spawn_link(?MODULE, Type, [init(Type, {RTP, RTCP, Media}), Stream]),
   link(Pid),
   gen_udp:controlling_process(RTPSocket, Pid),
   gen_udp:controlling_process(RTCPSocket, Pid),
@@ -103,7 +103,7 @@ try_rtcp(RTP, RTPSocket) ->
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-audio(#audio{media = _Media} = Audio, Opts) ->
+audio(#audio{media = _Media} = Audio, #rtsp_stream{clock_map = ClockMap}) ->
   Config = <<18,16,6>>,
   _AudioConfig = #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
@@ -116,7 +116,6 @@ audio(#audio{media = _Media} = Audio, Opts) ->
 	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	},
   % Media ! AudioConfig,
-  ClockMap = proplists:get_value(clock_map, Opts, 90),
   
   receive
     {socket, RTPSocket, RTCPSocket} ->
@@ -159,15 +158,9 @@ read_audio(#audio{media = _Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, 
   ?MODULE:audio(Audio).
   
 
-video(#video{media = Media} = Video, Opts) ->
-  ClockMap = proplists:get_value(clock_map, Opts, 90),
-  H264 = #h264{},
-  case proplists:get_value(parameter_sets, Opts) of
-    [SPS, PPS] -> {H264_1, _} = h264:decode_nal(SPS, H264),
-                  {H264_2, Configs} = h264:decode_nal(PPS, H264_1);
-    _ -> H264_2 = H264,
-         Configs = []
-  end,
+video(#video{media = Media} = Video, #rtsp_stream{clock_map = ClockMap, pps = PPS, sps = SPS}) ->
+  {H264, _} = h264:decode_nal(SPS, #h264{}),
+  {H264_2, Configs} = h264:decode_nal(PPS, H264),
     
   Video1 = Video#video{clock_map = ClockMap, h264 = H264_2},
   link(Media),
