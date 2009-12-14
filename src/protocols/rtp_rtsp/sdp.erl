@@ -13,37 +13,37 @@ parse_announce([], Streams, undefined) ->
 parse_announce([], Streams, Stream) ->
   [Stream | Streams];
   
-parse_announce([{v, _} | Announce], Streams, Stream) ->
+parse_announce([{<<"v">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{o, _} | Announce], Streams, Stream) ->
+parse_announce([{<<"o">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{s, _} | Announce], Streams, Stream) ->
+parse_announce([{<<"s">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{c, _} | Announce], Streams, Stream) ->
+parse_announce([{<<"c">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{t, _} | Announce], Streams, Stream) ->
+parse_announce([{<<"t">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{a, _} | Announce], Streams, undefined) ->
+parse_announce([{<<"a">>, _} | Announce], Streams, undefined) ->
   parse_announce(Announce, Streams, undefined);
 
-parse_announce([{m, Info} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  parse_announce([{m, Info} | Announce], [Stream | Streams], undefined);
+parse_announce([{<<"m">>, Info} | Announce], Streams, #rtsp_stream{} = Stream) ->
+  parse_announce([{<<"m">>, Info} | Announce], [Stream | Streams], undefined);
 
-parse_announce([{m, Info} | Announce], Streams, undefined) ->
+parse_announce([{<<"m">>, Info} | Announce], Streams, undefined) ->
   [TypeS, _PortS, "RTP/AVP", PayloadType] = string:tokens(binary_to_list(Info), " "),
   Type = binary_to_existing_atom(list_to_binary(TypeS), utf8),
   parse_announce(Announce, Streams, #rtsp_stream{type = Type, payload_type = list_to_integer(PayloadType)});
 
-parse_announce([{b, <<"AS:", Bitrate/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
+parse_announce([{<<"b">>, <<"AS:", Bitrate/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
   _Bitrate = list_to_integer(binary_to_list(Bitrate)),
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{a, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
+parse_announce([{<<"a">>, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
   {ok, Re} = re:compile("\\d+ ([^/]+)/(\\d+)"),
   {match, [_, _Codec, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
   % case proplists:get_value(type, Stream) of
@@ -56,10 +56,10 @@ parse_announce([{a, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rtsp_stre
 %   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),
 %   parse_announce(Announce, Streams, [{height, list_to_integer(Height)} | [{width, list_to_integer(Width)} | Stream]]);
 
-parse_announce([{a, <<"control:trackid=", Track/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
+parse_announce([{<<"a">>, <<"control:trackid=", Track/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
   parse_announce(Announce, Streams, Stream#rtsp_stream{id = list_to_integer(binary_to_list(Track))});
 
-parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
+parse_announce([{<<"a">>, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
   {ok, Re} = re:compile("([^=]+)=(.*)"),
   [_, OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
@@ -69,7 +69,7 @@ parse_announce([{a, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_stream
   
   parse_announce(Announce, Streams, parse_fmtp(Stream, Opts ));
 
-parse_announce([{a, _Info} | Announce], Streams, Stream) ->
+parse_announce([{<<"a">>, _Info} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream).
 
 

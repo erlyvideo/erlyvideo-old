@@ -260,7 +260,7 @@ run_request(#rtsp_decoder{request = [_Method, _URL]} = State) ->
 decode_line(Message, #rtsp_decoder{rtsp_re = RtspRe, body = Body} = State) ->
   {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, binary}]),
   io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
-  State#rtsp_decoder{body = [{binary_to_existing_atom(Key, utf8), Value} | Body]}.
+  State#rtsp_decoder{body = [{Key, Value} | Body]}.
 
 
 config_media(Media, Streams) -> config_media(Media, Streams, []).
