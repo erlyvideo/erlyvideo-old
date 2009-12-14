@@ -16,6 +16,7 @@
 -export([
   'WAIT_FOR_SOCKET'/2,
 	'WAIT_FOR_REQUEST'/2,
+	'WAIT_FOR_BINARY'/2,
 	'WAIT_FOR_HEADERS'/2,
   'WAIT_FOR_DATA'/2]).
 
@@ -35,6 +36,7 @@
   session_id,
   sequence,
   streams,
+  buffer = <<>>,
   media
 }).
 
@@ -89,18 +91,32 @@ init([]) ->
 'WAIT_FOR_REQUEST'(timeout, State) ->
   {stop, normal, State};
 
-'WAIT_FOR_REQUEST'({data, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, State) ->
-  ?D({"RTP tunneled", ChannelId, size(RTP)}),
-  'WAIT_FOR_REQUEST'({data, Request}, State);
+'WAIT_FOR_REQUEST'({data, <<$$, _/binary>> = RTP}, State) ->
+  'WAIT_FOR_BINARY'({data, RTP}, State);
+
+'WAIT_FOR_REQUEST'({data, <<>>}, State) ->
+  {next_state, 'WAIT_FOR_REQUEST', State};
   
 'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, url_re = UrlRe, request_re = RequestRe} = State) ->
-  ?D({"Z", Request}),
   {match, [_, Method, URL, <<"RTSP">>, <<"1.0">>]} = re:run(Request, RequestRe, [{capture, all, binary}]),
   MethodName = binary_to_existing_atom(Method, utf8),
   {match, [_, Host, _Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   io:format("[RTSP] ~s ~s RTSP/1.0~n", [Method, URL]),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_session{request = [MethodName, URL], headers = [], host = ems:host(Host)}, ?TIMEOUT}.
+
+
+'WAIT_FOR_BINARY'({data, Bin}, #rtsp_session{buffer = Buffer, socket = Socket, session = Session} = State) ->
+  case <<Buffer/binary, Bin/binary>> of
+    <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>> ->
+      ?D({"RTP tunneled", ChannelId, size(RTP)}),
+      'WAIT_FOR_REQUEST'({data, Request}, State#rtsp_session{buffer = <<>>});
+    NewBuf ->
+      inet:setopts(Socket, [{packet, line}, {active, once}]),
+      {next_state, 'WAIT_FOR_BINARY', State#rtsp_session{buffer = NewBuf}}
+  end.
+
+
 
 'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_session{socket = Socket} = State) ->
   Length = list_to_integer(binary_to_list(LengthBin)),
@@ -180,6 +196,9 @@ run_request(#rtsp_session{request = ['RECORD', _URL]} = State) ->
   reply(State, "200 OK", []);
 
 run_request(#rtsp_session{request = ['PAUSE', _URL]} = State) ->
+  reply(State, "200 OK", []);
+
+run_request(#rtsp_session{request = ['TEARDOWN', _URL]} = State) ->
   reply(State, "200 OK", []);
 
 run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
