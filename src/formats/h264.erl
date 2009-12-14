@@ -122,7 +122,6 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{dump_file 
   ?DUMP_H264(File, PPS),
   {_PPSId, Rest1} = exp_golomb_read(Bin),
   {_SPSId, _Rest} = exp_golomb_read(Rest1),
-  io:format("Picture parameter set: ~p/~p~n", [_PPSId, _SPSId]),
   video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary>> = Delimiter, #h264{dump_file = File} = H264) ->

@@ -89,7 +89,12 @@ init([]) ->
 'WAIT_FOR_REQUEST'(timeout, State) ->
   {stop, normal, State};
 
+'WAIT_FOR_REQUEST'({data, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, State) ->
+  ?D({"RTP tunneled", ChannelId, size(RTP)}),
+  'WAIT_FOR_REQUEST'({data, Request}, State);
+  
 'WAIT_FOR_REQUEST'({data, Request}, #rtsp_session{socket = Socket, url_re = UrlRe, request_re = RequestRe} = State) ->
+  ?D({"Z", Request}),
   {match, [_, Method, URL, <<"RTSP">>, <<"1.0">>]} = re:run(Request, RequestRe, [{capture, all, binary}]),
   MethodName = binary_to_existing_atom(Method, utf8),
   {match, [_, Host, _Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
@@ -190,7 +195,13 @@ run_request(#rtsp_session{request = ['SETUP', URL], headers = Headers, streams =
     lists:member({track_id, TrackId}, S)
   end, Streams)),
   
-  {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), Stream),
+  TransportOpts = string:tokens(binary_to_list(Transport), ";"),
+  Proto = case hd(TransportOpts) of
+    "RTP/AVP" -> udp;
+    "RTP/AVP/TCP" -> tcp
+  end,
+  
+  {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, proplists:get_value(type, Stream), [{proto, Proto} | Stream]),
   Date = httpd_util:rfc1123_date(),
   TransportReply = io_lib:format("~s;server_port=~p-~p;source=~p.~p.~p.~p",[Transport, RTP, RTCP, IP1, IP2, IP3, IP4]),
   % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",

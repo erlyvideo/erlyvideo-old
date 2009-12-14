@@ -44,6 +44,7 @@
 %%----------------------------------------------------------------------
 
 start_link(Media, Type, Opts)  ->
+  Proto = proplists:get_value(proto, Opts),
   {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
   Pid = spawn_link(?MODULE, Type, [init(Type, {RTP, RTCP, Media}), Opts]),
   link(Pid),
