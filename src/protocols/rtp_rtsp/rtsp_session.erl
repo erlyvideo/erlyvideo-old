@@ -39,6 +39,7 @@
   sequence,
   streams,
   buffer = <<>>,
+  rtp_streams = {undefined, undefined, undefined, undefined},
   media
 }).
 
@@ -189,7 +190,6 @@ run_request(#rtsp_decoder{request = ['ANNOUNCE', _URL], host = Host, body = Body
   Media = media_provider:open(Host, Path, live),
   Streams = parse_announce(Body),
   Streams1 = config_media(Media, Streams),
-  ?D(Streams1),
   reply(State#rtsp_decoder{media = Media, streams = Streams1}, "200 OK", []);
 
 run_request(#rtsp_decoder{request = ['OPTIONS', _URL]} = State) ->
@@ -207,24 +207,39 @@ run_request(#rtsp_decoder{request = ['TEARDOWN', _URL]} = State) ->
 run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
   {match, [_, HostPort, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
-  HostName = hd(string:tokens(HostPort, ":")),
-  {ok, {hostent, _, _, inet, _, [HostAddr | _]}} = inet:gethostbyname(HostName),
-  {IP1, IP2, IP3, IP4} = HostAddr,
   TrackId = list_to_integer(TrackIdS),
   Transport = proplists:get_value('Transport', Headers),
   
   Stream = lists:keyfind(TrackId, #rtsp_stream.id, Streams),
   
-  TransportOpts = string:tokens(binary_to_list(Transport), ";"),
-  Proto = case hd(TransportOpts) of
+  [ProtoS | TransportOptsCoded] = string:tokens(binary_to_list(Transport), ";"),
+  Proto = case ProtoS of
     "RTP/AVP" -> udp;
     "RTP/AVP/TCP" -> tcp
   end,
   
-  {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, Stream#rtsp_stream.type, Stream),
+  TransportOpts = lists:map(fun(S) -> string:tokens(S, "=") end, TransportOptsCoded),
+
   Date = httpd_util:rfc1123_date(),
-  TransportReply = io_lib:format("~s;server_port=~p-~p;source=~p.~p.~p.~p",[Transport, RTP, RTCP, IP1, IP2, IP3, IP4]),
-  % TransportReply = "RTP/AVP;unicast;client_port=5432-5433;server_port=6256-6257",
+  
+  State1 = case Proto of
+    udp -> 
+      {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, Stream),
+      HostName = hd(string:tokens(HostPort, ":")),
+      {ok, {hostent, _, _, inet, _, [HostAddr | _]}} = inet:gethostbyname(HostName),
+      {IP1, IP2, IP3, IP4} = HostAddr,
+      TransportReply = io_lib:format("~s;server_port=~p-~p;source=~p.~p.~p.~p",[Transport, RTP, RTCP, IP1, IP2, IP3, IP4]),
+      State;
+    tcp ->
+      TransportReply = Transport,
+      ?D({TransportOpts}),
+      RtpStreams = string:tokens(proplists:get_value("interleaved", TransportOpts), "-"),
+      Rtp = list_to_integer(hd(RtpStreams)),
+      ?D({"Registering rtp", Stream#rtsp_stream.type, Rtp}),
+      RtpConfig = rtp_server:init(Stream, Media),
+      NewStreams = setelement(Rtp+1, State#rtsp_decoder.rtp_streams, RtpConfig),
+      State#rtsp_decoder{rtp_streams = NewStreams}
+  end,
   ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State#rtsp_decoder{session_id = 42}, "200 OK", ReplyHeaders);
 

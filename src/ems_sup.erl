@@ -42,7 +42,7 @@
 -export ([start_rtmp_session/0, start_rtsp_session/0, start_media/3, 
           start_file_play/2, start_stream_play/2,
           start_mpegts_media/1, start_shared_object/2,
-          start_rtp_server/3]).
+          start_rtp_server/2]).
 
 
 %%--------------------------------------------------------------------
@@ -94,7 +94,7 @@ start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
 
 start_shared_object(Name, Persistent) -> supervisor:start_child(shared_object_sup, [Name, Persistent]).
 
-start_rtp_server(Media, Type, Opts) -> supervisor:start_child(rtp_server_sup, [Media, Type, Opts]).
+start_rtp_server(Media, Stream) -> supervisor:start_child(rtp_server_sup, [Media, Stream]).
 
 %%--------------------------------------------------------------------
 %% @spec (List::list()) -> any()

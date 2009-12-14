@@ -5,11 +5,14 @@
 -include("../../../include/h264.hrl").
 -include("../../../include/rtsp.hrl").
 
+-record(rtp_state, {
+  rtcp_socket,
+  rtp_socket,
+  type,
+  state
+}).
+
 -record(video, {
-	rtcp_socket,
-	rtp_socket,
-	rtcp_port,
-	rtp_port,
   media,
   clock_map,
   sequence = undefined,
@@ -21,21 +24,17 @@
 }).
 
 -record(audio, {
-	rtcp_socket,
-	rtp_socket,
-	rtcp_port,
-	rtp_port,
   media,
   clock_map
 }).
 	
 
 %% External API
--export([start_link/3]).
+-export([start_link/2]).
 
 %% gen_server callbacks
 
--export([video/2, video/1, audio/2, audio/1]).
+-export([video/2, audio/2, decode/3, init/2, get_socket/3, wait_data/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -44,9 +43,9 @@
 %% @end
 %%----------------------------------------------------------------------
 
-start_link(Media, Type, Stream)  ->
+start_link(Media, #rtsp_stream{type = Type} = Stream)  ->
   {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
-  Pid = spawn_link(?MODULE, Type, [init(Type, {RTP, RTCP, Media}), Stream]),
+  Pid = spawn_link(?MODULE, get_socket, [Type, init(Stream, Media), Media]),
   link(Pid),
   gen_udp:controlling_process(RTPSocket, Pid),
   gen_udp:controlling_process(RTCPSocket, Pid),
@@ -54,11 +53,11 @@ start_link(Media, Type, Stream)  ->
   {ok, Pid, {RTP, RTCP}}.
 
 
-init(video, {RTP, RTCP, Media}) ->
-  #video{rtp_port = RTP, rtcp_port = RTCP, media = Media};
+init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
+  #video{media = Media, clock_map = ClockMap, h264 = H264};
 
-init(audio, {RTP, RTCP, Media}) ->
-  #audio{rtp_port = RTP, rtcp_port = RTCP, media = Media}.
+init(#rtsp_stream{type = audio, clock_map = ClockMap}, Media) ->
+  #audio{media = Media}.
   
 
 open_ports(audio) ->
@@ -102,36 +101,45 @@ try_rtcp(RTP, RTPSocket) ->
 %  |                             ....                              |
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-
-audio(#audio{media = _Media} = Audio, #rtsp_stream{clock_map = ClockMap}) ->
-  
+get_socket(Type, State, Media) ->
+  link(Media),
   receive
     {socket, RTPSocket, RTCPSocket} ->
       inet:setopts(RTPSocket, [{active, true}]),
       inet:setopts(RTCPSocket, [{active, true}]),
-      ?MODULE:audio(Audio#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, clock_map = ClockMap})
+      ?MODULE:wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, type = Type, state = State})
+  after
+    50000 ->
+      error_logger:error_msg("RTP socket timeout: ~p~n", [Type])
   end.
   
-audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket,clock_map = ClockMap} = Audio) ->
+wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = State, type = Type} = RtpStream) ->
   receive
-    {udp,RTPSocket,_Host,_Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, 
-             Sequence:16, RtpTs:32, _StreamId:32, Data/binary>> = _Bin} ->
+    {udp,RTPSocket,_Host,_Port, Bin} ->
       % read_video(Video, {data, Body, Sequence, Timestamp});
-      read_audio(Audio, {data, Data, Sequence, round(RtpTs / ClockMap)});
+      State1 = decode(Type, State, Bin),
+      ?MODULE:wait_data(RtpStream#rtp_state{state = State1});
 
     {udp,RTCPSocket,_Host,_Port, _Bin} ->
       ?D("RTCP audio"),
       % inet:setopts(RTPSocket, [{active, once}]),
-      ?MODULE:audio(Audio);
+      ?MODULE:wait_data(RtpStream);
     Else ->
       ?D({"Unknown", Else}),
       ok
   after
     50000 ->
-      ?D("RTP audio timeout")
+      error_logger:error_msg("RTP timeout: ~p~n", [Type])
   end.
 
-read_audio(#audio{media = _Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, _Sequence, Timestamp}) ->
+decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, RtpTs:32, _StreamId:32, Data/binary>>) ->
+  ClockMap = element(3, State),
+  Timestamp = round(RtpTs / ClockMap),
+  ?MODULE:Type(State, {data, Data, Sequence, Timestamp}).
+  
+  
+
+audio(#audio{media = _Media, clock_map = ClockMap} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, _Sequence, Timestamp}) ->
   % ?D({F, S, ElementId, Fbits, Lbits, Timestamp}),
   _AudioFrame = #video_frame{       
     type          = ?FLV_TAG_TYPE_AUDIO,
@@ -143,55 +151,25 @@ read_audio(#audio{media = _Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, 
     sound_rate    = ?FLV_AUDIO_RATE_44
   },
   % Media ! AudioFrame,
-  ?MODULE:audio(Audio).
+  Audio.
   
 
-video(#video{media = Media} = Video, #rtsp_stream{clock_map = ClockMap}) ->
-    
-  Video1 = Video#video{clock_map = ClockMap, h264 = #h264{}},
-  link(Media),
-  
-  receive
-    {socket, RTPSocket, RTCPSocket} ->
-      inet:setopts(RTPSocket, [{active, true}]),
-      inet:setopts(RTCPSocket, [{active, true}]),
-      ?MODULE:video(Video1#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket})
-  end.
-  
-video(#video{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket} = Video) ->
-  receive
-    {udp,RTPSocket,_Host,_Port, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, 
-             Sequence:16, Timestamp:32, _StreamId:32, Body/binary>> = _Bin} ->
-      read_video(Video, {data, Body, Sequence, Timestamp});
+video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
+  video(Video#video{timestamp = Timestamp}, Packet);
 
-    {udp,RTCPSocket,_Host,_Port, _Bin} ->
-      ?D("RTCP video"),
-      % inet:setopts(RTPSocket, [{active, once}]),
-      ?MODULE:video(Video);
-    Else ->
-      ?D({"Unknown", Else}),
-      ok
-  after
-    50000 ->
-      ?D("RTP video timeout")
-  end.
-
-read_video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
-  read_video(Video#video{timestamp = Timestamp}, Packet);
-
-read_video(#video{sequence = undefined} = Video, {data, _, Sequence, _} = Packet) ->
+video(#video{sequence = undefined} = Video, {data, _, Sequence, _} = Packet) ->
   ?D({"Reset seq to", Sequence}),
-  read_video(Video#video{sequence = Sequence - 1}, Packet);
+  video(Video#video{sequence = Sequence - 1}, Packet);
 
-read_video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when Sequence /= PrevSeq + 1->
+video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when Sequence /= PrevSeq + 1->
   ?D({PrevSeq + 1, Sequence}),
-  read_video(Video#video{broken = true, sequence = Sequence - 1}, Packet);
+  video(Video#video{broken = true, sequence = Sequence - 1}, Packet);
 
-read_video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp}) ->
+video(#video{h264 = H264, buffer = Buffer, timestamp = Timestamp} = Video, {data, Body, Sequence, Timestamp}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
-  ?MODULE:video(Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames});
+  Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames};
   
-read_video(#video{h264 = H264, timestamp = RtpTs, broken = Broken} = Video, {data, Body, Sequence, NewRtpTs}) ->
+video(#video{h264 = H264, timestamp = RtpTs, broken = Broken} = Video, {data, Body, Sequence, NewRtpTs}) ->
 
   Video1 = case Broken of
     true -> ?D({"Drop broken video frame", RtpTs}), Video;
@@ -199,7 +177,7 @@ read_video(#video{h264 = H264, timestamp = RtpTs, broken = Broken} = Video, {dat
   end,
   {H264_1, Frames} = h264:decode_nal(Body, H264),
 
-  ?MODULE:video(Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}).
+  Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = Frames, timestamp = NewRtpTs}.
  
 send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} | _]} = Video) ->
   Video#video{buffer = []};
@@ -207,13 +185,14 @@ send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO
 send_video(#video{buffer = []} = Video) ->
   Video;
 
-send_video(#video{clock_map = ClockMap, media = Media, buffer = Frames, timestamp = RtpTs} = Video) ->
+send_video(#video{media = Media, buffer = Frames, timestamp = Timestamp} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
   end, #video_frame{body = <<>>}, Frames),
+  % ?D({"Sendinf frame", }),
   case Frame of
     undefined -> ok;
-    _ -> Media ! Frame#video_frame{timestamp = round(RtpTs / ClockMap), type = ?FLV_TAG_TYPE_VIDEO}
+    _ -> Media ! Frame#video_frame{timestamp = Timestamp, type = ?FLV_TAG_TYPE_VIDEO}
   end,
   Video#video{synced = true, buffer = []}.
