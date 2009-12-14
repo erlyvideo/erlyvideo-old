@@ -109,11 +109,17 @@ init([]) ->
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_decoder{request = [MethodName, URL], headers = [], host = ems:host(Host)}, ?TIMEOUT}.
 
 
-'WAIT_FOR_BINARY'({data, Bin}, #rtsp_decoder{buffer = Buffer, socket = Socket} = State) ->
+'WAIT_FOR_BINARY'({data, Bin}, #rtsp_decoder{buffer = Buffer, socket = Socket, rtp_streams = Streams} = State) ->
   case <<Buffer/binary, Bin/binary>> of
     <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>> ->
-      ?D({"RTP tunneled", ChannelId, size(RTP)}),
-      'WAIT_FOR_REQUEST'({data, Request}, State#rtsp_decoder{buffer = <<>>});
+      Streams1 = case element(ChannelId+1, Streams) of
+        {Type, RtpState} ->
+          RtpState1 = rtp_server:decode(Type, RtpState, RTP),
+          setelement(ChannelId+1, Streams, {Type, RtpState1});
+        undefined ->
+          Streams
+      end,
+      'WAIT_FOR_REQUEST'({data, Request}, State#rtsp_decoder{buffer = <<>>, rtp_streams = Streams1});
     NewBuf ->
       inet:setopts(Socket, [{packet, line}, {active, once}]),
       {next_state, 'WAIT_FOR_BINARY', State#rtsp_decoder{buffer = NewBuf}}
@@ -218,7 +224,11 @@ run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams =
     "RTP/AVP/TCP" -> tcp
   end,
   
-  TransportOpts = lists:map(fun(S) -> string:tokens(S, "=") end, TransportOptsCoded),
+  TransportOpts = lists:map(fun(S) -> 
+    case string:tokens(S, "=") of
+    [Key, Value] -> {Key, Value};
+    [Key] -> {Key, true}
+  end end, TransportOptsCoded),
 
   Date = httpd_util:rfc1123_date(),
   
@@ -237,11 +247,11 @@ run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams =
       Rtp = list_to_integer(hd(RtpStreams)),
       ?D({"Registering rtp", Stream#rtsp_stream.type, Rtp}),
       RtpConfig = rtp_server:init(Stream, Media),
-      NewStreams = setelement(Rtp+1, State#rtsp_decoder.rtp_streams, RtpConfig),
+      NewStreams = setelement(Rtp+1, State#rtsp_decoder.rtp_streams, {Stream#rtsp_stream.type, RtpConfig}),
       State#rtsp_decoder{rtp_streams = NewStreams}
   end,
   ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
-  reply(State#rtsp_decoder{session_id = 42}, "200 OK", ReplyHeaders);
+  reply(State1#rtsp_decoder{session_id = 42}, "200 OK", ReplyHeaders);
 
 run_request(#rtsp_decoder{request = [_Method, _URL]} = State) ->
   reply(State, "200 OK", []).
@@ -255,7 +265,7 @@ decode_line(Message, #rtsp_decoder{rtsp_re = RtspRe, body = Body} = State) ->
 
 config_media(Media, Streams) -> config_media(Media, Streams, []).
 
-config_media(Media, [], Output) -> Output;
+config_media(_Media, [], Output) -> Output;
 config_media(Media, [#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, Configs} = h264:decode_nal(PPS, H264),
