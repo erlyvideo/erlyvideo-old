@@ -145,7 +145,7 @@ audio(#audio{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket,clock_map = ClockM
   end.
 
 read_audio(#audio{media = _Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, _Sequence, Timestamp}) ->
-  ?D({F, S, ElementId, Fbits, Lbits, Timestamp}),
+  % ?D({F, S, ElementId, Fbits, Lbits, Timestamp}),
   _AudioFrame = #video_frame{       
     type          = ?FLV_TAG_TYPE_AUDIO,
     timestamp     = Timestamp,
