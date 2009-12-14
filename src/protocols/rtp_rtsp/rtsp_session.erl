@@ -4,6 +4,7 @@
 -behaviour(gen_fsm).
 -include("../../../include/ems.hrl").
 -include("../../../include/rtsp.hrl").
+-include("../../../include/h264.hrl").
 
 -export([start_link/0, set_socket/2]).
 
@@ -187,8 +188,9 @@ run_request(#rtsp_decoder{request = ['ANNOUNCE', _URL], host = Host, body = Body
   Path = path(State),
   Media = media_provider:open(Host, Path, live),
   Streams = parse_announce(Body),
-  ?D(Streams),
-  reply(State#rtsp_decoder{media = Media, streams = Streams}, "200 OK", []);
+  Streams1 = config_media(Media, Streams),
+  ?D(Streams1),
+  reply(State#rtsp_decoder{media = Media, streams = Streams1}, "200 OK", []);
 
 run_request(#rtsp_decoder{request = ['OPTIONS', _URL]} = State) ->
   reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
@@ -235,6 +237,35 @@ decode_line(Message, #rtsp_decoder{rtsp_re = RtspRe, body = Body} = State) ->
   io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
   State#rtsp_decoder{body = [{binary_to_existing_atom(Key, utf8), Value} | Body]}.
 
+
+config_media(Media, Streams) -> config_media(Media, Streams, []).
+
+config_media(Media, [], Output) -> Output;
+config_media(Media, [#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output) ->
+  {H264, _} = h264:decode_nal(SPS, #h264{}),
+  {H264_2, Configs} = h264:decode_nal(PPS, H264),
+  lists:foreach(fun(Frame) ->
+    Media ! Frame#video_frame{timestamp = 0}
+  end, Configs),
+  config_media(Media, Streams, [Stream#rtsp_stream{config = H264_2} | Output]);
+
+config_media(Media, [#rtsp_stream{type = audio} = Stream | Streams], Output) ->
+  Config = <<18,16,6>>,
+  _AudioConfig = #video_frame{       
+   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	decoder_config = true,
+		timestamp      = 0,
+		body          = Config,
+	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
+	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
+	  sound_rate	  = ?FLV_AUDIO_RATE_44
+	},
+  % Media ! AudioConfig,
+  
+  config_media(Media, Streams, [Stream | Output]).
+  
+  
 
 reply(#rtsp_decoder{socket = Socket, sequence = Sequence, session_id = SessionId} = State, Code, Headers) ->
   Headers1 = [{'Cseq', Sequence} | Headers],

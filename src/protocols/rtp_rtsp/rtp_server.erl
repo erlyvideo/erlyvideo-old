@@ -104,18 +104,6 @@ try_rtcp(RTP, RTPSocket) ->
 
 
 audio(#audio{media = _Media} = Audio, #rtsp_stream{clock_map = ClockMap}) ->
-  Config = <<18,16,6>>,
-  _AudioConfig = #video_frame{       
-   	type          = ?FLV_TAG_TYPE_AUDIO,
-   	decoder_config = true,
-		timestamp      = 0,
-		body          = Config,
-	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
-	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
-	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-	  sound_rate	  = ?FLV_AUDIO_RATE_44
-	},
-  % Media ! AudioConfig,
   
   receive
     {socket, RTPSocket, RTCPSocket} ->
@@ -158,17 +146,11 @@ read_audio(#audio{media = _Media} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, 
   ?MODULE:audio(Audio).
   
 
-video(#video{media = Media} = Video, #rtsp_stream{clock_map = ClockMap, pps = PPS, sps = SPS}) ->
-  {H264, _} = h264:decode_nal(SPS, #h264{}),
-  {H264_2, Configs} = h264:decode_nal(PPS, H264),
+video(#video{media = Media} = Video, #rtsp_stream{clock_map = ClockMap}) ->
     
-  Video1 = Video#video{clock_map = ClockMap, h264 = H264_2},
+  Video1 = Video#video{clock_map = ClockMap, h264 = #h264{}},
   link(Media),
   
-  lists:foreach(fun(Frame) ->
-    Media ! Frame#video_frame{timestamp = 0}
-  end, Configs),
-
   receive
     {socket, RTPSocket, RTCPSocket} ->
       inet:setopts(RTPSocket, [{active, true}]),
