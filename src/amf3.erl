@@ -195,8 +195,10 @@ read(<< ?ARRAY, Data/binary >>,
           true  ->  A = find_object(Header bsr 1, O),
                     {A, R, S, O, T};
           false ->  Length = Header bsr 1,
-                    {Associative, R1, S1, O1, T1} = read_associative_array(R, dict:new(), S, O, T),
-                    {Dense, R2, S2, O2, T2} = read_dense_array(Length, [], R1, S1, O1, T1),
+                    {Associative, R1, S1, O1, T1} = 
+                            read_associative_array(R, dict:new(), S, O, T),
+                    {Dense, R2, S2, O2, T2} = 
+                            read_dense_array(Length, [], R1, S1, O1, T1),
                     Arr = {array,Associative,Dense},
                     O3 = remember_object(Arr, O2),
                     {Arr, R2, S2, O3, T2}
@@ -426,18 +428,20 @@ write({array, Array}, Strings, Objects, Traits) when is_list(Array) ->
   Length = write_uint29(length(Array) bsl 1 bor 1),
   write_dense_array(Array, [?ARRAY,Length,16#01], Strings, Objects, Traits);
 
-write({array, Dictionary}, Strings, Objects, Traits) when is_tuple(Dictionary)-> 
-  ggg;
+write({array, Dictionary}, Strings, Objects, Traits)
+  when is_tuple(Dictionary)-> 
+    ggg;
 
 write({xml, XML}, Strings, Objects, Traits) when is_binary(XML) -> 
   Length = write_uint29(size(XML) bsl 1 bor 1),
   Binary = list_to_binary([?XML,Length,XML]),
   {Binary, Strings, Objects, Traits};
 
-write({bytearray, ByteArray}, Strings, Objects, Traits) when is_binary(ByteArray) -> 
-  Length = write_uint29(size(ByteArray) bsl 1 bor 1),
-  Binary = list_to_binary([?BYTEARRAY,Length,ByteArray]),
-  {Binary, Strings, Objects, Traits}.
+write({bytearray, ByteArray}, Strings, Objects, Traits)
+  when is_binary(ByteArray) -> 
+    Length = write_uint29(size(ByteArray) bsl 1 bor 1),
+    Binary = list_to_binary([?BYTEARRAY,Length,ByteArray]),
+    {Binary, Strings, Objects, Traits}.
 
 write_uint29(Unsigned) 
   when Unsigned >= 16#00000000, Unsigned =< 16#0000007F ->

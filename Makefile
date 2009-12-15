@@ -1,5 +1,5 @@
 all: debug
-debug: compile-debug test
+debug: compile-debug test analyze
 release: compile-release documentation test
 
 analyze: compile-debug
@@ -37,6 +37,7 @@ compile-release: clean
 	@echo "\n\n======================================================="
 	@echo "  Compiling ..."
 	@echo "=======================================================\n"	
+	mkdir ebin;
 	cd src; make release	
 	cd tests; make release
 	@echo "\n"
