@@ -42,6 +42,8 @@
 
 -export([start_link/0, set_socket/2]).
 
+-export([send/2]).
+
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
@@ -205,6 +207,11 @@ init([]) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
     
     
+send(#rtmp_session{server_chunk_size = ChunkSize} = State, {#channel{} = Channel, Data}) ->
+  Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
+  % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
+	send_data(State, Packet).
+	
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3
 %% Returns: {next_state, NextStateName, NextStateData}          |

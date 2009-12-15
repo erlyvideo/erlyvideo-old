@@ -51,9 +51,9 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
     
     Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
     % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
-    gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}}),
-    gen_fsm:send_event(self(), {send, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<WindowAckSize:32, 16#02>>}}),
-    gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, 0}),
+    rtmp_session:send(State, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}),
+    rtmp_session:send(State, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<WindowAckSize:32, 16#02>>}),
+    'WAIT_FOR_DATA'({control, ?RTMP_CONTROL_STREAM_BEGIN, 0}, State),
     gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
 		
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
@@ -106,7 +106,7 @@ fail(AMF) ->
 
 
 'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL}, <<Type:16/big, Stream:32/big>>}}),
+  rtmp_session:send(State, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL}, <<Type:16/big, Stream:32/big>>}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
