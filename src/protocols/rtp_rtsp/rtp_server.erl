@@ -57,7 +57,7 @@ init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
   #video{media = Media, clock_map = ClockMap, h264 = H264};
 
 init(#rtsp_stream{type = audio, clock_map = ClockMap}, Media) ->
-  #audio{media = Media}.
+  #audio{media = Media, clock_map = ClockMap}.
   
 
 open_ports(audio) ->
