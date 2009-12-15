@@ -108,22 +108,38 @@ init([]) ->
   inet:setopts(Socket, [{packet, line}, {active, once}]),
   {next_state, 'WAIT_FOR_HEADERS', State#rtsp_decoder{request = [MethodName, URL], headers = [], host = ems:host(Host)}, ?TIMEOUT}.
 
+'WAIT_FOR_BINARY'({data, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, #rtsp_decoder{buffer = <<>>, rtp_streams = Streams} = State) ->
+  Streams1 = case element(ChannelId+1, Streams) of
+    {Type, RtpState} ->
+      RtpState1 = rtp_server:decode(Type, RtpState, RTP),
+      setelement(ChannelId+1, Streams, {Type, RtpState1});
+    undefined ->
+      Streams
+  end,
+  'WAIT_FOR_BINARY'({data, Request}, State#rtsp_decoder{buffer = <<>>, rtp_streams = Streams1});
 
-'WAIT_FOR_BINARY'({data, Bin}, #rtsp_decoder{buffer = Buffer, socket = Socket, rtp_streams = Streams} = State) ->
-  case <<Buffer/binary, Bin/binary>> of
-    <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>> ->
-      Streams1 = case element(ChannelId+1, Streams) of
-        {Type, RtpState} ->
-          RtpState1 = rtp_server:decode(Type, RtpState, RTP),
-          setelement(ChannelId+1, Streams, {Type, RtpState1});
-        undefined ->
-          Streams
-      end,
-      'WAIT_FOR_REQUEST'({data, Request}, State#rtsp_decoder{buffer = <<>>, rtp_streams = Streams1});
-    NewBuf ->
-      inet:setopts(Socket, [{packet, line}, {active, once}]),
-      {next_state, 'WAIT_FOR_BINARY', State#rtsp_decoder{buffer = NewBuf}}
-  end.
+'WAIT_FOR_BINARY'({data, <<$$, _/binary>> = Bin}, #rtsp_decoder{buffer = <<>>, socket = Socket} = State) ->
+  inet:setopts(Socket, [{packet, raw}, {active, once}]),
+  {next_state, 'WAIT_FOR_BINARY', State#rtsp_decoder{buffer = Bin}};
+
+'WAIT_FOR_BINARY'({data, Bin}, #rtsp_decoder{buffer = Buffer} = State) when size(Buffer) > 0 ->
+  'WAIT_FOR_BINARY'({data, <<Buffer/binary, Bin/binary>>}, State#rtsp_decoder{buffer = <<>>});
+
+'WAIT_FOR_BINARY'({data, <<>>}, #rtsp_decoder{buffer = <<>>, socket = Socket} = State) ->
+  inet:setopts(Socket, [{packet, line}, {active, once}]),
+  {next_state, 'WAIT_FOR_REQUEST', State};
+
+'WAIT_FOR_BINARY'({data, Bin}, #rtsp_decoder{buffer = <<>>, socket = Socket} = State) when size(Bin) > 0 ->
+  % F = fun({more, undefined}, _G) -> ?D("ready"), ok;
+  %        ({ok, Line, Rest}, G) ->
+  %   ?D({Line, Rest}),
+  %   self() ! {tcp, Socket, Line},
+  %   G(erlang:decode_packet(line, Rest, []), G)
+  % end,
+  % ?D({"Feeding with lines"}),
+  % F(erlang:decode_packet(line, Bin, []), F),
+  ?D({"Unimplemented proper stop"}),
+  'WAIT_FOR_REQUEST'({data, Bin}, State).
 
 
 
