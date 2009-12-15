@@ -86,7 +86,11 @@ parse_fmtp(#rtsp_stream{type = video} = Stream, Opts) ->
   [SPS, PPS] = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
   Stream#rtsp_stream{pps = PPS, sps = SPS};
 
-parse_fmtp(#rtsp_stream{type = audio} = Stream, _Opts) ->
+parse_fmtp(#rtsp_stream{type = audio} = Stream, Opts) ->
+  "13" = proplists:get_value("sizelength", Opts), % Length of size in bits in Access Unit header
+  "3" = proplists:get_value("indexlength", Opts),
+  "3" = proplists:get_value("indexdeltalength", Opts),
+  
   % {value, {_, _Mode}, Opts1} = lists:keytake('mode', 1, lists:keysort(1, Opts)),
   % {value, {_, Config}, Opts2} = lists:keytake('config', 1, Opts1),
   % lists:keytake('sizelength', 1, Opts2),

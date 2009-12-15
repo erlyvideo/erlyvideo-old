@@ -25,7 +25,9 @@
 
 -record(audio, {
   media,
-  clock_map
+  clock_map,
+  audio_headers = <<>>,
+  audio_data = <<>>
 }).
 	
 
@@ -139,20 +141,41 @@ decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Se
   
   
 
-audio(#audio{media = _Media, clock_map = ClockMap} = Audio, {data, <<_:3, F:1, S:1, ElementId:5, Fbits:3, Lbits:3, Data/binary>>, _Sequence, Timestamp}) ->
-  % ?D({F, S, ElementId, Fbits, Lbits, Timestamp}),
-  _AudioFrame = #video_frame{       
-    type          = ?FLV_TAG_TYPE_AUDIO,
-    timestamp     = Timestamp,
-    body          = Data,
-    sound_format  = ?FLV_AUDIO_FORMAT_AAC,
-    sound_type    = ?FLV_AUDIO_TYPE_STEREO,
-    sound_size    = ?FLV_AUDIO_SIZE_16BIT,
-    sound_rate    = ?FLV_AUDIO_RATE_44
-  },
-  % Media ! AudioFrame,
-  Audio.
+audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/binary, AudioData/binary>>, _Sequence, Timestamp}) ->
+  ?D({"Audio units", AULength/2}),
+  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData});
   
+audio(#audio{media = _Media, audio_headers = AUHeaders, audio_data = AudioData} = Audio, {data, Bin, _Sequence, Timestamp}) ->
+  unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}).
+
+
+  
+unpack_audio_units(#audio{audio_headers = <<>>} = Audio) ->
+  Audio#audio{audio_headers = <<>>, audio_data = <<>>};
+  
+unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
+  Audio#audio{audio_headers = <<>>, audio_data = <<>>};
+  
+unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/binary>>, audio_data = AudioData} = Audio) ->
+  ?D({"Audio unit", AUSize, Delta, size(AudioData)}),
+  case AudioData of
+    <<Data:AUSize/binary, Rest/binary>> ->
+      Timestamp = 0,
+      AudioFrame = #video_frame{       
+        type          = ?FLV_TAG_TYPE_AUDIO,
+        timestamp     = Timestamp,
+        body          = Data,
+        sound_format  = ?FLV_AUDIO_FORMAT_AAC,
+        sound_type    = ?FLV_AUDIO_TYPE_STEREO,
+        sound_size    = ?FLV_AUDIO_SIZE_16BIT,
+        sound_rate    = ?FLV_AUDIO_RATE_44
+      },
+      Media ! AudioFrame,
+      unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest});
+    _ ->
+      Audio
+  end.
+    
 
 video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
   video(Video#video{timestamp = Timestamp}, Packet);

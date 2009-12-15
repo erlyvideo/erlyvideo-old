@@ -292,7 +292,7 @@ config_media(Media, [#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream |
 
 config_media(Media, [#rtsp_stream{type = audio} = Stream | Streams], Output) ->
   Config = <<18,16,6>>,
-  _AudioConfig = #video_frame{       
+  AudioConfig = #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
 		timestamp      = 0,
@@ -302,7 +302,7 @@ config_media(Media, [#rtsp_stream{type = audio} = Stream | Streams], Output) ->
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44
 	},
-  % Media ! AudioConfig,
+  Media ! AudioConfig,
   
   config_media(Media, Streams, [Stream | Output]).
   
