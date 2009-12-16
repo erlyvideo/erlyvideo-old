@@ -15,8 +15,8 @@
 -record(video, {
   media,
   clock_map,
-  sequence = undefined,
   base_timestamp = undefined,
+  sequence = undefined,
   timestamp = undefined,
   h264,
   synced = false,
@@ -27,9 +27,9 @@
 -record(audio, {
   media,
   clock_map,
+  base_timestamp = undefined,
   audio_headers = <<>>,
   audio_data = <<>>,
-  base_timestamp = undefined,
   timestamp
 }).
 	
@@ -146,10 +146,10 @@ decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Se
 audio(#audio{base_timestamp = undefined} = Audio, {data, _, _, Timestamp} = Packet) ->
   audio(Audio#audio{base_timestamp = Timestamp}, Packet);
 
-audio(#audio{media = _Media, audio_headers = <<>>, base_timestamp = BaseTs} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>> = Data, _Sequence, Timestamp}) ->
+audio(#audio{media = _Media, audio_headers = <<>>, base_timestamp = BaseTs} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, Timestamp}) ->
   unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData, timestamp = Timestamp - BaseTs});
   
-audio(#audio{media = _Media, audio_headers = AUHeaders, audio_data = AudioData} = Audio, {data, Bin, _Sequence, Timestamp}) ->
+audio(#audio{media = _Media, audio_data = AudioData} = Audio, {data, Bin, _Sequence, Timestamp}) ->
   unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>, timestamp = Timestamp}).
 
 
@@ -160,7 +160,7 @@ unpack_audio_units(#audio{audio_headers = <<>>} = Audio) ->
 unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
   Audio#audio{audio_headers = <<>>, audio_data = <<>>};
   
-unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timestamp = BaseTimestamp, clock_map = ClockMap} = Audio) ->
+unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timestamp = BaseTimestamp} = Audio) ->
   Timestamp = BaseTimestamp + 100, %round(Delta * 1024 / ClockMap),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
