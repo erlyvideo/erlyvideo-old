@@ -92,6 +92,7 @@ parse_fmtp(#rtsp_stream{type = audio} = Stream, Opts) ->
   "3" = proplists:get_value("indexlength", Opts),
   "3" = proplists:get_value("indexdeltalength", Opts),
   Config = list_to_binary(hmac256:unhex(proplists:get_value("config", Opts))),
+  ?D({"audio config", aac:decode_config(Config)}),
   
   % {value, {_, _Mode}, Opts1} = lists:keytake('mode', 1, lists:keysort(1, Opts)),
   % {value, {_, Config}, Opts2} = lists:keytake('config', 1, Opts1),
