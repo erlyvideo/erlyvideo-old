@@ -133,8 +133,9 @@ decode_channel_id(#rtmp_session{buff = <<Format:2, Id:6,Rest/binary>>} = State) 
 decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
   Channel = array:get(Id, State#rtmp_session.channels),
   #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
-  Channel1 = case size(Msg) of
-    0 -> Channel#channel{timestamp = Timestamp + Delta};
+  Channel1 = case {Delta, size(Msg)} of
+    {undefined, _} -> Channel;
+    {_, 0} -> Channel#channel{timestamp = Timestamp + Delta};
     _ -> Channel
   end,
   decode_channel(Channel1, Rest, State);
@@ -168,10 +169,6 @@ decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeSta
   end,
 	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
 	
-decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, 
-  #rtmp_session{channels = Channels} = State) when size(Channels) < Id ->
-	decode_channel(#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
-    
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case array:get(Id, State#rtmp_session.channels) of
     #channel{} = Channel -> ok;
