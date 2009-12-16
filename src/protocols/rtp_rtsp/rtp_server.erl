@@ -16,6 +16,7 @@
   media,
   clock_map,
   sequence = undefined,
+  base_timestamp = undefined,
   timestamp = undefined,
   h264,
   synced = false,
@@ -28,6 +29,7 @@
   clock_map,
   audio_headers = <<>>,
   audio_data = <<>>,
+  base_timestamp = undefined,
   timestamp
 }).
 	
@@ -141,9 +143,11 @@ decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Se
   ?MODULE:Type(State, {data, Data, Sequence, Timestamp}).
   
   
+audio(#audio{base_timestamp = undefined} = Audio, {data, _, _, Timestamp} = Packet) ->
+  audio(Audio#audio{base_timestamp = Timestamp}, Packet);
 
-audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>> = Data, _Sequence, Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData, timestamp = Timestamp});
+audio(#audio{media = _Media, audio_headers = <<>>, base_timestamp = BaseTs} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>> = Data, _Sequence, Timestamp}) ->
+  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData, timestamp = Timestamp - BaseTs});
   
 audio(#audio{media = _Media, audio_headers = AUHeaders, audio_data = AudioData} = Audio, {data, Bin, _Sequence, Timestamp}) ->
   unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>, timestamp = Timestamp}).
@@ -157,10 +161,10 @@ unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
   Audio#audio{audio_headers = <<>>, audio_data = <<>>};
   
 unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timestamp = BaseTimestamp, clock_map = ClockMap} = Audio) ->
-  Timestamp = BaseTimestamp + round(Delta * 1024 / ClockMap),
-  ?D({"Audio", Timestamp}),
+  Timestamp = BaseTimestamp + 100, %round(Delta * 1024 / ClockMap),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
+      ?D({"audio", Timestamp}),
       AudioFrame = #video_frame{       
         type          = ?FLV_TAG_TYPE_AUDIO,
         timestamp     = Timestamp,
@@ -176,6 +180,8 @@ unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, A
       Audio
   end.
     
+video(#video{base_timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
+  video(Video#video{base_timestamp = Timestamp}, Packet);
 
 video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
   video(Video#video{timestamp = Timestamp}, Packet);
@@ -208,11 +214,12 @@ send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO
 send_video(#video{buffer = []} = Video) ->
   Video;
 
-send_video(#video{media = Media, buffer = Frames, timestamp = Timestamp} = Video) ->
+send_video(#video{media = Media, buffer = Frames, timestamp = RtpTs, base_timestamp = BaseTs} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
   end, #video_frame{body = <<>>}, Frames),
+  Timestamp = RtpTs - BaseTs,
   ?D({"Video", Timestamp}),
   case Frame of
     undefined -> ok;
