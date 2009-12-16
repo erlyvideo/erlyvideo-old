@@ -86,12 +86,12 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
       _ -> NewState2#rtmp_session{amf_version = 0}
     end,
     
-    ConnectObj = [{capabilities, 31}, {fmsVer, <<"FMS/3,0,1,123">>}, {mode, 1}],
-    StatusObj = [{code, <<?NC_CONNECT_SUCCESS>>},
-                 {level, <<"status">>}, 
+    ConnectObj = [{fmsVer, <<"FMS/3,0,1,123">>}, {capabilities, 31}],
+    StatusObj = [{level, <<"status">>}, 
+                 {code, <<?NC_CONNECT_SUCCESS>>},
                  {description, <<"Connection succeeded.">>},
-                 {objectEncoding, NewState3#rtmp_session.amf_version},
-                 {clientid, 1716786930}],
+                 {clientid, 1716786930},
+                 {objectEncoding, NewState3#rtmp_session.amf_version}],
     reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
     NewState3.
 
