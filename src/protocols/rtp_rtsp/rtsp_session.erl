@@ -290,8 +290,7 @@ config_media(Media, [#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream |
   end, Configs),
   config_media(Media, Streams, [Stream#rtsp_stream{config = H264_2} | Output]);
 
-config_media(Media, [#rtsp_stream{type = audio} = Stream | Streams], Output) ->
-  Config = <<18,16,6>>,
+config_media(Media, [#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output) ->
   AudioConfig = #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,

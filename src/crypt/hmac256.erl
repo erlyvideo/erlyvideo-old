@@ -10,6 +10,7 @@
 
 -module(hmac256).
 -export([hexdigest/2,digest/2,test/0]).
+-export([unhex/1]).
 -version(1.0).
 
 hexdigest(Key, Data)->
@@ -72,6 +73,7 @@ is_hex_digit(C) when C >= $A, C =< $F -> true;
 is_hex_digit(C) when C >= $a, C =< $f -> true;
 is_hex_digit(_) -> false.
 
+unhex(S) -> unhex(S, []).
 unhex([], Acc) ->
     lists:reverse(Acc);
 unhex([_], Acc) ->

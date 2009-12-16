@@ -27,7 +27,8 @@
   media,
   clock_map,
   audio_headers = <<>>,
-  audio_data = <<>>
+  audio_data = <<>>,
+  timestamp
 }).
 	
 
@@ -143,10 +144,10 @@ decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Se
 
 audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/binary, AudioData/binary>>, _Sequence, Timestamp}) ->
   ?D({"Audio units", AULength/2}),
-  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData});
+  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData, timestamp = Timestamp});
   
 audio(#audio{media = _Media, audio_headers = AUHeaders, audio_data = AudioData} = Audio, {data, Bin, _Sequence, Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}).
+  unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>, timestamp = Timestamp}).
 
 
   
@@ -156,11 +157,12 @@ unpack_audio_units(#audio{audio_headers = <<>>} = Audio) ->
 unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
   Audio#audio{audio_headers = <<>>, audio_data = <<>>};
   
-unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/binary>>, audio_data = AudioData} = Audio) ->
-  ?D({"Audio unit", AUSize, Delta, size(AudioData)}),
+unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/binary>>, audio_data = AudioData, timestamp = BaseTimestamp, clock_map = ClockMap} = Audio) ->
+  Timestamp = BaseTimestamp + round(Delta * 1024 / ClockMap),
+  ?D({"Audio unit", Delta, BaseTimestamp, Timestamp}),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
-      Timestamp = 0,
+      ?D(Data),
       AudioFrame = #video_frame{       
         type          = ?FLV_TAG_TYPE_AUDIO,
         timestamp     = Timestamp,
@@ -170,8 +172,8 @@ unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, A
         sound_size    = ?FLV_AUDIO_SIZE_16BIT,
         sound_rate    = ?FLV_AUDIO_RATE_44
       },
-      Media ! AudioFrame,
-      unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest});
+      % Media ! AudioFrame,
+      unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timestamp = Timestamp});
     _ ->
       Audio
   end.
@@ -213,7 +215,6 @@ send_video(#video{media = Media, buffer = Frames, timestamp = Timestamp} = Video
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
   end, #video_frame{body = <<>>}, Frames),
-  % ?D({"Sendinf frame", }),
   case Frame of
     undefined -> ok;
     _ -> Media ! Frame#video_frame{timestamp = Timestamp, type = ?FLV_TAG_TYPE_VIDEO}
