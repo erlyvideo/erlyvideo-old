@@ -47,7 +47,7 @@ decode(Data) ->
 %%---------------------------------------
 
 encode(Data) -> 
-    parse(write, Data, [], dict:new(), dict:new(), dict:new()).
+  parse(write, Data, [], dict:new(), dict:new(), dict:new()).
 
 
 
@@ -413,13 +413,10 @@ write({date, MilliSeconds}, Strings, Objects, Traits) ->
 write({array, Dictionary, List}, Strings, Objects, Traits)
   when is_tuple(Dictionary), is_list(List)-> 
     Length = write_uint29(length(List) bsl 1 bor 1),
-    io:fwrite("Length: ~w~n",[Length]),  
     {Written,S,O,T} = write_associative_array(dict:to_list(Dictionary), 
                                               [?ARRAY,Length],
                                               Strings, Objects, Traits),
-    io:fwrite("Written: ~w~n",[Written]),                                           
     {Output,S1,O1,T1} = write_dense_array(List, Written, S, O, T),
-    io:fwrite("Output: ~w~n",[Output]), 
     {list_to_binary(Output),S1,O1,T1};
 
 write({xml, XML}, Strings, Objects, Traits) when is_binary(XML) -> 
