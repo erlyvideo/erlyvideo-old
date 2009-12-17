@@ -45,13 +45,18 @@ parse_announce([{<<"b">>, <<"AS:", Bitrate/binary>>} | Announce], Streams, #rtsp
   parse_announce(Announce, Streams, Stream);
 
 parse_announce([{<<"a">>, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  {ok, Re} = re:compile("\\d+ ([^/]+)/(\\d+)"),
-  {match, [_, _Codec, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
+  {ok, Re} = re:compile("\\d+ ([^/]+)/([\\d/]+)"),
+  {match, [_, _Codec, ClockMapOpts]} = re:run(Info, Re, [{capture, all, list}]),
+  ClockMap = case string:tokens(ClockMapOpts, "/") of
+    [Clock] -> list_to_integer(Clock)/1000;
+    [Clock, Channels] ->  list_to_integer(Clock)/1000 %list_to_integer(Clock)/(1000*list_to_integer(Channels))
+  end,
+  ?D(ClockMap),
   % case proplists:get_value(type, Stream) of
   %   video ->  "H264" = Codec;
   %   audio -> "mpeg4-generic" = Codec
   % end,
-  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000});
+  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = ClockMap});
 
 % parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
 %   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),

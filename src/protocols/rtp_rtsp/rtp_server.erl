@@ -202,7 +202,6 @@ unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, A
   Timestamp = BaseTimestamp + 10, %round(Delta * 1024 / ClockMap),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
-      % ?D({"audio", Timestamp, Delta}),
       AudioFrame = #video_frame{       
         type          = ?FLV_TAG_TYPE_AUDIO,
         timestamp     = Timestamp,
