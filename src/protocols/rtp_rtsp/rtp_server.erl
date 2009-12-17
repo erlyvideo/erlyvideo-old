@@ -12,12 +12,24 @@
   state
 }).
 
+-record(base_rtp, {
+  media,
+  clock_map,
+  base_timestamp = undefined,
+  sequence = undefined,
+  timestamp = undefined,
+  wall_clock = undefined,
+  base_wall_clock = undefined
+}).
+
 -record(video, {
   media,
   clock_map,
   base_timestamp = undefined,
   sequence = undefined,
   timestamp = undefined,
+  wall_clock = undefined,
+  base_wall_clock = undefined,
   h264,
   synced = false,
   broken = false,
@@ -28,11 +40,19 @@
   media,
   clock_map,
   base_timestamp = undefined,
+  sequence = undefined,
+  timestamp = undefined,
+  wall_clock = undefined,
+  base_wall_clock = undefined,
   audio_headers = <<>>,
-  audio_data = <<>>,
-  timestamp
+  audio_data = <<>>
 }).
 	
+
+
+-define(RTCP_SR, 200).
+-define(RTCP_SD, 202).
+-define(YEARS_70, 2209032000).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
 %% External API
 -export([start_link/2]).
@@ -125,10 +145,11 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
       State1 = decode(Type, State, Bin),
       ?MODULE:wait_data(RtpStream#rtp_state{state = State1});
 
-    {udp,RTCPSocket,_Host,_Port, _Bin} ->
+    {udp,RTCPSocket,_Host,_Port, Bin} ->
       ?D("RTCP audio"),
       % inet:setopts(RTPSocket, [{active, once}]),
-      ?MODULE:wait_data(RtpStream);
+      State1 = decode(rtcp, State, Bin),
+      ?MODULE:wait_data(RtpStream#rtp_state{state = State1});
     Else ->
       ?D({"Unknown", Else}),
       ok
@@ -137,17 +158,34 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
       error_logger:error_msg("RTP timeout: ~p~n", [Type])
   end.
 
-decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, RtpTs:32, _StreamId:32, Data/binary>>) ->
-  ClockMap = element(3, State),
-  Timestamp = round(RtpTs / ClockMap),
-  ?MODULE:Type(State, {data, Data, Sequence, Timestamp}).
+decode(rtcp, State, <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, _StreamId:32, NTP:64, Timestamp:32, PacketCount:32, OctetCount:32, _/binary>>) ->
+  WallClock = round(NTP * 1000 / 16#100000000 - ?YEARS_70),
+  ?D({"RTCP", element(1, State), Count, WallClock, Timestamp, PacketCount, OctetCount}),
+  State1 = setelement(#base_rtp.wall_clock, State, WallClock),
+  State2 = case element(#base_rtp.base_wall_clock, State) of
+    undefined -> setelement(#base_rtp.base_wall_clock, State1, WallClock);
+    _ -> State1
+  end,
+  setelement(#base_rtp.base_timestamp, State2, Timestamp);
   
-  
-audio(#audio{base_timestamp = undefined} = Audio, {data, _, _, Timestamp} = Packet) ->
-  audio(Audio#audio{base_timestamp = Timestamp}, Packet);
+decode(_, State, _Bin) when element(#base_rtp.base_timestamp, State) == undefined ->
+  State;
 
-audio(#audio{media = _Media, audio_headers = <<>>, base_timestamp = BaseTs} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData, timestamp = Timestamp - BaseTs});
+decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, PayloadType:7, Sequence:16, RtpTs:32, _StreamId:32, Data/binary>>)  ->
+  ClockMap = element(#base_rtp.clock_map, State),
+  BaseTimestamp = element(#base_rtp.base_timestamp, State),
+  WallClock = element(#base_rtp.wall_clock, State),
+  BaseWallClock = element(#base_rtp.base_wall_clock, State),
+  Timestamp = (WallClock - BaseWallClock) + round((RtpTs - BaseTimestamp) / ClockMap),
+  ?MODULE:Type(State, {data, Data, Sequence, Timestamp}).
+
+
+% rtcp(State, {data, _, _, Timestamp} = Packet) ->
+%   audio(Audio#audio{base_timestamp = Timestamp}, Packet)ю
+  
+  
+audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, Timestamp}) ->
+  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData, timestamp = Timestamp});
   
 audio(#audio{media = _Media, audio_data = AudioData} = Audio, {data, Bin, _Sequence, Timestamp}) ->
   unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>, timestamp = Timestamp}).
@@ -180,9 +218,6 @@ unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, A
       Audio
   end.
     
-video(#video{base_timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
-  video(Video#video{base_timestamp = Timestamp}, Packet);
-
 video(#video{timestamp = undefined} = Video, {data, _, _, Timestamp} = Packet) ->
   video(Video#video{timestamp = Timestamp}, Packet);
 
@@ -214,12 +249,11 @@ send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO
 send_video(#video{buffer = []} = Video) ->
   Video;
 
-send_video(#video{media = Media, buffer = Frames, timestamp = RtpTs, base_timestamp = BaseTs} = Video) ->
+send_video(#video{media = Media, buffer = Frames, timestamp = Timestamp} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
   end, #video_frame{body = <<>>}, Frames),
-  Timestamp = RtpTs - BaseTs,
   ?D({"Video", Timestamp}),
   case Frame of
     undefined -> ok;
