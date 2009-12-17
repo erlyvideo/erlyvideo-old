@@ -38,7 +38,7 @@
 -include("../include/ems.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
--export([get_var/2, get_var/3, check_app/3, try_method_chain/3]).
+-export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 -export([host/1, host_config/1]).
