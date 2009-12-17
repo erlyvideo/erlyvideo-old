@@ -13,6 +13,8 @@
   duration = undefined,
   timescale,
   seconds,
+  audio_codec = ?FLV_AUDIO_FORMAT_AAC,
+  video_codec = ?FLV_VIDEO_CODEC_AVC,
   video_decoder_config,
   audio_decoder_config,
 	frames = undefined,

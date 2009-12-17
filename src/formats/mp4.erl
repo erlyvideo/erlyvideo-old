@@ -41,7 +41,7 @@
 -export([init/1, read_frame/2, metadata/1, codec_config/2]).
 -behaviour(gen_format).
 
-codec_config(video, MediaInfo) ->
+codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
   % ?D({"Video config", Config}),
   #video_frame{       
@@ -50,18 +50,18 @@ codec_config(video, MediaInfo) ->
 		timestamp      = 0,
 		body          = Config,
 		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC
+		codec_id      = VideoCodec
 	};
 
-codec_config(audio, MediaInfo) ->
+codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
-  ?D({"Audio config", aac:decode_config(Config)}),
+  % ?D({"Audio config", aac:decode_config(Config)}),
   #video_frame{       
    	type          = ?FLV_TAG_TYPE_AUDIO,
    	decoder_config = true,
 		timestamp     = 0,
 		body          = Config,
-	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
+	  sound_format	= AudioCodec,
 	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
 	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
 	  sound_rate	  = ?FLV_AUDIO_RATE_44
