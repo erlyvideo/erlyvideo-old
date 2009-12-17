@@ -146,7 +146,6 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
       ?MODULE:wait_data(RtpStream#rtp_state{state = State1});
 
     {udp,RTCPSocket,_Host,_Port, Bin} ->
-      ?D("RTCP audio"),
       % inet:setopts(RTPSocket, [{active, once}]),
       State1 = decode(rtcp, State, Bin),
       ?MODULE:wait_data(RtpStream#rtp_state{state = State1});
@@ -159,11 +158,11 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
   end.
 
 decode(rtcp, State, <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, _StreamId:32, NTP:64, Timestamp:32, PacketCount:32, OctetCount:32, _/binary>>) ->
-  WallClock = round(NTP * 1000 / 16#100000000 - ?YEARS_70),
-  ?D({"RTCP", element(1, State), Count, WallClock, Timestamp, PacketCount, OctetCount}),
+  WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
+  ?D({"RTCP", element(1, State), WallClock, Timestamp}),
   State1 = setelement(#base_rtp.wall_clock, State, WallClock),
   State2 = case element(#base_rtp.base_wall_clock, State) of
-    undefined -> setelement(#base_rtp.base_wall_clock, State1, WallClock);
+    undefined -> setelement(#base_rtp.base_wall_clock, State1, WallClock - 2000);
     _ -> State1
   end,
   setelement(#base_rtp.base_timestamp, State2, Timestamp);
