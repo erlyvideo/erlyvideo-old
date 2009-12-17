@@ -44,6 +44,7 @@
   timestamp = undefined,
   wall_clock = undefined,
   base_wall_clock = undefined,
+  audio_rate,
   audio_headers = <<>>,
   audio_data = <<>>
 }).
@@ -198,7 +199,7 @@ unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
   Audio#audio{audio_headers = <<>>, audio_data = <<>>};
   
 unpack_audio_units(#audio{media = Media, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timestamp = BaseTimestamp} = Audio) ->
-  Timestamp = BaseTimestamp + 1, %round(Delta * 1024 / ClockMap),
+  Timestamp = BaseTimestamp + 10, %round(Delta * 1024 / ClockMap),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
       % ?D({"audio", Timestamp, Delta}),
