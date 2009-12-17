@@ -22,10 +22,11 @@
 %% @type amf3()      =   undefined | null | bool() |
 %%                       integer() | float() | binary() | 
 %%                       xmldoc() | date() | array() | 
-%%                       object() | xml() | bytearray().
+%%                       list() | dictionary()| object() | 
+%%                       xml() | bytearray().
 %% @type xmldoc()    =   {xmldoc, Document::binary()}.
 %% @type date()      =   {date, MilliSecs::float()}.
-%% @type array()     =   [amf3()] | dictionary().
+%% @type array()     =   {array, Associative::dictionary(), Dense::list()}.
 %% @type object()    =   {object, Class::binary(), Members::dictionary()}.
 %% @type xml()       =   {xml, Document::binary()}.
 %% @type bytearray() =   {bytearray, Bytes::binary()}.
@@ -94,15 +95,15 @@ parse(read, ToRead, AlreadyRead, Strings, Objects, Traits) ->
   parse(read, Remaining, EverythingRead, S, O, T);
 
 
-parse(write, [], AlreadyWritten, Strings, Objects, Traits) -> 
-  list_to_binary(AlreadyWritten);
+parse(write, [], AlreadyWritten, _, _, _) -> list_to_binary(AlreadyWritten);
 parse(write, [ToWrite|Remaining], AlreadyWritten, Strings, Objects, Traits) ->
   {JustWrote, S, O, T} = write(ToWrite, Strings, Objects, Traits),
   EverythingWritten = [AlreadyWritten,JustWrote],
   parse(write, Remaining, EverythingWritten, S, O, T);
 parse(write, ToWrite, _, Strings, Objects, Traits) ->
-  {JustWrote, S, O, T} = write(ToWrite, Strings, Objects, Traits),
+  {JustWrote, _, _, _} = write(ToWrite, Strings, Objects, Traits),
   JustWrote.
+
 
 
 %%---------------------------------------
@@ -199,7 +200,18 @@ read(<< ?ARRAY, Data/binary >>,
                             read_associative_array(R, dict:new(), S, O, T),
                     {Dense, R2, S2, O2, T2} = 
                             read_dense_array(Length, [], R1, S1, O1, T1),
-                    Arr = {array,Associative,Dense},
+                    AssocSize = dict:size(Associative),
+                    DenseSize = length(Dense),
+                    if
+                      AssocSize > 0, DenseSize == 0  ->
+                        Arr = Associative;
+                      AssocSize == 0, DenseSize > 0  ->
+                        Arr = Dense;
+                      AssocSize > 0, DenseSize > 0 ->
+                        Arr = {array, Associative, Dense};
+                      AssocSize == 0, DenseSize == 0 ->
+                        Arr = {array, Associative, Dense}
+                    end,
                     O3 = remember_object(Arr, O2),
                     {Arr, R2, S2, O3, T2}
         end;
@@ -284,9 +296,10 @@ read_associative_array(Data, Dictionary, Strings, Objects, Traits) ->
   {Name, R, S, O, T} = read(<<?STRING,Data/binary>>, Strings, Objects, Traits),
   case Name of
      <<>> -> {Dictionary, R, S, O, T}; 
-     N -> {Value, R2, S2, O2, T2} = read(R, S, O, T),
-          D = dict:store(N, Value, Dictionary),
-          read_associative_array( R2, D, S2, O2, T2)
+      N   -> {Value, R2, S2, O2, T2} = read(R, S, O, T),
+             D = dict:store(list_to_atom(binary_to_list(N)), 
+                            Value, Dictionary),
+             read_associative_array( R2, D, S2, O2, T2)
   end.
 
 read_object_traits(Header, Data, Strings, Objects, Traits) ->
@@ -338,35 +351,8 @@ read_object_property_values([Property|Tail],
         PropertyDictionary = dict:store(Property, Value, Dictionary),
         read_object_property_values( Tail, R, PropertyDictionary, S, O, T).
   
-remember_string(ToRemember, Strings) ->
-  Key = dict:size(Strings),
-  dict:store(Key, ToRemember, Strings).
 
-remember_object(ToRemember, Objects) ->
-  Key = dict:size(Objects),
-  dict:store(Key, ToRemember, Objects).
 
-remember_trait(ToRemember, Traits) ->
-  Key = dict:size(Traits),
-  dict:store(Key, ToRemember, Traits).
-
-find_string(Reference, Strings) ->
-  case dict:find(Reference, Strings) of
-    {ok, Value} -> Value;
-          error -> throw(referenceNotFound)
-  end.
-  
-find_object(Reference, Objects) ->
-  case dict:find(Reference, Objects) of
-    {ok, Value} -> Value;
-          error -> throw(referenceNotFound)
-  end.
-
-find_trait(Reference, Traits) ->
-  case dict:find(Reference, Traits) of
-    {ok, Value} -> Value;
-          error -> throw(referenceNotFound)
-  end.  
 
 %%---------------------------------------
 %%  Write 
@@ -424,13 +410,17 @@ write({xmldoc, XML}, Strings, Objects, Traits) when is_binary(XML) ->
 write({date, MilliSeconds}, Strings, Objects, Traits) ->
   {<<?DATE, 16#01, MilliSeconds/float>>, Strings, Objects, Traits};
 
-write({array, Array}, Strings, Objects, Traits) when is_list(Array) -> 
-  Length = write_uint29(length(Array) bsl 1 bor 1),
-  write_dense_array(Array, [?ARRAY,Length,16#01], Strings, Objects, Traits);
-
-write({array, Dictionary}, Strings, Objects, Traits)
-  when is_tuple(Dictionary)-> 
-    ggg;
+write({array, Dictionary, List}, Strings, Objects, Traits)
+  when is_tuple(Dictionary), is_list(List)-> 
+    Length = write_uint29(length(List) bsl 1 bor 1),
+    io:fwrite("Length: ~w~n",[Length]),  
+    {Written,S,O,T} = write_associative_array(dict:to_list(Dictionary), 
+                                              [?ARRAY,Length],
+                                              Strings, Objects, Traits),
+    io:fwrite("Written: ~w~n",[Written]),                                           
+    {Output,S1,O1,T1} = write_dense_array(List, Written, S, O, T),
+    io:fwrite("Output: ~w~n",[Output]), 
+    {list_to_binary(Output),S1,O1,T1};
 
 write({xml, XML}, Strings, Objects, Traits) when is_binary(XML) -> 
   Length = write_uint29(size(XML) bsl 1 bor 1),
@@ -441,7 +431,23 @@ write({bytearray, ByteArray}, Strings, Objects, Traits)
   when is_binary(ByteArray) -> 
     Length = write_uint29(size(ByteArray) bsl 1 bor 1),
     Binary = list_to_binary([?BYTEARRAY,Length,ByteArray]),
-    {Binary, Strings, Objects, Traits}.
+    {Binary, Strings, Objects, Traits};
+
+write({array, List}, Strings, Objects, Traits)
+  when is_list(List) -> 
+    write({array, dict:new(), List}, Strings, Objects, Traits);
+
+write({array, Dictionary}, Strings, Objects, Traits)
+  when is_tuple(Dictionary) -> 
+    write({array, Dictionary, []}, Strings, Objects, Traits);
+
+write(List, Strings, Objects, Traits) 
+  when is_list(List) ->
+    write({array, dict:new(), List}, Strings, Objects, Traits);
+
+write(Dictionary, Strings, Objects, Traits) 
+  when is_tuple(Dictionary) ->
+    write({array, Dictionary, []}, Strings, Objects, Traits).
 
 write_uint29(Unsigned) 
   when Unsigned >= 16#00000000, Unsigned =< 16#0000007F ->
@@ -462,12 +468,61 @@ write_uint29(Unsigned)
     << ((Unsigned bsr 22) bor 16#80),
        ((Unsigned bsr 15) bor 16#80),
        ((Unsigned bsr 8) bor 16#80),
-          (Unsigned band 16#FF) >>.
+       (Unsigned band 16#FF) >>.
 
 write_dense_array([], Output, Strings, Objects, Traits) ->  
-  {list_to_binary(Output), Strings, Objects, Traits};
+  {Output, Strings, Objects, Traits};
 write_dense_array([H|Remaining], Output, Strings, Objects, Traits) -> 
   {JustWritten,S,O,T} = write(H, Strings, Objects, Traits),
   EverythingWritten = [Output,JustWritten],
   write_dense_array(Remaining, EverythingWritten, S, O, T). 
- 
+
+write_associative_array([], Output, Strings, Objects, Traits) ->  
+  {lists:flatten([Output,16#01]), Strings, Objects, Traits}; 
+write_associative_array([H|Remaining], Output, Strings, Objects, Traits) -> 
+  {Key, Value} = H,
+  {<<16#06,K/binary>>,S,O,T} = write(Key, Strings, Objects, Traits),    
+  {V,S1,O1,T1} = write(Value, S, O, T),
+  EverythingWritten = [Output, K, V],
+  write_associative_array(Remaining, EverythingWritten, S1, O1, T1).
+
+
+%%---------------------------------------
+%%  Remember 
+%%---------------------------------------
+
+remember_string(ToRemember, Strings) ->
+  Key = dict:size(Strings),
+  dict:store(Key, ToRemember, Strings).
+
+remember_object(ToRemember, Objects) ->
+  Key = dict:size(Objects),
+  dict:store(Key, ToRemember, Objects).
+
+remember_trait(ToRemember, Traits) ->
+  Key = dict:size(Traits),
+  dict:store(Key, ToRemember, Traits).
+
+
+%%---------------------------------------
+%%  Find 
+%%---------------------------------------
+
+find_string(Reference, Strings) ->
+  case dict:find(Reference, Strings) of
+    {ok, Value} -> Value;
+          error -> throw(referenceNotFound)
+  end.
+  
+find_object(Reference, Objects) ->
+  case dict:find(Reference, Objects) of
+    {ok, Value} -> Value;
+          error -> throw(referenceNotFound)
+  end.
+
+find_trait(Reference, Traits) ->
+  case dict:find(Reference, Traits) of
+    {ok, Value} -> Value;
+          error -> throw(referenceNotFound)
+  end.  
+
