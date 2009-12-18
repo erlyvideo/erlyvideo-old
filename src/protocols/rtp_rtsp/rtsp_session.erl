@@ -110,6 +110,10 @@ init([]) ->
 
 'WAIT_FOR_BINARY'({data, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, #rtsp_decoder{buffer = <<>>, rtp_streams = Streams} = State) ->
   Streams1 = case element(ChannelId+1, Streams) of
+    {rtcp, RTPNum} ->
+      {Type, RtpState} = element(RTPNum+1, Streams),
+      RtpState1 = rtp_server:decode(rtcp, RtpState, RTP),
+      setelement(RTPNum+1, Streams, {Type, RtpState1});
     {Type, RtpState} ->
       RtpState1 = rtp_server:decode(Type, RtpState, RTP),
       setelement(ChannelId+1, Streams, {Type, RtpState1});
@@ -259,12 +263,13 @@ run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams =
     tcp ->
       TransportReply = Transport,
       ?D({TransportOpts}),
-      RtpStreams = string:tokens(proplists:get_value("interleaved", TransportOpts), "-"),
-      Rtp = list_to_integer(hd(RtpStreams)),
-      ?D({"Registering rtp", Stream#rtsp_stream.type, Rtp}),
+      [RTPs, RTCPs] = string:tokens(proplists:get_value("interleaved", TransportOpts), "-"),
+      RTP = list_to_integer(RTPs),
+      RTCP = list_to_integer(RTCPs),
       RtpConfig = rtp_server:init(Stream, Media),
-      NewStreams = setelement(Rtp+1, State#rtsp_decoder.rtp_streams, {Stream#rtsp_stream.type, RtpConfig}),
-      State#rtsp_decoder{rtp_streams = NewStreams}
+      NewStreams = setelement(RTP+1, State#rtsp_decoder.rtp_streams, {Stream#rtsp_stream.type, RtpConfig}),
+      NewStreams1 = setelement(RTCP+1, NewStreams, {rtcp, RTP}),
+      State#rtsp_decoder{rtp_streams = NewStreams1}
   end,
   ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State1#rtsp_decoder{session_id = 42}, "200 OK", ReplyHeaders);
