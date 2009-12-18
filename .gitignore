@@ -2,3 +2,5 @@
 *.dump
 *.html
 *.tmproj
+*.out
+build/

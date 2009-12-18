@@ -239,6 +239,8 @@ read(<< ?OBJECT, Data/binary >>,
                                 true  -> {PD, R3, S3, O3, T3} = 
                                             read_object_dynamic_properties(
                                                     R2, SealedPD, S2, O2, T2), 
+                                         io:fwrite("PD ~w~n",[dict:to_list(PD)]),
+                                                   
                                          {Object, R4, S4, O4, T4 } = 
                                                       {{object, ClassName, PD},
                                                        R3, S3, O3, T3}
@@ -311,6 +313,7 @@ read_object_traits(Header, Data, Strings, Objects, Traits) ->
              Count = Header bsr 4,
              {ClassName, R, S, O, T} = read(<<?STRING, Data/binary>>, 
                                             Strings, Objects, Traits),
+                                           
              {Properties, R2, S2, O2, T2} = 
                     read_object_property_names(Count, [], R, S, O, T),
              Trait = {ClassName,IsDynamic,IsExternalizable,Count,Properties},
@@ -318,15 +321,16 @@ read_object_traits(Header, Data, Strings, Objects, Traits) ->
              {Trait, R2, S2, O2, T3}
   end.          
 
+
+read_object_dynamic_properties(<<16#01>>,Dictionary,Strings,Objects,Traits) ->
+  io:fwrite("~w~n",[dict:to_list(Dictionary)]),
+  {Dictionary,<<>>,Strings,Objects,Traits};
 read_object_dynamic_properties(Data, Dictionary, Strings, Objects, Traits) ->
-  {Property, R, S, O, T} =
-          read(<<?STRING,Data/binary>>, Strings, Objects, Traits),
-  case Property of
-    [] -> {Dictionary, R, S, O, T};
-    P  -> {Value, R2, S2, O2, T2} = read(R, S, O, T),
-          PropertyDictionary = dict:store(P, Value, Dictionary),
-          read_object_dynamic_properties(R2, PropertyDictionary, S2, O2, T2)
-  end.  
+  {Property, R, S, O, T} = read(<<?STRING,Data/binary>>,
+                                  Strings, Objects, Traits),
+  {Value, R2, S2, O2, T2} = read(R, S, O, T),
+  PropertyDictionary = dict:store(Property, Value, Dictionary),
+  read_object_dynamic_properties(R2, PropertyDictionary, S2, O2, T2).
   
 read_dense_array(0, List, Data, Strings, Objects, Traits) -> 
   {lists:reverse(List), Data, Strings, Objects, Traits};
