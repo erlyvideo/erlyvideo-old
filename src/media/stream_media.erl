@@ -235,7 +235,7 @@ store_last_gop(MediaInfo, #video_frame{type = ?FLV_TAG_TYPE_VIDEO, frame_type = 
 
 store_last_gop(#media_info{gop = GOP} = MediaInfo, _) when length(GOP) == 500 ->
   ?D({"GOP longer than 500 frames"}),
-  MediaInfo#media_info{gop = undefined};
+  MediaInfo#media_info{gop = []};
 
 store_last_gop(#media_info{gop = GOP} = MediaInfo, Frame) when is_list(GOP) ->
   MediaInfo#media_info{gop = [Frame | GOP]};

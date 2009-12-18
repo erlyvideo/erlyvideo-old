@@ -278,14 +278,14 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State, ?TIMEOUT};
 
-handle_info({send, #video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = false} = Frame}, 'WAIT_FOR_DATA', #rtmp_session{server_chunk_size = ChunkSize} = State) when is_binary(Body) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = false} = Frame, 'WAIT_FOR_DATA', #rtmp_session{server_chunk_size = ChunkSize} = State) when is_binary(Body) ->
   Channel = #channel{id = channel_id(Type, StreamId), chunk_size = ChunkSize,
                      timestamp=TimeStamp,length=size(Body),type=Type,stream_id=StreamId},
 	Packet = rtmp:encode(Channel, ems_flv:encode(Frame)),
 	send_data(State, Packet),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-handle_info({send, #video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true} = Frame}, 'WAIT_FOR_DATA', #rtmp_session{server_chunk_size = ChunkSize} = State) when is_binary(Body) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true} = Frame, 'WAIT_FOR_DATA', #rtmp_session{server_chunk_size = ChunkSize} = State) when is_binary(Body) ->
   Channel = #channel{id = channel_id(Type, StreamId), chunk_size = ChunkSize,
                      timestamp=TimeStamp,length=size(Body),type=Type,stream_id=StreamId},
 	Packet = rtmp:encode(Channel, Body),
