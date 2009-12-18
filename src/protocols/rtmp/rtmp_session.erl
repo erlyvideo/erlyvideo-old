@@ -42,7 +42,7 @@
 
 -export([start_link/0, set_socket/2]).
 
--export([send/2]).
+-export([send/2, channel_id/2]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -200,6 +200,7 @@ init([]) ->
 
 'WAIT_FOR_DATA'(info, _From, #rtmp_session{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
   {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  
         
 
 'WAIT_FOR_DATA'(Data, _From, State) ->
@@ -277,10 +278,26 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State, ?TIMEOUT};
 
+handle_info({send, #video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = false} = Frame}, 'WAIT_FOR_DATA', #rtmp_session{server_chunk_size = ChunkSize} = State) when is_binary(Body) ->
+  Channel = #channel{id = channel_id(Type, StreamId), chunk_size = ChunkSize,
+                     timestamp=TimeStamp,length=size(Body),type=Type,stream_id=StreamId},
+	Packet = rtmp:encode(Channel, ems_flv:encode(Frame)),
+	send_data(State, Packet),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+handle_info({send, #video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true} = Frame}, 'WAIT_FOR_DATA', #rtmp_session{server_chunk_size = ChunkSize} = State) when is_binary(Body) ->
+  Channel = #channel{id = channel_id(Type, StreamId), chunk_size = ChunkSize,
+                     timestamp=TimeStamp,length=size(Body),type=Type,stream_id=StreamId},
+	Packet = rtmp:encode(Channel, Body),
+	send_data(State, Packet),
+  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+
+
+
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
-  {noreply, StateName, StateData}.
+  {next_state, StateName, StateData, ?TIMEOUT}.
 
 
 %%-------------------------------------------------------------------------
@@ -323,6 +340,13 @@ plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) ->
   plugins_code_change(OldVersion, NewStateName, NewState, Extra, Modules).
 
 
+
+channel_id(meta, StreamId) -> 3 + StreamId;
+channel_id(?FLV_TAG_TYPE_META, StreamId) -> 3 + StreamId;
+channel_id(video, StreamId) -> 4 + StreamId;
+channel_id(?FLV_TAG_TYPE_VIDEO, StreamId) -> 4 + StreamId;
+channel_id(audio, StreamId) -> 5 + StreamId;
+channel_id(?FLV_TAG_TYPE_AUDIO, StreamId) -> 5 + StreamId.
 
 
 

@@ -204,7 +204,7 @@ ftyp(<<>>, BrandList) when is_list(BrandList) ->
 ftyp(<<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
   ftyp(CompatibleBrands, [Brand|BrandList]).
   
-% MOOV atom
+% Movie box
 moov(Atom, MediaInfo) ->
   parse_atom(Atom, MediaInfo).
 
@@ -213,7 +213,7 @@ mvhd(<<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-intege
                     Duration:32/big-integer, _Rest/binary>>, #media_info{} = MediaInfo) ->
   MediaInfo#media_info{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
-% TRAK atom
+% Track box
 trak(<<>>, MediaInfo) ->
   MediaInfo;
   
@@ -222,7 +222,7 @@ trak(Atom, #media_info{} = MediaInfo) ->
   fill_track_info(MediaInfo, Track).
   
 
-% TKHD atom
+% Track header
 tkhd(<<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer,
                     TrackID:32/big-integer, _Reserved1:4/binary, 
                     Duration:32/big-integer, _Reserved2:8/binary,
@@ -231,11 +231,11 @@ tkhd(<<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-intege
                     _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
 
-%MDIA atom
+% Media box
 mdia(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
-% MDHD atom
+% Media header
 mdhd(<<0:8/integer, _Flags:24/integer, _Ctime:32/big-integer, 
                   _Mtime:32/big-integer, TimeScale:32/big-integer, Duration:32/big-integer,
                   _Language:2/binary, _Quality:16/big-integer>>, #mp4_track{} = Mp4Track) ->
@@ -256,15 +256,15 @@ smhd(<<0:8/integer, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>
 smhd(<<0:8/integer, _Flags:3/binary, _Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track.
 
-% MINF atom
+% Media information
 minf(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
-% STBL atom
+% Sample table box
 stbl(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
-% STSD atom
+% Sample description
 stsd(<<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, EntryData/binary>>, Mp4Track) ->
   stsd({EntryCount, EntryData}, Mp4Track);
 
@@ -292,6 +292,24 @@ stsd({_EntryCount, <<_SampleDescriptionSize:32/big-integer,
                                   Atom/binary>>}, Mp4Track) ->
   % ?D({"Video size:", Width, Height}),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1, width = Width, height = Height});
+
+stsd({_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
+                                  "s263", _Reserved:6/binary, _RefIndex:16/big-integer, 
+                                  _Unknown1:16/binary, 
+                                  Width:16/big-integer, Height:16/big-integer,
+                                  _HorizRes:32/big-integer, _VertRes:32/big-integer,
+                                  _FrameCount:16/big-integer, _CompressorName:32/binary,
+                                  _Depth:16/big-integer, _Predefined:16/big-integer,
+                                  _Unknown:4/binary,
+                                  Atom/binary>>}, Mp4Track) ->
+  % ?D({"Video size:", Width, Height}),
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = s263, width = Width, height = Height});
+
+stsd({_EntryCount,   <<_SampleDescriptionSize:32/big-integer, 
+                                    "samr", _Reserved:2/binary, _RefIndex:16/big-integer, 
+                                    Atom/binary>> = AMR}, Mp4Track) ->
+  ?D(AMR),
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = samr});
 
 
 

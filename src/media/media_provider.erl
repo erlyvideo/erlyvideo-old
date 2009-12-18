@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/3, open/2, open/3, play/2, entries/1, remove/2]).
+-export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -63,13 +63,14 @@ remove(Host, Name) ->
 
 
 % Plays media named Name
+% Required options:
+%   stream_id: for RTMP, FLV stream id
+%
 % Valid options:
 %   consumer: pid of media consumer
-%   stream_id: for RTMP, FLV stream id
 %   client_buffer: client buffer size
-%   host: virtual host
-play(Name, Options) ->
-  Host = proplists:get_value(host, Options),
+%
+play(Host, Name, Options) ->
   case find_or_open(Host, Name) of
     {notfound, Reason} -> {notfound, Reason};
     MediaEntry -> create_player(MediaEntry, Options)

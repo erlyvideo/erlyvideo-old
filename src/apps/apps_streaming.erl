@@ -53,7 +53,7 @@
       CurrentPlayer ! exit;
     _ -> ok
   end,
-  case media_provider:play(Name, [{client_buffer, ClientBuffer}, {host, Host} | Options]) of
+  case media_provider:play(Host, Name, [{client_buffer, ClientBuffer} | Options]) of
     {ok, Player} ->
       Player ! start,
       {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};

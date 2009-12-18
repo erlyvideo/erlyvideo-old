@@ -1,8 +1,6 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
-%%% @author     Takuma Mori <mori@sgra.co.jp> [http://www.sgra.co.jp/en/], SGRA Corporation
-%%% @copyright  2008 Takuma Mori, 2009 Max Lapshin
-%%% @doc        MP4 decoding module, rewritten from RubyIzumi
-%%% @reference  See <a href="http://github.com/maxlapshin/erlyvideo" target="_top">http://github.com/maxlapshin/erlyvideo</a> for more information
+%%% @copyright  2009 Max Lapshin
+%%% @doc        MPEG TS stream module
 %%% @end
 %%%
 %%%
@@ -36,15 +34,39 @@
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
 
--export([play/3]).
+-export([play/3, play/1]).
 
 
 
-play(_Name, PlayerPid, Req) ->
-  ?D({"Player starting", PlayerPid}),
+play(_Name, Player, Req) ->
+  ?D({"Player starting", _Name, Player}),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}]),
   Req:stream(<<"MPEG TS\r\n\n\n">>),
+  Player ! start,
+  play(Req),
   % ?D({"MPEG TS", Req}),
   Req:stream(close),
   ok.
+  
+play(Req) ->
+  receive
+    #video_frame{} = Frame ->
+      ?MODULE:play(Req);
+    Message -> 
+      ?D(Message),
+      ?MODULE:play(Req)
+  after
+    ?TIMEOUT ->
+      ?D("MPEG TS player stopping"),
+      ok
+  end.
+  
+  
+  
+  
+  
+  
+  
+  
+  
   

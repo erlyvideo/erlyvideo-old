@@ -123,7 +123,7 @@ handle(_Host, 'POST', ["users", UserS, "message"], Req) ->
 
   
 handle(Host, 'GET', ["stream", Name], Req) ->
-  case media_provider:play(Host, Name) of
+  case media_provider:play(Host, Name, [{stream_id, 1}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req);
     {notfound} ->

@@ -1,7 +1,7 @@
 {application, erlmedia,
  [
   {description, "Erlang Media Server"},
-  {vsn, "0.0.6"},
+  {vsn, "1.0"},
   {id, "erlmedia"},
   {modules,      [
 		  amf0,

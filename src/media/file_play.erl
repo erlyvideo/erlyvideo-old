@@ -196,7 +196,7 @@ send_frame(#file_player{consumer = Consumer, stream_id = StreamId}, done) ->
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
-  ems_play:send(Consumer, Frame#video_frame{stream_id = StreamId}),
+  Consumer ! Frame#video_frame{stream_id = StreamId},
   Player1 = timeout_play(Frame, Player),
   ?MODULE:ready(Player1).
 
