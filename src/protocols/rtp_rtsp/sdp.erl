@@ -51,7 +51,7 @@ parse_announce([{<<"a">>, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rts
   %   video ->  "H264" = Codec;
   %   audio -> "mpeg4-generic" = Codec
   % end,
-  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)});
+  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000});
 
 % parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
 %   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),
