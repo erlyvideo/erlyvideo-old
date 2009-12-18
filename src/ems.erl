@@ -41,7 +41,7 @@
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
--export([host/1, host_config/1]).
+-export([host/1]).
 
 
 %%--------------------------------------------------------------------
@@ -138,8 +138,10 @@ get_var(Opt, Default) ->
 
 
 get_var(Key, Host, Default) ->
-	Config = host_config(Host),
-	proplists:get_value(Key, Config, Default).
+  case ets:match_object(vhosts, {{host(Host), Key}, '$1'}) of
+    [{{Hostname, Key}, Value}] -> Value;
+    [] -> Default
+  end.
 
 
 respond_to(Module, Command, Arity) ->
@@ -158,8 +160,6 @@ host(Hostname) ->
     [] -> default
   end.
   
-
-host_config(Hostname) -> ets:lookup_element(vhosts, host(Hostname), 2).
 
 %%--------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
