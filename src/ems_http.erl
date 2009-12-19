@@ -112,13 +112,13 @@ handle(_Host, 'POST', ["fcs", "ident2"], Req) ->
 handle(_Host, 'POST', ["channels", ChannelS, "message"], Req) ->
   Message = proplists:get_value("message", Req:parse_post()),
   Channel = list_to_integer(ChannelS),
-  rtmp_listener:send_to_channel(Channel, Message),
+  rtmp_listener:send_to_channel(Channel, list_to_binary(Message)),
   Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
 
 handle(_Host, 'POST', ["users", UserS, "message"], Req) ->
   Message = proplists:get_value("message", Req:parse_post()),
   User = list_to_integer(UserS),
-  rtmp_listener:send_to_user(User, Message),
+  rtmp_listener:send_to_user(User, list_to_binary(Message)),
   Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
 
   
