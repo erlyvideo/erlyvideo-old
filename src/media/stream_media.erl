@@ -208,6 +208,7 @@ handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
+  error_logger:info_msg("Stopping stream media ~p ~p~n", [Host, Name]),
   media_provider:remove(Host, Name),
   {noreply, MediaInfo, ?TIMEOUT};
 
@@ -252,9 +253,8 @@ store_last_gop(MediaInfo, _) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
+terminate(_Reason, #media_info{device = Device, name = Name, host = Host} = _MediaInfo) ->
   (catch file:close(Device)),
-  ?D({"Media entry terminating", _Reason}),
   ok.
 
 %%-------------------------------------------------------------------------

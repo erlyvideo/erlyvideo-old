@@ -227,7 +227,11 @@ run_request(#rtsp_decoder{request = ['RECORD', _URL]} = State) ->
 run_request(#rtsp_decoder{request = ['PAUSE', _URL]} = State) ->
   reply(State, "200 OK", []);
 
-run_request(#rtsp_decoder{request = ['TEARDOWN', _URL]} = State) ->
+run_request(#rtsp_decoder{request = ['TEARDOWN', _URL], host = Host} = State) ->
+  % maxidoors.ru:2554
+  Path = path(State),
+  Media = media_provider:find(Host, Path),
+  Media ! stop,
   reply(State, "200 OK", []);
 
 run_request(#rtsp_decoder{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
@@ -422,7 +426,6 @@ handle_info(_Info, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtsp_decoder{socket=Socket}) ->
-  ?D({"RTSP stopping", _StateName, _Reason}),
   (catch gen_tcp:close(Socket)),
   ok.
 
