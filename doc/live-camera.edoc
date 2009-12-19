@@ -1,0 +1,34 @@
+@author     Max Lapshin <max@maxidoors.ru> [http://maxidoors.ru]
+@copyright  2009 Max Lapshin
+@reference  See <a href="http://github.com/maxlapshin/erlyvideo" target="_top">http://github.com/maxlapshin/erlyvideo</a> for more information
+@version 
+@title How to make live translation from video camera with Erlyvideo
+@doc Erlyvideo can handle RTSP/RTP video stream and show it to web clients.
+
+Take video camera. 
+Take mac notebook with Quicktime Broadcaster or any other notebook with Wirecast.
+
+Quicktime Broadcaster:
+1) enable video stream: 
+Compressor: H264
+Frames per second: 15-25 (may vary)
+Keyframe every: 50 frames (may vary)
+Limit data rate to: 800 Kbit/s (may vary)
+2) enable audio stream:
+Compressor: MPEG-4 audio
+Options: 
+    bit rate: 64 kbit/s (may vary)
+    output sample rate: 44.100 (MUST NOT vary, only this)
+Rate: 44.100 Khz (MUST NOT vary, only this)
+Size: 16 bit (MUST NOT vary, only this)
+Use: mono (MUST NOT vary, only this)
+3) setup network:
+Transmission: automatic unicast (announce)
+Hostname: erlyvideo.host:8080 (you may change RTSP port in ebin/erlmedia.app, don't forget to make ems:restart() in console)
+File: mystream
+Buffer delay: 0
+Broadcast over TCP must be checked or you WILL loose your video.
+4) click Broadcast
+5) http://erlyvideo.host:8082?file=mystream.sdp (change http port in ebin/erlmedia.app)
+6) click play
+@end

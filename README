@@ -14,9 +14,9 @@ currently it can:
   * got support for many netstreams. It mean, that videoconference is possible.
   * support virtual hosts. Look at src/erlmedia.app for examples
   * save last GOP of incoming stream, so that client can start looking video much faster
+  * Can stream from QuickTime Broadcaster and Wirecast via RTSP/RTP. Read more in doc/rtsp.edoc
 
 currently in development:
-  * RTSP/RTP to read from QuickTime Broadcaster and Wirecast. Video already works!
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * add support for extended play command (with initial seek, length, ets)
   * Shared Objects
