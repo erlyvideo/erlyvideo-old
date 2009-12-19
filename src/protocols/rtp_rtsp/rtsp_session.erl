@@ -228,7 +228,6 @@ run_request(#rtsp_decoder{request = ['PAUSE', _URL]} = State) ->
   reply(State, "200 OK", []);
 
 run_request(#rtsp_decoder{request = ['TEARDOWN', _URL], host = Host} = State) ->
-  % maxidoors.ru:2554
   Path = path(State),
   Media = media_provider:find(Host, Path),
   Media ! stop,
