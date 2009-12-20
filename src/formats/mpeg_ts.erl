@@ -40,8 +40,10 @@
 
 play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
-  Req:stream(head, [{"Content-Type", "video/mpeg2"}]),
+  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   Req:stream(<<"MPEG TS\r\n\n\n">>),
+  process_flag(trap_exit, true),
+  link(Req:socket_pid()),
   Player ! start,
   play(Req),
   % ?D({"MPEG TS", Req}),
@@ -51,7 +53,11 @@ play(_Name, Player, Req) ->
 play(Req) ->
   receive
     #video_frame{} = Frame ->
+      Req:stream(<<"frame\n">>),
       ?MODULE:play(Req);
+    {'EXIT', _, _} ->
+      ?D({"MPEG TS reader disconnected"}),
+      ok;
     Message -> 
       ?D(Message),
       ?MODULE:play(Req)

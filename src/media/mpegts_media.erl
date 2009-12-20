@@ -199,8 +199,10 @@ handle_info(#video_frame{} = Frame, TSLander) ->
 
 
 handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
-  case lists:member(Client, Clients) of
-    true ->
+  case {lists:member(Client, Clients), length(Clients)} of
+    {true, 1} ->
+      {stop, normal, TSLander#ts_lander{clients = []}};
+    {true, _} ->
       {noreply, TSLander#ts_lander{clients = lists:delete(Client, Clients)}};
     _ ->
       {stop, {exit, Client, _Reason}, TSLander}
