@@ -40,7 +40,7 @@
 -export([listener/4]).
 
 % internale
--export([socket_loop/1]).
+-export([socket_loop/1, request/2, headers/3, headers/4, body/2]).
 
 % macros
 -define(MAX_HEADERS_COUNT, 100).
@@ -83,13 +83,13 @@ listener(ListenSocket, ListenPort, Loop, RecvTimeout) ->
 				C = #c{sock = Sock, port = ListenPort, loop = Loop, recv_timeout = RecvTimeout},
 				% jump to state 'request'
 				?DEBUG(debug, "jump to state request", []),
-				request(C, #req{peer_addr = Addr, peer_port = Port})
+				?MODULE:request(C, #req{peer_addr = Addr, peer_port = Port})
 			end),
 			% set controlling process
 			gen_tcp:controlling_process(Sock, Pid),
 			Pid ! set,
 			% get back to accept loop
-			listener(ListenSocket, ListenPort, Loop, RecvTimeout);
+			?MODULE:listener(ListenSocket, ListenPort, Loop, RecvTimeout);
 		_Else ->
 			?DEBUG(error, "accept failed error: ~p", [_Else]),
 			exit({error, accept_failed})
@@ -106,11 +106,11 @@ request(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 	receive
 		{http, Sock, {http_request, Method, Path, Version}} ->
 			?DEBUG(debug, "received full headers of a new HTTP packet", []),
-			headers(C, Req#req{vsn = Version, method = Method, uri = Path, connection = default_connection(Version)}, []);
+			?MODULE:headers(C, Req#req{vsn = Version, method = Method, uri = Path, connection = default_connection(Version)}, []);
 		{http, Sock, {http_error, "\r\n"}} ->
-			request(C, Req);
+			?MODULE:request(C, Req);
 		{http, Sock, {http_error, "\n"}} ->
-			request(C, Req);
+			?MODULE:request(C, Req);
 		{http, Sock, _Other} ->
 			?DEBUG(debug, "tcp normal error treating request: ~p", [_Other]),
 			exit(normal)	
@@ -126,21 +126,21 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 	inet:setopts(Sock, [{active, once}]),
 	receive
 		{http, Sock, {http_header, _, 'Content-Length', _, Val}} ->
-			headers(C, Req#req{content_length = Val}, [{'Content-Length', Val}|H], HeaderCount + 1);
+			?MODULE:headers(C, Req#req{content_length = Val}, [{'Content-Length', Val}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, 'Connection', _, Val}} ->
 			KeepAlive = keep_alive(Req#req.vsn, Val),
-			headers(C, Req#req{connection = KeepAlive}, [{'Connection', Val}|H], HeaderCount + 1);
+			?MODULE:headers(C, Req#req{connection = KeepAlive}, [{'Connection', Val}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, 'Host', _, Val}} ->
 		  Host = list_to_binary(hd(string:tokens(Val, ":"))),
-			headers(C, Req#req{host = Host}, [{'Host', Host}|H], HeaderCount + 1);
+			?MODULE:headers(C, Req#req{host = Host}, [{'Host', Host}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, Header, _, Val}} ->
-			headers(C, Req, [{Header, Val}|H], HeaderCount + 1);
+			?MODULE:headers(C, Req, [{Header, Val}|H], HeaderCount + 1);
 		{http, Sock, {http_error, "\r\n"}} ->
-			headers(C, Req, H, HeaderCount);
+			?MODULE:headers(C, Req, H, HeaderCount);
 		{http, Sock, {http_error, "\n"}} ->
-			headers(C, Req, H, HeaderCount);
+			?MODULE:headers(C, Req, H, HeaderCount);
 		{http, Sock, http_eoh} ->
-			body(C, Req#req{headers = lists:reverse(H)});
+			?MODULE:body(C, Req#req{headers = lists:reverse(H)});
 		{http, Sock, _Other} ->
 			?DEBUG(debug, "tcp normal error treating headers: ~p", [_Other]),
 			exit(normal)
@@ -149,7 +149,7 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 		send(Sock, ?REQUEST_TIMEOUT_408)
 	end;
 headers(C, Req, H, _HeaderCount) ->
-	body(C, Req#req{headers = lists:reverse(H)}).
+	?MODULE:body(C, Req#req{headers = lists:reverse(H)}).
 
 % default connection
 default_connection({1,1}) -> keep_alive;
@@ -185,7 +185,7 @@ body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 				keep_alive ->
 					% TODO: REMOVE inet:setopts(Sock, [{packet, http}]),
 					% inet:setopts(Sock, [{active, false}, {packet, 0}]),
-					request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
+					?MODULE:request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
 			end;
 		'POST' ->
 			case catch list_to_integer(Req#req.content_length) of 
@@ -204,7 +204,7 @@ body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 									gen_tcp:close(Sock);
 								keep_alive ->
 									inet:setopts(Sock, [{packet, http}]),
-									request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
+									?MODULE:request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
 							end;
 						{error, timeout} ->
 							?DEBUG(debug, "request timeout, sending error", []),
@@ -329,11 +329,11 @@ socket_loop(#c{sock = Sock} = C) ->
 			Enc_headers = enc_headers(Headers),
 			Resp = ["HTTP/1.1 ", integer_to_list(HttpCode), " OK\r\n", Enc_headers, <<"\r\n">>],
 			send(Sock, Resp),
-			socket_loop(C);
+			?MODULE:socket_loop(C);
 		{stream_data, Body} ->
 			?DEBUG(debug, "sending stream data", []),
 			send(Sock, Body),
-			socket_loop(C);
+			?MODULE:socket_loop(C);
 		stream_close ->
 			?DEBUG(debug, "closing stream", []),
 			close(Sock);
