@@ -304,6 +304,12 @@ read_associative_array(Data, Dictionary, Strings, Objects, Traits) ->
              read_associative_array( R2, D, S2, O2, T2)
   end.
 
+read_dense_array(0, List, Data, Strings, Objects, Traits) -> 
+  {lists:reverse(List), Data, Strings, Objects, Traits};
+read_dense_array(Length, List, Data, Strings, Objects, Traits) ->
+  {Item, R, S, O, T} = read(Data, Strings, Objects, Traits),
+  read_dense_array(Length-1, [Item|List], R, S, O, T).  
+
 read_object_traits(Header, Data, Strings, Objects, Traits) ->
   case Header band 3 =:= 0 of
     true  -> Trait = find_trait(Header bsr 1, Objects),
@@ -321,7 +327,6 @@ read_object_traits(Header, Data, Strings, Objects, Traits) ->
              {Trait, R2, S2, O2, T3}
   end.          
 
-
 read_object_dynamic_properties(<<16#01>>,Dictionary,Strings,Objects,Traits) ->
   io:fwrite("~w~n",[dict:to_list(Dictionary)]),
   {Dictionary,<<>>,Strings,Objects,Traits};
@@ -329,21 +334,16 @@ read_object_dynamic_properties(Data, Dictionary, Strings, Objects, Traits) ->
   {Property, R, S, O, T} = read(<<?STRING,Data/binary>>,
                                   Strings, Objects, Traits),
   {Value, R2, S2, O2, T2} = read(R, S, O, T),
-  PropertyDictionary = dict:store(Property, Value, Dictionary),
+  PropertyDictionary = dict:store(list_to_atom(binary_to_list(Property)),
+                                  Value, Dictionary),
   read_object_dynamic_properties(R2, PropertyDictionary, S2, O2, T2).
-  
-read_dense_array(0, List, Data, Strings, Objects, Traits) -> 
-  {lists:reverse(List), Data, Strings, Objects, Traits};
-read_dense_array(Length, List, Data, Strings, Objects, Traits) ->
-  {Item, R, S, O, T} = read(Data, Strings, Objects, Traits),
-  read_dense_array(Length-1, [Item|List], R, S, O, T).  
 
 read_object_property_names(0, Properties,Data,Strings,Objects,Traits) -> 
-  {Properties, Data, Strings, Objects, Traits};
+  {lists:reverse(Properties), Data, Strings, Objects, Traits};
 read_object_property_names(Count,Properties,Data,Strings,Objects,Traits) ->
   {Property, R, S, O, T} =
             read(<<?STRING, Data/binary>>, Strings, Objects, Traits),
-  PropertyAtom = list_to_atom(Property),
+  PropertyAtom = list_to_atom(binary_to_list(Property)),
   read_object_property_names(Count-1, [PropertyAtom|Properties], R, S, O, T).
 
 read_object_property_values([],
@@ -354,7 +354,7 @@ read_object_property_values([Property|Tail],
         {Value, R, S, O, T} = read(Data, Strings, Objects, Traits),
         PropertyDictionary = dict:store(Property, Value, Dictionary),
         read_object_property_values( Tail, R, PropertyDictionary, S, O, T).
-  
+
 
 
 
@@ -374,14 +374,18 @@ write(true, Strings, Objects, Traits) ->
 {<<?TRUE>>, Strings, Objects, Traits};
 
 write(Integer, Strings, Objects, Traits)
-  when is_integer(Integer), Integer >= -16#10000000, Integer < 0 -> 
-    I = write_uint29(16#20000000 + Integer),
+  when is_integer(Integer), Integer >= -268435456, Integer < 0 -> 
+    I = write_uint29(536870912 + Integer),
     {<<?INTEGER, I/binary>>, Strings, Objects, Traits};
 
 write(Integer, Strings, Objects, Traits)
-  when is_integer(Integer), Integer =< 16#0FFFFFFF -> 
+  when is_integer(Integer), Integer =< 268435455, Integer >= 0 -> 
     I = write_uint29(Integer),
     {<<?INTEGER, I/binary>>, Strings, Objects, Traits};
+
+write(Integer, Strings, Objects, Traits) when is_integer(Integer) ->
+  Float = math:pow(Integer,1),
+  write(Float, Strings, Objects, Traits);    
 
 write(Double, Strings, Objects, Traits) when is_float(Double) -> 
   {<<?DOUBLE, Double/float>>, Strings, Objects, Traits};
@@ -414,15 +418,6 @@ write({xmldoc, XML}, Strings, Objects, Traits) when is_binary(XML) ->
 write({date, MilliSeconds}, Strings, Objects, Traits) ->
   {<<?DATE, 16#01, MilliSeconds/float>>, Strings, Objects, Traits};
 
-write({array, Dictionary, List}, Strings, Objects, Traits)
-  when is_tuple(Dictionary), is_list(List)-> 
-    Length = write_uint29(length(List) bsl 1 bor 1),
-    {Written,S,O,T} = write_associative_array(dict:to_list(Dictionary), 
-                                              [?ARRAY,Length],
-                                              Strings, Objects, Traits),
-    {Output,S1,O1,T1} = write_dense_array(List, Written, S, O, T),
-    {list_to_binary(Output),S1,O1,T1};
-
 write({xml, XML}, Strings, Objects, Traits) when is_binary(XML) -> 
   Length = write_uint29(size(XML) bsl 1 bor 1),
   Binary = list_to_binary([?XML,Length,XML]),
@@ -433,6 +428,15 @@ write({bytearray, ByteArray}, Strings, Objects, Traits)
     Length = write_uint29(size(ByteArray) bsl 1 bor 1),
     Binary = list_to_binary([?BYTEARRAY,Length,ByteArray]),
     {Binary, Strings, Objects, Traits};
+
+write({array, Dictionary, List}, Strings, Objects, Traits)
+  when is_tuple(Dictionary), is_list(List)-> 
+    Length = write_uint29(length(List) bsl 1 bor 1),
+    {Written,S,O,T} = write_associative_array(dict:to_list(Dictionary), 
+                                              [?ARRAY,Length],
+                                              Strings, Objects, Traits),
+    {Output,S1,O1,T1} = write_dense_array(List, Written, S, O, T),
+    {list_to_binary(Output),S1,O1,T1};
 
 write({array, List}, Strings, Objects, Traits)
   when is_list(List) -> 

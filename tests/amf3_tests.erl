@@ -157,7 +157,23 @@ decode_array_test_() ->
     
   ].
 
-%% decode_object_test
+decode_object_test_() ->
+  [
+    ?_assert({object,<<>>,dict:store(b, 200,dict:store(a, 100,dict:new()))} 
+                =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#04,
+                                  16#64,16#03,16#62,16#04,16#81,16#48,
+                                  16#01>>)),
+
+    ?_assert({object,<<"TestClass">>,dict:store(n2, <<"world">>,
+                                                dict:store(n1, <<"hello">>,
+                                                           dict:new()))} 
+                =:= amf3:decode(<<16#0A,16#23,16#13,16#54,16#65,16#73,16#74,
+                                  16#43,16#6C,16#61,16#73,16#73,16#05,16#6E,
+                                  16#31,16#05,16#6E,16#32,16#06,16#0B,16#68,
+                                  16#65,16#6C,16#6C,16#6F,16#06,16#0B,16#77,
+                                  16#6F,16#72,16#6C,16#64>>))
+                                  
+  ].
 
 decode_xml_test_() ->
   [
@@ -194,7 +210,18 @@ encode_integer_test_() ->
     ?_assert(<<16#04,16#81,16#80,16#00>> =:= amf3:encode(16384)),
     ?_assert(<<16#04,16#FF,16#FF,16#7F>> =:= amf3:encode(2097151)),
     ?_assert(<<16#04,16#80,16#C0,16#80,16#00>> =:= amf3:encode(2097152)),
-    ?_assert(<<16#04,16#BF,16#FF,16#FF,16#FF>> =:= amf3:encode(268435455))
+    ?_assert(<<16#04,16#BF,16#FF,16#FF,16#FF>> =:= amf3:encode(268435455)),
+    
+    
+    
+    %% outside the range gets encoded as a double 
+    ?_assert(<<16#05,16#41,16#B0,16#00,
+               16#00,16#00,16#00,16#00,
+               16#00>> =:= amf3:encode(268435456)),
+    
+    ?_assert(<<16#05,16#C1,16#B0,16#00,
+               16#00,16#01,16#00,16#00,
+               16#00>> =:= amf3:encode(-268435457))
   ].
 
 encode_double_test_() ->
@@ -326,6 +353,13 @@ encode_array_test_() ->
                =:= amf3:encode(dict:store(b, 200,
                                           dict:store(a, 100, 
                                                      dict:new())))),
+
+    ?_assert(<<16#09,16#01,16#03,16#61,16#04,16#64,
+               16#03,16#62,16#04,16#81,16#48,16#01>>
+                =:= amf3:encode({array,dict:store(b, 200,
+                                         dict:store(a, 100, 
+                                             dict:new()))})),
+
                                                      
     %% mixed  
     ?_assert(<<16#09,16#05,16#03,16#61,16#04,16#64,
@@ -338,6 +372,31 @@ encode_array_test_() ->
                
                
   ].
+  
+  
+encode_object_test_() ->
+  [
+    ?_assert(<<16#0A,16#0B,16#01,16#03,16#61,16#04,
+                      16#64,16#03,16#62,16#04,16#81,16#48,
+                      16#01>> =:= 
+                      amf3:encode({object,<<>>,dict:store(b, 200,
+                                               dict:store(a, 100,
+                                               dict:new()))}) ),
+    
+
+
+    ?_assert(<<16#0A,16#23,16#13,16#54,16#65,16#73,16#74,
+               16#43,16#6C,16#61,16#73,16#73,16#05,16#6E,
+               16#31,16#05,16#6E,16#32,16#06,16#0B,16#68,
+               16#65,16#6C,16#6C,16#6F,16#06,16#0B,16#77,
+               16#6F,16#72,16#6C,16#64>> 
+                      =:= amf3:encode({object,<<"TestClass">>,
+                                       dict:store(n2, <<"world">>,
+                                       dict:store(n1, <<"hello">>,
+                                       dict:new()))}))
+    
+  ].  
+  
 
 encode_xml_test_() ->
   [
