@@ -104,7 +104,17 @@ decode_string_test_() ->
                              16#C3,16#A6,16#CE,16#A9,16#C3,16#A7,
                              16#E2,16#88,16#9A,16#CB,16#9C,16#C2,
                              16#B5,16#E2,16#89,16#A4,16#E2,16#89,
-                             16#A5,16#C3,16#B7>>))
+                             16#A5,16#C3,16#B7>>)),
+                             
+      
+      %% string reference
+      ?_assert({object,<<>>,dict:store(b, <<"hello">>,
+                                       dict:store(a, <<"hello">>,
+                                       dict:new()))} 
+                   =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#06,16#0B,
+                                     16#68,16#65,16#6C,16#6C,16#6F,16#03,16#62,
+                                     16#06,16#02,16#01>>))  
+                      
   ].
 
 decode_xmldoc_test_() ->
@@ -113,7 +123,18 @@ decode_xmldoc_test_() ->
                         =:= amf3:decode(<<16#07,16#25,16#3C,16#74,16#65,
                                           16#78,16#74,16#3E,16#68,16#65,16#6C,
                                           16#6C,16#6F,16#3C,16#2F,16#74,16#65,
-                                          16#78,16#74,16#3E>>))
+                                          16#78,16#74,16#3E>>)),
+    
+    
+    %% xmldoc reference
+    ?_assert({object,<<>>,dict:store(b, {xmldoc, <<"<hello>test</hello>">>},
+                             dict:store(a, {xmldoc, <<"<hello>test</hello>">>},
+                             dict:new()))} 
+                 =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#07,16#27,
+                                   16#3C,16#68,16#65,16#6C,16#6C,16#6F,16#3E,
+                                   16#74,16#65,16#73,16#74,16#3C,16#2F,16#68,
+                                   16#65,16#6C,16#6C,16#6F,16#3E,16#03,16#62,
+                                   16#07,16#02,16#01>>))
   ].
 
 decode_date_test_() -> 
@@ -121,7 +142,16 @@ decode_date_test_() ->
     ?_assert({date,1260103478896.0} =:= amf3:decode(<<16#08,16#01,16#42,
                                                       16#72,16#56,16#40,
                                                       16#52,16#E7,16#00,
-                                                      16#00>>))
+                                                      16#00>>)),
+
+    %% date reference
+    ?_assert({object,<<>>,dict:store(b,{date,1261385577404.0},
+                                     dict:store(a,{date,1261385577404.0},
+                                     dict:new()))} 
+                 =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#08,
+                                   16#01,16#42,16#72,16#5B,16#07,16#07,
+                                   16#3B,16#C0,16#00,16#03,16#62,16#08,
+                                   16#02,16#01>>))                                       
   ].
 
 decode_array_test_() ->
@@ -152,7 +182,15 @@ decode_array_test_() ->
                                                  16#03,16#62,16#04,
                                                  16#81,16#48,16#01,
                                                  16#04,16#83,16#74,
-                                                 16#04,16#84,16#58>>))
+                                                 16#04,16#84,16#58>>)),
+    
+     %% array reference                                             
+     ?_assert({object,<<>>,dict:store(b, [100,200], 
+                            dict:store(a,[100,200],
+                              dict:new()))} 
+                  =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#09,
+                                  16#05,16#01,16#04,16#64,16#04,16#81,
+                                  16#48,16#03,16#62,16#09,16#02,16#01>>))
 
     
   ].
@@ -171,7 +209,70 @@ decode_object_test_() ->
                                   16#43,16#6C,16#61,16#73,16#73,16#05,16#6E,
                                   16#31,16#05,16#6E,16#32,16#06,16#0B,16#68,
                                   16#65,16#6C,16#6C,16#6F,16#06,16#0B,16#77,
-                                  16#6F,16#72,16#6C,16#64>>))
+                                  16#6F,16#72,16#6C,16#64>>)),
+
+
+      %% object reference                                
+      ?_assert({object,<<>>,dict:store(b,{object,<<>>,dict:new()},
+                                       dict:store(a,{object,<<>>,dict:new()},
+                                       dict:new()))} 
+                   =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,
+                                     16#01,16#01,16#03,16#62,16#0A,16#02,
+                                     16#01>>)),
+
+
+       %% object reference                                
+       ?_assert({object,<<>>,dict:store(b,{object,<<>>,
+                                        dict:store(y, 200,
+                                        dict:store(x, 100,dict:new()))},
+                                        dict:store(a,{object,<<>>,
+                                        dict:store(y, 200,
+                                        dict:store(x, 100,
+                                        dict:new()))},
+                                        dict:new()))} 
+                    =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,
+                                      16#01,16#03,16#78,16#04,16#64,16#03,
+                                      16#79,16#04,16#81,16#48,16#01,16#03,
+                                      16#62,16#0A,16#02,16#01>>)),
+
+
+
+      %% trait reference, object reference
+      ?_assert({object,<<>>,dict:store(b,{object,<<"TestClass">>,
+                                            dict:store(n2, <<>>,
+                                              dict:store(n1, <<>>,
+                                                dict:new()))},
+                                       dict:store(a,{object,<<"TestClass">>,
+                                                dict:store(n2, <<>>,
+                                                  dict:store(n1, <<>>,
+                                                    dict:new()))},
+                                       dict:new()))} 
+                   =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,
+                                     16#23,16#13,16#54,16#65,16#73,16#74,
+                                     16#43,16#6C,16#61,16#73,16#73,16#05,
+                                     16#6E,16#31,16#05,16#6E,16#32,16#01,
+                                     16#01,16#03,16#62,16#0A,16#05,16#01,
+                                     16#01,16#01>>)),
+
+
+      %% trait reference, object reference
+      ?_assert({object,<<>>,dict:store(b,{object,<<"TestClass">>,
+                                            dict:store(n2, <<"hello">>,
+                                              dict:store(n1, <<"hello">>,
+                                                dict:new()))},
+                                       dict:store(a,{object,<<"TestClass">>,
+                                                dict:store(n2, <<"hello">>,
+                                                  dict:store(n1, <<"hello">>,
+                                                    dict:new()))},
+                                       dict:new()))} 
+                   =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,
+                                     16#23,16#13,16#54,16#65,16#73,16#74,
+                                     16#43,16#6C,16#61,16#73,16#73,16#05,
+                                     16#6E,16#31,16#05,16#6E,16#32,16#06,
+                                     16#0B,16#68,16#65,16#6C,16#6C,16#6F,
+                                     16#06,16#08,16#03,16#62,16#0A,16#02,
+                                     16#01>>))
+
                                   
   ].
 
@@ -181,12 +282,32 @@ decode_xml_test_() ->
                     =:= amf3:decode(<<16#0B,16#25,16#3C,16#74,16#65,
                                       16#78,16#74,16#3E,16#68,16#65,16#6C,
                                       16#6C,16#6F,16#3C,16#2F,16#74,16#65,
-                                      16#78,16#74,16#3E>>))
+                                      16#78,16#74,16#3E>>)),
+                                      
+                                      
+    %% xml reference
+    ?_assert({object,<<>>,dict:store(b, {xml, <<"<hello>test</hello>">>},
+                             dict:store(a, {xml, <<"<hello>test</hello>">>},
+                             dict:new()))} 
+                 =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0B,16#27,
+                                   16#3C,16#68,16#65,16#6C,16#6C,16#6F,16#3E,
+                                   16#74,16#65,16#73,16#74,16#3C,16#2F,16#68,
+                                   16#65,16#6C,16#6C,16#6F,16#3E,16#03,16#62,
+                                   16#0B,16#02,16#01>>))                                  
+                                      
   ].
 
 decode_bytearray_test_() -> 
   [
-    ?_assert({bytearray,<<100,200>>} =:= amf3:decode(<<16#0C,16#05,100,200>>)) 
+    ?_assert({bytearray,<<100,200>>} =:= amf3:decode(<<16#0C,16#05,100,200>>)),
+    
+    %% bytearray reference
+    ?_assert({object,<<>>,dict:store(b, {bytearray,<<100,200>>},
+                             dict:store(a, {bytearray,<<100,200>>},
+                             dict:new()))}
+            =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0C,16#05,16#64,
+                              16#C8,16#03,16#62,16#0C,16#02,16#01>>))
+     
   ].
 
 encode_list_test() -> 
@@ -369,8 +490,6 @@ encode_array_test_() ->
                                         dict:store(a, 100, 
                                             dict:new())),
                                       [500,600]}))                                               
-               
-               
   ].
   
   
@@ -382,8 +501,6 @@ encode_object_test_() ->
                       amf3:encode({object,<<>>,dict:store(b, 200,
                                                dict:store(a, 100,
                                                dict:new()))}) ),
-    
-
 
     ?_assert(<<16#0A,16#23,16#13,16#54,16#65,16#73,16#74,
                16#43,16#6C,16#61,16#73,16#73,16#05,16#6E,
