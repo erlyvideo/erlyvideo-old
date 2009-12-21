@@ -2,7 +2,7 @@
 %%% @author     Takuma Mori <mori@sgra.co.jp> [http://www.sgra.co.jp/en/], SGRA Corporation
 %%% @copyright  2008 Takuma Mori, 2009 Max Lapshin
 %%% @doc        MP4 decoding module, rewritten from RubyIzumi
-%%% @reference  See <a href="http://github.com/maxlapshin/erlyvideo" target="_top">http://github.com/maxlapshin/erlyvideo</a> for more information
+%%% @reference  See <a href="http://github.com/erlyvideo/erlyvideo" target="_top">http://github.com/erlyvideo/erlyvideo</a> for more information
 %%% @end
 %%%
 %%%

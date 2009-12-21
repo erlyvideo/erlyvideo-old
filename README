@@ -45,7 +45,7 @@ How can You help?
 
 How to launch:
 
-  * git clone git://github.com/maxlapshin/erlyvideo.git
+  * git clone git://github.com/erlyvideo/erlyvideo.git
   * cd erlyvideo
   * cp src/erlmedia.app ebin/erlmedia.app
   * $EDITOR ebin/erlmedia.app
