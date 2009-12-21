@@ -1,4 +1,6 @@
 erlyvideo is a flash streaming server, written in erlang.
+Repo moved to http://github.com/erlyvideo/erlyvideo
+
 
 currently it can:
 
