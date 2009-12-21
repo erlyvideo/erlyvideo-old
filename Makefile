@@ -6,10 +6,12 @@ MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
 all: ebin/erlmedia.app
+	mkdir ebin
 	erl -make
 
 
 ebin/erlmedia.app:
+	mkdir ebin
 	cp src/erlmedia.app ebin/erlmedia.app
 
 doc:	
