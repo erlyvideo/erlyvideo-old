@@ -1,6 +1,6 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @doc        Gen_format
-%%% @reference  See <a href="http://github.com/erlyvideo/erlyvideo" target="_top">http://github.com/erlyvideo/erlyvideo</a> for more information
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
 %%%

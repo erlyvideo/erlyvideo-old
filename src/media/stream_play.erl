@@ -1,7 +1,7 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @copyright  2009 Max Lapshin
 %%% @doc        Player module
-%%% @reference  See <a href="http://github.com/erlyvideo/erlyvideo" target="_top">http://github.com/erlyvideo/erlyvideo</a> for more information
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
 %%%
