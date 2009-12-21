@@ -21,14 +21,16 @@ currently it can:
 currently in development:
   * improve handling of background vlc/ffmpeg for them to recode uploaded videos
   * add support for extended play command (with initial seek, length, ets)
-  * Shared Objects
 
   
 future plans:
-  * try to change quality on fly
-
-
-abandoned plans:
+  * MPEG TS restreaming of files
+  * Apple HTTP LiveStreaming
+  * Source authorization (RTSP, MPEG TS, etc.)
+  * Shared Objects
+  * try to change quality on fly (smooth streaming)
+  * capture mpeg4 IP cameras
+  * raw RTP capture from sdp file
 
 
 What you can do right now?
