@@ -5,13 +5,14 @@ VSN=0.1
 MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
-all: ebin/erlmedia.app
-	mkdir ebin
+all: ebin ebin/erlmedia.app
 	erl -make
+
+ebin:
+	mkdir ebin
 
 
 ebin/erlmedia.app:
-	mkdir ebin
 	cp src/erlmedia.app ebin/erlmedia.app
 
 doc:	
