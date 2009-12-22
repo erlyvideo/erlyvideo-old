@@ -133,13 +133,14 @@ handle(Host, 'GET', ["stream", Name], Req) ->
       Req:respond(500, [{"Content-Type", "text/plain"}], "500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])
   end;
   
-handle(_Host, 'GET', Path, Req) ->
+handle(Host, 'GET', Path, Req) ->
   FileName = filename:absname(filename:join(["wwwroot" | Path])),
   case filelib:is_regular(FileName) of
     true ->
-      ?D({"GET", FileName}),
+      ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:file(FileName);
     false ->
+      ems_log:access(Host, "NOTFOUND ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req])
   end;
 

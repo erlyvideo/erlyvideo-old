@@ -15,12 +15,14 @@ stop() ->
   
 init_vhost_loggers(Host, Options) ->
   log4erl:add_logger(access_name(Host)),
+  log4erl:add_console_appender(access_name(Host), access_name(Host, <<"_console">>), {info, "%j %T %l%n"}),
   case proplists:get_value(access_log, Options) of
     undefined -> ok;
     AccessSpec -> 
       log4erl:add_file_appender(access_name(Host), access_name(Host, <<"_file">>), AccessSpec)
   end,
   log4erl:add_logger(error_name(Host)),
+  log4erl:add_console_appender(error_name(Host), error_name(Host, <<"_console">>), {info, "%j %T %l%n"}),
   case proplists:get_value(error_log, Options) of
     undefined -> ok;
     ErrorSpec -> 

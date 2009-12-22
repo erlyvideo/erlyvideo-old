@@ -260,8 +260,8 @@ handle_info({tcp, Socket, Bin}, StateName, #rtmp_session{socket=Socket} = State)
   ?MODULE:StateName({data, Bin}, State);
 
 handle_info({tcp_closed, Socket}, _StateName,
-            #rtmp_session{socket=Socket, addr=Addr, port = Port} = StateData) ->
-    error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
+            #rtmp_session{host = Host, socket=Socket, addr=Addr, user_id = UserId} = StateData) ->
+    ems_log:access(Host, "DISCONNECT ~p ~p", [Addr, UserId]),
     {stop, normal, StateData};
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = _Streams} = StateData) ->

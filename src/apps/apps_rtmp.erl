@@ -47,7 +47,7 @@
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
+connect(AMF, #rtmp_session{window_size = WindowAckSize, addr = Address} = State) ->
     
     Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
     % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
@@ -70,11 +70,12 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize} = State) ->
     {match, [_, _Proto, HostName, Path]} = re:run(ConnectUrl, UrlRe, [{capture, all, binary}]),
     Host = ems:host(HostName),
     
-    ?D({"CONNECT", Host, _PageUrl}),
 		NewState1 =	State#rtmp_session{player_info = PlayerInfo, previous_ack = erlang:now(), host = Host, path = Path},
 
     AuthModule = ems:get_var(auth_module, Host, trusted_login),
     NewState2 = AuthModule:client_login(NewState1, AuthInfo),
+
+    ems_log:access(Host, "CONNECT ~p ~p ~s", [Address, NewState2#rtmp_session.user_id, _PageUrl]),
     
     NewState3 = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
       {objectEncoding, 0.0} -> NewState2#rtmp_session{amf_version = 0};

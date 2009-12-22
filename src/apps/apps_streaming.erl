@@ -56,9 +56,10 @@
   case media_provider:play(Host, Name, [{client_buffer, ClientBuffer} | Options]) of
     {ok, Player} ->
       Player ! start,
+      ems_log:access(Host, "PLAY ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
       {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
     {notfound, _Reason} ->
-      ?D({"File not found", Name, _Reason}),
+      ems_log:access(Host, "NOTFOUND ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
       gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, StreamId}),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reason -> 
