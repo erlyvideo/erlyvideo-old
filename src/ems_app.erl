@@ -57,6 +57,8 @@ start(_Type, _Args) ->
   end,
 	
   application:start(crypto),
+  application:start(log4erl),
+  log4erl:conf("ebin/log4erl.conf"),
   mnesia:create_schema([node()]),
   mnesia:start(),
   Start = ems_sup:start_link(),

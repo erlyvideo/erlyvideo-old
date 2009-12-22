@@ -5,7 +5,7 @@ VSN=0.1
 MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
-all: ebin ebin/erlmedia.app
+all: ebin ebin/erlmedia.app ebin/log4erl.conf
 	erl -make
 
 ebin:
@@ -13,7 +13,10 @@ ebin:
 
 
 ebin/erlmedia.app:
-	cp src/erlmedia.app ebin/erlmedia.app
+	cp priv/erlmedia.app ebin/erlmedia.app
+
+ebin/log4erl.conf:
+	cp priv/log4erl.conf ebin/log4erl.conf
 
 doc:	
 	$(ERL) -pa `pwd`/ebin \
@@ -32,7 +35,7 @@ clean-doc:
 player:
 	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
-run: ebin/erlmedia.app
+run: ebin ebin/erlmedia.app ebin/log4erl.conf
 	$(ERL) +bin_opt_info +debug \
 	-pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-boot start_sasl \
@@ -40,7 +43,7 @@ run: ebin/erlmedia.app
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME)
 	
-start: ebin/erlmedia.app
+start: ebin ebin/erlmedia.app ebin/log4erl.conf
 	$(ERL) -pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
 	-sasl sasl_error_logger '{file, "sasl.log"}' \
   -kernel error_logger '{file, "erlang.log"}' \
