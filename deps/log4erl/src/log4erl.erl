@@ -265,6 +265,7 @@ start(_Type, [Arg]) ->
     log4erl_sup:start_link(Arg).
 
 stop(_State) ->
+    ?LOG("Stopping log4erl app~n"),
     log_filter_codegen:reset(),
     ok.
 
