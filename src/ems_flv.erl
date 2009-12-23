@@ -81,11 +81,11 @@ encode(_Frame) ->
   ?D({"Request to encode undefined", _Frame}).
 
 
-to_tag(#rtmp_message{type = video} = Message) -> to_tag(Message#rtmp_message{type = ?FLV_TAG_TYPE_VIDEO});
-to_tag(#rtmp_message{type = audio} = Message) -> to_tag(Message#rtmp_message{type = ?FLV_TAG_TYPE_AUDIO});
-to_tag(#rtmp_message{type = metadata} = Message) -> to_tag(Message#rtmp_message{type = ?FLV_TAG_TYPE_META});
+to_tag(#video_frame{type = video} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_VIDEO});
+to_tag(#video_frame{type = audio} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_AUDIO});
+to_tag(#video_frame{type = metadata} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_META});
 
-to_tag(#rtmp_message{body = Msg, type = Type, stream_id = StreamId, timestamp = CurrentTimeStamp}) ->
+to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, timestamp = CurrentTimeStamp}) ->
 	BodyLength = size(Msg),
 	{TimeStampExt, TimeStamp} = case CurrentTimeStamp of
 		<<TimeStampExt1:8,TimeStamp1:32>> -> 

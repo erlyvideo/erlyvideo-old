@@ -44,10 +44,12 @@
 -export(['FCPublish'/2, 'FCUnpublish'/2]).
 
 
+message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = Body}) ->
+  #video_frame{type = Type, timestamp = Timestamp, body = Body, raw_body = true}.
+
 'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
-  ?D({"Publish", self(), Recorder}),
-  stream_media:publish(Recorder, Message),
+  stream_media:publish(Recorder, message_to_frame(Message)),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 
 

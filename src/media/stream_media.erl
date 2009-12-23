@@ -26,7 +26,7 @@ codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Typ
 publish(undefined, _Frame) ->
   {error, no_stream};
 
-publish(Server, Frame) ->
+publish(Server, #video_frame{} = Frame) ->
   gen_server:call(Server, {publish, Frame}).
 
 set_owner(Server, Owner) ->
@@ -114,20 +114,18 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
   {reply, {error, {owner_exists, Owner}}, MediaInfo, ?TIMEOUT};
 
 
-handle_call({publish, #video_frame{timestamp = TS} = Message}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
-  handle_call({publish, Message}, _From, Recorder#media_info{base_timestamp = TS});
+handle_call({publish, #video_frame{timestamp = TS} = Frame}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
+  handle_call({publish, Frame}, _From, Recorder#media_info{base_timestamp = TS});
 
-handle_call({publish, #rtmp_message{timestamp = TS} = Message}, _From, 
+handle_call({publish, #video_frame{timestamp = TS} = Frame}, _From, 
             #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
   % ?D({"Record",Channel#channel.type, TS - BaseTS}),
-  Message1 = Message#rtmp_message{timestamp = TS - BaseTS},
-	Tag = ems_flv:to_tag(Message1),
+  Frame1 = Frame#video_frame{timestamp = TS - BaseTS, stream_id = 1},
 	case Device of
 	  undefined -> ok;
-	  _ -> file:write(Device, Tag)
+	  _ -> file:write(Device, ems_flv:to_tag(Frame1))
 	end,
-	?D({"Sending to", Clients}),
-  lists:foreach(fun(Pid) -> Pid ! Message1 end, Clients),
+  lists:foreach(fun(Pid) -> Pid ! Frame1 end, Clients),
 	{reply, ok, Recorder, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
@@ -190,7 +188,7 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
     0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
     _ -> ok
   end,
-  {noreply, MediaInfo#media_info{clients = Clients}, ?TIMEOUT};
+  {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
 
 handle_info(#video_frame{decoder_config = true, type = audio} = Frame, #media_info{clients = Clients} = MediaInfo) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
@@ -253,7 +251,7 @@ store_last_gop(MediaInfo, _) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #media_info{device = Device, name = Name, host = Host} = _MediaInfo) ->
+terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
   (catch file:close(Device)),
   ok.
 
