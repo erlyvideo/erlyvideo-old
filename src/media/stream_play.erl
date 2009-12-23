@@ -76,7 +76,7 @@ init(MediaEntry, Options) ->
   link(Consumer),
   link(MediaEntry),
   ?MODULE:ready(#stream_player{consumer = Consumer,
-                      stream_id = proplists:get_value(stream_id, Options, 1),
+                      stream_id = proplists:get_value(stream_id, Options, undefined),
                       media_info = MediaEntry}).
   
 	
@@ -126,8 +126,7 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
 
     eof ->
       ?D("MPEG TS finished"),
-      gen_fsm:send_event(Consumer, {status, ?NS_PLAY_COMPLETE, StreamId}),
-      ?MODULE:ready(State);
+      ok;
     
     stop -> 
       ?D({"stream play stop", self()}),

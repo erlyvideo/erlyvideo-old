@@ -74,7 +74,7 @@ connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
     AuthModule = ems:get_var(auth_module, Host, trusted_login),
     NewState2 = AuthModule:client_login(NewState1, AuthInfo),
 
-    ems_log:access(Host, "CONNECT ~p ~p ~s", [Address, NewState2#rtmp_session.user_id, _PageUrl]),
+    ems_log:access(Host, "CONNECT ~p ~p ~s ~p", [Address, NewState2#rtmp_session.user_id, _PageUrl, self()]),
     
     AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
       {objectEncoding, 0.0} -> 0;

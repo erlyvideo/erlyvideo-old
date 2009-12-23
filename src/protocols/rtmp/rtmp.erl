@@ -317,13 +317,13 @@ command(#channel{type = Type, length = 0} = Channel, State) when (Type =:= ?RTMP
   Message = extract_message(Channel),
   {State, Message#rtmp_message{type = broken_meta}};
 
-command(#channel{type = ?RTMP_TYPE_AUDIO} = Channel, State)	 ->
+command(#channel{type = ?RTMP_TYPE_AUDIO, msg = Body} = Channel, State)	 ->
   Message = extract_message(Channel),
-	{State, Message#rtmp_message{type = audio}};
+	{State, Message#rtmp_message{type = audio, body = Body}};
 
-command(#channel{type = ?RTMP_TYPE_VIDEO} = Channel, State)	 ->
+command(#channel{type = ?RTMP_TYPE_VIDEO, msg = Body} = Channel, State)	 ->
   Message = extract_message(Channel),
-	{State, Message#rtmp_message{type = video}};
+	{State, Message#rtmp_message{type = video, body = Body}};
 
 command(#channel{type = ?RTMP_TYPE_METADATA_AMF0} = Channel, State)	 ->
   Message = extract_message(Channel),

@@ -160,7 +160,7 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #amf{command = Command} = AMF,
   call_function(ems:check_app(State,Command, 2), State, AMF);
   
-handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == audio) or (Type == audio) or (Type == metadata) or (Type == metadata3)->
+handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   gen_fsm:send_event(self(), {publish, Message}),
   State;
   
@@ -171,8 +171,10 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stre
     _ -> ok
   end,
   State;
-  
-  
+
+handle_rtmp_message(State, #rtmp_message{type = pong}) ->
+  State;
+
 handle_rtmp_message(State, Message) ->
   ?D({"RTMP", Message#rtmp_message.type}),
   State.
@@ -241,12 +243,17 @@ handle_info(#rtmp_message{} = Message, StateName, State) ->
 handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = _Streams} = StateData) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Streams, socket = Socket} = State) ->
+  case lists:keytake(PlayerPid, 2, Streams) of
+    {value, {StreamId, PlayerPid}, NewStreams} ->
+      rtmp_socket:status(Socket, StreamId, ?NS_PLAY_COMPLETE),
+      {next_state, StateName, State#rtmp_session{streams = NewStreams}, ?TIMEOUT};
+    _ ->
+      ?D({"Died child", PlayerPid, _Reason}),
+      {next_state, StateName, State, ?TIMEOUT}
+  end;
   % FIXME: proper lookup of dead player between Streams and notify right stream
   % ?D({"Player died", PlayerPid, _Reason}),
-  
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
-  {next_state, StateName, StateData, ?TIMEOUT};
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   ?D({"Died child", Pid, _Reason}),

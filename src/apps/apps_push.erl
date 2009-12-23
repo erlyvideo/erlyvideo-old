@@ -5,9 +5,9 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({message, Message}, State) ->
+'WAIT_FOR_DATA'({message, Message}, #rtmp_session{socket = Socket} = State) ->
   % ?D({"NetConnection.Message", Message}),
-  gen_fsm:send_event(self(), {status, <<"NetConnection.Message">>, 0, Message}),
+  rtmp_socket:status(Socket, 0, <<"NetConnection.Message">>, Message),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 

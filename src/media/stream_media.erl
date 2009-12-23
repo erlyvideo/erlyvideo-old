@@ -81,7 +81,7 @@ init([Name, record, Opts]) ->
 handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients, gop = GOP} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
-  ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options)}),
+  % ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options)}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig

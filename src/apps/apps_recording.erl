@@ -44,8 +44,6 @@
 -export(['FCPublish'/2, 'FCUnpublish'/2]).
 
 
-
-
 'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
   stream_media:publish(Recorder, Message),
