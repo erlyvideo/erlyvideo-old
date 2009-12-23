@@ -238,7 +238,7 @@ handle_info({rtmp, _Socket, disconnect}, _StateName, #rtmp_session{host = Host, 
   ems_log:access(Host, "DISCONNECT ~p ~p", [Addr, UserId]),
   {stop, normal, StateData};
 
-handle_info(#rtmp_message{} = Message, StateName, State) ->
+handle_info({rtmp, _Socket, #rtmp_message{} = Message}, StateName, State) ->
   {next_state, StateName, handle_rtmp_message(State, Message), ?TIMEOUT};
   
 handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
