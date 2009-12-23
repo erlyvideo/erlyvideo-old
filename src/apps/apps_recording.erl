@@ -66,7 +66,7 @@
 
 'FCUnpublish'(#amf{args = Args} = AMF, State) -> 
   ?D({"FCunpublish", Args}),
-  apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
+  apps_rtmp:reply(State,AMF#amf{args = [null, undefined]}),
   State.
 
 publish(#amf{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 

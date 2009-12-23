@@ -45,7 +45,7 @@
 
 
 'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
-  ClientBuffer = rmtp_socket:client_buffer(Socket),
+  ClientBuffer = rtmp_socket:client_buffer(Socket),
   StreamId = proplists:get_value(stream_id, Options),
   
   case array:get(StreamId, Streams) of
@@ -93,11 +93,11 @@
 %%-------------------------------------------------------------------------
 createStream(AMF, State) -> 
   {State1, StreamId} = next_stream(State),
-  apps_rtmp:reply(AMF#amf{args = [null, StreamId]}),
+  apps_rtmp:reply(State,AMF#amf{args = [null, StreamId]}),
   State1.
 
 releaseStream(_AMF, State) -> 
-  % apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
+  % apps_rtmp:reply(State,AMF#amf{args = [null, undefined]}),
   State.
 
 next_stream(State) -> next_stream(State, 1).

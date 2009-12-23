@@ -12,7 +12,7 @@
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([wait_for_socket/2, loop/2]).
+-export([wait_for_socket/2, loop/2, loop/3]).
 
 
 -spec(accept(Socket::port()) -> RTMPSocket::pid()).
@@ -102,6 +102,15 @@ loop({setopts, Options}, State) ->
 % , previous_ack = erlang:now()
 
 
+loop(client_buffer, _From, #rtmp_socket{client_buffer = ClientBuffer} = State) ->
+  {reply, ClientBuffer, loop, State};
+
+loop(window_size, _From, #rtmp_socket{window_size = WindowAckSize} = State) ->
+  {reply, WindowAckSize, loop, State}.
+
+
+
+
 set_options(State, [{amf_version, Version} | Options]) ->
   set_options(State#rtmp_socket{amf_version = Version}, Options);
 
@@ -132,12 +141,6 @@ handle_event(Event, StateName, StateData) ->
 %%          {stop, Reason, Reply, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-
-handle_sync_event(client_buffer, _From, loop, #rtmp_socket{client_buffer = ClientBuffer} = State) ->
-  {reply, ClientBuffer, loop, State};
-
-handle_sync_event(window_size, _From, loop, #rtmp_socket{window_size = WindowAckSize} = State) ->
-  {reply, WindowAckSize, loop, State};
 
 handle_sync_event(Event, _From, StateName, StateData) ->
   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),

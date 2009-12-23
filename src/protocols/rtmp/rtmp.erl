@@ -52,6 +52,9 @@ encode(State, #rtmp_message{timestamp = undefined} = Message) ->
 encode(State, #rtmp_message{stream_id = undefined} = Message) -> 
   encode(State, Message#rtmp_message{stream_id = 0});
 
+encode(State, #rtmp_message{channel_id = undefined, type = invoke} = Message)  -> 
+  encode(State, Message#rtmp_message{channel_id = 3});
+
 encode(State, #rtmp_message{channel_id = undefined} = Message)  -> 
   encode(State, Message#rtmp_message{channel_id = 2});
 
@@ -80,7 +83,7 @@ encode(State, #rtmp_message{type = control, body = EventType, stream_id = Stream
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, StreamId:32>>});
 
 encode(State, #rtmp_message{type = window_size, body = WindowAckSize} = Message) ->
-  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, body = <<WindowAckSize:32>>});
+  encode(State#rtmp_socket{previous_ack = erlang:now()}, Message#rtmp_message{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, body = <<WindowAckSize:32>>});
 
 encode(State, #rtmp_message{type = bw_peer, body = WindowAckSize} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_BW_PEER, body = <<WindowAckSize:32, 16#02>>});

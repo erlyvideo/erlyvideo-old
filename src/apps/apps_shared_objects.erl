@@ -20,7 +20,7 @@ command(#so_message{name = Name, persistent = Persistent} = Message, State) ->
 
 
 getServiceList(AMF, State) -> 
-  apps_rtmp:reply(AMF#amf{args = [null, [<<"hello">>, <<"setData">>, <<"getData">>]]}),
+  apps_rtmp:reply(State,AMF#amf{args = [null, [<<"hello">>, <<"setData">>, <<"getData">>]]}),
   % gen_fsm:send_event(self(), {publish, record, Name}),
   State.
 

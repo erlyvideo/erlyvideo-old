@@ -42,7 +42,7 @@
 
 -export([start_link/0, set_socket/2]).
 
--export([send/2, channel_id/2]).
+-export([channel_id/2]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -224,9 +224,6 @@ handle_sync_event(Event, _From, StateName, StateData) ->
    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
-send(#rtmp_session{socket = Socket}, Data) when is_pid(Socket) ->
-  Socket ! {server_data, Data}.
-
 %%-------------------------------------------------------------------------
 %% Func: handle_info/3
 %% Returns: {next_state, NextStateName, NextStateData}          |
@@ -266,7 +263,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
     type=Type,
     stream_id=StreamId,
     body = ems_flv:encode(Frame)},
-	send(State, Message),
+	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true} = Frame, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
@@ -276,7 +273,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
     type=Type,
     stream_id=StreamId,
     body = Body},
-	send(State, Message),
+	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 
