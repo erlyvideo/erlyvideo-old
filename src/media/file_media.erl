@@ -93,8 +93,10 @@ handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaIn
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Id, FrameTimestamp}
   end)),
-  [Item | _] = lists:reverse(Ids),
-  {reply, Item, MediaInfo};
+  case lists:reverse(Ids) of
+    [Item | _] -> {reply, Item, MediaInfo};
+    _ -> {reply, undefined, MediaInfo}
+  end;
 
 
 handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->

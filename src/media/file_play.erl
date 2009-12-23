@@ -133,11 +133,19 @@ ready(#file_player{media_info = MediaInfo,
       ?MODULE:ready(State#file_player{send_video = Video});
 
     {seek, Timestamp} ->
-      {Pos, NewTimestamp} = file_media:seek(MediaInfo, Timestamp),
-      timer:cancel(Timer),
-      % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
-      self() ! play,
-      ?MODULE:ready(State#file_player{pos = Pos, ts_prev = NewTimestamp, playing_from = NewTimestamp, prepush = ClientBuffer});
+      case file_media:seek(MediaInfo, Timestamp) of
+        {Pos, NewTimestamp} ->
+          timer:cancel(Timer),
+          % ?D({"Player seek to", Timestamp, Pos, NewTimestamp}),
+          self() ! play,
+          ?MODULE:ready(State#file_player{pos = Pos, 
+                                          ts_prev = NewTimestamp, 
+                                          playing_from = NewTimestamp, 
+                                          prepush = ClientBuffer});
+        undefined ->
+          ?D({"Seek beyong current borders"}),
+          ?MODULE:ready(State)
+      end;
 
     stop -> 
       ?D("Player stopping"),
@@ -191,7 +199,7 @@ send_frame(Player, #video_frame{body = undefined}) ->
   self() ! play,
   ?MODULE:ready(Player);
   
-send_frame(#file_player{consumer = Consumer, stream_id = StreamId}, done) ->
+send_frame(#file_player{}, done) ->
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
