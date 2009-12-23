@@ -46,6 +46,7 @@
 
 'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
+  ?D({"Publish", self(), Recorder}),
   stream_media:publish(Recorder, Message),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 

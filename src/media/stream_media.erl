@@ -81,7 +81,7 @@ init([Name, record, Opts]) ->
 handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients, gop = GOP} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
-  % ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options)}),
+  ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options), "->", Pid}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
@@ -126,8 +126,8 @@ handle_call({publish, #rtmp_message{timestamp = TS} = Message}, _From,
 	  undefined -> ok;
 	  _ -> file:write(Device, Tag)
 	end,
-  Packet = Message1#rtmp_message{channel_id = rtmp_session:channel_id(Message1#rtmp_message.type,1)},
-  lists:foreach(fun(Pid) -> Pid ! Packet end, Clients),
+	?D({"Sending to", Clients}),
+  lists:foreach(fun(Pid) -> Pid ! Message1 end, Clients),
 	{reply, ok, Recorder, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->

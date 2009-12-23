@@ -120,10 +120,6 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
     #video_frame{} = Frame ->
       send_frame(State, Frame);
       
-    #rtmp_message{} = Message ->
-      Consumer ! Message,
-      ?MODULE:ready(State);
-
     eof ->
       ?D("MPEG TS finished"),
       ok;
@@ -140,7 +136,7 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
       error_logger:info_msg("~p Video player lost connection.\n", [self()]),
       ok;
   	Else ->
-  	  ?D({"Unknown message", Else}),
+  	  ?D({"Unknown message", self(), Else}),
   	  ?MODULE:ready(State)
   end.
 
