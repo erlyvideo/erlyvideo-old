@@ -158,7 +158,7 @@ init([]) ->
 
 handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #amf{command = CommandBin} = AMF,
-  Command = binary_to_existing_atom(CommandBin, utf8),
+  Command = binary_to_atom(CommandBin, utf8),
   call_function(ems:check_app(State, Command, 2), State, AMF#amf{command = Command});
   
 handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
