@@ -99,6 +99,12 @@ encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body 
 encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, amf)-> 
 	encode(State, Message#rtmp_message{body = encode_funcall(AMF), type = ?RTMP_INVOKE_AMF3});
 
+encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 
+	encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
+
+encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body)-> 
+	encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF3});
+
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Object} = Message) -> 
 	encode(State, Message#rtmp_message{body = amf0:encode(Object), type = ?RTMP_TYPE_METADATA_AMF0});
 
