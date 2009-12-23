@@ -48,11 +48,11 @@ codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
   % ?D({"Video config", Config}),
   #video_frame{       
-   	type          = ?FLV_TAG_TYPE_VIDEO,
+   	type          = video,
    	decoder_config = true,
 		timestamp      = 0,
 		body          = Config,
-		frame_type    = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME,
+		frame_type    = keyframe,
 		codec_id      = VideoCodec
 	};
 
@@ -60,14 +60,14 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
   % ?D({"Audio config", aac:decode_config(Config)}),
   #video_frame{       
-   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	type          = audio,
    	decoder_config = true,
 		timestamp     = 0,
 		body          = Config,
 	  sound_format	= AudioCodec,
-	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
-	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-	  sound_rate	  = ?FLV_AUDIO_RATE_44
+	  sound_type	  = stereo,
+	  sound_size	  = bit16,
+	  sound_rate	  = rate44
 	}.
 
 
@@ -109,25 +109,25 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
 
 video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
   #video_frame{
-   	type          = ?FLV_TAG_TYPE_VIDEO,
+   	type          = video,
 		timestamp     = Timestamp,
 		body          = Data,
 		frame_type    = case Keyframe of
-		  true ->	?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
-		  _ -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME
+		  true ->	keyframe;
+		  _ -> frame
 	  end,
-		codec_id      = ?FLV_VIDEO_CODEC_AVC
+		codec_id      = avc
   };  
 
 video_frame(#file_frame{type = audio, timestamp = Timestamp}, Data) ->
   #video_frame{       
-   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	type          = audio,
   	timestamp     = Timestamp,
   	body          = Data,
-    sound_format	= ?FLV_AUDIO_FORMAT_AAC,
-    sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
-    sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-    sound_rate	  = ?FLV_AUDIO_RATE_44
+	  sound_format	= aac,
+	  sound_type	  = stereo,
+	  sound_size	  = bit16,
+	  sound_rate	  = rate44
   }.
 
 
@@ -156,9 +156,7 @@ init(MediaInfo, Pos) ->
 metadata(#media_info{width = Width, height = Height, seconds = Duration}) -> 
   [{width, Width}, 
    {height, Height}, 
-   {duration, Duration},
-   {videocodecid, ?FLV_VIDEO_CODEC_AVC},
-   {audiosamplerate, ?FLV_AUDIO_RATE_44}].
+   {duration, Duration}].
   
   
 decoder_config(video, #media_info{video_decoder_config = DecoderConfig}) -> DecoderConfig;

@@ -188,10 +188,10 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   inet:setopts(Socket, [{active, true}, {packet, raw}]),
   {noreply, TSLander};
 
-handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO} = Frame, TSLander) ->
+handle_info(#video_frame{decoder_config = true, type = audio} = Frame, TSLander) ->
   {noreply, send_frame(Frame, TSLander#ts_lander{audio_config = Frame})};
 
-handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Frame, TSLander) ->
+handle_info(#video_frame{decoder_config = true, type = video} = Frame, TSLander) ->
   {noreply, send_frame(Frame, TSLander#ts_lander{video_config = Frame})};
 
 handle_info(#video_frame{} = Frame, TSLander) ->
@@ -432,14 +432,14 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
   % Config = <<16#A:4, 3:2, 1:1, 1:1, 0>>,
   Config = <<18,16,6>>,
   AudioConfig = #video_frame{       
-   	type          = ?FLV_TAG_TYPE_AUDIO,
+   	type          = audio,
    	decoder_config = true,
 		timestamp      = 0,
 		body          = Config,
-	  sound_format	= ?FLV_AUDIO_FORMAT_AAC,
-	  sound_type	  = ?FLV_AUDIO_TYPE_STEREO,
-	  sound_size	  = ?FLV_AUDIO_SIZE_16BIT,
-	  sound_rate	  = ?FLV_AUDIO_RATE_44
+	  sound_format	= aac,
+	  sound_type	  = stereo,
+	  sound_size	  = bit16,
+	  sound_rate	  = rate44
 	},
 	Consumer ! AudioConfig,
   % ?D({"Send audio config", AudioConfig}),
@@ -461,13 +461,13 @@ decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsen
 send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} = Stream) ->
   % ?D({"Audio", Timestamp, Data}),
   AudioFrame = #video_frame{       
-    type          = ?FLV_TAG_TYPE_AUDIO,
+    type          = audio,
     timestamp     = Timestamp,
     body          = Data,
-    sound_format  = ?FLV_AUDIO_FORMAT_AAC,
-    sound_type    = ?FLV_AUDIO_TYPE_STEREO,
-    sound_size    = ?FLV_AUDIO_SIZE_16BIT,
-    sound_rate    = ?FLV_AUDIO_RATE_44
+	  sound_format	= aac,
+	  sound_type	  = stereo,
+	  sound_size	  = bit16,
+	  sound_rate	  = rate44
   },
   Consumer ! AudioFrame,
   Stream#stream{es_buffer = <<>>}.

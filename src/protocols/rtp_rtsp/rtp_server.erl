@@ -211,13 +211,13 @@ unpack_audio_units(#audio{media = Media, clock_map = ClockMap, audio_headers = <
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
       AudioFrame = #video_frame{       
-        type          = ?FLV_TAG_TYPE_AUDIO,
+        type          = audio,
         timestamp     = Timestamp,
         body          = Data,
-        sound_format  = ?FLV_AUDIO_FORMAT_AAC,
-        sound_type    = ?FLV_AUDIO_TYPE_STEREO,
-        sound_size    = ?FLV_AUDIO_SIZE_16BIT,
-        sound_rate    = ?FLV_AUDIO_RATE_44
+    	  sound_format	= aac,
+    	  sound_type	  = stereo,
+    	  sound_size	  = bit16,
+    	  sound_rate	  = rate44
       },
       Media ! AudioFrame,
       unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024});
@@ -250,7 +250,7 @@ video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, 
 
   Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = Frames, timecode = NewTimecode}.
  
-send_video(#video{synced = false, buffer = [#video_frame{frame_type = ?FLV_VIDEO_FRAME_TYPEINTER_FRAME} | _]} = Video) ->
+send_video(#video{synced = false, buffer = [#video_frame{frame_type = frame} | _]} = Video) ->
   Video#video{buffer = []};
 
 send_video(#video{buffer = []} = Video) ->
@@ -265,6 +265,6 @@ send_video(#video{media = Media, buffer = Frames, timecode = Timecode} = Video) 
   % ?D({"Video", Timecode, Timestamp}),
   case Frame of
     undefined -> ok;
-    _ -> Media ! Frame#video_frame{timestamp = Timestamp, type = ?FLV_TAG_TYPE_VIDEO}
+    _ -> Media ! Frame#video_frame{timestamp = Timestamp, type = video}
   end,
   Video#video{synced = true, buffer = []}.

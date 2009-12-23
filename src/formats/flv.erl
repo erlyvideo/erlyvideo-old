@@ -41,7 +41,23 @@
 -export([init/1, read_frame/2, codec_config/2, read_frame_list/3, header/1]).
 -behaviour(gen_format).
 
+-export([audio_type/1, audio_size/1, audio_rate/1, video_codec/1, video_type/1]).
 
+audio_type(mono) -> ?FLV_AUDIO_TYPE_MONO;
+audio_type(stereo) -> ?FLV_AUDIO_TYPE_STEREO.
+
+audio_size(bit8) -> ?FLV_AUDIO_SIZE_8BIT;
+audio_size(bit16) -> ?FLV_AUDIO_SIZE_16BIT.
+
+audio_rate(rate5) -> ?FLV_AUDIO_RATE_5_5;
+audio_rate(rate11) -> ?FLV_AUDIO_RATE_11;
+audio_rate(rate22) -> ?FLV_AUDIO_RATE_22;
+audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
+
+video_codec(avc) -> ?FLV_VIDEO_CODEC_AVC.
+
+video_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
+video_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME.
 
 %%--------------------------------------------------------------------
 %% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}

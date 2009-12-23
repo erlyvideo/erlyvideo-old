@@ -114,7 +114,7 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
   {reply, {error, {owner_exists, Owner}}, MediaInfo, ?TIMEOUT};
 
 
-handle_call({publish, #rtmp_message{timestamp = TS} = Message}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
+handle_call({publish, #video_frame{timestamp = TS} = Message}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
   handle_call({publish, Message}, _From, Recorder#media_info{base_timestamp = TS});
 
 handle_call({publish, #rtmp_message{timestamp = TS} = Message}, _From, 
@@ -192,11 +192,11 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   end,
   {noreply, MediaInfo#media_info{clients = Clients}, ?TIMEOUT};
 
-handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_AUDIO} = Frame, #media_info{clients = Clients} = MediaInfo) ->
+handle_info(#video_frame{decoder_config = true, type = audio} = Frame, #media_info{clients = Clients} = MediaInfo) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
   {noreply, MediaInfo#media_info{audio_decoder_config = Frame}, ?TIMEOUT};
 
-handle_info(#video_frame{decoder_config = true, type = ?FLV_TAG_TYPE_VIDEO} = Frame, #media_info{clients = Clients} = MediaInfo) ->
+handle_info(#video_frame{decoder_config = true, type = video} = Frame, #media_info{clients = Clients} = MediaInfo) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
   {noreply, MediaInfo#media_info{video_decoder_config = Frame}, ?TIMEOUT};
 
@@ -230,7 +230,7 @@ handle_info(_Info, State) ->
   ?D({"Undefined info", _Info, State}),
   {noreply, State, ?TIMEOUT}.
 
-store_last_gop(MediaInfo, #video_frame{type = ?FLV_TAG_TYPE_VIDEO, frame_type = ?FLV_VIDEO_FRAME_TYPE_KEYFRAME} = Frame) ->
+store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
   ?D({"New GOP", Frame#video_frame.timestamp}),
   MediaInfo#media_info{gop = [Frame]};
 

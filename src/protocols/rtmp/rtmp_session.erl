@@ -244,16 +244,18 @@ handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Streams, socket = Socket} = State) ->
-  case lists:keytake(PlayerPid, 2, Streams) of
-    {value, {StreamId, PlayerPid}, NewStreams} ->
-      rtmp_socket:status(Socket, StreamId, ?NS_PLAY_COMPLETE),
-      {next_state, StateName, State#rtmp_session{streams = NewStreams}, ?TIMEOUT};
-    _ ->
-      ?D({"Died child", PlayerPid, _Reason}),
-      {next_state, StateName, State, ?TIMEOUT}
-  end;
+  % case lists:keytake(PlayerPid, 2, Streams) of
+  %   {value, {StreamId, PlayerPid}, NewStreams} ->
+  %     rtmp_socket:status(Socket, StreamId, ?NS_PLAY_COMPLETE),
+  %     {next_state, StateName, State#rtmp_session{streams = NewStreams}, ?TIMEOUT};
+  %   _ ->
+  %     ?D({"Died child", PlayerPid, _Reason}),
+  %     {next_state, StateName, State, ?TIMEOUT}
+  % end;
   % FIXME: proper lookup of dead player between Streams and notify right stream
   % ?D({"Player died", PlayerPid, _Reason}),
+  ?D({"Died child", PlayerPid, _Reason}),
+  {next_state, StateName, State, ?TIMEOUT};
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   ?D({"Died child", Pid, _Reason}),
@@ -333,11 +335,8 @@ plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) ->
 
 
 channel_id(meta, StreamId) -> 3 + StreamId;
-channel_id(?FLV_TAG_TYPE_META, StreamId) -> 3 + StreamId;
 channel_id(video, StreamId) -> 4 + StreamId;
-channel_id(?FLV_TAG_TYPE_VIDEO, StreamId) -> 4 + StreamId;
-channel_id(audio, StreamId) -> 5 + StreamId;
-channel_id(?FLV_TAG_TYPE_AUDIO, StreamId) -> 5 + StreamId.
+channel_id(audio, StreamId) -> 5 + StreamId.
 
 
 
