@@ -1,8 +1,6 @@
 -module(rtmp_handshake).
 
 -export([s1/0, s2/1]).
--import(hmac256).
--include("../include/ems.hrl").
 
 -define(HANDSHAKE, <<
 16#01,16#86,16#4f,16#7f,16#00,16#00,16#00,16#00,16#6b,16#04,16#67,16#52,16#a2,16#70,16#5b,16#51,

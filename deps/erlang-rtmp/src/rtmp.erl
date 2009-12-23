@@ -36,7 +36,6 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
--include("../include/debug.hrl").
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
 
@@ -237,7 +236,6 @@ bytes_for_channel(_, #rtmp_socket{client_chunk_size = ChunkSize}) -> ChunkSize.
 
 decode_channel(Data, Channel, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
-  % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#rtmp_socket.channels)}),
 	push_channel_packet(Data, Channel, State, BytesRequired).
 	
 % Nothing to do when buffer is small
@@ -267,7 +265,6 @@ extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) 
   
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
-  %?D({"Change Chunk Size",ChunkSize}),
   Message = extract_message(Channel),
 	{State#rtmp_socket{client_chunk_size = ChunkSize}, Message#rtmp_message{type = chunk_size, body = ChunkSize}};
 
@@ -285,7 +282,6 @@ command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>}
   {State#rtmp_socket{previous_ack = erlang:now(), current_speed = Speed}, Message#rtmp_message{type = ack_read, body = AckMessage}};
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = Channel, State) ->
-  %?D({"Window acknolegement size", WindowSize}),
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = window_size, body = WindowSize}};
 
@@ -304,7 +300,6 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:
 
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, Body/binary>>} = Channel, State) ->
-	%?D({"Ping - ignoring", EventType}),
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = control, body = {EventType, Body}}};
 
@@ -353,11 +348,9 @@ command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Body} = Channel, State) ->
   Message = extract_message(Channel),
   {State, Message#rtmp_message{type = shared_object3, body = decode_shared_object(Body)}};
   
-
-	
-command(#channel{type = Type}, State) ->
-  ?D({"Unhandled message type", Type}),
-  State.
+command(#channel{type = Type, msg = Body} = Channel, State) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = Type, body = Body}}.
 
 decode_funcall(Message, StreamId) ->
 	{CommandBin, Rest1} = amf0:decode(Message),

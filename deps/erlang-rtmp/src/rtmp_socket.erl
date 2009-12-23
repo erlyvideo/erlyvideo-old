@@ -2,7 +2,6 @@
 -author(max@maxidoors.ru).
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
--include("../include/debug.hrl").
 
 -export([accept/1, client_buffer/1, window_size/1, setopts/2, send/2]).
 -export([status/3, status/4, invoke/2, invoke/4]).
@@ -180,7 +179,6 @@ handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buff
   {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
-  ?D({"Client closed connection"}),
   Consumer ! {rtmp, self(), disconnect},
   {stop, normal, StateData};
 
@@ -190,13 +188,11 @@ handle_info(#rtmp_message{} = Message, loop, State) ->
 
 
 handle_info(_Info, StateName, StateData) ->
-  ?D({"Some info handled", _Info, StateName, StateData}),
   {next_state, StateName, StateData, ?RTMP_TIMEOUT}.
 
 
 send_data(State, #rtmp_message{} = Message) ->
   {NewState, Data} = rtmp:encode(State, Message),
-  % ?D({"Sending bytes", Message, iolist_to_binary(Data)}),
   send_data(NewState, Data);
   
 send_data(#rtmp_socket{socket = Socket} = State, Data) when is_port(Socket) ->
@@ -212,7 +208,6 @@ handle_rtmp_data(State, Data) ->
   handle_rtmp_message(rtmp:decode(Data, State)).
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) ->
-  % ?D(Message),
   Consumer ! Message,
   handle_rtmp_message(rtmp:decode(Rest, State));
 
