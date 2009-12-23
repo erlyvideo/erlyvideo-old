@@ -97,7 +97,7 @@ encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body 
 	encode(State, Message#rtmp_message{body = encode_funcall(AMF), type = ?RTMP_INVOKE_AMF0});
 
 encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, amf)-> 
-	encode(State, Message#rtmp_message{body = encode_funcall(AMF), type = ?RTMP_INVOKE_AMF3});
+	encode(State, Message#rtmp_message{body = <<0, (encode_funcall(AMF))/binary>>, type = ?RTMP_INVOKE_AMF3});
 
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 
 	encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
@@ -355,7 +355,8 @@ command(#channel{type = ?RTMP_TYPE_METADATA_AMF3} = Channel, State)	 ->
 % in.skip(1);
 command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Body/binary>>, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
-  {State, Message#rtmp_message{type = invoke, body = decode_funcall(Body, StreamId)}};
+  AMF = decode_funcall(Body, StreamId),
+  {State, Message#rtmp_message{type = invoke, body = AMF#amf{version = 3}}};
 
 command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Body, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
