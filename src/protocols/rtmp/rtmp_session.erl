@@ -176,6 +176,12 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stre
 handle_rtmp_message(State, #rtmp_message{type = pong}) ->
   State;
 
+handle_rtmp_message(State, #rtmp_message{type = ping}) ->
+  State;
+
+handle_rtmp_message(State, #rtmp_message{type = ack_read}) ->
+  State;
+
 handle_rtmp_message(State, Message) ->
   ?D({"RTMP", Message#rtmp_message.type}),
   State.
@@ -335,7 +341,7 @@ plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) ->
 
 
 
-channel_id(meta, StreamId) -> 3 + StreamId;
+channel_id(metadata, StreamId) -> 3 + StreamId;
 channel_id(video, StreamId) -> 4 + StreamId;
 channel_id(audio, StreamId) -> 5 + StreamId.
 

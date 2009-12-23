@@ -35,7 +35,6 @@ metadata(Server) ->
 
 init([Name, file, Opts]) ->
   process_flag(trap_exit, true),
-  error_logger:info_msg("Opening file ~p~n", [Name]),
   Clients = ets:new(clients, [set, private]),
   Host = proplists:get_value(host, Opts),
   {ok, Info} = open_file(Name, Host),

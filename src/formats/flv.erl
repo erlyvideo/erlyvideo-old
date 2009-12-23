@@ -83,8 +83,8 @@ read_frame_list(#media_info{} = MediaInfo, Offset, FrameCount) when FrameCount =
 read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, Offset, FrameCount) ->
   % We need to bypass PreviousTagSize and read header.
 	case file:pread(Device,Offset + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
-		{ok, <<Type, Length:24/big, TimeStamp:24/big, TimeStampExt, _StreamId:24/big>>} ->
-		  <<TimeStampAbs:32/big>> = <<TimeStampExt, TimeStamp:24/big>>,
+		{ok, <<Type, Length:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
+		  <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
 		  
 		  PreparedFrame = #file_frame{
 		    timestamp = TimeStampAbs, 
@@ -95,17 +95,18 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
 		  
 			Frame = case Type of
 			  ?FLV_TAG_TYPE_VIDEO ->
-				  {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(Device, Offset),
-				  KeyFrame = case FrameType of
-				    ?FLV_VIDEO_FRAME_TYPE_KEYFRAME -> true;
-				    _ -> false
-			    end,
+          % {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(Device, Offset),
+          % KeyFrame = case FrameType of
+          %   ?FLV_VIDEO_FRAME_TYPE_KEYFRAME -> true;
+          %   _ -> false
+          %           end,
+          KeyFrame = undefined,
 			    PreparedFrame#file_frame{
 			      id = TimeStampAbs*3 + 1,
     		    keyframe = KeyFrame
 			    };
         ?FLV_TAG_TYPE_AUDIO -> 
-          {_SoundType, _SoundSize, _SoundRate, _SoundFormat} =  extractAudioHeader(Device, Offset),
+          % {_SoundType, _SoundSize, _SoundRate, _SoundFormat} =  extractAudioHeader(Device, Offset),
           PreparedFrame#file_frame{
             id = TimeStampAbs*3 + 2
           };
@@ -137,6 +138,20 @@ read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
     eof -> done;
     {error, Reason} -> {error, Reason}
   end.
+
+video_frame(#file_frame{type = ?FLV_TAG_TYPE_AUDIO} = Frame, Data) ->
+  video_frame(Frame#file_frame{type = audio}, Data);
+
+video_frame(#file_frame{type = ?FLV_TAG_TYPE_VIDEO} = Frame, Data) ->
+  video_frame(Frame#file_frame{type = video}, Data);
+
+video_frame(#file_frame{type = ?FLV_TAG_TYPE_META} = Frame, Metadata) ->
+  % {Command, Data} = amf0:decode(Metadata),
+  % ?D({"Metadata in file", amf0:decode(Data)}),
+  video_frame(Frame#file_frame{type = metadata}, Metadata);
+
+video_frame(#file_frame{type = video, keyframe = true, timestamp = Timestamp}, Data) ->
+  #video_frame{type = video, frame_type = keyframe, raw_body = true, body = Data, timestamp = Timestamp};
   
 video_frame(#file_frame{type = Type, timestamp = Timestamp}, Data) ->
   #video_frame{type = Type, raw_body = true, body = Data, timestamp = Timestamp}.
@@ -167,15 +182,9 @@ getWidthHeight(IoDev, Pos, CodecID)->
 % @param Pos
 % @return {FrameType, CodecID}
 extractVideoHeader(IoDev, Pos) ->	
-	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of   
-   {ok, <<FrameType:4, CodecID:4>>} ->
-				{Width, Height} = getWidthHeight(IoDev, Pos, CodecID),
-				{FrameType, CodecID, Width, Height};
-		eof -> 
-			 {ok, done};
-		{error, Reason} -> 
-			 {error, Reason}
-end.
+	{ok, <<FrameType:4, CodecID:4>>} = file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1),
+	{Width, Height} = getWidthHeight(IoDev, Pos, CodecID),
+	{FrameType, CodecID, Width, Height}.
 
 
 

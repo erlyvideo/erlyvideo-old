@@ -88,7 +88,7 @@ to_tag(#video_frame{type = metadata} = Frame) -> to_tag(Frame#video_frame{type =
 to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, timestamp = CurrentTimeStamp}) ->
 	BodyLength = size(Msg),
 	{TimeStampExt, TimeStamp} = case CurrentTimeStamp of
-		<<TimeStampExt1:8,TimeStamp1:32>> -> 
+		<<TimeStampExt1:8,TimeStamp1:24>> -> 
 			{TimeStampExt1, TimeStamp1};
 		_ ->
 			{0, CurrentTimeStamp}
