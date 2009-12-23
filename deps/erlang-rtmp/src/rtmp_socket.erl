@@ -1,22 +1,59 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009 Max Lapshin
+%%% @doc        RTMP handshake module
+%%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(rtmp_socket).
 -author(max@maxidoors.ru).
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
 
--export([accept/1, getopts/2, setopts/2, send/2]).
--export([status/3, status/4, invoke/2, invoke/4]).
+-export([accept/1, connect/1, getopts/2, setopts/2, send/2]).
+-export([status/3, status/4, invoke/2]).
 
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([wait_for_socket/2, loop/2, loop/3]).
+-export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, loop/2, loop/3]).
 
 
 -spec(accept(Socket::port()) -> RTMPSocket::pid()).
 accept(Socket) ->
-  {ok, Pid} = gen_fsm:start_link(?MODULE, [self()], []),
+  {ok, Pid} = gen_fsm:start_link(?MODULE, [self(), accept], []),
+  gen_tcp:controlling_process(Socket, Pid),
+  gen_fsm:send_event(Pid, {socket, Socket}),
+  {ok, Pid}.
+
+-spec(connect(Socket::port()) -> RTMPSocket::pid()).
+connect(Socket) ->
+  {ok, Pid} = gen_fsm:start_link(?MODULE, [self(), connect], []),
   gen_tcp:controlling_process(Socket, Pid),
   gen_fsm:send_event(Pid, {socket, Socket}),
   {ok, Pid}.
@@ -76,21 +113,33 @@ invoke(RTMP, StreamId, Command, Args) ->
 invoke(RTMP, #amf{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
   
-init([Consumer]) ->
+init([Consumer, accept]) ->
   link(Consumer),
-  {ok, wait_for_socket, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT}.
+  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT};
 
-wait_for_socket({socket, Socket}, #rtmp_socket{} = State) ->
+init([Consumer, connect]) ->
+  link(Consumer),
+  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT}.
+
+wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT}.
+
+wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
+  inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
+  {ok, {IP, Port}} = inet:peername(Socket),
+  State1 = State#rtmp_socket{socket = Socket, address = IP, port = Port},
+  send_data(State1, [?HS_HEADER, rtmp_handshake:c1()]),
+  {next_state, handshake_s1, State1, ?RTMP_TIMEOUT}.
   
 loop(timeout, #rtmp_socket{pinged = false} = State) ->
   send_data(State, #rtmp_message{type = ping}),
   {next_state, loop, State#rtmp_socket{pinged = true}, ?RTMP_TIMEOUT};
   
-loop(timeout, State) ->
-  {stop, timeout, State};
+loop(timeout, #rtmp_socket{consumer = Consumer} = State) ->
+  Consumer ! {rtmp, self(), timeout},
+  {stop, normal, State};
 
 loop({setopts, Options}, State) ->
   NewState = set_options(State, Options),
@@ -182,6 +231,19 @@ handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consu
   Consumer ! {rtmp, self(), connected},
   {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, Rest), ?RTMP_TIMEOUT};
 
+handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN*2 + 1 ->
+  inet:setopts(Socket, [{active, once}]),
+  {next_state, handshake_s1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
+
+handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead} = State) ->
+  inet:setopts(Socket, [{active, once}]),
+  <<?HS_HEADER, _S1:?HS_BODY_LEN/binary, S2:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
+  send_data(State, rtmp_handshake:c2(S2)),
+  Consumer ! {rtmp, self(), connected},
+  {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, Rest), ?RTMP_TIMEOUT};
+
+
+
 handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
   inet:setopts(Socket, [{active, once}]),
   {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
@@ -216,7 +278,7 @@ handle_rtmp_data(State, Data) ->
   handle_rtmp_message(rtmp:decode(Data, State)).
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) ->
-  Consumer ! Message,
+  Consumer ! {rtmp, self(), Message},
   handle_rtmp_message(rtmp:decode(Rest, State));
 
 handle_rtmp_message({State, Rest}) -> State#rtmp_socket{buffer = Rest}.

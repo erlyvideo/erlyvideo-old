@@ -4,7 +4,7 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%% @doc        RTMP encoding/decoding and command handling module
-%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
+%%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
 %%% @end
 %%%
 %%%
@@ -113,6 +113,9 @@ encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = shared_object
 
 encode(State, #rtmp_message{timestamp = TimeStamp} = Message) when is_float(TimeStamp) -> 
   encode(State, Message#rtmp_message{timestamp = round(TimeStamp)});
+
+encode(State, #rtmp_message{stream_id = StreamId} = Message) when is_float(StreamId) -> 
+  encode(State, Message#rtmp_message{stream_id = round(StreamId)});
 
 encode(#rtmp_socket{server_chunk_size = ChunkSize} = State, 
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type)-> 
@@ -285,18 +288,31 @@ command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-in
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = window_size, body = WindowSize}};
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BEGIN:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_begin, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_EOF:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_end, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16, StreamId:32, BufferSize:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State#rtmp_socket{client_buffer = BufferSize}, Message#rtmp_message{type = buffer_size, body = BufferSize, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_RECORDED:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_recorded, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16, Timestamp:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = ping, body = Timestamp}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16, Timestamp:32>>} = Channel, State) ->
   Message = extract_message(Channel),
 	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = pong, body = Timestamp}};
 
 	
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
-  Message = extract_message(Channel),
-	{State, Message#rtmp_message{type = ping, body = Timestamp}};
-
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = Channel, State) ->
-  Message = extract_message(Channel),
-	{State#rtmp_socket{client_buffer = BufferSize}, Message#rtmp_message{type = buffer_size, body = BufferSize, stream_id = StreamId}};
 
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, Body/binary>>} = Channel, State) ->
