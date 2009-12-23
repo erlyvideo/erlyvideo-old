@@ -19,9 +19,9 @@
 	[Bindable]
 	public var url:String = "video.mp4";
 	[Bindable]
-	private var videoWidth:int = 320;
+	private var videoWidth:int = 640;
 	[Bindable]
-	private var videoHeight:int = 240;
+	private var videoHeight:int = 480;
 	[Bindable]
 	private var duration : Number = 0;
 	[Bindable]
