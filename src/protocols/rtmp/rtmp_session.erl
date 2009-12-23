@@ -37,6 +37,7 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 -include("../../../include/ems.hrl").
+-include("../../../include/rtmp.hrl").
 
 -behaviour(gen_fsm).
 
@@ -142,8 +143,7 @@ init([]) ->
 'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
 	case <<Buff/binary,Data/binary>> of
 		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
-			NewState = rtmp:decode(State#rtmp_session{buff = Rest}),
-			{next_state, 'WAIT_FOR_DATA', NewState, ?TIMEOUT};
+			{next_state, 'WAIT_FOR_DATA', handle_rtmp_data(State, Rest), ?TIMEOUT};
 		_ -> ?D("Handshake Failed"), {stop, normal, State}
 	end;
 
@@ -154,7 +154,7 @@ init([]) ->
 
 %% Notification event coming from client
 'WAIT_FOR_DATA'({data, Data}, #rtmp_session{buff = Buff} = State) ->
-  {next_state, 'WAIT_FOR_DATA', rtmp:decode(State#rtmp_session{buff = <<Buff/binary, Data/binary>>}), ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', handle_rtmp_data(State, <<Buff/binary, Data/binary>>), ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_session{server_chunk_size = OldChunkSize} = State) ->
 	Packet = rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
@@ -212,6 +212,52 @@ send(#rtmp_session{server_chunk_size = ChunkSize} = State, {#channel{} = Channel
   Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
   % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
 	send_data(State, Packet).
+	
+
+handle_rtmp_data(State, Data) ->
+  handle_rtmp_message(rtmp:decode(Data, State)).
+  
+handle_rtmp_message({State, #rtmp_message{type = Type, body = AMF}, Rest}) when (Type == invoke) or (Type == invoke3) ->
+  #amf{command = Command} = AMF,
+  NewState = call_function(ems:check_app(State,Command, 2), State, AMF),
+  handle_rtmp_message(rtmp:decode(Rest, NewState));
+
+handle_rtmp_message({State, #rtmp_message{type = ping, body = Timestamp} = Message, Rest}) ->
+  % FIXME this code must work again
+  ?D({"Unhandled PING"}),
+  gen_fsm:send_event(self(), {send, Message#rtmp_message{type = pong, body = Timestamp}}),
+  handle_rtmp_message(rtmp:decode(Rest, State));
+
+
+handle_rtmp_message({State, #rtmp_message{type = Type} = Message, Rest}) when (Type == audio) or (Type == audio) or (Type == metadata) or (Type == metadata3)->
+	gen_fsm:send_event(self(), {publish, Message}),
+  handle_rtmp_message(rtmp:decode(Rest, State));
+  
+  
+handle_rtmp_message({State, Message, Rest}) ->
+  ?D({"RTMP", Message#rtmp_message.type}),
+  handle_rtmp_message(rtmp:decode(Rest, State));
+
+handle_rtmp_message({State, Rest}) -> State#rtmp_session{buff = Rest}.
+
+
+call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #amf{command = Command, args = Args}) ->
+  ems_log:error(Host, "Client ~p requested unknown function ~p(~p)~n", [IP, Command, Args]),
+  State;
+
+call_function(App, State, #amf{command = Command} = AMF) ->
+	App:Command(AMF, State).
+  % try
+  %   App:Command(AMF, State)
+  % catch
+  %   _:login_failed ->
+  %     throw(login_failed);
+  %   What:Error ->
+  %     error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p:~p~n~p~n", [App, Command, AMF, State, What, Error, erlang:get_stacktrace()]),
+  %     % apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
+  %     State
+  % end.
+
 	
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3

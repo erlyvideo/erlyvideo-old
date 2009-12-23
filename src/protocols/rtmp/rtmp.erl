@@ -36,8 +36,9 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 -include("../include/ems.hrl").
+-include("../include/rtmp.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/1, decode_list/2]).
+-export([encode/1, encode/2, handshake/1, decode/2, decode_list/2]).
 
 
 handshake(C1) when is_binary(C1) -> 
@@ -58,7 +59,7 @@ encode(#channel{type = ?RTMP_INVOKE_AMF3} = Channel, #amf{} = AMF) ->
 	encode(Channel, encode_funcall(amf3, AMF));
 
 encode(#channel{type = ?RTMP_TYPE_SO_AMF0} = Channel, #so_message{} = Message) ->
-  encode(Channel, encode_shared_object_amf0(Message));
+  encode(Channel, encode_shared_object(Message));
 
 encode(#channel{} = Channel, Data) when is_binary(Data) -> 
 	encode(Channel,Data,<<>>).	
@@ -116,17 +117,25 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
   <<Chunk:ChunkSize/binary,Rest/binary>> = Data,
   chunk(Rest, ChunkSize, Id, [encode_id(?RTMP_HDR_CONTINUE, Id), Chunk | List]).
 		
-decode(#rtmp_session{buff = <<>>} = State) -> State;
-decode(#rtmp_session{} = State) -> decode_channel_id(State).
+		
+		
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DECODING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%		
+		
+		
+decode(<<>>, #rtmp_session{} = State) -> {State, <<>>};
+decode(Data, #rtmp_session{} = State) when is_binary(Data) -> 
+  case decode_channel_id(Data, State) of
+    {NewState, Message, Rest} -> {NewState, Message, Rest};
+    {NewState, Rest} -> {NewState, Rest};
+    NewState -> {NewState, Data}
+  end.
 
 % First extracting channel id
-decode_channel_id(#rtmp_session{buff = <<>>} = State) ->
-  State;
-decode_channel_id(#rtmp_session{buff = <<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16,Rest/binary>>} = State) ->
+decode_channel_id(<<Format:2, ?RTMP_HDR_LRG_ID:6,Id:16, Rest/binary>>, State) ->
   decode_channel_header(Rest, Format, Id + 64, State);
-decode_channel_id(#rtmp_session{buff = <<Format:2, ?RTMP_HDR_MED_ID:6,Id:8,Rest/binary>>} = State) ->
+decode_channel_id(<<Format:2, ?RTMP_HDR_MED_ID:6,Id:8, Rest/binary>>, State) ->
   decode_channel_header(Rest, Format, Id + 64, State);
-decode_channel_id(#rtmp_session{buff = <<Format:2, Id:6,Rest/binary>>} = State) ->
+decode_channel_id(<<Format:2, Id:6, Rest/binary>>, State) ->
   decode_channel_header(Rest, Format, Id, State).
 
 % Now extracting channel header
@@ -138,43 +147,43 @@ decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
     {_, 0} -> Channel#channel{timestamp = Timestamp + Delta};
     _ -> Channel
   end,
-  decode_channel(Channel1, Rest, State);
+  decode_channel(Rest,Channel1,State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:32, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   Channel = array:get(Id, State#rtmp_session.channels),
-  decode_channel(Channel#channel{timestamp = TimeStamp+16#ffffff, delta = undefined}, Rest, State);
+  decode_channel(Rest,Channel#channel{timestamp = TimeStamp+16#ffffff, delta = undefined},State);
   
 decode_channel_header(<<Delta:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   Channel = array:get(Id, State#rtmp_session.channels),
   #channel{timestamp = TimeStamp} = Channel,
-  decode_channel(Channel#channel{timestamp = TimeStamp + Delta, delta = Delta}, Rest, State);
+  decode_channel(Rest, Channel#channel{timestamp = TimeStamp + Delta, delta = Delta},State);
   
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:32,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
   Channel = array:get(Id, State#rtmp_session.channels),
-	decode_channel(Channel#channel{timestamp=TimeStamp+16#ffffff, delta = undefined, length=Length,type=Type},Rest,State);
+	decode_channel(Rest,Channel#channel{timestamp=TimeStamp+16#ffffff, delta = undefined, length=Length,type=Type},State);
 	
 decode_channel_header(<<Delta:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
   Channel = array:get(Id, State#rtmp_session.channels),
   #channel{timestamp = TimeStamp} = Channel,
-	decode_channel(Channel#channel{timestamp=TimeStamp + Delta, delta = Delta, length=Length,type=Type},Rest,State);
+	decode_channel(Rest,Channel#channel{timestamp=TimeStamp + Delta, delta = Delta, length=Length,type=Type},State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:32,Rest/binary>>,?RTMP_HDR_NEW,Id, 
   #rtmp_session{channels = Channels} = State) when size(Channels) < Id ->
-  decode_channel(#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
+  decode_channel(Rest,#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:32,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case array:get(Id, State#rtmp_session.channels) of
     #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
-	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
+	decode_channel(Rest,Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},State);
 	
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
   case array:get(Id, State#rtmp_session.channels) of
     #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
-	decode_channel(Channel#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},Rest,State);
+	decode_channel(Rest,Channel#channel{id=Id,timestamp=TimeStamp,delta = undefined, length=Length,type=Type,stream_id=StreamId},State);
 
 decode_channel_header(_Rest,_Type, _Id,  State) -> % Still small buffer
   State.
@@ -189,100 +198,128 @@ bytes_for_channel(#channel{length = Length, msg = Msg}, #rtmp_session{client_chu
 bytes_for_channel(_, #rtmp_session{client_chunk_size = ChunkSize}) -> ChunkSize.
   
 
-decode_channel(Channel, Data, State) ->
+decode_channel(Data, Channel, State) ->
 	BytesRequired = bytes_for_channel(Channel, State),
   % ?D({"Channels:",lists:map(fun(#channel{id = Id}) -> Id end, State#rtmp_session.channels)}),
-	push_channel_packet(Channel, Data, State, BytesRequired).
+	push_channel_packet(Data, Channel, State, BytesRequired).
 	
 % Nothing to do when buffer is small
 
-push_channel_packet(#channel{} = _Channel, Data, State, BytesRequired) when size(Data) < BytesRequired ->
+push_channel_packet(Data, _Channel, State, BytesRequired) when size(Data) < BytesRequired ->
   State;
   
 % And decode channel when bytes required are in buffer
-push_channel_packet(#channel{msg = Msg} = Channel, Data, State, BytesRequired) -> 
+push_channel_packet(Data, #channel{msg = Msg} = Channel, State, BytesRequired) -> 
   <<Chunk:BytesRequired/binary, Rest/binary>> = Data,
-  decode_channel_packet(Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State#rtmp_session{buff = Rest}).
+  decode_channel_packet(Rest, Channel#channel{msg = <<Msg/binary, Chunk/binary>>}, State).
 
 
 
 % When chunked packet hasn't arived, just accumulate it
-decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_session{channels = Channels} = State) when size(Msg) < Length ->
+decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_session{channels = Channels} = State) when size(Msg) < Length ->
   NextChannelList = array:set(Channel#channel.id, Channel, Channels),
-  decode(State#rtmp_session{channels=NextChannelList});
+  rtmp:decode(Rest, State#rtmp_session{channels=NextChannelList});
 
 % Work with packet when it has accumulated and flush buffers
-decode_channel_packet(#channel{msg = Msg, length = Length} = Channel, #rtmp_session{channels = Channels} = State) when size(Msg) == Length ->
-  NewState = command(Channel, State), % Perform Commands here
+decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_session{channels = Channels} = State) when size(Msg) == Length ->
+  {NewState, Message} = command(Channel, State), % Perform Commands here
   NextChannelList = array:set(Channel#channel.id, Channel#channel{msg = <<>>}, Channels),
-  decode(NewState#rtmp_session{channels=NextChannelList}).
+  {NewState#rtmp_session{channels=NextChannelList}, Message, Rest}.
+  
+extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) -> #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}.
+  
 
-command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<_Length:32/big-integer>>} = _Channel, #rtmp_session{previous_ack = Prev} = State) ->
-  Time = timer:now_diff(erlang:now(), Prev)/1000,
-  Speed = round(_Length*1000 / Time),
-  % ?D({"Stream bytes read: ", _Length, round(Time/1000), round(Speed)}),
-	State#rtmp_session{previous_ack = erlang:now(), current_speed = Speed};
-
-command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<_WindowSize:32/big-integer>>} = _Channel, State) ->
-  %?D({"Window acknolegement size", WindowSize}),
-  State;
-
-command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = _Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
   %?D({"Change Chunk Size",ChunkSize}),
-	State#rtmp_session{client_chunk_size = ChunkSize};
+  Message = extract_message(Channel),
+	{State#rtmp_session{client_chunk_size = ChunkSize}, Message#rtmp_message{type = chunk_size, body = ChunkSize}};
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, _Timestamp:32/big-integer>>}, State) ->
-	State#rtmp_session{pinged = false};	
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>} = Channel, #rtmp_session{previous_ack = Prev} = State) ->
+  TimeNow = erlang:now(),
+  Time = timer:now_diff(TimeNow, Prev)/1000,
+  Speed = round(BytesRead*1000 / Time),
+  Message = extract_message(Channel),
+  AckMessage = #rtmp_message_ack{
+    bytes_read = BytesRead,
+    previous_ack = Prev,
+    current_ack = TimeNow,
+    speed = Speed
+  },
+  {State#rtmp_session{previous_ack = erlang:now(), current_speed = Speed}, Message#rtmp_message{type = ack_read, body = AckMessage}};
+
+command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = Channel, State) ->
+  %?D({"Window acknolegement size", WindowSize}),
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = window_size, body = WindowSize}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State#rtmp_session{pinged = false}, Message#rtmp_message{type = pong, body = Timestamp}};
 
 	
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16/big-integer, Timestamp:32/big-integer>>} = Channel, State) ->
-  gen_fsm:send_event(self(), {send, {Channel, <<?RTMP_CONTROL_STREAM_PONG:16/big-integer, Timestamp:32/big-integer>>}}),
-	State;	
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = ping, body = Timestamp}};
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = _Channel, #rtmp_session{streams = Streams} = State) ->
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = Channel, #rtmp_session{streams = Streams} = State) ->
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
     _ -> ok
   end,
-	State#rtmp_session{client_buffer = BufferSize};	
+  Message = extract_message(Channel),
+  BufferSizeMsg = #rtmp_message_buffer_size{stream_id = StreamId, buffer_size = BufferSize},
+	{State#rtmp_session{client_buffer = BufferSize}, Message#rtmp_message{type = buffer_size, body = BufferSizeMsg}};	
 
 
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<_EventType:16/big-integer, _/binary>>} = _Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, Body/binary>>} = Channel, State) ->
 	%?D({"Ping - ignoring", EventType}),
-	State;	
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = control, body = {EventType, Body}}};
 
 
-command(#channel{type = Type, delta = 0}, State) 
-	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
-  State;
+command(#channel{type = Type, delta = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = broken_meta}};
 
-command(#channel{type = Type, length = 0}, State) 
-	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
-  State;
+command(#channel{type = Type, length = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = broken_meta}};
 
-command(#channel{type = Type} = Channel, State)
-	when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
-%	?D({"Recording",Type}),
-	gen_fsm:send_event(self(), {publish, Channel}),
-	State;
+command(#channel{type = ?RTMP_TYPE_AUDIO} = Channel, State)	 ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = audio}};
 
-command(#channel{type = ?RTMP_INVOKE_AMF0, stream_id = StreamId, msg = Message}, State) ->
-  decode_and_invoke(Message, amf0, State, StreamId);
+command(#channel{type = ?RTMP_TYPE_VIDEO} = Channel, State)	 ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = video}};
+
+command(#channel{type = ?RTMP_TYPE_METADATA_AMF0} = Channel, State)	 ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = metadata}};
+
+command(#channel{type = ?RTMP_TYPE_METADATA_AMF3} = Channel, State)	 ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = metadata3}};
 
 % Red5: net.rtmp.codec.RTMPProtocolDecoder
 % // TODO: Unknown byte, probably encoding as with Flex SOs?
 % in.skip(1);
-command(#channel{type = ?RTMP_INVOKE_AMF3, stream_id = StreamId, msg = <<_, Message/binary>>}, State) -> 
-  decode_and_invoke(Message, amf0, State, StreamId);
+command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Body/binary>>, stream_id = StreamId} = Channel, State) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = invoke3, body = decode_funcall(Body, StreamId)}};
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Body}, State) ->
-  Message = decode_shared_object_amf0(Body),
-  apps_shared_objects:command(Message, State);
-  
+command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Body, stream_id = StreamId} = Channel, State) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = invoke, body = decode_funcall(Body, StreamId)}};
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Body}, State) ->
-  Message = decode_shared_object_amf0(Body),
-  apps_shared_objects:command(Message, State);
+
+command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Body} = Channel, State) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = shared_object, body = decode_shared_object(Body)}};
+
+command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Body} = Channel, State) ->
+  Message = extract_message(Channel),
+  {State, Message#rtmp_message{type = shared_object3, body = decode_shared_object(Body)}};
   
 
 	
@@ -290,14 +327,12 @@ command(#channel{type = Type}, State) ->
   ?D({"Unhandled message type", Type}),
   State.
 
-decode_and_invoke(Message, _Module, State, StreamId) ->
+decode_funcall(Message, StreamId) ->
 	{CommandBin, Rest1} = amf0:decode(Message),
 	Command = binary_to_existing_atom(CommandBin, utf8),
 	{InvokeId, Rest2} = amf0:decode(Rest1),
 	Arguments = decode_list(Rest2, amf0, []),
-	AMF = #amf{command = Command, args = Arguments, stream_id = StreamId, type = invoke, id = InvokeId},
-  % ?D({"Call", Command, InvokeId, StreamId, Arguments}),
-	call_function(ems:check_app(State,Command, 2), Command, State, AMF).
+	#amf{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
   
   
 decode_list(AMF, Module) -> decode_list(AMF, Module, []).
@@ -308,53 +343,37 @@ decode_list(Body, Module, Acc) ->
   {Element, Rest} = Module:decode(Body),
   decode_list(Rest, Module, [Element | Acc]).
 
-call_function(unhandled, Command, #rtmp_session{addr = IP, port = Port} = State, #amf{args = Args}) ->
-  error_logger:error_msg("Client ~p:~p requested unknown function ~p/~p~n", [IP, Port, Command, length(Args)]),
-  State;
 
-call_function(App, Command, State, #amf{id = _Id} = AMF) ->
-	App:Command(AMF, State).
-  % try
-  %   App:Command(AMF, State)
-  % catch
-  %   _:login_failed ->
-  %     throw(login_failed);
-  %   What:Error ->
-  %     error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p:~p~n~p~n", [App, Command, AMF, State, What, Error, erlang:get_stacktrace()]),
-  %     % apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
-  %     State
-  % end.
+encode_shared_object(#so_message{name = Name, version = Version, persistent = true, events = Events}) ->
+  encode_shared_object_events(<<(size(Name)):16, Name/binary, Version:32, 2:32, 0:32>>, Events);
 
-encode_shared_object_amf0(#so_message{name = Name, version = Version, persistent = true, events = Events}) ->
-  encode_shared_object_events_amf0(<<(size(Name)):16, Name/binary, Version:32, 2:32, 0:32>>, Events);
+encode_shared_object(#so_message{name = Name, version = Version, persistent = false, events = Events}) ->
+  encode_shared_object_events(<<(size(Name)):16, Name/binary, Version:32, 0:32, 0:32>>, Events).
 
-encode_shared_object_amf0(#so_message{name = Name, version = Version, persistent = false, events = Events}) ->
-  encode_shared_object_events_amf0(<<(size(Name)):16, Name/binary, Version:32, 0:32, 0:32>>, Events).
-
-encode_shared_object_events_amf0(Body, []) ->
+encode_shared_object_events(Body, []) ->
   Body;
 
-encode_shared_object_events_amf0(Body, [{EventType, Event} | Events]) ->
+encode_shared_object_events(Body, [{EventType, Event} | Events]) ->
   EventData = amf0:encode(Event),
-  encode_shared_object_events_amf0(<<Body/binary, EventType, (size(EventData)):32, EventData/binary>>, Events);
+  encode_shared_object_events(<<Body/binary, EventType, (size(EventData)):32, EventData/binary>>, Events);
 
-encode_shared_object_events_amf0(Body, [EventType | Events]) ->
-  encode_shared_object_events_amf0(<<Body/binary, EventType, 0:32>>, Events).
+encode_shared_object_events(Body, [EventType | Events]) ->
+  encode_shared_object_events(<<Body/binary, EventType, 0:32>>, Events).
 
 
-decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, 2:32, _:32, Events/binary>>) ->
-  decode_shared_object_events_amf0(Events, #so_message{name = Name, version = Version, persistent = true});
+decode_shared_object(<<Length:16, Name:Length/binary, Version:32, 2:32, _:32, Events/binary>>) ->
+  decode_shared_object_events(Events, #so_message{name = Name, version = Version, persistent = true});
 
-decode_shared_object_amf0(<<Length:16, Name:Length/binary, Version:32, 0:32, _:32, Events/binary>>) ->
-  decode_shared_object_events_amf0(Events, #so_message{name = Name, version = Version, persistent = false}).
+decode_shared_object(<<Length:16, Name:Length/binary, Version:32, 0:32, _:32, Events/binary>>) ->
+  decode_shared_object_events(Events, #so_message{name = Name, version = Version, persistent = false}).
 
-decode_shared_object_events_amf0(<<>>, #so_message{events = Events} = Message) ->
+decode_shared_object_events(<<>>, #so_message{events = Events} = Message) ->
   Message#so_message{events = lists:reverse(Events)};
 
-decode_shared_object_events_amf0(<<EventType, 0:32, Rest/binary>>, #so_message{events = Events} = Message) ->
-  decode_shared_object_events_amf0(Rest, Message#so_message{events = [EventType|Events]});
+decode_shared_object_events(<<EventType, 0:32, Rest/binary>>, #so_message{events = Events} = Message) ->
+  decode_shared_object_events(Rest, Message#so_message{events = [EventType|Events]});
 
-decode_shared_object_events_amf0(<<EventType, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
+decode_shared_object_events(<<EventType, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
   #so_message{events = Events} = Message) ->
   Event = amf0:decode(EventData),
-  decode_shared_object_events_amf0(Rest, Message#so_message{events = [{EventType, Event}|Events]}).
+  decode_shared_object_events(Rest, Message#so_message{events = [{EventType, Event}|Events]}).

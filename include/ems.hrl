@@ -21,21 +21,9 @@
 -define(DEFAULT_FLV_DIR, "/tmp").
 
 
-
-%% RTMP header
-%%                                 Headersize:   Value: 
-%%                                 -----------   ------
--define(RTMP_HDR_NEW,          0). %% 12 Bytes   00
--define(RTMP_HDR_SAME_SRC,     1). %%  8 Bytes   01
--define(RTMP_HDR_TS_CHG,       2). %%  4 Bytes   10
--define(RTMP_HDR_CONTINUE,     3). %%  1 Byte    11
-
--define(RTMP_HDR_MED_ID,       0).
--define(RTMP_HDR_LRG_ID,       1).
-
-
 -define(RTMP_DEF_CHUNK_SIZE, 128).
 -define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
+
 
 %% RTMP data 
 -define(RTMP_TYPE_CHUNK_SIZE,     1).
