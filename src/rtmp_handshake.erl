@@ -1,6 +1,37 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @author     All those guys, that have found how to sign handshake
+%%% @copyright  2009 Max Lapshin
+%%% @doc        RTMP handshake module
+%%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(rtmp_handshake).
 
--export([s1/0, s2/1]).
+-export([s1/0, s2/1, c1/0, c2/1]).
 
 -define(HANDSHAKE, <<
 16#01,16#86,16#4f,16#7f,16#00,16#00,16#00,16#00,16#6b,16#04,16#67,16#52,16#a2,16#70,16#5b,16#51,
@@ -110,7 +141,11 @@
 s1() ->
 	?HANDSHAKE.
 
+c1() ->
+  ?HANDSHAKE.
 
+c2(_S2) ->
+  ?HANDSHAKE.
 
 % Flash from 10.0.32.18
 clientDigest(<<_:5/binary, 0, 3, 2, _:764/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1) ->
