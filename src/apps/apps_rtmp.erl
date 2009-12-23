@@ -41,14 +41,15 @@
 -export([connect/2, reply/1, fail/1]).
 -export(['WAIT_FOR_DATA'/2]).
 
+-define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(AMF, #rtmp_session{window_size = WindowAckSize, addr = Address} = State) ->
-    
+connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
+    WindowAckSize = rtmp_socket:window_size(Socket),
     Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
     % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
     rtmp_session:send(State, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}),
@@ -70,21 +71,21 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize, addr = Address} = State)
     {match, [_, _Proto, HostName, Path]} = re:run(ConnectUrl, UrlRe, [{capture, all, binary}]),
     Host = ems:host(HostName),
     
-		NewState1 =	State#rtmp_session{player_info = PlayerInfo, previous_ack = erlang:now(), host = Host, path = Path},
+		NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path},
 
     AuthModule = ems:get_var(auth_module, Host, trusted_login),
     NewState2 = AuthModule:client_login(NewState1, AuthInfo),
 
     ems_log:access(Host, "CONNECT ~p ~p ~s", [Address, NewState2#rtmp_session.user_id, _PageUrl]),
     
-    NewState3 = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
-      {objectEncoding, 0.0} -> NewState2#rtmp_session{amf_version = 0};
-      {objectEncoding, 3.0} -> NewState2#rtmp_session{amf_version = 3};
+    AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
+      {objectEncoding, 0.0} -> rtmp_socket:setopts(Socket, [{amf_version, 0}]), 0;
+      {objectEncoding, 3.0} -> rtmp_socket:setopts(Socket, [{amf_version, 3}]), 3;
       {objectEncoding, _N} -> 
         error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
         Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
         throw(invalid_amf3_encoding);
-      _ -> NewState2#rtmp_session{amf_version = 0}
+      _ -> rtmp_socket:setopts(Socket, [{amf_version, 0}]), 0
     end,
     
     ConnectObj = [{fmsVer, <<"FMS/3,0,1,123">>}, {capabilities, 31}],
@@ -92,9 +93,9 @@ connect(AMF, #rtmp_session{window_size = WindowAckSize, addr = Address} = State)
                  {code, <<?NC_CONNECT_SUCCESS>>},
                  {description, <<"Connection succeeded.">>},
                  {clientid, 1716786930},
-                 {objectEncoding, NewState3#rtmp_session.amf_version}],
+                 {objectEncoding, AMFVersion}],
     reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
-    NewState3.
+    NewState2.
 
 
 reply(AMF) ->
@@ -128,11 +129,7 @@ fail(AMF) ->
 'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
 'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
 
-'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 0} = State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 3, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{amf_version = 3} = State) ->
+'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, State) ->
   gen_fsm:send_event(self(), {send, {#channel{id = 3, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 

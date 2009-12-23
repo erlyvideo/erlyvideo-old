@@ -48,7 +48,7 @@
 -record(file_player, {
   consumer,
   media_info,
-  client_buffer = ?MIN_CLIENT_BUFFER,
+  client_buffer,
   sent_video_config = false,
   sent_audio_config = false,
   prepush = 0,

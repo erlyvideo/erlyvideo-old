@@ -7,6 +7,7 @@
 
 -behaviour(gen_fsm).
 -include("../../../include/ems.hrl").
+-include("../../../include/rtmp.hrl").
 
 -record(rtmp_fsm, {
 	upstream = undefined,   % backend process

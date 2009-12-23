@@ -1,17 +1,13 @@
 % luke: "is it possilbe to use lowercase names? 
 % uppercase breaks the syntax highlighting in textmate"
 -include("debug.hrl").
+-include("rtmp.hrl").
 -define(APPLICATION, erlmedia).
 
 -define(MAX_RESTART,      5).
 -define(MAX_TIME,        60).
 -define(RTMP_PORT,     1935).
 -define(TIMEOUT,     120000).
--define(RTMP_TIMEOUT,     120000).
--define(RTMP_WINDOW_SIZE, 2500000).
--define(HS_HEADER,        3).
--define(HS_BODY_LEN,   1536).
--define(MIN_CLIENT_BUFFER, 100).
 -define(PREPUSH, 3000).
 
 -define(CONTENT_TYPE, "application/x-fcs").
@@ -21,8 +17,7 @@
 -define(DEFAULT_FLV_DIR, "/tmp").
 
 
--define(RTMP_DEF_CHUNK_SIZE, 128).
--define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
+
 
 
 %% RTMP data 
@@ -160,11 +155,6 @@
 -define(SO_BAD_PERSISTENCE, "SharedObject.BadPersistence").
 
 
--record(ems_cluster, {
-	}).
-	
-
-
 -record(rtmp_session, {
   host,
   path,
@@ -172,35 +162,10 @@
 	addr,      % client address
 	port,
 	session_id,
-	amf_version = 0,
-	channels    = undefined,
 	user_id     = undefined,
 	player_info = [],
-	buff        = <<>>,
-  client_buffer = ?MIN_CLIENT_BUFFER,
-	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE,
-	streams      = undefined,
-	window_size = ?RTMP_WINDOW_SIZE,
-	previous_ack = undefined,
-	current_speed = 0,
-	pinged = false
+	streams      = undefined
 	}).
-
-
--record(channel,{
-	id        = undefined,
-	timestamp = undefined,
-	delta     = undefined,
-	length    = undefined,
-	type      = undefined,
-	stream_id = 0,
-	msg       = <<>>,
-	chunk_size = ?RTMP_DEF_CHUNK_SIZE % This field is ONLY for passing channel into rtmp:encode
-	}).
-
-	
-
 
 -record(file_frame, {
   id,

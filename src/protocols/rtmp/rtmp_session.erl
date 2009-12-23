@@ -53,8 +53,6 @@
 -export([
   'WAIT_FOR_SOCKET'/3,
   'WAIT_FOR_SOCKET'/2,
-	'WAIT_FOR_HANDSHAKE'/2,
-	'WAIT_FOR_HS_ACK'/2,
   'WAIT_FOR_DATA'/2,
   'WAIT_FOR_DATA'/3]).
 
@@ -86,7 +84,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 init([]) ->
     process_flag(trap_exit, true),
     random:seed(now()),
-    {ok, 'WAIT_FOR_SOCKET', #rtmp_session{channels = array:new(), streams = array:new()}}.
+    {ok, 'WAIT_FOR_SOCKET', #rtmp_session{streams = array:new()}}.
 
 
 
@@ -98,75 +96,33 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, _From, State) when is_pid(Socket) ->
-    {reply, ok, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket=Socket}, ?TIMEOUT}.
+  {reply, ok, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket=Socket}, ?TIMEOUT}.
 
 
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
-    % Now we own the socket
-    inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
-    {ok, {IP, Port}} = inet:peername(Socket),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket=Socket, addr=IP, port = Port}, ?TIMEOUT};
+  % Now we own the socket
+  {ok, {IP, Port}} = inet:peername(Socket),
+  RTMP = rtmp_socket:accept(Socket),
+  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr=IP, port = Port}, ?TIMEOUT};
 
     
 'WAIT_FOR_SOCKET'(Other, State) ->
-    error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
-    %% Allow to receive async messages
-    {next_state, 'WAIT_FOR_SOCKET', State}.
+  error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
+  {next_state, 'WAIT_FOR_SOCKET', State}.
 
 %% Notification event coming from client
-'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN + 1 -> 
-	Data2 = <<Buff/binary,Data/binary>>,
-	{next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{buff=Data2}, ?TIMEOUT};
 
-'WAIT_FOR_HANDSHAKE'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN + 1 ->
-	case <<Buff/binary,Data/binary>> of
-		<<?HS_HEADER,HandShake:?HS_BODY_LEN/binary, Rest/binary>> ->
-			Reply = rtmp:handshake(HandShake),
-			send_data(State, [?HS_HEADER, Reply]),
-			{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_session{buff = Rest}, ?TIMEOUT};
-		_ -> ?D("Handshake Failed"), {stop, normal, State}
-	end;
-
-'WAIT_FOR_HANDSHAKE'(timeout, State) ->
-    error_logger:error_msg("~p Client connection timeout during handshake.\n", [self()]),
-    {stop, normal, State};
-
-'WAIT_FOR_HANDSHAKE'(Other, State) ->
-    ?D({"Ignoring unexpected data:", Other}),
-    {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
-
-
-%% Notification event coming from client
-'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) < ?HS_BODY_LEN -> 
-	{next_state, 'WAIT_FOR_HS_ACK', State#rtmp_session{buff = <<Buff/binary,Data/binary>>}, ?TIMEOUT};
-
-'WAIT_FOR_HS_ACK'({data, Data}, #rtmp_session{buff = Buff} = State) when size(Buff) + size(Data) >= ?HS_BODY_LEN -> 
-	case <<Buff/binary,Data/binary>> of
-		<<_HS:?HS_BODY_LEN/binary,Rest/binary>> ->
-			{next_state, 'WAIT_FOR_DATA', handle_rtmp_data(State, Rest), ?TIMEOUT};
-		_ -> ?D("Handshake Failed"), {stop, normal, State}
-	end;
-
-'WAIT_FOR_HS_ACK'(Other, State) ->
-  ?D({"Ignoring unecpected data:", Other}),
-  {next_state, 'WAIT_FOR_HANDSHAKE', State, ?TIMEOUT}.
-
-
-%% Notification event coming from client
-'WAIT_FOR_DATA'({data, Data}, #rtmp_session{buff = Buff} = State) ->
-  {next_state, 'WAIT_FOR_DATA', handle_rtmp_data(State, <<Buff/binary, Data/binary>>), ?TIMEOUT};
-
-'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_session{server_chunk_size = OldChunkSize} = State) ->
-	Packet = rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
-	send_data(State, Packet),
-  % ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{server_chunk_size = ChunkSize}, ?TIMEOUT};
-
-'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_session{server_chunk_size = ChunkSize} = State) ->
-	Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
-  % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
-	send_data(State, Packet),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+% 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_session{server_chunk_size = OldChunkSize} = State) ->
+%   Packet = rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
+%   send_data(State, Packet),
+%   % ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
+%   {next_state, 'WAIT_FOR_DATA', State#rtmp_session{server_chunk_size = ChunkSize}, ?TIMEOUT};
+% 
+% 'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_session{server_chunk_size = ChunkSize} = State) ->
+%   Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
+%   % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
+%   send_data(State, Packet),
+%   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({send, Packet}, State) when is_binary(Packet) ->
 	send_data(State, Packet),
@@ -177,10 +133,10 @@ init([]) ->
   {stop, normal, State};
 
 
-'WAIT_FOR_DATA'(timeout, #rtmp_session{pinged = false} = State) ->
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_PING, 0}),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{pinged = true}, ?TIMEOUT};    
-
+% 'WAIT_FOR_DATA'(timeout, #rtmp_session{pinged = false} = State) ->
+%   gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_PING, 0}),
+%   {next_state, 'WAIT_FOR_DATA', State#rtmp_session{pinged = true}, ?TIMEOUT};    
+% 
 'WAIT_FOR_DATA'(timeout, State) ->
   error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
   {stop, normal, State};    
@@ -211,7 +167,7 @@ init([]) ->
 send(#rtmp_session{server_chunk_size = ChunkSize} = State, {#channel{} = Channel, Data}) ->
   Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
   % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
-	send_data(State, Packet).
+  send_data(State, Packet).
 	
 
 handle_rtmp_data(State, Data) ->
@@ -285,11 +241,8 @@ handle_sync_event(Event, _From, StateName, StateData) ->
    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
-send_data(#rtmp_session{socket = Socket}, Data) when is_port(Socket) ->
-  gen_tcp:send(Socket, Data);
-
 send_data(#rtmp_session{socket = Socket}, Data) when is_pid(Socket) ->
-  gen_fsm:send_event(Socket, {server_data, Data}).
+  Socket ! {server_data, Data}.
 
 %%-------------------------------------------------------------------------
 %% Func: handle_info/3

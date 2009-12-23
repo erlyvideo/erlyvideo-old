@@ -1,15 +1,16 @@
 %%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
-%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%% @doc        RTMP encoding/decoding and command handling module
-%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +39,7 @@
 -include("../include/ems.hrl").
 -include("../include/rtmp.hrl").
 
--export([encode/1, encode/2, handshake/1, decode/2, decode_list/2]).
+-export([encode/1, encode/2, handshake/1, decode/2]).
 
 
 handshake(C1) when is_binary(C1) -> 

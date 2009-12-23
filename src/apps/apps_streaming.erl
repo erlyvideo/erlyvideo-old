@@ -44,7 +44,8 @@
 -export(['WAIT_FOR_DATA'/2]).
 
 
-'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{streams = Streams, client_buffer = ClientBuffer, host = Host} = State) ->
+'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
+  ClientBuffer = rmtp_socket:client_buffer(Socket),
   StreamId = proplists:get_value(stream_id, Options),
   
   case array:get(StreamId, Streams) of
