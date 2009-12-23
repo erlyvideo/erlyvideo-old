@@ -7,7 +7,6 @@
 
 -behaviour(gen_fsm).
 -include("../../../include/ems.hrl").
--include("../../../include/rtmp.hrl").
 
 -record(rtmp_fsm, {
 	upstream = undefined,   % backend process
@@ -76,7 +75,7 @@ init([SessionId]) ->
     io:format("Received upstream ~p~n", [Rtmp]),
     Watchdog = spawn_link(?MODULE, watcher, [self(), ?RTMPT_TIMEOUT*5]),
     ets:insert(rtmp_sessions, {SessionId, self()}),
-    {ok, 'READY', #rtmp_fsm{session_id = SessionId, watchdog = Watchdog, upstream = Rtmp}, ?RTMP_TIMEOUT}.
+    {ok, 'READY', #rtmp_fsm{session_id = SessionId, watchdog = Watchdog, upstream = Rtmp}, ?RTMPT_TIMEOUT}.
         
 
 %%-------------------------------------------------------------------------
@@ -91,17 +90,17 @@ init([SessionId]) ->
 
 'READY'({server_data, Bin}, #rtmp_fsm{buffer = Buffer, bytes_count = BytesCount} = State) ->
     % io:format("Received server bytes: ~p/~p~n", [size(Bin), BytesCount + size(Bin)]),
-    {next_state, 'READY', State#rtmp_fsm{buffer = <<Buffer/binary, Bin/binary>>, bytes_count = BytesCount + size(Bin)}, ?RTMP_TIMEOUT};
+    {next_state, 'READY', State#rtmp_fsm{buffer = <<Buffer/binary, Bin/binary>>, bytes_count = BytesCount + size(Bin)}, ?RTMPT_TIMEOUT};
 
 
 'READY'({client_data, Bin}, #rtmp_fsm{upstream = Upstream} = State) when is_pid(Upstream)  ->
     % io:format("Received client bytes: ~p~n", [size(Bin)]),
     gen_fsm:send_event(Upstream, {data, Bin}),
-    {next_state, 'READY', State, ?RTMP_TIMEOUT};
+    {next_state, 'READY', State, ?RTMPT_TIMEOUT};
 
 
 'READY'({upstream, Upstream}, #rtmp_fsm{upstream = undefined} = State) ->
-    {next_state, 'READY', State#rtmp_fsm{upstream = Upstream}, ?RTMP_TIMEOUT};
+    {next_state, 'READY', State#rtmp_fsm{upstream = Upstream}, ?RTMPT_TIMEOUT};
 
 
 'READY'(timeout, #rtmp_fsm{} = State) ->
@@ -110,12 +109,12 @@ init([SessionId]) ->
 
 'READY'({info}, _From, #rtmp_fsm{sequence_number = SequenceNumber, session_id = SessionId, buffer = Buffer, bytes_count = BytesCount} = State) ->
     Info = {self(), [{session_id, SessionId}, {sequence_number, SequenceNumber}, {total_bytes, BytesCount}, {unread_data, size(Buffer)} | process_info(self(), [message_queue_len, heap_size])]},
-    {reply, Info, 'READY', State, ?RTMP_TIMEOUT};
+    {reply, Info, 'READY', State, ?RTMPT_TIMEOUT};
 
 'READY'({recv, SequenceNumber}, _From, #rtmp_fsm{buffer = Buffer, watchdog = Watchdog} = State) ->
     Watchdog ! {rtmpt},
     % io:format("Recv ~p ~p bytes~n", [SequenceNumber, size(Buffer)]),
-    {reply, {Buffer}, 'READY', State#rtmp_fsm{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMP_TIMEOUT}.
+    {reply, {Buffer}, 'READY', State#rtmp_fsm{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMPT_TIMEOUT}.
 
 
 
@@ -168,7 +167,7 @@ handle_info({'EXIT', _Pid, killed}, _StateName, State) ->
 
 handle_info(_Info, StateName, StateData) ->
     io:format("Unknown info ~p~n", [_Info]),
-    {noreply, StateName, StateData}.
+    {noreply, StateName, StateData, ?RTMPT_TIMEOUT}.
 
 
 %%-------------------------------------------------------------------------

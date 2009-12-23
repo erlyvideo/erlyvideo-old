@@ -46,9 +46,9 @@
 
 
 
-'WAIT_FOR_DATA'({publish, #channel{stream_id = StreamId} = Channel}, #rtmp_session{streams = Streams} = State) ->
+'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
-  stream_media:publish(Recorder, Channel),
+  stream_media:publish(Recorder, Message),
 	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
 
 
@@ -91,21 +91,11 @@ publish(#amf{args = [null,Name,<<"append">>]} = _AMF, State) ->
   State;
 
 
-publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 
+publish(#amf{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams, socket = Socket} = State) -> 
   ?D({"Publish - Action - LIVE",Name, StreamId}),
   Recorder = media_provider:create(Host, Name, live),
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
-  
-  Start = #amf{
-      command = 'onStatus',
-      type = invoke,
-      id = 0,
-      stream_id = StreamId,
-      args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
-                              {level, <<"status">>}, 
-                              {description, <<"Publishing ", Name/binary, ".">>},
-                              {clientid, 1716786930}]}]},
-  gen_fsm:send_event(self(), {invoke, Start}),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
 publish(#amf{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF, #rtmp_session{host = Host, streams = Streams} = State) -> 

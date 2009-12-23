@@ -38,10 +38,9 @@
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
 
--export([connect/2, reply/1, fail/1]).
+-export([connect/2, reply/2, fail/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
--define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
@@ -49,13 +48,12 @@
 %% @end
 %%-------------------------------------------------------------------------
 connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
-    WindowAckSize = rtmp_socket:window_size(Socket),
-    Channel = #channel{id = 2, timestamp = 0, msg = <<>>},
+    Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
     % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
-    rtmp_session:send(State, {Channel#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE}, <<WindowAckSize:32>>}),
-    rtmp_session:send(State, {Channel#channel{type = ?RTMP_TYPE_BW_PEER}, <<WindowAckSize:32, 16#02>>}),
-    'WAIT_FOR_DATA'({control, ?RTMP_CONTROL_STREAM_BEGIN, 0}, State),
-    gen_fsm:send_event(self(), {send, {#channel{timestamp = 0, id = 2, type = ?RTMP_TYPE_CHUNK_SIZE}, ?RTMP_PREF_CHUNK_SIZE}}),
+    rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
+    rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
+    rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
+    rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
 		
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
 	  _FlashVer = proplists:get_value(flashVer, PlayerInfo),
@@ -94,43 +92,22 @@ connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
                  {description, <<"Connection succeeded.">>},
                  {clientid, 1716786930},
                  {objectEncoding, AMFVersion}],
-    reply(AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
+    reply(State, AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
     NewState2.
 
 
-reply(AMF) ->
-  gen_fsm:send_event(self(), {invoke, AMF#amf{command = '_result', type = invoke}}).
+reply(#rtmp_session{socket = Socket} = State, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#amf{command = '_result', type = invoke}).
 
-fail(AMF) ->
-  gen_fsm:send_event(self(), {invoke, AMF#amf{command = '_error', type = invoke}}).
+fail(#rtmp_session{socket = Socket} = State, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#amf{command = '_error', type = invoke}).
   
 
 
 
-'WAIT_FOR_DATA'({control, Type, Stream}, State) ->
-  rtmp_session:send(State, {#channel{id = 2, timestamp = 0, type = ?RTMP_TYPE_CONTROL}, <<Type:16/big, Stream:32/big>>}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-
-'WAIT_FOR_DATA'({status, Code, Stream, Description}, State) when is_list(Code) ->
-  'WAIT_FOR_DATA'({status, list_to_binary(Code), Stream, Description}, State);
-
-'WAIT_FOR_DATA'({status, Code, Stream, Description}, State) ->
-  AMF = #amf{
-      command = 'onStatus',
-      type = invoke,
-      id = 0,
-      stream_id = Stream,
-      args = [null, {object, [{code, Code}, 
-                              {level, <<"status">>}, 
-                              {description, Description}]}]},
-  'WAIT_FOR_DATA'({invoke, AMF}, State);
-
-'WAIT_FOR_DATA'({status, Code, Stream}, State) -> 'WAIT_FOR_DATA'({status, Code, Stream, "-"}, State);
-'WAIT_FOR_DATA'({status, Code}, State) -> 'WAIT_FOR_DATA'({status, Code, 0, "-"}, State);
-
-'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, State) ->
-  gen_fsm:send_event(self(), {send, {#channel{id = 3, timestamp = 0, type = ?RTMP_INVOKE_AMF0, stream_id = StreamId}, AMF}}),
+'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:send(Socket, #rtmp_message{channel_id = 3, timestamp = 0, type = invoke, stream_id = StreamId, body = AMF}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 

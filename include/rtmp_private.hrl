@@ -1,4 +1,12 @@
 
+-define(RTMP_TIMEOUT, 10000).
+-define(RTMP_DEF_CHUNK_SIZE, 128).
+-define(MIN_CLIENT_BUFFER, 100).
+-define(HS_HEADER,        3).
+-define(HS_BODY_LEN,   1536).
+
+
+
 %% RTMP header
 %%                                 Headersize:   Value: 
 %%                                 -----------   ------
@@ -11,13 +19,41 @@
 -define(RTMP_HDR_LRG_ID,       1).
 
 
--define(RTMP_TIMEOUT, 10000).
--define(RTMP_DEF_CHUNK_SIZE, 128).
--define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
--define(MIN_CLIENT_BUFFER, 100).
--define(RTMP_WINDOW_SIZE, 2500000).
--define(HS_HEADER,        3).
--define(HS_BODY_LEN,   1536).
+
+
+
+%% RTMP data 
+-define(RTMP_TYPE_CHUNK_SIZE,     1).
+%-define(RTMP_TYPE_UNKNOWN,       2).
+-define(RTMP_TYPE_ACK_READ,       3).
+-define(RTMP_TYPE_CONTROL,        4).
+-define(RTMP_TYPE_WINDOW_ACK_SIZE,5).
+-define(RTMP_TYPE_BW_PEER,        6).
+%-define(RTMP_TYPE_UNKNOWN,       7).
+-define(RTMP_TYPE_AUDIO,          8).
+-define(RTMP_TYPE_VIDEO,          9).
+%-define(RTMP_TYPE_UNKNOWN,      10).
+%-define(RTMP_TYPE_UNKNOWN,      11).
+%-define(RTMP_TYPE_UNKNOWN,      12).
+%-define(RTMP_TYPE_UNKNOWN,      13).
+% -define(RTMP_TYPE_UNKNOWN,      14).
+-define(RTMP_TYPE_METADATA_AMF3,  15).
+-define(RTMP_TYPE_SO_AMF3,        16).
+-define(RTMP_INVOKE_AMF3,         17).
+-define(RTMP_TYPE_METADATA_AMF0,  18).
+-define(RTMP_TYPE_SO_AMF0,        19).
+-define(RTMP_INVOKE_AMF0,         20).
+
+
+-define(RTMP_CONTROL_STREAM_BEGIN,    0).
+-define(RTMP_CONTROL_STREAM_EOF,      1).
+-define(RTMP_CONTROL_STREAM_DRY,      2).
+-define(RTMP_CONTROL_STREAM_BUFFER,   3).
+-define(RTMP_CONTROL_STREAM_RECORDED, 4).
+-define(RTMP_CONTROL_STREAM_PING,     6).
+-define(RTMP_CONTROL_STREAM_PONG,     7).
+
+
 
 
 -record(channel,{
@@ -36,15 +72,16 @@
 -record(rtmp_socket, {
   consumer          ::pid(),
   socket            ::port(),
-  amf_version       ::integer(),
+  amf_version = 0   ::integer(),
 	channels          ::array(),
 	address           ::tuple(),
 	port              ::integer(),
 	buffer = <<>>     ::binary(),
+	bytes_read = 0    ::integer(),
 	client_buffer = ?MIN_CLIENT_BUFFER       ::integer(),
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
-	window_size = ?RTMP_WINDOW_SIZE          ::integer(),
+	window_size               ::integer(),
 	previous_ack = undefined  ::time(),
 	current_speed = 0         ::integer(),
 	pinged = false            ::boolean()

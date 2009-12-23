@@ -120,8 +120,8 @@ ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
     #video_frame{} = Frame ->
       send_frame(State, Frame);
       
-    #channel{msg = Body} = Channel ->
-      gen_fsm:send_event(Consumer, {send, {Channel, Body}}),
+    #rtmp_message{} = Message ->
+      Consumer ! Message,
       ?MODULE:ready(State);
 
     eof ->

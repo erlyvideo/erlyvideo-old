@@ -114,19 +114,19 @@ handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) 
   {reply, {error, {owner_exists, Owner}}, MediaInfo, ?TIMEOUT};
 
 
-handle_call({publish, #channel{timestamp = TS} = Channel}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
-  handle_call({publish, Channel}, _From, Recorder#media_info{base_timestamp = TS});
+handle_call({publish, #rtmp_message{timestamp = TS} = Message}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
+  handle_call({publish, Message}, _From, Recorder#media_info{base_timestamp = TS});
 
-handle_call({publish, #channel{timestamp = TS} = Channel}, _From, 
+handle_call({publish, #rtmp_message{timestamp = TS} = Message}, _From, 
             #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
   % ?D({"Record",Channel#channel.type, TS - BaseTS}),
-  Channel1 = Channel#channel{timestamp = TS - BaseTS},
-	Tag = ems_flv:to_tag(Channel1),
+  Message1 = Message#rtmp_message{timestamp = TS - BaseTS},
+	Tag = ems_flv:to_tag(Message1),
 	case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, Tag)
 	end,
-  Packet = Channel1#channel{id = ems_play:channel_id(Channel1#channel.type,1)},
+  Packet = Message1#rtmp_message{channel_id = rtmp_session:channel_id(Message1#rtmp_message.type,1)},
   lists:foreach(fun(Pid) -> Pid ! Packet end, Clients),
 	{reply, ok, Recorder, ?TIMEOUT};
 

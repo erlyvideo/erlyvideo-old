@@ -9,6 +9,8 @@
 -define(RTMP_PORT,     1935).
 -define(TIMEOUT,     120000).
 -define(PREPUSH, 3000).
+-define(RTMP_WINDOW_SIZE, 2500000).
+-define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
 
 -define(CONTENT_TYPE, "application/x-fcs").
 -define(SERVER_HEADER, {"Server", "RTMPT/1.0"}).
@@ -19,36 +21,6 @@
 
 
 
-
-%% RTMP data 
--define(RTMP_TYPE_CHUNK_SIZE,     1).
-%-define(RTMP_TYPE_UNKNOWN,       2).
--define(RTMP_TYPE_ACK_READ,       3).
--define(RTMP_TYPE_CONTROL,        4).
--define(RTMP_TYPE_WINDOW_ACK_SIZE,5).
--define(RTMP_TYPE_BW_PEER,        6).
-%-define(RTMP_TYPE_UNKNOWN,       7).
--define(RTMP_TYPE_AUDIO,          8).
--define(RTMP_TYPE_VIDEO,          9).
-%-define(RTMP_TYPE_UNKNOWN,      10).
-%-define(RTMP_TYPE_UNKNOWN,      11).
-%-define(RTMP_TYPE_UNKNOWN,      12).
-%-define(RTMP_TYPE_UNKNOWN,      13).
-% -define(RTMP_TYPE_UNKNOWN,      14).
--define(RTMP_TYPE_METADATA_AMF3,  15).
--define(RTMP_TYPE_SO_AMF3,        16).
--define(RTMP_INVOKE_AMF3,         17).
--define(RTMP_TYPE_METADATA_AMF0,  18).
--define(RTMP_TYPE_SO_AMF0,        19).
--define(RTMP_INVOKE_AMF0,         20).
-
--define(RTMP_CONTROL_STREAM_BEGIN,    0).
--define(RTMP_CONTROL_STREAM_EOF,      1).
--define(RTMP_CONTROL_STREAM_DRY,      2).
--define(RTMP_CONTROL_STREAM_BUFFER,   3).
--define(RTMP_CONTROL_STREAM_RECORDED, 4).
--define(RTMP_CONTROL_STREAM_PING,     6).
--define(RTMP_CONTROL_STREAM_PONG,     7).
 
 
 % AMF commands
@@ -198,19 +170,3 @@
 	sound_format	 = undefined
 	}).
 	
-
--record(amf,{
-  version = 0,
-	command = [],
-	id      = [],
-	args    = [],
-	stream_id = 0,
-	type 	= invoke %if invoke then id, otherwise notify
-	}).
-
--record(so_message, {
-  name,
-  version,
-  persistent,
-  events = []
-}).

@@ -71,7 +71,7 @@ handle_call({message, #so_message{events = Events} = Message}, {Client, _Ref}, S
   {State1, Replies} = parse_event(Events, Client, State, []),
   
   Reply = Message#so_message{events = Replies},
-  gen_fsm:send_event(Client, {send, {#channel{id = 12, timestamp = 0, type = ?RTMP_TYPE_SO_AMF0, stream_id = 0}, Reply}}),
+  gen_fsm:send_event(Client, {send, {#rtmp_message{channel_id = 12, timestamp = 0, type = shared_object, stream_id = 0}, Reply}}),
   {reply, ok, State1};
 
 handle_call(Request, _From, State) ->

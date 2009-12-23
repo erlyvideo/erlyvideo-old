@@ -40,7 +40,7 @@
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
-         getStreamLength/2, prepareStream/1, checkBandwidth/2]).
+         getStreamLength/2, prepareStream/2, checkBandwidth/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 
@@ -61,7 +61,7 @@
       {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
     {notfound, _Reason} ->
       ems_log:access(Host, "NOTFOUND ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-      gen_fsm:send_event(self(), {status, ?NS_PLAY_STREAM_NOT_FOUND, StreamId}),
+      rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
       {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
     Reason -> 
       ?D({"Failed to start video player", Reason}),
@@ -70,25 +70,17 @@
 
 
 
-'WAIT_FOR_DATA'({metadata, Command, AMF, StreamId}, State) ->
-  gen_fsm:send_event(self(), {send, {
-    #channel{id = 4, timestamp = 0, type = ?RTMP_TYPE_METADATA_AMF0, stream_id = StreamId}, 
-    <<(amf0:encode(list_to_binary(Command)))/binary, (amf0:encode({object, AMF}))/binary>>}}),
+'WAIT_FOR_DATA'({metadata, Command, AMF, StreamId}, #rtmp_session{socket = Socket} = State) ->
+  Socket ! #rtmp_message{
+    channel_id = 4, 
+    timestamp = 0, 
+    type = metadata, 
+    stream_id = StreamId, 
+    body = <<(amf0:encode(list_to_binary(Command)))/binary, (amf0:encode({object, AMF}))/binary>>
+  },
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
 'WAIT_FOR_DATA'({metadata, Command, AMF}, State) -> 'WAIT_FOR_DATA'({metadata, Command, AMF, 0}, State);
-
-
-
-
-'WAIT_FOR_DATA'({video, Data, StreamId}, State) ->
-  Channel = #channel{id=5,timestamp=0, length=size(Data),type = ?RTMP_TYPE_VIDEO,stream_id = StreamId},
-  'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
-
-'WAIT_FOR_DATA'({audio, Data, StreamId}, State) ->
-  Channel = #channel{id=4,timestamp=0, length=size(Data),type = ?RTMP_TYPE_AUDIO,stream_id = StreamId},
-  'WAIT_FOR_DATA'({send, {Channel, Data}}, State);
-
 
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
@@ -137,11 +129,10 @@ deleteStream(#amf{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams}
 
 play(#amf{args = [_Null, false | _]} = AMF, State) -> stop(AMF, State);
 
-play(#amf{args = [_Null, Name | Args]}, State) ->
-  StreamId = 1,
+play(#amf{args = [_Null, Name | Args], stream_id = StreamId}, State) ->
   Options = [{stream_id, StreamId} | extract_play_args(Args)],
   ?D({"PLAY", Name, Options}),
-  prepareStream(StreamId),
+  prepareStream(State, StreamId),
   gen_fsm:send_event(self(), {play, Name, Options}),
   State.
 
@@ -154,11 +145,11 @@ extract_play_args([Start, Duration, Reset]) -> [{start, Start}, {duration, Durat
 
 
 
-prepareStream(StreamId) ->
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, StreamId}),
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_RESET, StreamId}).
+prepareStream(#rtmp_session{socket = Socket} = State, StreamId) ->
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_RESET).
   
   
 
@@ -167,17 +158,17 @@ prepareStream(StreamId) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(#amf{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) -> 
+pause(#amf{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_session{streams = Streams, socket = Socket} = State) -> 
     ?D({"PAUSE", Pausing, round(NewTs)}),
     Player = array:get(StreamId, Streams),
     case Pausing of
       true ->
         Player ! pause,
-        gen_fsm:send_event(self(), {status, ?NS_PAUSE_NOTIFY, StreamId}),
+        rtmp_socket:status(Socket, StreamId, ?NS_PAUSE_NOTIFY),
         State;
       false ->
         Player ! resume,
-        gen_fsm:send_event(self(), {status, ?NS_UNPAUSE_NOTIFY, StreamId}),
+        rtmp_socket:status(Socket, StreamId, ?NS_UNPAUSE_NOTIFY),
         State
     end.
 
@@ -205,14 +196,14 @@ getStreamLength(#amf{args = [null | Args]}, #rtmp_session{} = State) ->
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) -> 
+seek(#amf{args = [_, Timestamp], stream_id = StreamId}, #rtmp_session{streams = Streams, socket = Socket} = State) -> 
   ?D({"invoke - seek", Timestamp}),
   Player = array:get(StreamId, Streams),
   Player ! {seek, Timestamp},
-  gen_fsm:send_event(self(), {status, ?NS_SEEK_NOTIFY, StreamId}),
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_RECORDED, StreamId}),
-  gen_fsm:send_event(self(), {control, ?RTMP_CONTROL_STREAM_BEGIN, StreamId}),
-  gen_fsm:send_event(self(), {status, ?NS_PLAY_START, StreamId}),
+  rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
   State.
   
 
