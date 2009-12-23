@@ -45,7 +45,7 @@
 
 
 'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
-  ClientBuffer = rtmp_socket:client_buffer(Socket),
+  {client_buffer, ClientBuffer} = rtmp_socket:getopts(Socket, client_buffer),
   StreamId = proplists:get_value(stream_id, Options),
   
   case array:get(StreamId, Streams) of

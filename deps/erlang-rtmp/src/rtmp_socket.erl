@@ -3,7 +3,7 @@
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
 
--export([accept/1, client_buffer/1, window_size/1, setopts/2, send/2]).
+-export([accept/1, getopts/2, setopts/2, send/2]).
 -export([status/3, status/4, invoke/2, invoke/4]).
 
 
@@ -22,13 +22,6 @@ accept(Socket) ->
   {ok, Pid}.
   
 
--spec(client_buffer(RTMP::rtmp_socket_pid()) -> integer()).
-client_buffer(RTMP) ->
-  gen_fsm:sync_send_event(RTMP, client_buffer, ?RTMP_TIMEOUT).
-
--spec(window_size(RTMP::rtmp_socket_pid()) -> integer()).
-window_size(RTMP) ->
-  gen_fsm:sync_send_event(RTMP, window_size, ?RTMP_TIMEOUT).
   
 % Func: setopts/2
 %  Available options:
@@ -38,6 +31,10 @@ window_size(RTMP) ->
 -spec(setopts(RTMP::rtmp_socket_pid(), Options::[{Key::atom(), Value::any()}]) -> ok).
 setopts(RTMP, Options) ->
   gen_fsm:send_event(RTMP, {setopts, Options}).
+
+-spec(getopts(RTMP::rtmp_socket_pid(), Options::[Key::atom()]) -> ok).
+getopts(RTMP, Options) ->
+  gen_fsm:sync_send_event(RTMP, {getopts, Options}).
 
   
 -spec(send(RTMP::rtmp_socket_pid(), Message::rtmp_message()) -> ok).
@@ -101,14 +98,25 @@ loop({setopts, Options}, State) ->
 % , previous_ack = erlang:now()
 
 
-loop(client_buffer, _From, #rtmp_socket{client_buffer = ClientBuffer} = State) ->
-  {reply, ClientBuffer, loop, State};
-
-loop(window_size, _From, #rtmp_socket{window_size = WindowAckSize} = State) ->
-  {reply, WindowAckSize, loop, State}.
+loop({getopts, Options}, _From, State) ->
+  {reply, get_options(State, Options), loop, State}.
 
 
 
+get_options(State, amf_version) ->
+  {amf_version, State#rtmp_socket.amf_version};
+
+get_options(State, chunk_size) ->
+  {chunk_size, State#rtmp_socket.server_chunk_size};
+
+get_options(State, window_size) ->
+  {window_size, State#rtmp_socket.window_size};
+
+get_options(State, client_buffer) ->
+  {client_buffer, State#rtmp_socket.client_buffer};
+  
+get_options(State, [Key | Options]) ->
+  [get_options(State, Key) | get_options(State, Options)].
 
 set_options(State, [{amf_version, Version} | Options]) ->
   set_options(State#rtmp_socket{amf_version = Version}, Options);

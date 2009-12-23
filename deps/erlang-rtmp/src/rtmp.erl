@@ -353,8 +353,7 @@ command(#channel{type = Type, msg = Body} = Channel, State) ->
   {State, Message#rtmp_message{type = Type, body = Body}}.
 
 decode_funcall(Message, StreamId) ->
-	{CommandBin, Rest1} = amf0:decode(Message),
-	Command = binary_to_existing_atom(CommandBin, utf8),
+	{Command, Rest1} = amf0:decode(Message),
 	{InvokeId, Rest2} = amf0:decode(Rest1),
 	Arguments = decode_list(Rest2, amf0, []),
 	#amf{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
