@@ -111,19 +111,6 @@ init([]) ->
 
 %% Notification event coming from client
 
-% 'WAIT_FOR_DATA'({send, {#channel{type = ?RTMP_TYPE_CHUNK_SIZE} = Channel, ChunkSize}}, #rtmp_session{server_chunk_size = OldChunkSize} = State) ->
-%   Packet = rtmp:encode(Channel#channel{chunk_size = OldChunkSize}, <<ChunkSize:32/big-integer>>),
-%   send_data(State, Packet),
-%   % ?D({"Set chunk size from", OldChunkSize, "to", ChunkSize}),
-%   {next_state, 'WAIT_FOR_DATA', State#rtmp_session{server_chunk_size = ChunkSize}, ?TIMEOUT};
-% 
-% 'WAIT_FOR_DATA'({send, {#channel{} = Channel, Data}}, #rtmp_session{server_chunk_size = ChunkSize} = State) ->
-%   Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
-%   % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
-%   send_data(State, Packet),
-%   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-
 'WAIT_FOR_DATA'({exit}, State) ->
   {stop, normal, State};
 
@@ -180,6 +167,9 @@ handle_rtmp_message(State, #rtmp_message{type = ping}) ->
   State;
 
 handle_rtmp_message(State, #rtmp_message{type = ack_read}) ->
+  State;
+
+handle_rtmp_message(State, #rtmp_message{type = window_size}) ->
   State;
 
 handle_rtmp_message(State, Message) ->
