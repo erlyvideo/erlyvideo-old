@@ -97,7 +97,6 @@ loop(timeout, State) ->
   {stop, timeout, State};
 
 loop({setopts, Options}, State) ->
-  ?D({"Setopts", Options}),
   NewState = set_options(State, Options),
   {next_state, loop, NewState, ?RTMP_TIMEOUT}.
 % , previous_ack = erlang:now()
@@ -178,6 +177,7 @@ handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buff
   {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
+  ?D({"Client closed connection"}),
   Consumer ! {rtmp, self(), disconnect},
   {stop, normal, StateData};
 
@@ -193,6 +193,7 @@ handle_info(_Info, StateName, StateData) ->
 
 send_data(State, #rtmp_message{} = Message) ->
   {NewState, Data} = rtmp:encode(State, Message),
+  % ?D({"Sending bytes", Message, iolist_to_binary(Data)}),
   send_data(NewState, Data);
   
 send_data(#rtmp_socket{socket = Socket} = State, Data) when is_port(Socket) ->
@@ -208,6 +209,7 @@ handle_rtmp_data(State, Data) ->
   handle_rtmp_message(rtmp:decode(Data, State)).
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) ->
+  % ?D(Message),
   Consumer ! Message,
   handle_rtmp_message(rtmp:decode(Rest, State));
 

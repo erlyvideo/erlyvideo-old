@@ -62,15 +62,6 @@
 
 'FCPublish'(#amf{args = [null, Name]} = _AMF, State) -> 
   ?D({"FCpublish", Name}),
-  % Start = AMF#amf{
-  %     id = 0,
-  %     stream_id = 0,
-  %     command = 'onFCPublish',
-  %     args = [null, {object, [{code, <<?NS_PUBLISH_START>>}, 
-  %                             {description, Name}]}]},
-  % gen_fsm:send_event(self(), {invoke, Start}),
-  % 
-  % apps_rtmp:reply(AMF#amf{args = [null, undefined]}),
   State.
 
 'FCUnpublish'(#amf{args = Args} = AMF, State) -> 

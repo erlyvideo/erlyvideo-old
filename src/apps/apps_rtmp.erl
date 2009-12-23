@@ -52,7 +52,7 @@ connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
     % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
     rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
     rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
-    rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
+    % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
     rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
 		
 	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
@@ -77,13 +77,13 @@ connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
     ems_log:access(Host, "CONNECT ~p ~p ~s", [Address, NewState2#rtmp_session.user_id, _PageUrl]),
     
     AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
-      {objectEncoding, 0.0} -> rtmp_socket:setopts(Socket, [{amf_version, 0}]), 0;
-      {objectEncoding, 3.0} -> rtmp_socket:setopts(Socket, [{amf_version, 3}]), 3;
+      {objectEncoding, 0.0} -> 0;
+      {objectEncoding, 3.0} -> 3;
       {objectEncoding, _N} -> 
         error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
         Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
         throw(invalid_amf3_encoding);
-      _ -> rtmp_socket:setopts(Socket, [{amf_version, 0}]), 0
+      _ -> 0
     end,
     
     ConnectObj = [{fmsVer, <<"FMS/3,0,1,123">>}, {capabilities, 31}],
@@ -93,6 +93,7 @@ connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
                  {clientid, 1716786930},
                  {objectEncoding, AMFVersion}],
     reply(State, AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
+    rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
     NewState2.
 
 

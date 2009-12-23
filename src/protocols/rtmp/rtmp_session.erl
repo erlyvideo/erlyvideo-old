@@ -160,19 +160,11 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #amf{command = Command} = AMF,
   call_function(ems:check_app(State,Command, 2), State, AMF);
   
-% 
-% handle_rtmp_message(State, #rtmp_message{type = ping, body = Timestamp} = Message) ->
-%   % FIXME this code must work again
-%   ?D({"Unhandled PING"}),
-%   gen_fsm:send_event(self(), {send, Message#rtmp_message{type = pong, body = Timestamp}}),
-%   handle_rtmp_message(rtmp:decode(Rest, State));
-% 
-% 
-% handle_rtmp_message({State, #rtmp_message{type = Type} = Message, Rest}) when (Type == audio) or (Type == audio) or (Type == metadata) or (Type == metadata3)->
-%   gen_fsm:send_event(self(), {publish, Message}),
-%   handle_rtmp_message(rtmp:decode(Rest, State));
-%   
-% 
+handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == audio) or (Type == audio) or (Type == metadata) or (Type == metadata3)->
+  gen_fsm:send_event(self(), {publish, Message}),
+  State;
+  
+
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
@@ -255,6 +247,7 @@ handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = _Streams} = StateData) ->
   % FIXME: proper lookup of dead player between Streams and notify right stream
   % ?D({"Player died", PlayerPid, _Reason}),
+  
   gen_fsm:send_event(self(), {status, ?NS_PLAY_COMPLETE}),
   {next_state, StateName, StateData, ?TIMEOUT};
 

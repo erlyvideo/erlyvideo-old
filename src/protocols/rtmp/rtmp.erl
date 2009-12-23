@@ -77,7 +77,6 @@ encode(State, #rtmp_message{type = pong} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PONG});
   
 encode(State, #rtmp_message{type = control, body = EventType, stream_id = StreamId} = Message) ->
-  ?D({"control", EventType, StreamId}),
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, StreamId:32>>});
 
 encode(State, #rtmp_message{type = window_size, body = WindowAckSize} = Message) ->
@@ -114,16 +113,10 @@ encode(State, #rtmp_message{timestamp = TimeStamp} = Message) when is_float(Time
   encode(State, Message#rtmp_message{timestamp = round(TimeStamp)});
 
 encode(#rtmp_socket{server_chunk_size = ChunkSize} = State, 
-       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data} = Message) when is_binary(Data) and is_integer(Type)-> 
+       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type)-> 
   ChunkList = chunk(Data, ChunkSize, Id),
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
   {State, [<<BinId/binary,Timestamp:24,(size(Data)):24,Type:8,StreamId:32/little>> | ChunkList]}.
-
-% encode(#channel{id = Id, chunk_size = ChunkSize} = Channel, Data, Packet) -> 
-%   {Chunk,Rest} = chunk(Data, ChunkSize, Id),
-%   BinId = encode_id(?RTMP_HDR_CONTINUE, Id),
-%   NextPacket = <<Packet/binary,BinId/binary,Chunk/binary>>,
-%   encode(Channel, Rest, NextPacket).
 
 encode_funcall(#amf{command = Command, args = Args, id = Id, type = invoke}) -> 
   <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 
@@ -304,7 +297,7 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16/big-integer, StreamId:32/big-integer, BufferSize:32/big-integer>>} = Channel, State) ->
   Message = extract_message(Channel),
-	{State#rtmp_socket{client_buffer = BufferSize}, Message#rtmp_message{type = buffer_size, body = BufferSize}};
+	{State#rtmp_socket{client_buffer = BufferSize}, Message#rtmp_message{type = buffer_size, body = BufferSize, stream_id = StreamId}};
 
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, Body/binary>>} = Channel, State) ->
@@ -371,8 +364,6 @@ decode_funcall(Message, StreamId) ->
 	#amf{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
   
   
-decode_list(AMF, Module) -> decode_list(AMF, Module, []).
-
 decode_list(<<>>, _, Acc) -> lists:reverse(Acc);
 
 decode_list(Body, Module, Acc) ->

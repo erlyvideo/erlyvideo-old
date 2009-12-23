@@ -17,7 +17,7 @@ package
 	{
 		private static var instance:VideoSource;
 		private var _connectTimer : Timer = null;
-		public var delay : int = 2000;
+		public var delay : int = 10000;
 		public var connection:NetConnection;
 		public var connected : Boolean = false;
 		
@@ -42,7 +42,7 @@ package
 			connection.addEventListener(IOErrorEvent.IO_ERROR, onError);
 			connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
 			connection.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onError);
-			connection.objectEncoding = ObjectEncoding.AMF3;
+			connection.objectEncoding = ObjectEncoding.AMF0;
 			connection.connect(Application.application.parameters.server+"/", Application.application.parameters.session, 142);
 		}
 
