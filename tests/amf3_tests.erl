@@ -220,16 +220,25 @@ decode_object_test_() ->
                                      16#01,16#01,16#03,16#62,16#0A,16#02,
                                      16#01>>)),
 
+                                       
+       ?_assert({object,<<>>,dict:store(a,{object,<<"TestClass">>,
+                                            dict:store(n2, null,
+                                              dict:store(n1, null,
+                                                  dict:new()))},dict:new())} 
+                    =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,
+                                      16#23,16#13,16#54,16#65,16#73,16#74,
+                                      16#43,16#6C,16#61,16#73,16#73,16#05,
+                                      16#6E,16#31,16#05,16#6E,16#32,16#01,
+                                      16#01,16#01>>)),
+
+
+
 
        %% object reference                                
-       ?_assert({object,<<>>,dict:store(b,{object,<<>>,
-                                        dict:store(y, 200,
-                                        dict:store(x, 100,dict:new()))},
-                                        dict:store(a,{object,<<>>,
-                                        dict:store(y, 200,
-                                        dict:store(x, 100,
-                                        dict:new()))},
-                                        dict:new()))} 
+       ?_assert({object,<<>>,dict:store(b,
+                  {object,<<>>,dict:store(y,200,dict:store(x,100,dict:new()))},
+                 dict:store(a,{object,<<>>,dict:store(y, 200,dict:store(x, 100,
+                                        dict:new()))},dict:new()))} 
                     =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,
                                       16#01,16#03,16#78,16#04,16#64,16#03,
                                       16#79,16#04,16#81,16#48,16#01,16#03,
@@ -239,12 +248,12 @@ decode_object_test_() ->
 
       %% trait reference, object reference
       ?_assert({object,<<>>,dict:store(b,{object,<<"TestClass">>,
-                                            dict:store(n2, <<>>,
-                                              dict:store(n1, <<>>,
+                                            dict:store(n2, null,
+                                              dict:store(n1, null,
                                                 dict:new()))},
                                        dict:store(a,{object,<<"TestClass">>,
-                                                dict:store(n2, <<>>,
-                                                  dict:store(n1, <<>>,
+                                                dict:store(n2, null,
+                                                  dict:store(n1, null,
                                                     dict:new()))},
                                        dict:new()))} 
                    =:= amf3:decode(<<16#0A,16#0B,16#01,16#03,16#61,16#0A,

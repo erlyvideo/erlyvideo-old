@@ -91,7 +91,6 @@ parse(read, <<>>, AlreadyRead, _, _, _) ->
     _ -> L
   end;                
 
-
 parse(read, ToRead, AlreadyRead, Strings, Objects, Traits) ->
   {JustRead, Remaining, S, O, T} = read(ToRead, Strings, Objects, Traits),  
   EverythingRead = queue:in(JustRead, AlreadyRead),
@@ -159,14 +158,12 @@ read(<< ?DOUBLE, 16#FF,16#F8,16#00,16#00,16#00,16#00,16#00,16#00,
 
 
 read(<<?STRING, Data/binary>>, Strings, Objects, Traits) -> 
-  {String,Remaining} = read_string(Data,Strings),
-  S1 = remember(String, Strings),
+  {String,Remaining,S1} = read_string(Data,Strings),
   {String, Remaining, S1, Objects, Traits}; 
 
 
 read(<<?XMLDOC, Data/binary>>, Strings, Objects, Traits) -> 
-  {XMLDocString,Remaining} = read_string(Data,Strings),
-  S1 = remember(XMLDocString, Strings),
+  {XMLDocString,Remaining,S1} = read_string(Data,Strings),
   {{xmldoc, XMLDocString}, Remaining, S1, Objects, Traits};
 
 
@@ -178,7 +175,7 @@ read(<<?DATE, Data/binary>>, Strings, Objects, Traits) ->
     false ->  {MilliSeconds, R1, S1, O1, T1} = read(<<?DOUBLE, R/binary>>, 
                                                       Strings, Objects, Traits),
               Date = {date, MilliSeconds},
-              O2 = remember(Date, O1),
+              {_,O2} = remember(Date, O1),
               {Date, R1, S1, O2, T1}
   end;
 
@@ -206,7 +203,7 @@ read(<< ?ARRAY, Data/binary >>, Strings, Objects, Traits) ->
                 AssocSize == 0, DenseSize == 0 ->
                   Arr = {array, Associative, Dense}
               end,
-              O3 = remember(Arr, O2),
+              {_,O3} = remember(Arr, O2),
               {Arr, R2, S2, O3, T2}
   end;
 
@@ -216,9 +213,10 @@ read(<< ?OBJECT, Data/binary >>, Strings, Objects, Traits) ->
   case Header band 1 =:= 0 of
     true  ->  Object = find(Header bsr 1, Objects),
               {Object, R, Strings, Objects, Traits};
-    false ->  {{ClassName,IsDynamic,IsExternalizable,_,Properties},
-                  R1, S1, O1, T1} = read_traits(Header, R,
-                                       Strings, Objects, Traits),
+    false ->  {Key,O} = remember({}, Objects),
+              {{ClassName,IsDynamic,IsExternalizable,_,Properties},
+                  R1, S1, O1, T1} = read_traits(Header bsr 1, R,
+                                       Strings, O, Traits),
               case IsExternalizable of
                 true  -> {externalizable, R1, S1, O1, T1}; %% @todo
                 false -> {SealedPD, R2, S2, O2, T2} = 
@@ -236,15 +234,14 @@ read(<< ?OBJECT, Data/binary >>, Strings, Objects, Traits) ->
                                                 {{object, ClassName, PD},
                                                  R3, S3, O3, T3}
                          end, 
-                         O5 = remember(Object, O4),
+                         O5 = dict:store(Key, Object, O4),
                          {Object, R4, S4, O5, T4}
               end 
     end;
 
 
 read(<< ?XML, Data/binary >>, Strings, Objects, Traits) -> 
-  {XMLString,Remaining} = read_string(Data,Strings),
-  S1 = remember(XMLString, Strings),
+  {XMLString,Remaining,S1} = read_string(Data,Strings),
   {{xml, XMLString}, Remaining, S1, Objects, Traits};
 
 
@@ -257,7 +254,7 @@ read(<< ?BYTEARRAY, Data/binary >>,
           false ->  Length = Header bsr 1,
                     << ByteArray:Length/binary, Remaining/binary >>  = R,
                     BA = {bytearray,ByteArray},
-                    Objects1 = remember(BA, Objects),  
+                    {_,Objects1} = remember(BA, Objects),  
                     {BA, Remaining, Strings, Objects1, Traits}
         end.
 
@@ -289,37 +286,36 @@ read_dense_array(Length, List, Data, Strings, Objects, Traits) ->
 
 
 read_traits(Header, Data, Strings, Objects, Traits) ->
-  case Header band 3 =:= 0 of
-    true  -> Trait = find(Header bsr 1, Objects),
+  case Header band 1 =:= 0 of
+    true  -> Trait = find(Header bsr 1, Traits),
              {Trait, Data, Strings, Objects, Traits}; 
-    false -> IsExternalizable = Header band 4 =:= 4,
-             IsDynamic = Header band 8 =:= 8,
-             Count = Header bsr 4,
-             {ClassName, R} = read_string(Data, Strings),
-             {Properties, R1, S1} = read_property_names(Count, [], R, Strings),
+    false -> IsExternalizable = Header band 2#10 =:= 2#10,
+             IsDynamic = Header band 2#100 =:= 2#100,
+             Count = Header bsr 3,
+             {ClassName, R, S1} = read_string(Data, Strings),
+             {Properties, R1, S2} = read_property_names(Count, [], R, S1),
              Trait = {ClassName,IsDynamic,IsExternalizable,Count,Properties},
-             T1 = remember(Trait, Traits), 
-             {Trait, R1, S1, Objects, T1}
+             {_,T1} = remember(Trait, Traits), 
+             {Trait, R1, S2, Objects, T1}
   end.          
 
 
-read_dynamic_properties(<<16#01>>,Dictionary,Strings,Objects,Traits) ->
-  {Dictionary,<<>>,Strings,Objects,Traits};
 read_dynamic_properties(Data, Dictionary, Strings, Objects, Traits) ->
-  {Property, R} = read_string(Data, Strings),
-  {Value, R1, S1, O1, T1} = read(R, Strings,Objects,Traits),
-  PropertyDictionary = dict:store(list_to_atom(binary_to_list(Property)),
-                                  Value, Dictionary),
-  read_dynamic_properties(R1, PropertyDictionary, S1, O1, T1).
-
+  {Property, R, S1} = read_string(Data, Strings),
+  case Property of
+    <<>> -> {Dictionary, R, S1, Objects, Traits};
+       _ -> {Value, R1, S2, O1, T1} = read(R, S1,Objects,Traits),
+            PropertyAtom = list_to_atom(binary_to_list(Property)),
+            PropertyDictionary = dict:store(PropertyAtom,Value, Dictionary),
+            read_dynamic_properties(R1, PropertyDictionary, S2, O1, T1)
+  end.          
 
 read_property_names(0, Properties,Data,Strings) -> 
   {lists:reverse(Properties), Data, Strings};
 read_property_names(Count,Properties,Data,Strings) ->
-  {Property, R} = read_string(Data, Strings),
+  {Property, R, S1} = read_string(Data, Strings),
   PropertyAtom = list_to_atom(binary_to_list(Property)),
-  read_property_names(Count-1, [PropertyAtom|Properties], R, Strings).
-
+  read_property_names(Count-1, [PropertyAtom|Properties], R, S1).
 
 read_property_values([],Data, PropertyDictionary, Strings, Objects, Traits) -> 
         {PropertyDictionary, Data, Strings, Objects, Traits};
@@ -334,9 +330,13 @@ read_string(Data,Strings) ->
     {Header, R} = read_uint29(Data),
     N = Header bsr 1,
     case Header band 1 =:= 0 of
-      true  ->  {find(N, Strings), R};
+      true  ->  {find(N, Strings), R, Strings};
       false ->  <<String:N/binary, Remaining/binary>>  = R,
-                {String, Remaining}
+                case String of
+                  <<>> -> {String, Remaining, Strings};
+                     _ -> {_,Strings1} = remember(String, Strings),
+                          {String, Remaining, Strings1}
+                end         
     end.
 
 
@@ -499,8 +499,9 @@ write_string(Marker, String, Strings) ->
 
 
 remember(ToRemember, Dictionary) ->
-  Key = dict:size(Dictionary) + 1,
-  dict:store(Key, ToRemember, Dictionary).
+  Key = dict:size(Dictionary),
+  D = dict:store(Key, ToRemember, Dictionary),
+  {Key,D}.
 
 find(Reference, Dictionary) ->
   case dict:find(Reference, Dictionary) of
