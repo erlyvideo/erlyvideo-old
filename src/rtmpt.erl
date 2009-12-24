@@ -136,9 +136,10 @@ handle_call({client_data, Bin}, _From, #rtmpt{consumer = Upstream} = State) when
 handle_call({set_consumer, Upstream}, _From, #rtmpt{consumer = undefined} = State) ->
   {reply, ok, State#rtmpt{consumer = Upstream}, ?RTMPT_TIMEOUT};
 
-handle_call(timeout, _From, #rtmpt{} = State) ->
-  error_logger:error_msg("Client ~p connection timeout.\n", [self()]),
-  {stop, normal, State};
+handle_call(timeout, _From, #rtmpt{consumer = _Consumer} = State) ->
+  % gen_fsm:send_event(Consumer, timeout),
+  % {stop, normal, State};
+  {reply, ok, State, ?RTMPT_TIMEOUT};
 
 handle_call(close, _From, #rtmpt{} = State) ->
   {stop, normal, State};
@@ -175,6 +176,10 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_info(timeout, State) ->
+  {noreply, State};
+
 handle_info(_Info, State) ->
   io:format("RTMPT unknown message: ~p~n", [_Info]),
   {noreply, State}.
