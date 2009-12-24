@@ -136,6 +136,7 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
 
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
+  link(Socket),
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
 
 wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->

@@ -109,8 +109,8 @@ init([]) ->
   error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
   {next_state, 'WAIT_FOR_SOCKET', State}.
 
-'WAIT_FOR_HANDSHAKE'(timeout, State) ->
-  error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
+'WAIT_FOR_HANDSHAKE'(timeout, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
+  ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
   {stop, normal, State}.
 
 %% Notification event coming from client
@@ -118,10 +118,9 @@ init([]) ->
 'WAIT_FOR_DATA'({exit}, State) ->
   {stop, normal, State};
 
-
-'WAIT_FOR_DATA'(timeout, State) ->
-  error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
-  {stop, normal, State};    
+'WAIT_FOR_DATA'(timeout, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
+  ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
+  {stop, normal, State};
         
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
@@ -244,6 +243,11 @@ handle_info({rtmp, _Socket, #rtmp_message{} = Message}, StateName, State) ->
 handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
+handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
+  ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
+  {stop, normal, State};
+  
+
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Streams, socket = Socket} = State) ->
   % case lists:keytake(PlayerPid, 2, Streams) of
   %   {value, {StreamId, PlayerPid}, NewStreams} ->
@@ -276,7 +280,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
 	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true} = Frame, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true}, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp=TimeStamp,
@@ -285,8 +289,6 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
     body = Body},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
-
-
 
 
 handle_info(_Info, StateName, StateData) ->
