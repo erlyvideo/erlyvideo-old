@@ -33,7 +33,7 @@
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
 
--export([accept/1, connect/1, getopts/2, setopts/2, send/2]).
+-export([accept/1, connect/1, start_link/2, getopts/2, setopts/2, send/2]).
 -export([status/3, status/4, invoke/2]).
 
 
@@ -46,25 +46,27 @@
 
 -spec(accept(Socket::port()) -> RTMPSocket::pid()).
 accept(Socket) ->
-  {ok, Pid} = gen_fsm:start_link(?MODULE, [self(), accept], []),
-  case Socket of
-    Socket when is_port(Socket) -> gen_tcp:controlling_process(Socket, Pid);
-    _ -> io:format("RTMP socket accepted ~p"),  ok
-  end,
-  gen_fsm:send_event(Pid, {socket, Socket}),
-  {ok, Pid}.
-
+  start_socket(accept, Socket).
+  
 -spec(connect(Socket::port()) -> RTMPSocket::pid()).
 connect(Socket) ->
-  {ok, Pid} = gen_fsm:start_link(?MODULE, [self(), connect], []),
+  start_socket(connect, Socket).
+
+
+start_socket(Type, Socket) ->
+  {ok, RTMP} = rtmp_sup:start_rtmp_socket(self(), Type),
   case Socket of
-    _ when is_port(Socket) -> gen_tcp:controlling_process(Socket, Pid);
+    _ when is_port(Socket) -> gen_tcp:controlling_process(Socket, RTMP);
     _ -> ok
   end,
-  gen_fsm:send_event(Pid, {socket, Socket}),
-  {ok, Pid}.
+  gen_fsm:send_event(RTMP, {socket, Socket}),
+  {ok, RTMP}.
+
   
 
+start_link(Consumer, Type) ->
+  gen_fsm:start_link(?MODULE, [Consumer, Type], []).
+  
   
 % Func: setopts/2
 %  Available options:
