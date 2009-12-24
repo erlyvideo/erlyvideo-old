@@ -67,7 +67,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, clients/0, login/2, logout/0, send_to_user/2, send_to_channel/2]).
+-export([start_link/1, clients/0, login/2, logout/0, send_to_user/2, send_to_channel/2, create_client/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -134,6 +134,17 @@ send_to_channel(Channel, Message) ->
 start_link(Port) when is_integer(Port) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
 
+
+%%--------------------------------------------------------------------
+%% @spec (Socket) -> {ok, RTMP}
+%%
+%% @doc Send message to all, subscribed on channel
+%% @end
+%%----------------------------------------------------------------------
+create_client() ->
+  gen_server:call(?MODULE, create_client).
+
+
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
@@ -181,9 +192,8 @@ init([Port]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call(start, _From, State) ->
-  {ok, Pid} = ems_sup:start_rtmp_session(),
-  {reply, {ok, Pid}, State};
+handle_call(create_client, _From, State) ->
+  {reply, ems_sup:start_rtmp_session(), State};
 
 handle_call({login, UserId, UserChannels}, {Client, _Ref}, 
   #rtmp_listener{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->

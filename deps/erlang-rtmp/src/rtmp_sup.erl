@@ -40,11 +40,11 @@ init([rtmpt_session]) ->
       [
         % MediaEntry
         {   undefined,                               % Id       = internal id
-            {rtmpt_session,start_link,[]},             % StartFun = {M, F, A}
+            {rtmpt,start_link,[]},             % StartFun = {M, F, A}
             temporary,                               % Restart  = permanent | transient | temporary
             2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
             worker,                                  % Type     = worker | supervisor
-            [rtmpt_session]                            % Modules  = [Module] | dynamic
+            [rtmpt]                            % Modules  = [Module] | dynamic
         }
       ]
     }

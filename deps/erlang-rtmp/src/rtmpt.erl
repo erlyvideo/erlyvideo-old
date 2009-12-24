@@ -2,7 +2,7 @@
 
 %% @doc RTMP client, that connects to rtmp backend.
 
--module(rtmpt_session).
+-module(rtmpt).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(gen_server).
@@ -11,11 +11,16 @@
 -record(rtmpt, {
 	consumer = undefined,   % backend process
 	session_id = undefined,
+	ip,
 	buffer = <<>>,
 	bytes_count = 0,
 	sequence_number = 0,
 	watchdog = undefined
 	}).
+
+
+-export([open/2, idle/3, send/4, close/2, write/2]).
+
 
 -export([start_link/2, set_consumer/2]).
 
@@ -28,6 +33,37 @@
 %%%------------------------------------------------------------------------
 %%% API
 %%%------------------------------------------------------------------------
+
+
+open(IP, Consumer) ->
+  {ok, RTMPT, SessionID} = rtmpt_sessions:create(IP),
+  {ok, RTMP} = rtmp_socket:start_socket(Consumer, accept, RTMPT),
+  rtmpt:set_consumer(RTMPT, RTMP),
+  {ok, RTMP, SessionID}.
+
+
+idle(SessionID, IP, Sequence) ->
+  case rtmpt_sessions:find(SessionID, IP) of
+    {error, Reason} -> {error, Reason};
+    {ok, RTMPT} -> gen_server:call(RTMPT, {recv, Sequence})
+  end.
+
+send(SessionID, IP, Sequence, Data) ->
+  case rtmpt_sessions:find(SessionID, IP) of
+    {error, Reason} -> {error, Reason};
+    {ok, RTMPT} -> 
+      gen_server:call(RTMPT, {client_data, Data}),
+      gen_server:call(RTMPT, {recv, Sequence})
+  end.
+
+close(SessionID, IP) ->
+  case rtmpt_sessions:find(SessionID, IP) of
+    {error, Reason} -> {error, Reason};
+    {ok, RTMPT} -> gen_server:call(RTMPT, close)
+  end.
+
+write(RTMPT, Data) ->
+  gen_server:call(RTMPT, {server_data, Data}).
 
 start_link(SessionId, IP) ->
   gen_server:start_link(?MODULE, [SessionId, IP], []).
@@ -57,7 +93,7 @@ watcher(Rtmp, Timeout) ->
             ok
     after 
         Timeout ->
-            Rtmp ! {rtmpt_timeout}
+            gen_server:call(Rtmp, timeout)
     end.
 
 
@@ -69,14 +105,10 @@ watcher(Rtmp, Timeout) ->
 %%          {stop, StopReason}
 %% @private
 %%-------------------------------------------------------------------------
-init([SessionId]) ->
+init([SessionId, IP]) ->
   % process_flag(trap_exit, true),
-  {ok, RTMP} = gen_server:call(rtmp_listener, start, ?RTMPT_TIMEOUT),
-  rtmp_session:set_socket(RTMP, self()),
-  link(RTMP),
   Watchdog = spawn_link(?MODULE, watcher, [self(), ?RTMPT_TIMEOUT*5]),
-  ets:insert(rtmp_sessions, {SessionId, self()}),
-  {ok, #rtmpt{session_id = SessionId, watchdog = Watchdog, consumer = RTMP}, ?RTMPT_TIMEOUT}.
+  {ok, #rtmpt{session_id = SessionId, ip = IP, watchdog = Watchdog}, ?RTMPT_TIMEOUT}.
         
 
 %%-------------------------------------------------------------------------
@@ -93,19 +125,22 @@ init([SessionId]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({server_data, Bin}, _From, #rtmpt{buffer = Buffer, bytes_count = BytesCount} = State) ->
-  {noreply, State#rtmpt{buffer = <<Buffer/binary, Bin/binary>>, bytes_count = BytesCount + size(Bin)}, ?RTMPT_TIMEOUT};
+  Data = iolist_to_binary(Bin),
+  {reply, ok, State#rtmpt{buffer = <<Buffer/binary, Data/binary>>, bytes_count = BytesCount + size(Data)}, ?RTMPT_TIMEOUT};
 
 
 handle_call({client_data, Bin}, _From, #rtmpt{consumer = Upstream} = State) when is_pid(Upstream)  ->
-  % io:format("Received client bytes: ~p~n", [size(Bin)]),
   Upstream ! {rtmpt, self(), Bin},
-  {noreply, State, ?RTMPT_TIMEOUT};
+  {reply, ok, State, ?RTMPT_TIMEOUT};
 
 handle_call({set_consumer, Upstream}, _From, #rtmpt{consumer = undefined} = State) ->
-  {noreply, State#rtmpt{consumer = Upstream}, ?RTMPT_TIMEOUT};
+  {reply, ok, State#rtmpt{consumer = Upstream}, ?RTMPT_TIMEOUT};
 
 handle_call(timeout, _From, #rtmpt{} = State) ->
   error_logger:error_msg("Client ~p connection timeout.\n", [self()]),
+  {stop, normal, State};
+
+handle_call(close, _From, #rtmpt{} = State) ->
   {stop, normal, State};
 
 handle_call({info}, _From, #rtmpt{sequence_number = SequenceNumber, session_id = SessionId, buffer = Buffer, bytes_count = BytesCount} = State) ->
@@ -114,8 +149,7 @@ handle_call({info}, _From, #rtmpt{sequence_number = SequenceNumber, session_id =
 
 handle_call({recv, SequenceNumber}, _From, #rtmpt{buffer = Buffer, watchdog = Watchdog} = State) ->
   Watchdog ! {rtmpt},
-  % io:format("Recv ~p ~p bytes~n", [SequenceNumber, size(Buffer)]),
-  {reply, {Buffer}, State#rtmpt{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMPT_TIMEOUT}.
+  {reply, {ok, Buffer}, State#rtmpt{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMPT_TIMEOUT}.
 
 
 
@@ -142,6 +176,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info(_Info, State) ->
+  io:format("RTMPT unknown message: ~p~n", [_Info]),
   {noreply, State}.
 
 %%-------------------------------------------------------------------------

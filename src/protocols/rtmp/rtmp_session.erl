@@ -51,6 +51,7 @@
 %% FSM States
 -export([
   'WAIT_FOR_SOCKET'/2,
+  'WAIT_FOR_HANDSHAKE'/2,
   'WAIT_FOR_DATA'/2,
   'WAIT_FOR_DATA'/3]).
 
@@ -93,8 +94,7 @@ init([]) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_pid(Socket) ->
-  {ok, RTMP} = rtmp_socket:accept(Socket),
+'WAIT_FOR_SOCKET'({socket_ready, RTMP}, State) when is_pid(RTMP) ->
   {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP}, ?TIMEOUT};
 
 
@@ -108,6 +108,10 @@ init([]) ->
 'WAIT_FOR_SOCKET'(Other, State) ->
   error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
   {next_state, 'WAIT_FOR_SOCKET', State}.
+
+'WAIT_FOR_HANDSHAKE'(timeout, State) ->
+  error_logger:error_msg("~p Client connection timeout - closing.\n", [self()]),
+  {stop, normal, State}.
 
 %% Notification event coming from client
 

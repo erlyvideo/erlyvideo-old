@@ -9,15 +9,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
          
--export([create/2]).
+-export([create/1, find/2]).
          
 -record(rtmpt_sessions, {
   sessions
-}).
-
--record(rtmpt_session, {
-  key,
-  session
 }).
 
 
@@ -34,13 +29,11 @@ start_link()  ->
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
 
-open(SessionId, IP) ->
-  {ok, Object} = gen_server:call(?MODULE, {open, SessionId, IP}),
-  Object.
+find(SessionId, IP) ->
+  gen_server:call(?MODULE, {find, SessionId, IP}).
 
-create(SessionId, IP) ->
-  {ok, Object} = gen_server:call(?MODULE, {create, SessionId, IP}),
-  Object.
+create(IP) ->
+  gen_server:call(?MODULE, {create, IP}).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -54,7 +47,8 @@ create(SessionId, IP) ->
 %%----------------------------------------------------------------------
 init([]) ->
   process_flag(trap_exit, true),
-  Sessions = ets:new(rtmpt_sessions, [set, {keypos, #rtmpt_session.key}]),
+  random:seed(now()),
+  Sessions = ets:new(rtmpt_sessions, [set]),
   {ok, #rtmpt_sessions{sessions = Sessions}}.
   
 
@@ -71,20 +65,16 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create, SessionID, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
-  case ets:lookup(Sessions, {SessionID, IP}) of
-    [{Key, Session}] -> 
-      {reply, {error, exists}, State};
-    _ -> 
-      {ok, RTMPT} = rtmp_sup:start_rtmpt(SessionID, IP),
-      ets:insert(Sessions, {{SessionID, IP}, RTMPT}),
-      {reply, {ok, RTMPT}, State}
-  end;
+handle_call({create, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
+  SessionID = generate_session_id(),
+  {ok, RTMPT} = rtmp_sup:start_rtmpt(SessionID, IP),
+  ets:insert(Sessions, {{SessionID, IP}, RTMPT}),
+  {reply, {ok, RTMPT, SessionID}, State};
   
 
-handle_call({open, SessionID, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
+handle_call({find, SessionID, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
   case ets:lookup(Sessions, {SessionID, IP}) of
-    [{Key, RTMPT}] -> {reply, {ok, RTMPT}, State};
+    [{_Key, RTMPT}] -> {reply, {ok, RTMPT}, State};
     _ -> {reply, {error, notfound}, State}
   end;
 
@@ -146,4 +136,10 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+
+
+generate_session_id() ->
+  {T1, T2, T3} = now(),
+  lists:flatten(io_lib:format("~p:~p:~p", [T1, T2, T3])).
 
