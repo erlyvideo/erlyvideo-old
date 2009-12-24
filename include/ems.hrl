@@ -15,7 +15,6 @@
 -define(CONTENT_TYPE, "application/x-fcs").
 -define(SERVER_HEADER, {"Server", "RTMPT/1.0"}).
 
--define(RTMPT_TIMEOUT, 12000).
 -define(DEFAULT_FLV_DIR, "/tmp").
 
 
