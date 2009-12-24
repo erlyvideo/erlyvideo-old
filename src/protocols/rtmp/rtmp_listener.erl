@@ -181,9 +181,8 @@ init([Port]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({start}, {From, _Ref}, State) ->
+handle_call(start, _From, State) ->
   {ok, Pid} = ems_sup:start_rtmp_session(),
-  gen_fsm:sync_send_event(Pid, {socket_ready, From}),
   {reply, {ok, Pid}, State};
 
 handle_call({login, UserId, UserChannels}, {Client, _Ref}, 

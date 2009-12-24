@@ -59,12 +59,13 @@ handle(Host, 'GET', ["chat.html"], Req) ->
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
   
-handle(_Host, 'POST', ["open", ChunkNumber], Req) ->
+handle(Host, 'POST', ["open", ChunkNumber], Req) ->
   error_logger:info_msg("Request: open/~p.\n", [ChunkNumber]),
   SessionId = generate_session_id(),
   <<Timeout>> = Req:get(body),
-  {ok, _Pid} = rtmpt_session:start(SessionId),
-  error_logger:info_msg("Opened session ~p, timeout ~p.\n", [SessionId, Timeout]),
+  {ok, RTMPT} = rtmpt_session:start(SessionId),
+  ?D({"Starting RTMPT", RTMPT}),
+  ems_log:access(Host, "RTMPT OPEN ~p", [SessionId]),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [SessionId, "\n"]);
   
 handle(_Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->

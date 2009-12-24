@@ -50,7 +50,6 @@
 
 %% FSM States
 -export([
-  'WAIT_FOR_SOCKET'/3,
   'WAIT_FOR_SOCKET'/2,
   'WAIT_FOR_DATA'/2,
   'WAIT_FOR_DATA'/3]).
@@ -65,7 +64,7 @@
 start_link() ->
   gen_fsm:start_link(?MODULE, [], []).
 
-set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
+set_socket(Pid, Socket) when is_pid(Pid) ->
   gen_fsm:send_event(Pid, {socket_ready, Socket}).
 
 %%%------------------------------------------------------------------------
@@ -94,8 +93,9 @@ init([]) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-'WAIT_FOR_SOCKET'({socket_ready, Socket}, _From, State) when is_pid(Socket) ->
-  {reply, ok, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket=Socket}, ?TIMEOUT}.
+'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_pid(Socket) ->
+  {ok, RTMP} = rtmp_socket:accept(Socket),
+  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP}, ?TIMEOUT};
 
 
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->

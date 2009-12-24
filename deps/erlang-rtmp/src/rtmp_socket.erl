@@ -47,14 +47,20 @@
 -spec(accept(Socket::port()) -> RTMPSocket::pid()).
 accept(Socket) ->
   {ok, Pid} = gen_fsm:start_link(?MODULE, [self(), accept], []),
-  gen_tcp:controlling_process(Socket, Pid),
+  case Socket of
+    Socket when is_port(Socket) -> gen_tcp:controlling_process(Socket, Pid);
+    _ -> io:format("RTMP socket accepted ~p"),  ok
+  end,
   gen_fsm:send_event(Pid, {socket, Socket}),
   {ok, Pid}.
 
 -spec(connect(Socket::port()) -> RTMPSocket::pid()).
 connect(Socket) ->
   {ok, Pid} = gen_fsm:start_link(?MODULE, [self(), connect], []),
-  gen_tcp:controlling_process(Socket, Pid),
+  case Socket of
+    _ when is_port(Socket) -> gen_tcp:controlling_process(Socket, Pid);
+    _ -> ok
+  end,
   gen_fsm:send_event(Pid, {socket, Socket}),
   {ok, Pid}.
   
@@ -121,10 +127,13 @@ init([Consumer, connect]) ->
   link(Consumer),
   {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT}.
 
-wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) ->
+wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
-  {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT}.
+  {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
+
+wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
+  {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
 
 wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),

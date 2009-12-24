@@ -9,7 +9,7 @@
 -include("../../../include/ems.hrl").
 
 -record(rtmp_fsm, {
-	upstream = undefined,   % backend process
+	consumer = undefined,   % backend process
 	session_id = undefined,
 	buffer = <<>>,
 	bytes_count = 0,
@@ -17,13 +17,12 @@
 	watchdog = undefined
 	}).
 
--export([start/1]).
+-export([start/1, set_consumer/2]).
 
-%% gen_fsm callbacks
--export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% FSM States
--export(['READY'/2, 'READY'/3]).
 -export([watcher/2]).
 
 %%%------------------------------------------------------------------------
@@ -31,8 +30,10 @@
 %%%------------------------------------------------------------------------
 
 start(SessionId) ->
-    gen_fsm:start(?MODULE, [SessionId], []).
+  gen_fsm:start(?MODULE, [SessionId], []).
 
+set_consumer(RTMPT, Consumer) ->
+  gen_fsm:send_event(RTMPT, {set_consumer, Consumer}).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -70,12 +71,13 @@ watcher(Rtmp, Timeout) ->
 %%-------------------------------------------------------------------------
 init([SessionId]) ->
     % process_flag(trap_exit, true),
-    {ok, Rtmp} = gen_server:call(rtmp_listener, {start}, ?RTMPT_TIMEOUT),
-    link(Rtmp),
-    io:format("Received upstream ~p~n", [Rtmp]),
+    {ok, RTMP} = gen_server:call(rtmp_listener, start, ?RTMPT_TIMEOUT),
+    ?D({"Starting RTMP", RTMP}),
+    rtmp_session:set_socket(RTMP, self()),
+    link(RTMP),
     Watchdog = spawn_link(?MODULE, watcher, [self(), ?RTMPT_TIMEOUT*5]),
     ets:insert(rtmp_sessions, {SessionId, self()}),
-    {ok, 'READY', #rtmp_fsm{session_id = SessionId, watchdog = Watchdog, upstream = Rtmp}, ?RTMPT_TIMEOUT}.
+    {ok, #rtmp_fsm{session_id = SessionId, watchdog = Watchdog, consumer = RTMP}, ?RTMPT_TIMEOUT}.
         
 
 %%-------------------------------------------------------------------------
@@ -88,19 +90,19 @@ init([SessionId]) ->
 
 %% Notification event coming from client
 
-'READY'({server_data, Bin}, #rtmp_fsm{buffer = Buffer, bytes_count = BytesCount} = State) ->
+handle_call({server_data, Bin}, #rtmp_fsm{buffer = Buffer, bytes_count = BytesCount} = State) ->
     % io:format("Received server bytes: ~p/~p~n", [size(Bin), BytesCount + size(Bin)]),
     {next_state, 'READY', State#rtmp_fsm{buffer = <<Buffer/binary, Bin/binary>>, bytes_count = BytesCount + size(Bin)}, ?RTMPT_TIMEOUT};
 
 
-'READY'({client_data, Bin}, #rtmp_fsm{upstream = Upstream} = State) when is_pid(Upstream)  ->
+'READY'({client_data, Bin}, #rtmp_fsm{consumer = Upstream} = State) when is_pid(Upstream)  ->
     % io:format("Received client bytes: ~p~n", [size(Bin)]),
     gen_fsm:send_event(Upstream, {data, Bin}),
     {next_state, 'READY', State, ?RTMPT_TIMEOUT};
 
 
-'READY'({upstream, Upstream}, #rtmp_fsm{upstream = undefined} = State) ->
-    {next_state, 'READY', State#rtmp_fsm{upstream = Upstream}, ?RTMPT_TIMEOUT};
+'READY'({set_consumer, Upstream}, #rtmp_fsm{consumer = undefined} = State) ->
+    {next_state, 'READY', State#rtmp_fsm{consumer = Upstream}, ?RTMPT_TIMEOUT};
 
 
 'READY'(timeout, #rtmp_fsm{} = State) ->
@@ -176,7 +178,7 @@ handle_info(_Info, StateName, StateData) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(Reason, _StateName, #rtmp_fsm{upstream = Upstream, session_id = SessionId, bytes_count = BytesCount, watchdog = Watchdog}) ->
+terminate(Reason, _StateName, #rtmp_fsm{consumer = Upstream, session_id = SessionId, bytes_count = BytesCount, watchdog = Watchdog}) ->
     io:format("Disconnected ~p ~p because of ~p, Bytes received ~p~n", [self(), SessionId, Reason, BytesCount]),
     ets:delete(rtmp_sessions, SessionId),
     gen_fsm:send_event(Upstream, {exit}),
