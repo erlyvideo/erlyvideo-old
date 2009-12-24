@@ -45,10 +45,29 @@ play(_Name, Player, Req) ->
   process_flag(trap_exit, true),
   link(Req:socket_pid()),
   Player ! start,
-  play(Req),
+  setup_pat(Req),
   % ?D({"MPEG TS", Req}),
   Req:stream(close),
   ok.
+
+mux(Data, Req, Start, Pid, Counter) ->
+  TEI = 0,
+  Start = 1,
+  Priority = 0,
+  Scrambling = 0,
+  Adapt = 1,
+  HasPayload = 1,
+  Adaptation = <<>>,
+  Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, (size(Adaptation)), Adaptation/binary>>.
+  
+    
+  
+setup_pat(Req) ->
+  PAT = <<1:16, 0:3, 100:13>>,
+  Length = size(PAT)+5,
+  mux(<<0, 0, 2#10:2, 2#11:2, Length:12, 0:16, 16#040000:24, PAT/binary>>, Req, 1, 0, 0),
+  ?MODULE:play(Req).
+  
   
 play(Req) ->
   receive
@@ -68,7 +87,7 @@ play(Req) ->
   end.
   
   
-  
+
   
   
   
