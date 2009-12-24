@@ -17,7 +17,7 @@
 	watchdog = undefined
 	}).
 
--export([start/1, set_consumer/2]).
+-export([start_link/2, set_consumer/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -29,11 +29,11 @@
 %%% API
 %%%------------------------------------------------------------------------
 
-start(SessionId) ->
-  gen_fsm:start(?MODULE, [SessionId], []).
+start_link(SessionId, IP) ->
+  gen_server:start_link(?MODULE, [SessionId, IP], []).
 
 set_consumer(RTMPT, Consumer) ->
-  gen_fsm:send_event(RTMPT, {set_consumer, Consumer}).
+  gen_server:call(RTMPT, {set_consumer, Consumer}).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -152,7 +152,7 @@ handle_info(_Info, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, State) ->
+terminate(_Reason, _State) ->
   ok.
 
 %%-------------------------------------------------------------------------
