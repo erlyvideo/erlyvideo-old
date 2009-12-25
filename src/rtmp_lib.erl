@@ -8,7 +8,7 @@
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
   
-
+%% @private
 wait_for_reply(RTMP, InvokeId) ->
   receive
     {rtmp, RTMP, #rtmp_message{type = invoke, body = #amf{command = <<"_result">>, id = InvokeId, args = Args}}} -> Args
@@ -16,6 +16,8 @@ wait_for_reply(RTMP, InvokeId) ->
     10000 -> erlang:error(timeout)
   end.
 
+%% @spec (RTMP::rtmp_socket()) -> any()
+%% @doc Send connect request to server
 connect(RTMP) ->
   PlayerInfo = {object, [
     {app,<<>>},
