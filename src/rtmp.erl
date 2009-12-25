@@ -45,6 +45,13 @@
 handshake(C1) when is_binary(C1) -> 
   [rtmp_handshake:s1(), rtmp_handshake:s2(C1)].
 
+%%--------------------------------------------------------------------
+%% @spec (Socket::rtmp_socket(), Message::rtmp_message()) -> binary()
+%% @doc Encodes outgoing message to chunked binary packet, prepared to be written
+%% to TCP socket.
+%% @end 
+%%--------------------------------------------------------------------
+
 encode(State, #rtmp_message{timestamp = undefined} = Message) -> 
   encode(State, Message#rtmp_message{timestamp = 0});
 
@@ -167,6 +174,13 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DECODING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%		
 		
 		
+%%--------------------------------------------------------------------
+%% @spec (Packet::binary(), Socket::rtmp_socket()) -> Message::rtmp_message()
+%% @doc Encodes outgoing message to chunked binary packet, prepared to be written
+%% to TCP socket.
+%% 
+%% @end 
+%%--------------------------------------------------------------------
 decode(<<>>, #rtmp_socket{} = State) -> {State, <<>>};
 decode(Data, #rtmp_socket{} = State) when is_binary(Data) -> 
   case decode_channel_id(Data, State) of
