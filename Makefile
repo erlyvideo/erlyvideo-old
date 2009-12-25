@@ -1,8 +1,7 @@
 doc:
-	rm -rf doc	
 	erl -pa `pwd`/ebin \
 	-noshell \
-	-run edoc_run application  "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
+	-run edoc_run application  "'rtmp'" '"."' '[{def,{vsn,"1.0"},{modules,[rtmp,rtmp_socket,rtmp_lib,rtmpt]}}]'
 
 clean:
 	rm -fv ebin/*.beam
