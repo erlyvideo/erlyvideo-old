@@ -3,8 +3,8 @@
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
-%%% @doc        RTMP encoding/decoding and command handling module
-%%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
+%%% @doc        RTMP encoding/decoding module. 
+%%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information.
 %%% @end
 %%%
 %%%
@@ -39,11 +39,27 @@
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
 
--export([encode/2, handshake/1, decode/2]).
+-export([encode/2, decode/2]).
 
-
-handshake(C1) when is_binary(C1) -> 
-  [rtmp_handshake:s1(), rtmp_handshake:s2(C1)].
+%%--------------------------------------------------------------------
+%% @spec (Socket::rtmp_socket(), Message::rtmp_message()) -> {NewSocket::rtmp_socket(), Packet::binary()}
+%% @doc Encodes outgoing message to chunked binary packet, prepared to be written
+%% to TCP socket. As RTMP is a stateful protocol, state is modified on each encode.
+%% Things, that change in state are chunk size and "last" stream_id, timestamp, packet length.
+%% Thus, two sequential calls to encode can give you different results:
+%% 
+%% <code>{NewSocket, Packet} = encode(Socket, #rtmp_message{type = chunk_size, body = 10}),<br/>
+%% {NewSocket1, Packet1} = encode(NewSocket, #rtmp_message{type = chunk_size, body = 10}).</code><br/>
+%% First message will be chunked sent with default chunk size 128, but second will use chunk size 10
+%% and will differ from previous one.
+%%
+%% You can ask, where can you take Socket to use this module? Currently there are no methods to
+%% construct it from nowhere, because RTMP protocol is useless without other connected side,
+%% so take a use of {@link rtmp_socket. rtmp_socket} module, that instantiates Socket for you.
+%%
+%% To read description about rtmp_message, look for {@link decode/2. decode/2} documentation.
+%% @end 
+%%--------------------------------------------------------------------
 
 encode(State, #rtmp_message{timestamp = undefined} = Message) -> 
   encode(State, Message#rtmp_message{timestamp = 0});
@@ -129,11 +145,11 @@ encode(#rtmp_socket{server_chunk_size = ChunkSize} = State,
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
   {State, [<<BinId/binary,Timestamp:24,(size(Data)):24,Type:8,StreamId:32/little>> | ChunkList]}.
 
-encode_funcall(#amf{command = Command, args = Args, id = Id, type = invoke}) -> 
+encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
   <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 
     (encode_list(<<>>, Args))/binary>>;
  
-encode_funcall(#amf{command = Command, args = Args, type = notify}) -> 
+encode_funcall(#rtmp_funcall{command = Command, args = Args, type = notify}) -> 
 <<(amf0:encode(atom_to_binary(Command, utf8)))/binary,
   (encode_list(<<>>, Args))/binary>>.
 
@@ -167,8 +183,48 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DECODING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%		
 		
 		
-decode(<<>>, #rtmp_socket{} = State) -> {State, <<>>};
-decode(Data, #rtmp_socket{} = State) when is_binary(Data) -> 
+%%--------------------------------------------------------------------
+%% @spec (Socket::rtmp_socket(), Packet::binary()) -> {NewSocket::rtmp_socket(), Message::rtmp_message(), Rest::binary()} | {NewSocket::rtmp_socket, Rest::binary()}
+%% @doc Encodes outgoing message to chunked binary packet, prepared to be written
+%% to TCP socket.
+%% 
+%% RTMP is stateful protocol, so incoming messages modify state of protocol decoder. You need to keep
+%% track of it. {@link rtmp_socket. rtmp_socket} module can do this for you.
+%% 
+%% If it is enough data received, decode will return rtmp_message() and unconsumed bytes, that you need to store somewhere
+%% in buffer and pass them next time, when you get more bytes. Even in this case you need to keep new state, 
+%% because rtmp_socket() has its own internal buffers, that are filled. It is required for chunks of packets.
+%%
+%% So, always keep new state and keep returned buffer somewhere.
+%%
+%% rtmp_message has following (interesting for you) structure:
+%% <ul>
+%% <li><code>timestamp</code> this field is interesting only for audio/video messages</li>
+%% <li><code>type</code> you can read different types further</li>
+%% <li><code>stream_id</code> this field is default 0 (message received not on NetStream object, but on NetConnection)</li>
+%% <li><code>body</code> this field is correlated with type, read further.</li>
+%% </ul>
+%%
+%% Here goes list of possible messages, you can receive from RTMP stream:
+%% <ol>
+%% <li><code>#rtmp_message{type=window_size, body=WindowSize}</code> other side wants you to send ack_read message once in <code>WindowSize</code> bytes</li>
+%% <li><code>#rtmp_message{type=stream_begin, stream_id=StreamId}</code> audio/video is starting on stream StreamId</li>
+%% <li><code>#rtmp_message{type=stream_end, stream_id=StreamId}</code> audio/video is finished on stream StreamId</li>
+%% <li><code>#rtmp_message{type=buffer_size, body=BufferSize, stream_id=StreamId}</code> other side tells us, that it has BufferSize a/v buffer on stream StreamId</li>
+%% <li><code>#rtmp_message{type=stream_recorded, stream_id=StreamId}</code> stream StreamId was recorded on disc before sending to us</li>
+%% <li><code>#rtmp_message{type=ping, body=Timestamp}</code> at time Timestamp peer sent us ping, we should reply with pong</li>
+%% <li><code>#rtmp_message{type=control, body={EventType, Data}, stream_id=StreamId}</code> some other undecoded control message received</li>
+%% <li><code>#rtmp_message{type=broken_meta, stream_id=StreamId}</code> audio/video with null size received. It happens sometimes, never mind and ignore.</li>
+%% <li><code>#rtmp_message{type=audio, body=Body, stream_id=StreamId}</code> audio packet received on StreamId</li>
+%% <li><code>#rtmp_message{type=video, body=Body, stream_id=StreamId}</code> video packet received on StreamId</li>
+%% <li><code>#rtmp_message{type=metadata, body=Body, stream_id=StreamId}</code> metadata packet received on StreamId. It is usually sent, when flash client starts recording video stream from camera and tells size of video.</li>
+%% <li><code>#rtmp_message{type=invoke, body=Funcall::rtmp_funcall()}</code> function is invoked. Read further about Funcall object.</li>
+%% <li><code>#rtmp_message{type=shared_object, body=SharedObjectMessage}</code> shared object event happened. Not implemented yet.</li>
+%% </ol>
+%% @end 
+%%--------------------------------------------------------------------
+decode(#rtmp_socket{} = State, <<>>) -> {State, <<>>};
+decode(#rtmp_socket{} = State, Data) when is_binary(Data) -> 
   case decode_channel_id(Data, State) of
     {NewState, Message, Rest} -> {NewState, Message, Rest};
     {NewState, Rest} -> {NewState, Rest};
@@ -296,11 +352,11 @@ command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-in
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BEGIN:16, StreamId:32>>} = Channel, State) ->
   Message = extract_message(Channel),
-	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_begin, stream_id = StreamId}};
+	{State, Message#rtmp_message{type = stream_begin, stream_id = StreamId}};
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_EOF:16, StreamId:32>>} = Channel, State) ->
   Message = extract_message(Channel),
-	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_end, stream_id = StreamId}};
+	{State, Message#rtmp_message{type = stream_end, stream_id = StreamId}};
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:16, StreamId:32, BufferSize:32>>} = Channel, State) ->
   Message = extract_message(Channel),
@@ -356,7 +412,7 @@ command(#channel{type = ?RTMP_TYPE_METADATA_AMF3} = Channel, State)	 ->
 command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Body/binary>>, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
   AMF = decode_funcall(Body, StreamId),
-  {State, Message#rtmp_message{type = invoke, body = AMF#amf{version = 3}}};
+  {State, Message#rtmp_message{type = invoke, body = AMF#rtmp_funcall{version = 3}}};
 
 command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Body, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
@@ -379,7 +435,7 @@ decode_funcall(Message, StreamId) ->
 	{Command, Rest1} = amf0:decode(Message),
 	{InvokeId, Rest2} = amf0:decode(Rest1),
 	Arguments = decode_list(Rest2, amf0, []),
-	#amf{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
+	#rtmp_funcall{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
   
   
 decode_list(<<>>, _, Acc) -> lists:reverse(Acc);

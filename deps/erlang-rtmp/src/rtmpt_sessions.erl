@@ -17,7 +17,7 @@
 
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
+%% @spec () -> {ok, Pid} | {error, Reason}
 %%
 %% @doc Called by a supervisor to start the listening process.
 %% @end

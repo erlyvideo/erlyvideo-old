@@ -44,16 +44,24 @@
 
 -export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
 
-
+%% @spec (Socket::port()) -> RTMPSocket::pid()
+%% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
+%% and returns pid of newly created RTMP socket.
+%% @end
 -spec(accept(Socket::port()) -> RTMPSocket::pid()).
 accept(Socket) ->
   start_socket(self(), accept, Socket).
   
+%% @spec (Socket::port()) -> RTMPSocket::pid()
+%% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
+%% and returns pid of newly created RTMP socket.
+%% @end
 -spec(connect(Socket::port()) -> RTMPSocket::pid()).
 connect(Socket) ->
   start_socket(self(), connect, Socket).
 
 
+%% @private  
 start_socket(Consumer, Type, Socket) ->
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(Consumer, Type),
   case Socket of
@@ -64,16 +72,20 @@ start_socket(Consumer, Type, Socket) ->
   {ok, RTMP}.
 
   
-
+%% @private
 start_link(Consumer, Type) ->
   gen_fsm:start_link(?MODULE, [Consumer, Type], []).
   
   
-% Func: setopts/2
-%  Available options:
-%  chunk_size
-%  window_size
-%  amf_version
+%% @spec (RTMP::pid(), Options::[{Key, Value}]|{Key, Value}) -> ok
+%% @doc Just the same as {@link inet:setopts/2. inet:setopts/2} this function changes state of 
+%% rtmp socket.<br/>
+%%  Available options:
+%%  <ul><li><code>chunk_size</code> - change outgoing chunk size</li>
+%%  <li><code>window_size</code> - ask remote client to send read acknowlegement after WindowSize bytes</li>
+%%  <li><code>amf_version</code> - change AMF0 to AMF3, but only before first call</li>
+%% </ul>
+%% @end
 -spec(setopts(RTMP::rtmp_socket_pid(), Options::[{Key::atom(), Value::any()}]) -> ok).
 setopts(RTMP, Options) ->
   gen_fsm:send_event(RTMP, {setopts, Options}).
@@ -111,7 +123,7 @@ status(RTMP, StreamId, Code, Description) ->
   invoke(RTMP, StreamId, onStatus, [Arg]).
   
 invoke(RTMP, StreamId, Command, Args) ->
-  AMF = #amf{
+  AMF = #rtmp_funcall{
       command = Command,
         type = invoke,
         id = 0,
@@ -119,9 +131,10 @@ invoke(RTMP, StreamId, Command, Args) ->
         args = [null | Args ]},
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
 
-invoke(RTMP, #amf{stream_id = StreamId} = AMF) ->
+invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
   
+%% @private  
 init([Consumer, accept]) ->
   link(Consumer),
   {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT};
@@ -130,6 +143,7 @@ init([Consumer, connect]) ->
   link(Consumer),
   {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT}.
 
+%% @private  
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
@@ -139,22 +153,27 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(
   link(Socket),
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
 
+%% @private  
 wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
   State1 = State#rtmp_socket{socket = Socket, address = IP, port = Port},
   send_data(State1, [?HS_HEADER, rtmp_handshake:c1()]),
   {next_state, handshake_s1, State1, ?RTMP_TIMEOUT}.
-  
+
+%% @private  
 handshake_c1(timeout, State) ->
   {stop, normal, State}.
 
+%% @private  
 handshake_c3(timeout, State) ->
   {stop, normal, State}.
 
+%% @private  
 handshake_s1(timeout, State) ->
   {stop, normal, State}.
   
+%% @private  
 loop(timeout, #rtmp_socket{pinged = false} = State) ->
   send_data(State, #rtmp_message{type = ping}),
   {next_state, loop, State#rtmp_socket{pinged = true}, ?RTMP_TIMEOUT};
@@ -169,6 +188,7 @@ loop({setopts, Options}, State) ->
 % , previous_ack = erlang:now()
 
 
+%% @private  
 loop({getopts, Options}, _From, State) ->
   {reply, get_options(State, Options), loop, State}.
 
@@ -238,7 +258,7 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
 handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
   activate_socket(Socket),
   <<?HS_HEADER, HandShake:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
-	Reply = rtmp:handshake(HandShake),
+	Reply = [?HS_HEADER, rtmp_handshake:s1(), rtmp_handshake:s2(C1)],
 	send_data(State, [?HS_HEADER, Reply]),
 	{next_state, 'handshake_c3', State#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 

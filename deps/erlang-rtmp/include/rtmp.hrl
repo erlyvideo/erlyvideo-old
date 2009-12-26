@@ -18,14 +18,14 @@
   timestamp  ::integer(),
   type       ::rtmp_message_type(),
   stream_id  ::integer(),
-  body       ::binary()|#rtmp_message_ack{}
+  body       ::binary()|integer()|#rtmp_message_ack{}
 }).
 
 -type(rtmp_message() ::#rtmp_message{}).
 
 
 
--record(amf,{
+-record(rtmp_funcall,{
   version = 0,
 	command = [],
 	id      = [],
