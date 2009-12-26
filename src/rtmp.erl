@@ -39,11 +39,7 @@
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
 
--export([encode/2, handshake/1, decode/2]).
-
-%% @private
-handshake(C1) when is_binary(C1) -> 
-  [rtmp_handshake:s1(), rtmp_handshake:s2(C1)].
+-export([encode/2, decode/2]).
 
 %%--------------------------------------------------------------------
 %% @spec (Socket::rtmp_socket(), Message::rtmp_message()) -> {NewSocket::rtmp_socket(), Packet::binary()}
@@ -149,11 +145,11 @@ encode(#rtmp_socket{server_chunk_size = ChunkSize} = State,
 	BinId = encode_id(?RTMP_HDR_NEW,Id),
   {State, [<<BinId/binary,Timestamp:24,(size(Data)):24,Type:8,StreamId:32/little>> | ChunkList]}.
 
-encode_funcall(#amf{command = Command, args = Args, id = Id, type = invoke}) -> 
+encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
   <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 
     (encode_list(<<>>, Args))/binary>>;
  
-encode_funcall(#amf{command = Command, args = Args, type = notify}) -> 
+encode_funcall(#rtmp_funcall{command = Command, args = Args, type = notify}) -> 
 <<(amf0:encode(atom_to_binary(Command, utf8)))/binary,
   (encode_list(<<>>, Args))/binary>>.
 
@@ -222,7 +218,7 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
 %% <li><code>#rtmp_message{type=audio, body=Body, stream_id=StreamId}</code> audio packet received on StreamId</li>
 %% <li><code>#rtmp_message{type=video, body=Body, stream_id=StreamId}</code> video packet received on StreamId</li>
 %% <li><code>#rtmp_message{type=metadata, body=Body, stream_id=StreamId}</code> metadata packet received on StreamId. It is usually sent, when flash client starts recording video stream from camera and tells size of video.</li>
-%% <li><code>#rtmp_message{type=invoke, body=Funcall}</code> function is invoked. Read further about Funcall object.</li>
+%% <li><code>#rtmp_message{type=invoke, body=Funcall::rtmp_funcall()}</code> function is invoked. Read further about Funcall object.</li>
 %% <li><code>#rtmp_message{type=shared_object, body=SharedObjectMessage}</code> shared object event happened. Not implemented yet.</li>
 %% </ol>
 %% @end 
@@ -416,7 +412,7 @@ command(#channel{type = ?RTMP_TYPE_METADATA_AMF3} = Channel, State)	 ->
 command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Body/binary>>, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
   AMF = decode_funcall(Body, StreamId),
-  {State, Message#rtmp_message{type = invoke, body = AMF#amf{version = 3}}};
+  {State, Message#rtmp_message{type = invoke, body = AMF#rtmp_funcall{version = 3}}};
 
 command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Body, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
@@ -439,7 +435,7 @@ decode_funcall(Message, StreamId) ->
 	{Command, Rest1} = amf0:decode(Message),
 	{InvokeId, Rest2} = amf0:decode(Rest1),
 	Arguments = decode_list(Rest2, amf0, []),
-	#amf{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
+	#rtmp_funcall{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
   
   
 decode_list(<<>>, _, Acc) -> lists:reverse(Acc);

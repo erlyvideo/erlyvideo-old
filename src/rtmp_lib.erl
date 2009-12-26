@@ -11,7 +11,7 @@ wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
 %% @private
 wait_for_reply(RTMP, InvokeId) ->
   receive
-    {rtmp, RTMP, #rtmp_message{type = invoke, body = #amf{command = <<"_result">>, id = InvokeId, args = Args}}} -> Args
+    {rtmp, RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"_result">>, id = InvokeId, args = Args}}} -> Args
   after
     10000 -> erlang:error(timeout)
   end.
@@ -33,7 +33,7 @@ connect(RTMP) ->
     {objectEncoding,0.0}
   ]},
   InvokeId = 1,
-  AMF = #amf{
+  AMF = #rtmp_funcall{
     command = connect,
     type = invoke,
     id = InvokeId,
@@ -45,7 +45,7 @@ connect(RTMP) ->
   
 createStream(RTMP) ->
   InvokeId = 1,
-  AMF = #amf{
+  AMF = #rtmp_funcall{
     command = createStream,
     type = invoke,
     id = InvokeId,
@@ -57,7 +57,7 @@ createStream(RTMP) ->
   round(StreamId).
 
 play(RTMP, Stream, Path) ->
-  AMF = #amf{
+  AMF = #rtmp_funcall{
     command = play,
     type = invoke,
     stream_id = Stream,

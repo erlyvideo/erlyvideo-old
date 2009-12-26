@@ -25,7 +25,7 @@
 
 
 
--record(amf,{
+-record(rtmp_funcall,{
   version = 0,
 	command = [],
 	id      = [],
