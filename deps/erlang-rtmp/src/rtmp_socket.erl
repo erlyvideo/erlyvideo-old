@@ -44,7 +44,7 @@
 
 -export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
 
-%% @spec (Socket::port()) -> RTMPSocket::pid()
+%% @spec (Socket::port()) -> {ok, RTMP::pid()}
 %% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
 %% and returns pid of newly created RTMP socket.
 %% @end
@@ -52,7 +52,7 @@
 accept(Socket) ->
   start_socket(self(), accept, Socket).
   
-%% @spec (Socket::port()) -> RTMPSocket::pid()
+%% @spec (Socket::port()) -> {ok, RTMP::pid()}
 %% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
 %% and returns pid of newly created RTMP socket.
 %% @end
@@ -60,7 +60,10 @@ accept(Socket) ->
 connect(Socket) ->
   start_socket(self(), connect, Socket).
 
-
+%% @spec (Consumer::pid(), Type::accept|connect, Socket::port) -> {ok, RTMP::pid()}
+%% @doc Starts RTMP socket with provided consumer and inititiate server or client connection
+%% @end
+-spec(start_socket(Consumer::pid(), Type::connect|accept, Socket::port()) -> {ok, RTMP::pid()}).
 start_socket(Consumer, Type, Socket) ->
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(Consumer, Type),
   case Socket of

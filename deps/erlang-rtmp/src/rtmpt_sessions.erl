@@ -68,6 +68,7 @@ init([]) ->
 handle_call({create, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
   SessionID = generate_session_id(),
   {ok, RTMPT} = rtmp_sup:start_rtmpt(SessionID, IP),
+  link(RTMPT),
   ets:insert(Sessions, {{SessionID, IP}, RTMPT}),
   {reply, {ok, RTMPT, SessionID}, State};
   
