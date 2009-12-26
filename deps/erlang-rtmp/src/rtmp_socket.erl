@@ -326,15 +326,15 @@ send_data(#rtmp_socket{socket = Socket} = State, Data) when is_pid(Socket) ->
 
 
 handle_rtmp_data(State, Data) ->
-  handle_rtmp_message(rtmp:decode(Data, State)).
+  handle_rtmp_message(rtmp:decode(State, Data)).
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer, pinged = true} = State, #rtmp_message{type = pong} = Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
-  handle_rtmp_message(rtmp:decode(Rest, State#rtmp_socket{pinged = false}));
+  handle_rtmp_message(rtmp:decode(State#rtmp_socket{pinged = false}, Rest));
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
-  handle_rtmp_message(rtmp:decode(Rest, State));
+  handle_rtmp_message(rtmp:decode(State, Rest));
 
 handle_rtmp_message({State, Rest}) -> State#rtmp_socket{buffer = Rest}.
 
