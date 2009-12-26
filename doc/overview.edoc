@@ -27,4 +27,6 @@ It consists of three parts:
 
 You can already use it to implement clients. Take a look at contrib/rtmp_bench example.
 
+Don't forget to make <code>application:start(rtmp).</code>
+
 @end
