@@ -45,27 +45,48 @@ play(_Name, Player, Req) ->
   process_flag(trap_exit, true),
   link(Req:socket_pid()),
   Player ! start,
-  setup_pat(Req),
+  send_pat(Req),
   % ?D({"MPEG TS", Req}),
   Req:stream(close),
   ok.
 
-mux(Data, Req, Start, Pid, Counter) ->
-  TEI = 0,
+mux(Data, Req, Pid) ->
   Start = 1,
+  Counter = 0,
+  mux_parts(Data, Req, Pid, Start, Counter).
+  
+  
+% 4 bytes header, 188 packet, so data is 184
+mux_parts(<<Data:184/binary, Rest/binary>>, Req, Pid, Start, Counter) ->
+  TEI = 0,
+  Priority = 0,
+  Scrambling = 0,
+  Adapt = 0,
+  HasPayload = 1,
+  % Adaptation = <<>>,
+  % (size(Adaptation)), Adaptation/binary
+  Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, Data/binary>>,
+  Req:stream(Part),
+  mux_parts(Rest, Req, Pid, 0, Counter+1);
+  
+mux_parts(Data, Req, Pid, Start, Counter) ->
+  TEI = 0,
   Priority = 0,
   Scrambling = 0,
   Adapt = 1,
   HasPayload = 1,
   Adaptation = <<>>,
-  Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, (size(Adaptation)), Adaptation/binary>>.
-  
+  Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, (size(Adaptation)), Adaptation/binary, Data/binary>>,
+  Req:stream(Part);
+
+mux_parts(<<>>, Req, _Pid, _Start, _Counter) ->
+  ok.
     
   
-setup_pat(Req) ->
+send_pat(Req) ->
   PAT = <<1:16, 0:3, 100:13>>,
   Length = size(PAT)+5,
-  mux(<<0, 0, 2#10:2, 2#11:2, Length:12, 0:16, 16#040000:24, PAT/binary>>, Req, 1, 0, 0),
+  mux(<<0, 0, 2#10:2, 2#11:2, Length:12, 0:16, 16#040000:24, PAT/binary>>, Req, 0),
   ?MODULE:play(Req).
   
   
