@@ -1,3 +1,4 @@
+%% @private
 -module(rtmp_sup).
 -author(max@maxidoors.ru).
 

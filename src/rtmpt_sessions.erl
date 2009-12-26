@@ -1,3 +1,4 @@
+%% @private
 -module(rtmpt_sessions).
 -author(max@maxidoors.ru).
 
