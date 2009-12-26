@@ -257,8 +257,8 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
   
 handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
   activate_socket(Socket),
-  <<?HS_HEADER, HandShake:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
-	Reply = [?HS_HEADER, rtmp_handshake:s1(), rtmp_handshake:s2(C1)],
+  <<?HS_HEADER, Handshake:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
+	Reply = [?HS_HEADER, rtmp_handshake:s1(), rtmp_handshake:s2(Handshake)],
 	send_data(State, [?HS_HEADER, Reply]),
 	{next_state, 'handshake_c3', State#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
