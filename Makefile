@@ -1,3 +1,6 @@
+all:
+	erl -make
+	
 doc:
 	erl -pa `pwd`/ebin \
 	-noshell \
