@@ -7,7 +7,7 @@
 %%%
 %%% Created : 30 Dec 2008
 %%%-------------------------------------------------------------------
-
+%% @private
 -module(hmac256).
 -export([hexdigest/2,digest/2,test/0]).
 -export([unhex/1]).

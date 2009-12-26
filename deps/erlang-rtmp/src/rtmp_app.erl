@@ -1,3 +1,4 @@
+%% @private
 -module(rtmp_app).
 -author(max@maxidoors.ru).
 -behaviour(application).

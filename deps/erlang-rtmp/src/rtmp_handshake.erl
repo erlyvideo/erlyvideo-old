@@ -1,3 +1,4 @@
+%%% @private
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @author     All those guys, that have found how to sign handshake
 %%% @copyright  2009 Max Lapshin
