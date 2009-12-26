@@ -109,10 +109,10 @@ encode(State, #rtmp_message{type = audio} = Message) ->
 encode(State, #rtmp_message{type = video} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_VIDEO});
 
-encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, amf)-> 
+encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, rtmp_funcall)-> 
 	encode(State, Message#rtmp_message{body = encode_funcall(AMF), type = ?RTMP_INVOKE_AMF0});
 
-encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, amf)-> 
+encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, rtmp_funcall)-> 
 	encode(State, Message#rtmp_message{body = <<0, (encode_funcall(AMF))/binary>>, type = ?RTMP_INVOKE_AMF3});
 
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 

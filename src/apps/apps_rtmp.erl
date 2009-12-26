@@ -2,15 +2,16 @@
 %%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
-%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%% @doc        Generalized RTMP application behavior module
-%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
+%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -49,13 +50,13 @@
 %%-------------------------------------------------------------------------
 connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
     Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
-    % gen_fsm:send_event(self(), {invoke, AMF#amf{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
+    % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
     rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
     rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
     % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
     rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
 		
-	  [{object, PlayerInfo} | AuthInfo] = AMF#amf.args,
+	  [{object, PlayerInfo} | AuthInfo] = AMF#rtmp_funcall.args,
 	  _FlashVer = proplists:get_value(flashVer, PlayerInfo),
 	  _SwfUrl = proplists:get_value(swfUrl, PlayerInfo),
 	  ConnectUrl = proplists:get_value(tcUrl, PlayerInfo),
@@ -92,22 +93,22 @@ connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
                  {description, <<"Connection succeeded.">>},
                  {clientid, 1716786930},
                  {objectEncoding, AMFVersion}],
-    reply(State, AMF#amf{args = [{object, ConnectObj}, {object, StatusObj}]}),
+    reply(State, AMF#rtmp_funcall{args = [{object, ConnectObj}, {object, StatusObj}]}),
     rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
     NewState2.
 
 
 reply(#rtmp_session{socket = Socket} = State, AMF) ->
-  rtmp_socket:invoke(Socket, AMF#amf{command = '_result', type = invoke}).
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke}).
 
 fail(#rtmp_session{socket = Socket} = State, AMF) ->
-  rtmp_socket:invoke(Socket, AMF#amf{command = '_error', type = invoke}).
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
   
 
 
 
 
-'WAIT_FOR_DATA'({invoke, #amf{stream_id = StreamId} = AMF}, #rtmp_session{socket = Socket} = State) ->
+'WAIT_FOR_DATA'({invoke, #rtmp_funcall{stream_id = StreamId} = AMF}, #rtmp_session{socket = Socket} = State) ->
   rtmp_socket:send(Socket, #rtmp_message{channel_id = 3, timestamp = 0, type = invoke, stream_id = StreamId, body = AMF}),
   {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
 

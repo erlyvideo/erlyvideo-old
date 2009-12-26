@@ -147,9 +147,9 @@ init([]) ->
 	
 
 handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
-  #amf{command = CommandBin} = AMF,
+  #rtmp_funcall{command = CommandBin} = AMF,
   Command = binary_to_atom(CommandBin, utf8),
-  call_function(ems:check_app(State, Command, 2), State, AMF#amf{command = Command});
+  call_function(ems:check_app(State, Command, 2), State, AMF#rtmp_funcall{command = Command});
   
 handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   gen_fsm:send_event(self(), {publish, Message}),
@@ -182,11 +182,11 @@ handle_rtmp_message(State, Message) ->
 
 
 
-call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #amf{command = Command, args = Args}) ->
+call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_funcall{command = Command, args = Args}) ->
   ems_log:error(Host, "Client ~p requested unknown function ~p(~p)~n", [IP, Command, Args]),
   State;
 
-call_function(App, State, #amf{command = Command} = AMF) ->
+call_function(App, State, #rtmp_funcall{command = Command} = AMF) ->
 	App:Command(AMF, State).
   % try
   %   App:Command(AMF, State)
