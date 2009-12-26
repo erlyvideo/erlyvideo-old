@@ -318,7 +318,7 @@ push_channel_packet(Data, #channel{msg = Msg} = Channel, State, BytesRequired) -
 % When chunked packet hasn't arived, just accumulate it
 decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_socket{channels = Channels} = State) when size(Msg) < Length ->
   NextChannelList = array:set(Channel#channel.id, Channel, Channels),
-  rtmp:decode(Rest, State#rtmp_socket{channels=NextChannelList});
+  rtmp:decode(State#rtmp_socket{channels=NextChannelList}, Rest);
 
 % Work with packet when it has accumulated and flush buffers
 decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_socket{channels = Channels} = State) when size(Msg) == Length ->
