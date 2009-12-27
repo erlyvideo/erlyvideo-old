@@ -187,7 +187,7 @@ call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_fu
   State;
 
 call_function(App, State, #rtmp_funcall{command = Command} = AMF) ->
-	App:Command(AMF, State).
+	App:Command(State, AMF).
   % try
   %   App:Command(AMF, State)
   % catch

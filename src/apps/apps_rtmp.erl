@@ -48,7 +48,7 @@
 %% @doc  Processes a connect command and responds
 %% @end
 %%-------------------------------------------------------------------------
-connect(AMF, #rtmp_session{socket = Socket, addr = Address} = State) ->
+connect(#rtmp_session{socket = Socket, addr = Address} = State, AMF) ->
     Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
     % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
     rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),

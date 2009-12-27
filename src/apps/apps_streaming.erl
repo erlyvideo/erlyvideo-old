@@ -92,12 +92,12 @@
 %% @doc  Processes a createStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-createStream(AMF, State) -> 
+createStream(State, AMF) -> 
   {State1, StreamId} = next_stream(State),
   apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   State1.
 
-releaseStream(_AMF, State) -> 
+releaseStream(State, _AMF) -> 
   % apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
   State.
 
@@ -114,7 +114,7 @@ next_stream(#rtmp_session{streams = Streams} = State, Stream) ->
 %% @doc  Processes a deleteStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-deleteStream(#rtmp_funcall{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) ->
+deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! stop;
     _ -> ok
@@ -128,9 +128,9 @@ deleteStream(#rtmp_funcall{stream_id = StreamId} = _AMF, #rtmp_session{streams =
 %% @end
 %%-------------------------------------------------------------------------
 
-play(#rtmp_funcall{args = [_Null, false | _]} = AMF, State) -> stop(AMF, State);
+play(State, #rtmp_funcall{args = [_Null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_funcall{args = [_Null, Name | Args], stream_id = StreamId}, State) ->
+play(State, #rtmp_funcall{args = [_Null, Name | Args], stream_id = StreamId}) ->
   Options = [{stream_id, StreamId} | extract_play_args(Args)],
   ?D({"PLAY", Name, Options}),
   prepareStream(State, StreamId),
@@ -159,7 +159,7 @@ prepareStream(#rtmp_session{socket = Socket} = State, StreamId) ->
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(#rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_session{streams = Streams, socket = Socket} = State) -> 
+pause(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}) -> 
     ?D({"PAUSE", Pausing, round(NewTs)}),
     Player = array:get(StreamId, Streams),
     case Pausing of
@@ -177,18 +177,18 @@ pause(#rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}, #rtmp_
 pauseRaw(AMF, State) -> pause(AMF, State).
 
 
-receiveAudio(#rtmp_funcall{args = [null, Audio], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) ->
+receiveAudio(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Audio], stream_id = StreamId}) ->
   Player = array:get(StreamId, Streams),
   (catch Player ! {send_audio, Audio}),
   State.
 
-receiveVideo(#rtmp_funcall{args = [null, Video], stream_id = StreamId}, #rtmp_session{streams = Streams} = State) ->
+receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Video], stream_id = StreamId}) ->
   Player = array:get(StreamId, Streams),
   (catch Player ! {send_video, Video}),
   State.
 
 
-getStreamLength(#rtmp_funcall{args = [null | Args]}, #rtmp_session{} = State) ->
+getStreamLength(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]}) ->
   ?D({"getStreamLength", Args}),
   State.
 
@@ -197,7 +197,7 @@ getStreamLength(#rtmp_funcall{args = [null | Args]}, #rtmp_session{} = State) ->
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}, #rtmp_session{streams = Streams, socket = Socket} = State) -> 
+seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
   ?D({"invoke - seek", Timestamp}),
   Player = array:get(StreamId, Streams),
   Player ! {seek, Timestamp},
@@ -213,7 +213,7 @@ seek(#rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}, #rtmp_session{s
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(#rtmp_funcall{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+stop(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) ->
       Player ! exit,
@@ -227,7 +227,7 @@ stop(#rtmp_funcall{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams
 %% @end
 %%-------------------------------------------------------------------------
 
-closeStream(#rtmp_funcall{stream_id = StreamId} = _AMF, #rtmp_session{streams = Streams} = State) -> 
+closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
 case array:get(StreamId, Streams) of
   undefined -> State;
   Player ->
@@ -239,6 +239,6 @@ end.
 % http://www.adobe.com/devnet/flashmediaserver/articles/dynamic_stream_switching_04.html
 % TODO Stub at this point, need to determine proper response to this call
 
-checkBandwidth(#rtmp_funcall{args = [null | Args]}, #rtmp_session{} = State) ->
+checkBandwidth(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]}) ->
   ?D({"checkBandwidth", Args}),
   State.
