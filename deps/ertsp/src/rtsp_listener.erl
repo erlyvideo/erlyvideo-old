@@ -1,9 +1,10 @@
 -module(rtsp_listener).
 -author('max@maxidoors.ru').
 
--include("../../../include/ems.hrl").
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -record(rtsp_listener, {
+  callback,
 	listener, % Listening socket
 	acceptor  % Asynchronous acceptor's internal reference
 	}).
@@ -11,7 +12,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1]).
+-export([start_link/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -24,8 +25,8 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link(Port) when is_integer(Port) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
+start_link(Port, Callback) when is_integer(Port) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port, Callback], []).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -41,7 +42,7 @@ start_link(Port) when is_integer(Port) ->
 %%      Create listening socket.
 %% @end
 %%----------------------------------------------------------------------
-init([Port]) ->
+init([Port, Callback]) ->
     process_flag(trap_exit, true),
     Opts = [binary, {packet, raw}, {reuseaddr, true},
             {keepalive, true}, {backlog, 30}, {active, false}],
@@ -49,8 +50,7 @@ init([Port]) ->
         {ok, Listen_socket} ->
             %%Create first accepting process
             {ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
-            {ok, #rtsp_listener{listener = Listen_socket,
-                             acceptor = Ref}};
+            {ok, #rtsp_listener{listener = Listen_socket, callback = Callback, acceptor = Ref}};
         {error, eaccess} ->
             error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
             {stop, eaccess};

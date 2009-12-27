@@ -1,4 +1,4 @@
--module(rtsp_session).
+-module(rtsp_connection).
 -author('max@maxidoors.ru').
 
 -behaviour(gen_fsm).

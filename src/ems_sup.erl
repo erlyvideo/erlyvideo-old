@@ -336,36 +336,9 @@ init([]) ->
       }
       |Supervisors]
   end,
-
-  Supervisors2 = case ems:get_var(rtsp_port, undefined) of
-    undefined -> Supervisors1;
-    RTSPPort -> [% EMS Listener
-      {   rtsp_sup,                                 % Id       = internal id
-          {rtsp_listener,start_link,[RTSPPort]},              % StartFun = {M, F, A}
-          permanent,                               % Restart  = permanent | transient | temporary
-          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-          worker,                                  % Type     = worker | supervisor
-          [rtsp_listener]                             % Modules  = [Module] | dynamic
-      },
-      {   rtsp_session_sup,
-          {supervisor,start_link,[{local, rtsp_session_sup}, ?MODULE, [rtsp_session]]},
-          permanent,                               % Restart  = permanent | transient | temporary
-          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-          supervisor,                              % Type     = worker | supervisor
-          []                                       % Modules  = [Module] | dynamic
-      },
-      {   rtp_server_sup,
-          {supervisor,start_link,[{local, rtp_server_sup}, ?MODULE, [rtp_server]]},
-          permanent,                               % Restart  = permanent | transient | temporary
-          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-          supervisor,                              % Type     = worker | supervisor
-          []                                       % Modules  = [Module] | dynamic
-      }
-      ] ++ Supervisors1
-  end,
   
   
-    {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors2}}.
+    {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors1}}.
 
 
 %%----------------------------------------------------------------------

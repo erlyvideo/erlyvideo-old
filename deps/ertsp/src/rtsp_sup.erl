@@ -30,7 +30,7 @@ start_rtsp_listener(Port, Callback) ->
   supervisor:start_child(?MODULE, Listener).
   
 
-init([rtsp_connecton]) ->
+init([rtsp_connection]) ->
   {ok,
     {{simple_one_for_one, 5, 60},
       [
