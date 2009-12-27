@@ -5,7 +5,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export([start_rtsp_connecton/2, start_rtsp_session/2]).
+-export([start_rtsp_connecton/0, start_rtsp_session/2]).
 -export([start_rtsp_listener/2]).
 
 %%--------------------------------------------------------------------
@@ -17,7 +17,7 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_rtsp_connecton(SessionID, IP) -> supervisor:start_child(rtsp_connecton_sup, [SessionID, IP]).
+start_rtsp_connecton() -> supervisor:start_child(rtsp_connecton_sup, []).
 start_rtsp_session(Consumer, Type) -> supervisor:start_child(rtsp_session_sup, [Consumer, Type]).
 
 start_rtsp_listener(Port, Callback) ->

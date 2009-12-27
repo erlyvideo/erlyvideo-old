@@ -1,9 +1,8 @@
 -module(rtp_server).
 -author('max@maxidoors.ru').
 
--include("../../../include/ems.hrl").
 -include("../../../include/h264.hrl").
--include("../../../include/rtsp.hrl").
+-include("../include/rtsp.hrl").
 
 -record(rtp_state, {
   rtcp_socket,

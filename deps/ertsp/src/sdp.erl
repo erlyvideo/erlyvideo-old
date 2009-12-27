@@ -2,8 +2,7 @@
 -author(max@maxidoors.ru).
 
 -export([decode/1]).
--include("../../../include/ems.hrl").
--include("../../../include/rtsp.hrl").
+-include("../include/rtsp.hrl").
 
 decode(Announce) ->
   parse_announce(Announce, [], undefined).

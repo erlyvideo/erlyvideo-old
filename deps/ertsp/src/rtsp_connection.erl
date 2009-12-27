@@ -2,9 +2,11 @@
 -author('max@maxidoors.ru').
 
 -behaviour(gen_fsm).
--include("../../../include/ems.hrl").
--include("../../../include/rtsp.hrl").
+-include("../include/rtsp.hrl").
 -include("../../../include/h264.hrl").
+% -include("../../../include/ems.hrl").
+% -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+% -define(TIMEOUT, 1000).
 
 -export([start_link/0, set_socket/2]).
 
