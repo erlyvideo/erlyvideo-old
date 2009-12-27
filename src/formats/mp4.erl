@@ -36,6 +36,7 @@
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
 -include("../../include/mp4.hrl").
+-include("../../include/video_frame.hrl").
 -include("../../include/media_info.hrl").
 
 -export([init/1, read_frame/2, metadata/1, codec_config/2]).

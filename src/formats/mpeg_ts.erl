@@ -33,6 +33,7 @@
 -module(mpeg_ts).
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
+-include("../../include/video_frame.hrl").
 
 -export([play/3, play/1]).
 

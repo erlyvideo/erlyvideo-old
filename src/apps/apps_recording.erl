@@ -38,6 +38,7 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
+-include("../../include/video_frame.hrl").
 -include("../../include/recorder.hrl").
 
 -export([publish/2]).

@@ -6,6 +6,7 @@
 
 -include("../../include/ems.hrl").
 -include("../../include/h264.hrl").
+-include("../../include/video_frame.hrl").
 
 % ems_sup:start_ts_lander("http://localhost:8080").
 
