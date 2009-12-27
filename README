@@ -51,6 +51,8 @@ How to launch:
 
   * git clone git://github.com/erlyvideo/erlyvideo.git
   * cd erlyvideo
+  * git submodule init
+  * git submodule update
   * cp src/erlmedia.app ebin/erlmedia.app
   * $EDITOR ebin/erlmedia.app
   * change /tmp to /Users/username/Movies
