@@ -62,7 +62,11 @@ start() ->
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
 	application:stop(?APPLICATION),
-	application:unload(?APPLICATION).
+	application:unload(?APPLICATION),
+	application:stop(log4erl),
+	application:unload(log4erl),
+	application:stop(rtmp),
+	application:unload(rtmp).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -139,7 +143,7 @@ get_var(Opt, Default) ->
 
 get_var(Key, Host, Default) ->
   case ets:match_object(vhosts, {{host(Host), Key}, '$1'}) of
-    [{{Hostname, Key}, Value}] -> Value;
+    [{{_Hostname, Key}, Value}] -> Value;
     [] -> Default
   end.
 

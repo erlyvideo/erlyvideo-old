@@ -6,6 +6,5 @@
  {modules, [rtmp,hmac256,rtmp_handshake,rtmp_lib,rtmp_socket]},
  {registered,[rtmp]},
  {applications, [kernel,stdlib]},
- {mod, {rtmp_app,[]}},
- {start_phases, []}
+ {mod, {rtmp_app,[]}}
 ]}.

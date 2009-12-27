@@ -51,7 +51,7 @@
 %% @doc A startup function for whole supervisor. Started by application
 %% @end 
 %%--------------------------------------------------------------------
--spec start_link() -> {'error',_} | {'ok',pid()}.
+-spec(start_link() -> {error,_} | {ok,pid()}).
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -365,7 +365,7 @@ init([]) ->
   end,
   
   
-    {ok, {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors2}}.
+    {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors2}}.
 
 
 %%----------------------------------------------------------------------

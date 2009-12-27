@@ -14,7 +14,6 @@
 %%--------------------------------------------------------------------
 
 start(_Type, _Args) -> 
-  application:load(rtmp),
   rtmp_sup:start_link().
   
 
@@ -24,8 +23,7 @@ start(_Type, _Args) ->
 %% @doc Stop RTMP library
 %% @end 
 %%--------------------------------------------------------------------
-stop(_S) -> 
-  application:unload(rtmp),
+stop(_S) ->
   ok.
 
 

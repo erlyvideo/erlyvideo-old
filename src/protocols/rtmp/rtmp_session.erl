@@ -247,8 +247,10 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
   ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
   {stop, normal, State};
   
+handle_info({'EXIT', Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
+  {stop, normal, State};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Streams, socket = Socket} = State) ->
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Streams} = State) ->
   % case lists:keytake(PlayerPid, 2, Streams) of
   %   {value, {StreamId, PlayerPid}, NewStreams} ->
   %     rtmp_socket:status(Socket, StreamId, ?NS_PLAY_COMPLETE),
@@ -309,7 +311,7 @@ terminate(_Reason, _StateName, #rtmp_session{socket=Socket, streams = Streams} =
   lists:foreach(fun(Player) when is_pid(Player) -> (catch erlang:exit(Player));
                    (_) -> ok end, array:sparse_to_list(Streams)),
   ems:call_modules(logout, [State]),
-  rtmp_listener:logout(),
+  (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
   ok.
 

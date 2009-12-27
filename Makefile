@@ -22,6 +22,7 @@ doc:
 
 clean:
 	rm -fv ebin/*.beam
+	rm -fv deps/*/ebin/*.beam
 	rm -fv erl_crash.dump
 
 clean-doc:

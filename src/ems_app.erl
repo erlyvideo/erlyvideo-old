@@ -68,13 +68,10 @@ start(_Type, _Args) ->
 %% @doc Stop ErlMedia Application
 %% @end 
 %%--------------------------------------------------------------------
-stop(_S) -> 
+stop(_S) ->
   ems:stop_modules(),
-  ems_log:stop(),
-  ems_vhosts:stop(),
-  application:stop(rtmp),
-  ok.
-
+  ems_vhosts:stop().
+  
 
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> any()

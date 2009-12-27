@@ -21,15 +21,14 @@ start_rtmp_socket(Consumer, Type) -> supervisor:start_child(rtmp_socket_sup, [Co
 
 init([rtmp_socket]) ->
   {ok,
-    {_SupFlags = {simple_one_for_one, 5, 60},
+    {{simple_one_for_one, 5, 60},
       [
-        % MediaEntry
         {   undefined,                               % Id       = internal id
             {rtmp_socket,start_link,[]},             % StartFun = {M, F, A}
             temporary,                               % Restart  = permanent | transient | temporary
             2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
             worker,                                  % Type     = worker | supervisor
-            [rtmp_socket]                            % Modules  = [Module] | dynamic
+            []                            % Modules  = [Module] | dynamic
         }
       ]
     }
@@ -37,15 +36,14 @@ init([rtmp_socket]) ->
 
 init([rtmpt_session]) ->
   {ok,
-    {_SupFlags = {simple_one_for_one, 5, 60},
+    {{simple_one_for_one, 5, 60},
       [
-        % MediaEntry
         {   undefined,                               % Id       = internal id
             {rtmpt,start_link,[]},             % StartFun = {M, F, A}
             temporary,                               % Restart  = permanent | transient | temporary
             2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
             worker,                                  % Type     = worker | supervisor
-            [rtmpt]                            % Modules  = [Module] | dynamic
+            []                            % Modules  = [Module] | dynamic
         }
       ]
     }
@@ -77,4 +75,4 @@ init([]) ->
     }
   ],
   
-  {ok, {{one_for_one, 5, 60}, Supervisors}}.
+  {ok, {{one_for_one, 3, 10}, Supervisors}}.
