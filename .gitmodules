@@ -4,3 +4,6 @@
 [submodule "deps/log4erl"]
 	path = deps/log4erl
 	url = git://github.com/erlyvideo/log4erl
+[submodule "deps/erlang-amf"]
+	path = deps/erlang-amf
+	url = git://github.com/erlyvideo/erlang-amf
