@@ -5,7 +5,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export([start_rtsp_connecton/0, start_rtsp_session/2]).
+-export([start_rtsp_connection/0, start_rtsp_session/2]).
 -export([start_rtsp_listener/2]).
 
 %%--------------------------------------------------------------------
@@ -17,7 +17,7 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_rtsp_connecton() -> supervisor:start_child(rtsp_connecton_sup, []).
+start_rtsp_connection() -> supervisor:start_child(rtsp_connection_sup, []).
 start_rtsp_session(Consumer, Type) -> supervisor:start_child(rtsp_session_sup, [Consumer, Type]).
 
 start_rtsp_listener(Port, Callback) ->
@@ -35,7 +35,7 @@ init([rtsp_connection]) ->
     {{simple_one_for_one, 5, 60},
       [
         {   undefined,                               % Id       = internal id
-            {rtsp_connecton,start_link,[]},             % StartFun = {M, F, A}
+            {rtsp_connection,start_link,[]},             % StartFun = {M, F, A}
             temporary,                               % Restart  = permanent | transient | temporary
             2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
             worker,                                  % Type     = worker | supervisor

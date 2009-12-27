@@ -102,7 +102,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
         %% supervisor.
-        {ok, Pid} = rtsp_sup:start_rtsp_connecton(),
+        {ok, Pid} = rtsp_sup:start_rtsp_connection(),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
         rtsp_connection:set_socket(Pid, CliSocket),
