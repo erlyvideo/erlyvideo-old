@@ -14,8 +14,7 @@
 	ip,
 	buffer = <<>>,
 	bytes_count = 0,
-	sequence_number = 0,
-	watchdog = undefined
+	sequence_number = 0
 	}).
 
 
@@ -27,8 +26,6 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-%% FSM States
--export([watcher/2]).
 
 %%%------------------------------------------------------------------------
 %%% API
@@ -77,27 +74,6 @@ set_consumer(RTMPT, Consumer) ->
 
 
 %%-------------------------------------------------------------------------
-%% Func: watcher/2
-%% Returns: ignore
-%% @private
-%% @doc Looks after RTMPT timeout
-%%-------------------------------------------------------------------------
-
-watcher(Rtmp, Timeout) ->
-    receive
-        {rtmpt} ->
-            ?MODULE:watcher(Rtmp, Timeout);
-        {rtmpt, NewTimeout} ->
-            ?MODULE:watcher(Rtmp, NewTimeout);
-        {exit} ->
-            ok
-    after 
-        Timeout ->
-            gen_server:call(Rtmp, timeout)
-    end.
-
-
-%%-------------------------------------------------------------------------
 %% Func: init/1
 %% Returns: {ok, StateName, StateData}          |
 %%          {ok, StateName, StateData, Timeout} |
@@ -107,8 +83,7 @@ watcher(Rtmp, Timeout) ->
 %%-------------------------------------------------------------------------
 init([SessionId, IP]) ->
   % process_flag(trap_exit, true),
-  Watchdog = spawn_link(?MODULE, watcher, [self(), ?RTMPT_TIMEOUT*5]),
-  {ok, #rtmpt{session_id = SessionId, ip = IP, watchdog = Watchdog}, ?RTMPT_TIMEOUT}.
+  {ok, #rtmpt{session_id = SessionId, ip = IP}, ?RTMPT_TIMEOUT}.
         
 
 %%-------------------------------------------------------------------------
@@ -148,8 +123,8 @@ handle_call({info}, _From, #rtmpt{sequence_number = SequenceNumber, session_id =
   Info = {self(), [{session_id, SessionId}, {sequence_number, SequenceNumber}, {total_bytes, BytesCount}, {unread_data, size(Buffer)} | process_info(self(), [message_queue_len, heap_size])]},
   {reply, Info, State, ?RTMPT_TIMEOUT};
 
-handle_call({recv, SequenceNumber}, _From, #rtmpt{buffer = Buffer, watchdog = Watchdog} = State) ->
-  Watchdog ! {rtmpt},
+handle_call({recv, SequenceNumber}, _From, #rtmpt{buffer = Buffer, consumer = Consumer} = State) ->
+  Consumer ! {rtmpt, self(), alive},
   {reply, {ok, Buffer}, State#rtmpt{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMPT_TIMEOUT}.
 
 
