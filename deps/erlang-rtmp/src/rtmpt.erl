@@ -56,7 +56,7 @@ send(SessionID, IP, Sequence, Data) ->
 close(SessionID, IP) ->
   case rtmpt_sessions:find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
-    {ok, RTMPT} -> gen_server:call(RTMPT, close)
+    {ok, RTMPT} -> gen_server:cast(RTMPT, close)
   end.
 
 write(RTMPT, Data) ->
@@ -116,8 +116,6 @@ handle_call(timeout, _From, #rtmpt{consumer = _Consumer} = State) ->
   % {stop, normal, State};
   {reply, ok, State, ?RTMPT_TIMEOUT};
 
-handle_call(close, _From, #rtmpt{} = State) ->
-  {stop, normal, State};
 
 handle_call({info}, _From, #rtmpt{sequence_number = SequenceNumber, session_id = SessionId, buffer = Buffer, bytes_count = BytesCount} = State) ->
   Info = {self(), [{session_id, SessionId}, {sequence_number, SequenceNumber}, {total_bytes, BytesCount}, {unread_data, size(Buffer)} | process_info(self(), [message_queue_len, heap_size])]},
@@ -138,6 +136,9 @@ handle_call({recv, SequenceNumber}, _From, #rtmpt{buffer = Buffer, consumer = Co
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_cast(close, #rtmpt{} = State) ->
+  {stop, normal, State};
+
 handle_cast(_Msg, State) ->
   {noreply, State}.
 

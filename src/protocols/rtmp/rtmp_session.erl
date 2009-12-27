@@ -95,14 +95,14 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 'WAIT_FOR_SOCKET'({socket_ready, RTMP}, State) when is_pid(RTMP) ->
-  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP}};
 
 
 'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
   % Now we own the socket
   {ok, {IP, Port}} = inet:peername(Socket),
   {ok, RTMP} = rtmp_socket:accept(Socket),
-  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr=IP, port = Port}, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr=IP, port = Port}};
 
     
 'WAIT_FOR_SOCKET'(Other, State) ->
@@ -118,26 +118,22 @@ init([]) ->
 'WAIT_FOR_DATA'({exit}, State) ->
   {stop, normal, State};
 
-'WAIT_FOR_DATA'(timeout, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
-  {stop, normal, State};
-        
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
     {unhandled} ->
 		  ?D({"Ignoring message:", Message}),
-      {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+      {next_state, 'WAIT_FOR_DATA', State};
     Reply -> Reply
   end.
 
 'WAIT_FOR_DATA'(info, _From, #rtmp_session{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
-  {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State};
   
         
 
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_DATA', State}.
     
     
 % send(#rtmp_session{server_chunk_size = ChunkSize} = State, {#channel{} = Channel, Data}) ->
@@ -238,13 +234,13 @@ handle_info({rtmp, _Socket, disconnect}, _StateName, #rtmp_session{host = Host, 
   {stop, normal, StateData};
 
 handle_info({rtmp, _Socket, #rtmp_message{} = Message}, StateName, State) ->
-  {next_state, StateName, handle_rtmp_message(State, Message), ?TIMEOUT};
+  {next_state, StateName, handle_rtmp_message(State, Message)};
   
 handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State};
 
 handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
+  ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
   {stop, normal, State};
   
 handle_info({'EXIT', Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
@@ -254,23 +250,23 @@ handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Str
   % case lists:keytake(PlayerPid, 2, Streams) of
   %   {value, {StreamId, PlayerPid}, NewStreams} ->
   %     rtmp_socket:status(Socket, StreamId, ?NS_PLAY_COMPLETE),
-  %     {next_state, StateName, State#rtmp_session{streams = NewStreams}, ?TIMEOUT};
+  %     {next_state, StateName, State#rtmp_session{streams = NewStreams}};
   %   _ ->
   %     ?D({"Died child", PlayerPid, _Reason}),
-  %     {next_state, StateName, State, ?TIMEOUT}
+  %     {next_state, StateName, State}
   % end;
   % FIXME: proper lookup of dead player between Streams and notify right stream
   % ?D({"Player died", PlayerPid, _Reason}),
   ?D({"Died child", PlayerPid, _Reason}),
-  {next_state, StateName, State, ?TIMEOUT};
+  {next_state, StateName, State};
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   ?D({"Died child", Pid, _Reason}),
-  {next_state, StateName, StateData, ?TIMEOUT};
+  {next_state, StateName, StateData};
 
 handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
-  {next_state, StateName, State, ?TIMEOUT};
+  {next_state, StateName, State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = false} = Frame, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
   Message = #rtmp_message{
@@ -280,7 +276,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
     stream_id=StreamId,
     body = ems_flv:encode(Frame)},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true}, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
   Message = #rtmp_message{
@@ -290,12 +286,12 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
     stream_id=StreamId,
     body = Body},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State};
 
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
-  {next_state, StateName, StateData, ?TIMEOUT}.
+  {next_state, StateName, StateData}.
 
 
 %%-------------------------------------------------------------------------

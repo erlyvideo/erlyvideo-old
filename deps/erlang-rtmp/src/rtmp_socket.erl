@@ -299,7 +299,7 @@ handle_info(#rtmp_message{} = Message, loop, State) ->
   {next_state, loop, send_data(State, Message), ?RTMP_TIMEOUT};
 
 handle_info({rtmpt, RTMPT, alive}, StateName, #rtmp_socket{socket = RTMPT} = State) ->
-  {next_state, StateName, State, ?RTMP_TIMEOUT};
+  {next_state, StateName, State#rtmp_socket{pinged = false}, ?RTMP_TIMEOUT};
 
 handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
   handle_info({tcp, RTMPT, Data}, StateName, State);
@@ -346,7 +346,11 @@ handle_rtmp_message({State, Rest}) -> State#rtmp_socket{buffer = Rest}.
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) ->
+terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) when is_pid(Socket) ->
+  gen_server:cast(Socket, close),
+  ok;
+  
+terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) when is_port(Socket) ->
   (catch gen_tcp:close(Socket)),
   ok.
 

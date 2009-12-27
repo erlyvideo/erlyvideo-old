@@ -51,7 +51,7 @@ message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = Body})
 'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
   stream_media:publish(Recorder, message_to_frame(Message)),
-	{next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};	
+	{next_state, 'WAIT_FOR_DATA', State};	
 
 
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.

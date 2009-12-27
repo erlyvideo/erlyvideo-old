@@ -110,7 +110,7 @@ fail(#rtmp_session{socket = Socket} = State, AMF) ->
 
 'WAIT_FOR_DATA'({invoke, #rtmp_funcall{stream_id = StreamId} = AMF}, #rtmp_session{socket = Socket} = State) ->
   rtmp_socket:send(Socket, #rtmp_message{channel_id = 3, timestamp = 0, type = invoke, stream_id = StreamId, body = AMF}),
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State};
 
 
 'WAIT_FOR_DATA'(_Message, #rtmp_session{} =_State) -> {unhandled}.

@@ -59,11 +59,11 @@
     {ok, Player} ->
       Player ! start,
       ems_log:access(Host, "PLAY ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-      {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}, ?TIMEOUT};
+      {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}};
     {notfound, _Reason} ->
       ems_log:access(Host, "NOTFOUND ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
       rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
-      {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+      {next_state, 'WAIT_FOR_DATA', State};
     Reason -> 
       ?D({"Failed to start video player", Reason}),
       {error, Reason}
@@ -79,7 +79,7 @@
     stream_id = StreamId, 
     body = <<(amf0:encode(list_to_binary(Command)))/binary, (amf0:encode({object, AMF}))/binary>>
   },
-  {next_state, 'WAIT_FOR_DATA', State, ?TIMEOUT};
+  {next_state, 'WAIT_FOR_DATA', State};
 
 'WAIT_FOR_DATA'({metadata, Command, AMF}, State) -> 'WAIT_FOR_DATA'({metadata, Command, AMF, 0}, State);
 
