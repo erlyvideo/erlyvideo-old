@@ -97,12 +97,12 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
-            #rtsp_listener{listener=ListSock, acceptor=Ref} = State) ->
+            #rtsp_listener{listener=ListSock, acceptor=Ref, callback=Callback} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
         %% New client connected - spawn a new process using the simple_one_for_one
         %% supervisor.
-        {ok, Pid} = rtsp_sup:start_rtsp_connection(),
+        {ok, Pid} = rtsp_sup:start_rtsp_connection(Callback),
         gen_tcp:controlling_process(CliSocket, Pid),
         %% Instruct the new FSM that it owns the socket.
         rtsp_connection:set_socket(Pid, CliSocket),
@@ -134,8 +134,8 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, State) ->
-    gen_tcp:close(State#rtsp_listener.listener),
-    ok.
+  gen_tcp:close(State#rtsp_listener.listener),
+  ok.
 
 %%-------------------------------------------------------------------------
 %% @spec (OldVsn, State, Extra) -> {ok, NewState}
@@ -144,7 +144,7 @@ terminate(_Reason, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+  {ok, State}.
 
 %%%------------------------------------------------------------------------
 %%% Internal functions
@@ -153,13 +153,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% Taken from prim_inet.  We are merely copying some socket options from the
 %% listening socket to the new client socket.
 set_sockopt(ListSock, CliSocket) ->
-    true = inet_db:register_socket(CliSocket, inet_tcp),
-    case prim_inet:getopts(ListSock, [active, nodelay, keepalive, delay_send, priority, tos]) of
+  true = inet_db:register_socket(CliSocket, inet_tcp),
+  case prim_inet:getopts(ListSock, [active, nodelay, keepalive, delay_send, priority, tos]) of
     {ok, Opts} ->
-        case prim_inet:setopts(CliSocket, Opts) of
+      case prim_inet:setopts(CliSocket, Opts) of
         ok    -> ok;
         Error -> gen_tcp:close(CliSocket), Error
-        end;
+      end;
     Error ->
-        gen_tcp:close(CliSocket), Error
-    end.
+      gen_tcp:close(CliSocket), Error
+  end.
