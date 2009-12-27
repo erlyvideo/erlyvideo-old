@@ -298,6 +298,9 @@ handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, cons
 handle_info(#rtmp_message{} = Message, loop, State) ->
   {next_state, loop, send_data(State, Message), ?RTMP_TIMEOUT};
 
+handle_info({rtmpt, RTMPT, alive}, StateName, #rtmp_socket{socket = RTMPT} = State) ->
+  {next_state, StateName, State, ?RTMP_TIMEOUT};
+
 handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
   handle_info({tcp, RTMPT, Data}, StateName, State);
 
