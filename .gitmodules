@@ -1,0 +1,3 @@
+[submodule "deps/erlang-rtmp"]
+	path = deps/erlang-rtmp
+	url = git://github.com/erlyvideo/erlang-rtmp
