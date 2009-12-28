@@ -1,0 +1,14 @@
+Source: erlyvideo
+Priority: extra
+Maintainer: Max Lapshin <max@maxidoors.ru>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.1
+Section: libs
+Homepage: http://erlyvideo.org/
+
+Package: erlyvideo
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Erlang video server
+ Erlang server, capable to read many sources like files, RTSP or MPEG TS streams and deliver them to RTMP clients

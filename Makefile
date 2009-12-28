@@ -1,4 +1,12 @@
-ERL_LIBS := deps:$(ERL_LIBS) 
+VERSION=0.9
+RTMPDIR=/usr/lib/erlyvideo
+BEAMDIR=$(RTMPDIR)/ebin/
+SRCDIR=$(RTMPDIR)/src/
+DOCDIR=$(RTMPDIR)/doc/
+INCLUDEDIR=$(RTMPDIR)/include/
+DEBIANREPO=/apps/erlyvideo/debian/public
+DESTROOT=$(CURDIR)/debian/erlyvideo
+
 ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
@@ -51,3 +59,22 @@ start: ebin ebin/erlmedia.app
 	-name $(NODE_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-detached
+
+install:
+	mkdir -p $(DESTROOT)$(BEAMDIR)
+	mkdir -p $(DESTROOT)$(DOCDIR)
+	mkdir -p $(DESTROOT)$(SRCDIR)
+	mkdir -p $(DESTROOT)$(INCLUDEDIR)
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 doc/* $(DESTROOT)$(DOCDIR)
+	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
+	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+
+debian:
+	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+
+
+.PHONY: doc debian
+
