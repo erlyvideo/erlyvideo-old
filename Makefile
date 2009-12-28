@@ -1,5 +1,5 @@
 VERSION=0.9
-RTMPDIR=/usr/lib/erlang/lib/rtmp-$(VERSION)
+RTMPDIR=`./root`/lib/rtmp-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
 DOCDIR=$(RTMPDIR)/doc/
