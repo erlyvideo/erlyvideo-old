@@ -7,3 +7,6 @@
 [submodule "deps/amf-1.0.1"]
 	path = deps/amf-1.0.1
 	url = git://github.com/erlyvideo/erlang-amf
+[submodule "deps/erlydtl-0.5.3"]
+	path = deps/erlydtl-0.5.3
+	url = git://github.com/erlyvideo/erlydtl
