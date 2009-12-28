@@ -1,0 +1,14 @@
+Source: log4erl
+Priority: extra
+Maintainer: Max Lapshin <max@maxidoors.ru>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.1
+Section: libs
+Homepage: http://log4erl.blogspot.com/
+
+Package: log4erl
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Erlang logger
+ Erlang logger
