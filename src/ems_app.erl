@@ -53,16 +53,12 @@ start(_Type, _Args) ->
   
   ems_vhosts:start(),
 	
-  application:start(crypto),
-  application:start(rtmp),
-  application:start(rtsp),
-  ems_log:start(),
   mnesia:create_schema([node()]),
   mnesia:start(),
   Start = ems_sup:start_link(),
   case ems:get_var(rtsp_port, undefined) of
     undefined -> ok;
-    RTSP when is_integer(RTSP) -> ?D({"Starting RTSP", RTSP}), rtsp:start_server(RTSP, ems_rtsp)
+    RTSP when is_integer(RTSP) -> rtsp:start_server(RTSP, ems_rtsp)
   end,
   ok = ems:start_modules(),
   Start.

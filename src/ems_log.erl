@@ -9,7 +9,8 @@ start() ->
   [init_vhost_loggers(Host, Options) || {Host, Options} <- ems:get_var(vhosts, [])].
   
 stop() ->
-  application:stop(log4erl).
+	application:stop(log4erl),
+	application:unload(log4erl).
   
   
 init_vhost_loggers(Host, Options) ->

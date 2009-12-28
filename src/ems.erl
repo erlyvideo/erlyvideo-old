@@ -52,6 +52,10 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
+  application:start(crypto),
+  application:start(rtmp),
+  application:start(rtsp),
+  ems_log:start(),
 	application:start(?APPLICATION).
 
 
@@ -64,8 +68,9 @@ stop() ->
 	io:format("Stopping ErlMedia ...~n"),
 	application:stop(?APPLICATION),
 	application:unload(?APPLICATION),
-	application:stop(log4erl),
-	application:unload(log4erl),
+  ems_log:stop(),
+	application:stop(rtsp),
+	application:unload(rtsp),
 	application:stop(rtmp),
 	application:unload(rtmp).
 
