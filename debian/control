@@ -1,0 +1,14 @@
+Source: erlydtl
+Priority: extra
+Maintainer: Max Lapshin <max@maxidoors.ru>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.1
+Section: libs
+Homepage: http://erlydtl.googlecode.com/
+
+Package: erlydtl
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Erlang Django templates
+ Erlang Django templates

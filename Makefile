@@ -1,3 +1,11 @@
+VERSION=0.5.3
+RTMPDIR=`./root`/lib/erlydtl-$(VERSION)
+BEAMDIR=$(RTMPDIR)/ebin/
+SRCDIR=$(RTMPDIR)/src/
+INCLUDEDIR=$(RTMPDIR)/include/
+DEBIANREPO=/apps/erlyvideo/debian/public
+DESTROOT=$(CURDIR)/debian/erlydtl
+
 ERL=erl
 ERLC=erlc
 
@@ -29,3 +37,20 @@ clean:
 	rm -fv ebin/*.beam
 	rm -fv ebin/$(APP)
 	rm -fv erl_crash.dump $(PARSER).erl
+
+install:
+	mkdir -p $(DESTROOT)$(BEAMDIR)
+	mkdir -p $(DESTROOT)$(SRCDIR)
+	mkdir -p $(DESTROOT)$(INCLUDEDIR)
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
+	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+
+debian:
+	cp ../erlydtl_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+
+
+.PHONY: doc debian
+
