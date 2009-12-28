@@ -15,4 +15,8 @@ clean-doc:
 	rm -fv doc/edoc-info
 	rm -fv doc/*.css
 
+install:
+	mkdir -p $(DESTDIR)/ebin/
+	install -c -m 644 ebin/*.beam $(DESTDIR)/ebin/
+
 .PHONY: doc

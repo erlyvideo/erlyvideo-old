@@ -1,13 +1,14 @@
 Source: erlang-rtmp
-Section: web
-Priority: optional
+Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 5), cdbs, autotools-dev, erlang-dev, erlang-nox
-Standards-Version: 3.7.2
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.1
+Section: libs
+Homepage: http://erlyvideo.org/rtmp
 
 Package: erlang-rtmp
+Section: libs
 Architecture: any
-Depends: ${erlang-nox:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Erlang RTMP library
- Erlang RTMP library can encode/decode RTMP protocol and serve as socket handler
- and listener.
+ Erlang library that handles RTMP protocol

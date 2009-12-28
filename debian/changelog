@@ -1,6 +1,5 @@
 erlang-rtmp (0.9) unstable; urgency=low
 
-  * Initial release.
+  * Initial Release.
 
- -- Max Lapshin <max@maxidoors.ru>  Mon, 28 Dec 2009 12:30:07 +0300
-
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 28 Dec 2009 17:49:54 +0300
