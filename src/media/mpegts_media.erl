@@ -6,6 +6,7 @@
 
 -include("../../include/ems.hrl").
 -include("../../include/h264.hrl").
+-include("../../include/mpegts.hrl").
 -include("../../include/video_frame.hrl").
 
 % ems_sup:start_ts_lander("http://localhost:8080").
@@ -54,18 +55,6 @@
   timestamp
 }).
 
--define(TYPE_VIDEO_MPEG1, 1).
--define(TYPE_VIDEO_MPEG2, 2).
--define(TYPE_VIDEO_MPEG4, 16).
--define(TYPE_VIDEO_H264,  27).
--define(TYPE_VIDEO_VC1,   234).
--define(TYPE_VIDEO_DIRAC, 209).
--define(TYPE_AUDIO_MPEG1, 3).
--define(TYPE_AUDIO_MPEG2, 4).
--define(TYPE_AUDIO_AAC,   15).
--define(TYPE_AUDIO_AAC2,  17).
--define(TYPE_AUDIO_AC3,   129).
--define(TYPE_AUDIO_DTS,   138).
 
 
 %% gen_server callbacks
@@ -249,6 +238,7 @@ demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid
   case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler, counter = _OldCounter} = Stream ->
       % Counter = (OldCounter + 1) rem 15,
+      ?D({Handler, Packet}),
       ?MODULE:Handler(ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, Header);
     #stream_out{handler = Handler} ->
       Handler ! {ts_packet, Header, ts_payload(Packet)},

@@ -41,7 +41,7 @@
   {mod, {ems_app, []}},
   {env, [
 		{rtmp_port, 1935},
-		{rtsp_port, 8080},
+		{rtsp_port, 8081},
 		{http_port, 8082},
 		{vhosts, [
 		   {default, [
