@@ -4,3 +4,5 @@ mnesia-data
 *.DS_Store
 Mnesia.*
 
+*.log
+*.cookie
