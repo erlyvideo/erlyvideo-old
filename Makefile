@@ -2,7 +2,6 @@ VERSION=0.5.3
 RTMPDIR=`./root`/lib/erlydtl-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
-INCLUDEDIR=$(RTMPDIR)/include/
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlydtl
 
@@ -40,12 +39,12 @@ clean:
 
 install:
 	mkdir -p $(DESTROOT)$(BEAMDIR)
-	mkdir -p $(DESTROOT)$(SRCDIR)
-	mkdir -p $(DESTROOT)$(INCLUDEDIR)
+	mkdir -p $(DESTROOT)$(SRCDIR)/erlydtl
+	mkdir -p $(DESTROOT)$(SRCDIR)/tests
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
-	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+	install -c -m 644 src/erlydtl/*.app $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 src/erlydtl/* $(DESTROOT)$(SRCDIR)erlydtl/
+	install -c -m 644 src/tests/* $(DESTROOT)$(SRCDIR)tests/
 
 debian:
 	cp ../erlydtl_$(VERSION)*.deb $(DEBIANREPO)/binary/
