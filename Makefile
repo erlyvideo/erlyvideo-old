@@ -2,7 +2,6 @@ VERSION=0.8.6
 RTMPDIR=`./root`/lib/log4erl-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
-DOCDIR=$(RTMPDIR)/doc/
 INCLUDEDIR=$(RTMPDIR)/include/
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/log4erl
@@ -27,17 +26,15 @@ clean:
 
 install:
 	mkdir -p $(DESTROOT)$(BEAMDIR)
-	mkdir -p $(DESTROOT)$(DOCDIR)
 	mkdir -p $(DESTROOT)$(SRCDIR)
 	mkdir -p $(DESTROOT)$(INCLUDEDIR)
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
 	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 doc/* $(DESTROOT)$(DOCDIR)
 	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
 	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
 
 debian:
-	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	cp ../log4erl_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 
