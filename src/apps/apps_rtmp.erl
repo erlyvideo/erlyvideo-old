@@ -98,10 +98,10 @@ connect(#rtmp_session{socket = Socket, addr = Address} = State, AMF) ->
     NewState2.
 
 
-reply(#rtmp_session{socket = Socket} = State, AMF) ->
+reply(#rtmp_session{socket = Socket}, AMF) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke}).
 
-fail(#rtmp_session{socket = Socket} = State, AMF) ->
+fail(#rtmp_session{socket = Socket}, AMF) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
   
 

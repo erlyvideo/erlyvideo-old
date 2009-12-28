@@ -60,7 +60,7 @@ handle(Host, 'GET', ["chat.html"], Req) ->
 
   
 handle(Host, 'POST', ["open", ChunkNumber], Req) ->
-  <<Timeout>> = Req:get(body),
+  <<_Timeout>> = Req:get(body),
   {ok, Pid} = rtmp_listener:create_client(),
   {ok, RTMP, SessionId} = rtmpt:open(Req:get(peer_addr), Pid),
   rtmp_session:set_socket(Pid, RTMP),
@@ -95,11 +95,11 @@ handle(Host, 'POST', ["close", SessionId, _ChunkNumber], Req) ->
   Req:stream(<<0>>),
   Req:stream(close);
     
-handle(Host, 'POST', ["fcs", "ident", ChunkNumber], Req) ->
+handle(_Host, 'POST', ["fcs", "ident", _ChunkNumber], Req) ->
   % ems_log:access(Host, "RTMPT ident/~p", [ChunkNumber]),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
     
-handle(Host, 'POST', ["fcs", "ident2"], Req) ->
+handle(_Host, 'POST', ["fcs", "ident2"], Req) ->
   % ems_log:access(Host, "RTMPT ident2", []),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
   

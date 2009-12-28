@@ -146,7 +146,7 @@ extract_play_args([Start, Duration, Reset]) -> [{start, Start}, {duration, Durat
 
 
 
-prepareStream(#rtmp_session{socket = Socket} = State, StreamId) ->
+prepareStream(#rtmp_session{socket = Socket}, StreamId) ->
   rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),

@@ -8,7 +8,7 @@
 
 -export([announce/4]).
 
-announce(Host, Path, Streams, Headers) -> 
+announce(Host, Path, Streams, _Headers) -> 
   Media = media_provider:open(Host, Path, live),
   Streams1 = config_media(Media, Streams),
   {ok, Media, Streams1}.

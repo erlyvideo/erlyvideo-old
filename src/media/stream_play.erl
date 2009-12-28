@@ -81,7 +81,7 @@ init(MediaEntry, Options) ->
                       media_info = MediaEntry}).
   
 	
-ready(#stream_player{consumer = Consumer, stream_id = StreamId} = State) ->
+ready(#stream_player{consumer = Consumer} = State) ->
   receive
     {client_buffer, _ClientBuffer} ->
       ?MODULE:ready(State);

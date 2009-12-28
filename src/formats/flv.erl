@@ -46,6 +46,8 @@
 
 -export([audio_type/1, audio_size/1, audio_rate/1, video_codec/1, video_type/1]).
 
+-export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
+
 audio_type(mono) -> ?FLV_AUDIO_TYPE_MONO;
 audio_type(stereo) -> ?FLV_AUDIO_TYPE_STEREO.
 
