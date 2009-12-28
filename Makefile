@@ -4,7 +4,8 @@ BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
 DOCDIR=$(RTMPDIR)/doc/
 INCLUDEDIR=$(RTMPDIR)/include/
-DEBIANDIR=/apps/erlyvideo/debian/public
+DEBIANREPO=/apps/erlyvideo/debian/public
+DESTROOT=$(CURDIR)/debian/erlang-rtmp
 
 all: doc
 	erl -make
@@ -24,19 +25,19 @@ clean-doc:
 	rm -fv doc/*.css
 
 install:
-	mkdir -p $(DESTDIR)$(BEAMDIR)
-	mkdir -p $(DESTDIR)$(DOCDIR)
-	mkdir -p $(DESTDIR)$(SRCDIR)
-	mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	install -c -m 644 ebin/*.beam $(DESTDIR)$(BEAMDIR)
-	install -c -m 644 ebin/*.app $(DESTDIR)$(BEAMDIR)
-	install -c -m 644 doc/* $(DESTDIR)$(DOCDIR)
-	install -c -m 644 src/* $(DESTDIR)$(SRCDIR)
-	install -c -m 644 include/* $(DESTDIR)$(INCLUDEDIR)
+	mkdir -p $(DESTROOT)$(BEAMDIR)
+	mkdir -p $(DESTROOT)$(DOCDIR)
+	mkdir -p $(DESTROOT)$(SRCDIR)
+	mkdir -p $(DESTROOT)$(INCLUDEDIR)
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
+	install -c -m 644 doc/* $(DESTROOT)$(DOCDIR)
+	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
+	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
 
 debian:
-	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANDIR)/binary/
-	(cd $(DEBIANDIR); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 
-.PHONY: doc
+.PHONY: doc debian
