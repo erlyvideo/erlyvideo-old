@@ -4,7 +4,7 @@
 -include("../include/h264.hrl").
 -include("../include/video_frame.hrl").
 -include("../include/ems.hrl").
--include("../deps/ertsp/include/rtsp.hrl").
+-include("../lib/ertsp/include/rtsp.hrl").
 
 -export([announce/4]).
 
