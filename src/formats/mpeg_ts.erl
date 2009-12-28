@@ -1,6 +1,7 @@
-%%% @author     Max Lapshin <max@maxidoors.ru>
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
 %%% @doc        MPEG TS stream module
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%%

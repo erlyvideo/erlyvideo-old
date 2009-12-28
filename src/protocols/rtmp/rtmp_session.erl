@@ -5,7 +5,7 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%% @doc        RTMP finite state behavior module
-%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%%
