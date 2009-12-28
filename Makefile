@@ -1,3 +1,4 @@
+ERL_LIBS := deps:$(ERL_LIBS) 
 ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
@@ -10,7 +11,6 @@ all: ebin ebin/erlmedia.app
 
 ebin:
 	mkdir ebin
-
 
 ebin/erlmedia.app:
 	cp priv/erlmedia.app ebin/erlmedia.app
@@ -35,7 +35,7 @@ player:
 
 run: ebin ebin/erlmedia.app
 	$(ERL) +bin_opt_info +debug \
-	-pa `pwd`/ebin -pa `pwd`/deps/*/ebin \
+	-pa ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \

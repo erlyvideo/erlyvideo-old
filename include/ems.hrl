@@ -1,7 +1,7 @@
 % luke: "is it possilbe to use lowercase names? 
 % uppercase breaks the syntax highlighting in textmate"
 -include("debug.hrl").
--include("../deps/erlang-rtmp/include/rtmp.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 -define(APPLICATION, erlmedia).
 
 -define(MAX_RESTART,      5).
