@@ -4,6 +4,7 @@ BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
 DOCDIR=$(RTMPDIR)/doc/
 INCLUDEDIR=$(RTMPDIR)/include/
+DEBIANDIR=/apps/erlyvideo/debian/public
 
 all: doc
 	erl -make
@@ -32,5 +33,10 @@ install:
 	install -c -m 644 doc/* $(DESTDIR)$(DOCDIR)
 	install -c -m 644 src/* $(DESTDIR)$(SRCDIR)
 	install -c -m 644 include/* $(DESTDIR)$(INCLUDEDIR)
+
+debian:
+	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANDIR)/binary/
+	(cd $(DEBIANDIR); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+
 
 .PHONY: doc
