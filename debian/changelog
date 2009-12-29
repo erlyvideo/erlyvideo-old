@@ -1,3 +1,9 @@
+erlang-rtmp (1.0) unstable; urgency=low
+
+  * Added RTMP listener 
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 30 Dec 2009 02:20:57 +0300
+
 erlang-rtmp (0.9) unstable; urgency=low
 
   * Initial Release.

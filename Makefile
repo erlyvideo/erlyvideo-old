@@ -36,6 +36,7 @@ install:
 	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
 
 debian:
+	debuild -us -uc
 	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
