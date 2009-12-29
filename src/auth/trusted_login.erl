@@ -6,7 +6,7 @@
 
 client_login(State, [_SessionData, UserIdF]) ->
   UserId = round(UserIdF),
-  {ok, SessionId} = rtmp_listener:login(UserId, []),
+  {ok, SessionId} = ems_users:login(UserId, []),
 	State#rtmp_session{user_id = UserId, session_id = SessionId};
 	
 client_login(State, _) ->

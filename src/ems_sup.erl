@@ -238,6 +238,13 @@ init([]) ->
   
   
   Supervisors = [
+    {   rtmp_session_sup,
+        {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
     % EMS HTTP
     {   ems_http_sup,                         % Id       = internal id
         {ems_http,start_link,[ems:get_var(http_port, 8082)]},             % StartFun = {M, F, A}
@@ -245,6 +252,13 @@ init([]) ->
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
         worker,                                  % Type     = worker | supervisor
         [ems_http]                               % Modules  = [Module] | dynamic
+    },
+    {   ems_users_sup,                         % Id       = internal id
+        {ems_users,start_link,[]},             % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_users]                               % Modules  = [Module] | dynamic
     },
     % Media entry supervisor
     {   file_media_sup,
@@ -300,28 +314,9 @@ init([]) ->
   | MediaProviders],
   
   
-  Supervisors1 = case ems:get_var(rtmp_port, undefined) of
-    undefined -> Supervisors;
-    RTMPPort -> [% EMS Listener
-      {   ems_sup,                                 % Id       = internal id
-          {rtmp_listener,start_link,[RTMPPort]},              % StartFun = {M, F, A}
-          permanent,                               % Restart  = permanent | transient | temporary
-          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-          worker,                                  % Type     = worker | supervisor
-          [rtmp_listener]                             % Modules  = [Module] | dynamic
-      },
-      {   rtmp_session_sup,
-          {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
-          permanent,                               % Restart  = permanent | transient | temporary
-          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-          supervisor,                              % Type     = worker | supervisor
-          []                                       % Modules  = [Module] | dynamic
-      }
-      |Supervisors]
-  end,
   
   
-    {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors1}}.
+  {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors}}.
 
 
 %%----------------------------------------------------------------------

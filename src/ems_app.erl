@@ -60,6 +60,10 @@ start(_Type, _Args) ->
     undefined -> ok;
     RTSP when is_integer(RTSP) -> rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
   end,
+  case ems:get_var(rtmp_port, undefined) of
+    undefined -> ok;
+    RTMP when is_integer(RTMP) -> rtmp_socket:start_server(RTMP, rtmp_listener1, ems_rtmp)
+  end,
   ok = ems:start_modules(),
   Start.
 
