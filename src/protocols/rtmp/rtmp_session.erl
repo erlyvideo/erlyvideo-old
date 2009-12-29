@@ -100,12 +100,6 @@ init([]) ->
   {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP}};
 
 
-'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) when is_port(Socket) ->
-  % Now we own the socket
-  {ok, {IP, Port}} = inet:peername(Socket),
-  {ok, RTMP} = rtmp_socket:accept(Socket),
-  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr=IP, port = Port}};
-
     
 'WAIT_FOR_SOCKET'(Other, State) ->
   error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
