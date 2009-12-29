@@ -262,7 +262,7 @@ run_request(#rtsp_connection{request = ['SETUP', URL], headers = Headers, stream
   
   State1 = case Proto of
     udp -> 
-      {ok, _Listener, {RTP, RTCP}} = ems_sup:start_rtp_server(Media, Stream),
+      {ok, _Listener, {RTP, RTCP}} = rtsp_sup:start_rtp_server(Media, Stream),
       HostName = hd(string:tokens(HostPort, ":")),
       {ok, {hostent, _, _, inet, _, [HostAddr | _]}} = inet:gethostbyname(HostName),
       {IP1, IP2, IP3, IP4} = HostAddr,
