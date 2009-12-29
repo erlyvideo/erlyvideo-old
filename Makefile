@@ -47,6 +47,7 @@ install:
 	install -c -m 644 src/tests/* $(DESTROOT)$(SRCDIR)tests/
 
 debian:
+	debuild -us -uc
 	cp ../erlydtl_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
