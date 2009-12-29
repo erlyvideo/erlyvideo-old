@@ -38,6 +38,7 @@
 -author('max@maxidoors.ru').
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
+-version(1.0).
 
 -export([encode/2, decode/2]).
 

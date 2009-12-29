@@ -37,6 +37,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
+-version(1.0).
 
 -record(rtmp_listener, {
 	listener, % Listening socket

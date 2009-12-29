@@ -1,9 +1,41 @@
-%% @author Max Lapshin <max@maxidoors.ru>
-
-%% @doc RTMP client, that connects to rtmp backend.
-
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009 Max Lapshin
+%%% @doc        RTMPT interface. Used from web-server.
+%%% RTMPT protocol is a tunneling protocol for RTMP. Technically it is implemented in following way:
+%%% Flash client connects to HTTP server several times a second and sends POST /idle requests with session id,
+%%% given in first POST /open request. When player needs to send data is sens POST /send request.
+%%% If server needs to send data to client, it buffers these bytes somewhere, associated with session id.
+%%% Usually you may not bother about POST /close request, because I have never seen it.
+%%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information.
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(rtmpt).
 -author('Max Lapshin <max@maxidoors.ru>').
+-version(1.0).
 
 -behaviour(gen_server).
 -define(RTMPT_TIMEOUT, 12000).
@@ -31,7 +63,11 @@
 %%% API
 %%%------------------------------------------------------------------------
 
-
+%% @spec(IP::{}, Consumer::pid()) -> {ok, RTMP::pid(), SessionID::string()}
+%% @doc Opens RTMPT session. Creates internal buffer, that will register under SessionID
+%% and will serve as a input/output buffer for RTMP socket. You must pass Consumer so, that
+%% RTMP socket will know about your listener.
+%% @end
 open(IP, Consumer) ->
   {ok, RTMPT, SessionID} = rtmpt_sessions:create(IP),
   {ok, RTMP} = rtmp_socket:start_socket(Consumer, accept, RTMPT),
@@ -39,12 +75,28 @@ open(IP, Consumer) ->
   {ok, RTMP, SessionID}.
 
 
+%% @spec(SessionID::string(), IP::{}, Sequence::integer()) -> {ok, Data::binary()} | {error, Reason}
+%% @doc Asks RTMPT buffer for any data, need to be received to client. Usually flash client calls is several times per second.
+%% Don't forget to add magic 33 in front of your data:
+%% <code>
+%%  {ok, Data} = rtmpt:idle(SessionId, Req:get(peer_addr), list_to_int(SequenceNumber)),
+%%  Req:ok([{'Content-Type', "application/x-fcs"}, {"Server", "RTMPT/1.0"}], [33, Data]);
+%% </code>
+%% @end
 idle(SessionID, IP, Sequence) ->
   case rtmpt_sessions:find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> gen_server:call(RTMPT, {recv, Sequence})
   end.
 
+%% @spec(SessionID::string(), IP::{}, Sequence::integer(), Data::binary()) -> {ok, Reply::binary()} | {error, Reason}
+%% @doc Push data to RTMP socket and asks RTMPT buffer for any data, need to be received to client. Usually flash client calls is several times per second.
+%% Don't forget to add magic 33 in front of your data:
+%% <code>
+%%  {ok, Data} = rtmpt:send(SessionId, Req:get(peer_addr), list_to_int(SequenceNumber), Req:get(body)),
+%%  Req:ok([{'Content-Type', "application/x-fcs"}, {"Server", "RTMPT/1.0"}], [33, Data]);
+%% </code>
+%% @end
 send(SessionID, IP, Sequence, Data) ->
   case rtmpt_sessions:find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
@@ -53,18 +105,24 @@ send(SessionID, IP, Sequence, Data) ->
       gen_server:call(RTMPT, {recv, Sequence})
   end.
 
+%% @spec(SessionID::string(), IP::{}) -> noreply | {error, Reason}
+%% @doc Closes RTMPT session
+%% @end
 close(SessionID, IP) ->
   case rtmpt_sessions:find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> gen_server:cast(RTMPT, close)
   end.
 
+%% @private
 write(RTMPT, Data) ->
   gen_server:call(RTMPT, {server_data, Data}).
 
+%% @private
 start_link(SessionId, IP) ->
   gen_server:start_link(?MODULE, [SessionId, IP], []).
 
+%% @private
 set_consumer(RTMPT, Consumer) ->
   gen_server:call(RTMPT, {set_consumer, Consumer}).
 

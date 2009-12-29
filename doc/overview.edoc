@@ -18,11 +18,12 @@ Started as core code of erlyvideo in early 2007, rtmp encoder/decoder part was e
 
 Now it is located in separate repository: http://github.com/erlyvideo/erlang-rtmp
 
-It consists of three parts:
+It consists of following parts:
 <ul>
 <li><b>{@link rtmp. rtmp}</b>: clear functional encoder/decoder part, that doesn't modify anything behind scene. This part can be easily tested.;</li>
 <li><b>{@link rtmp_socket. rtmp_socket}</b>: statefull proxy object, that wraps TCP socket and complicated state inside itself. It sends messages to consumer, just like HTTP mode of socket in erlang. Consumer must use the same message based protocol to send data to this object;</li>
 <li><b>{@link rtmp_lib. rtmp_lib}</b>: library with several base functions.</li>
+<li><b>{@link rtmpt. rtmpt}</b>: RTMPT handler.</li>
 </ul>
 
 You can already use it to implement clients. Take a look at contrib/rtmp_bench example.

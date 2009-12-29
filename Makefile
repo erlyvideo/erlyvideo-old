@@ -1,4 +1,4 @@
-VERSION=0.9
+VERSION=1.0
 RTMPDIR=`./root`/lib/rtmp-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
