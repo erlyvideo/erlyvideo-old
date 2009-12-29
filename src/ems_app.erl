@@ -58,7 +58,7 @@ start(_Type, _Args) ->
   Start = ems_sup:start_link(),
   case ems:get_var(rtsp_port, undefined) of
     undefined -> ok;
-    RTSP when is_integer(RTSP) -> rtsp:start_server(RTSP, ems_rtsp)
+    RTSP when is_integer(RTSP) -> rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
   end,
   ok = ems:start_modules(),
   Start.

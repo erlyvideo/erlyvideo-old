@@ -6,7 +6,7 @@
 
 -export ([init/1,start_link/0]).
 -export([start_rtsp_connection/1, start_rtsp_session/2]).
--export([start_rtsp_listener/2]).
+-export([start_rtsp_listener/3]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -20,9 +20,9 @@ start_link() ->
 start_rtsp_connection(Callback) -> supervisor:start_child(rtsp_connection_sup, [Callback]).
 start_rtsp_session(Consumer, Type) -> supervisor:start_child(rtsp_session_sup, [Consumer, Type]).
 
-start_rtsp_listener(Port, Callback) ->
-  Listener = {rtsp_listener,
-  {rtsp_listener, start_link ,[Port, Callback]},
+start_rtsp_listener(Port, Name, Callback) ->
+  Listener = {Name,
+  {rtsp_listener, start_link ,[Port, Name, Callback]},
   permanent,
   10000,
   worker,

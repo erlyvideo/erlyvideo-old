@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -25,8 +25,8 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link(Port, Callback) when is_integer(Port) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port, Callback], []).
+start_link(Port, Name, Callback) when is_integer(Port) ->
+    gen_server:start_link({local, Name}, ?MODULE, [Port, Callback], []).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
