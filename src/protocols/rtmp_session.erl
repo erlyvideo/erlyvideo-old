@@ -37,7 +37,7 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
--include("../../../include/ems.hrl").
+-include("../../include/ems.hrl").
 -include("../include/video_frame.hrl").
 
 -behaviour(gen_fsm).
@@ -58,6 +58,13 @@
   'WAIT_FOR_DATA'/3]).
 
 
+-export([create_client/1]).
+
+
+create_client(Socket) ->
+  {ok, Pid} = ems_sup:start_rtmp_session(),
+  rtmp_session:set_socket(Pid, Socket),
+  {ok, Pid}.
 
 
 %%%------------------------------------------------------------------------

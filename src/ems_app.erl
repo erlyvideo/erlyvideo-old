@@ -62,7 +62,7 @@ start(_Type, _Args) ->
   end,
   case ems:get_var(rtmp_port, undefined) of
     undefined -> ok;
-    RTMP when is_integer(RTMP) -> rtmp_socket:start_server(RTMP, rtmp_listener1, ems_rtmp)
+    RTMP when is_integer(RTMP) -> rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
   end,
   ok = ems:start_modules(),
   Start.
