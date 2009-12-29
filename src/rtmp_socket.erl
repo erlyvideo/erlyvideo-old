@@ -47,10 +47,15 @@
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
+-export([wait_for_socket_on_server/2, wait_for_socket_on_server/3, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
 
 %% @spec (Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}
-%% @doc Starts RTMP listener on port Port, registered under name Name with callback module Callback
+%% @doc Starts RTMP listener on port Port, registered under name Name with callback module Callback.
+%% Callback must export one function: create_client/1
+%% create_client(RTMPSocket::pid()) -> {ok, Pid::pid()}
+%%
+%% This function receives RTMPSocket, that is ready to send messages and after this callback function returns, this socket
+%% will send rtmp_message as it is defined in overview.
 %% @end
 -spec(start_server(Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}).
 start_server(Port, Name, Callback) ->
@@ -99,6 +104,7 @@ start_link(Consumer, Type) ->
 %%  <ul><li><code>chunk_size</code> - change outgoing chunk size</li>
 %%  <li><code>window_size</code> - ask remote client to send read acknowlegement after WindowSize bytes</li>
 %%  <li><code>amf_version</code> - change AMF0 to AMF3, but only before first call</li>
+%%  <li><code>consumer</code> - change messages consumer</li>
 %% </ul>
 %% @end
 -spec(setopts(RTMP::rtmp_socket_pid(), Options::[{Key::atom(), Value::any()}]) -> ok).
@@ -151,11 +157,11 @@ invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   
 %% @private  
 init([Consumer, accept]) ->
-  link(Consumer),
+  (catch link(Consumer)),
   {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT};
 
 init([Consumer, connect]) ->
-  link(Consumer),
+  (catch link(Consumer)),
   {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT}.
 
 %% @private  
@@ -166,7 +172,18 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port
 
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
   link(Socket),
-  {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
+  {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT};
+
+wait_for_socket_on_server({setopts, Options}, State) ->
+  NewState = set_options(State, Options),
+  {next_state, wait_for_socket_on_server, NewState, ?RTMP_TIMEOUT}.
+% , previous_ack = erlang:now()
+
+
+%% @private  
+wait_for_socket_on_server({getopts, Options}, _From, State) ->
+  {reply, get_options(State, Options), wait_for_socket_on_server, State}.
+
 
 %% @private  
 wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
@@ -226,6 +243,11 @@ get_options(State, [Key | Options]) ->
 
 set_options(State, [{amf_version, Version} | Options]) ->
   set_options(State#rtmp_socket{amf_version = Version}, Options);
+
+set_options(#rtmp_socket{consumer = PrevConsumer} = State, [{consumer, Consumer} | Options]) ->
+  (catch unlink(PrevConsumer)),  
+  (catch link(Consumer)),  
+  set_options(State#rtmp_socket{consumer = Consumer}, Options);
 
 set_options(State, [{chunk_size, ChunkSize} | Options]) ->
   send_data(State, #rtmp_message{type = chunk_size, body = ChunkSize}),

@@ -1,3 +1,4 @@
+%%% @private
 %%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
@@ -55,7 +56,7 @@
 
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
+%% @spec (Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid} | {error, Reason}
 %%
 %% @doc Called by a supervisor to start the listening process.
 %% @end
@@ -140,7 +141,11 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
   ok ->
     %% New client connected - spawn a new process using the simple_one_for_one
     %% supervisor.
-    {ok, _Pid} = Callback:create_client(CliSocket),
+    {ok, RTMP} = rtmp_sup:start_rtmp_socket(undefined, accept),
+    gen_tcp:controlling_process(CliSocket, RTMP),
+    {ok, Pid} = Callback:create_client(RTMP),
+    rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
+    gen_fsm:send_event(RTMP, {socket, CliSocket}),
     %% Signal the network driver that we are ready to accept another connection
     {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
     {noreply, State#rtmp_listener{acceptor=NewRef}};
