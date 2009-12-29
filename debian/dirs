@@ -1,0 +1,9 @@
+usr/lib/erlyvideo/bin
+usr/lib/erlang/lib
+usr/sbin
+usr/share/man
+var/lib/erlyvideo/mnesia
+var/log/erlyvideo
+etc/logrotate.d
+etc/erlyvideo
+
