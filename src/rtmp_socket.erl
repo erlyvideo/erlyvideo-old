@@ -38,11 +38,24 @@
 
 -export([start_socket/3]).
 
+
+-export([start_server/3]).
+  
+
+
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
 -export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
+
+%% @spec (Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}
+%% @doc Starts RTMP listener on port Port, registered under name Name with callback module Callback
+%% @end
+-spec(start_server(Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}).
+start_server(Port, Name, Callback) ->
+  rtmp_sup:start_rtmp_listener(Port, Name, Callback).
+
 
 %% @spec (Socket::port()) -> {ok, RTMP::pid()}
 %% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
