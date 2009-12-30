@@ -38,6 +38,7 @@
 -author('max@maxidoors.ru').
 -include("../include/rtmp.hrl").
 -include("../include/rtmp_private.hrl").
+-include("../include/shared_objects.hrl").
 -version(1.0).
 
 -export([encode/2, decode/2]).
@@ -70,6 +71,9 @@ encode(State, #rtmp_message{stream_id = undefined} = Message) ->
 
 encode(State, #rtmp_message{channel_id = undefined, type = invoke} = Message)  -> 
   encode(State, Message#rtmp_message{channel_id = 3});
+
+encode(State, #rtmp_message{channel_id = undefined, type = shared_object} = Message)  -> 
+  encode(State, Message#rtmp_message{channel_id = 4});
 
 encode(State, #rtmp_message{channel_id = undefined} = Message)  -> 
   encode(State, Message#rtmp_message{channel_id = 2});
@@ -447,7 +451,7 @@ decode_list(Body, Module, Acc) ->
 
 
 encode_shared_object(#so_message{name = Name, version = Version, persistent = true, events = Events}) ->
-  encode_shared_object_events(<<(size(Name)):16, Name/binary, Version:32, 2:32, 0:32>>, Events);
+  encode_shared_object_events(<<(size(Name)):16, Name/binary, Version:32, 34:32, 0:32>>, Events);
 
 encode_shared_object(#so_message{name = Name, version = Version, persistent = false, events = Events}) ->
   encode_shared_object_events(<<(size(Name)):16, Name/binary, Version:32, 0:32, 0:32>>, Events).
@@ -457,10 +461,10 @@ encode_shared_object_events(Body, []) ->
 
 encode_shared_object_events(Body, [{EventType, Event} | Events]) ->
   EventData = amf0:encode(Event),
-  encode_shared_object_events(<<Body/binary, EventType, (size(EventData)):32, EventData/binary>>, Events);
+  encode_shared_object_events(<<Body/binary, (encode_so_type(EventType)), (size(EventData)):32, EventData/binary>>, Events);
 
 encode_shared_object_events(Body, [EventType | Events]) ->
-  encode_shared_object_events(<<Body/binary, EventType, 0:32>>, Events).
+  encode_shared_object_events(<<Body/binary, (encode_so_type(EventType)), 0:32>>, Events).
 
 
 decode_shared_object(<<Length:16, Name:Length/binary, Version:32, 2:32, _:32, Events/binary>>) ->
@@ -473,9 +477,35 @@ decode_shared_object_events(<<>>, #so_message{events = Events} = Message) ->
   Message#so_message{events = lists:reverse(Events)};
 
 decode_shared_object_events(<<EventType, 0:32, Rest/binary>>, #so_message{events = Events} = Message) ->
-  decode_shared_object_events(Rest, Message#so_message{events = [EventType|Events]});
+  decode_shared_object_events(Rest, Message#so_message{events = [decode_so_type(EventType)|Events]});
 
 decode_shared_object_events(<<EventType, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
   #so_message{events = Events} = Message) ->
   Event = amf0:decode(EventData),
-  decode_shared_object_events(Rest, Message#so_message{events = [{EventType, Event}|Events]}).
+  decode_shared_object_events(Rest, Message#so_message{events = [{decode_so_type(EventType), Event}|Events]}).
+
+decode_so_type(?SO_CONNECT) -> connect;
+decode_so_type(?SO_DISCONNECT) -> disconnect;
+decode_so_type(?SO_SET_ATTRIBUTE) -> set_attribute;
+decode_so_type(?SO_UPDATE_DATA) -> update_data;
+decode_so_type(?SO_UPDATE_ATTRIBUTE) -> update_attribute;
+decode_so_type(?SO_SEND_MESSAGE) -> send_message;
+decode_so_type(?SO_STATUS) -> status;
+decode_so_type(?SO_CLEAR_DATA) -> clear_data;
+decode_so_type(?SO_DELETE_DATA) -> delete_data;
+decode_so_type(?SO_DELETE_ATTRIBUTE) -> delete_attribute;
+decode_so_type(?SO_INITIAL_DATA) -> initial_data.
+
+encode_so_type(Type) when is_integer(Type) -> Type;
+encode_so_type(connect) -> ?SO_CONNECT;
+encode_so_type(disconnect) -> ?SO_DISCONNECT;
+encode_so_type(set_attribute) -> ?SO_SET_ATTRIBUTE;
+encode_so_type(update_data) -> ?SO_UPDATE_DATA;
+encode_so_type(update_attribute) -> ?SO_UPDATE_ATTRIBUTE;
+encode_so_type(send_message) -> ?SO_SEND_MESSAGE;
+encode_so_type(status) -> ?SO_STATUS;
+encode_so_type(clear_data) -> ?SO_CLEAR_DATA;
+encode_so_type(delete_data) -> ?SO_DELETE_DATA;
+encode_so_type(delete_attribute) -> ?SO_DELETE_ATTRIBUTE;
+encode_so_type(initial_data) -> ?SO_INITIAL_DATA.
+
