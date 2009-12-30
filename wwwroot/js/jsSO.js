@@ -55,7 +55,7 @@ var jsSO = window.jsSO = {
 			if (jsSO.options.debug) {
 				$div.css({left: null, right:0, top:0});
 			}
-			swfobject.embedSWF('swf/jsSO.swf', "jsSOSwf", 320, 180, "9.0.0", false, flashvars, params, attributes);
+			swfobject.embedSWF('jsSO/jsSO.swf', "jsSOSwf", 320, 180, "9.0.0", false, flashvars, params, attributes);
 		});
 		
 		return this;
