@@ -4,18 +4,27 @@
 <script type="text/javascript" src="/js/jquery.js"></script>
 <script type="text/javascript" src="/js/jsSO.js"></script>
 
+
+</head>
+<body>
+<form>
+	<input class='sync' type="button" value="sync" />
+	<input class='send' type="button" value="send" />
+	<pre></pre>
+</form>
+
 <script type="text/javascript">
 
-$(':button.sync').live('click', function(){
+$('.sync').click(function(){
 	var rand = Math.random();
 	$('pre').append('sync: '+rand+'\n');
 	jsSO.set('someVar', rand);
 });
 
-$(':button.send').live('click', function(){
+$('.send').click(function(){
 	var rand = Math.random();
-	$('pre').append('send: '+{a :rand}+'\n');
-	jsSO.send({a:rand});
+	$('pre').append('send: '+rand+'\n');
+	jsSO.send("onMessage", {a:rand});
 });
 
 jsSO.onConnect(function(event) {
@@ -29,19 +38,12 @@ jsSO.onSync(function(event, updates, data) {
 });
 
 jsSO.onMessage(function(event, data) {
-	$('pre').append('message: '+data+'\n');
+	$('pre').append('message: '+data.a+'\n');
 });
 
-jsSO.connect('rtmp://localhost:1936/SOSample', 'chat');
+jsSO.connect('rtmp://localhost:1936/SOSample', 'chat', {debug : true});
 
 </script>
 
-</head>
-<body>
-<form>
-	<input class='sync' type="button" value="sync" />
-	<input class='send' type="button" value="send" />
-	<pre></pre>
-</form>
 </body>
 </html>

@@ -94,6 +94,13 @@ handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{na
   ClientList = lists:delete(Client, Clients),
   [rtmp_session:send(C, Message) || C <- ClientList],
   handle_event(Events, Client, State#shared_object{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1});
+
+
+handle_event([{send_message, {Function, Args}} | Events], Client, #shared_object{name = Name, version = Version, persistent = P, clients = Clients} = State) ->
+  Reply = #so_message{name = Name, version = Version, persistent = P, events = [{send_message, {Function, Args}}]},
+  Message = #rtmp_message{type = shared_object, body = Reply},
+  [rtmp_session:send(C, Message) || C <- Clients],
+  handle_event(Events, Client, State);
   
 handle_event([{Event, EventData} | Events], Client, State) ->
   ?D({"Unknown event", Event, EventData}),

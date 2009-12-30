@@ -113,7 +113,7 @@ $.extend(jsSO, {
 		this._updates = updates;
 		
 		// trigger onSync events
-		$(this).trigger('sync.jsSO', [data]);
+		$(this).trigger('sync.jsSO', [updates, data]);
 	},
 
 	fcbOnMessage: function(data) {
@@ -123,7 +123,7 @@ $.extend(jsSO, {
 		this._data = data;
 		
 		// trigger onSync events
-		$(this).trigger('message.jsSO', [updates, data]);
+		$(this).trigger('message.jsSO', [data]);
 	},
 
 	// set a data item
@@ -132,8 +132,8 @@ $.extend(jsSO, {
 		return this;
 	},
 
-	send: function(item, message) {
-		this._swf().send(item, message);
+	send: function(name, message) {
+		this._swf().send(name, message);
 		return this;
 	},
 

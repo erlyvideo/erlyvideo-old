@@ -87,12 +87,12 @@
 			// create StoredObject - pass the name of the shared object, the netConnection URI ("rtmp://localhost/oflaDemo"), and whether or not it's persistant
 			var so:SharedObject = SharedObject.getRemote(objectName, nc.uri, persistent);
 			
-			var client:Object = {};
-			client.onMessage = function(data:Object):void {
-			  ExternalInterface.call("jsSO.fcbOnMessage", data);
-			};
+      var client:Object = {};
+      client.onMessage = function(data:Object):void {
+        ExternalInterface.call("jsSO.fcbOnMessage", data);
+      };
 			
-			so.client = client;
+      so.client = client;
 
 			// this method is called when the data on the Shared Object is updated
 			so.addEventListener(SyncEvent.SYNC, function(evtObj:SyncEvent):void {
@@ -126,13 +126,13 @@
 			{
 				so.setProperty(name, value);
 			}
-			function send(name:String, message:Object):void
+			function sendMsg(name:String, message:Object):void
 			{
 				so.send("onMessage", message);
 			}
 			ExternalInterface.addCallback("set", set);
 			ExternalInterface.addCallback("get", get);
-			ExternalInterface.addCallback("send", send);
+			ExternalInterface.addCallback("send", sendMsg);
 		}
 	]]>
 	</mx:Script>	
