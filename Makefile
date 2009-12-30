@@ -40,5 +40,7 @@ debian:
 	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
+deploy-doc:
+	(cd doc; rsync -avz . -e ssh erlyvideo.org:/apps/erlyvideo/www/public/rtmp)
 
 .PHONY: doc debian

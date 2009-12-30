@@ -26,8 +26,24 @@ It consists of following parts:
 <li><b>{@link rtmpt. rtmpt}</b>: RTMPT handler.</li>
 </ul>
 
-You can already use it to implement clients. Take a look at contrib/rtmp_bench example.
+You can already use it to implement clients. Take a look at contrib/rtmp_bench example, which requires library erlang-amf from http://github.com/erlyvideo/erlang-amf
 
-Don't forget to make <code>application:start(rtmp).</code>
+<h2>Server usage</h2>
+
+<pre><code>
+application:start(rtmp),
+rtmp_socket:start_server(1935, rtmp_listener1, rtmp_session),
+</code></pre>
+
+rtmp_listener1 is just a name, used to identify this instance of listener. There maybe many of them.
+rtmp_session is you module, that must implement following method:
+<pre><code>
+-export([create_client/1]).
+
+create_client(RTMPSocket) ->  %% Here Socket is pid() of rtmp socket, not TCP port()
+  {ok, Pid} = ems_sup:start_rtmp_session(), %% Here goes example code.
+  rtmp_session:set_socket(Pid, Socket),     %% It means just one: you must create consumer in this method
+  {ok, Pid}.
+</code></pre>
 
 @end
