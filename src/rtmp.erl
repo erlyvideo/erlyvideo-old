@@ -459,6 +459,10 @@ encode_shared_object(#so_message{name = Name, version = Version, persistent = fa
 encode_shared_object_events(Body, []) ->
   Body;
 
+encode_shared_object_events(Body, [{update_attribute, Name} | Events]) ->
+  EventData = <<(size(Name)):16, Name/binary>>,
+  encode_shared_object_events(<<Body/binary, ?SO_UPDATE_ATTRIBUTE, (size(EventData)):32, EventData/binary>>, Events);
+
 encode_shared_object_events(Body, [{EventType, Event} | Events]) ->
   EventData = amf0:encode(Event),
   encode_shared_object_events(<<Body/binary, (encode_so_type(EventType)), (size(EventData)):32, EventData/binary>>, Events);
@@ -478,6 +482,11 @@ decode_shared_object_events(<<>>, #so_message{events = Events} = Message) ->
 
 decode_shared_object_events(<<EventType, 0:32, Rest/binary>>, #so_message{events = Events} = Message) ->
   decode_shared_object_events(Rest, Message#so_message{events = [decode_so_type(EventType)|Events]});
+
+decode_shared_object_events(<<?SO_SET_ATTRIBUTE, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
+  #so_message{events = Events} = Message) ->
+  <<Length:16, Name:Length/binary, Value/binary>> = EventData,
+  decode_shared_object_events(Rest, Message#so_message{events = [{set_attribute, {Name, amf0:decode(Value)}}|Events]});
 
 decode_shared_object_events(<<EventType, EventDataLength:32, EventData:EventDataLength/binary, Rest/binary>>,
   #so_message{events = Events} = Message) ->
