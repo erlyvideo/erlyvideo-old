@@ -163,10 +163,9 @@ handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == v
   gen_fsm:send_event(self(), {publish, Message}),
   State;
 
-handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
-  ?D({"SO", SOEvent}),
+handle_rtmp_message(#rtmp_session{host = Host} = State, #rtmp_message{type = shared_object, body = SOEvent}) ->
   #so_message{name = Name, persistent = Persistent} = SOEvent,
-  Object = shared_objects:open(Name, Persistent),
+  Object = shared_objects:open(Host, Name, Persistent),
   shared_object:message(Object, SOEvent),
   State;
 

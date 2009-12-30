@@ -42,7 +42,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/0, start_rtsp_session/0, start_media/3, 
           start_file_play/2, start_stream_play/2,
-          start_mpegts_media/1, start_shared_object/2]).
+          start_mpegts_media/1, start_shared_object/3]).
 
 
 %%--------------------------------------------------------------------
@@ -92,7 +92,7 @@ start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup
 %%--------------------------------------------------------------------
 start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
 
-start_shared_object(Name, Persistent) -> supervisor:start_child(shared_object_sup, [Name, Persistent]).
+start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_object_sup, [Host, Name, Persistent]).
 
 
 %%--------------------------------------------------------------------

@@ -10,7 +10,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
          
--export([open/2]).
+-export([open/3]).
          
 -record(shared_objects, {
   objects
@@ -30,8 +30,8 @@ start_link()  ->
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
 
-open(Name, Persistent) ->
-  {ok, Object} = gen_server:call(?MODULE, {open, Name, Persistent}),
+open(Host, Name, Persistent) ->
+  {ok, Object} = gen_server:call(?MODULE, {open, Host, Name, Persistent}),
   Object.
 
 %%----------------------------------------------------------------------
@@ -63,13 +63,13 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({open, Name, Persistent}, _From, #shared_objects{objects = Objects} = State) ->
-  case ets:lookup(Objects, Name) of
-    [{Name, Object}] -> ok;
+handle_call({open, Host, Name, Persistent}, _From, #shared_objects{objects = Objects} = State) ->
+  case ets:lookup(Objects, {Host, Name}) of
+    [{{Host, Name}, Object}] -> ok;
     _ -> 
-      {ok, Object} = ems_sup:start_shared_object(Name, Persistent),
+      {ok, Object} = ems_sup:start_shared_object(Host, Name, Persistent),
       link(Object),
-      ets:insert(Objects, {Name, Object})
+      ets:insert(Objects, {{Host, Name}, Object})
   end,
   {reply, {ok, Object}, State};
 

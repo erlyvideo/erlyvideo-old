@@ -6,6 +6,7 @@
 -behaviour(gen_server).
 
 -record(shared_object, {
+  host,
   name,
   version = 0,
   persistent,
@@ -13,7 +14,7 @@
   clients = []
 }).
 
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -27,8 +28,8 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link(SharedObject, Persistent)  ->
-   gen_server:start_link(?MODULE, [SharedObject, Persistent], []).
+start_link(Host, Name, Persistent)  ->
+   gen_server:start_link(?MODULE, [Host, Name, Persistent], []).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -48,9 +49,9 @@ message(Object, Message) ->
 %%      Create listening socket.
 %% @end
 %%----------------------------------------------------------------------
-init([Name, Persistent]) ->
+init([Host, Name, Persistent]) ->
   process_flag(trap_exit, true),
-  {ok, #shared_object{name = Name, persistent = Persistent, data = []}}.
+  {ok, #shared_object{host = Host, name = Name, persistent = Persistent, data = []}}.
   
 
 %%-------------------------------------------------------------------------
@@ -77,15 +78,15 @@ handle_call(Request, _From, State) ->
 handle_event([], _, State) ->
   State;
 
-handle_event([connect | Events], Client, #shared_object{clients = Clients, data = _Data} = State) ->
+handle_event([connect | Events], Client, #shared_object{clients = Clients, data = _Data, host = Host} = State) ->
   link(Client),
-  ?D({"Client connected to", State#shared_object.name, Client}),
+  ?D({"Client connected to", Host, State#shared_object.name, Client}),
   connect_notify(Client, State),
   handle_event(Events, Client, State#shared_object{clients = [Client | Clients]});
 
-handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{name = Name, version = Version, persistent = P, data = Data} = State) ->
+handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{host = Host, name = Name, version = Version, persistent = P, data = Data} = State) ->
   
-  ?D({"Set attr", Key, Value}),
+  ?D({"Set attr", Host, Key, Value}),
   Reply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}),
   handle_event(Events, Client, State#shared_object{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1});
@@ -154,7 +155,6 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
-  ?D({"Shared object stop", self(), _State#shared_object.name}),
  ok.
 
 %%-------------------------------------------------------------------------
