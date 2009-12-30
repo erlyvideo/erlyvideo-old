@@ -1,7 +1,6 @@
 -module(shared_object).
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
--include("../../include/shared_objects.hrl").
 
 
 -behaviour(gen_server).
@@ -71,7 +70,7 @@ handle_call({message, #so_message{events = Events} = Message}, {Client, _Ref}, S
   {State1, Replies} = parse_event(Events, Client, State, []),
   
   Reply = Message#so_message{events = Replies},
-  gen_fsm:send_event(Client, {send, {#rtmp_message{channel_id = 12, timestamp = 0, type = shared_object, stream_id = 0}, Reply}}),
+  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}),
   {reply, ok, State1};
 
 handle_call(Request, _From, State) ->
@@ -81,12 +80,12 @@ handle_call(Request, _From, State) ->
 parse_event([], _, State, Reply) ->
   {State, Reply};
 
-parse_event([?SO_CONNECT | Events], Client, #shared_object{clients = Clients, data = _Data} = State, Replies) ->
+parse_event([connect | Events], Client, #shared_object{clients = Clients, data = _Data} = State, Replies) ->
   link(Client),
   ?D({"Client connected to", State#shared_object.name, Client}),
   
   parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, 
-              [?SO_INITIAL_DATA, ?SO_CLEAR_DATA |Replies]).
+              [initial_data |Replies]).
   
 
 %%-------------------------------------------------------------------------

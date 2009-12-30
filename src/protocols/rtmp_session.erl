@@ -47,8 +47,9 @@
 -export([channel_id/2]).
 
 %% gen_fsm callbacks
--export([init/1, handle_event/3,
-         handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+-export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+
+-export([send/2]).
 
 %% FSM States
 -export([
@@ -95,6 +96,10 @@ init([]) ->
   {ok, 'WAIT_FOR_SOCKET', #rtmp_session{streams = array:new()}}.
 
 
+send(Session, Message) ->
+  gen_fsm:send_event(Session, Message).
+  
+
 
 %%-------------------------------------------------------------------------
 %% Func: StateName/2
@@ -120,6 +125,10 @@ init([]) ->
 
 'WAIT_FOR_DATA'({exit}, State) ->
   {stop, normal, State};
+
+'WAIT_FOR_DATA'(#rtmp_message{} = Message, State) ->
+  rtmp_socket:send(State#rtmp_session.socket, Message),
+  {next_state, 'WAIT_FOR_DATA', State};
 
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
@@ -153,7 +162,13 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
 handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   gen_fsm:send_event(self(), {publish, Message}),
   State;
-  
+
+handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
+  ?D({"SO", SOEvent}),
+  #so_message{name = Name, persistent = Persistent} = SOEvent,
+  Object = shared_objects:open(Name, Persistent),
+  shared_object:message(Object, SOEvent),
+  State;
 
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case array:get(StreamId, Streams) of
