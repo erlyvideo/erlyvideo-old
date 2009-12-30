@@ -113,12 +113,27 @@ $.extend(jsSO, {
 		this._updates = updates;
 		
 		// trigger onSync events
-		$(this).trigger('sync.jsSO', [updates, data]);
+		$(this).trigger('sync.jsSO', [data]);
+	},
+
+	fcbOnMessage: function(data) {
+		this.debug('fcbOnMessage');
+		//this.debug(updates);
+		//this.debug(data);
+		this._data = data;
+		
+		// trigger onSync events
+		$(this).trigger('message.jsSO', [updates, data]);
 	},
 
 	// set a data item
 	set: function(item, data) {
 		this._swf().set(item, data);
+		return this;
+	},
+
+	send: function(item, message) {
+		this._swf().send(item, message);
 		return this;
 	},
 
@@ -205,7 +220,7 @@ $.extend(jsSO, {
 });
 
 // events
-$.each(('connect,connectError,disconnect,sync,flashError,callResponse,callError').split(','), function(i, name) {
+$.each(('connect,connectError,disconnect,sync,message,flashError,callResponse,callError').split(','), function(i, name) {
 	jsSO['on'+name.charAt(0).toUpperCase()+name.substr(1)] = function(func) {
 		$(this).bind(name+'.jsSO', func);
 	};

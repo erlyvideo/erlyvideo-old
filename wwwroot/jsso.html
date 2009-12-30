@@ -6,10 +6,16 @@
 
 <script type="text/javascript">
 
-$(':button').live('click', function(){
+$(':button.sync').live('click', function(){
 	var rand = Math.random();
-	$('pre').append('send: '+rand+'\n');
+	$('pre').append('sync: '+rand+'\n');
 	jsSO.set('someVar', rand);
+});
+
+$(':button.send').live('click', function(){
+	var rand = Math.random();
+	$('pre').append('send: '+{a :rand}+'\n');
+	jsSO.send({a:rand});
 });
 
 jsSO.onConnect(function(event) {
@@ -22,6 +28,10 @@ jsSO.onSync(function(event, updates, data) {
 	}
 });
 
+jsSO.onMessage(function(event, data) {
+	$('pre').append('message: '+data+'\n');
+});
+
 jsSO.connect('rtmp://localhost:1936/SOSample', 'chat');
 
 </script>
@@ -29,7 +39,8 @@ jsSO.connect('rtmp://localhost:1936/SOSample', 'chat');
 </head>
 <body>
 <form>
-	<input type="button" value="test" />
+	<input class='sync' type="button" value="sync" />
+	<input class='send' type="button" value="send" />
 	<pre></pre>
 </form>
 </body>
