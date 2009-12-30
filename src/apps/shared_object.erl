@@ -84,11 +84,15 @@ handle_event([connect | Events], Client, #shared_object{clients = Clients, data 
   connect_notify(Client, State),
   handle_event(Events, Client, State#shared_object{clients = [Client | Clients]});
 
-handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{host = Host, name = Name, version = Version, persistent = P, data = Data} = State) ->
+handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{name = Name, version = Version, persistent = P, data = Data, clients = Clients} = State) ->
   
-  ?D({"Set attr", Host, Key, Value}),
-  Reply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
-  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}),
+  AuthorReply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
+  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = AuthorReply}),
+  
+  OtherReply = #so_message{name = Name, version = Version+1, persistent = P, events = [{update_data, [{Key, Value}]}]},
+  Message = #rtmp_message{type = shared_object, body = OtherReply},
+  ClientList = lists:delete(Client, Clients),
+  [rtmp_session:send(C, Message) || C <- ClientList],
   handle_event(Events, Client, State#shared_object{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1});
   
 handle_event([{Event, EventData} | Events], Client, State) ->
