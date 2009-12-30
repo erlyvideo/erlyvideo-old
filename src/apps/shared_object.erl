@@ -68,7 +68,6 @@ init([Name, Persistent]) ->
 
 handle_call({message, #so_message{events = Events} = Message}, {Client, _Ref}, State) ->
   {State1, Replies} = parse_event(Events, Client, State, []),
-  
   Reply = Message#so_message{events = Replies},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}),
   {reply, ok, State1};
@@ -84,8 +83,12 @@ parse_event([connect | Events], Client, #shared_object{clients = Clients, data =
   link(Client),
   ?D({"Client connected to", State#shared_object.name, Client}),
   
-  parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, 
-              [initial_data |Replies]).
+  parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, [initial_data |Replies]);
+
+parse_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{clients = Clients, data = _Data} = State, Replies) ->
+  ?D({"Set attr", Key, Value}),
+
+  parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, [{update_attribute, Key} |Replies]).
   
 
 %%-------------------------------------------------------------------------
