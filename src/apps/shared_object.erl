@@ -50,7 +50,7 @@ message(Object, Message) ->
 %%----------------------------------------------------------------------
 init([Name, Persistent]) ->
   process_flag(trap_exit, true),
-  {ok, #shared_object{name = Name, persistent = Persistent, data = [{a, 1}, {b, <<"zz">>}]}}.
+  {ok, #shared_object{name = Name, persistent = Persistent, data = []}}.
   
 
 %%-------------------------------------------------------------------------
@@ -66,30 +66,46 @@ init([Name, Persistent]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({message, #so_message{events = Events} = Message}, {Client, _Ref}, State) ->
-  {State1, Replies} = parse_event(Events, Client, State, []),
-  Reply = Message#so_message{events = Replies},
-  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}),
+handle_call({message, #so_message{events = Events}}, {Client, _Ref}, State) ->
+  State1 = handle_event(Events, Client, State),
   {reply, ok, State1};
 
 handle_call(Request, _From, State) ->
  {stop, {unknown_call, Request}, State}.
 
 
-parse_event([], _, State, Reply) ->
-  {State, Reply};
+handle_event([], _, State) ->
+  State;
 
-parse_event([connect | Events], Client, #shared_object{clients = Clients, data = _Data} = State, Replies) ->
+handle_event([connect | Events], Client, #shared_object{clients = Clients, data = _Data} = State) ->
   link(Client),
   ?D({"Client connected to", State#shared_object.name, Client}),
-  
-  parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, [initial_data |Replies]);
+  connect_notify(Client, State),
+  handle_event(Events, Client, State#shared_object{clients = [Client | Clients]});
 
-parse_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{clients = Clients, data = _Data} = State, Replies) ->
+handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{name = Name, version = Version, persistent = P, data = Data} = State) ->
+  
   ?D({"Set attr", Key, Value}),
-
-  parse_event(Events, Client, State#shared_object{clients = [Client | Clients]}, [{update_attribute, Key} |Replies]).
+  Reply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
+  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}),
+  handle_event(Events, Client, State#shared_object{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1});
   
+handle_event([{Event, EventData} | Events], Client, State) ->
+  ?D({"Unknown event", Event, EventData}),
+  handle_event(Events, Client, State);
+
+handle_event([Event | Events], Client, State) ->
+  ?D({"Unknown event", Event}),
+  handle_event(Events, Client, State).
+  
+
+connect_notify(Client, #shared_object{name = Name, version = Version, persistent = P, data = []}) ->
+  Reply = #so_message{name = Name, version = Version, persistent = P, events = [initial_data]},
+  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply});
+
+connect_notify(Client, #shared_object{name = Name, version = Version, persistent = P, data = Data}) ->
+  Reply = #so_message{name = Name, version = Version, persistent = P, events = [initial_data, {update_data, Data}]},
+  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}).
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
