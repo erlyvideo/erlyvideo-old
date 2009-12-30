@@ -428,9 +428,9 @@ command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Body} = Channel, State) ->
   Message = extract_message(Channel),
   {State, Message#rtmp_message{type = shared_object, body = decode_shared_object(Body)}};
 
-command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = Body} = Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_SO_AMF3, msg = <<_, Body/binary>>} = Channel, State) ->
   Message = extract_message(Channel),
-  {State, Message#rtmp_message{type = shared_object3, body = decode_shared_object(Body)}};
+  {State, Message#rtmp_message{type = shared_object, body = decode_shared_object(Body)}};
   
 command(#channel{type = Type, msg = Body} = Channel, State) ->
   Message = extract_message(Channel),
