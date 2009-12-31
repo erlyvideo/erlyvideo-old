@@ -52,7 +52,7 @@ message(Object, Message) ->
 init([Host, Name, Persistent]) ->
   process_flag(trap_exit, true),
   {Data, Version} = load(Host, Name, Persistent),
-  ?D({"Loaded", Host, Name, Data}),
+  % ?D({"Loaded", Host, Name, Data}),
   {ok, #so_state{host = Host, name = Name, persistent = Persistent, data = Data, version = Version}}.
   
 
@@ -82,7 +82,7 @@ handle_event([], _, State) ->
 
 handle_event([connect | Events], Client, #so_state{clients = Clients, data = _Data, host = Host} = State) ->
   link(Client),
-  ?D({"Client connected to", Host, State#so_state.name, Client}),
+  % ?D({"Client connected to", Host, State#so_state.name, Client}),
   connect_notify(Client, State),
   handle_event(Events, Client, State#so_state{clients = [Client | Clients]});
 
@@ -94,6 +94,20 @@ handle_event([{set_attribute, {Key, Value}} | Events], Client, #so_state{name = 
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = AuthorReply}),
   
   OtherReply = #so_message{name = Name, version = Version+1, persistent = P, events = [{update_data, [{Key, Value}]}]},
+  Message = #rtmp_message{type = shared_object, body = OtherReply},
+  ClientList = lists:delete(Client, Clients),
+  [rtmp_session:send(C, Message) || C <- ClientList],
+  handle_event(Events, Client, NewState);
+
+
+handle_event([{delete_attribute, Key} | Events], Client, #so_state{name = Name, version = Version, persistent = P, data = Data, clients = Clients} = State) ->
+
+  NewState = State#so_state{data = lists:keydelete(Key, 1, Data), version = Version+1},
+  save(NewState),
+  AuthorReply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
+  rtmp_session:send(Client, #rtmp_message{type = shared_object, body = AuthorReply}),
+
+  OtherReply = #so_message{name = Name, version = Version+1, persistent = P, events = [{delete_data, Key}]},
   Message = #rtmp_message{type = shared_object, body = OtherReply},
   ClientList = lists:delete(Client, Clients),
   [rtmp_session:send(C, Message) || C <- ClientList],
@@ -126,7 +140,7 @@ connect_notify(Client, #so_state{name = Name, version = Version, persistent = P,
 
 save(#so_state{persistent = false}) -> ok;
 save(#so_state{host = Host, name = Name, data = Data, version = Version}) -> 
-  ?D({"Saving", Host, Name, Data}),
+  % ?D({"Saving", Host, Name, Data}),
   mnesia:transaction(fun() ->
     mnesia:write(#shared_object{key={Host, Name}, version=Version, data=Data})
   end).
