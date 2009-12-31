@@ -1,11 +1,11 @@
 -module(shared_object).
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
-
+-include("shared_object.hrl").
 
 -behaviour(gen_server).
 
--record(shared_object, {
+-record(so_state, {
   host,
   name,
   version = 0,
@@ -51,7 +51,8 @@ message(Object, Message) ->
 %%----------------------------------------------------------------------
 init([Host, Name, Persistent]) ->
   process_flag(trap_exit, true),
-  {ok, #shared_object{host = Host, name = Name, persistent = Persistent, data = []}}.
+  {Data, Version} = load(Host, Name, Persistent),
+  {ok, #so_state{host = Host, name = Name, persistent = Persistent, data = Data, version = Version}}.
   
 
 %%-------------------------------------------------------------------------
@@ -78,14 +79,16 @@ handle_call(Request, _From, State) ->
 handle_event([], _, State) ->
   State;
 
-handle_event([connect | Events], Client, #shared_object{clients = Clients, data = _Data, host = Host} = State) ->
+handle_event([connect | Events], Client, #so_state{clients = Clients, data = _Data, host = Host} = State) ->
   link(Client),
-  ?D({"Client connected to", Host, State#shared_object.name, Client}),
+  ?D({"Client connected to", Host, State#so_state.name, Client}),
   connect_notify(Client, State),
-  handle_event(Events, Client, State#shared_object{clients = [Client | Clients]});
+  handle_event(Events, Client, State#so_state{clients = [Client | Clients]});
 
-handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{name = Name, version = Version, persistent = P, data = Data, clients = Clients} = State) ->
+handle_event([{set_attribute, {Key, Value}} | Events], Client, #so_state{name = Name, version = Version, persistent = P, data = Data, clients = Clients} = State) ->
   
+  NewState = State#so_state{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1},
+  save(NewState),
   AuthorReply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = AuthorReply}),
   
@@ -93,10 +96,10 @@ handle_event([{set_attribute, {Key, Value}} | Events], Client, #shared_object{na
   Message = #rtmp_message{type = shared_object, body = OtherReply},
   ClientList = lists:delete(Client, Clients),
   [rtmp_session:send(C, Message) || C <- ClientList],
-  handle_event(Events, Client, State#shared_object{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1});
+  handle_event(Events, Client, NewState);
 
 
-handle_event([{send_message, {Function, Args}} | Events], Client, #shared_object{name = Name, version = Version, persistent = P, clients = Clients} = State) ->
+handle_event([{send_message, {Function, Args}} | Events], Client, #so_state{name = Name, version = Version, persistent = P, clients = Clients} = State) ->
   Reply = #so_message{name = Name, version = Version, persistent = P, events = [{send_message, {Function, Args}}]},
   Message = #rtmp_message{type = shared_object, body = Reply},
   [rtmp_session:send(C, Message) || C <- Clients],
@@ -111,13 +114,28 @@ handle_event([Event | Events], Client, State) ->
   handle_event(Events, Client, State).
   
 
-connect_notify(Client, #shared_object{name = Name, version = Version, persistent = P, data = []}) ->
+connect_notify(Client, #so_state{name = Name, version = Version, persistent = P, data = []}) ->
   Reply = #so_message{name = Name, version = Version, persistent = P, events = [initial_data]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply});
 
-connect_notify(Client, #shared_object{name = Name, version = Version, persistent = P, data = Data}) ->
+connect_notify(Client, #so_state{name = Name, version = Version, persistent = P, data = Data}) ->
   Reply = #so_message{name = Name, version = Version, persistent = P, events = [initial_data, {update_data, Data}]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}).
+
+save(#so_state{persistent = false}) -> ok;
+save(#so_state{host = Host, name = Name, data = Data, version = Version}) -> 
+  mnesia:transaction(fun() ->
+    mnesia:write(#shared_object{key={Host, Name}, version=Version, data=Data})
+  end).
+
+load(_, _, _Persistent = false) -> {[], 0};
+load(Host, Name, _) ->
+  mnesia:transaction(fun() ->
+    case mnesia:read(shared_object, {Host, Name}) of
+      [#shared_object{data = Data, version = Version}] -> {Data, Version};
+      [] -> {[], 0}
+    end
+  end).
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -143,12 +161,12 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 % 
 
-handle_info({'EXIT', Client, _Reason}, #shared_object{clients = Clients} = State) ->
+handle_info({'EXIT', Client, _Reason}, #so_state{clients = Clients} = State) ->
   NewClients = lists:delete(Client, Clients),
-  ?D({"Client diconnected from", State#shared_object.name, Client}),
+  ?D({"Client diconnected from", State#so_state.name, Client}),
   case length(NewClients) of
     0 -> {stop, normal, State};
-    _ -> {noreply, State#shared_object{clients = NewClients}}
+    _ -> {noreply, State#so_state{clients = NewClients}}
   end;
 
 handle_info(_Info, State) ->
