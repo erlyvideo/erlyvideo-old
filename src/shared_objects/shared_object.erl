@@ -52,6 +52,7 @@ message(Object, Message) ->
 init([Host, Name, Persistent]) ->
   process_flag(trap_exit, true),
   {Data, Version} = load(Host, Name, Persistent),
+  ?D({"Loaded", Host, Name, Data}),
   {ok, #so_state{host = Host, name = Name, persistent = Persistent, data = Data, version = Version}}.
   
 
@@ -119,11 +120,13 @@ connect_notify(Client, #so_state{name = Name, version = Version, persistent = P,
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply});
 
 connect_notify(Client, #so_state{name = Name, version = Version, persistent = P, data = Data}) ->
-  Reply = #so_message{name = Name, version = Version, persistent = P, events = [initial_data, {update_data, Data}]},
+  Updates = [{update_data, [Entry]} || Entry <- Data],
+  Reply = #so_message{name = Name, version = Version, persistent = P, events = [initial_data | Updates]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}).
 
 save(#so_state{persistent = false}) -> ok;
 save(#so_state{host = Host, name = Name, data = Data, version = Version}) -> 
+  ?D({"Saving", Host, Name, Data}),
   mnesia:transaction(fun() ->
     mnesia:write(#shared_object{key={Host, Name}, version=Version, data=Data})
   end).
@@ -147,7 +150,7 @@ load(Host, Name, _) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-   {noreply, State}.
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |

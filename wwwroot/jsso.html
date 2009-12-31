@@ -7,6 +7,17 @@
 
 </head>
 <body>
+  
+  <table>
+    <tbody id="shared_object">
+      
+    </tbody>
+  </table>
+  <form id="setProp" action="">
+    <input type="text" name="name">
+    <input type="text" name="value">
+    <input type="submit" value="Set property">
+  </form>
 <form>
 	<input class='sync' type="button" value="sync" />
 	<input class='send' type="button" value="send" />
@@ -14,6 +25,14 @@
 </form>
 
 <script type="text/javascript">
+
+$("#setProp").submit(function() {
+  var name = $(this).find("input[name='name']").val();
+  var value = $(this).find("input[name='value']").val();
+  // console.log(name+","+value);
+  jsSO.set(name, value);
+  return false;
+})
 
 $('.sync').click(function(){
 	var rand = Math.random();
@@ -31,10 +50,18 @@ jsSO.onConnect(function(event) {
 	$('pre').append('connect\n');
 });
 
+function deleteProp(key) {
+  jsSO.set(key, null);
+}
+
 jsSO.onSync(function(event, updates, data) {
-	if (updates.someVar) {
-		$('pre').append('receive: '+data.someVar+'\n');
-	}
+  var table = "";
+  console.dir(updates);
+  console.dir(data);
+  for (var key in data) {
+    table += "<tr><td>"+key+"</td><td>"+data[key]+"</td><td><a href='#' onclick=\"deleteProp('"+key+"'); return false;\">(x)</a></td></tr>\n";
+  }
+  $("#shared_object").html(table);
 });
 
 jsSO.onMessage(function(event, data) {
