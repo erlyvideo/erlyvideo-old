@@ -39,8 +39,8 @@
 
 -record(so_message, {
   name,
-  version,
-  persistent,
+  version = 0,
+  persistent = false,
   events = []
 }).
 

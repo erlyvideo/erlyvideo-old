@@ -35,6 +35,7 @@
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
 -export([connect/1, createStream/1, play/3]).
+-export([shared_object_connect/2, shared_object_set/4]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -44,7 +45,7 @@ wait_for_reply(RTMP, InvokeId) ->
   receive
     {rtmp, RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"_result">>, id = InvokeId, args = Args}}} -> Args
   after
-    10000 -> erlang:error(timeout)
+    30000 -> erlang:error(timeout)
   end.
 
 %% @spec (RTMP::rtmp_socket()) -> any()
@@ -98,8 +99,25 @@ play(RTMP, Stream, Path) ->
   receive
     {rtmp, RTMP, #rtmp_message{type = stream_begin}} -> ok
   after
-    10000 -> erlang:error(timeout)
+    30000 -> erlang:error(timeout)
   end.
+
+shared_object_connect(RTMP, Name) ->
+  rtmp_socket:send(RTMP, #rtmp_message{type=shared_object, body=#so_message{name = Name, events=[connect]}}),
+  receive
+    {rtmp, RTMP, #rtmp_message{type = shared_object, body = #so_message{name = Name}}} -> ok
+  after
+    30000 -> erlang:error(timeout)
+  end.
+  
+shared_object_set(RTMP, Name, Key, Value) ->
+  rtmp_socket:send(RTMP, #rtmp_message{type=shared_object, body=#so_message{name = Name, events=[{set_attribute, {Key, Value}}]}}),
+  receive
+    {rtmp, RTMP, #rtmp_message{type = shared_object, body = #so_message{name = Name}}} -> ok
+  after
+    30000 -> erlang:error(timeout)
+  end.
+  
 
 % wait_for(Msg) ->
 %   receive

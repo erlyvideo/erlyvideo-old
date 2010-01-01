@@ -1,0 +1,72 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -smp enable -name so_bench -mnesia debug verbose -pa ebin -pa ../amf/ebin
+-mode(compile).
+
+main([]) ->
+  io:format("so_bench url name [count]~n"),
+  ok;
+
+main([URL, Name]) ->
+  main([URL, Name, "10"]);
+  
+main([URL, Name, CountS]) ->
+  application:start(rtmp),
+  {ok, Re} = re:compile("([^:]+)://([^/]+)/(.*)"),
+  process_flag(trap_exit, true),
+  {match, [_, _Protocol, Server, Path]} = re:run(URL, Re, [{capture, all, list}]),
+  Count = list_to_integer(CountS),
+  start_spawner(Server, list_to_binary(Path), list_to_binary(Name), Count, 0).
+  
+start_spawner(Server, Path, Name, Count, Number) when Number < Count ->
+  io:format("Starting client ~s ~s ~s ~p~n", [Server, Path, Name, Number]),
+  spawn_link(fun() -> init_rtmp_client(Server, Path, Name) end),
+  start_spawner(Server, Path, Name, Count, Number + 1);
+
+start_spawner(Server, Path, Name, Count, Count) ->
+  receive
+    {'EXIT', _Pid, _Reason} ->
+      io:format("Dead client ~p~n", [_Reason]),
+      start_spawner(Server, Path, Name, Count, Count - 1);
+    Else ->
+      io:format("Spawner message: ~p~n", [Else]),
+      start_spawner(Server, Path, Name, Count, Count)
+  end.
+  
+init_rtmp_client(Server, Path, Name) ->
+  {ok, Socket} = gen_tcp:connect(Server, 1936, [binary, {active, false}, {packet, raw}]),
+  io:format("Socket opened to ~s~n", [Server]),
+  {ok, RTMP} = rtmp_socket:connect(Socket),
+  io:format("Connected to ~s~n", [Server]),
+  receive 
+    {rtmp, RTMP, connected} ->
+      so_connect(RTMP, Path, Name),
+      rtmp_client(RTMP, Path, Name, 1)
+  after
+    10000 ->
+      io:format("Client timeout~n"),
+      ok
+  end.
+  
+rtmp_client(RTMP, Path, Name, Count) ->
+  so_sync(RTMP, Name, Count),
+  case Count rem 1000 of
+    1 -> statistics(wall_clock);
+    0 -> 
+      {_, Time} = statistics(wall_clock),
+      io:format("~p sync/sec~n", [round(1000000/Time)]);
+    _ -> ok
+  end,
+  rtmp_client(RTMP, Path, Name, Count+1).
+    
+
+so_connect(RTMP, Path, Name) -> 
+  Connect = rtmp_lib:connect(RTMP),
+  Reply = rtmp_lib:shared_object_connect(RTMP, Name),
+  io:format("Connected to ~s ~s~n", [Path, Name]).
+  
+so_sync(RTMP, Name, Count) ->
+  Value = random:uniform(),
+  Key = <<"prop">>,
+  rtmp_lib:shared_object_set(RTMP, Name, Key, Value).
+  
