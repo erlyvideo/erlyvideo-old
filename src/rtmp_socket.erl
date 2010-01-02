@@ -1,6 +1,29 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        RTMP socket module
+%%% @doc        RTMP socket module.
+%%% Designed to look like rtmp mode of usual TCP socket. If you have used {packet, http}, you will
+%%% find many common behaviours.
+%%% 
+%%% When working on server side, you should accept Socket::port() with:
+%%% <pre><code>
+%%% {ok, RTMP} = rtmp_socket:accept(Socket).
+%%% receive
+%%%   {rtmp, RTMP, connected} ->
+%%%     rtmp_socket:setopts(RTMP, [{active, once}]),
+%%%     loop(RTMP)
+%%% end
+%%% loop(RTMP) ->
+%%%   receive
+%%%     {rtmp, RTMP, disconnect} -> 
+%%%       ok;
+%%%     {rtmp, RTMP, #rtmp_message{} = Message} ->
+%%%       io:format("Message: ~p~n", [Message]),
+%%%       loop(RTMP)
+%%%   end.
+%%% </code></pre>
+%%%
+%%% You are strongly advised to use {active, once} mode, because in any other case it is very easy
+%%% to crash whole your server with OOM killer.
 %%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
 %%% @end
 %%%
