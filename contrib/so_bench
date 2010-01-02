@@ -37,6 +37,7 @@ init_rtmp_client(Server, Path, Name) ->
   {ok, Socket} = gen_tcp:connect(Server, 1936, [binary, {active, false}, {packet, raw}]),
   io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
+  rtmp_socket:setopts(RTMP, [{active, true}]),
   io:format("Connected to ~s~n", [Server]),
   receive 
     {rtmp, RTMP, connected} ->
@@ -54,7 +55,8 @@ rtmp_client(RTMP, Path, Name, Count) ->
     1 -> statistics(wall_clock);
     0 -> 
       {_, Time} = statistics(wall_clock),
-      io:format("~p sync/sec~n", [round(1000000/Time)]);
+      Speed = (catch round(1000000/Time)),
+      io:format("~p sync/sec~n", [Speed]);
     _ -> ok
   end,
   rtmp_client(RTMP, Path, Name, Count+1).

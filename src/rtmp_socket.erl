@@ -119,7 +119,7 @@ getopts(RTMP, Options) ->
   
 -spec(send(RTMP::rtmp_socket_pid(), Message::rtmp_message()) -> ok).
 send(RTMP, Message) ->
-  RTMP ! Message,
+  gen_fsm:sync_send_event(RTMP, Message),
   ok.
   
 
@@ -159,11 +159,11 @@ invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
 %% @private  
 init([Consumer, accept]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT};
+  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new(), active = false}, ?RTMP_TIMEOUT};
 
 init([Consumer, connect]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new()}, ?RTMP_TIMEOUT}.
+  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new(), active = false}, ?RTMP_TIMEOUT}.
 
 %% @private  
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
@@ -203,6 +203,10 @@ handshake_c3(timeout, State) ->
   {stop, normal, State}.
 
 %% @private  
+handshake_s1({setopts, Options}, State) ->
+  NewState = set_options(State, Options),
+  {next_state, handshake_s1, NewState, ?RTMP_TIMEOUT};
+
 handshake_s1(timeout, State) ->
   {stop, normal, State}.
   
@@ -221,11 +225,18 @@ loop({setopts, Options}, State) ->
 % , previous_ack = erlang:now()
 
 
-%% @private  
+%% @private
+loop(#rtmp_message{} = Message, _From, State) ->
+  State1 = send_data(State, Message),
+  {reply, ok, loop, State1};
+
 loop({getopts, Options}, _From, State) ->
   {reply, get_options(State, Options), loop, State}.
 
 
+
+get_options(State, active) ->
+  {active, State#rtmp_socket.active};
 
 get_options(State, amf_version) ->
   {amf_version, State#rtmp_socket.amf_version};
@@ -244,6 +255,20 @@ get_options(State, [Key | Options]) ->
 
 set_options(State, [{amf_version, Version} | Options]) ->
   set_options(State#rtmp_socket{amf_version = Version}, Options);
+
+set_options(#rtmp_socket{socket = Socket, buffer = Data} = State, [{active, Active} | Options]) ->
+  State1 = flush_send(State#rtmp_socket{active = Active}),
+  State2 = case Active of
+    false -> 
+      inet:setopts(Socket, [{active, false}]),
+      State1;
+    true ->
+      inet:setopts(Socket, [{active, true}]),
+      State1;
+    once ->
+      handle_rtmp_data(State1, Data)
+  end,
+  set_options(State2, Options);
 
 set_options(#rtmp_socket{consumer = PrevConsumer} = State, [{consumer, Consumer} | Options]) ->
   (catch unlink(PrevConsumer)),  
@@ -279,7 +304,6 @@ handle_event(Event, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 
 handle_sync_event(Event, _From, StateName, StateData) ->
-  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
 %%-------------------------------------------------------------------------
@@ -290,42 +314,48 @@ handle_sync_event(Event, _From, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN + 1 ->
-  activate_socket(Socket),
+  inet:setopts(Socket, [{active, once}]),
   {next_state, handshake_c1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
 handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
-  activate_socket(Socket),
+  inet:setopts(Socket, [{active, once}]),
   <<?HS_HEADER, Handshake:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
 	send_data(State, [?HS_HEADER, rtmp_handshake:s1(), rtmp_handshake:s2(Handshake)]),
 	{next_state, 'handshake_c3', State#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
 
 handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN ->
-  activate_socket(Socket),
+  inet:setopts(Socket, [{active, once}]),
   {next_state, handshake_c3, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
-handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead} = State) ->
-  activate_socket(Socket),
+handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active} = State) ->
   <<_HandShakeC3:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
   Consumer ! {rtmp, self(), connected},
+  case Active of
+    true -> inet:setopts(Socket, [{active, true}]);
+    _ -> ok
+  end,
   {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, Rest), ?RTMP_TIMEOUT};
 
 handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN*2 + 1 ->
-  activate_socket(Socket),
+  inet:setopts(Socket, [{active, once}]),
   {next_state, handshake_s1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
-handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead} = State) ->
-  activate_socket(Socket),
+handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active} = State) ->
   <<?HS_HEADER, _S1:?HS_BODY_LEN/binary, S2:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
   send_data(State, rtmp_handshake:c2(S2)),
   Consumer ! {rtmp, self(), connected},
+  case Active of
+    true -> inet:setopts(Socket, [{active, true}]);
+    _ -> ok
+  end,
   {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, Rest), ?RTMP_TIMEOUT};
 
 
 
 handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
-  activate_socket(Socket),
-  {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
+  State1 = flush_send(State),
+  {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
   Consumer ! {rtmp, self(), disconnect},
@@ -341,14 +371,20 @@ handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
   handle_info({tcp, RTMPT, Data}, StateName, State);
 
 handle_info(_Info, StateName, StateData) ->
-  error_logger:error_msg("Unknown message to rtmp socket: ~p~n", [_Info]),
+  error_logger:error_msg("Unknown message to rtmp socket: ~p ~p~n", [_Info, StateData]),
   {next_state, StateName, StateData, ?RTMP_TIMEOUT}.
 
+flush_send(State) -> flush_send([], State).
 
-activate_socket(Socket) when is_port(Socket) ->
-  inet:setopts(Socket, [{active, once}]);
-activate_socket(_Socket) -> ok.
-
+flush_send(Packet, #rtmp_socket{socket = Socket} = State) ->
+  receive
+    #rtmp_message{} = Message ->
+      {NewState, Data} = rtmp:encode(State, Message),
+      flush_send([Data | Packet], NewState)
+  after
+    0 -> 
+      send_data(State, lists:reverse(Packet))
+  end.
 
 send_data(State, #rtmp_message{} = Message) ->
   {NewState, Data} = rtmp:encode(State, Message),
@@ -368,13 +404,22 @@ handle_rtmp_data(State, Data) ->
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer, pinged = true} = State, #rtmp_message{type = pong} = Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
-  handle_rtmp_message(rtmp:decode(State#rtmp_socket{pinged = false}, Rest));
+  rtmp_message_sent(State#rtmp_socket{pinged = false, buffer = Rest});
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
-  handle_rtmp_message(rtmp:decode(State, Rest));
+  rtmp_message_sent(State#rtmp_socket{buffer = Rest});
 
-handle_rtmp_message({State, Rest}) -> State#rtmp_socket{buffer = Rest}.
+handle_rtmp_message({#rtmp_socket{socket=Socket} = State, Rest}) -> 
+  inet:setopts(Socket, [{active, once}]),
+  State#rtmp_socket{buffer = Rest}.
+
+rtmp_message_sent(#rtmp_socket{active = true, buffer = Data} = State) ->
+  handle_rtmp_data(State, Data);
+
+rtmp_message_sent(State) -> 
+  State.
+
 
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
