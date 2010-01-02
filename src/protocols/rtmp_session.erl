@@ -97,7 +97,7 @@ init([]) ->
 
 
 send(Session, Message) ->
-  gen_fsm:send_event(Session, Message).
+  Session ! Message.
   
 
 
@@ -141,8 +141,6 @@ send(Session, Message) ->
 'WAIT_FOR_DATA'(info, _From, #rtmp_session{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
   {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State};
   
-        
-
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
   {next_state, 'WAIT_FOR_DATA', State}.
@@ -236,7 +234,7 @@ handle_event(Event, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 
 handle_sync_event(Event, _From, StateName, StateData) ->
-   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
+  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
 
 %%-------------------------------------------------------------------------
@@ -250,10 +248,16 @@ handle_info({rtmp, _Socket, disconnect}, _StateName, #rtmp_session{host = Host, 
   ems_log:access(Host, "DISCONNECT ~p ~p", [Addr, UserId]),
   {stop, normal, StateData};
 
-handle_info({rtmp, _Socket, #rtmp_message{} = Message}, StateName, State) ->
-  {next_state, StateName, handle_rtmp_message(State, Message)};
+handle_info({rtmp, Socket, #rtmp_message{} = Message}, StateName, State) ->
+  State1 = handle_rtmp_message(State, Message),
+  State2 = flush_reply(State1),
+  % [{message_queue_len, Messages}, {memory, Memory}] = process_info(self(), [message_queue_len, memory]),
+  % io:format("messages=~p,memory=~p~n", [Messages, Memory]),
+  rtmp_socket:setopts(Socket, [{active, once}]),
+  {next_state, StateName, State2};
   
-handle_info({rtmp, _Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
+handle_info({rtmp, Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
+  rtmp_socket:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_DATA', State};
 
 handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
@@ -306,10 +310,23 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,b
   {next_state, 'WAIT_FOR_DATA', State};
 
 
+handle_info(#rtmp_message{} = Message, StateName, State) ->
+  rtmp_socket:send(State#rtmp_session.socket, Message),
+  {next_state, StateName, State};
+
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
   {next_state, StateName, StateData}.
 
+
+flush_reply(State) ->
+  receive
+    #rtmp_message{} = Message ->
+      rtmp_socket:send(State#rtmp_session.socket, Message),
+      flush_reply(State)
+    after
+      0 -> State
+  end.
 
 %%-------------------------------------------------------------------------
 %% Func: terminate/3

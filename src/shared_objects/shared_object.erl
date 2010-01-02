@@ -2,6 +2,7 @@
 -author(max@maxidoors.ru).
 -include("../../include/ems.hrl").
 -include("shared_object.hrl").
+-define(SAVE_TIMEOUT, 1000).
 
 -behaviour(gen_server).
 
@@ -10,6 +11,7 @@
   name,
   version = 0,
   persistent,
+  event_count,
   data = [],
   clients = []
 }).
@@ -53,7 +55,11 @@ init([Host, Name, Persistent]) ->
   process_flag(trap_exit, true),
   {Data, Version} = load(Host, Name, Persistent),
   % ?D({"Loaded", Host, Name, Data}),
-  {ok, #so_state{host = Host, name = Name, persistent = Persistent, data = Data, version = Version}}.
+  case Persistent of
+    true -> timer:send_after(?SAVE_TIMEOUT, save);
+    _ -> ok
+  end,
+  {ok, #so_state{host = Host, name = Name, persistent = Persistent, data = Data, version = Version, event_count = 1}}.
   
 
 %%-------------------------------------------------------------------------
@@ -69,9 +75,19 @@ init([Host, Name, Persistent]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({message, #so_message{events = Events}}, {Client, _Ref}, State) ->
+handle_call({message, #so_message{events = Events}}, {Client, _Ref}, #so_state{event_count = Count} = State) ->
   State1 = handle_event(Events, Client, State),
-  {reply, ok, State1};
+  % case Count rem 1000 of
+  %   1 -> statistics(wall_clock);
+  %   0 -> 
+  %     {_, Time} = statistics(wall_clock),
+  %     io:format("~p sync/sec~n", [round(1000000/Time)]);
+  %   _ -> ok
+  % end,
+  {reply, ok, State1#so_state{event_count = Count+1}};
+  
+handle_call(data, _From, #so_state{data = Data} = State) ->
+  {reply, {ok, Data}, State};
 
 handle_call(Request, _From, State) ->
  {stop, {unknown_call, Request}, State}.
@@ -89,7 +105,6 @@ handle_event([connect | Events], Client, #so_state{clients = Clients, data = _Da
 handle_event([{set_attribute, {Key, Value}} | Events], Client, #so_state{name = Name, version = Version, persistent = P, data = Data, clients = Clients} = State) ->
   
   NewState = State#so_state{data = lists:keystore(Key, 1, Data, {Key, Value}), version = Version+1},
-  save(NewState),
   AuthorReply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = AuthorReply}),
   
@@ -103,7 +118,6 @@ handle_event([{set_attribute, {Key, Value}} | Events], Client, #so_state{name = 
 handle_event([{delete_attribute, Key} | Events], Client, #so_state{name = Name, version = Version, persistent = P, data = Data, clients = Clients} = State) ->
 
   NewState = State#so_state{data = lists:keydelete(Key, 1, Data), version = Version+1},
-  save(NewState),
   AuthorReply = #so_message{name = Name, version = Version, persistent = P, events = [{update_attribute, Key}]},
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = AuthorReply}),
 
@@ -147,12 +161,13 @@ save(#so_state{host = Host, name = Name, data = Data, version = Version}) ->
 
 load(_, _, _Persistent = false) -> {[], 0};
 load(Host, Name, _) ->
-  mnesia:transaction(fun() ->
+  {atomic, ObjectData} = mnesia:transaction(fun() ->
     case mnesia:read(shared_object, {Host, Name}) of
       [#shared_object{data = Data, version = Version}] -> {Data, Version};
       [] -> {[], 0}
     end
-  end).
+  end),
+  ObjectData.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -178,11 +193,15 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 % 
 
-handle_info({'EXIT', Client, _Reason}, #so_state{clients = Clients} = State) ->
+handle_info(save, State) ->
+  save(State),
+  {noreply, State};
+
+handle_info({'EXIT', Client, _Reason}, #so_state{name = Name, clients = Clients} = State) ->
   NewClients = lists:delete(Client, Clients),
-  ?D({"Client diconnected from", State#so_state.name, Client}),
+  % ?D({"Client diconnected from", State#so_state.name, Client}),
   case length(NewClients) of
-    0 -> {stop, normal, State};
+    0 -> ?D({"Stopping SO", Name}), {stop, normal, State};
     _ -> {noreply, State#so_state{clients = NewClients}}
   end;
 

@@ -47,7 +47,7 @@ open(Host, Name, Persistent) ->
 %%----------------------------------------------------------------------
 init([]) ->
   process_flag(trap_exit, true),
-  case lists:member(shared_objects, mnesia:system_info(tables)) of
+  case lists:member(shared_object, mnesia:system_info(tables)) of
     true -> ok;
     _ -> {atomic, ok} = mnesia:create_table(shared_object, [{attributes, record_info(fields, shared_object)}, {disc_copies, [node()]}])
     % 
@@ -109,7 +109,6 @@ handle_cast(_Msg, State) ->
 
 handle_info({'EXIT', Object, _Reason}, #shared_objects{objects = Objects} = State) ->
   ets:match_delete(Objects, {'_', Object}),
-  ?D({"Died linked process", Object, _Reason}),
   {noreply, State};
   
 
