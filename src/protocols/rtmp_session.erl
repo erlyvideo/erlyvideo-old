@@ -63,8 +63,7 @@
 
 
 create_client(Socket) ->
-  {ok, Pid} = ems_sup:start_rtmp_session(),
-  rtmp_session:set_socket(Pid, Socket),
+  {ok, Pid} = ems_sup:start_rtmp_session(Socket),
   {ok, Pid}.
 
 

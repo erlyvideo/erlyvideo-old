@@ -40,7 +40,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_rtmp_session/0, start_rtsp_session/0, start_media/3, 
+-export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
           start_file_play/2, start_stream_play/2,
           start_mpegts_media/1, start_shared_object/3]).
 
@@ -61,8 +61,11 @@ start_link() ->
 %% To be called by the TCP listener process.
 %% @end 
 %%--------------------------------------------------------------------
--spec start_rtmp_session() -> {'error',_} | {'ok',pid()}.
-start_rtmp_session() -> supervisor:start_child(rtmp_session_sup, []).
+-spec start_rtmp_session(RTMPSocket::pid()) -> {'error',_} | {'ok',pid()}.
+start_rtmp_session(RTMPSocket) -> 
+  {ok, Pid} = supervisor:start_child(rtmp_session_sup, []),
+  rtmp_session:set_socket(Pid, RTMPSocket),
+  {ok, Pid}.
 
 -spec start_rtsp_session() -> {'error',_} | {'ok',pid()}.
 start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
