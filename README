@@ -1,5 +1,0 @@
-eAMF provides Action Message Format (AMF) support for Erlang compatible with Adobe's Flash Player
-
-Action Message Format is a compact binary format that is used to serialize ActionScript object graphs. Once serialized an AMF encoded object graph may be used to persist and retrieve the public state of an application across sessions or allow two endpoints to communicate through the exchange of strongly typed data.
-
-Note: this library is a work in progress and is licensed under the MIT License (see LICENSE file for more details)
