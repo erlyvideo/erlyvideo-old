@@ -41,5 +41,5 @@ eAMF uses [GNU Make](http://www.gnu.org/software/make/) for building binaries fr
 
 
 ##LICENSE
-eAMF is licensed under the MIT License (see LICENSE file for more details)
+eAMF is licensed under the MIT License (see [LICENSE file](http://github.com/mrinalwadhwa/eAMF/blob/master/LICENSE) for more details)
 
