@@ -3,4 +3,6 @@
 *.html
 *.tmproj
 *.out
-build/
+tmp/
+ebin/
+
