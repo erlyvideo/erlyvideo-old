@@ -40,9 +40,9 @@ rtmp_session is you module, that must implement following method:
 <pre><code>
 -export([create_client/1]).
 
-create_client(RTMPSocket) ->  %% Here Socket is pid() of rtmp socket, not TCP port()
-  {ok, Pid} = ems_sup:start_rtmp_session(), %% Here goes example code.
-  rtmp_session:set_socket(Pid, Socket),     %% It means just one: you must create consumer in this method
+create_client(RTMPSocket) ->  %% Here RTMPSocket is pid() of rtmp socket, not TCP port()
+	%% here you must create consumer for messages and init it with rtmp socket
+  {ok, Pid} = ems_sup:start_rtmp_session(RTMPSocket), 
   {ok, Pid}.
 </code></pre>
 

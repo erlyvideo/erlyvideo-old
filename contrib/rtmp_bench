@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -smp enable -name rtmp_bench -mnesia debug verbose -pa ebin -pa ../erlang-amf/ebin
+%%! -smp enable -name rtmp_bench -mnesia debug verbose -pa ebin -pa ../amf/ebin
 -mode(compile).
 
 main([]) ->
@@ -34,7 +34,7 @@ start_spawner(Server, Path, Count, Count) ->
   end.
   
 init_rtmp_client(Server, Path) ->
-  {ok, Socket} = gen_tcp:connect(Server, 1935, [binary, {active, false}, {packet, raw}]),
+  {ok, Socket} = gen_tcp:connect(Server, 1936, [binary, {active, false}, {packet, raw}]),
   io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   io:format("Connected to ~s~n", [Server]),
@@ -43,10 +43,8 @@ init_rtmp_client(Server, Path) ->
 rtmp_client(RTMP, Path) ->
   receive 
     {rtmp, RTMP, connected} ->
-      play(RTMP, Path),
-      rtmp_client(RTMP, Path);
-    {rtmp, RTMP, Message} when element(1, Message) == rtmp_message ->
-      rtmp_client(RTMP, Path);
+      rtmp_socket:setopts(RTMP, [{active, true}]),
+      play(RTMP, Path);
     Else ->
       io:format("Client message: ~p (~p)~n", [Else, RTMP]),
       rtmp_client(RTMP, Path)
@@ -61,6 +59,36 @@ play(RTMP, Path) ->
   Connect = rtmp_lib:connect(RTMP),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:play(RTMP, Stream, Path),
-  io:format("Playing ~s~n", [Path]).
+  io:format("Playing ~s~n", [Path]),
+  read_frame(RTMP, Path, 1, 0).
+  
+read_frame(RTMP, Path, Count, BytesCount) ->
+  receive
+    {rtmp, RTMP, Message} when element(1, Message) == rtmp_message ->
+      case Count rem 100 of
+        1 -> 
+          BytesRead = BytesCount,
+          statistics(wall_clock);
+        0 -> 
+          {_, Time} = statistics(wall_clock),
+          {recv_oct, BytesRead} = rtmp_socket:getstat(RTMP, recv_oct),
+          case Time of
+            0 -> ok;
+            _ -> 
+              Speed = (catch round((BytesRead - BytesCount)/Time)),
+              io:format("~p bytes/sec~n", [Speed])
+          end;
+        _ -> 
+          BytesRead = BytesCount,
+          ok
+      end,
+      read_frame(RTMP, Path, Count+1, BytesRead);
+    {rtmp, RTMP, disconnect} -> ok;
+    Else -> 
+      io:format("Unknown message ~p~n", [Else])
+  after
+    10000 -> io:format("Timeout in reading~n")
+  end.
+        
   
   

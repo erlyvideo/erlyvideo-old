@@ -63,16 +63,20 @@
 %%% API
 %%%------------------------------------------------------------------------
 
-%% @spec(IP::{}, Consumer::pid()) -> {ok, RTMP::pid(), SessionID::string()}
+%% @spec(IP::{}, Callback::atom()) -> {ok, RTMP::pid(), SessionID::string()}
 %% @doc Opens RTMPT session. Creates internal buffer, that will register under SessionID
-%% and will serve as a input/output buffer for RTMP socket. You must pass Consumer so, that
-%% RTMP socket will know about your listener.
+%% and will serve as a input/output buffer for RTMP socket. You must pass Callback module that
+%% will start client for you. See overview for details.
 %% @end
-open(IP, Consumer) ->
+open(IP, Callback) ->
   {ok, RTMPT, SessionID} = rtmpt_sessions:create(IP),
-  {ok, RTMP} = rtmp_socket:start_socket(Consumer, accept, RTMPT),
+  % {ok, RTMP} = rtmp_socket:start_socket(Consumer, accept, RTMPT),
+  {ok, RTMP} = rtmp_sup:start_rtmp_socket(undefined, accept),
+  {ok, Pid} = Callback:create_client(RTMP),
+  rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   rtmpt:set_consumer(RTMPT, RTMP),
-  {ok, RTMP, SessionID}.
+  gen_fsm:send_event(RTMP, {socket, RTMPT}),
+  {ok, Pid, SessionID}.
 
 
 %% @spec(SessionID::string(), IP::{}, Sequence::integer()) -> {ok, Data::binary()} | {error, Reason}
