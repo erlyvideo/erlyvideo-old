@@ -26,17 +26,50 @@ eAMF uses [GNU Make](http://www.gnu.org/software/make/) for building binaries fr
 
 <code>$ make</code>
 	
-	1. Builds the source
-	2. Executes eunit unit tests
-	3. Creates documentation using edoc
+1. Builds the source
+2. Executes eunit unit tests
+3. Creates documentation using edoc
 
 
 <code>$ make debug</code>
 	
-	1. Builds the source in debug mode
-	2. Executes eunit unit tests
-	3. Runs code coverage analysis using the cover module
-	4. Analyzes the code using dialyzer
+1. Builds the source in debug mode
+2. Executes eunit unit tests
+3. Runs code coverage analysis using the cover module
+4. Analyzes the code using dialyzer
+
+
+##Types
+
+###undefined
+Actionscript's [undefined](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#undefined) value corresponds to Erlang [atom](http://www.erlang.org/doc/reference_manual/data_types.html#id2259149) undefined
+
+---
+
+###null
+Actionscript's [null](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/statements.html#null) value corresponds to Erlang [atom](http://www.erlang.org/doc/reference_manual/data_types.html#id2259149) null
+
+---
+
+###Boolean
+Actionscript's [Boolean](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/Boolean.html) type corresponds to [bool()](http://www.erlang.org/doc/reference_manual/data_types.html#id2257962) in Erlang which is essentially the [atoms](http://www.erlang.org/doc/reference_manual/data_types.html#id2259149) true and false 
+
+---
+
+###Numbers
+* All integer values in Actionscript from -268435456 to 268435455, regardless of the type of variable they are stored in - [int](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/int.html), [uint](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/uint.html) or [Number](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/Number.html) correspond to an [integer()](http://www.erlang.org/doc/reference_manual/data_types.html#id2259119) value in Erlang
+
+* All integer values in Actionscript from -1.79e308 to -268435457 and from 268435456 to 1.79e308, regardless of the type of variable they are stored in - [int](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/int.html), [uint](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/uint.html) or [Number](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/Number.html) correspond to [float()](http://www.erlang.org/doc/reference_manual/data_types.html#id2259119) in Erlang 
+
+* All floating point values in Actionscript correspond to [float()](http://www.erlang.org/doc/reference_manual/data_types.html#id2259119) in Erlang 
+
+* Actionscript’s [Infinity](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#Infinity) value corresponds to Erlang [atom](http://www.erlang.org/doc/reference_manual/data_types.html#id2259149) infinity
+
+* Actionscript’s [-Infinity](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#-Infinity) value corresponds to Erlang [atom](http://www.erlang.org/doc/reference_manual/data_types.html#id2259149) '-infinity'
+
+* Actionscript’s [NaN](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#NaN) value corresponds to Erlang [atom](http://www.erlang.org/doc/reference_manual/data_types.html#id2259149) 'nan'
+
+--- 
 
 
 ##Examples

@@ -26,7 +26,7 @@ decode_integer_test_() ->
 %% 
 %% These Integer values are encoded as doubles   
 %%  -1.79e308 to -268435457,    
-%%  268435455 to 1.79e308, 
+%%  268435456 to 1.79e308, 
 %%
 %% These constants of the AS3 Number class are also encoded as doubles 
 %%  -infinity 
