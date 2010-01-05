@@ -16,5 +16,5 @@ analyze(Module) ->
   io:fwrite("Covered Lines: ~w~n",[Covered]),
   io:fwrite("UnCovered Lines: ~w~n",[UnCovered]),
   io:fwrite("Coverage: ~f %~n",[Coverage]),
-  io:fwrite("~nFor more details see file: build/~s~n~n",[File]).
+  io:fwrite("~nFor more details see file: tmp/~s~n~n",[File]).
   
