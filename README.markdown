@@ -64,6 +64,7 @@ Actionscript's [Boolean](http://help.adobe.com/en_US/FlashPlatform/reference/act
 * Actionscript’s [-Infinity](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#-Infinity) value corresponds to Erlang [atom][al] '-infinity'
 * Actionscript’s [NaN](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#NaN) value corresponds to Erlang [atom][al] nan
 
+
 --- 
 
 ###String
