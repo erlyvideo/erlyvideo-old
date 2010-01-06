@@ -1,4 +1,6 @@
 VERSION=0.9
+REQUIRED_ERLANG=R13
+ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
@@ -14,8 +16,11 @@ VSN=0.1
 MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
-all: ebin ebin/erlmedia.app
+all: erlang_version ebin ebin/erlmedia.app
 	ERL_LIBS=deps:lib erl -make
+
+erlang_version:
+	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
 
 ebin:
 	mkdir ebin
@@ -42,7 +47,7 @@ clean-doc:
 player:
 	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
-run: ebin ebin/erlmedia.app
+run: erlang_version ebin ebin/erlmedia.app
 	ERL_LIBS=deps:lib $(ERL) +bin_opt_info +debug \
 	-pa ebin \
 	-boot start_sasl \
@@ -50,7 +55,7 @@ run: ebin ebin/erlmedia.app
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME)
 	
-start: ebin ebin/erlmedia.app
+start: erlang_version ebin ebin/erlmedia.app
 	ERL_LIBS=deps:lib $(ERL) -pa `pwd`/ebin \
 	-sasl sasl_error_logger '{file, "sasl.log"}' \
   -kernel error_logger '{file, "erlang.log"}' \
