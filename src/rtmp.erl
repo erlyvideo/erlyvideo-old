@@ -340,6 +340,17 @@ command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>
   Message = extract_message(Channel),
 	{State#rtmp_socket{client_chunk_size = ChunkSize}, Message#rtmp_message{type = chunk_size, body = ChunkSize}};
 
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>} = Channel, #rtmp_socket{previous_ack = undefined} = State) ->
+  TimeNow = erlang:now(),
+  Message = extract_message(Channel),
+  AckMessage = #rtmp_message_ack{
+    bytes_read = BytesRead,
+    previous_ack = undefined,
+    current_ack = TimeNow,
+    speed = undefined
+  },
+  {State#rtmp_socket{previous_ack = TimeNow}, Message#rtmp_message{type = ack_read, body = AckMessage}};
+
 command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>} = Channel, #rtmp_socket{previous_ack = Prev} = State) ->
   TimeNow = erlang:now(),
   Time = timer:now_diff(TimeNow, Prev)/1000,
@@ -351,7 +362,7 @@ command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>}
     current_ack = TimeNow,
     speed = Speed
   },
-  {State#rtmp_socket{previous_ack = erlang:now(), current_speed = Speed}, Message#rtmp_message{type = ack_read, body = AckMessage}};
+  {State#rtmp_socket{previous_ack = TimeNow, current_speed = Speed}, Message#rtmp_message{type = ack_read, body = AckMessage}};
 
 command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = Channel, State) ->
   Message = extract_message(Channel),

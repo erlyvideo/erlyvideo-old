@@ -34,7 +34,7 @@
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
--export([connect/1, createStream/1, play/3]).
+-export([connect/2, createStream/1, play/3]).
 -export([shared_object_connect/2, shared_object_set/4]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
@@ -48,14 +48,14 @@ wait_for_reply(RTMP, InvokeId) ->
     30000 -> erlang:error(timeout)
   end.
 
-%% @spec (RTMP::rtmp_socket()) -> any()
+%% @spec (RTMP::rtmp_socket(), Path::string()) -> any()
 %% @doc Send connect request to server
-connect(RTMP) ->
+connect(RTMP, Path) ->
   PlayerInfo = {object, [
-    {app,<<>>},
+    {app,Path},
     {flashVer,<<"MAC 10,0,32,18">>},
     {swfUrl,<<"http://localhost/player/Player.swf">>},
-    {tcUrl,<<"rtmp://localhost/">>},
+    {tcUrl,<<"rtmp://localhost/", Path/binary>>},
     {fpad,false},
     {capabilities,15.0},
     {audioCodecs,3191.0},

@@ -2,7 +2,7 @@
 @reference <a href="http://erlyvideo.org/">erlyvideo.org</a>
 
 @doc 
-<h2>Protocol description</h2>
+== Protocol description ==
 
 RTMP stands for <a href="http://www.adobe.com/devnet/rtmp/pdf/rtmp_specification_1.0.pdf">Real Time Messaging Protocol</a>. It is a proprietary protocol from beloved Adobe, supported by Flash Player from one side and by Adobe Flash Media Server from other side. All other implementations use non-strictly implemented reverse engineered ideas about RTMP.
 
@@ -12,7 +12,7 @@ In the first paragraph I gave link to Adobe RTMP specification. Speaking officia
 
 You are warned!
 
-<h2>RTMP library</h2>
+== RTMP library ==
 
 Started as core code of erlyvideo in early 2007, rtmp encoder/decoder part was extracted into library, ready to be used in other projects, for example for building rtmp client.
 
@@ -28,7 +28,7 @@ It consists of following parts:
 
 You can already use it to implement clients. Take a look at contrib/rtmp_bench example, which requires library erlang-amf from http://github.com/erlyvideo/erlang-amf
 
-<h2>Server usage</h2>
+== Server usage ==
 
 <pre><code>
 application:start(rtmp),
