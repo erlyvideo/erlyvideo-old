@@ -58,11 +58,17 @@ Actionscript's [Boolean](http://help.adobe.com/en_US/FlashPlatform/reference/act
 
 ###Number
 * All integer values in Actionscript from -268435456 to 268435455, regardless of the type of variable they are stored in - [int](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/int.html), [uint](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/uint.html) or [Number](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/Number.html) correspond to an [integer()](http://www.erlang.org/doc/reference_manual/data_types.html#id2259119) value in Erlang
+
 * All integer values in Actionscript from -1.79e308 to -268435457 and from 268435456 to 1.79e308, regardless of the type of variable they are stored in - [int](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/int.html), [uint](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/uint.html) or [Number](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/Number.html) correspond to [float()](http://www.erlang.org/doc/reference_manual/data_types.html#id2259119) in Erlang 
+
 * All floating point values in Actionscript correspond to [float()](http://www.erlang.org/doc/reference_manual/data_types.html#id2259119) in Erlang 
+
 * Actionscript’s [Infinity](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#Infinity) value corresponds to Erlang [atom][al] infinity
+
 * Actionscript’s [-Infinity](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#-Infinity) value corresponds to Erlang [atom][al] '-infinity'
+
 * Actionscript’s [NaN](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/package.html#NaN) value corresponds to Erlang [atom][al] nan
+
 
 
 --- 
