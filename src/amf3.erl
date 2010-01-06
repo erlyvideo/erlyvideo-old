@@ -19,19 +19,17 @@
 -export([decode/1, encode/1]).
 
 
-
 %% @type amf3()      =   undefined | null | bool() |
 %%                       integer() | float() | binary() | 
 %%                       xmldoc() | date() | array() | 
-%%                       list() | dictionary()| object() | 
-%%                       xml() | bytearray().
+%%                       list() | object() | xml() | bytearray().
+%%
 %% @type xmldoc()    =   {xmldoc, Document::binary()}.
-%% @type date()      =   {date, MilliSecs::float()}.
-%% @type array()     =   {array, Associative::dictionary(), Dense::list()}.
+%% @type date()      =   {date, MilliSeconds::float()}.
+%% @type array()     =   [ {binary(),amf3()} | {atom(),amf3()} | amf3()]
 %% @type object()    =   {object, Class::binary(), Members::dictionary()}.
-%% @type xml()       =   {xml, Document::binary()}.
+%% @type xml()       =   {xml, XML::binary()}.
 %% @type bytearray() =   {bytearray, Bytes::binary()}.
-
 
 
 %%---------------------------------------
@@ -40,7 +38,8 @@
 %%---------------------------------------
 
 decode(Data) ->
-  parse(read, Data, queue:new(), dict:new(), dict:new(), dict:new()).
+  {Read, Remaining, _, _, _} = read(Data, dict:new(), dict:new(), dict:new()),
+  {Read,Remaining}.
   
 %%---------------------------------------
 %% @doc Encode data to an AMF 3 encoded 
@@ -49,9 +48,8 @@ decode(Data) ->
 %%---------------------------------------
 
 encode(Data) -> 
-  parse(write, Data, [], [], dict:new(), dict:new()).
-
-
+  {Written, _, _, _} = write(Data, dict:new(), dict:new(), dict:new()),
+  Written.
 
 
 %%%%==========================================================================
@@ -59,7 +57,6 @@ encode(Data) ->
 %%    Internal       
 %%
 %%%%==========================================================================
-
 
 %%---------------------------------------
 %%  Markers
@@ -78,36 +75,6 @@ encode(Data) ->
 -define(OBJECT,    16#0A).
 -define(XML,       16#0B).
 -define(BYTEARRAY, 16#0C).
-
-
-%%---------------------------------------
-%%  Parse
-%%---------------------------------------
-
-parse(read, <<>>, AlreadyRead, _, _, _) -> 
-  L = [H|T] = queue:to_list(AlreadyRead),
-  case length(T) of
-    0 -> H;
-    _ -> L
-  end;                
-
-parse(read, ToRead, AlreadyRead, Strings, Objects, Traits) ->
-  {JustRead, Remaining, S, O, T} = read(ToRead, Strings, Objects, Traits),  
-  EverythingRead = queue:in(JustRead, AlreadyRead),
-  parse(read, Remaining, EverythingRead, S, O, T);
-
-
-parse(write, [], AlreadyWritten, _, _, _) -> list_to_binary(AlreadyWritten);
-
-
-parse(write, [ToWrite|Remaining], AlreadyWritten, Strings, Objects, Traits) ->
-  {JustWrote, S, O, T} = write(ToWrite, Strings, Objects, Traits),
-  EverythingWritten = [AlreadyWritten,JustWrote],
-  parse(write, Remaining, EverythingWritten, S, O, T);
-parse(write, ToWrite, _, Strings, Objects, Traits) ->
-  {JustWrote, _, _, _} = write(ToWrite, Strings, Objects, Traits),
-  JustWrote.
-
 
 %%---------------------------------------
 %%  Read 
@@ -187,21 +154,16 @@ read(<< ?ARRAY, Data/binary >>, Strings, Objects, Traits) ->
               {A, R, Strings, Objects, Traits};
     false ->  Length = Header bsr 1,
               {Associative, R1, S1, O1, T1} = 
-                      read_associative_array(R, dict:new(),
-                                             Strings, Objects, Traits),
+                      read_associative_array(R, [], Strings, Objects, Traits),
               {Dense, R2, S2, O2, T2} = 
                       read_dense_array(Length, [], R1, S1, O1, T1),
-              AssocSize = dict:size(Associative),
+              AssocSize = length(Associative),
               DenseSize = length(Dense),
               if
-                AssocSize > 0, DenseSize == 0  ->
-                  Arr = Associative;
-                AssocSize == 0, DenseSize > 0  ->
-                  Arr = Dense;
-                AssocSize > 0, DenseSize > 0 ->
-                  Arr = {array, Associative, Dense};
-                AssocSize == 0, DenseSize == 0 ->
-                  Arr = {array, Associative, Dense}
+                AssocSize > 0, DenseSize == 0  -> Arr = Associative;
+                AssocSize == 0, DenseSize > 0  -> Arr = Dense;
+                AssocSize > 0, DenseSize > 0 -> Arr = Associative ++ Dense;
+                AssocSize == 0, DenseSize == 0 -> Arr = []
               end,
               {_,O3} = remember(Arr, O2),
               {Arr, R2, S2, O3, T2}
@@ -268,13 +230,13 @@ read_uint29(<<1:1, A:7, 1:1, B:7, 1:1, C:7, D:8, Remaining/binary>>) ->
   {((A bsl 22) bor (B bsl 15) bor (C bsl 8) bor D), Remaining}.
 
 
-read_associative_array(Data, Dictionary, Strings, Objects, Traits) ->
+read_associative_array(Data, Array, Strings, Objects, Traits) ->
   {Name, R, S, O, T} = read(<<?STRING,Data/binary>>, Strings, Objects, Traits),
   case Name of
-     <<>> -> {Dictionary, R, S, O, T}; 
+     <<>> -> {lists:reverse(Array), R, S, O, T}; 
         N -> {Value, R2, S2, O2, T2} = read(R, S, O, T),
-             D = dict:store(list_to_atom(binary_to_list(N)), Value, Dictionary),
-             read_associative_array( R2, D, S2, O2, T2)
+             A = [{list_to_atom(binary_to_list(N)), Value} | Array], 
+             read_associative_array( R2, A, S2, O2, T2)
   end.
 
 
@@ -429,34 +391,17 @@ write({bytearray, ByteArray}, Strings, Objects, Traits)
     {Binary, Strings, Objects, Traits};
 
 
-write({array, Dictionary, List}, Strings, Objects, Traits)
-  when is_tuple(Dictionary), is_list(List)-> 
-    Length = write_uint29(length(List) bsl 1 bor 1),
-    {Written,S,O,T} = write_associative_array(dict:to_list(Dictionary), 
-                                              [?ARRAY,Length],
-                                              Strings, Objects, Traits),
-    {Output,S1,O1,T1} = write_dense_array(List, Written, S, O, T),
-    {list_to_binary(Output),S1,O1,T1};
-
-
-write({array, List}, Strings, Objects, Traits)
-  when is_list(List) -> 
-    write({array, dict:new(), List}, Strings, Objects, Traits);
-
-
-write({array, Dictionary}, Strings, Objects, Traits)
-  when is_tuple(Dictionary) -> 
-    write({array, Dictionary, []}, Strings, Objects, Traits);
-
-
 write(List, Strings, Objects, Traits) 
   when is_list(List) ->
-    write({array, dict:new(), List}, Strings, Objects, Traits);
-
-
-write(Dictionary, Strings, Objects, Traits) 
-  when is_tuple(Dictionary) ->
-    write({array, Dictionary, []}, Strings, Objects, Traits).
+    F = fun({K,_V}) when is_binary(K); is_atom(K) -> true;
+           (_V) -> false
+        end,
+    {Associative, Dense} = lists:partition(F,List),
+    Length = write_uint29(length(Dense) bsl 1 bor 1),
+    {Written,S,O,T} = write_associative_array(Associative,[?ARRAY,Length],
+                                              Strings, Objects, Traits),
+    {Output,S1,O1,T1} = write_dense_array(Dense, Written, S, O, T),
+    {list_to_binary(Output),S1,O1,T1}.
 
 
 write_uint29(Unsigned) 
@@ -502,6 +447,7 @@ remember(ToRemember, Dictionary) ->
   Key = dict:size(Dictionary),
   D = dict:store(Key, ToRemember, Dictionary),
   {Key,D}.
+
 
 find(Reference, Dictionary) ->
   case dict:find(Reference, Dictionary) of
