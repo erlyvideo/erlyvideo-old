@@ -130,7 +130,7 @@ ready(#stream_player{consumer = Consumer} = State) ->
       ok;
   
     exit ->
-      ?D({"stream play exit", self(), State#stream_player.media_info}),
+      % ?D({"stream play exit", self(), State#stream_player.media_info}),
       ok;
       
   	{tcp_closed, _Socket} ->

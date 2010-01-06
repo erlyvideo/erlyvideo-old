@@ -128,11 +128,12 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 %% @end
 %%-------------------------------------------------------------------------
 
-play(State, #rtmp_funcall{args = [_Null, false | _]} = AMF) -> stop(State, AMF);
+play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
+play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(State, #rtmp_funcall{args = [_Null, Name | Args], stream_id = StreamId}) ->
+play(State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
   Options = [{stream_id, StreamId} | extract_play_args(Args)],
-  ?D({"PLAY", Name, Options}),
+  % ?D({"PLAY", Name, Options}),
   prepareStream(State, StreamId),
   gen_fsm:send_event(self(), {play, Name, Options}),
   State.
@@ -213,10 +214,11 @@ seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{ar
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
+stop(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) ->
       Player ! exit,
+      ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
       State#rtmp_session{streams = array:set(StreamId, null, Streams)};
     _ -> State
   end.
@@ -230,8 +232,10 @@ stop(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamI
 closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
 case array:get(StreamId, Streams) of
   undefined -> State;
-  Player ->
-    Player ! exit,
+  null ->
+    State#rtmp_session{streams = array:reset(StreamId, Streams)};
+  Player when is_pid(Player) ->
+    (catch Player ! exit),
     State#rtmp_session{streams = array:reset(StreamId, Streams)}
 end.
 

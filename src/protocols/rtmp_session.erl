@@ -173,17 +173,12 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stre
   end,
   State;
 
-handle_rtmp_message(State, #rtmp_message{type = pong}) ->
-  State;
-
-handle_rtmp_message(State, #rtmp_message{type = ping}) ->
-  State;
-
-handle_rtmp_message(State, #rtmp_message{type = ack_read}) ->
-  State;
-
-handle_rtmp_message(State, #rtmp_message{type = window_size}) ->
-  State;
+handle_rtmp_message(State, #rtmp_message{type = pong}) -> State;
+handle_rtmp_message(State, #rtmp_message{type = ping}) -> State;
+handle_rtmp_message(State, #rtmp_message{type = ack_read}) -> State;
+handle_rtmp_message(State, #rtmp_message{type = window_size}) -> State;
+handle_rtmp_message(State, #rtmp_message{type = chunk_size}) -> State;
+handle_rtmp_message(State, #rtmp_message{type = broken_meta}) -> State;
 
 handle_rtmp_message(State, Message) ->
   ?D({"RTMP", Message#rtmp_message.type}),

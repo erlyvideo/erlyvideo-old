@@ -86,22 +86,28 @@ publish(State, #rtmp_funcall{args = [null,Name,<<"append">>]} = _AMF) ->
 
 
 publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF) -> 
-  ?D({"Publish - Action - LIVE",Name, StreamId}),
+  ems_log:access(Host, "RECORD LIVE ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
   Recorder = media_provider:create(Host, Name, live),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
 publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF) -> 
-  ?D({"Publish - Action - live",Name}),
+  ems_log:access(Host, "RECORD LIVE ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
   Recorder = media_provider:create(Host, Name, live),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
 
-publish(#rtmp_funcall{args = [null, false]} = AMF, State) ->
-  apps_streaming:stop(AMF, State);
+publish(State, #rtmp_funcall{args = [null, false]} = AMF) ->
+  apps_streaming:stop(State, AMF);
+
+publish(State, #rtmp_funcall{args = [null, null]} = AMF) ->
+  apps_streaming:stop(State, AMF);
+
+publish(State, #rtmp_funcall{args = [null, <<"null">>]} = AMF) ->
+  apps_streaming:stop(State, AMF);
   
 publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name], stream_id = StreamId} = _AMF) -> 
-  ?D({"Publish - Action - default live",Name}),
+  ems_log:access(Host, "RECORD LIVE ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
   Recorder = media_provider:create(Host, Name, live),
   State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)}.
 

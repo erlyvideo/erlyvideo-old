@@ -37,7 +37,6 @@ set_owner(Server, Owner) ->
 init([Name, live, Opts]) ->
   Host = proplists:get_value(host, Opts),
   process_flag(trap_exit, true),
-  error_logger:info_msg("Stream media ~p ~p~n", [Host, Name]),
   Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	Recorder = #media_info{type=live, name = Name, host = Host, clients = Clients},
@@ -207,7 +206,6 @@ handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
-  error_logger:info_msg("Stopping stream media ~p ~p~n", [Host, Name]),
   media_provider:remove(Host, Name),
   {noreply, MediaInfo, ?TIMEOUT};
 
@@ -223,6 +221,9 @@ handle_info(pause, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(resume, State) ->
+  {noreply, State, ?TIMEOUT};
+  
+handle_info({client_buffer, 0}, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(_Info, State) ->
