@@ -71,7 +71,7 @@
 -export([init/1, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([wait_for_socket_on_server/2, wait_for_socket_on_server/3, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
+-export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
 
 %% @spec (Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}
 %% @doc Starts RTMP listener on port Port, registered under name Name with callback module Callback.
@@ -133,20 +133,38 @@ start_link(Consumer, Type) ->
 %% @end
 -spec(setopts(RTMP::rtmp_socket_pid(), Options::[{Key::atom(), Value::any()}]) -> ok).
 setopts(RTMP, Options) ->
-  gen_fsm:send_event(RTMP, {setopts, Options}).
+  gen_fsm:send_all_state_event(RTMP, {setopts, Options}).
 
+%% @spec (RTMP::pid(), Options::[{Key, Value}]|{Key, Value}) -> ok
+%% @doc Just the same as {@link inet:getopts/2. inet:getopts/2} this function gets state of 
+%% rtmp socket.<br/>
+%%  Available options:
+%%  <ul><li><code>chunk_size</code> - get outgoing chunk size</li>
+%%  <li><code>window_size</code> - get remote client read acknowlegement window size bytes</li>
+%%  <li><code>amf_version</code> - get AMF0 or AMF3</li>
+%%  <li><code>consumer</code> - get messages consumer</li>
+%% </ul>
+%% @end
 -spec(getopts(RTMP::rtmp_socket_pid(), Options::[Key::atom()]) -> ok).
 getopts(RTMP, Options) ->
-  gen_fsm:sync_send_event(RTMP, {getopts, Options}).
+  gen_fsm:sync_send_all_state_event(RTMP, {getopts, Options}, ?RTMP_TIMEOUT).
 
 -spec(getstat(RTMP::rtmp_socket_pid(), Options::[Key::atom()]) -> ok).
 getstat(RTMP, Options) ->
-  gen_fsm:sync_send_event(RTMP, {getstat, Options}).
+  gen_fsm:sync_send_all_state_event(RTMP, {getstat, Options}, ?RTMP_TIMEOUT).
 
   
+%% @spec (RTMP::pid(), Message::rtmp_message()) -> ok
+%% @doc Sends message to client.
+%% @end
 -spec(send(RTMP::rtmp_socket_pid(), Message::rtmp_message()) -> ok).
 send(RTMP, Message) ->
-  gen_fsm:sync_send_event(RTMP, Message),
+  % case process_info(RTMP, message_queue_len) of
+  %   {message_queue_len, Length} when Length < 20 -> RTMP ! Message;
+  %   {message_queue_len, Length} -> gen_fsm:sync_send_event(RTMP, Message, ?RTMP_TIMEOUT);
+  %   _ -> ok
+  % end,
+  RTMP ! Message,
   ok.
   
 
@@ -193,6 +211,9 @@ init([Consumer, connect]) ->
   {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new(), active = false}, ?RTMP_TIMEOUT}.
 
 %% @private  
+wait_for_socket_on_server(timeout, State) ->
+  {stop, normal, State};
+
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
@@ -200,17 +221,7 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port
 
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
   link(Socket),
-  {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT};
-
-wait_for_socket_on_server({setopts, Options}, State) ->
-  NewState = set_options(State, Options),
-  {next_state, wait_for_socket_on_server, NewState, ?RTMP_TIMEOUT}.
-% , previous_ack = erlang:now()
-
-
-%% @private  
-wait_for_socket_on_server({getopts, Options}, _From, State) ->
-  {reply, get_options(State, Options), wait_for_socket_on_server, State}.
+  {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
 
 
 %% @private  
@@ -230,10 +241,6 @@ handshake_c3(timeout, State) ->
   {stop, normal, State}.
 
 %% @private  
-handshake_s1({setopts, Options}, State) ->
-  NewState = set_options(State, Options),
-  {next_state, handshake_s1, NewState, ?RTMP_TIMEOUT};
-
 handshake_s1(timeout, State) ->
   {stop, normal, State}.
   
@@ -244,24 +251,15 @@ loop(timeout, #rtmp_socket{pinged = false} = State) ->
   
 loop(timeout, #rtmp_socket{consumer = Consumer} = State) ->
   Consumer ! {rtmp, self(), timeout},
-  {stop, normal, State};
+  {stop, normal, State}.
 
-loop({setopts, Options}, State) ->
-  NewState = set_options(State, Options),
-  {next_state, loop, NewState, ?RTMP_TIMEOUT}.
 % , previous_ack = erlang:now()
 
 
 %% @private
 loop(#rtmp_message{} = Message, _From, State) ->
   State1 = send_data(State, Message),
-  {reply, ok, loop, State1};
-
-loop({getstat, Options}, _From, State) ->
-  {reply, get_stat(State, Options), loop, State};
-
-loop({getopts, Options}, _From, State) ->
-  {reply, get_options(State, Options), loop, State}.
+  {reply, ok, loop, State1}.
 
 
 
@@ -324,6 +322,10 @@ set_options(State, []) -> State.
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
+handle_event({setopts, Options}, StateName, State) ->
+  NewState = set_options(State, Options),
+  {next_state, StateName, NewState, ?RTMP_TIMEOUT};
+
 handle_event(Event, StateName, StateData) ->
   {stop, {StateName, undefined_event, Event}, StateData}.
 
@@ -338,6 +340,12 @@ handle_event(Event, StateName, StateData) ->
 %%          {stop, Reason, Reply, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_sync_event({getopts, Options}, _From, StateName, State) ->
+  {reply, get_options(State, Options), StateName, State};
+
+handle_sync_event({getstat, Options}, _From, StateName, State) ->
+  {reply, get_stat(State, Options), StateName, State};
 
 handle_sync_event(Event, _From, StateName, StateData) ->
   {stop, {StateName, undefined_event, Event}, StateData}.
@@ -398,7 +406,9 @@ handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, cons
   {stop, normal, StateData};
 
 handle_info(#rtmp_message{} = Message, loop, State) ->
-  {next_state, loop, send_data(State, Message), ?RTMP_TIMEOUT};
+  State1 = send_data(State, Message),
+  State2 = flush_send(State1),
+  {next_state, loop, State2, ?RTMP_TIMEOUT};
 
 handle_info({rtmpt, RTMPT, alive}, StateName, #rtmp_socket{socket = RTMPT} = State) ->
   {next_state, StateName, State#rtmp_socket{pinged = false}, ?RTMP_TIMEOUT};
@@ -412,7 +422,7 @@ handle_info(_Info, StateName, StateData) ->
 
 flush_send(State) -> flush_send([], State).
 
-flush_send(Packet, #rtmp_socket{socket = Socket} = State) ->
+flush_send(Packet, State) ->
   receive
     #rtmp_message{} = Message ->
       {NewState, Data} = rtmp:encode(State, Message),
@@ -427,6 +437,7 @@ activate_socket(Socket) when is_port(Socket) ->
 activate_socket(Socket) when is_pid(Socket) ->
   ok.
 
+% FIXME: make here proper handling of flushing message queue
 send_data(State, #rtmp_message{} = Message) ->
   {NewState, Data} = rtmp:encode(State, Message),
   send_data(NewState, Data);
