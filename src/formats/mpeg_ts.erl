@@ -145,7 +145,7 @@ send_pmt(Req) ->
   
   
 send_video(#video_frame{timestamp = Timestamp, body = Body}, Req) ->
-  NAL = <<16#000001:24, Body/binary, 16#000001:24>>,
+  NAL = <<16#000001:24, Body/binary, 16#000001:24>>.
   
 play(Req) ->
   receive
