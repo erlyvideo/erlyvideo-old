@@ -31,8 +31,8 @@ counter(Count) ->
         1 -> statistics(wall_clock);
         0 -> 
           {_, Time} = statistics(wall_clock),
-          Speed = (catch round(?COUNTER/Time)),
-          io:format("~pK sync/sec ~p~n", [Speed, Count]);
+          Speed = (catch round(?COUNTER*1000/Time)),
+          io:format("~p sync/sec ~p~n", [Speed, Count]);
         _ -> ok
       end,
       counter(Count + 1);
@@ -74,7 +74,7 @@ init_rtmp_client(Server, Port, Path, Name) ->
 rtmp_client(RTMP, Path, Name, Count) ->
   so_sync(RTMP, Name, Count),
   counter ! tick,
-  % timer:sleep(1),
+  timer:sleep(50),
   flush_messages(RTMP),
   rtmp_client(RTMP, Path, Name, Count+1).
 

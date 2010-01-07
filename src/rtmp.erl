@@ -79,10 +79,10 @@ encode(State, #rtmp_message{channel_id = undefined} = Message)  ->
   encode(State, Message#rtmp_message{channel_id = 2});
 
 encode(State, #rtmp_message{type = chunk_size, body = ChunkSize} = Message) ->
-  encode(State#rtmp_socket{server_chunk_size = ChunkSize}, Message#rtmp_message{type = ?RTMP_TYPE_CHUNK_SIZE, body = <<ChunkSize:32/big-integer>>});
+  encode(State#rtmp_socket{server_chunk_size = ChunkSize}, Message#rtmp_message{type = ?RTMP_TYPE_CHUNK_SIZE, body = <<ChunkSize:32>>});
 
 encode(#rtmp_socket{bytes_read = BytesRead} = State, #rtmp_message{type = ack_read} = Message) ->
-  encode(State#rtmp_socket{bytes_read = 0}, Message#rtmp_message{type = ?RTMP_TYPE_ACK_READ, body = <<BytesRead:32/big-integer>>});
+  encode(State#rtmp_socket{bytes_read = 0}, Message#rtmp_message{type = ?RTMP_TYPE_ACK_READ, body = <<BytesRead:32>>});
 
 encode(State, #rtmp_message{type = stream_begin} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_BEGIN});
@@ -175,6 +175,7 @@ encode_id(Type, Id) when Id >= 2 ->
 
 % chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
 
+chunk(Data, ChunkSize, _) when size(Data) =< ChunkSize -> Data;
 chunk(Data, ChunkSize, Id) -> chunk(Data, ChunkSize, Id, []).
 
 chunk(Data, ChunkSize, _Id, List) when size(Data) =< ChunkSize ->
