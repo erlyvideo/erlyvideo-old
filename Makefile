@@ -17,7 +17,8 @@ MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
 all: erlang_version ebin ebin/erlmedia.app
-	ERL_LIBS=deps:lib erl -make
+	ERL_LIBS=deps:lib:plugins erl -make
+	for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
 erlang_version:
 	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
@@ -48,7 +49,7 @@ player:
 	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
 run: erlang_version ebin ebin/erlmedia.app
-	ERL_LIBS=deps:lib $(ERL) +bin_opt_info +debug \
+	ERL_LIBS=deps:lib:plugins $(ERL) +bin_opt_info +debug \
 	-pa ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
@@ -56,7 +57,7 @@ run: erlang_version ebin ebin/erlmedia.app
 	-name $(NODE_NAME)
 	
 start: erlang_version ebin ebin/erlmedia.app
-	ERL_LIBS=deps:lib $(ERL) -pa `pwd`/ebin \
+	ERL_LIBS=deps:lib:plugins $(ERL) -pa `pwd`/ebin \
 	-sasl sasl_error_logger '{file, "sasl.log"}' \
   -kernel error_logger '{file, "erlang.log"}' \
 	-boot start_sasl \

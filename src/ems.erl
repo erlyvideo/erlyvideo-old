@@ -36,7 +36,8 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
--include("../include/ems.hrl").
+% -include("../include/ems.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
 
 -export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
@@ -56,7 +57,7 @@ start() ->
   application:start(rtmp),
   application:start(rtsp),
   ems_log:start(),
-	application:start(?APPLICATION).
+	application:start(erlmedia).
 
 
 %%--------------------------------------------------------------------
@@ -66,8 +67,8 @@ start() ->
 %%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
-	application:stop(?APPLICATION),
-	application:unload(?APPLICATION),
+	application:stop(erlmedia),
+	application:unload(erlmedia),
   ems_log:stop(),
 	application:stop(rtsp),
 	application:unload(rtsp),
@@ -101,10 +102,10 @@ rebuild() ->
 %% @end
 %%--------------------------------------------------------------------
 reload() ->
-	application:load(?APPLICATION),
-	case application:get_key(?APPLICATION,modules) of
+	application:load(erlmedia),
+	case application:get_key(erlmedia,modules) of
 		undefined    -> 
-			application:load(?APPLICATION),
+			application:load(erlmedia),
 			reload();
 		{ok,Modules} -> 
 			io:format("Reloading EMS Modules ...~n"),
@@ -133,11 +134,11 @@ reload([H|T]) ->
 %% @end 
 %%--------------------------------------------------------------------
 get_var(Opt, Default) ->
-	case lists:keysearch(?APPLICATION, 1, application:loaded_applications()) of
-		false -> application:load(?APPLICATION);
+	case lists:keysearch(erlmedia, 1, application:loaded_applications()) of
+		false -> application:load(erlmedia);
 		_ -> ok
 	end,
-	case application:get_env(?APPLICATION, Opt) of
+	case application:get_env(erlmedia, Opt) of
 	{ok, Val} -> Val;
 	_ ->
 		case init:get_argument(Opt) of

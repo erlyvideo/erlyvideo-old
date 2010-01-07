@@ -1,7 +1,7 @@
 -module(trusted_login).
 -author(max@maxidoors.ru).
 
--include("../../include/ems.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
 -export([client_login/2]).
 
 client_login(State, [_SessionData, UserIdF]) ->
@@ -10,5 +10,4 @@ client_login(State, [_SessionData, UserIdF]) ->
 	State#rtmp_session{user_id = UserId, session_id = SessionId};
 	
 client_login(State, _) ->
-  ?D({"Fully untrusted session"}),
   State#rtmp_session{user_id = undefined}.

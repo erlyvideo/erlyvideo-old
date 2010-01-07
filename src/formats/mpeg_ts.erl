@@ -34,7 +34,7 @@
 -module(mpeg_ts).
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
--include("../../include/video_frame.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 -include("../../include/mpegts.hrl").
 
 -export([play/3, play/1]).

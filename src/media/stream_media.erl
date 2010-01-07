@@ -3,7 +3,7 @@
 -module(stream_media).
 -author(max@maxidoors.ru).
 -include("../include/ems.hrl").
--include("../include/video_frame.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 -include("../include/media_info.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 

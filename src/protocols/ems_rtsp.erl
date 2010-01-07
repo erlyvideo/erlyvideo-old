@@ -2,9 +2,10 @@
 -author(max@maxidoors.ru).
 
 -include("../include/h264.hrl").
--include("../include/video_frame.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 -include("../include/ems.hrl").
--include("../lib/ertsp/include/rtsp.hrl").
+-include_lib("ertsp/include/rtsp.hrl").
 
 -export([announce/4]).
 

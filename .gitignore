@@ -3,6 +3,7 @@ erl_crash.dump
 mnesia-data
 *.DS_Store
 Mnesia.*
-
+plugins
 *.log
 *.cookie
+

@@ -2,7 +2,7 @@
 -author('max@maxidoors.ru').
 
 -include("../../../include/h264.hrl").
--include("../../../include/video_frame.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 -include("../include/rtsp.hrl").
 
 -record(rtp_state, {

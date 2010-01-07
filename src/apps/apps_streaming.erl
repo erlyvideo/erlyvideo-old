@@ -38,6 +38,7 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -include("../../include/ems.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,

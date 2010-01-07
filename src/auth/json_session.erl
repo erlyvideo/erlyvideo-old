@@ -1,6 +1,6 @@
 -module(json_session).
 -author(max@maxidoors.ru).
--include("../../include/ems.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
 -export([decode/2, encode/2, client_login/2, binary_to_hexbin/1]).
 
 
@@ -8,7 +8,6 @@
 client_login(#rtmp_session{host = Host} = State, [Cookie, _UserIdObj]) ->
   Secret = ems:get_var(secret_key, Host, undefined),
   Session = decode(Cookie, Secret),
-  ?D({"Authed session:", Session}),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(UserId, Channels),

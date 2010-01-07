@@ -38,7 +38,8 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
--include("../include/video_frame.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
 
 -behaviour(gen_fsm).
 
@@ -265,6 +266,10 @@ handle_info({rtmp, Socket, #rtmp_message{} = Message}, StateName, State) ->
   {next_state, StateName, State2};
   
 handle_info({rtmp, Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
+  {ok, PidRe} = re:compile("<0\\.(\\d+)\\.0>"),
+  {match, [_, Self]} = re:run(pid_to_list(self()), PidRe, [{capture, all, list}]),
+  {match, [_, Sock]} = re:run(pid_to_list(Socket), PidRe, [{capture, all, list}]),
+  io:format("eprof:start_profiling([pid(0,~s,0),pid(0,~s,0)]).~n", [Self, Sock]),
   rtmp_socket:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_DATA', State};
 

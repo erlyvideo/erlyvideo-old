@@ -4,7 +4,7 @@
 
 -include("../../include/ems.hrl").
 -include("../../include/h264.hrl").
--include("../../include/video_frame.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([decode_nal/2, video_config/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).

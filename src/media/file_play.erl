@@ -38,7 +38,7 @@
 -author('max@maxidoors.ru').
 
 -include("../../include/ems.hrl").
--include("../../include/video_frame.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([file_dir/1, file_format/1, start_link/1, start_link/2, client/1]).
 

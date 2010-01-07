@@ -38,8 +38,8 @@
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
 -include("../../include/ems.hrl").
--include("../../include/video_frame.hrl").
--include("../../include/recorder.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
+-include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([publish/2]).
 -export(['WAIT_FOR_DATA'/2]).
