@@ -38,7 +38,7 @@
 -include("../../include/mpegts.hrl").
 
 -export([play/3, play/1]).
--define(TS_PACKET, 184).
+-define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PMT_PID, 66).
 -define(PCR_PID, 69).
 -define(AUDIO_PID, 68).
@@ -109,7 +109,7 @@ send_pat(Req) ->
   CRC32 = 0,
   PAT = <<0, ?PAT_TABLEID, 2#10:2, 2#11:2, Length:12, TSStream:16, Misc/binary, Programs/binary, CRC32:32>>,
   mux(PAT, Req, 0),
-  ?MODULE:play(Req).
+  send_pmt(Req).
 
 send_pmt(Req) ->
   _Pointer = 0,
@@ -122,8 +122,10 @@ send_pmt(Req) ->
   _SectionNumber = 0,
   _LastSectionNumber = 0,
   ProgramInfo = <<29,13,17,1,2,128,128,7,0,79,255,255,254,254,255>>,
-  AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 0:4>>, 
-  VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 0:4>>,
+  AudioES = <<>>,
+  AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 0:4, (size(AudioES)):12, AudioES/binary>>,
+  VideoES = <<>>,
+  VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 0:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([AudioStream, VideoStream]),
   PMT = <<_Pointer, ?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, 
       ProgramNum:16, 0:2, _Version:5, _CurrentNext:1, _SectionNumber,
@@ -140,8 +142,16 @@ send_pmt(Req) ->
   %                               224,68,240,6,10,4,101,110,103,0,27,224,69,240,6,
   %                               10,4,101,110,103,0,219,45,131,210>>.
   % 
+  
+  
+send_video(#video_frame{timestamp = Timestamp, body = Body}, Req) ->
+  NAL = <<16#000001:24, Body/binary, 16#000001:24>>,
+  
 play(Req) ->
   receive
+    #video_frame{type = video} = Frame ->
+      send_video(Frame, Req),
+      ?MODULE:play(Req);
     #video_frame{} = _Frame ->
       Req:stream(<<"frame\n">>),
       ?MODULE:play(Req);
