@@ -96,6 +96,12 @@ init([]) ->
 
 
 send(Session, Message) ->
+  % case process_info(Session, message_queue_len) of
+  %   {message_queue_len, Length} when Length > 100 ->
+  %     % ?D({"Session is too slow in consuming messages", Session, Length}),
+  %     ok;
+  %   _ -> ok
+  % end,
   Session ! Message.
   
 
@@ -160,11 +166,11 @@ handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == v
   gen_fsm:send_event(self(), {publish, Message}),
   State;
 
-handle_rtmp_message(#rtmp_session{host = Host} = State, #rtmp_message{type = shared_object, body = SOEvent}) ->
+handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
   #so_message{name = Name, persistent = Persistent} = SOEvent,
-  Object = shared_objects:open(Host, Name, Persistent),
+  {NewState, Object} = find_shared_object(State, Name, Persistent),
   shared_object:message(Object, SOEvent),
-  State;
+  NewState;
 
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case array:get(StreamId, Streams) of
@@ -185,7 +191,15 @@ handle_rtmp_message(State, Message) ->
   State.
 
 
-
+find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} = State, Name, Persistent) ->
+  case lists:keysearch(Name, 1, Objects) of
+    false ->
+      Object = shared_objects:open(Host, Name, Persistent),
+      NewObjects = lists:keystore(Name, 1, Objects, {Name, Object}),
+      {State#rtmp_session{cached_shared_objects = NewObjects}, Object};
+    {value, {Name, Object}} ->
+      {State, Object}
+  end.
 
 call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_funcall{command = Command, args = Args}) ->
   ems_log:error(Host, "Client ~p requested unknown function ~p(~p)~n", [IP, Command, Args]),

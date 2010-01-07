@@ -88,7 +88,8 @@
 	session_id,
 	user_id     = undefined,
 	player_info = [],
-	streams      = undefined
+	streams      = undefined,
+	cached_shared_objects = []
 	}).
 
 -record(file_frame, {

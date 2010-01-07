@@ -39,7 +39,7 @@ start_link(Host, Name, Persistent)  ->
 
 
 message(Object, Message) ->
-  gen_server:call(Object, {message, Message}).
+  gen_server:cast(Object, {message, Message, self()}).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -75,17 +75,6 @@ init([Host, Name, Persistent]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({message, #so_message{events = Events}}, {Client, _Ref}, #so_state{event_count = Count} = State) ->
-  State1 = handle_event(Events, Client, State),
-  % case Count rem 1000 of
-  %   1 -> statistics(wall_clock);
-  %   0 -> 
-  %     {_, Time} = statistics(wall_clock),
-  %     io:format("~p sync/sec~n", [round(1000000/Time)]);
-  %   _ -> ok
-  % end,
-  {reply, ok, State1#so_state{event_count = Count+1}};
-  
 handle_call(data, _From, #so_state{data = Data} = State) ->
   {reply, {ok, Data}, State};
 
@@ -98,7 +87,6 @@ handle_event([], _, State) ->
 
 handle_event([connect | Events], Client, #so_state{clients = Clients, data = _Data, host = Host} = State) ->
   link(Client),
-  % ?D({"Client connected to", Host, State#so_state.name, Client}),
   connect_notify(Client, State),
   handle_event(Events, Client, State#so_state{clients = [Client | Clients]});
 
@@ -178,6 +166,18 @@ load(Host, Name, _) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_cast({message, #so_message{events = Events}, Client}, #so_state{event_count = Count} = State) ->
+  State1 = handle_event(Events, Client, State),
+  case Count rem 10000 of
+    1 -> statistics(wall_clock);
+    0 -> 
+      {_, Time} = statistics(wall_clock),
+      io:format("~pK sync/sec ~p~n", [round(10000/Time), Count]);
+    _ -> ok
+  end,
+  {noreply, State1#so_state{event_count = Count+1}};
+  
+
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
