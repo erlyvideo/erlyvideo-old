@@ -7,6 +7,7 @@
 {"src/protocols/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/shared_objects/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/plugins/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
+{"plugins/*/src/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"lib/misultin/src/*", [{outdir, "lib/misultin/ebin"}, {i, "lib/misultin/include"}]}.
 {"lib/ertsp/src/*", [{outdir, "lib/ertsp/ebin"}, {i, "lib/ertsp/include"}]}.
 {"deps/amf/src/*", [{outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
