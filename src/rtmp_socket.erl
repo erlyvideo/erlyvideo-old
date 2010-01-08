@@ -174,13 +174,6 @@ status(RTMP, StreamId, Code) when is_list(Code)->
 
 
 -spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::string(), Description::string()) -> ok).
-status(RTMP, StreamId, Code, Description) when is_list(Code)->
-  status(RTMP, StreamId, list_to_binary(Code), Description);
-
-status(RTMP, StreamId, Code, Description) when is_list(Description)->
-  status(RTMP, StreamId, Code, list_to_binary(Description));
-  
-  
 status(RTMP, StreamId, Code, Description) ->
   Arg = {object, [
     {code, Code}, 
