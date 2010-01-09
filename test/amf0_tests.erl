@@ -30,6 +30,8 @@ null_test() -> ?a(null,<<16#05>>).
 undefined_test() -> ?a(undefined,<<16#06>>).    
 unsupported_test() -> ?a(unsupported,<<16#0D>>). 
 
+date_test() -> ?a({date,1261385577404.0},<<16#0B,16#42,16#72,16#5B,16#07,16#07,16#3B,16#C0,16#00,16#00,16#00>>).
+
 string_test_() ->
   [
     ?_a(<<"hello">>,<<16#02,16#00,16#05,"hello">>),
@@ -51,4 +53,10 @@ string_atom_test_() ->
 xmldoc_test_() ->
   [
     ?_a({xmldoc,<<"<test>hello</test>">>},<<16#0F,16#00,16#00,16#00,16#12,"<test>hello</test>">>)
+  ].  
+  
+avmplus_test_() ->
+  [
+    ?_assertEqual(list_to_binary([16#11,amf3:encode(<<"hello">>)]), amf0:encode({avmplus,<<"hello">>})),
+    ?_assertEqual(element(1,amf3:decode(<<16#00>>)), element(2,element(1,amf0:decode(<<16#11,16#00>>))))
   ].  

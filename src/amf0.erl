@@ -78,11 +78,17 @@ read(<<?NULL, Remaining/binary>>, Objects) -> {null, Remaining, Objects};
 read(<<?UNDEFINED, Remaining/binary>>, Objects) -> {undefined, Remaining, Objects};
 read(<<?UNSUPPORTED, Remaining/binary>>, Objects) -> {unsupported, Remaining, Objects};
 
+read(<<?DATE, MilliSeconds:64/float, _:16, Remaining/binary>>, Objects) -> {{date, MilliSeconds}, Remaining, Objects};
+
 read(<<?STRING, Length:16, String:Length/binary, Remaining/binary>>, Objects) -> {String, Remaining, Objects};
 read(<<?LONG_STRING, Length:32, String:Length/binary, Remaining/binary>>, Objects) -> {String, Remaining, Objects};
 
 read(<<?XML_DOCUMENT, Length:32, String:Length/binary, Remaining/binary>>, Objects) -> 
-    {{xmldoc, String}, Remaining, Objects}.
+    {{xmldoc, String}, Remaining, Objects};
+
+read(<<?AVMPLUS_OBJECT, AMF3/binary>>, Objects) ->
+    {Object, Remaining} = amf3:decode(AMF3),
+    {{avmplus, Object}, Remaining, Objects}.
 
 
 %%---------------------------------------
@@ -98,6 +104,8 @@ write(null, Objects) -> {<<?NULL>>, Objects};
 write(undefined, Objects) -> {<<?UNDEFINED>>, Objects};
 write(unsupported, Objects) -> {<<?UNSUPPORTED>>, Objects};
 
+write({date, MilliSeconds}, Objects) -> {<<?DATE, MilliSeconds:64/float, 16#00, 16#00>>, Objects};
+
 write(Atom,Objects) when is_atom(Atom) -> write(list_to_binary(atom_to_list(Atom)), Objects);
 write(String, Objects) when is_binary(String) ->
     Length = size(String),
@@ -108,4 +116,9 @@ write(String, Objects) when is_binary(String) ->
     
 write({xmldoc, XML}, Objects) ->
     Length = size(XML),
-    {<<?XML_DOCUMENT, Length:32, XML/binary>>, Objects}.
+    {<<?XML_DOCUMENT, Length:32, XML/binary>>, Objects};
+
+write({avmplus, Object}, Objects) ->
+    Binary = amf3:encode(Object),
+    {<<?AVMPLUS_OBJECT, Binary/binary>>, Objects}.
+    
