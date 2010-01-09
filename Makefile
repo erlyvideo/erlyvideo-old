@@ -18,7 +18,7 @@ MXMLC=mxmlc
 
 all: erlang_version ebin ebin/erlmedia.app
 	ERL_LIBS=deps:lib:plugins erl -make
-	for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
+	# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
 erlang_version:
 	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
@@ -38,6 +38,7 @@ clean:
 	rm -fv ebin/*.beam
 	rm -fv deps/*/ebin/*.beam
 	rm -fv lib/*/ebin/*.beam
+	rm -fv plugins/*/ebin/*.beam
 	rm -fv erl_crash.dump
 
 clean-doc:
