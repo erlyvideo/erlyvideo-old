@@ -64,7 +64,6 @@ start(_Type, _Args) ->
     undefined -> ok;
     RTMP when is_integer(RTMP) -> rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
   end,
-  ok = ems:start_modules(),
   Start.
 
 
@@ -74,7 +73,6 @@ start(_Type, _Args) ->
 %% @end 
 %%--------------------------------------------------------------------
 stop(_S) ->
-  ems:stop_modules(),
   ems_vhosts:stop().
   
 

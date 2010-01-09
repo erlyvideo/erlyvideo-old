@@ -46,13 +46,11 @@ init([Name, live, Opts]) ->
 init([Name, record, Opts]) ->
   Host = proplists:get_value(host, Opts),
   process_flag(trap_exit, true),
-  error_logger:info_msg("Recording stream ~p~n", [Name]),
   Clients = [],
 	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
 	(catch file:delete(FileName)),
 	ok = filelib:ensure_dir(FileName),
 	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	?D({"Recording to file", FileName}),
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),
@@ -205,13 +203,22 @@ handle_info(#video_frame{} = Frame, #media_info{clients = Clients} = MediaInfo) 
 handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
 
+handle_info(stop, #media_info{type = live} = MediaInfo) ->
+  {noreply, MediaInfo, ?TIMEOUT};
+
 handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
   media_provider:remove(Host, Name),
   {noreply, MediaInfo, ?TIMEOUT};
 
+handle_info(exit, #media_info{type = live} = State) ->
+  {noreply, State, ?TIMEOUT};
+
 handle_info(exit, #media_info{host = Host, name = Name} = State) ->
   media_provider:remove(Host, Name),
   {noreply, State, ?TIMEOUT};
+
+handle_info(timeout, #media_info{type = live} = State) ->
+  {stop, normal, State};
 
 handle_info(timeout, #media_info{host = Host, name = Name} = State) ->
   media_provider:remove(Host, Name),
@@ -226,9 +233,8 @@ handle_info(resume, State) ->
 handle_info({client_buffer, 0}, State) ->
   {noreply, State, ?TIMEOUT};
 
-handle_info(_Info, State) ->
-  ?D({"Undefined info", _Info, State}),
-  {noreply, State, ?TIMEOUT}.
+handle_info(Message, State) ->
+  {stop, {unhandled, Message}, State}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
   ?D({"New GOP", Frame#video_frame.timestamp}),

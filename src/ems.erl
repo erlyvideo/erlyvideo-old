@@ -57,7 +57,9 @@ start() ->
   application:start(rtmp),
   application:start(rtsp),
   ems_log:start(),
-	application:start(erlmedia).
+	application:start(erlmedia),
+	ems:start_modules().
+  
 
 
 %%--------------------------------------------------------------------
@@ -67,6 +69,7 @@ start() ->
 %%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
+	ems:stop_modules(),
 	application:stop(erlmedia),
 	application:unload(erlmedia),
   ems_log:stop(),
