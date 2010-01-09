@@ -1,19 +1,17 @@
-%%%%=========================================================================
+%%%%===================================================================================================================
 %% 
 %%  amf3
 %%
-%%  @author Mrinal Wadhwa < email@mrinalwadhwa.com >
-%%       [ http://www.mrinalwadhwa.com ]
+%%  @author Mrinal Wadhwa < email@mrinalwadhwa.com > [ http://www.mrinalwadhwa.com ]
 %%
-%%  @doc This module can be used to serialize and deserialize data to/from
-%%  Action Message Format (AMF) 3, which is a compact binary format used by
-%%  Adobe Flash Player to serialize ActionScript object graphs 
+%%  @doc This module can be used to serialize and deserialize data to/from Action Message Format (AMF) 3, which is a
+%%  compact binary format used by Adobe Flash Player to serialize ActionScript object graphs 
 %%
 %%  @reference <a href="http://bit.ly/amf-spec">AMF 3 Specification</a>
 %% 
 %%  @end 
 %%
-%%%%==========================================================================
+%%%%===================================================================================================================
 
 -module(amf3).
 -export([decode/1, encode/1]).

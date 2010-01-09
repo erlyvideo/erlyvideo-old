@@ -19,12 +19,12 @@ debug:
 compile-debug: clean
 	@echo $(call MSG,"Compiling in debug mode ...")
 	make compile-setup
-	cd tmp; erlc -d -W +debug_info *.erl; cp amf3.beam ../ebin
+	cd tmp; erlc -d -W +debug_info *.erl; cp amf0.beam amf3.beam ../ebin
 
 compile-release: clean	
 	@echo $(call MSG,"Compiling ...")
 	make compile-setup
-	cd tmp; erlc -W *.erl; cp amf3.beam ../ebin
+	cd tmp; erlc -W *.erl; cp amf0.beam amf3.beam ../ebin
 
 analyze: compile-debug
 	make analyze-coverage
@@ -32,7 +32,7 @@ analyze: compile-debug
 
 analyze-coverage:
 	@echo $(call MSG,"Analyzing Code Coverage ...")
-	cd tmp; erl -noshell -eval "test_coverage:analyze(amf3)" -s init stop
+	cd tmp; erl -noshell -eval "test_coverage:analyze([amf0, amf3])" -s init stop
 
 analyze-dialyzer:
 	@echo $(call MSG,"Analyzing with Dialyzer ...")
@@ -47,7 +47,7 @@ docs:
 	
 tests:
 	@echo $(call MSG,"Running Tests ...")
-	cd tmp; erl -noshell -eval "eunit:test(amf3)" -s init stop
+	cd tmp; erl -noshell -eval "eunit:test([amf0,amf3])" -s init stop
 
 tests-verbose:
 	@echo $(call MSG,"Running Tests ...")
