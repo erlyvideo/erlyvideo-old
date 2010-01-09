@@ -1,7 +1,7 @@
 -module(ems_rtsp).
 -author(max@maxidoors.ru).
 
--include("../include/h264.hrl").
+-include_lib("h264/include/h264.hrl").
 -include_lib("erlyvideo/include/rtmp_session.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 -include("../include/ems.hrl").

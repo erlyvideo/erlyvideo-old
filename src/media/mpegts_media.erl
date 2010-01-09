@@ -5,7 +5,7 @@
 
 
 -include("../../include/ems.hrl").
--include("../../include/h264.hrl").
+-include_lib("h264/include/h264.hrl").
 -include("../../include/mpegts.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 

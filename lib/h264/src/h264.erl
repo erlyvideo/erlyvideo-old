@@ -2,8 +2,8 @@
 
 -author('max@maxidoors.ru').
 
--include("../../include/ems.hrl").
--include("../../include/h264.hrl").
+% -include("../../include/ems.hrl").
+-include_lib("h264/include/h264.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([decode_nal/2, video_config/1]).
