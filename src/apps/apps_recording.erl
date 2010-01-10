@@ -79,7 +79,7 @@ message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = Body})
 
 'FCUnpublish'(State, #rtmp_funcall{args = Args} = AMF) ->
   ?D({"FCunpublish", Args}),
-  apps_streaming:stop(State, AMF);
+  apps_streaming:stop(State, AMF).
   % apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
   % State.
 
