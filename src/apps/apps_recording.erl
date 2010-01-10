@@ -46,8 +46,18 @@
 -export(['FCPublish'/2, 'FCUnpublish'/2]).
 
 
+message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = undefined} = Message) ->
+  ?D(Message),
+  #video_frame{timestamp = Timestamp, type = Type, body = undefined, raw_body = true};
+
 message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = Body}) ->
-  #video_frame{type = Type, timestamp = Timestamp, body = Body, raw_body = true}.
+  Frame = ems_flv:decode(Body),
+  % case Frame of
+  %   #video_frame{frame_type = keyframe} -> ?D({video, Timestamp, Frame#video_frame.codec_id});
+  %   #video_frame{decoder_config = true} -> ?D({Frame#video_frame.type, Timestamp, decoder_config});
+  %   _ -> ok
+  % end,
+  Frame#video_frame{timestamp = Timestamp}.
 
 'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
   Recorder = array:get(StreamId, Streams),
@@ -67,10 +77,11 @@ message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = Body})
   ?D({"FCpublish", Name}),
   State.
 
-'FCUnpublish'(State, #rtmp_funcall{args = Args} = AMF) -> 
+'FCUnpublish'(State, #rtmp_funcall{args = Args} = AMF) ->
   ?D({"FCunpublish", Args}),
-  apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
-  State.
+  apps_streaming:stop(State, AMF);
+  % apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
+  % State.
 
 publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF) -> 
   ?D({"Publish - Action - record",Name}),

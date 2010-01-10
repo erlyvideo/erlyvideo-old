@@ -10,7 +10,6 @@
 	frame_type     = undefined,
 	sound_type	   = undefined,
 	sound_size	   = undefined,
-	sound_rate	   = undefined,
-	sound_format	 = undefined
+	sound_rate	   = undefined
 	}).
 	

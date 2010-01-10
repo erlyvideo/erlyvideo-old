@@ -427,7 +427,7 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
    	decoder_config = true,
 		timestamp      = 0,
 		body          = Config,
-	  sound_format	= aac,
+	  codec_id	= aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
@@ -455,7 +455,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
     type          = audio,
     timestamp     = Timestamp,
     body          = Data,
-	  sound_format	= aac,
+	  codec_id	= aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44

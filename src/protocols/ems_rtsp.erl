@@ -32,7 +32,7 @@ config_media(Media, [#rtsp_stream{type = audio, config = Config} = Stream | Stre
    	decoder_config = true,
 		timestamp      = 0,
 		body          = Config,
-	  sound_format	= aac,
+	  codec_id	= aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44

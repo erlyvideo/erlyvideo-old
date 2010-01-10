@@ -65,7 +65,7 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
    	decoder_config = true,
 		timestamp     = 0,
 		body          = Config,
-	  sound_format	= AudioCodec,
+	  codec_id	= AudioCodec,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
@@ -125,7 +125,7 @@ video_frame(#file_frame{type = audio, timestamp = Timestamp}, Data) ->
    	type          = audio,
   	timestamp     = Timestamp,
   	body          = Data,
-	  sound_format	= aac,
+	  codec_id	= aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44

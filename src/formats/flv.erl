@@ -44,25 +44,47 @@
 -export([init/1, read_frame/2, codec_config/2, read_frame_list/3, header/1]).
 -behaviour(gen_format).
 
--export([audio_type/1, audio_size/1, audio_rate/1, video_codec/1, video_type/1]).
+-export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, video_type/1]).
 
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
 
+audio_codec(adpcm) -> ?FLV_AUDIO_FORMAT_ADPCM;
+audio_codec(aac) -> ?FLV_AUDIO_FORMAT_AAC;
+audio_codec(mp3) -> ?FLV_AUDIO_FORMAT_MP3;
+audio_codec(?FLV_AUDIO_FORMAT_ADPCM) -> adpcm;
+audio_codec(?FLV_AUDIO_FORMAT_MP3) -> mp3;
+audio_codec(?FLV_AUDIO_FORMAT_AAC) -> aac.
+
+
 audio_type(mono) -> ?FLV_AUDIO_TYPE_MONO;
-audio_type(stereo) -> ?FLV_AUDIO_TYPE_STEREO.
+audio_type(stereo) -> ?FLV_AUDIO_TYPE_STEREO;
+audio_type(?FLV_AUDIO_TYPE_MONO) -> mono;
+audio_type(?FLV_AUDIO_TYPE_STEREO) -> stereo.
 
 audio_size(bit8) -> ?FLV_AUDIO_SIZE_8BIT;
-audio_size(bit16) -> ?FLV_AUDIO_SIZE_16BIT.
+audio_size(bit16) -> ?FLV_AUDIO_SIZE_16BIT;
+audio_size(?FLV_AUDIO_SIZE_8BIT) -> bit8;
+audio_size(?FLV_AUDIO_SIZE_16BIT) -> bit16.
 
+audio_rate(?FLV_AUDIO_RATE_5_5) -> rate5;
+audio_rate(?FLV_AUDIO_RATE_11) -> rate11;
+audio_rate(?FLV_AUDIO_RATE_22) -> rate22;
+audio_rate(?FLV_AUDIO_RATE_44) -> rate44;
 audio_rate(rate5) -> ?FLV_AUDIO_RATE_5_5;
 audio_rate(rate11) -> ?FLV_AUDIO_RATE_11;
 audio_rate(rate22) -> ?FLV_AUDIO_RATE_22;
 audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
 
-video_codec(avc) -> ?FLV_VIDEO_CODEC_AVC.
+video_codec(avc) -> ?FLV_VIDEO_CODEC_AVC;
+video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
+video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
+video_codec(?FLV_VIDEO_CODEC_AVC) -> avc.
 
 video_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
-video_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME.
+video_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
+
+video_type(?FLV_VIDEO_FRAME_TYPEINTER_FRAME) -> frame;
+video_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
 %%--------------------------------------------------------------------
 %% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}

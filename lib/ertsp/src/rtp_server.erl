@@ -214,7 +214,7 @@ unpack_audio_units(#audio{media = Media, clock_map = ClockMap, audio_headers = <
         type          = audio,
         timestamp     = Timestamp,
         body          = Data,
-    	  sound_format	= aac,
+    	  codec_id	= aac,
     	  sound_type	  = stereo,
     	  sound_size	  = bit16,
     	  sound_rate	  = rate44
