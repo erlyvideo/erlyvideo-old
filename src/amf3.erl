@@ -307,12 +307,8 @@ write({bytearray, ByteArray}, Strings, Objects, Traits) when is_binary(ByteArray
     {Binary, Strings, Objects, Traits};
 
 
-write(List, Strings, Objects, Traits) 
-  when is_list(List) ->
-    F = fun({K,_V}) when is_binary(K); is_atom(K) -> true;
-           (_V) -> false
-        end,
-    {Associative, Dense} = lists:partition(F,List),
+write(List, Strings, Objects, Traits) when is_list(List) ->
+    {Associative, Dense} = lists:partition(fun is_keyvaluepair/1,List),
     Length = write_uint29(length(Dense) bsl 1 bor 1),
     {Written,S,O,T} = write_associative_array(Associative,[?ARRAY,Length],Strings, Objects, Traits),
     {Output,S1,O1,T1} = write_dense_array(Dense, Written, S, O, T),
@@ -363,3 +359,7 @@ find(Reference, Dictionary) ->
     {ok, Value} -> Value;
               _ -> throw({error,{reference_not_found,Reference,dict:to_list(Dictionary)}})
   end.
+
+
+is_keyvaluepair({K,_V}) when is_binary(K); is_atom(K) -> true;  
+is_keyvaluepair(_V) -> false.
