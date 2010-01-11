@@ -7,9 +7,6 @@ package
 	import flash.events.EventDispatcher;
 	import flash.net.NetStream;
 	import flash.media.Video;
-	import flash.media.Camera;
-	import flash.media.Microphone;
-	import flash.media.SoundCodec;
 	
 	import mx.controls.Alert;
 	public class VideoStream extends EventDispatcher
@@ -25,9 +22,9 @@ package
 		private static var number : int = 0;
 		public var id : int;
 		
-		public function VideoStream(s:VideoSource):void
+		public function VideoStream(s:VideoSource = null):void
 		{
-			_source = s;
+			_source = s || VideoSource.source;
 			_source.addEventListener(VideoSourceEvent.CONNECTED, onConnect);
 			_source.addEventListener(VideoSourceEvent.DISCONNECT, onDisconnect);
 			id = ++number;
