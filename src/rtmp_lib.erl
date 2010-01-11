@@ -30,7 +30,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_lib).
 -author(max@maxidoors.ru).
--version(1.0).
+-version(1.1).
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).

@@ -35,7 +35,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtmpt).
 -author('Max Lapshin <max@maxidoors.ru>').
--version(1.0).
+-version(1.1).
 
 -behaviour(gen_server).
 -define(RTMPT_TIMEOUT, 12000).

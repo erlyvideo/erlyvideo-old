@@ -55,7 +55,7 @@
 -author(max@maxidoors.ru).
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
--version(1.0).
+-version(1.1).
 
 -export([accept/1, connect/1, start_link/2, getopts/2, setopts/2, getstat/2, send/2]).
 -export([status/3, status/4, invoke/2]).

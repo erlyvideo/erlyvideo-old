@@ -39,7 +39,7 @@
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
 -include("shared_objects.hrl").
--version(1.0).
+-version(1.1).
 
 -export([encode/2, decode/2]).
 -export([encode_list/1, decode_list/1]).

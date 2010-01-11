@@ -31,7 +31,7 @@
 %% @private
 -module(rtmpt_sessions).
 -author(max@maxidoors.ru).
--version(1.0).
+-version(1.1).
 
 -behaviour(gen_server).
 

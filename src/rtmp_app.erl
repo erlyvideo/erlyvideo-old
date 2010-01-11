@@ -32,7 +32,7 @@
 -module(rtmp_app).
 -author(max@maxidoors.ru).
 -behaviour(application).
--version(1.0).
+-version(1.1).
 
 -export([start/2, stop/1, config_change/3]).
 
