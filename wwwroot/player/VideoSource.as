@@ -12,6 +12,7 @@ package
   import flash.events.Event;
 	import VideoSourceEvent;
 	import mx.core.Application;
+	import flash.net.SharedObject;
 	
 	public class VideoSource extends EventDispatcher
 	{
@@ -20,6 +21,8 @@ package
 		public var delay : int = 10000;
 		public var connection:NetConnection;
 		public var connected : Boolean = false;
+    private var room:SharedObject;
+
 		
 		public static function get source():VideoSource
 		{
@@ -42,10 +45,11 @@ package
 			connection.addEventListener(IOErrorEvent.IO_ERROR, onError);
 			connection.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
 			connection.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onError);
-			connection.objectEncoding = ObjectEncoding.AMF0;
-			connection.connect(Application.application.parameters.server+"/", Application.application.parameters.session, 142);
+			connection.objectEncoding = ObjectEncoding.AMF3;
+			connection.connect(Application.application.parameters.server+"/test", Application.application.parameters.session, 142);
+			room = SharedObject.getRemote("testRoom", connection.uri, false);
+			room.connect(connection);
 		}
-
 
 		private function onConnectionStatus( event : NetStatusEvent ) : void
 		{

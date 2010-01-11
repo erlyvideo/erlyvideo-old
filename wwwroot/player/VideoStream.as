@@ -22,6 +22,7 @@ package
 		private var sound : SoundTransform;
 		public var width : int;
 		public var height : int;
+		public var fps : int;
 		public var totalTime : int;
 		private var statusTimer : Timer;
 		
@@ -30,6 +31,9 @@ package
 		
 		private static var number : int = 0;
 		public var id : int;
+		
+		public var recordQuality : int = 90;
+		private var _camera : Camera;
 		
 		public function VideoStream(s:VideoSource):void
 		{
@@ -78,7 +82,21 @@ package
 			if (_stream) return _stream.time;
 			else return -1;
 		}
-
+		
+		public function get quality():int
+		{
+		  return recordQuality;
+		}
+		
+		public function set quality(q:int):void
+		{
+		  if (!_camera) {
+		    _camera = Camera.getCamera();
+		  }
+		  _camera.setQuality(0, q);
+		  recordQuality = q;
+		}
+		
 		public function stop() : void
 		{
 		  if (_stream) {
@@ -144,9 +162,11 @@ package
 				return false;
 			}
 			
-	  	var camera : Camera = Camera.getCamera();
-		  camera.setMode(320,240,20, false);
-		  camera.setQuality(0, 90);
+		  if (!_camera) {
+		    _camera = Camera.getCamera();
+		  }
+		  _camera.setMode(width, height, fps, false);
+      _camera.setQuality(0, recordQuality);
 
 		  var microphone : Microphone = Microphone.getMicrophone();
 		  microphone.codec = SoundCodec.SPEEX;
@@ -159,10 +179,10 @@ package
 		  _stream.publish(url, "record");
 		
 			if (playback) {
-				playback.attachCamera(camera);
+				playback.attachCamera(_camera);
 			}
 			
-			_stream.attachCamera(camera);
+			_stream.attachCamera(_camera);
 			_stream.attachAudio(microphone);
 			
 			recording = true;
