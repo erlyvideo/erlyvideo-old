@@ -1,6 +1,10 @@
 package
 {
   import VideoStream;
+	import flash.media.Video;
+	import flash.media.SoundCodec;
+	import flash.media.Microphone;
+	import flash.media.Camera;
   
   public class RecordStream extends VideoStream
   {
@@ -10,6 +14,11 @@ package
 		public var fps : int = 15;
 		public var recording : Boolean = false;
 		public var recordQuality : int = 90;
+		
+		public function RecordStream(s:VideoSource = null):void
+		{
+/*			super.VideoStream(s);*/
+		}
 		
 		override public function stop() : void
 		{
@@ -24,7 +33,7 @@ package
 		  return _volume;
 		}
 		
-		public function set volume(v:int)
+		public function set volume(v:int):void
 		{
 		  _volume = v;
 		  if (_microphone) {
@@ -59,7 +68,7 @@ package
       _camera.setQuality(0, recordQuality);
 
       if (!_microphone) {
-        _microphone : Microphone = Microphone.getMicrophone();
+        _microphone = Microphone.getMicrophone();
       }
 		  
 		  _microphone.codec = SoundCodec.SPEEX;

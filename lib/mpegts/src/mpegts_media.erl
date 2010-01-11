@@ -3,10 +3,10 @@
 -export([start_link/3]).
 -behaviour(gen_server).
 
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--include("../../include/ems.hrl").
 -include_lib("h264/include/h264.hrl").
--include("../../include/mpegts.hrl").
+-include("mpegts.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 % ems_sup:start_ts_lander("http://localhost:8080").
