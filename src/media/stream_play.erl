@@ -165,7 +165,7 @@ send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = B
     _ -> Ts - BaseTs
   end,
   Consumer ! Frame#video_frame{stream_id = StreamId, timestamp = Timestamp},
-  % ?D({"Frame", Timestamp, Type, Decoder, Frame#video_frame.frame_type}),
+  % ?D({"Frame", Timestamp, Ts, BaseTs, Type, Decoder, Frame#video_frame.frame_type}),
   Player1 = case {Decoder, Type} of
     {true, audio} -> Player#stream_player{sent_audio_decoder = true};
     {true, video} -> Player#stream_player{sent_video_decoder = true};

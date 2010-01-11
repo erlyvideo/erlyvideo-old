@@ -185,8 +185,9 @@ handle_info(#video_frame{timestamp = TS} = Frame,
   Recorder1 = parse_metadata(Recorder, Frame),
   Recorder2 = copy_audio_config(Recorder1, Frame),
   Recorder3 = copy_video_config(Recorder2, Frame),
-  Recorder4 = store_last_gop(Recorder3, Frame),
-  % ?D({Type, Frame#video_frame.frame_type, TS-BaseTS}),
+  % Recorder4 = store_last_gop(Recorder3, Frame),
+  Recorder4 = Recorder3,
+  % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, TS-BaseTS}),
   case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, ems_flv:to_tag(Frame1))
@@ -230,7 +231,7 @@ handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
-  ?D({"New GOP", round(Frame#video_frame.timestamp/1000)}),
+  ?D({"New GOP", round((Frame#video_frame.timestamp - MediaInfo#media_info.base_timestamp)/1000)}),
   MediaInfo#media_info{gop = [Frame]};
 
 store_last_gop(#media_info{gop = GOP} = MediaInfo, _) when length(GOP) == 5000 ->
@@ -265,6 +266,7 @@ parse_metadata(MediaInfo, #video_frame{}) ->
   
   
 parse_metadata(MediaInfo, [{object, Metadata}]) ->
+  ?D({"Metadata", Metadata}),
   set_metadata(MediaInfo, Metadata);
 
 parse_metadata(MediaInfo, [_|Metadata]) -> parse_metadata(MediaInfo, Metadata);
@@ -291,7 +293,9 @@ set_metadata(MediaInfo, [{_Key, _Value} | Metadata]) ->
 
 set_metadata(MediaInfo, []) -> MediaInfo.
 
-video_codec(<<"avc1">>) -> avc.
+video_codec(<<"avc1">>) -> avc;
+video_codec(<<"VP62">>) -> vp6.
+
 
 audio_codec(<<".mp3">>) -> mp3.
 
