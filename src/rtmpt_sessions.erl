@@ -140,13 +140,11 @@ handle_cast(_Msg, State) ->
 
 handle_info({'EXIT', RTMPT, _Reason}, #rtmpt_sessions{sessions = Sessions} = State) ->
   ets:match_delete(Sessions, {'_', RTMPT}),
-  io:format("[RTMPT] stopped rtmpt session: ~p", [RTMPT]),
   {noreply, State};
   
 
-handle_info(_Info, State) ->
-  io:format("[RTMPT] Unknown message: ~p", [_Info]),
-  {noreply, State}.
+handle_info(Message, State) ->
+  {stop, {unhandled, Message}, State}.
 
 
 

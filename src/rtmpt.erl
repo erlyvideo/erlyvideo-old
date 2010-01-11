@@ -218,9 +218,8 @@ handle_cast(_Msg, State) ->
 handle_info(timeout, State) ->
   {noreply, State};
 
-handle_info(_Info, State) ->
-  io:format("RTMPT unknown message: ~p~n", [_Info]),
-  {noreply, State}.
+handle_info(Message, State) ->
+  {stop, {unhandled, Message}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
