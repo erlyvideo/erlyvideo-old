@@ -106,7 +106,7 @@ ready(#file_player{media_info = MediaInfo,
     start ->
       case file_media:metadata(MediaInfo) of
         undefined -> ok;
-        MetaData -> gen_fsm:send_event(Consumer, {metadata, ?AMF_COMMAND_ONMETADATA, MetaData, StreamId})
+        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = {?AMF_COMMAND_ONMETADATA, MetaData}}
       end,
     	self() ! play,
       ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});

@@ -40,7 +40,7 @@
 -include("../include/flv.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
--export([to_tag/1, encode/1, decode/1]).
+-export([to_tag/1, encode/1, decode/2]).
 
 
 encode(#video_frame{type = audio,
@@ -63,45 +63,68 @@ encode(#video_frame{type = audio,
 	<<?FLV_AUDIO_FORMAT_AAC:4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(SoundSize)):1, (flv:audio_type(SoundType)):1,
 	  ?FLV_AUDIO_AAC_RAW:8, Body/binary>>;
 
+encode(#video_frame{type = audio,
+                    codec_id = Codec,
+                	  sound_type	= SoundType,
+                	  sound_size	= SoundSize,
+                	  sound_rate	= SoundRate,
+                    body = Body}) when is_binary(Body) ->
+	<<(flv:audio_codec(Codec)):4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(SoundSize)):1, (flv:audio_type(SoundType)):1,
+	  Body/binary>>;
+
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	decoder_config = true,
-                   	codec_id = CodecId,
+                   	codec_id = avc,
                     body = Body}) when is_binary(Body) ->
   CompositionTime = 0,
-	<<(flv:video_type(FrameType)):4/integer, (flv:video_codec(CodecId)):4/integer, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8/integer, CompositionTime:24/big-integer, Body/binary>>;
+	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, CompositionTime:24, Body/binary>>;
+
+encode(#video_frame{type = video,
+                    frame_type = FrameType,
+                   	codec_id = avc,
+                    body = Body}) when is_binary(Body) ->
+  CompositionTime = 0,
+	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, CompositionTime:24, Body/binary>>;
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	codec_id = CodecId,
                     body = Body}) when is_binary(Body) ->
-  CompositionTime = 0,
-	<<(flv:video_type(FrameType)):4/integer, (flv:video_codec(CodecId)):4/integer, ?FLV_VIDEO_AVC_NALU:8/integer, CompositionTime:24/big-integer, Body/binary>>;
+	<<(flv:video_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>;
+	
+encode(#video_frame{type = metadata, body = {Command, Args}}) ->
+  <<(amf0:encode(Command))/binary, (amf0:encode(Args))/binary>>.
 
 
-encode(_Frame) ->
-  ?D({"Request to encode undefined", _Frame}).
-
-decode(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, _CTime:24, Body/binary>>) ->
+decode(video, <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, _CTime:24, Body/binary>>) ->
   #video_frame{type = video, frame_type = flv:video_type(FrameType), codec_id = avc, body= Body};
 
-decode(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, _CTime:24, Body/binary>>) ->
+decode(video, <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, _CTime:24, Body/binary>>) ->
   #video_frame{type = video, decoder_config = true, frame_type = flv:video_type(FrameType), 
                codec_id = avc, body= Body};
 
-decode(<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
+decode(video, <<FrameType:4, CodecId:4, Body/binary>>) ->
+  #video_frame{type = video, frame_type = flv:video_type(FrameType), codec_id = flv:video_codec(CodecId), body = Body};
+
+decode(audio, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
   #video_frame{type = audio, codec_id = aac, sound_type = flv:audio_type(SoundType), 
               sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
 
-decode(<<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
+decode(audio, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
   #video_frame{type = audio, codec_id = aac, decoder_config = true, sound_type = flv:audio_type(SoundType), 
             sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
 
 
-decode(<<CodecId:4, SoundRate:2, SoundSize:1, SoundType:1, Body/binary>>) ->
+decode(audio, <<CodecId:4, SoundRate:2, SoundSize:1, SoundType:1, Body/binary>>) ->
   #video_frame{type = audio, codec_id = flv:audio_codec(CodecId), sound_type = flv:audio_type(SoundType), 
-              sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body}.
+              sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
+              
+decode(metadata, AMF) ->
+  {Command, Rest1} = amf0:decode(AMF),
+  {Args, _} = amf0:decode(Rest1),
+  #video_frame{type = metadata, body = {Command, Args}}.
 
 
 to_tag(#video_frame{type = video} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_VIDEO});

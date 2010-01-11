@@ -50,9 +50,11 @@
 
 audio_codec(adpcm) -> ?FLV_AUDIO_FORMAT_ADPCM;
 audio_codec(aac) -> ?FLV_AUDIO_FORMAT_AAC;
+audio_codec(speex) -> ?FLV_AUDIO_FORMAT_SPEEX;
 audio_codec(mp3) -> ?FLV_AUDIO_FORMAT_MP3;
 audio_codec(?FLV_AUDIO_FORMAT_ADPCM) -> adpcm;
 audio_codec(?FLV_AUDIO_FORMAT_MP3) -> mp3;
+audio_codec(?FLV_AUDIO_FORMAT_SPEEX) -> speex;
 audio_codec(?FLV_AUDIO_FORMAT_AAC) -> aac.
 
 
@@ -76,13 +78,16 @@ audio_rate(rate22) -> ?FLV_AUDIO_RATE_22;
 audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
 
 video_codec(avc) -> ?FLV_VIDEO_CODEC_AVC;
+video_codec(sorensen) -> ?FLV_VIDEO_CODEC_SORENSEN;
 video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
 video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
+video_codec(?FLV_VIDEO_CODEC_SORENSEN) -> sorensen;
 video_codec(?FLV_VIDEO_CODEC_AVC) -> avc.
 
 video_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
 video_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
-
+video_type(disposable) -> ?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME;
+video_type(?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME) -> disposable;
 video_type(?FLV_VIDEO_FRAME_TYPEINTER_FRAME) -> frame;
 video_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
@@ -178,10 +183,12 @@ video_frame(#file_frame{type = ?FLV_TAG_TYPE_META} = Frame, Metadata) ->
   video_frame(Frame#file_frame{type = metadata}, Metadata);
 
 video_frame(#file_frame{type = video, keyframe = true, timestamp = Timestamp}, Data) ->
-  #video_frame{type = video, frame_type = keyframe, raw_body = true, body = Data, timestamp = Timestamp};
+  Frame = ems_flv:decode(video, Data),
+  Frame#video_frame{frame_type = keyframe, timestamp = Timestamp};
   
 video_frame(#file_frame{type = Type, timestamp = Timestamp}, Data) ->
-  #video_frame{type = Type, raw_body = true, body = Data, timestamp = Timestamp}.
+  Frame = ems_flv:decode(Type, Data),
+  Frame#video_frame{timestamp = Timestamp}.
 
 	
 % Extracts width and height from video frames.

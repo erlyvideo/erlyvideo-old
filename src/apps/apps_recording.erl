@@ -46,12 +46,12 @@
 -export(['FCPublish'/2, 'FCUnpublish'/2]).
 
 
-message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = undefined} = Message) ->
-  ?D(Message),
-  #video_frame{timestamp = Timestamp, type = Type, body = undefined, raw_body = true};
+% message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = undefined} = Message) ->
+%   ?D(Message),
+%   #video_frame{timestamp = Timestamp, type = Type, body = undefined, raw_body = true};
 
-message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = Body}) ->
-  Frame = ems_flv:decode(Body),
+message_to_frame(#rtmp_message{type = Type, timestamp = Timestamp, body = Body}) ->
+  Frame = ems_flv:decode(Type, Body),
   % case Frame of
   %   #video_frame{frame_type = keyframe} -> ?D({video, Timestamp, Frame#video_frame.codec_id});
   %   #video_frame{decoder_config = true} -> ?D({Frame#video_frame.type, Timestamp, decoder_config});
@@ -100,7 +100,8 @@ publish(State, #rtmp_funcall{args = [null,URL,<<"LIVE">>]} = AMF) ->
   publish(State, AMF#rtmp_funcall{args = [null,URL,<<"live">>]});
 
 publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null,URL,<<"live">>], stream_id = StreamId} = _AMF) -> 
-  [Name | Params] = string:tokens(binary_to_list(URL), "?"),
+  [Name | _Params] = string:tokens(binary_to_list(URL), "?"),
+  ?D({"LIVE", _AMF#rtmp_funcall.stream_id}),
   ems_log:access(Host, "RECORD LIVE ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
   Recorder = media_provider:create(Host, Name, live),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),

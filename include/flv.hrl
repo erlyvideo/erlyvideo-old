@@ -31,6 +31,7 @@
 -define(FLV_AUDIO_FORMAT_MU_G711,      8).
 -define(FLV_AUDIO_FORMAT_RESERVED,     9).
 -define(FLV_AUDIO_FORMAT_AAC,          10).
+-define(FLV_AUDIO_FORMAT_SPEEX,        11).
 -define(FLV_AUDIO_FORMAT_MP3_8KHZ,     14).
 -define(FLV_AUDIO_FORMAT_DEVICE,       15).
 -define(FLV_AUDIO_AAC_SEQUENCE_HEADER, 0).

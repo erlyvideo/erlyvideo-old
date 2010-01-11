@@ -302,25 +302,25 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = false} = Frame, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp} = Frame, 'WAIT_FOR_DATA', State) ->
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
-    timestamp=TimeStamp,
-    type=Type,
-    stream_id=StreamId,
+    timestamp = TimeStamp,
+    type = Type,
+    stream_id = StreamId,
     body = ems_flv:encode(Frame)},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true}, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
-  Message = #rtmp_message{
-    channel_id = channel_id(Type, StreamId), 
-    timestamp=TimeStamp,
-    type=Type,
-    stream_id=StreamId,
-    body = Body},
-	rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State};
+% handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true}, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
+%   Message = #rtmp_message{
+%     channel_id = channel_id(Type, StreamId), 
+%     timestamp=TimeStamp,
+%     type=Type,
+%     stream_id=StreamId,
+%     body = Body},
+%   rtmp_socket:send(State#rtmp_session.socket, Message),
+%   {next_state, 'WAIT_FOR_DATA', State};
 
 
 handle_info(#rtmp_message{} = Message, StateName, State) ->
