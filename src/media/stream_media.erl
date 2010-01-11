@@ -107,7 +107,6 @@ handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
-  ?D({self(), "Setting owner to", Owner}),
   {reply, ok, MediaInfo#media_info{owner = Owner}, ?TIMEOUT};
 
 handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
@@ -266,7 +265,7 @@ parse_metadata(MediaInfo, #video_frame{}) ->
   
   
 parse_metadata(MediaInfo, [{object, Metadata}]) ->
-  ?D({"Metadata", Metadata}),
+  % ?D({"Metadata", Metadata}),
   set_metadata(MediaInfo, Metadata);
 
 parse_metadata(MediaInfo, [_|Metadata]) -> parse_metadata(MediaInfo, Metadata);
