@@ -42,6 +42,7 @@
 -version(1.0).
 
 -export([encode/2, decode/2]).
+-export([encode_list/1, decode_list/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Socket::rtmp_socket(), Message::rtmp_message()) -> {NewSocket::rtmp_socket(), Packet::binary()}
@@ -120,23 +121,17 @@ encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body 
 encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, rtmp_funcall)-> 
 	encode(State, Message#rtmp_message{body = <<0, (encode_funcall(AMF))/binary>>, type = ?RTMP_INVOKE_AMF3});
 
-% encode(State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 
-%   encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
-% 
-% encode(State, #rtmp_message{type = metadata, body = {Command, Arg}} = Message) -> 
-%   encode(State, Message#rtmp_message{body = <<(amf0:encode(Command))/binary, (amf0:encode(Arg))/binary>>, type = ?RTMP_TYPE_METADATA_AMF0});
-
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 
   encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
 
 encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body)-> 
   encode(State, Message#rtmp_message{body = <<0, Body/binary>>, type = ?RTMP_TYPE_METADATA_AMF3});
 
-encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = {Command, Arg}} = Message) -> 
-  encode(State, Message#rtmp_message{body = <<(amf0:encode(Command))/binary, (amf0:encode(Arg))/binary>>, type = ?RTMP_TYPE_METADATA_AMF0});
+encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Metadata} = Message) -> 
+  encode(State, Message#rtmp_message{body = encode_list(Metadata), type = ?RTMP_TYPE_METADATA_AMF0});
 
-encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = {Command, Arg}} = Message) -> 
-  encode(State, Message#rtmp_message{body = <<0, (amf0:encode(Command))/binary, (amf0:encode(Arg))/binary>>, type = ?RTMP_TYPE_METADATA_AMF3});
+encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = Metadata} = Message) -> 
+  encode(State, Message#rtmp_message{body = <<0, (encode_list(Metadata))/binary>>, type = ?RTMP_TYPE_METADATA_AMF3});
 
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = shared_object, body = SOMessage} = Message) when is_record(SOMessage, so_message)->
   encode(State, Message#rtmp_message{body = encode_shared_object(SOMessage), type = ?RTMP_TYPE_SO_AMF0});
@@ -423,13 +418,15 @@ command(#channel{type = ?RTMP_TYPE_VIDEO, msg = Body} = Channel, State)	 ->
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = video, body = Body}};
 
-command(#channel{type = ?RTMP_TYPE_METADATA_AMF0} = Channel, State)	 ->
+command(#channel{type = ?RTMP_TYPE_METADATA_AMF0, msg = Body} = Channel, State)	 ->
   Message = extract_message(Channel),
-	{State, Message#rtmp_message{type = metadata}};
+  Metadata = decode_list(Body),
+	{State, Message#rtmp_message{type = metadata, body = Metadata}};
 
-command(#channel{type = ?RTMP_TYPE_METADATA_AMF3} = Channel, State)	 ->
+command(#channel{type = ?RTMP_TYPE_METADATA_AMF3, msg = <<_, Body/binary>>} = Channel, State)	 ->
   Message = extract_message(Channel),
-	{State, Message#rtmp_message{type = metadata}};
+  Metadata = decode_list(Body),
+	{State, Message#rtmp_message{type = metadata, body = Metadata}};
 
 % Red5: net.rtmp.codec.RTMPProtocolDecoder
 % // TODO: Unknown byte, probably encoding as with Flex SOs?
@@ -459,17 +456,17 @@ command(#channel{type = Type, msg = Body} = Channel, State) ->
 decode_funcall(Message, StreamId) ->
 	{Command, Rest1} = amf0:decode(Message),
 	{InvokeId, Rest2} = amf0:decode(Rest1),
-	Arguments = decode_list(Rest2, amf0, []),
+	Arguments = decode_list(Rest2),
 	#rtmp_funcall{command = Command, args = Arguments, type = invoke, id = InvokeId, stream_id = StreamId}.
   
   
-decode_list(Data) -> decode_list(Data, amf0, []).
+decode_list(Data) -> decode_list(Data, []).
 
-decode_list(<<>>, _, Acc) -> lists:reverse(Acc);
+decode_list(<<>>, Acc) -> lists:reverse(Acc);
 
-decode_list(Body, Module, Acc) ->
-  {Element, Rest} = Module:decode(Body),
-  decode_list(Rest, Module, [Element | Acc]).
+decode_list(Body, Acc) ->
+  {Element, Rest} = amf0:decode(Body),
+  decode_list(Rest, [Element | Acc]).
 
 
 encode_shared_object(#so_message{name = Name, version = Version, persistent = true, events = Events}) ->
