@@ -64,7 +64,10 @@ handle_call({create_player, Options}, _From, #media_info{clients = Clients} = Me
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(
-    fun([Pid]) -> file_play:client(Pid) end,
+    fun([Pid]) -> 
+      Pid
+      % file_play:client(Pid)
+    end,
   ets:match(Clients, {'$1'})),
   {reply, Entries, MediaInfo};
 

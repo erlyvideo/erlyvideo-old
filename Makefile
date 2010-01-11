@@ -1,4 +1,4 @@
-VERSION=0.9
+VERSION=1.0.1
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
@@ -78,6 +78,12 @@ install:
 	install -c -m 644 doc/* $(DESTROOT)$(DOCDIR)
 	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
 	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+
+archive: ../erlyvideo-$(VERSION).tgz
+	
+
+../erlyvideo-$(VERSION).tgz:
+	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
 
 debian:
 	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/

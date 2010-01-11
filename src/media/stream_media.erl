@@ -94,8 +94,8 @@ handle_call({create_player, Options}, _From, #media_info{name = Name, clients = 
   {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
-  Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
-  {reply, Entries, MediaInfo, ?TIMEOUT};
+  % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
+  {reply, Clients, MediaInfo, ?TIMEOUT};
 
 handle_call({codec_config, video}, _From, #media_info{video_decoder_config = Config} = MediaInfo) ->
   {reply, Config, MediaInfo, ?TIMEOUT};
