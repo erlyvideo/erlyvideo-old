@@ -312,17 +312,6 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp} 
 	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State};
 
-% handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp,body=Body, raw_body = true}, 'WAIT_FOR_DATA', State) when is_binary(Body) ->
-%   Message = #rtmp_message{
-%     channel_id = channel_id(Type, StreamId), 
-%     timestamp=TimeStamp,
-%     type=Type,
-%     stream_id=StreamId,
-%     body = Body},
-%   rtmp_socket:send(State#rtmp_session.socket, Message),
-%   {next_state, 'WAIT_FOR_DATA', State};
-
-
 handle_info(#rtmp_message{} = Message, StateName, State) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, StateName, State};

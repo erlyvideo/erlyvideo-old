@@ -16,8 +16,8 @@ import mx.events.SliderEvent;
 	
 [Bindable]
 private var play_url :String = "video.mp4";
-private var recordStream : VideoStream;
-private var playStream : VideoStream;
+private var recordStream : RecordStream;
+private var playStream : PlayStream;
 
 [Bindable]
 private var playButton:Boolean = false;
@@ -69,13 +69,13 @@ public function check() : void
 public function loadVideoPlayer():void
 {
 
-	playStream = new VideoStream(VideoSource.source);
+	playStream = new PlayStream(VideoSource.source);
 	playStream.addEventListener(VideoSourceEvent.TICK, setProgressBar);
 	playStream.addEventListener(VideoSourceEvent.METADATA, setMetadata);
 	playStream.addEventListener(VideoSourceEvent.STREAM_READY, onReady);
 	playStream.addEventListener(VideoSourceEvent.FILE_NOT_FOUND, onStop);
 	playStream.addEventListener(VideoSourceEvent.FINISHED, onFinish);
-	recordStream = new VideoStream(VideoSource.source);
+	recordStream = new RecordStream(VideoSource.source);
 }
 
 
