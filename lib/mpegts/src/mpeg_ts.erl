@@ -33,9 +33,10 @@
 
 -module(mpeg_ts).
 -author('max@maxidoors.ru').
--include("../../include/ems.hrl").
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-define(TIMEOUT, 4000).
 -include_lib("erlyvideo/include/video_frame.hrl").
--include("../../include/mpegts.hrl").
+-include("mpegts.hrl").
 
 -export([play/3, play/1]).
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
