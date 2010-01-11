@@ -12,6 +12,7 @@
 {"lib/h264/src/*", [{outdir, "lib/h264/ebin"}, {i, "lib/h264/include"}]}.
 {"lib/ertsp/src/*", [{outdir, "lib/ertsp/ebin"}, {i, "lib/ertsp/include"}]}.
 {"lib/mpegts/src/*", [{outdir, "lib/mpegts/ebin"}, {i, "lib/mpegts/include"}]}.
+{"lib/shoutcast/src/*", [{outdir, "lib/shoutcast/ebin"}, {i, "lib/shoutcast/include"}]}.
 {"deps/amf/src/*", [{outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
 {"deps/rtmp/src/*", [{outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"}]}.
 {"deps/log4erl/src/*", [{outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.
