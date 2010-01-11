@@ -163,8 +163,12 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   Command = binary_to_atom(CommandBin, utf8),
   call_function(ems:check_app(State, Command, 2), State, AMF#rtmp_funcall{command = Command});
   
-handle_rtmp_message(State, #rtmp_message{type = Type} = Message) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  gen_fsm:send_event(self(), {publish, Message}),
+handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
+   #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
+  Recorder = array:get(StreamId, Streams),
+  
+  Frame = ems_flv:decode(Type, Body),
+  stream_media:publish(Recorder, Frame#video_frame{timestamp = Timestamp}),
   State;
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->

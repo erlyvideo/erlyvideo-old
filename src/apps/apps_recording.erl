@@ -42,30 +42,8 @@
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([publish/2]).
--export(['WAIT_FOR_DATA'/2]).
 -export(['FCPublish'/2, 'FCUnpublish'/2]).
 
-
-% message_to_frame(#rtmp_message{timestamp = Timestamp, type = Type, body = undefined} = Message) ->
-%   ?D(Message),
-%   #video_frame{timestamp = Timestamp, type = Type, body = undefined, raw_body = true};
-
-message_to_frame(#rtmp_message{type = Type, timestamp = Timestamp, body = Body}) ->
-  Frame = ems_flv:decode(Type, Body),
-  % case Frame of
-  %   #video_frame{frame_type = keyframe} -> ?D({video, Timestamp, Frame#video_frame.codec_id});
-  %   #video_frame{decoder_config = true} -> ?D({Frame#video_frame.type, Timestamp, decoder_config});
-  %   _ -> ok
-  % end,
-  Frame#video_frame{timestamp = Timestamp}.
-
-'WAIT_FOR_DATA'({publish, #rtmp_message{stream_id = StreamId} = Message}, #rtmp_session{streams = Streams} = State) ->
-  Recorder = array:get(StreamId, Streams),
-  stream_media:publish(Recorder, message_to_frame(Message)),
-	{next_state, 'WAIT_FOR_DATA', State};	
-
-
-'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 
 %%-------------------------------------------------------------------------
 %% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()

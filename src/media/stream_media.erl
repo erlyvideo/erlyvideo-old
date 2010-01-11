@@ -20,7 +20,7 @@ start_link(Path, Type, Opts) ->
    gen_server:start_link(?MODULE, [Path, Type, Opts], []).
    
 metadata(Server) ->
-  gen_server:call(Server, {metadata}).
+  gen_server:call(Server, metadata).
 
 codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
 
@@ -28,7 +28,9 @@ publish(undefined, _Frame) ->
   {error, no_stream};
 
 publish(Server, #video_frame{} = Frame) ->
-  gen_server:call(Server, {publish, Frame}).
+  % ?D({Type, Timestamp}),
+  Server ! Frame.
+  % gen_server:call(Server, {publish, Frame}).
 
 set_owner(Server, Owner) ->
   gen_server:call(Server, {set_owner, Owner}).
@@ -101,7 +103,7 @@ handle_call({codec_config, video}, _From, #media_info{video_decoder_config = Con
 handle_call({codec_config, audio}, _From, #media_info{audio_decoder_config = Config} = MediaInfo) ->
   {reply, Config, MediaInfo, ?TIMEOUT};
 
-handle_call({metadata}, _From, MediaInfo) ->
+handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
@@ -110,21 +112,6 @@ handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInf
 
 handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
   {reply, {error, {owner_exists, Owner}}, MediaInfo, ?TIMEOUT};
-
-
-handle_call({publish, #video_frame{timestamp = TS} = Frame}, _From, #media_info{base_timestamp = undefined} = Recorder) ->
-  handle_call({publish, Frame}, _From, Recorder#media_info{base_timestamp = TS});
-
-handle_call({publish, #video_frame{timestamp = TS} = Frame}, _From, 
-            #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
-  % ?D({"Record",Channel#channel.type, TS - BaseTS}),
-  Frame1 = Frame#video_frame{timestamp = TS - BaseTS, stream_id = 1},
-	case Device of
-	  undefined -> ok;
-	  _ -> file:write(Device, ems_flv:to_tag(Frame1))
-	end,
-  lists:foreach(fun(Pid) -> Pid ! Frame1 end, Clients),
-	{reply, ok, Recorder, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From, State}),
@@ -188,17 +175,23 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
 
-handle_info(#video_frame{decoder_config = true, type = audio} = Frame, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
-  {noreply, MediaInfo#media_info{audio_decoder_config = Frame}, ?TIMEOUT};
+handle_info(#video_frame{timestamp = TS} = Frame, #media_info{base_timestamp = undefined} = Recorder) ->
+  handle_info(Frame, Recorder#media_info{base_timestamp = TS});
 
-handle_info(#video_frame{decoder_config = true, type = video} = Frame, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
-  {noreply, MediaInfo#media_info{video_decoder_config = Frame}, ?TIMEOUT};
-
-handle_info(#video_frame{} = Frame, #media_info{clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
-  {noreply, store_last_gop(MediaInfo, Frame), ?TIMEOUT};
+handle_info(#video_frame{timestamp = TS} = Frame, 
+            #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
+  Frame1 = Frame#video_frame{timestamp = TS - BaseTS, stream_id = 1},
+  lists:foreach(fun(Client) -> Client ! Frame1 end, Clients),
+  Recorder1 = parse_metadata(Recorder, Frame),
+  Recorder2 = copy_audio_config(Recorder1, Frame),
+  Recorder3 = copy_video_config(Recorder2, Frame),
+  Recorder4 = store_last_gop(Recorder3, Frame),
+  % ?D({Type, Frame#video_frame.frame_type, TS-BaseTS}),
+  case Device of
+	  undefined -> ok;
+	  _ -> file:write(Device, ems_flv:to_tag(Frame1))
+	end,
+  {noreply, Recorder4, ?TIMEOUT};
 
 handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
@@ -237,7 +230,7 @@ handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
-  ?D({"New GOP", Frame#video_frame.timestamp}),
+  ?D({"New GOP", round(Frame#video_frame.timestamp/1000)}),
   MediaInfo#media_info{gop = [Frame]};
 
 store_last_gop(#media_info{gop = GOP} = MediaInfo, _) when length(GOP) == 5000 ->
@@ -250,6 +243,57 @@ store_last_gop(#media_info{gop = GOP} = MediaInfo, Frame) when is_list(GOP) ->
   
 store_last_gop(MediaInfo, _) ->
   MediaInfo.
+
+
+copy_audio_config(MediaInfo, #video_frame{decoder_config = true, type = audio} = Frame) ->
+  MediaInfo#media_info{audio_decoder_config = Frame};
+
+copy_audio_config(MediaInfo, _) -> MediaInfo.
+
+copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
+  ?D({"Video decoder config"}),
+  MediaInfo#media_info{video_decoder_config = Frame};
+
+copy_video_config(MediaInfo, _) -> MediaInfo.
+
+
+parse_metadata(MediaInfo, #video_frame{type = metadata, body = Metadata}) ->
+  parse_metadata(MediaInfo, Metadata);
+
+parse_metadata(MediaInfo, #video_frame{}) ->
+  MediaInfo;
+  
+  
+parse_metadata(MediaInfo, [{object, Metadata}]) ->
+  set_metadata(MediaInfo, Metadata);
+
+parse_metadata(MediaInfo, [_|Metadata]) -> parse_metadata(MediaInfo, Metadata);
+parse_metadata(MediaInfo, []) -> MediaInfo.
+
+set_metadata(MediaInfo, [{framerate, Rate} | Metadata]) ->
+  set_metadata(MediaInfo#media_info{framerate = Rate}, Metadata);
+
+set_metadata(MediaInfo, [{width, Width} | Metadata]) ->
+  set_metadata(MediaInfo#media_info{width = round(Width)}, Metadata);
+
+set_metadata(MediaInfo, [{height, Height} | Metadata]) ->
+  set_metadata(MediaInfo#media_info{height = round(Height)}, Metadata);
+
+set_metadata(MediaInfo, [{videocodecid, VideoCodec} | Metadata]) ->
+  set_metadata(MediaInfo#media_info{video_codec = video_codec(VideoCodec)}, Metadata);
+
+set_metadata(MediaInfo, [{audiocodecid, AudioCodec} | Metadata]) ->
+  set_metadata(MediaInfo#media_info{audio_codec = audio_codec(AudioCodec)}, Metadata);
+
+set_metadata(MediaInfo, [{_Key, _Value} | Metadata]) ->
+  % ?D({_Key, _Value}),
+  set_metadata(MediaInfo, Metadata);
+
+set_metadata(MediaInfo, []) -> MediaInfo.
+
+video_codec(<<"avc1">>) -> avc.
+
+audio_codec(<<".mp3">>) -> mp3.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
