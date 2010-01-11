@@ -94,8 +94,8 @@ encode(#video_frame{type = video,
                     body = Body}) when is_binary(Body) ->
 	<<(flv:video_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>;
 	
-encode(#video_frame{type = metadata, body = {Command, Args}}) ->
-  <<(amf0:encode(Command))/binary, (amf0:encode(Args))/binary>>.
+encode(#video_frame{type = metadata, body = Metadata}) ->
+  Metadata.
 
 
 decode(video, <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, _CTime:24, Body/binary>>) ->
@@ -120,11 +120,13 @@ decode(audio, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, 
 decode(audio, <<CodecId:4, SoundRate:2, SoundSize:1, SoundType:1, Body/binary>>) ->
   #video_frame{type = audio, codec_id = flv:audio_codec(CodecId), sound_type = flv:audio_type(SoundType), 
               sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
+
+decode(metadata, Metadata) when is_binary(Metadata) ->
+  #video_frame{type = metadata, body = rtmp:decode_list(Metadata)};
               
-decode(metadata, AMF) ->
-  {Command, Rest1} = amf0:decode(AMF),
-  {Args, _} = amf0:decode(Rest1),
-  #video_frame{type = metadata, body = {Command, Args}}.
+decode(metadata, Metadata) ->
+  % ?D({"Metadata", Metadata}),
+  #video_frame{type = metadata, body = Metadata}.
 
 
 to_tag(#video_frame{type = video} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_VIDEO});
