@@ -26,7 +26,7 @@ private var stopButton:Boolean = false;
 [Bindable]
 private var pauseButton:Boolean = false;
 [Bindable]
-private var recordButton:Boolean = false;
+private var enableRecordButton:Boolean = false;
 //  [Bindable]
 //  private var url:String = "video.mp4";
 [Bindable]
@@ -43,6 +43,7 @@ private var currentTime : Number = 0;
 private var quality : Number = 90;
 [Bindable]
 private var recordURL : String;
+private var recording : Boolean = false;
 
 public function init()  : void
 {
@@ -84,7 +85,7 @@ public function onHideClicked(e:Event):void {
 
 public function onReady(e:Event):void {
 	playButton = true;
-	recordButton = true;
+	enableRecordButton = true;
 }
 
 public function onPlay(e:Event):void {
@@ -96,24 +97,17 @@ public function onPlay(e:Event):void {
 		playButton = false;
 		pauseButton = true;
 		stopButton = true;
-		recordButton = false;
 	} else {
 		playButton = true;
 	}
 }
 
 public function onStop(e:Event):void {
-/*  if (recording) {
-    videoContainer.video.attachCamera(null);
-    videoContainer.video.clear();
-  }
-*/	playStream.stop();
-	recordStream.stop();
+	playStream.stop();
 	duration = 0;
 	playButton = true;
 	pauseButton = false;
 	stopButton = true;
-	recordButton = false;
 	
 }
 
@@ -191,10 +185,19 @@ public function onFinish(e:Event) : void
 
 public function onRecord(e:Event) : void
 {
-	if(recordStream.record(player_url.text, videoContainer.video)) {
-		playButton = false;
-		pauseButton = false;
-		stopButton = true;
-		recordButton = false;
-	}
+  if (recording) {
+    videoContainer.video.attachCamera(null);
+    videoContainer.video.clear();
+    recordButton.label = "Record";
+    recordStream.stop();
+    recording = false;
+  } else {
+    recordStream.width = videoWidth;
+    recordStream.height = videoHeight;
+    recordStream.fps = videoFps;
+  	if(recordStream.record(recordURL, videoContainer.video)) {
+  	  recordButton.label = "Stop";
+      recording = true;
+  	}
+  }
 }

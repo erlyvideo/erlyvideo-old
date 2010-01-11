@@ -22,7 +22,7 @@
   		<mx:HSlider id="volSlider" liveDragging="true" value="0.9" minimum="0.0" maximum="1.0" snapInterval="0.01" change="setVolume(volSlider.value)" width="100"/>
     </mx:HBox>
     <mx:HBox>
-      <mx:Button label="Record" click="onRecord(event)" enabled="{recordButton}"/>
+      <mx:Button label="Record" click="onRecord(event)" id="recordButton" enabled="{enableRecordButton}"/>
       <mx:Label text="{recordURL}" />
       <mx:TextInput width="30" text="{videoWidth}" id="videoWidthInput" change="setWidth(int(videoWidthInput.text))" />
       <mx:TextInput width="30" text="{videoHeight}" id="videoHeightInput" change="setHeight(int(videoHeightInput.text))" />

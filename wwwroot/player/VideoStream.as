@@ -20,9 +20,9 @@ package
 		private var _source:VideoSource;
 		public var _stream : NetStream;
 		private var sound : SoundTransform;
-		public var width : int;
-		public var height : int;
-		public var fps : int;
+		public var width : int = 320;
+		public var height : int = 240;
+		public var fps : int = 15;
 		public var totalTime : int;
 		private var statusTimer : Timer;
 		
@@ -176,7 +176,7 @@ package
 		  microphone.gain = 80;
 		  microphone.setUseEchoSuppression(true);
 
-		  _stream.publish(url, "record");
+		  _stream.publish(url, "live");
 		
 			if (playback) {
 				playback.attachCamera(_camera);
