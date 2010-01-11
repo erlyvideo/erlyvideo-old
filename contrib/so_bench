@@ -74,7 +74,7 @@ init_rtmp_client(Server, Port, Path, Name) ->
 rtmp_client(RTMP, Path, Name, Count) ->
   so_sync(RTMP, Name, Count),
   counter ! tick,
-  timer:sleep(50),
+  % timer:sleep(50),
   flush_messages(RTMP),
   rtmp_client(RTMP, Path, Name, Count+1).
 
