@@ -268,98 +268,118 @@ write(Integer, Strings, Objects, Traits) when is_integer(Integer) ->
 
 
 write(Double, Strings, Objects, Traits) when is_float(Double) -> 
-  {<<?DOUBLE, Double/float>>, Strings, Objects, Traits};
+    {<<?DOUBLE, Double/float>>, Strings, Objects, Traits};
 write(infinity, Strings, Objects, Traits) -> 
-  {<<?DOUBLE,16#7F,16#F0,16#00,16#00,16#00,16#00,16#00,16#00>>, Strings, Objects, Traits};
+    {<<?DOUBLE,16#7F,16#F0,16#00,16#00,16#00,16#00,16#00,16#00>>, Strings, Objects, Traits};
 write('-infinity', Strings, Objects, Traits) -> 
-  {<<?DOUBLE,16#FF,16#F0,16#00,16#00,16#00,16#00,16#00,16#00>>, Strings, Objects, Traits};
+    {<<?DOUBLE,16#FF,16#F0,16#00,16#00,16#00,16#00,16#00,16#00>>, Strings, Objects, Traits};
 write(nan, Strings, Objects, Traits) -> 
-  {<<?DOUBLE,16#FF,16#F8,16#00,16#00,16#00,16#00,16#00,16#00>>, Strings, Objects, Traits};
+    {<<?DOUBLE,16#FF,16#F8,16#00,16#00,16#00,16#00,16#00,16#00>>, Strings, Objects, Traits};
 
 
 write(Atom, Strings, Objects, Traits) when is_atom(Atom) -> 
-  write(list_to_binary(atom_to_list(Atom)), Strings, Objects, Traits);
+    write(list_to_binary(atom_to_list(Atom)), Strings, Objects, Traits);
 write(String, Strings, Objects, Traits) when is_binary(String) -> 
-  {Binary, Strings1} = write_string(?STRING,String,Strings),
-  {Binary, Strings1, Objects, Traits};
-
-
-write({xmldoc, XML}, Strings, Objects, Traits) when is_binary(XML) -> 
-  {Binary, Strings1} = write_string(?XMLDOC,XML,Strings),
-  {Binary, Strings1, Objects, Traits};
-
-
-write({date, MilliSeconds}, Strings, Objects, Traits) ->
-  {<<?DATE, 16#01, MilliSeconds/float>>, Strings, Objects, Traits};
-
-
-write({object, ClassName, Members}, Strings, Objects, Traits) -> a;
-
-
-write({xml, XML}, Strings, Objects, Traits) when is_binary(XML) -> 
-  {Binary, Strings1} = write_string(?XML,XML,Strings),
-  {Binary, Strings1, Objects, Traits};
-
-
-write({bytearray, ByteArray}, Strings, Objects, Traits) when is_binary(ByteArray) -> 
-    Length = write_uint29(size(ByteArray) bsl 1 bor 1),
-    Binary = list_to_binary([?BYTEARRAY,Length,ByteArray]),
-    {Binary, Strings, Objects, Traits};
+    {Binary, Strings1} = write_string(?STRING,String,Strings),
+    {Binary, Strings1, Objects, Traits};
 
 
 write(List, Strings, Objects, Traits) when is_list(List) ->
+    write_as_obj(?ARRAY, List, Strings, Objects, Traits);
+write({xmldoc, XML} = Object, Strings, Objects, Traits) when is_binary(XML) -> 
+    write_as_obj(?XMLDOC, Object, Strings, Objects, Traits);
+write({xml, XML} = Object, Strings, Objects, Traits) when is_binary(XML) -> 
+    write_as_obj(?XML, Object, Strings, Objects, Traits);
+write({bytearray, ByteArray} = Object, Strings, Objects, Traits) when is_binary(ByteArray) -> 
+    write_as_obj(?BYTEARRAY, Object, Strings, Objects, Traits);
+write({date, _MilliSeconds} = Object, Strings, Objects, Traits) ->
+    write_as_obj(?DATE, Object, Strings, Objects, Traits);
+write({object, _ClassName, _Members} = Object, Strings, Objects, Traits) -> 
+    write_as_obj(?OBJECT, Object, Strings, Objects, Traits).
+
+
+write_as_obj(Marker, Object, Strings, Objects, Traits) ->
+    case dict:find(Object, Objects) of
+      {ok,Index} -> Header = write_uint29(Index bsl 1),
+                    Binary = list_to_binary([Marker,Header]),
+                    X = {Binary, Strings, Objects, Traits},
+                    io:fwrite("**Marker: ~w   X : ~w~n~n",[Marker,X]),
+                    X;
+           error -> Index = dict:size(Objects),
+                    Objects1 = dict:store(Object, Index, Objects),
+                    X = write_as_obj_helper(Marker, Object, Strings, Objects1, Traits),
+                    io:fwrite("Marker: ~w   X : ~w~n~n",[Marker,X]),
+                    X
+    end.
+
+
+write_as_obj_helper(?ARRAY = Marker, List, Strings, Objects, Traits) ->
     {Associative, Dense} = lists:partition(fun is_keyvaluepair/1,List),
+    io:fwrite("Associative : ~w~n~n",[Associative]),  
+    io:fwrite("Dense : ~w~n~n",[Dense]),
     Length = write_uint29(length(Dense) bsl 1 bor 1),
-    {Written,S,O,T} = write_associative_array(Associative,[?ARRAY,Length],Strings, Objects, Traits),
+    {Written,S,O,T} = write_associative_array(Associative,[Marker,Length],Strings, Objects, Traits),
     {Output,S1,O1,T1} = write_dense_array(Dense, Written, S, O, T),
-    {list_to_binary(Output),S1,O1,T1}.
+    {list_to_binary(Output),S1,O1,T1};
+
+write_as_obj_helper(?DATE = Marker, {date, MilliSeconds}, Strings, Objects, Traits) ->
+    {<<Marker, 16#01, MilliSeconds/float>>, Strings, Objects, Traits};
+
+write_as_obj_helper(?OBJECT = Marker, {object, ClassName, Members}, Strings, Objects, Traits) -> a;
+
+write_as_obj_helper(Marker, {_, Data}, Strings, Objects, Traits) -> 
+    Length = write_uint29(size(Data) bsl 1 bor 1),
+    Binary = list_to_binary([Marker,Length,Data]),
+    {Binary, Strings, Objects, Traits}.
 
 
 write_uint29(Unsigned) when Unsigned >= 16#00000000, Unsigned =< 16#0000007F -> <<Unsigned>>;
 write_uint29(Unsigned) when Unsigned >= 16#00000080, Unsigned =< 16#00003FFF ->
-  <<((Unsigned bsr 7) bor 16#80), (Unsigned band 16#7F)>>;
+    <<((Unsigned bsr 7) bor 16#80), (Unsigned band 16#7F)>>;
 write_uint29(Unsigned) when Unsigned >= 16#00004000, Unsigned =< 16#001FFFFF ->
-  <<((Unsigned bsr 14) bor 16#80),((Unsigned bsr 7) bor 16#80),(Unsigned band 16#7F)>>;
+    <<((Unsigned bsr 14) bor 16#80),((Unsigned bsr 7) bor 16#80),(Unsigned band 16#7F)>>;
 write_uint29(Unsigned) when Unsigned >= 16#00200000, Unsigned =< 16#1FFFFFFF ->
     <<((Unsigned bsr 22) bor 16#80),((Unsigned bsr 15) bor 16#80),((Unsigned bsr 8) bor 16#80),(Unsigned band 16#FF)>>.
 
 
 write_dense_array([], Output, Strings, Objects, Traits) -> {Output, Strings, Objects, Traits};
 write_dense_array([H|Remaining], Output, Strings, Objects, Traits) -> 
-  {JustWritten,S,O,T} = write(H, Strings, Objects, Traits),
-  EverythingWritten = [Output,JustWritten],
-  write_dense_array(Remaining, EverythingWritten, S, O, T). 
+    {JustWritten,S,O,T} = write(H, Strings, Objects, Traits),
+    EverythingWritten = [Output,JustWritten],
+    write_dense_array(Remaining, EverythingWritten, S, O, T). 
 
 
 write_associative_array([], Output, Strings, Objects, Traits) -> 
-  {lists:flatten([Output,16#01]), Strings, Objects, Traits}; 
+    {lists:flatten([Output,16#01]), Strings, Objects, Traits}; 
 write_associative_array([H|Remaining], Output, Strings, Objects, Traits) -> 
-  {Key, Value} = H,
-  {<<16#06,K/binary>>,S,O,T} = write(Key, Strings, Objects, Traits),    
-  {V,S1,O1,T1} = write(Value, S, O, T),
-  EverythingWritten = [Output, K, V],
-  write_associative_array(Remaining, EverythingWritten, S1, O1, T1).
+    {Key, Value} = H,
+    {<<16#06,K/binary>>,S,O,T} = write(Key, Strings, Objects, Traits),    
+    {V,S1,O1,T1} = write(Value, S, O, T),
+    EverythingWritten = [Output, K, V],
+    write_associative_array(Remaining, EverythingWritten, S1, O1, T1).
 
 
 write_string(Marker, String, Strings) ->
-  case dict:find(String, Strings) of
-    {ok,Index} -> Strings1 = Strings,
-                  Header = write_uint29(Index bsl 1),
-                  Binary = list_to_binary([Marker,Header]);
-        error  -> Index = dict:size(Strings),
-                  Strings1 = dict:store(String, Index, Strings),
-                  Header = write_uint29(size(String) bsl 1 bor 1),
-                  Binary = list_to_binary([Marker,Header,String])
-  end,
-  {Binary, Strings1}.
+    case dict:find(String, Strings) of
+      {ok,Index} -> Strings1 = Strings,
+                    Header = write_uint29(Index bsl 1),
+                    Binary = list_to_binary([Marker,Header]);
+          error  -> Index = dict:size(Strings),
+                    Strings1 = dict:store(String, Index, Strings),
+                    Header = write_uint29(size(String) bsl 1 bor 1),
+                    Binary = list_to_binary([Marker,Header,String])
+    end,
+    {Binary, Strings1}.
 
 
 find(Reference, Dictionary) ->
-  case dict:find(Reference, Dictionary) of
-    {ok, Value} -> Value;
-              _ -> throw({error,{reference_not_found,Reference,dict:to_list(Dictionary)}})
-  end.
+    case dict:find(Reference, Dictionary) of
+      {ok, Value} -> Value;
+                _ -> throw({error,{reference_not_found,Reference,dict:to_list(Dictionary)}})
+    end.
 
 
-is_keyvaluepair({K,_V}) when is_binary(K); is_atom(K) -> true;  
+is_keyvaluepair({K,_V})
+    when K == xmldoc orelse K == xml orelse K == bytearray orelse K == date orelse K == object -> false;  
+is_keyvaluepair({K,_V}) when is_binary(K) orelse is_atom(K) -> true;  
 is_keyvaluepair(_V) -> false.

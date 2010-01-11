@@ -106,6 +106,14 @@ xmldoc_test_() ->
 
 xmldoc_reference_test_() ->
   [
+    ?_a([{xmldoc,<<"<t />">>},{xmldoc,<<"<t />">>}],
+        <<16#09,16#05,16#01,16#07,16#0B,16#3C,16#74,16#20,16#2F,16#3E,16#07,16#02>>),
+  
+    ?_a([{xmldoc,<<"<test>hello</test>">>},{xmldoc,<<"<test>world</test>">>},{xmldoc,<<"<test>hello</test>">>},
+         {xmldoc,<<"<test>world</test>">>},{xmldoc,<<"<test>hello</test>">>},{xmldoc,<<"<test>world</test>">>}],
+         <<16#09,16#0D,16#01,16#07,16#25,"<test>hello</test>",16#07,16#25,"<test>world</test>",16#07,16#02,
+         16#07,16#04,16#07,16#02,16#07,16#04>>),
+  
     ?_a({object,<<>>,dict:store(b,{xmldoc, <<"<hello>test</hello>">>},
                                 dict:store(a,{xmldoc, <<"<hello>test</hello>">>},dict:new()))},
     <<16#0A,16#0B,16#01,16#03,"a",16#07,16#27,"<hello>test</hello>",16#03,"b",16#07,16#02,16#01>>)
@@ -157,7 +165,15 @@ xml_test_() ->
 
 
 xml_reference_test_() ->
-  [
+  [ 
+    ?_a([{xml,<<"<t/>">>},{xml,<<"<t/>">>}],
+      <<16#09,16#05,16#01,16#0B,16#09,16#3C,16#74,16#2F,16#3E,16#0B,16#02>>),
+  
+    ?_a([{xml,<<"<test>hello</test>">>},{xml,<<"<test>world</test>">>},{xml,<<"<test>hello</test>">>},
+         {xml,<<"<test>world</test>">>},{xml,<<"<test>hello</test>">>},{xml,<<"<test>world</test>">>}],
+         <<16#09,16#0D,16#01,16#0B,16#25,"<test>hello</test>",16#0B,16#25,"<test>world</test>",
+         16#0B,16#02,16#0B,16#04,16#0B,16#02,16#0B,16#04>>),
+  
     ?_a({object,<<>>,dict:store(b,{xml, <<"<hello>test</hello>">>},
                                 dict:store(a,{xml, <<"<hello>test</hello>">>},dict:new()))},
     <<16#0A,16#0B,16#01,16#03,"a",16#0B,16#27,"<hello>test</hello>",16#03,"b",16#0B,16#02,16#01>>)
@@ -178,7 +194,7 @@ bytearray_reference_test_() ->
   ].
 
 
-decode_object_test_() ->
+object_test_() ->
   [
     ?_a({object,<<>>,dict:store(b,200,dict:store(a,100,dict:new()))},
         <<16#0A,16#0B,16#01,16#03,16#61,16#04,16#64,16#03,16#62,16#04,16#81,16#48,16#01>>),
