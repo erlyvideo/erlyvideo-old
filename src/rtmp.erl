@@ -120,17 +120,23 @@ encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body 
 encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, rtmp_funcall)-> 
 	encode(State, Message#rtmp_message{body = <<0, (encode_funcall(AMF))/binary>>, type = ?RTMP_INVOKE_AMF3});
 
+% encode(State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 
+%   encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
+% 
+% encode(State, #rtmp_message{type = metadata, body = {Command, Arg}} = Message) -> 
+%   encode(State, Message#rtmp_message{body = <<(amf0:encode(Command))/binary, (amf0:encode(Arg))/binary>>, type = ?RTMP_TYPE_METADATA_AMF0});
+
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body) -> 
-	encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
+  encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF0});
 
 encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = Body} = Message) when is_binary(Body)-> 
-	encode(State, Message#rtmp_message{body = Body, type = ?RTMP_TYPE_METADATA_AMF3});
+  encode(State, Message#rtmp_message{body = <<0, Body/binary>>, type = ?RTMP_TYPE_METADATA_AMF3});
 
-encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = Object} = Message) -> 
-	encode(State, Message#rtmp_message{body = amf0:encode(Object), type = ?RTMP_TYPE_METADATA_AMF0});
+encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = metadata, body = {Command, Arg}} = Message) -> 
+  encode(State, Message#rtmp_message{body = <<(amf0:encode(Command))/binary, (amf0:encode(Arg))/binary>>, type = ?RTMP_TYPE_METADATA_AMF0});
 
-encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = Object} = Message) -> 
-	encode(State, Message#rtmp_message{body = amf0:encode(Object), type = ?RTMP_TYPE_METADATA_AMF3});
+encode(#rtmp_socket{amf_version = 3} = State, #rtmp_message{type = metadata, body = {Command, Arg}} = Message) -> 
+  encode(State, Message#rtmp_message{body = <<0, (amf0:encode(Command))/binary, (amf0:encode(Arg))/binary>>, type = ?RTMP_TYPE_METADATA_AMF3});
 
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = shared_object, body = SOMessage} = Message) when is_record(SOMessage, so_message)->
   encode(State, Message#rtmp_message{body = encode_shared_object(SOMessage), type = ?RTMP_TYPE_SO_AMF0});
