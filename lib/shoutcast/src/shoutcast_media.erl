@@ -115,6 +115,7 @@ handle_info({tcp, Socket, Bin}, #shoutcast{buffer = <<>>} = State) ->
 
 handle_info({tcp, Socket, Bin}, #shoutcast{buffer = Buffer} = State) ->
   inet:setopts(Socket, [{active, once}]),
+  % ?D({"Bin", size(Bin), size(Buffer)}),
   {noreply, decode(State#shoutcast{buffer = <<Buffer/binary, Bin/binary>>})};
 
 handle_info(#video_frame{decoder_config = true, type = audio} = Frame, State) ->
@@ -161,9 +162,24 @@ decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) 
     {ok, http_eoh, Rest} ->
       decode(State#shoutcast{state = body, buffer = Rest})
   end;
-  
-decode(#shoutcast{state = body} = State) ->
-  State#shoutcast{buffer = <<>>}.
+
+% decode(#shoutcast{state = metadata, buffer = <<Length, Data/binary>>} = State) when size(Data) >= Length*16 ->
+%   MetadataLength = Length*16,
+%   <<Metadata:MetadataLength/binary, Rest/binary>> = Data,
+%   % ?D({"Metadata", Length, Metadata}),
+%   decode(State#shoutcast{state = body, buffer = Rest});
+% 
+% decode(#shoutcast{state = metadata} = State) ->
+%   State;
+%   
+decode(#shoutcast{state = body, buffer = Data} = State) ->
+  % ?D({"Decode"}),
+  case aac:decode(Data) of
+    {ok, Frame, Rest} -> decode(State#shoutcast{buffer = Rest});
+    {more, undefined} -> 
+      % ?D(size(Data)),
+      State
+  end.
       
 
 

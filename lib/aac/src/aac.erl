@@ -1,5 +1,6 @@
 -module(aac).
 -author(max@maxidoors.ru).
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -record(aac_config, {
   type,
@@ -8,7 +9,23 @@
   samples_per_frame
 }).
 
--export([decode_config/1]).
+-export([decode_config/1, decode/1]).
+
+decode(<<_Syncword:12, _ID:1, _Layer:2, 1:1, _Profile:2, SampleRate:4,
+         _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+         FrameLength:13, _ADTS:11, _Count:2, Frame:FrameLength/binary, Rest/binary>>) ->
+  ?D({noerr, _ID, _Layer, _Profile, frequency(SampleRate), _Private, channels(Channels), _Original, _Home, _Copyright, _CopyrightStart, FrameLength, _Count}),
+  {ok, Frame, Rest};
+
+decode(<<_Syncword:12, _ID:1, _Layer:2, 0:1, _Profile:2, SampleRate:4,
+           _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+           FrameLength:13, _ADTS:11, _Count:2, _CRC32:16, Frame:FrameLength/binary, Rest/binary>>) ->
+  ?D({err, _ID, _Layer, _Profile, frequency(SampleRate), _Private, channels(Channels), _Original, _Home, _Copyright, _CopyrightStart, FrameLength, _Count}),
+  {ok, Frame, Rest};
+
+  
+decode(_) ->
+  {more, undefined}. 
 
 decode_config(<<ObjectType:5, 2#1111:4, FrequencyIndex:24, ChannelConfig:4, FrameLength:1, _DependsCore:1, _Extension:1, _/binary>>) ->
   unpack_config(ObjectType, FrequencyIndex, ChannelConfig, FrameLength);
