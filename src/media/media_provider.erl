@@ -170,8 +170,8 @@ open_media_entry({Name, Type}, #media_provider{host = Host, opened_media = Opene
   end.
   
 detect_type(Host, Name) ->
-  % detect_shoutcast(Host, Name).
-  detect_mpeg_ts(Host, Name).
+  detect_shoutcast(Host, Name).
+  % detect_mpeg_ts(Host, Name).
 
 detect_shoutcast(Host, Name) ->
   {ok, Re} = re:compile("http://(.*)"),

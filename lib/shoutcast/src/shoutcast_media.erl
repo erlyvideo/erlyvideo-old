@@ -15,6 +15,7 @@
   state,
   format = aac,
   buffer = <<>>,
+  timestamp,
   clients = [],
   headers = [],
   byte_counter = 0
@@ -200,7 +201,8 @@ decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<_, Rest/binary
         	  sound_size	  = bit16,
         	  sound_rate	  = rate44
         	},
-          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig})
+        	send_frame(AudioConfig, State),
+          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0})
       end;
     {more, undefined} ->
       ?D({"Want more AAC for first frame"}),
@@ -218,11 +220,21 @@ decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<>>} = State) -
   ?D({"No AAC sync"}),
   State;
 
-decode(#shoutcast{state = body, format = aac, buffer = Data} = State) ->
+decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp} = State) ->
   % ?D({"Decode"}),
   case aac:decode(Data) of
-    {ok, Frame, Rest} -> 
-      decode(State#shoutcast{buffer = Rest});
+    {ok, Packet, Rest} ->
+      Frame = #video_frame{       
+        type          = audio,
+        timestamp     = Timestamp,
+        body          = Packet,
+    	  codec_id	= aac,
+    	  sound_type	  = stereo,
+    	  sound_size	  = bit16,
+    	  sound_rate	  = rate44
+      },
+      send_frame(Frame, State),
+      decode(State#shoutcast{buffer = Rest, timestamp = Timestamp + 1024});
     {error, unknown} -> 
       <<_, Rest/binary>> = Data,
       ?D({"sync aac"}),
