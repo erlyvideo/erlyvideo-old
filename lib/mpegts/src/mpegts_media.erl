@@ -73,6 +73,10 @@
 start_link(URL, Type, Opts) ->
   gen_server:start_link(?MODULE, [URL, Type, Opts], []).
 
+init([undefined, Type, _]) ->
+  process_flag(trap_exit, true),
+  {ok, #ts_lander{pids = [#stream{pid = 0, handler = pat}]}};
+  
 
 init([URL, Type, Opts]) when is_binary(URL)->
   init([binary_to_list(URL), Type, Opts]);
@@ -109,7 +113,7 @@ init([URL, mpeg_ts, _Opts]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({set_socket, Socket}, _From, TSLander) ->
-  inet:setopts(Socket, [{active, true}, {packet, raw}]),
+  inet:setopts(Socket, [{active, once}, {packet, httph_bin}]),
   ?D({"MPEG TS received socket"}),
   {reply, ok, TSLander#ts_lander{socket = Socket}};
 
@@ -238,7 +242,7 @@ demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid
   case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler, counter = _OldCounter} = Stream ->
       % Counter = (OldCounter + 1) rem 15,
-      ?D({Handler, Packet}),
+      % ?D({Handler, Packet}),
       ?MODULE:Handler(ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, Header);
     #stream_out{handler = Handler} ->
       Handler ! {ts_packet, Header, ts_payload(Packet)},

@@ -26,7 +26,7 @@
          code_change/3]).
 
 % AAC+ example
-% {ok, Pid1} = ems_sup:start_shoutcast_media("http://91.121.132.237:8052").
+% {ok, Pid1} = ems_sup:start_shoutcast_media("http://91.121.132.237:8052/").
 % MP3 example
 % {ok, Pid2} = ems_sup:start_shoutcast_media("http://205.188.215.230:8002").
 
@@ -36,6 +36,10 @@ start_link(URL, Opts) ->
 
 init([URL, Opts]) when is_binary(URL)->
   init([binary_to_list(URL), Opts]);
+  
+init([undefined, _]) ->
+  process_flag(trap_exit, true),
+  {ok, #shoutcast{state = request}};
 
 init([URL, _Opts]) ->
   process_flag(trap_exit, true),
@@ -62,7 +66,7 @@ init([URL, _Opts]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({set_socket, Socket}, _From, State) ->
-  inet:setopts(Socket, [{active, true}, {packet, raw}]),
+  inet:setopts(Socket, [binary, {active, once}, {packet, raw}]),
   ?D({"Shoutcast received socket"}),
   {reply, ok, State#shoutcast{socket = Socket}};
 
@@ -120,7 +124,6 @@ handle_info({tcp, Socket, Bin}, #shoutcast{buffer = <<>>} = State) ->
 
 handle_info({tcp, Socket, Bin}, #shoutcast{buffer = Buffer} = State) ->
   inet:setopts(Socket, [{active, once}]),
-  % ?D({"Bin", size(Bin), size(Buffer)}),
   {noreply, decode(State#shoutcast{buffer = <<Buffer/binary, Bin/binary>>})};
 
 handle_info(#video_frame{decoder_config = true, type = audio} = Frame, State) ->

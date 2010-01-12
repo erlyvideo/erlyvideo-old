@@ -170,20 +170,12 @@ open_media_entry({Name, Type}, #media_provider{host = Host, opened_media = Opene
   end.
   
 detect_type(Host, Name) ->
-  detect_shoutcast(Host, Name).
-  % detect_mpeg_ts(Host, Name).
+  detect_http(Host, Name).
 
-detect_shoutcast(Host, Name) ->
+detect_http(Host, Name) ->
   {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
-    {match, _Captured} -> {Name, shoutcast};
-    _ -> detect_mpeg_ts(Host, Name)
-  end.
-
-detect_mpeg_ts(Host, Name) ->
-  {ok, Re} = re:compile("http://(.*)"),
-  case re:run(Name, Re) of
-    {match, _Captured} -> {Name, mpeg_ts};
+    {match, _Captured} -> {Name, http};
     _ -> detect_file(Host, Name)
   end.
 
