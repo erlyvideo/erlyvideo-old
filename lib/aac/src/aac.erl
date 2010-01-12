@@ -9,23 +9,38 @@
   samples_per_frame
 }).
 
--export([decode_config/1, decode/1]).
+-export([decode_config/1, decode/1, config/3, config/1]).
 
-decode(<<_Syncword:12, _ID:1, _Layer:2, 1:1, _Profile:2, SampleRate:4,
+
+%
+%     0         1             2           3         4           5         6
+% ||__sync__||sync|___e||pr|rate|_|c||hn|____|fr||ame_len_||gth|_____||______|cn||
+%
+  
+decode(<<16#FFF:12, _ID:1, _Layer:2, 1:1, _Profile:2, SampleRate:4,
          _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
          FrameLength:13, _ADTS:11, _Count:2, Frame:FrameLength/binary, Rest/binary>>) ->
   ?D({noerr, _ID, _Layer, _Profile, frequency(SampleRate), _Private, channels(Channels), _Original, _Home, _Copyright, _CopyrightStart, FrameLength, _Count}),
   {ok, Frame, Rest};
 
-decode(<<_Syncword:12, _ID:1, _Layer:2, 0:1, _Profile:2, SampleRate:4,
+decode(<<16#FFF:12, _ID:1, _Layer:2, 0:1, _Profile:2, SampleRate:4,
            _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
            FrameLength:13, _ADTS:11, _Count:2, _CRC32:16, Frame:FrameLength/binary, Rest/binary>>) ->
   ?D({err, _ID, _Layer, _Profile, frequency(SampleRate), _Private, channels(Channels), _Original, _Home, _Copyright, _CopyrightStart, FrameLength, _Count}),
   {ok, Frame, Rest};
 
+
+decode(<<16#FFF:12, _:4, _/binary>>) ->
+  {more, undefined};
+
+decode(<<16#FF>>) ->
+  {more, undefined};
+  
+decode(<<>>) ->
+  {more, undefined};
   
 decode(_) ->
-  {more, undefined}. 
+  {error, unknown}.
 
 decode_config(<<ObjectType:5, 2#1111:4, FrequencyIndex:24, ChannelConfig:4, FrameLength:1, _DependsCore:1, _Extension:1, _/binary>>) ->
   unpack_config(ObjectType, FrequencyIndex, ChannelConfig, FrameLength);
@@ -35,6 +50,18 @@ decode_config(<<ObjectType:5, FrequencyIndex:4, ChannelConfig:4, FrameLength:1, 
 unpack_config(ObjectType, Frequency, ChannelConfig, FrameLength) ->
   #aac_config{samples_per_frame = samples_per_frame(FrameLength), type = object_type(ObjectType), frequency = frequency(Frequency), channels = channels(ChannelConfig)}.
 
+
+config(<<16#FFF:12, _ID:1, _Layer:2, _:1, _Profile:2, SampleRate:4,
+           _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+           FrameLength:13, _ADTS:11, _Count:2, _/binary>>) ->
+  config(_Profile, SampleRate,Channels).
+
+
+config(Profile, Frequency, Channels) ->
+  _DependsCore = 1,
+  _Extension = 0,
+  _Samples = 0,
+  <<Profile:5, Frequency:4, Channels:4, _Samples:1, _DependsCore:1, _Extension:1>>.
 
 samples_per_frame(0) -> 1024;
 samples_per_frame(1) -> 960.

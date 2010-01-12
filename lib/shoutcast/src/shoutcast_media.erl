@@ -13,6 +13,7 @@
   url,
   audio_config = undefined,
   state,
+  format = aac,
   buffer = <<>>,
   clients = [],
   headers = [],
@@ -23,7 +24,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
+% AAC+ example
 % {ok, Pid1} = ems_sup:start_shoutcast_media("http://91.121.132.237:8052").
+% MP3 example
+% {ok, Pid2} = ems_sup:start_shoutcast_media("http://205.188.215.230:8002").
 
 start_link(URL, Opts) ->
   gen_server:start_link(?MODULE, [URL, Opts], []).
@@ -160,7 +164,7 @@ decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) 
       ?D({Name, Value}),
       decode(State#shoutcast{headers = [{Name, Value} | Headers], buffer = Rest});
     {ok, http_eoh, Rest} ->
-      decode(State#shoutcast{state = body, buffer = Rest})
+      decode(State#shoutcast{state = unsynced_body, format = format(State), buffer = Rest})
   end;
 
 % decode(#shoutcast{state = metadata, buffer = <<Length, Data/binary>>} = State) when size(Data) >= Length*16 ->
@@ -171,16 +175,69 @@ decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) 
 % 
 % decode(#shoutcast{state = metadata} = State) ->
 %   State;
-%   
-decode(#shoutcast{state = body, buffer = Data} = State) ->
+%
+
+decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<_, Rest/binary>>} = State) ->
+  case aac:decode(State#shoutcast.buffer) of
+    {ok, _Frame, Second} ->
+      ?D({"Presync AAC"}),
+      case aac:decode(Second) of
+        {more, undefined} ->
+          ?D({"Want more AAC for second frame"}),
+          State;
+        {error, unknown} ->
+          ?D({"Presync failed"}),
+          decode(State#shoutcast{buffer = Rest});
+        {ok, _, _} ->
+          ?D({"Synced AAC"}),
+          AudioConfig = #video_frame{       
+           	type          = audio,
+           	decoder_config = true,
+        		timestamp      = 0,
+        		body          = aac:config(Second),
+        	  codec_id	    = aac,
+        	  sound_type	  = stereo,
+        	  sound_size	  = bit16,
+        	  sound_rate	  = rate44
+        	},
+          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig})
+      end;
+    {more, undefined} ->
+      ?D({"Want more AAC for first frame"}),
+      State;
+    {error, unknown} ->
+      decode(State#shoutcast{buffer = Rest})
+  end;
+
+% decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<16#FFF:12, _:18, Length1:13, _:13, _:Length1, 16#FFF:12, _:18, Length2:13, _:13, _:Length2, _/binary>>} = State) ->
+%   {_First, Buffer} = split_binary(State#shoutcast.buffer, 7+Length1),
+%   decode(State#shoutcast{state = body, buffer = Buffer});
+% 
+
+decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<>>} = State) ->
+  ?D({"No AAC sync"}),
+  State;
+
+decode(#shoutcast{state = body, format = aac, buffer = Data} = State) ->
   % ?D({"Decode"}),
   case aac:decode(Data) of
-    {ok, Frame, Rest} -> decode(State#shoutcast{buffer = Rest});
+    {ok, Frame, Rest} -> 
+      decode(State#shoutcast{buffer = Rest});
+    {error, unknown} -> 
+      <<_, Rest/binary>> = Data,
+      ?D({"sync aac"}),
+      decode(State#shoutcast{buffer = Rest});
     {more, undefined} -> 
       % ?D(size(Data)),
       State
   end.
       
+format(#shoutcast{headers = Headers}) ->
+  case proplists:get_value('Content-Type', Headers) of
+    <<"audio/mpeg">> -> mp3;
+    <<"audio/aacp">> -> aac
+  end.
+
 
 
 send_frame(Frame, #shoutcast{clients = Clients} = State) ->
