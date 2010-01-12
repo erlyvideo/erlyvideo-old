@@ -37,7 +37,6 @@ analyze-coverage:
 analyze-dialyzer:
 	@echo $(call MSG,"Analyzing with Dialyzer ...")
 	cd tmp; dialyzer --build_plt -r "."
-	rm -rf tmp/*.erl
 	
 docs:
 	@echo $(call MSG,"Creating Documentation ...")

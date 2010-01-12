@@ -25,7 +25,7 @@
 %% @type xmldoc()    =   {xmldoc, Document::binary()}.
 %% @type date()      =   {date, MilliSeconds::float()}.
 %% @type array()     =   [ {binary(),amf3()} | {atom(),amf3()} | amf3()]
-%% @type object()    =   {object, Class::binary(), Members::dictionary()}.
+%% @type object()    =   {object, Class::binary(), Properties::proplist()}.
 %% @type xml()       =   {xml, XML::binary()}.
 %% @type bytearray() =   {bytearray, Bytes::binary()}.
 
@@ -35,9 +35,9 @@
 %% @end 
 %%---------------------------------------
 
-decode(Data) ->
-    {Read, Remaining, _, _, _} = read(Data, dict:new(), dict:new(), dict:new()),
-    {Read,Remaining}.
+decode(AMF) ->
+    {Term, Remaining, _, _, _} = read(AMF, dict:new(), dict:new(), dict:new()),
+    {Term, Remaining}.
   
 %%---------------------------------------
 %% @doc Encode data to an AMF 3 encoded 
@@ -45,9 +45,9 @@ decode(Data) ->
 %% @end 
 %%---------------------------------------
 
-encode(Data) -> 
-    {Written, _, _, _} = write(Data, dict:new(), dict:new(), dict:new()),
-    Written.
+encode(Term) -> 
+    {AMF, _, _, _} = write(Term, dict:new(), dict:new(), dict:new()),
+    AMF.
 
 
 %%%%==========================================================================
@@ -159,12 +159,12 @@ read_as_obj_helper(array, N, Data, Strings, Objects, Traits) ->
 read_as_obj_helper(object, N, Data, Strings, Objects, Traits) ->
     {{ClassName,IsDynamic,IsExternalizable,_,Properties}, R, S, O, T} = read_traits(N, Data, Strings, Objects, Traits),
     case IsExternalizable of
-      true  -> {externalizable, R, S, O, T}; %% @todo
-      false -> {SealedPD, R1, S1, O1, T1} = read_property_values(Properties, R ,dict:new(), S, O, T),
+      true  -> {externalizable, R, S, O, T}; %% @todo handle externalizable
+      false -> {P, R1, S1, O1, T1} = read_property_values(Properties, R ,[], S, O, T),
                case  IsDynamic of
-                 false -> {Object, R3, S3, O3, T3} = {{object, ClassName, SealedPD}, R1, S1, O1, T1};
-                 true  -> {PD, R2, S2, O2, T2} = read_dynamic_properties(R1, SealedPD, S1, O1, T1), 
-                          {Object, R3, S3, O3, T3} = {{object, ClassName, PD}, R2, S2, O2, T2}
+                 false -> {Object, R3, S3, O3, T3} = {{object, ClassName, P}, R1, S1, O1, T1};
+                 true  -> {P1, R2, S2, O2, T2} = read_dynamic_properties(R1, P, S1, O1, T1), 
+                          {Object, R3, S3, O3, T3} = {{object, ClassName, P1}, R2, S2, O2, T2}
                end, 
                {Object, R3, S3, O3, T3}
     end;
@@ -191,14 +191,13 @@ read_dense_array(Length, List, Data, Strings, Objects, Traits) ->
     read_dense_array(Length-1, [Item|List], R, S, O, T).  
 
 
-read_dynamic_properties(Data, Dictionary, Strings, Objects, Traits) ->
+read_dynamic_properties(Data, List, Strings, Objects, Traits) ->
     {Property, R, S1} = read_string(Data, Strings),
     case Property of
-      <<>> -> {Dictionary, R, S1, Objects, Traits};
+      <<>> -> {lists:reverse(List), R, S1, Objects, Traits};
          _ -> {Value, R1, S2, O1, T1} = read(R, S1,Objects,Traits),
-              PropertyAtom = list_to_atom(binary_to_list(Property)),
-              PropertyDictionary = dict:store(PropertyAtom,Value, Dictionary),
-              read_dynamic_properties(R1, PropertyDictionary, S2, O1, T1)
+              PropertyList = [{Property, Value} | List],
+              read_dynamic_properties(R1, PropertyList, S2, O1, T1)
     end.          
 
 
@@ -209,12 +208,12 @@ read_property_names(Count,Properties,Data,Strings) ->
   read_property_names(Count-1, [PropertyAtom|Properties], R, S1).
 
 
-read_property_values([], Data, PropertyDictionary, Strings, Objects, Traits) -> 
-    {PropertyDictionary, Data, Strings, Objects, Traits};
-read_property_values([Property|Tail], Data, Dictionary, Strings, Objects, Traits) ->
+read_property_values([], Data, PropertyList, Strings, Objects, Traits) -> 
+    {lists:reverse(PropertyList), Data, Strings, Objects, Traits};
+read_property_values([Property|Tail], Data, List, Strings, Objects, Traits) ->
         {Value, R, S, O, T} = read(Data, Strings, Objects, Traits),
-        PropertyDictionary = dict:store(Property, Value, Dictionary),
-        read_property_values( Tail, R, PropertyDictionary, S, O, T).
+        PropertyList = [{Property, Value} | List],
+        read_property_values( Tail, R, PropertyList, S, O, T).
 
 
 read_traits(Header, Data, Strings, Objects, Traits) ->
@@ -280,8 +279,8 @@ write(nan, Strings, Objects, Traits) ->
 write(Atom, Strings, Objects, Traits) when is_atom(Atom) -> 
     write(list_to_binary(atom_to_list(Atom)), Strings, Objects, Traits);
 write(String, Strings, Objects, Traits) when is_binary(String) -> 
-    {Binary, Strings1} = write_string(?STRING,String,Strings),
-    {Binary, Strings1, Objects, Traits};
+    {Binary, Strings1} = write_string(String,Strings),
+    {<<?STRING, Binary/binary>>, Strings1, Objects, Traits};
 
 
 write(List, Strings, Objects, Traits) when is_list(List) ->
@@ -302,30 +301,39 @@ write_as_obj(Marker, Object, Strings, Objects, Traits) ->
     case dict:find(Object, Objects) of
       {ok,Index} -> Header = write_uint29(Index bsl 1),
                     Binary = list_to_binary([Marker,Header]),
-                    X = {Binary, Strings, Objects, Traits},
-                    io:fwrite("**Marker: ~w   X : ~w~n~n",[Marker,X]),
-                    X;
+                    {Binary, Strings, Objects, Traits};
            error -> Index = dict:size(Objects),
                     Objects1 = dict:store(Object, Index, Objects),
-                    X = write_as_obj_helper(Marker, Object, Strings, Objects1, Traits),
-                    io:fwrite("Marker: ~w   X : ~w~n~n",[Marker,X]),
-                    X
+                    write_as_obj_helper(Marker, Object, Strings, Objects1, Traits)
     end.
 
 
 write_as_obj_helper(?ARRAY = Marker, List, Strings, Objects, Traits) ->
-    {Associative, Dense} = lists:partition(fun is_keyvaluepair/1,List),
-    io:fwrite("Associative : ~w~n~n",[Associative]),  
-    io:fwrite("Dense : ~w~n~n",[Dense]),
+    {Associative, Dense} = lists:partition(fun is_assoc_value/1,List),
     Length = write_uint29(length(Dense) bsl 1 bor 1),
     {Written,S,O,T} = write_associative_array(Associative,[Marker,Length],Strings, Objects, Traits),
     {Output,S1,O1,T1} = write_dense_array(Dense, Written, S, O, T),
     {list_to_binary(Output),S1,O1,T1};
 
+
 write_as_obj_helper(?DATE = Marker, {date, MilliSeconds}, Strings, Objects, Traits) ->
     {<<Marker, 16#01, MilliSeconds/float>>, Strings, Objects, Traits};
 
-write_as_obj_helper(?OBJECT = Marker, {object, ClassName, Members}, Strings, Objects, Traits) -> a;
+
+write_as_obj_helper(?OBJECT = Marker, {object, ClassName, Members}, Strings, Objects, Traits) -> 
+    {DynamicProperties, SealedProperties} = lists:partition(fun is_dynamic_property/1, Members),
+    {SealedNames, SealedValues} = lists:unzip(SealedProperties),  
+    IsDynamic = ((length(DynamicProperties) > 0) or (ClassName == <<>>)),
+    Trait = {ClassName, IsDynamic, false, length(SealedNames), SealedNames}, %% @todo externalizable
+    {TraitBinary, S1, T1} = write_trait(Trait, Strings, Traits),
+    {Sealed, S2, O1, T2} = write_dense_array(SealedValues, [], S1, Objects, T1),
+    {Dynamic, S3, O2, T3} = write_associative_array(DynamicProperties, [], S2, O1, T2),
+    Output = case IsDynamic of 
+                  true  -> [Marker,TraitBinary,Sealed,Dynamic];
+                  false -> [Marker,TraitBinary,Sealed]
+             end,
+    {list_to_binary(Output), S3, O2, T3};
+    
 
 write_as_obj_helper(Marker, {_, Data}, Strings, Objects, Traits) -> 
     Length = write_uint29(size(Data) bsl 1 bor 1),
@@ -353,23 +361,44 @@ write_associative_array([], Output, Strings, Objects, Traits) ->
     {lists:flatten([Output,16#01]), Strings, Objects, Traits}; 
 write_associative_array([H|Remaining], Output, Strings, Objects, Traits) -> 
     {Key, Value} = H,
-    {<<16#06,K/binary>>,S,O,T} = write(Key, Strings, Objects, Traits),    
+    {<<16#06,K/binary>>,S,O,T} = write(Key, Strings, Objects, Traits),    %% @todo use write_string 
     {V,S1,O1,T1} = write(Value, S, O, T),
     EverythingWritten = [Output, K, V],
     write_associative_array(Remaining, EverythingWritten, S1, O1, T1).
 
 
-write_string(Marker, String, Strings) ->
+write_trait({ClassName, IsDynamic, IsExternalizable, Count, Properties} = Trait, Strings, Traits) ->
+    case dict:find(Trait, Traits) of
+      {ok,Index} -> {write_uint29(Index bsl 2 bor 1),Strings,Traits};
+          error  -> Index = dict:size(Traits),
+                    T1 = dict:store(Trait, Index, Traits),
+                    H = 2#00000011,
+                    H1 = case IsExternalizable of true -> H bor 2#100; false -> H end, 
+                    H2 = case IsDynamic of true -> H1 bor 2#1000; false -> H1 end,
+                    HeaderBinary = write_uint29((Count bsl 4) bor H2),
+                    {ClassNameBinary, S1} = write_string(ClassName,Strings),
+                    {PropertiesBinary, S2} = write_property_names(Properties, S1, []),
+                    {<<HeaderBinary/binary, ClassNameBinary/binary, PropertiesBinary/binary>>, S2, T1}
+    end.
+
+
+write_property_names([], Strings, Output) -> {list_to_binary(lists:reverse(Output)), Strings};
+write_property_names([Name|Remaining], Strings, Output) ->
+    {Binary, Strings1} = write_string(list_to_binary(atom_to_list(Name)), Strings),
+    write_property_names(Remaining, Strings1, [Binary|Output]).
+
+
+write_string(String, Strings) ->
     case dict:find(String, Strings) of
-      {ok,Index} -> Strings1 = Strings,
-                    Header = write_uint29(Index bsl 1),
-                    Binary = list_to_binary([Marker,Header]);
-          error  -> Index = dict:size(Strings),
-                    Strings1 = dict:store(String, Index, Strings),
+      {ok,Index} -> {write_uint29(Index bsl 1), Strings};                   
+          error  -> case String of
+                      <<>> -> Strings1 = Strings;
+                        _  -> Index = dict:size(Strings),
+                              Strings1 = dict:store(String, Index, Strings)
+                    end,  
                     Header = write_uint29(size(String) bsl 1 bor 1),
-                    Binary = list_to_binary([Marker,Header,String])
-    end,
-    {Binary, Strings1}.
+                    {list_to_binary([Header,String]),Strings1}
+    end.
 
 
 find(Reference, Dictionary) ->
@@ -379,7 +408,11 @@ find(Reference, Dictionary) ->
     end.
 
 
-is_keyvaluepair({K,_V})
+is_dynamic_property({K,_V}) when is_binary(K) -> true;
+is_dynamic_property({K,_V}) when is_atom(K) -> false.
+
+
+is_assoc_value({K,_V})
     when K == xmldoc orelse K == xml orelse K == bytearray orelse K == date orelse K == object -> false;  
-is_keyvaluepair({K,_V}) when is_binary(K) orelse is_atom(K) -> true;  
-is_keyvaluepair(_V) -> false.
+is_assoc_value({K,_V}) when is_binary(K) orelse is_atom(K) -> true;  
+is_assoc_value(_V) -> false.
