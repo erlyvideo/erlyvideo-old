@@ -1,0 +1,12 @@
+#!/bin/sh
+ERL="erl +A 4 +K true -noinput -noshell"
+APP_NAME=ems
+NODE_NAME=$APP_NAME@`hostname`
+VSN=0.1
+APP_PATH=/usr/lib/erlyvideo
+MNESIA_DATA=$APP_PATH/mnesia-data
+
+cd $APP_PATH
+export HOME=/home/max
+chpst -u max -e /etc/service/erlyvideo/config $ERL -pa $APP_PATH/ebin -boot start_sasl -s $APP_NAME -mnesia dir "\"${MNESIA_DATA}\"" -name $NODE_NAME
+

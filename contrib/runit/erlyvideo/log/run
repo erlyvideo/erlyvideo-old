@@ -1,0 +1,5 @@
+#!/bin/sh
+
+mkdir -p /var/log/erlyvideo/service
+svlogd -tt /var/log/erlyvideo/service/
+
