@@ -103,7 +103,7 @@ handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaIn
 
 
 handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->
-  {reply, mp4:metadata(MediaInfo), MediaInfo};
+  {reply, {object, mp4:metadata(MediaInfo)}, MediaInfo};
 
 handle_call({metadata}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};

@@ -106,7 +106,7 @@ ready(#file_player{media_info = MediaInfo,
     start ->
       case file_media:metadata(MediaInfo) of
         undefined -> ok;
-        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = {?AMF_COMMAND_ONMETADATA, MetaData}}
+        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
       end,
     	self() ! play,
       ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
