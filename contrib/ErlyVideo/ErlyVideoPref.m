@@ -9,10 +9,35 @@
 #import "ErlyVideoPref.h"
 
 
+@interface ErlyVideoPref(private)
+- (void)updateServerStatus;
+@end
+
+@implementation ErlyVideoPref(private)
+- (void)updateServerStatus
+{
+	[enableServer setEnabled:NO];
+	[enableServer setState:NSOffState];
+	[enableServer setEnabled:YES];
+}
+@end
+
+
 @implementation ErlyVideoPref
 
-- (void) mainViewDidLoad
+- (void)mainViewDidLoad
+{
+	[self updateServerStatus];
+}
+
+- (IBAction)enableServerClicked:(NSButton *)sender
+{
+	[self updateServerStatus];
+}
+
+- (IBAction)help:(NSButton *)sender
 {
 }
+
 
 @end
