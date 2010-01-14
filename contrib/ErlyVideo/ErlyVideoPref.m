@@ -22,7 +22,7 @@
 
 	NSString *msg;
 	if (active) {
-		msg = NSLocalizedString(@"Flash-based players could access streaming video on this computer via RTMP on rtmp://%@%@/",
+		msg = NSLocalizedString(@"Flash-based players can access streaming video on this computer via RTMP on rtmp://%@%@/",
 								@"Message format for active server");
 		int port = [ErlyVideo port];
 		msg = [NSString stringWithFormat:msg, [[NSHost currentHost] name],
@@ -42,6 +42,7 @@
 	[hintLine setStringValue:msg];
 	[warningSign setHidden:NO];
 }
+
 @end
 
 
