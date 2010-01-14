@@ -181,6 +181,19 @@ decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) 
 %   State;
 %
 
+decode(#shoutcast{state = unsynced_body, format = mp3, buffer = <<_, Rest/binary>>} = State) ->
+  case mp3:decode(State#shoutcast.buffer) of
+    {ok, _, _} ->
+      ?D({"Sync MP3"}),
+      decode(State#shoutcast{state = body, timestamp = 0});
+    {more, undefined} ->
+      ?D({"Want more MP3 for sync"}),
+      State;
+    {error, unknown} ->
+      decode(State#shoutcast{buffer = Rest})
+  end;
+
+
 decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<_, Rest/binary>>} = State) ->
   case aac:decode(State#shoutcast.buffer) of
     {ok, _Frame, Second} ->
@@ -219,8 +232,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<_, Rest/binary
 %   decode(State#shoutcast{state = body, buffer = Buffer});
 % 
 
-decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<>>} = State) ->
-  ?D({"No AAC sync"}),
+decode(#shoutcast{state = unsynced_body, buffer = <<>>} = State) ->
   State;
 
 decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp} = State) ->
@@ -244,6 +256,29 @@ decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timesta
       decode(State#shoutcast{buffer = Rest});
     {more, undefined} -> 
       % ?D(size(Data)),
+      State
+  end;
+
+decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timestamp} = State) ->
+  % ?D({"Decode"}),
+  case mp3:decode(Data) of
+    {ok, Packet, Rest} ->
+      Frame = #video_frame{       
+        type          = audio,
+        timestamp     = Timestamp,
+        body          = Packet,
+    	  codec_id	    = mp3,
+    	  sound_type	  = stereo,
+    	  sound_size	  = bit16,
+    	  sound_rate	  = rate44
+      },
+      send_frame(Frame, State),
+      decode(State#shoutcast{buffer = Rest, timestamp = Timestamp + 1024});
+    {error, unknown} -> 
+      <<_, Rest/binary>> = Data,
+      ?D({"sync mp3"}),
+      decode(State#shoutcast{buffer = Rest});
+    {more, undefined} -> 
       State
   end.
       
