@@ -7,11 +7,14 @@
 //
 
 #import <PreferencePanes/PreferencePanes.h>
+#import "ErlyVideo.h"
 
 
-@interface ErlyVideoPref : NSPreferencePane 
+@interface ErlyVideoPref : NSPreferencePane <ErlyVideoClient>
 {
 	IBOutlet NSButton *enableServer;
+	IBOutlet NSTextField *hintLine;
+	IBOutlet NSImageView *warningSign;
 }
 
 - (IBAction)enableServerClicked:(NSButton *)sender;

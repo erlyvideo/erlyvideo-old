@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		57FD80E710FFBE8F0026AFDC /* ErlyVideo.h in Headers */ = {isa = PBXBuildFile; fileRef = 57FD80E510FFBE8F0026AFDC /* ErlyVideo.h */; };
+		57FD80E810FFBE8F0026AFDC /* ErlyVideo.m in Sources */ = {isa = PBXBuildFile; fileRef = 57FD80E610FFBE8F0026AFDC /* ErlyVideo.m */; };
+		57FD810710FFC80E0026AFDC /* sign.png in Resources */ = {isa = PBXBuildFile; fileRef = 57FD810610FFC80E0026AFDC /* sign.png */; };
 		8D202CEA0486D31800D8A456 /* ErlyVideo_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32DBCFA20370C41700C91783 /* ErlyVideo_Prefix.pch */; };
 		8D202CEB0486D31800D8A456 /* ErlyVideoPref.h in Headers */ = {isa = PBXBuildFile; fileRef = F506C03C013D9D7901CA16C8 /* ErlyVideoPref.h */; };
 		8D202CED0486D31800D8A456 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
@@ -23,6 +26,9 @@
 		089C167FFE841241C02AAC07 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
 		1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
 		32DBCFA20370C41700C91783 /* ErlyVideo_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ErlyVideo_Prefix.pch; sourceTree = "<group>"; };
+		57FD80E510FFBE8F0026AFDC /* ErlyVideo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ErlyVideo.h; sourceTree = "<group>"; };
+		57FD80E610FFBE8F0026AFDC /* ErlyVideo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ErlyVideo.m; sourceTree = "<group>"; };
+		57FD810610FFC80E0026AFDC /* sign.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = sign.png; sourceTree = "<group>"; };
 		8D202CF70486D31800D8A456 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D202CF80486D31800D8A456 /* ErlyVideo.prefPane */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ErlyVideo.prefPane; sourceTree = BUILT_PRODUCTS_DIR; };
 		F506C035013D953901CA16C8 /* PreferencePanes.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PreferencePanes.framework; path = /System/Library/Frameworks/PreferencePanes.framework; sourceTree = "<absolute>"; };
@@ -69,6 +75,7 @@
 		089C167CFE841241C02AAC07 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				57FD810610FFC80E0026AFDC /* sign.png */,
 				8D202CF70486D31800D8A456 /* Info.plist */,
 				089C167DFE841241C02AAC07 /* InfoPlist.strings */,
 				F506C040013D9D8001CA16C8 /* ErlyVideoPref.tiff */,
@@ -82,6 +89,8 @@
 			children = (
 				F506C03C013D9D7901CA16C8 /* ErlyVideoPref.h */,
 				F506C03D013D9D7901CA16C8 /* ErlyVideoPref.m */,
+				57FD80E510FFBE8F0026AFDC /* ErlyVideo.h */,
+				57FD80E610FFBE8F0026AFDC /* ErlyVideo.m */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
@@ -129,6 +138,7 @@
 			files = (
 				8D202CEA0486D31800D8A456 /* ErlyVideo_Prefix.pch in Headers */,
 				8D202CEB0486D31800D8A456 /* ErlyVideoPref.h in Headers */,
+				57FD80E710FFBE8F0026AFDC /* ErlyVideo.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +190,7 @@
 				8D202CED0486D31800D8A456 /* InfoPlist.strings in Resources */,
 				8D202CEE0486D31800D8A456 /* ErlyVideoPref.tiff in Resources */,
 				8D202CEF0486D31800D8A456 /* ErlyVideoPref.xib in Resources */,
+				57FD810710FFC80E0026AFDC /* sign.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,6 +212,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8D202CF10486D31800D8A456 /* ErlyVideoPref.m in Sources */,
+				57FD80E810FFBE8F0026AFDC /* ErlyVideo.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
