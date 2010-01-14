@@ -11,9 +11,11 @@
 
 @interface ErlyVideoPref : NSPreferencePane 
 {
-
+	IBOutlet NSButton *enableServer;
 }
 
-- (void) mainViewDidLoad;
+- (IBAction)enableServerClicked:(NSButton *)sender;
+- (IBAction)help:(NSButton *)sender;
+- (void)mainViewDidLoad;
 
 @end
