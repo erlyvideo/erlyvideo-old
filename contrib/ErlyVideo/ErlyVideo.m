@@ -14,8 +14,8 @@
 static BOOL FakeStatus = NO;
 + (NSArray *)searchPathes
 {
-	return [NSArray arrayWithObjects:@"~/Library/ErlyVideo",
-			@"/Library/ErlyVideo", nil];
+	return [NSArray arrayWithObjects:@"~/Library/ErlyVideo/",
+			@"/Library/ErlyVideo/", nil];
 }
 
 + (BOOL)isActive
@@ -25,6 +25,17 @@ static BOOL FakeStatus = NO;
 
 + (BOOL)installed
 {
+	NSFileManager *fMan = [NSFileManager defaultManager];
+	for (NSString *path in [self searchPathes]) {
+		NSString *put = [path stringByExpandingTildeInPath];
+		BOOL dir = NO;
+
+		if ([fMan fileExistsAtPath:put isDirectory:&dir]) {
+			if (dir) {
+				return YES;
+			}
+		}
+	}
 	return NO;
 }
 
