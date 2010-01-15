@@ -13,6 +13,25 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+enum {
+	EPMD_ALIVE2_REQ = 120,
+	EPMD_PORT_PLEASE2_REQ = 122,
+	EPMD_NAMES_REQ = 110,
+	EPMD_DUMP_REQ = 100,
+	EPMD_KILL_REQ = 107,
+	EPMD_STOP_REQ = 115,
+	EPMD_ALIVE2_RESP = 121,
+	EPMD_PORT2_RESP = 119,
+	EPMD_NODETYPE_HIDDEN = 72,
+	EPMD_NODETYPE_NORMAL = 77,
+	
+	EPMD_PROTOCOL = 0,
+	
+	EPMD_VERSION_LOW = 5,
+	EPMD_VERSION_HIGH = 5,
+	EPMD_PORT = 4369
+};
+
 @implementation ErlyVideo
 
 static BOOL FakeStatus = NO;
@@ -22,31 +41,45 @@ static BOOL FakeStatus = NO;
 			@"/Library/ErlyVideo/", nil];
 }
 
-+ (void)load
-{
-	erl_init();
-}
 
 + (BOOL)isActive
 {
 	struct sockaddr_in address;
 	int epmd;
-	
+	uint16_t length;
+	uint8_t reply[256];
+	char nodeName[] = "ems";
 	
 	epmd = socket(AF_INET, SOCK_STREAM, 0);
 	if (epmd < 0) return NO;
 	
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = inet_addr ("127.0.0.1");
-	address.sin_port = htons(4369);
+	address.sin_port = htons(EPMD_PORT);
 	
-	if (connect(epmd, &address, sizeof(address)) < 0) {
+	if (connect(epmd, (struct sockaddr *)&address, sizeof(address)) < 0) {
 		return NO;
 	}
 	
-	//write(epmd, 
+	memset(reply, 0, sizeof(reply));
+	length = strlen(nodeName);
+	*(uint16_t *)reply = htons(length+1);
+	reply[2] = EPMD_PORT_PLEASE2_REQ;
+	memcpy(reply+3, nodeName, length);
+	write(epmd, reply, length+3);
 	
-	return FakeStatus;
+	if(read(epmd, reply, 4) != 4) {
+		close(epmd);
+		return NO;
+	}
+	close(epmd);
+
+	if(reply[1]) {
+		// No erlyvideo running
+		return NO;
+	}
+	
+	return YES;
 }
 
 + (BOOL)installed
@@ -86,7 +119,7 @@ static BOOL FakeStatus = NO;
 							 afterDelay:1.0];
 	NSTask *task = [[NSTask alloc] init];
 	[task setLaunchPath:@"/usr/bin/make"];
-	[task setArguments:[NSArray arrayWithObjects:@"-f", @"/Library/ErlyVideo", @"start", nil];
+	[task setArguments:[NSArray arrayWithObjects:@"-f", @"/Library/ErlyVideo", @"start", nil]];
 	[task launch];
 	
 }
