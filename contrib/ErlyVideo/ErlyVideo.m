@@ -16,6 +16,11 @@
 @implementation ErlyVideo
 
 static BOOL FakeStatus = NO;
++ (NSArray *)searchPathes
+{
+	return [NSArray arrayWithObjects:@"~/Library/ErlyVideo/",
+			@"/Library/ErlyVideo/", nil];
+}
 
 + (void)load
 {
@@ -46,7 +51,18 @@ static BOOL FakeStatus = NO;
 
 + (BOOL)installed
 {
-	return [[NSFileManager defaultManager] fileExistsAtPath:@"/Library/ErlyVideo/ebin/erlmedia.app"];
+	NSFileManager *fMan = [NSFileManager defaultManager];
+	for (NSString *path in [self searchPathes]) {
+		NSString *put = [path stringByExpandingTildeInPath];
+		BOOL dir = NO;
+
+		if ([fMan fileExistsAtPath:put isDirectory:&dir]) {
+			if (dir) {
+				return YES;
+			}
+		}
+	}
+	return NO;
 }
 
 + (int)port

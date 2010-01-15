@@ -19,6 +19,9 @@
 
 }
 
+/** Returns array of default pathes for ErlyVideo */
++ (NSArray *)searchPathes;
+
 /** Returns YES if ErlyVideo is running and can be connected */
 + (BOOL)isActive;
 
