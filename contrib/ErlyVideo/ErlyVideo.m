@@ -12,6 +12,11 @@
 @implementation ErlyVideo
 
 static BOOL FakeStatus = NO;
++ (NSArray *)searchPathes
+{
+	return [NSArray arrayWithObjects:@"~/Library/ErlyVideo",
+			@"/Library/ErlyVideo", nil];
+}
 
 + (BOOL)isActive
 {
