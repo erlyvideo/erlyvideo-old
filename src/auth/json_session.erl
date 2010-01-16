@@ -10,7 +10,7 @@ client_login(#rtmp_session{host = Host} = State, [Cookie, _UserIdObj]) ->
   Session = decode(Cookie, Secret),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
-  {ok, SessionId} = ems_users:login(UserId, Channels),
+  {ok, SessionId} = ems_users:login(Host, UserId, Channels),
 	State#rtmp_session{user_id = UserId, session_id = SessionId};
 
 client_login(_, _) ->

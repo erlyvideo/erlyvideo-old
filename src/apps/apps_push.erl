@@ -6,7 +6,7 @@
 
 
 'WAIT_FOR_DATA'({message, Message}, #rtmp_session{socket = Socket} = State) ->
-  % ?D({"NetConnection.Message", Message}),
+  % io:format("NetConnection.Message ~s~n", [Message]),
   rtmp_socket:status(Socket, 0, <<"NetConnection.Message">>, Message),
   {next_state, 'WAIT_FOR_DATA', State};
 

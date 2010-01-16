@@ -43,6 +43,7 @@
 }).
 
 -record(client_entry, {
+  host,
   session_id,
   user_id,
   channels,
@@ -57,7 +58,7 @@
 }).
 
 %% External API
--export([start_link/0, clients/0, login/2, logout/0, send_to_user/2, send_to_channel/2]).
+-export([start_link/0, clients/1, login/3, logout/0, send_to_user/3, send_to_channel/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -74,7 +75,7 @@ start_link() ->
 %% @doc Show list of clients
 %% @end
 %%----------------------------------------------------------------------
-clients() ->
+clients(_Host) ->
  Timeout = 10,
  lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_session_sup)).
 
@@ -85,11 +86,11 @@ clients() ->
 %% @doc Register logged user in server tables
 %% @end
 %%----------------------------------------------------------------------
-login(undefined, _) -> undefined;
-login(_, undefined) -> undefined;
+login(_, undefined, _) -> undefined;
+login(_, _, undefined) -> undefined;
 
-login(UserId, Channels) ->
- gen_server:call(?MODULE, {login, UserId, Channels}).
+login(Host, UserId, Channels) ->
+ gen_server:call(?MODULE, {login, Host, UserId, Channels}).
 
 %%--------------------------------------------------------------------
 %% @spec () -> {ok}
@@ -106,8 +107,8 @@ logout() ->
 %% @doc Send message to all logged instances of userId
 %% @end
 %%----------------------------------------------------------------------
-send_to_user(UserId, Message) ->
- gen_server:cast(?MODULE, {send_to_user, UserId, Message}).
+send_to_user(Host, UserId, Message) ->
+ gen_server:cast(?MODULE, {send_to_user, Host, UserId, Message}).
 
 %%--------------------------------------------------------------------
 %% @spec (Channel::integer(), Message::text) -> {ok}
@@ -115,8 +116,8 @@ send_to_user(UserId, Message) ->
 %% @doc Send message to all, subscribed on channel
 %% @end
 %%----------------------------------------------------------------------
-send_to_channel(Channel, Message) ->
- gen_server:cast(?MODULE, {send_to_channel, Channel, Message}).
+send_to_channel(Host, Channel, Message) ->
+ gen_server:cast(?MODULE, {send_to_channel, Host, Channel, Message}).
 
 
 
@@ -155,12 +156,12 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({login, UserId, UserChannels}, {Client, _Ref}, 
+handle_call({login, Host, UserId, UserChannels}, {Client, _Ref}, 
   #ems_users{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->
   SessionId = LastSessionId + 1,
-  ets:insert(Clients, #client_entry{session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
-  ets:insert(UserIds, #user_id_entry{user_id = UserId, client = Client}),
-  lists:foreach(fun(Channel) -> ets:insert(Channels, #channel_entry{channel = Channel, client = Client}) end, UserChannels),
+  ets:insert(Clients, #client_entry{host = Host, session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
+  ets:insert(UserIds, #user_id_entry{user_id = {Host, UserId}, client = Client}),
+  lists:foreach(fun(Channel) -> ets:insert(Channels, #channel_entry{channel = {Host, Channel}, client = Client}) end, UserChannels),
   {reply, {ok, SessionId}, Server#ems_users{session_id = SessionId}};
 
 handle_call(logout, {Client, _Ref}, #ems_users{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
@@ -183,17 +184,18 @@ handle_call(Request, _From, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast({send_to_user, UserId, Message}, #ems_users{user_ids = UserIds} = Server) ->
-  Clients = ets:lookup(UserIds, UserId),
-  F = fun(#user_id_entry{client = Client}) -> 
+handle_cast({send_to_user, Host, UserId, Message}, #ems_users{user_ids = UserIds} = Server) ->
+  Clients = ets:lookup(UserIds, {Host, UserId}),
+  F = fun(#user_id_entry{client = Client}) ->
     gen_fsm:send_event(Client, {message, Message}) 
   end,
   lists:foreach(F, Clients),
   {noreply, Server};
 
-handle_cast({send_to_channel, Channel, Message}, #ems_users{channels = Channels} = Server) ->
-  Clients = ets:lookup(Channels, Channel),
+handle_cast({send_to_channel, Host, Channel, Message}, #ems_users{channels = Channels} = Server) ->
+  Clients = ets:lookup(Channels, {Host, Channel}),
   F = fun(#channel_entry{client = Client}) -> 
+    io:format("Sending ~s~n", [Message]),
     gen_fsm:send_event(Client, {message, Message}) 
   end,
   lists:foreach(F, Clients),

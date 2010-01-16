@@ -101,16 +101,16 @@ handle(_Host, 'POST', ["fcs", "ident2"], Req) ->
   % ems_log:access(Host, "RTMPT ident2", []),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
   
-handle(_Host, 'POST', ["channels", ChannelS, "message"], Req) ->
+handle(Host, 'POST', ["channels", ChannelS, "message"], Req) ->
   Message = proplists:get_value("message", Req:parse_post()),
   Channel = list_to_integer(ChannelS),
-  rtmp_listener:send_to_channel(Channel, list_to_binary(Message)),
+  ems_users:send_to_channel(Host, Channel, list_to_binary(Message)),
   Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
 
-handle(_Host, 'POST', ["users", UserS, "message"], Req) ->
+handle(Host, 'POST', ["users", UserS, "message"], Req) ->
   Message = proplists:get_value("message", Req:parse_post()),
   User = list_to_integer(UserS),
-  rtmp_listener:send_to_user(User, list_to_binary(Message)),
+  ems_users:send_to_user(Host, User, list_to_binary(Message)),
   Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
 
   
