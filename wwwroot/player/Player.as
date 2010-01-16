@@ -24,7 +24,7 @@ private var playButton:Boolean = false;
 [Bindable]
 private var stopButton:Boolean = false;
 [Bindable]
-private var pauseButton:Boolean = false;
+private var enablePauseButton:Boolean = false;
 [Bindable]
 private var enableRecordButton:Boolean = false;
 //  [Bindable]
@@ -95,7 +95,7 @@ public function onPlay(e:Event):void {
 //		                videoContainer.my_id);
 	if (playStream.play(player_url.text, videoContainer.video)) {
 		playButton = false;
-		pauseButton = true;
+		enablePauseButton = true;
 		stopButton = true;
 	} else {
 		playButton = true;
@@ -106,21 +106,21 @@ public function onStop(e:Event):void {
 	playStream.stop();
 	duration = 0;
 	playButton = true;
-	pauseButton = false;
+	enablePauseButton = false;
 	stopButton = true;
 	
 }
 
 public function onPause(e:Event):void {
-/*  if (stream.paused) {
-    stream.resume();
-    //pauseButton.label = "Pause";
+  if (playStream.paused) {
+    playStream.resume();
+    pauseButton.label = "Pause";
   } else {
-    if (stream.pause()) {
-      //pauseButton.label = "Resume";
+    if (playStream.pause()) {
+      pauseButton.label = "Resume";
     }
   }
-*/
+
 }
 
 public function setWidth(width: Number) : void
