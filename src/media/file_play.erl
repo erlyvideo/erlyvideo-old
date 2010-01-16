@@ -93,7 +93,7 @@ init(MediaEntry, Options) ->
                       client_buffer = proplists:get_value(client_buffer, Options, 10000),
                       timer_start = erlang:now()}).
   
-	
+
 ready(#file_player{media_info = MediaInfo, 
                     consumer = Consumer, 
                     client_buffer = ClientBuffer,

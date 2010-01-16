@@ -107,7 +107,7 @@ init(#media_info{device = IoDev} = MediaInfo) ->
     {error, Reason} -> {error, Reason}           
   end.
 
-read_frame_list(#media_info{} = MediaInfo, Offset, FrameCount) when FrameCount == 10 ->
+read_frame_list(#media_info{} = MediaInfo, Offset, FrameCount) when FrameCount == 100 ->
   spawn_link(?MODULE, read_frame_list, [MediaInfo, Offset, FrameCount + 1]),
   {ok, MediaInfo};
   
@@ -116,6 +116,7 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
   % We need to bypass PreviousTagSize and read header.
 	case file:pread(Device,Offset + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
 		{ok, <<Type, Length:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
+      % io:format("Read ~p ~p~n", [Type, TimeStamp]),
 		  <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
 		  
 		  PreparedFrame = #file_frame{
@@ -128,11 +129,13 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
 			Frame = case Type of
 			  ?FLV_TAG_TYPE_VIDEO ->
           % {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(Device, Offset),
-          % KeyFrame = case FrameType of
-          %   ?FLV_VIDEO_FRAME_TYPE_KEYFRAME -> true;
-          %   _ -> false
-          %           end,
-          KeyFrame = undefined,
+          case file:pread(Device, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of
+            {ok, <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4>>} -> KeyFrame = true;
+            {ok, <<_FrameType:4, _CodecID:4>>} -> KeyFrame = false;
+            _ -> KeyFrame = undefined
+          end,
+          % io:format("Extracting frame type ~p ~p~n", [TimeStamp, KeyFrame]),
+          % KeyFrame = undefined,
 			    PreparedFrame#file_frame{
 			      id = TimeStampAbs*3 + 1,
     		    keyframe = KeyFrame
@@ -149,7 +152,7 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
 			end,
 			
 			ets:insert(FrameTable, Frame),
-			read_frame_list(MediaInfo, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length, FrameCount + 1);
+			?MODULE:read_frame_list(MediaInfo, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length, FrameCount + 1);
     eof -> 
       {ok, MediaInfo};
     {error, Reason} -> 

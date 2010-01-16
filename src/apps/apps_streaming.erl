@@ -200,7 +200,7 @@ getStreamLength(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]}) ->
 %% @end
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
-  ?D({"invoke - seek", Timestamp}),
+  ?D({"invoke - seek", round(Timestamp)}),
   Player = array:get(StreamId, Streams),
   Player ! {seek, Timestamp},
   rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
