@@ -34,7 +34,8 @@ enum {
 
 @implementation ErlyVideo
 
-static BOOL FakeStatus = NO;
+static NSString *ErlyVideoPath_ = nil;
+
 + (NSArray *)searchPathes
 {
 	return [NSArray arrayWithObjects:@"~/Library/ErlyVideo/",
@@ -91,6 +92,8 @@ static BOOL FakeStatus = NO;
 
 		if ([fMan fileExistsAtPath:put isDirectory:&dir]) {
 			if (dir) {
+				[ErlyVideoPath_ release];
+				ErlyVideoPath_ = [put retain];
 				return YES;
 			}
 		}
@@ -105,7 +108,6 @@ static BOOL FakeStatus = NO;
 
 + (void)stop:(id<ErlyVideoClient>)sender
 {
-	FakeStatus = NO;
 	[(NSObject *)sender performSelector:@selector(erlyVideoStatusChanged)
 							 withObject:nil
 							 afterDelay:1.0];
@@ -113,15 +115,11 @@ static BOOL FakeStatus = NO;
 
 + (void)start:(id<ErlyVideoClient>)sender
 {
-	FakeStatus = YES;
-	[(NSObject *)sender performSelector:@selector(erlyVideoStatusChanged)
-							 withObject:nil
-							 afterDelay:1.0];
-	NSTask *task = [[NSTask alloc] init];
+	NSTask *task = [[[NSTask alloc] init] autorelease];
 	[task setLaunchPath:@"/usr/bin/make"];
-	[task setArguments:[NSArray arrayWithObjects:@"-f", @"/Library/ErlyVideo", @"start", nil]];
+	[task setArguments:[NSArray arrayWithObjects:@"-f", ErlyVideoPath_, @"start", nil]];
 	[task launch];
-	
+	[sender erlyVideoStatusChanged];
 }
 
 @end

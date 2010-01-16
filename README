@@ -14,7 +14,7 @@ currently it can:
   * handle different types of authorization. Look at json_session for example of authorization
   * both AMF0 and AMF3 encoding are possible
   * got support for many netstreams. It mean, that videoconference is possible.
-  * support virtual hosts. Look at src/erlmedia.app for examples
+  * support virtual hosts. Look at priv/erlmedia.app for examples
   * save last GOP of incoming stream, so that client can start looking video much faster
   * Can stream from QuickTime Broadcaster and Wirecast via RTSP/RTP. Read more in doc/rtsp.edoc
 
