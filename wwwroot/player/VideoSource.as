@@ -13,7 +13,8 @@ package
 	import VideoSourceEvent;
 	import mx.core.Application;
 	import flash.net.SharedObject;
-	
+	import flash.external.ExternalInterface;
+  
 	public class VideoSource extends EventDispatcher
 	{
 		private static var instance:VideoSource;
@@ -60,6 +61,12 @@ package
 				break;
 
 			case "NetConnection.Message":
+  			try {
+  				var re:RegExp = /\\/g;
+  		    ExternalInterface.call("netconnection.message", event.info.description.replace(re, "\\\\"));
+  			}
+  			catch (e:Object) {
+  			}
 		    break;
 
 		  case "NetConnection.Connect.Failed":
