@@ -1,4 +1,4 @@
-VERSION=1.2
+VERSION=1.3
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
