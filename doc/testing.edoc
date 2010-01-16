@@ -1,0 +1,18 @@
+@author     Max Lapshin <max@maxidoors.ru> [http://maxidoors.ru]
+@copyright  2009 Max Lapshin
+@reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+@version 
+@title Testing plan for ErlyVideo
+@doc Steps for hand testing before packing release.
+
+=== Push channel ===
+
+* open http://localhost:8082/
+* type something into "send message"
+* it must appear in chat
+* click "Chat" link in head of page and open on new page
+* type something into "send message"
+* it must appear in both pages.
+
+
+@end
