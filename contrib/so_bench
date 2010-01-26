@@ -91,7 +91,7 @@ flush_messages(RTMP) ->
 
 
 so_connect(RTMP, Path, Name) -> 
-  Connect = rtmp_lib:connect(RTMP, Path),
+  Connect = rtmp_lib:connect(RTMP),
   Reply = rtmp_lib:shared_object_connect(RTMP, Name),
   io:format("Connected to ~s ~s~n", [Path, Name]).
   

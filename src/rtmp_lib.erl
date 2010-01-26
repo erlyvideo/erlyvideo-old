@@ -34,7 +34,7 @@
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
--export([connect/2, createStream/1, play/3]).
+-export([connect/1, connect/2, createStream/1, play/3]).
 -export([shared_object_connect/2, shared_object_set/4]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
@@ -48,14 +48,12 @@ wait_for_reply(RTMP, InvokeId) ->
     30000 -> erlang:error(timeout)
   end.
 
-%% @spec (RTMP::rtmp_socket(), Path::string()) -> any()
-%% @doc Send connect request to server
-connect(RTMP, Path) ->
-  PlayerInfo = {object, [
-    {app,Path},
+default_connect_options() ->
+  [
+    {app, <<"/">>},
     {flashVer,<<"MAC 10,0,32,18">>},
     {swfUrl,<<"http://localhost/player/Player.swf">>},
-    {tcUrl,<<"rtmp://localhost/", Path/binary>>},
+    {tcUrl,<<"rtmp://localhost/">>},
     {fpad,false},
     {capabilities,15.0},
     {audioCodecs,3191.0},
@@ -63,14 +61,24 @@ connect(RTMP, Path) ->
     {videoFunction,1.0},
     {pageUrl,<<"http://localhost:8082/">>},
     {objectEncoding,0.0}
-  ]},
+  ].
+
+%% @spec (RTMP::rtmp_socket()) -> any()
+%% @doc Send connect request to server with some predefined params
+connect(RTMP) ->
+  connect(RTMP, default_connect_options()).
+
+%% @spec (RTMP::rtmp_socket(), Options::[{Key::atom(), Value::any()}]) -> any()
+%% @doc Send connect request to server
+connect(RTMP, Options) ->
+  ConnectArgs = lists:ukeymerge(1, Options, default_connect_options()),
   InvokeId = 1,
   AMF = #rtmp_funcall{
     command = connect,
     type = invoke,
     id = InvokeId,
     stream_id = 0,
-    args = [PlayerInfo]
+    args = [{object, ConnectArgs}]
   },
   rtmp_socket:invoke(RTMP, AMF),
   wait_for_reply(RTMP, InvokeId).

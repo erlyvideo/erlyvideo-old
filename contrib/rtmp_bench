@@ -12,29 +12,36 @@ main([Path]) ->
   
 main([URL, CountS]) ->
   application:start(rtmp),
-  {ok, Re} = re:compile("([^:]+)://([^/]+)/(.*)"),
+  {ok, Re1} = re:compile("([^:]+)://([^/]+):(\\d+)/(.*)"),
+  {ok, Re2} = re:compile("([^:]+)://([^/]+)/(.*)"),
   process_flag(trap_exit, true),
-  {match, [_, _Protocol, Server, Path]} = re:run(URL, Re, [{capture, all, list}]),
+	case re:run(URL, Re1, [{capture, all, list}]) of
+	  {match, [_, _Protocol, Server, PortS, Path]} ->
+			Port = list_to_integer(PortS);
+		_ ->
+			{match, [_, _Protocol, Server, Path]} = re:run(URL, Re2, [{capture, all, list}]),
+			Port = 1935
+	end,
   Count = list_to_integer(CountS),
-  start_spawner(Server, list_to_binary(Path), Count, 0).
+  start_spawner(Server, Port, list_to_binary(Path), Count, 0).
   
-start_spawner(Server, Path, Count, Number) when Number < Count ->
+start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
   io:format("Starting client ~p~n", [Number]),
-  spawn_link(fun() -> init_rtmp_client(Server, Path) end),
-  start_spawner(Server, Path, Count, Number + 1);
+  spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
+  start_spawner(Server, Port, Path, Count, Number + 1);
 
-start_spawner(Server, Path, Count, Count) ->
+start_spawner(Server, Port, Path, Count, Count) ->
   receive
     {'EXIT', _Pid, _Reason} ->
       io:format("Dead client ~p~n", [_Reason]),
-      start_spawner(Server, Path, Count, Count - 1);
+      start_spawner(Server, Port, Path, Count, Count - 1);
     Else ->
       io:format("Spawner message: ~p~n", [Else]),
-      start_spawner(Server, Path, Count, Count)
+      start_spawner(Server, Port, Path, Count, Count)
   end.
   
-init_rtmp_client(Server, Path) ->
-  {ok, Socket} = gen_tcp:connect(Server, 1936, [binary, {active, false}, {packet, raw}]),
+init_rtmp_client(Server, Port, Path) ->
+  {ok, Socket} = gen_tcp:connect(Server, Port, [binary, {active, false}, {packet, raw}]),
   io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   io:format("Connected to ~s~n", [Server]),
