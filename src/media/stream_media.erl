@@ -296,6 +296,7 @@ video_codec(<<"avc1">>) -> avc;
 video_codec(<<"VP62">>) -> vp6.
 
 
+audio_codec(<<"nmos">>) -> nelly_moser;
 audio_codec(<<".mp3">>) -> mp3.
 
 %%-------------------------------------------------------------------------
