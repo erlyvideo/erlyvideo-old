@@ -263,6 +263,8 @@ parse_metadata(MediaInfo, #video_frame{type = metadata, body = Metadata}) ->
 parse_metadata(MediaInfo, #video_frame{}) ->
   MediaInfo;
   
+parse_metadata(MediaInfo, undefined) ->
+  MediaInfo;
   
 parse_metadata(MediaInfo, [{object, Metadata}]) ->
   % ?D({"Metadata", Metadata}),
