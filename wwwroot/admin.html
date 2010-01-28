@@ -15,6 +15,15 @@
       <div class="span-24 last"><h3><a href="/">Front</a></h3></div>
       
       <div class="span-24 last">
+        {% if rtmp_port %}
+        <div class="span-5">RTMP port:</div><div class="span-19 last">{{rtmp_port}}</div>
+        {% endif %}
+        {% if rtsp_port %}
+        <div class="span-5">RTSP port:</div><div class="span-19 last">{{rtsp_port}}</div>
+        {% endif %}
+        {% if http_port %}
+        <div class="span-5">HTTP port:</div><div class="span-19 last">{{http_port}}</div>
+        {% endif %}
         <ul>
           {% for name, clients in entries %}
           <li><a href="?file={{name}}&autostart=true">{{name}}</a>

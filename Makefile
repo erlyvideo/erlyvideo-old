@@ -83,7 +83,7 @@ archive: ../erlyvideo-$(VERSION).tgz
 	
 
 ../erlyvideo-$(VERSION).tgz:
-	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
+	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude=build --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
 
 debian:
 	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/

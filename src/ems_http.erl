@@ -39,6 +39,10 @@ handle(Host, 'GET', [], Req) ->
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 
+handle(_, 'GET', ["admin", "config.xml"], Req) ->
+  Config = mochijson2:encode({struct, application:get_all_env(erlmedia)}),
+  Req:ok([{'Content-Type', "text/json; charset=utf8"}], iolist_to_binary(Config));
+
 handle(Host, 'GET', ["admin"], Req) ->
   erlydtl:compile("wwwroot/admin.html", admin_template),
   % {ok, Contents} = file:read_file("player/player.html"),
