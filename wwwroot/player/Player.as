@@ -107,7 +107,7 @@ public function onStop(e:Event):void {
 	duration = 0;
 	playButton = true;
 	enablePauseButton = false;
-	stopButton = true;
+	stopButton = false;
 	
 }
 
@@ -180,7 +180,9 @@ public function seek(event:SliderEvent) : void
 
 public function onFinish(e:Event) : void
 {
-	playStream.play(player_url.text, videoContainer.video);
+  if (stopButton) {
+  	playStream.play(player_url.text, videoContainer.video);
+  }
 }
 
 public function onRecord(e:Event) : void
