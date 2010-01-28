@@ -78,7 +78,7 @@ connect(RTMP, Options) ->
     type = invoke,
     id = InvokeId,
     stream_id = 0,
-    args = [{object, ConnectArgs}]
+    args = [{object, ConnectArgs}, <<"cookie">>, 42]
   },
   rtmp_socket:invoke(RTMP, AMF),
   wait_for_reply(RTMP, InvokeId).

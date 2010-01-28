@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -smp enable -name rtmp_bench -mnesia debug verbose -pa ebin -pa ../amf/ebin
+%%! -pa ebin -pa ../amf/ebin
 -mode(compile).
 
 main([]) ->
@@ -28,6 +28,7 @@ main([URL, CountS]) ->
 start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
   io:format("Starting client ~p~n", [Number]),
   spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
+  timer:sleep(1000),
   start_spawner(Server, Port, Path, Count, Number + 1);
 
 start_spawner(Server, Port, Path, Count, Count) ->
@@ -62,8 +63,8 @@ rtmp_client(RTMP, Path) ->
   end.
     
 
-play(RTMP, Path) -> 
-  Connect = rtmp_lib:connect(RTMP),
+play(RTMP, Path) ->
+  Connect = rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:play(RTMP, Stream, Path),
   io:format("Playing ~s~n", [Path]),
