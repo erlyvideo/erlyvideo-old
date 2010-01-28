@@ -284,19 +284,15 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
 handle_info({'EXIT', Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
   {stop, normal, State};
 
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{streams = Streams} = State) ->
-  % case lists:keytake(PlayerPid, 2, Streams) of
-  %   {value, {StreamId, PlayerPid}, NewStreams} ->
-  %     rtmp_socket:status(Socket, StreamId, ?NS_PLAY_COMPLETE),
-  %     {next_state, StateName, State#rtmp_session{streams = NewStreams}};
-  %   _ ->
-  %     ?D({"Died child", PlayerPid, _Reason}),
-  %     {next_state, StateName, State}
-  % end;
-  % FIXME: proper lookup of dead player between Streams and notify right stream
-  % ?D({"Player died", PlayerPid, _Reason}),
-  ?D({"Died child", PlayerPid, _Reason}),
-  {next_state, StateName, State};
+handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
+  case find_stream(Streams, array:size(Streams), 1, PlayerPid) of
+    undefined -> 
+      {next_state, StateName, State};
+    StreamId ->
+      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
+      NewStreams = array:reset(StreamId, Streams),
+      {next_state, StateName, State#rtmp_session{streams = NewStreams}}
+  end;
 
 handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
   ?D({"Died child", Pid, _Reason}),
@@ -324,6 +320,14 @@ handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
   {next_state, StateName, StateData}.
 
+
+find_stream(Streams, Size, StreamId, Stream) when StreamId < Size ->
+  case array:get(StreamId, Streams) of
+    Stream -> StreamId;
+    _Other -> find_stream(Streams, Size, StreamId+1, Stream)
+  end;
+  
+find_stream(_, _, _, _) -> undefined.
 
 flush_reply(State) ->
   receive

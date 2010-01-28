@@ -60,7 +60,8 @@
     {ok, Player} ->
       Player ! start,
       ems_log:access(Host, "PLAY ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-      {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = array:set(StreamId, Player, Streams)}};
+      NewState = State#rtmp_session{streams = array:set(StreamId, Player, Streams)},
+      {next_state, 'WAIT_FOR_DATA', NewState};
     {notfound, _Reason} ->
       ems_log:access(Host, "NOTFOUND ~p ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
       rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
@@ -103,10 +104,10 @@ releaseStream(State, _AMF) ->
   State.
 
 next_stream(State) -> next_stream(State, 1).
-next_stream(#rtmp_session{streams = Streams} = State, Stream) ->
-  case array:get(Stream, Streams) of
-    undefined -> {State#rtmp_session{streams = array:set(Stream, null, Streams)}, Stream};
-    _ -> next_stream(State, Stream + 1)
+next_stream(#rtmp_session{streams = Streams} = State, StreamId) ->
+  case array:get(StreamId, Streams) of
+    undefined -> {State#rtmp_session{streams = array:set(StreamId, null, Streams)}, StreamId};
+    _ -> next_stream(State, StreamId + 1)
   end.
 
 
@@ -120,6 +121,7 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
     Player when is_pid(Player) -> Player ! stop;
     _ -> ok
   end,
+  ?D({"Delete stream", StreamId}),
   State#rtmp_session{streams = array:reset(StreamId, Streams)}.
 
 
@@ -134,7 +136,6 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
 play(State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
   Options = [{stream_id, StreamId} | extract_play_args(Args)],
-  % ?D({"PLAY", Name, Options}),
   prepareStream(State, StreamId),
   gen_fsm:send_event(self(), {play, Name, Options}),
   State.
@@ -215,11 +216,12 @@ seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{ar
 %% @doc  Processes a stop command and responds
 %% @end
 %%-------------------------------------------------------------------------
-stop(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
+stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rtmp_funcall{stream_id = StreamId}) -> 
   case array:get(StreamId, Streams) of
     Player when is_pid(Player) ->
       Player ! exit,
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
+      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       State#rtmp_session{streams = array:set(StreamId, null, Streams)};
     _ -> State
   end.

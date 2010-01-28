@@ -149,9 +149,7 @@ ready(#file_player{media_info = MediaInfo,
       end;
 
     stop -> 
-      ?D("Player stopping"),
-      timer:cancel(Timer),
-      ?MODULE:ready(State#file_player{ts_prev = 0, pos = undefined, stopped = true, playing_from = 0});
+      ok;
   
     exit ->
       ok;
@@ -200,8 +198,8 @@ send_frame(Player, #video_frame{body = undefined}) ->
   self() ! play,
   ?MODULE:ready(Player);
   
-send_frame(#file_player{}, done) ->
-  ok;
+send_frame(#file_player{} = Player, done) ->
+  ?MODULE:ready(Player);
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #video_frame{} = Frame) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
