@@ -172,6 +172,9 @@ send(RTMP, Message) ->
 status(RTMP, StreamId, Code) when is_list(Code)->
   status(RTMP, StreamId, list_to_binary(Code), <<"-">>).
 
+status(RTMP, StreamId, Code) when is_binary(Code)->
+  status(RTMP, StreamId, Code, <<"-">>).
+
 
 -spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::string(), Description::string()) -> ok).
 status(RTMP, StreamId, Code, Description) ->
