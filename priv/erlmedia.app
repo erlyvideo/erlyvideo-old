@@ -50,7 +50,6 @@
 		      {secret_key, "123"},
 					{access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
 					{error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
-					{auth_module, json_session},
 					{host, "rtmp://localhost"},
 		      {file_dir, "/tmp"}
 		   ]},
