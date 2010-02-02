@@ -5,7 +5,10 @@
 
 
 start() ->
-  vhosts = ets:new(vhosts, [set, named_table, public]),
+  case ets:info(vhosts) of
+    undefined -> vhosts = ets:new(vhosts, [set, named_table, public]);
+    _ -> ets:delete_all_objects(vhosts)
+  end,
   case application:get_env(?APPLICATION, vhosts) of
     {ok, Hosts} when is_list(Hosts) -> init_vhosts(Hosts);
     _ -> ok

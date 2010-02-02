@@ -50,21 +50,10 @@
 
 start(_Type, _Args) -> 
   application:load(?APPLICATION),
-  
-  ems_vhosts:start(),
-	
+  ems:load_config(),
   mnesia:create_schema([node()]),
   mnesia:start(),
-  Start = ems_sup:start_link(),
-  case ems:get_var(rtsp_port, undefined) of
-    undefined -> ok;
-    RTSP when is_integer(RTSP) -> rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
-  end,
-  case ems:get_var(rtmp_port, undefined) of
-    undefined -> ok;
-    RTMP when is_integer(RTMP) -> rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
-  end,
-  Start.
+  ems_sup:start_link().
 
 
 %%--------------------------------------------------------------------
