@@ -53,8 +53,8 @@ How to launch:
   * cd erlyvideo
   * git submodule init
   * git submodule update
-  * cp priv/erlmedia.app ebin/erlmedia.app
-  * $EDITOR ebin/erlmedia.app
+  * cp priv/erlmedia.conf.sample priv/erlmedia.conf
+  * $EDITOR ebin/erlmedia.conf
   * change /tmp to /Users/username/Movies
   * make
   * make run
