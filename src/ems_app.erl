@@ -56,14 +56,6 @@ start(_Type, _Args) ->
   mnesia:create_schema([node()]),
   mnesia:start(),
   Start = ems_sup:start_link(),
-  case ems:get_var(rtsp_port, undefined) of
-    undefined -> ok;
-    RTSP when is_integer(RTSP) -> rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
-  end,
-  case ems:get_var(rtmp_port, undefined) of
-    undefined -> ok;
-    RTMP when is_integer(RTMP) -> rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
-  end,
   Start.
 
 

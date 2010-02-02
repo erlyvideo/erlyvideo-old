@@ -43,7 +43,7 @@
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
--export([host/1]).
+-export([host/1, load_config/0, reconfigure/0]).
 
 
 %%--------------------------------------------------------------------
@@ -53,14 +53,34 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
+	ems:load_config(),
   application:start(crypto),
-  application:start(rtmp),
   application:start(rtsp),
+  application:start(rtmp),
+  start_rtmp(),
+  start_rtsp(),
   ems_log:start(),
 	application:start(erlmedia),
 	ems:start_modules().
   
 
+start_rtmp() ->
+  case ems:get_var(rtmp_port, undefined) of
+    undefined -> 
+      ok;
+    RTMP when is_integer(RTMP) -> 
+      rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
+  end.
+  
+
+start_rtsp() ->
+  case ems:get_var(rtsp_port, undefined) of
+    undefined -> 
+      ok;
+    RTSP when is_integer(RTSP) -> 
+      rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
+  end.
+    
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -88,6 +108,35 @@ restart() ->
 	rebuild(),
 	reload(),
 	start().
+
+reconfigure() ->
+  RTMP = ems:get_var(rtmp_port, undefined),
+  RTSP = ems:get_var(rtsp_port, undefined),
+  load_config(),
+  case {RTMP, ems:get_var(rtmp_port, undefined)} of
+    {undefined, _} -> ok;
+    {RTMP, RTMP} -> ok;
+    _ -> 
+      supervisor:terminate_child(rtmp_sup, rtmp_listener1),
+      supervisor:delete_child(rtmp_sup, rtmp_listener1)
+  end,
+  case {RTSP, ems:get_var(rtsp_port, undefined)} of
+    {undefined, _} -> ok;
+    {RTSP, RTSP} -> ok;
+    _ -> 
+      supervisor:terminate_child(rtsp_sup, rtsp_listener1),
+      supervisor:delete_child(rtsp_sup, rtsp_listener1)
+  end,
+  {ok, _} = start_rtmp(),
+  {ok, _} = start_rtsp(),
+  ok.
+  
+load_config() ->
+  case file:consult("priv/erlmedia.conf") of
+    {ok, Env} -> [application:set_env(erlmedia, Key, Value) || {Key, Value} <- Env];
+    _ -> ok
+  end.
+      
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
