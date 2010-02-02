@@ -9,7 +9,10 @@
       {access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
       {error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
       {host, "rtmp://localhost"},
-      {file_dir, "/tmp"}
+      {file_dir, "/tmp"},
+      {mpegts, [
+        {"stream/vlc.ts", "http://localhost:8080"}
+      ]}
    ]},
    {production, [
       {hostname, ["production.local"]},

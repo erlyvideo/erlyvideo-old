@@ -56,8 +56,8 @@ start() ->
   application:start(crypto),
   application:start(rtsp),
   application:start(rtmp),
-  ems_log:start(),
 	application:start(erlmedia),
+  ems_log:start(),
   start_rtmp(),
   start_rtsp(),
 	ems:start_modules().
@@ -164,7 +164,6 @@ rebuild() ->
 %%--------------------------------------------------------------------
 reload() ->
 	application:load(erlmedia),
-	load_config(),
 	case application:get_key(erlmedia,modules) of
 		undefined    -> 
 			application:load(erlmedia),
@@ -196,10 +195,6 @@ reload([H|T]) ->
 %% @end 
 %%--------------------------------------------------------------------
 get_var(Opt, Default) ->
-	case lists:keysearch(erlmedia, 1, application:loaded_applications()) of
-		false -> application:load(erlmedia);
-		_ -> ok
-	end,
 	case application:get_env(erlmedia, Opt) of
 	{ok, Val} -> Val;
 	_ ->

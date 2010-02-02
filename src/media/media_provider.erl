@@ -13,7 +13,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([init_names/0]).
+-export([init_names/0, name/1]).
 
 -record(media_provider, {
   opened_media,
@@ -75,7 +75,7 @@ init_names() ->
 
           
   Clauses = lists:map(fun({Host, _}) ->
-    Name = binary_to_atom(<<"media_provider_", (atom_to_binary(Host, latin1))/binary>>, latin1),
+    Name = binary_to_atom(<<"media_provider_sup_", (atom_to_binary(Host, latin1))/binary>>, latin1),
     erl_syntax:clause([erl_syntax:atom(Host)], none, [erl_syntax:atom(Name)])
   end, ems:get_var(vhosts, [])),
   Function = erl_syntax:function(erl_syntax:atom(name), Clauses),
@@ -200,7 +200,14 @@ open_media_entry({Name, Type}, #media_provider{host = Host, opened_media = Opene
   end.
   
 detect_type(Host, Name) ->
-  detect_http(Host, Name).
+  detect_mpegts(Host, Name).
+  
+detect_mpegts(Host, Name) ->
+  Urls = ems:get_var(mpegts, Host, []),
+  case proplists:get_value(binary_to_list(Name), Urls) of
+    undefined -> detect_http(Host, Name);
+    URL -> {URL, http}
+  end.
 
 detect_http(Host, Name) ->
   {ok, Re} = re:compile("http://(.*)"),
