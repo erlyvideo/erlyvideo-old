@@ -142,7 +142,8 @@ load_config() ->
       ok;
     _ -> ok
   end,
-  ems_vhosts:start().
+  ems_vhosts:start(),
+  media_provider:init_names().
   
       
 

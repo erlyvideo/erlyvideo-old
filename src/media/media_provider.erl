@@ -13,6 +13,8 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-export([init_names/0]).
+
 -record(media_provider, {
   opened_media,
   host,
@@ -25,7 +27,7 @@
 }).
 
 name(Host) ->
-  binary_to_atom(<<"media_provider_", (atom_to_binary(Host, latin1))/binary>>, latin1).
+  media_provider_names:name(Host).
 
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
@@ -60,6 +62,34 @@ entries(Host) ->
   
 remove(Host, Name) ->
   gen_server:cast(name(Host), {remove, Name}).
+
+
+init_names() ->
+  Module = erl_syntax:attribute(erl_syntax:atom(module), 
+                                [erl_syntax:atom("media_provider_names")]),
+  Export = erl_syntax:attribute(erl_syntax:atom(export),
+                                     [erl_syntax:list(
+                                      [erl_syntax:arity_qualifier(
+                                       erl_syntax:atom(name),
+                                       erl_syntax:integer(1))])]),
+
+          
+  Clauses = lists:map(fun({Host, _}) ->
+    Name = binary_to_atom(<<"media_provider_", (atom_to_binary(Host, latin1))/binary>>, latin1),
+    erl_syntax:clause([erl_syntax:atom(Host)], none, [erl_syntax:atom(Name)])
+  end, ems:get_var(vhosts, [])),
+  Function = erl_syntax:function(erl_syntax:atom(name), Clauses),
+
+  Forms = [erl_syntax:revert(AST) || AST <- [Module, Export, Function]],
+
+  ModuleName = media_provider_names,
+  code:purge(ModuleName),
+  case compile:forms(Forms) of
+    {ok,ModuleName,Binary}           -> code:load_binary(ModuleName, "media_provider_names.erl", Binary);
+    {ok,ModuleName,Binary,_Warnings} -> code:load_binary(ModuleName, "media_provider_names.erl", Binary)
+  end,
+
+  ok.
 
 
 % Plays media named Name
