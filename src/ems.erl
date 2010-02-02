@@ -53,14 +53,13 @@
 %%--------------------------------------------------------------------
 start() -> 
 	io:format("Starting ErlMedia ...~n"),
-	ems:load_config(),
   application:start(crypto),
   application:start(rtsp),
   application:start(rtmp),
-  start_rtmp(),
-  start_rtsp(),
   ems_log:start(),
 	application:start(erlmedia),
+  start_rtmp(),
+  start_rtsp(),
 	ems:start_modules().
   
 
@@ -114,28 +113,37 @@ reconfigure() ->
   RTSP = ems:get_var(rtsp_port, undefined),
   load_config(),
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
-    {undefined, _} -> ok;
+    {undefined, undefined} -> ok;
     {RTMP, RTMP} -> ok;
+    {undefined, _} -> 
+      {ok, _} = start_rtmp();
     _ -> 
       supervisor:terminate_child(rtmp_sup, rtmp_listener1),
-      supervisor:delete_child(rtmp_sup, rtmp_listener1)
+      supervisor:delete_child(rtmp_sup, rtmp_listener1),
+      {ok, _} = start_rtmp()
   end,
   case {RTSP, ems:get_var(rtsp_port, undefined)} of
-    {undefined, _} -> ok;
+    {undefined, undefined} -> ok;
     {RTSP, RTSP} -> ok;
+    {undefined, _} -> {ok, _} = start_rtsp();
     _ -> 
       supervisor:terminate_child(rtsp_sup, rtsp_listener1),
-      supervisor:delete_child(rtsp_sup, rtsp_listener1)
+      supervisor:delete_child(rtsp_sup, rtsp_listener1),
+      {ok, _} = start_rtsp()
   end,
-  {ok, _} = start_rtmp(),
-  {ok, _} = start_rtsp(),
   ok.
   
 load_config() ->
+  [application:unset_env(erlmedia, Key) || {Key, _} <- application:get_all_env(erlmedia)],
+  
   case file:consult("priv/erlmedia.conf") of
-    {ok, Env} -> [application:set_env(erlmedia, Key, Value) || {Key, Value} <- Env];
+    {ok, Env} -> 
+      [application:set_env(erlmedia, Key, Value) || {Key, Value} <- Env],
+      ok;
     _ -> ok
-  end.
+  end,
+  ems_vhosts:start().
+  
       
 
 %%--------------------------------------------------------------------
@@ -155,6 +163,7 @@ rebuild() ->
 %%--------------------------------------------------------------------
 reload() ->
 	application:load(erlmedia),
+	load_config(),
 	case application:get_key(erlmedia,modules) of
 		undefined    -> 
 			application:load(erlmedia),

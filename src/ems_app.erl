@@ -50,13 +50,10 @@
 
 start(_Type, _Args) -> 
   application:load(?APPLICATION),
-  
-  ems_vhosts:start(),
-	
+  ems:load_config(),
   mnesia:create_schema([node()]),
   mnesia:start(),
-  Start = ems_sup:start_link(),
-  Start.
+  ems_sup:start_link().
 
 
 %%--------------------------------------------------------------------
