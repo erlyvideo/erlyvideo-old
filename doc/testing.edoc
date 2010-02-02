@@ -15,4 +15,19 @@
 * it must appear in both pages.
 
 
+=== File reading ===
+
+* open mp4 file
+* seek it almost to the end
+* seek it back to the beginning
+* seek it again to the end and wait for end
+* open flv file and repeat previous steps
+
+=== MPEG TS ===
+
+* start VLC to transcode video to MPEG TS
+* check http://localhost:8082/?file=http://localhost:8080/
+* ./contrib/reverse_mpegts http://localhost:8080/ http://localhost:8082/stream/my_stream
+* check http://localhost:8082/?file=my_stream
+
 @end
