@@ -17,7 +17,10 @@
 
 
 main([FromUrl, ToUrl]) ->
-  run_loop(#pusher{from_url = FromUrl, to_url = ToUrl}).
+  run_loop(#pusher{from_url = FromUrl, to_url = ToUrl});
+main(_) ->
+  io:format("http://[source.url/stream.ts] http://[erlyvideo.url]/stream/[name].ts ~n").
+
   
   
 

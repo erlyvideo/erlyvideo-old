@@ -113,7 +113,7 @@ init([URL, mpeg_ts, _Opts]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({set_socket, Socket}, _From, TSLander) ->
-  inet:setopts(Socket, [{active, once}, {packet, httph_bin}]),
+  inet:setopts(Socket, [{active, once}, {packet, raw}]),
   ?D({"MPEG TS received socket"}),
   {reply, ok, TSLander#ts_lander{socket = Socket}};
 
@@ -179,7 +179,7 @@ handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, TSLander) ->
 
 
 handle_info({http, Socket, http_eoh}, TSLander) ->
-  inet:setopts(Socket, [{active, true}, {packet, raw}]),
+  inet:setopts(Socket, [{active, once}, {packet, raw}]),
   {noreply, TSLander};
 
 handle_info(#video_frame{decoder_config = true, type = audio} = Frame, TSLander) ->
@@ -203,10 +203,12 @@ handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander)
   end;
 
 
-handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
+handle_info({tcp, Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->
+  inet:setopts(Socket, [{active, once}]),
   {noreply, synchronizer(Bin, TSLander#ts_lander{byte_counter = Counter + size(Bin)})};
 
-handle_info({tcp, _Socket, Bin}, #ts_lander{buffer = Buf, byte_counter = Counter} = TSLander) ->
+handle_info({tcp, Socket, Bin}, #ts_lander{buffer = Buf, byte_counter = Counter} = TSLander) ->
+  inet:setopts(Socket, [{active, once}]),
   {noreply, synchronizer(<<Buf/binary, Bin/binary>>, TSLander#ts_lander{byte_counter = Counter + size(Bin)})};
 
 handle_info({tcp_closed, Socket}, #ts_lander{socket = Socket} = TSLander) ->
