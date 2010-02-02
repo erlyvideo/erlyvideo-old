@@ -23,9 +23,13 @@ decode(Session, Secret) when is_binary(Session) ->
 decode(Session, Secret) when is_list(Session) ->
   decode(0, list_to_binary(Session), Secret).
   
-encode(Session, Secret) when is_list(Session) ->
+encode(Session, undefined) ->
   Json = iolist_to_binary(mochijson2:encode({struct, Session})),
-  Json64 = base64:encode(Json),
+  base64:encode(Json);
+  
+  
+encode(Session, Secret) when is_list(Session) ->
+  Json64 = encode(Session, undefined),
   Sign = session_sign(Json64, Secret),
   <<Json64/binary, "--", Sign/binary>>.
   

@@ -65,7 +65,7 @@ start() ->
   
 
 start_rtmp() ->
-  case ems:get_var(rtmp_port, undefined) of
+  case ems:get_var(rtmp_port, 1935) of
     undefined -> 
       ok;
     RTMP when is_integer(RTMP) -> 

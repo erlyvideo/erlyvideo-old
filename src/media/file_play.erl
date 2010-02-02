@@ -215,7 +215,7 @@ send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, #vi
 %% @end
 %%-------------------------------------------------------------------------	
 file_dir(Host) ->
-  ems:get_var(file_dir, Host, "/tmp").
+  ems:get_var(file_dir, Host, undefined).
 
 
 

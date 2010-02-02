@@ -208,7 +208,10 @@ check_path(Host, Name) when is_binary(Name) ->
   check_path(Host, binary_to_list(Name));
 
 check_path(Host, Name) ->
-  filelib:is_regular(filename:join([file_play:file_dir(Host), Name])).
+  case file_play:file_dir(Host) of
+    undefined -> false;
+    Dir -> filelib:is_regular(filename:join([Dir, Name]))
+  end.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
