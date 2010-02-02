@@ -62,6 +62,15 @@ handle(Host, 'GET', ["chat.html"], Req) ->
   ]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
+handle(Host, 'GET', ["videoconf.html"], Req) ->
+  erlydtl:compile("wwwroot/videoconf.html", chat_template),
+  Secret = ems:get_var(secret_key, Host, undefined),
+  {ok, Index} = chat_template:render([
+    {hostname, ems:get_var(host, Host, "rtmp://localhost")},
+    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}
+  ]),
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
+
   
 handle(Host, 'POST', ["open", ChunkNumber], Req) ->
   <<_Timeout>> = Req:get(body),
