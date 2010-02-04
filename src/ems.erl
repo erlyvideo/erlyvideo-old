@@ -89,9 +89,9 @@ start_rtsp() ->
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
 	ems:stop_modules(),
+  ems_log:stop(),
 	application:stop(erlmedia),
 	application:unload(erlmedia),
-  ems_log:stop(),
 	application:stop(rtsp),
 	application:unload(rtsp),
 	application:stop(rtmp),
@@ -134,7 +134,7 @@ reconfigure() ->
   ok.
   
 load_config() ->
-  [application:unset_env(erlmedia, Key) || {Key, _} <- application:get_all_env(erlmedia)],
+  % [application:unset_env(erlmedia, Key) || {Key, _} <- application:get_all_env(erlmedia)],
   
   case file:consult("priv/erlmedia.conf") of
     {ok, Env} -> 
