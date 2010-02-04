@@ -160,7 +160,7 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
 
 decode(rtcp, State, <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, _StreamId:32, NTP:64, Timecode:32, PacketCount:32, OctetCount:32, _/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  ?D({"RTCP", element(1, State), WallClock, Timecode}),
+  % ?D({"RTCP", element(1, State), WallClock, Timecode}),
   ClockMap = element(#base_rtp.clock_map, State),
   State1 = case element(#base_rtp.base_wall_clock, State) of
     undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
