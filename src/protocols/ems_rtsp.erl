@@ -10,7 +10,8 @@
 -export([announce/4]).
 
 announce(Host, Path, Streams, _Headers) -> 
-  Media = media_provider:open(Host, Path, live),
+  ?D({"ANNOUNCE", Host, ems:host(Host)}),
+  Media = media_provider:open(ems:host(Host), Path, live),
   Streams1 = config_media(Media, Streams),
   {ok, Media, Streams1}.
 

@@ -108,7 +108,7 @@ init([Callback]) ->
   {match, [_, Host, _Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   io:format("[RTSP] ~s ~s RTSP/1.0~n", [Method, URL]),
   inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_connection{request = [MethodName, URL], headers = [], host = ems:host(Host)}, ?TIMEOUT}.
+  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_connection{request = [MethodName, URL], headers = [], host = Host}, ?TIMEOUT}.
 
 'WAIT_FOR_BINARY'({data, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, #rtsp_connection{buffer = <<>>, rtp_streams = Streams} = State) ->
   Streams1 = case element(ChannelId+1, Streams) of
@@ -232,9 +232,9 @@ run_request(#rtsp_connection{request = ['RECORD', _URL]} = State) ->
 run_request(#rtsp_connection{request = ['PAUSE', _URL]} = State) ->
   reply(State, "200 OK", []);
 
-run_request(#rtsp_connection{request = ['TEARDOWN', _URL], host = Host} = State) ->
-  Path = path(State),
-  Media = media_provider:find(Host, Path),
+run_request(#rtsp_connection{request = ['TEARDOWN', _URL], media = Media, host = Host} = State) ->
+  % Path = path(State),
+  % Media = media_provider:find(Host, Path),
   Media ! stop,
   reply(State, "200 OK", []);
 
