@@ -25,3 +25,12 @@
   dump_file,
   buffer = <<>>
 }).
+
+-record(h264_sps, {
+  profile,
+  level,
+  sps_id,
+  max_frame_num,
+  width,
+  height
+}).

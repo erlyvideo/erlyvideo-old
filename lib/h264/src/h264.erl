@@ -114,9 +114,10 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file =
   {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
-  io:format("Sequence parameter set ~p ~p~n", [profile_name(Profile), Level/10]),
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   ?DUMP_H264(File, SPS),
+  SPSInfo = parse_sps(SPS),
+  io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{dump_file = File} = H264) ->
@@ -194,6 +195,34 @@ remove_trailing_zero(Bin) ->
     <<Smaller:Size/binary, 0>> -> remove_trailing_zero(Smaller);
     _ -> Bin
   end.
+
+
+parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
+  {SPS_ID, Rest1} = exp_golomb_read(Data),
+  {Log2FrameNum, Rest2} = exp_golomb_read(Rest1),
+  {PicOrder, Rest3} = exp_golomb_read(Rest2),
+  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID, max_frame_num = Log2FrameNum},
+  parse_sps_pic_order(Rest3, PicOrder, SPS).
+  
+parse_sps_pic_order(Data, 0, SPS) ->
+  {_Log2PicOrder, Rest} = exp_golomb_read(Data),
+  parse_sps_ref_frames(Rest, SPS);
+  
+parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
+  {_OffsetNonRef, Rest1} = exp_golomb_read_s(Data),
+  {_OffsetTopBottom, Rest2} = exp_golomb_read_s(Rest1),
+  {NumRefFrames, Rest3} = exp_golomb_read_s(Rest2),
+  NumRefFrames = 0,
+  parse_sps_ref_frames(Rest3, SPS).
+  
+parse_sps_ref_frames(Data, SPS) ->
+  {NumRefFrames, <<Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
+  {PicWidth, Rest2} = exp_golomb_read(Rest1),
+  Width = (PicWidth + 1)*16,
+  {PicHeight, <<FrameMbsOnly:1, Rest3/bitstring>>} = exp_golomb_read(Rest2),
+  Height = (PicHeight + 1)*16,
+  SPS#h264_sps{width = Width, height = Height}.
+  
 
 profile_name(66) -> "Baseline";
 profile_name(77) -> "Main";
