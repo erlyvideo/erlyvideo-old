@@ -9,10 +9,11 @@
 
 -export([announce/4]).
 
-announce(Host, Path, Streams, _Headers) -> 
-  ?D({"ANNOUNCE", Host, ems:host(Host)}),
+announce(Hostname, Path, Streams, _Headers) -> 
+  Host = ems:host(Hostname),
+  ?D({"ANNOUNCE", Host, Host}),
   ems_log:access(Host, "RTSP ANNOUNCE ~s ~s", [Host, Path]),
-  Media = media_provider:open(ems:host(Host), Path, live),
+  Media = media_provider:open(Host, Path, live),
   Streams1 = config_media(Media, Streams),
   {ok, Media, Streams1}.
 
