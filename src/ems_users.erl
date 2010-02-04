@@ -195,7 +195,6 @@ handle_cast({send_to_user, Host, UserId, Message}, #ems_users{user_ids = UserIds
 handle_cast({send_to_channel, Host, Channel, Message}, #ems_users{channels = Channels} = Server) ->
   Clients = ets:lookup(Channels, {Host, Channel}),
   F = fun(#channel_entry{client = Client}) -> 
-    io:format("Sending ~s~n", [Message]),
     gen_fsm:send_event(Client, {message, Message}) 
   end,
   lists:foreach(F, Clients),
