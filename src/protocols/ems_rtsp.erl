@@ -11,6 +11,7 @@
 
 announce(Host, Path, Streams, _Headers) -> 
   ?D({"ANNOUNCE", Host, ems:host(Host)}),
+  ems_log:access(Host, "RTSP ANNOUNCE ~s ~s", [Host, Path]),
   Media = media_provider:open(ems:host(Host), Path, live),
   Streams1 = config_media(Media, Streams),
   {ok, Media, Streams1}.
