@@ -222,7 +222,8 @@ respond_to(Module, Command, Arity) ->
   
 host(Hostname) when is_binary(Hostname) -> host(binary_to_list(Hostname));
 host(Hostname) when is_atom(Hostname) -> Hostname;
-host(Hostname) -> 
+host(FullHostname) ->
+  Hostname = hd(string:tokens(FullHostname, ":")),
   case ets:match_object(vhosts, {Hostname, '$1'}) of
     [{Hostname, Host}] -> Host;
     [] -> default
