@@ -8,5 +8,9 @@ MNESIA_DATA=$APP_PATH/mnesia-data
 
 cd $APP_PATH
 export HOME=/home/max
-chpst -u max -e /etc/service/erlyvideo/config $ERL -pa $APP_PATH/ebin -boot start_sasl -s $APP_NAME -mnesia dir "\"${MNESIA_DATA}\"" -name $NODE_NAME
+DEPS=""
+for i in $APP_PATH/deps/*/ebin ; do
+  DEPS="$DEPS -pa $i "
+done
+chpst -u max -e /etc/service/erlyvideo/config $ERL -pa $APP_PATH/ebin $DEPS -boot start_sasl -s $APP_NAME -mnesia dir "\"${MNESIA_DATA}\"" -name $NODE_NAME
 
