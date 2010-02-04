@@ -30,34 +30,42 @@ connect_source(From) ->
     {ok, Socket} -> 
       ?D({"Connected to", From}),
       gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
-      read_response(Socket);
+      read_response(Socket, From);
     {error, econnrefused} ->
       ?D({"Cannot connect source", From}),
       timer:sleep(500),
       connect_source(From)
   end.
   
-read_response(Socket) ->
+read_response(Socket, From) ->
   inet:setopts(Socket, [{active, once}]),
   receive 
     {http, Socket, {http_response, _Version, 200, _Reply}} ->
-      read_headers(Socket);
-    Else -> ?D({"ZZ", Else})
+      read_headers(Socket, From);
+    {tcp_closed, Socket} ->
+      ?D({"Socket closed", From}),
+      timer:sleep(500),
+      connect_source(From);
+    Else -> ?D({"Unknown", Else})
   after
     ?TIMEOUT -> 
       ?D({"Timeout reading http response"}),
       false
   end.
   
-read_headers(Socket) ->
+read_headers(Socket, From) ->
   inet:setopts(Socket, [{active, once}]),
   receive
     {http, Socket, {http_header, _, _Header, _, _Value}} ->
-      read_headers(Socket);
+      read_headers(Socket, From);
     {http, Socket, http_eoh} ->
       inet:setopts(Socket, [{packet, raw}]),
       ?D({"Connected to source"}),
-      Socket
+      Socket;
+    {tcp_closed, Socket} ->
+      ?D({"Socket closed", From}),
+      timer:sleep(500),
+      connect_source(From)
   after
     ?TIMEOUT -> 
       ?D({"Timeout reading http headers"}),
@@ -118,5 +126,6 @@ run_loop(#pusher{from = From, to = To} = Pusher) ->
   after
     ?TIMEOUT -> 
       ?D("Timeout in pusher"),
-      ok
+      timer:sleep(500),
+      run_loop(Pusher#pusher{to = undefined, from = undefined})
   end.
