@@ -2,10 +2,8 @@ VERSION=1.4
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
-BEAMDIR=$(RTMPDIR)/ebin/
-SRCDIR=$(RTMPDIR)/src/
-DOCDIR=$(RTMPDIR)/doc/
-INCLUDEDIR=$(RTMPDIR)/include/
+VARDIR=/var/lib/erlyvideo
+ETCDIR=/etc/erlyvideo
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlyvideo
 
@@ -70,11 +68,9 @@ install:
 	mkdir -p $(DESTROOT)$(DOCDIR)
 	mkdir -p $(DESTROOT)$(SRCDIR)
 	mkdir -p $(DESTROOT)$(INCLUDEDIR)
-	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 doc/* $(DESTROOT)$(DOCDIR)
-	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
-	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+	mkdir -p $(DESTROOT)$(ETCDIR)
+	mkdir -p $(DESTROOT)$(VARDIR)
+	cp -r ebin contrib doc src include lib $(DESTROOT)$(RTMPDIR)
 
 archive: ../erlyvideo-$(VERSION).tgz
 	

@@ -1,9 +1,6 @@
-usr/lib/erlyvideo/bin
-usr/lib/erlang/lib
+usr/lib/erlyvideo
 usr/sbin
-usr/share/man
-var/lib/erlyvideo/mnesia
+var/lib/erlyvideo
 var/log/erlyvideo
-etc/logrotate.d
 etc/erlyvideo
 
