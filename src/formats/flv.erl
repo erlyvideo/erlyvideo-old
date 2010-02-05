@@ -148,6 +148,10 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
             id = TimeStampAbs*3 + 2
           };
 			  ?FLV_TAG_TYPE_META ->
+			    {ok, MetaBody} = file:pread(Device, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, Length),
+			    Meta = rtmp:decode_list(MetaBody),
+          % parse_metadata(FrameTable, Meta),
+          % ?D(Meta),
 			    PreparedFrame#file_frame{
 			      id = TimeStampAbs*3
 			    }
@@ -162,6 +166,27 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
   end.
   
 codec_config(_, _) -> undefined.
+
+parse_metadata(FrameTable, [<<"onMetaData">>, Meta]) ->
+  {object, Keyframes} = proplists:get_value(<<"keyframes">>, Meta),
+  Offsets = proplists:get_value(filepositions, Keyframes),
+  Times = proplists:get_value(times, Keyframes),
+  insert_keyframes(FrameTable, Offsets, Times).
+  
+insert_keyframes(_, [], _) -> ok;
+insert_keyframes(_, _, []) -> ok;
+insert_keyframes(FrameTable, [Offset|Offsets], [Time|Times]) ->
+  Frame = #file_frame{
+    id = Time*3+1,
+    timestamp = Time, 
+    offset = Offset, 
+    type = video,
+    keyframe = true
+  },
+  ets:insert(FrameTable, Frame),
+  insert_keyframes(FrameTable, Offsets, Times).
+  
+
 
 % Reads a tag from IoDev for position Pos.
 % @param IoDev
