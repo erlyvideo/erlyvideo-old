@@ -6,6 +6,8 @@ Mnesia.*
 plugins
 *.log
 *.cookie
+log
+movies
 
 # XCode noise
 *.swp
