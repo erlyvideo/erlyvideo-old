@@ -20,13 +20,12 @@ set -e
 
 # create rabbitmq group
 if ! getent group erlyvideo >/dev/null; then
-        addgroup --system erlyvideo
+  addgroup --system erlyvideo
 fi
 
 # create rabbitmq user
 if ! getent passwd erlyvideo >/dev/null; then
-        adduser --system --ingroup erlyvideo --home /var/lib/erlyvideo \
-        	--no-create-home --gecos "Erlyvideo streaming server" erlyvideo
+  adduser --system --ingroup erlyvideo --no-create-home --home /var/lib/erlyvideo --gecos "Erlyvideo streaming server" erlyvideo
 fi
 
 chown -R erlyvideo:erlyvideo /var/lib/erlyvideo

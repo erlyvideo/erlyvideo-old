@@ -136,11 +136,12 @@ reconfigure() ->
 load_config() ->
   % [application:unset_env(erlmedia, Key) || {Key, _} <- application:get_all_env(erlmedia)],
   
-  case file:consult("priv/erlmedia.conf") of
-    {ok, Env} -> 
+  case file:path_consult(["priv", "/etc/erlyvideo"], "erlmedia.conf") of
+    {ok, Env, Path} -> 
+      io:format("Loading config from file ~s~n", [Path]),
       [application:set_env(erlmedia, Key, Value) || {Key, Value} <- Env],
       ok;
-    _ -> ok
+    {error, enoent} -> ok
   end,
   ems_vhosts:start(),
   media_provider:init_names().

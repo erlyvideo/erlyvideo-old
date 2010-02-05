@@ -6,10 +6,11 @@ APP_PATH=/usr/lib/erlyvideo
 MNESIA_DATA=/var/lib/erlyvideo/mnesia-data
 
 cd $APP_PATH
-export HOME=/home/max
+export HOME=/var/lib/erlyvideo
 DEPS=""
 for i in $APP_PATH/deps/*/ebin ; do
   DEPS="$DEPS -pa $i "
 done
-chpst -u max -e /etc/service/erlyvideo/config $ERL -pa $APP_PATH/ebin $DEPS -boot start_sasl -s $APP_NAME -mnesia dir "\"${MNESIA_DATA}\"" -name $NODE_NAME
+cd /var/lib/erlyvideo
+chpst -u erlyvideo -e /etc/service/erlyvideo/config $ERL -pa $APP_PATH/ebin $DEPS -boot start_sasl -s $APP_NAME -mnesia dir "\"${MNESIA_DATA}\"" -name $NODE_NAME
 
