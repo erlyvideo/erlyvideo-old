@@ -72,6 +72,7 @@ install:
 	mkdir -p $(DESTROOT)$(VARDIR)
 	cp -r ebin contrib doc src include lib $(DESTROOT)$(RTMPDIR)
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
+	cp priv/erlmedia.conf.sample $(DESTROOT)/etc/erlyvideo/erlmedia.conf
 
 archive: ../erlyvideo-$(VERSION).tgz
 	
