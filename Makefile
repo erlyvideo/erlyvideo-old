@@ -72,7 +72,12 @@ install: compile
 	mkdir -p $(DESTROOT)$(INCLUDEDIR)
 	mkdir -p $(DESTROOT)$(ETCDIR)
 	mkdir -p $(DESTROOT)$(VARDIR)
-	cp -r ebin contrib doc src include lib $(DESTROOT)$(RTMPDIR)
+	cp -r ebin src include lib $(DESTROOT)$(RTMPDIR)
+	mkdir -p $(DESTROOT)/usr/bin/
+	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
+	cp -r doc $(DESTROOT)$(DOCDIR)
+	mkdir -p $(DESTROOT)/etc/sv/
+	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	cp priv/erlmedia.conf.sample $(DESTROOT)/etc/erlyvideo/erlmedia.conf
 
