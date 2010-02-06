@@ -269,7 +269,7 @@ init([]) ->
     },
     % EMS HTTP
     {   ems_http_sup,                         % Id       = internal id
-        {ems_http,start_link,[ems:get_var(http_port, 8082)]},             % StartFun = {M, F, A}
+        {ems_http,start_link,[]},             % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
         worker,                                  % Type     = worker | supervisor

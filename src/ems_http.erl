@@ -1,9 +1,10 @@
 -module(ems_http).
--export([start_link/1, stop/0, handle_http/1]).
+-export([start_link/0, stop/0, handle_http/1]).
 -include("../include/ems.hrl").
 
 % start misultin http server
-start_link(Port) ->
+start_link() ->
+  Port = ems:get_var(http_port, 8082),
 	misultin:start_link([{port, Port}, {loop, fun handle_http/1}]).
 
 % stop misultin

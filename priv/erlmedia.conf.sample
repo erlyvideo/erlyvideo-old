@@ -6,10 +6,12 @@
       {hostname, ["localhost"]},
       {applications, [apps_push, apps_streaming, apps_recording, apps_rtmp, apps_shared_objects]},
       {secret_key, "123"},
-      {access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
-      {error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
+			{auth_module, trusted_login},
+      {access_log, {"/var/log/erlyvideo/", "access", {size, 1000000}, 10, "log", info}},
+      {error_log, {"/var/log/erlyvideo/", "error", {size, 1000000}, 10, "log", info}},
       {host, "rtmp://localhost"},
-      {file_dir, "/tmp"},
+      {file_dir, "/var/lib/erlyvideo/movies"},
+			{wwwroot, "/var/lib/erlyvideo/wwwroot"},
       {mpegts, [
         {"stream/vlc.ts", "http://localhost:8080"}
       ]}
