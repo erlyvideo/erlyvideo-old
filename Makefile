@@ -14,7 +14,9 @@ VSN=0.1
 MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
-all: erlang_version ebin 
+all: compile
+
+compile: 
 	ERL_LIBS=deps:lib:plugins erl -make
 	# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
@@ -63,7 +65,7 @@ start: erlang_version ebin
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-detached
 
-install:
+install: compile
 	mkdir -p $(DESTROOT)$(BEAMDIR)
 	mkdir -p $(DESTROOT)$(DOCDIR)
 	mkdir -p $(DESTROOT)$(SRCDIR)
@@ -86,5 +88,5 @@ debian: all
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 
-.PHONY: doc debian
+.PHONY: doc debian compile
 
