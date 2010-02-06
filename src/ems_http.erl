@@ -15,10 +15,12 @@ handle_http(Req) ->
   random:seed(now()),
   handle(ems:host(Req:host()), Req:get(method), Req:resource([urldecode]), Req).
 
+wwwroot(Host) ->
+  ems:get_var(wwwroot, Host, ems:get_var(wwwroot, "wwwroot")).
 
 handle(Host, 'GET', [], Req) ->
   localhost,
-  erlydtl:compile("wwwroot/index.html", index_template),
+  erlydtl:compile(wwwroot(Host) ++ "/index.html", index_template),
   
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
@@ -44,7 +46,7 @@ handle(_, 'GET', ["admin", "config.xml"], Req) ->
   Req:ok([{'Content-Type', "text/json; charset=utf8"}], iolist_to_binary(Config));
 
 handle(Host, 'GET', ["admin"], Req) ->
-  erlydtl:compile("wwwroot/admin.html", admin_template),
+  erlydtl:compile(wwwroot(Host) ++ "/admin.html", admin_template),
   % {ok, Contents} = file:read_file("player/player.html"),
 
   Entries = media_provider:entries(Host),
@@ -54,7 +56,7 @@ handle(Host, 'GET', ["admin"], Req) ->
 
 
 handle(Host, 'GET', ["chat.html"], Req) ->
-  erlydtl:compile("wwwroot/chat.html", chat_template),
+  erlydtl:compile(wwwroot(Host) ++ "/chat.html", chat_template),
   Secret = ems:get_var(secret_key, Host, undefined),
   {ok, Index} = chat_template:render([
     {hostname, ems:get_var(host, Host, "rtmp://localhost")},
@@ -63,7 +65,7 @@ handle(Host, 'GET', ["chat.html"], Req) ->
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 handle(Host, 'GET', ["videoconf.html"], Req) ->
-  erlydtl:compile("wwwroot/videoconf.html", chat_template),
+  erlydtl:compile(wwwroot(Host) ++ "/videoconf.html", chat_template),
   Secret = ems:get_var(secret_key, Host, undefined),
   {ok, Index} = chat_template:render([
     {hostname, ems:get_var(host, Host, "rtmp://localhost")},
@@ -139,7 +141,7 @@ handle(Host, 'GET', ["stream", Name], Req) ->
   end;
   
 handle(Host, 'GET', Path, Req) ->
-  FileName = filename:absname(filename:join(["wwwroot" | Path])),
+  FileName = filename:absname(filename:join([wwwroot(Host) | Path])),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
