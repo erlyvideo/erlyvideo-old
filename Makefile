@@ -72,6 +72,7 @@ install: compile
 	mkdir -p $(DESTROOT)$(INCLUDEDIR)
 	mkdir -p $(DESTROOT)$(ETCDIR)
 	mkdir -p $(DESTROOT)$(VARDIR)
+	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
 	cp -r ebin src include lib $(DESTROOT)$(RTMPDIR)
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
