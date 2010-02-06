@@ -112,6 +112,8 @@ reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   RTSP = ems:get_var(rtsp_port, undefined),
   load_config(),
+  ems_log:stop(),
+  ems_log:start(),
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
     {undefined, undefined} -> ok;
     {RTMP, RTMP} -> ok;
