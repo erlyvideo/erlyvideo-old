@@ -89,9 +89,4 @@
   keyframe
 }).
 
--record(flv_header,{
-	version = 1,
-	audio = 0,
-	video = 0
-	}).
 		

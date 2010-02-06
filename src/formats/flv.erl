@@ -36,12 +36,12 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('max@maxidoors.ru').
--include("../../include/ems.hrl").
 -include("../../include/flv.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 -include("../../include/media_info.hrl").
 
--export([init/1, read_frame/2, codec_config/2, read_frame_list/3, header/1]).
+-export([init/1, read_frame/2, codec_config/2, header/0, header/1, seek/2, first/1]).
 -behaviour(gen_format).
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, video_type/1]).
@@ -93,6 +93,15 @@ video_type(?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME) -> disposable;
 video_type(?FLV_VIDEO_FRAME_TYPEINTER_FRAME) -> frame;
 video_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
+
+-record(flv_tag, {
+  type,
+  timestamp,
+  size,
+  offset,
+  body
+}).
+
 %%--------------------------------------------------------------------
 %% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}
 %% @doc Read flv file and load its frames in memory ETS
@@ -102,63 +111,44 @@ init(#media_info{device = IoDev} = MediaInfo) ->
   case file:read(IoDev, ?FLV_HEADER_LENGTH) of
     {ok, Data} -> 
       read_frame_list(MediaInfo#media_info{
-          frames = ets:new(frames, [ordered_set, public, {keypos, #file_frame.id}]),
-          header = header(Data)}, size(Data), 0);
+          frames = ets:new(frames, [ordered_set, public]),
+          header = header(Data)}, size(Data) + ?FLV_PREV_TAG_SIZE_LENGTH);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
 
-read_frame_list(#media_info{} = MediaInfo, Offset, FrameCount) when FrameCount == 100 ->
-  spawn_link(?MODULE, read_frame_list, [MediaInfo, Offset, FrameCount + 1]),
-  {ok, MediaInfo};
-  
+first(_) ->
+  ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
 
-read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, Offset, FrameCount) ->
-  % We need to bypass PreviousTagSize and read header.
-	case file:pread(Device,Offset + ?FLV_PREV_TAG_SIZE_LENGTH, ?FLV_TAG_HEADER_LENGTH) of
-		{ok, <<Type, Length:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
-      % io:format("Read ~p ~p~n", [Type, TimeStamp]),
+read_tag_header(Device, Offset) ->
+	case file:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH) of
+		{ok, <<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
+      % io:format("Frame ~p ~p ~p~n", [Type, TimeStamp, Size]),
 		  <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
-		  
-		  PreparedFrame = #file_frame{
-		    timestamp = TimeStampAbs, 
-		    offset = Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 
-		    size = Length,
-		    type = Type
-		  },
-		  
-			Frame = case Type of
-			  ?FLV_TAG_TYPE_VIDEO ->
-          % {FrameType, _CodecID, _Width, _Height} = extractVideoHeader(Device, Offset),
-          case file:pread(Device, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of
-            {ok, <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4>>} -> KeyFrame = true;
-            {ok, <<_FrameType:4, _CodecID:4>>} -> KeyFrame = false;
-            _ -> KeyFrame = undefined
-          end,
-          % io:format("Extracting frame type ~p ~p~n", [TimeStamp, KeyFrame]),
-          % KeyFrame = undefined,
-			    PreparedFrame#file_frame{
-			      id = TimeStampAbs*3 + 1,
-    		    keyframe = KeyFrame
-			    };
-        ?FLV_TAG_TYPE_AUDIO -> 
-          % {_SoundType, _SoundSize, _SoundRate, _SoundFormat} =  extractAudioHeader(Device, Offset),
-          PreparedFrame#file_frame{
-            id = TimeStampAbs*3 + 2
-          };
-			  ?FLV_TAG_TYPE_META ->
-			    {ok, MetaBody} = file:pread(Device, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, Length),
-			    Meta = rtmp:decode_list(MetaBody),
-          % parse_metadata(FrameTable, Meta),
-          % ?D(Meta),
-			    PreparedFrame#file_frame{
-			      id = TimeStampAbs*3
-			    }
-			end,
-			
-			ets:insert(FrameTable, Frame),
-			?MODULE:read_frame_list(MediaInfo, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length, FrameCount + 1);
+      #flv_tag{type = Type, timestamp = TimeStampAbs, size = Size, offset = Offset};
+    eof -> eof;
+    {error, Reason} -> {error, Reason}
+  end.
+
+read_tag(Device, Offset) ->
+  case read_tag_header(Device, Offset) of
+    #flv_tag{size = Size} = Tag ->
+      {ok, Body} = file:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
+      Tag#flv_tag{body = Body};
+    Else -> Else
+  end.
+
+read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, Offset) ->
+  % We need to bypass PreviousTagSize and read header.
+	case read_tag_header(Device, Offset)	of
+	  #flv_tag{type = ?FLV_TAG_TYPE_META, size = Length, offset = Offset} ->
+			{ok, MetaBody} = file:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Length),
+			Meta = rtmp:decode_list(MetaBody),
+      parse_metadata(FrameTable, Meta),
+			{ok, MediaInfo};
+		#flv_tag{size = Length} ->
+			read_frame_list(MediaInfo, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length);
     eof -> 
       {ok, MediaInfo};
     {error, Reason} -> 
@@ -168,57 +158,65 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
 codec_config(_, _) -> undefined.
 
 parse_metadata(FrameTable, [<<"onMetaData">>, Meta]) ->
-  {object, Keyframes} = proplists:get_value(<<"keyframes">>, Meta),
-  Offsets = proplists:get_value(filepositions, Keyframes),
-  Times = proplists:get_value(times, Keyframes),
-  insert_keyframes(FrameTable, Offsets, Times).
+  case proplists:get_value(<<"keyframes">>, Meta) of
+    {object, Keyframes} ->
+      Offsets = proplists:get_value(filepositions, Keyframes),
+      Times = proplists:get_value(times, Keyframes),
+      insert_keyframes(FrameTable, Offsets, Times);
+    _ -> ok
+  end.  
   
 insert_keyframes(_, [], _) -> ok;
 insert_keyframes(_, _, []) -> ok;
 insert_keyframes(FrameTable, [Offset|Offsets], [Time|Times]) ->
-  Frame = #file_frame{
-    id = Time*3+1,
-    timestamp = Time, 
-    offset = Offset, 
-    type = video,
-    keyframe = true
-  },
-  ets:insert(FrameTable, Frame),
+  ets:insert(FrameTable, {round(Time*1000), round(Offset)}),
   insert_keyframes(FrameTable, Offsets, Times).
   
+
+seek(FrameTable, Timestamp) ->
+  TimestampInt = round(Timestamp),
+  Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp =< TimestampInt ->
+    {Offset, FrameTimestamp}
+  end)),
+  
+  case lists:reverse(Ids) of
+    [Item | _] -> Item;
+    _ -> undefined
+  end.
 
 
 % Reads a tag from IoDev for position Pos.
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
-read_frame(#media_info{device = IoDev, frames = FrameTable}, Key) ->
-  [Frame] = ets:lookup(FrameTable, Key),
-  #file_frame{offset = Offset, size = Size} = Frame,
-	case file:pread(IoDev, Offset, Size) of
-		{ok, Data} -> video_frame(Frame, Data);
+read_frame(#media_info{device = Device}, Offset) ->
+	case read_tag(Device, Offset) of
+		#flv_tag{size = Length} = Tag ->
+		  {video_frame(Tag), Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length};
     eof -> done;
     {error, Reason} -> {error, Reason}
   end.
 
-video_frame(#file_frame{type = ?FLV_TAG_TYPE_AUDIO} = Frame, Data) ->
-  video_frame(Frame#file_frame{type = audio}, Data);
+video_frame(#flv_tag{type = ?FLV_TAG_TYPE_AUDIO} = Frame) ->
+  video_frame(Frame#flv_tag{type = audio});
 
-video_frame(#file_frame{type = ?FLV_TAG_TYPE_VIDEO} = Frame, Data) ->
-  video_frame(Frame#file_frame{type = video}, Data);
+video_frame(#flv_tag{type = ?FLV_TAG_TYPE_VIDEO} = Frame) ->
+  video_frame(Frame#flv_tag{type = video});
 
-video_frame(#file_frame{type = ?FLV_TAG_TYPE_META} = Frame, Metadata) ->
-  % {Command, Data} = amf0:decode(Metadata),
-  % ?D({"Metadata in file", amf0:decode(Data)}),
-  video_frame(Frame#file_frame{type = metadata}, Metadata);
+video_frame(#flv_tag{type = ?FLV_TAG_TYPE_META} = Frame) ->
+  video_frame(Frame#flv_tag{type = metadata});
 
-video_frame(#file_frame{type = video, keyframe = true, timestamp = Timestamp}, Data) ->
-  Frame = ems_flv:decode(video, Data),
-  Frame#video_frame{frame_type = keyframe, timestamp = Timestamp};
-  
-video_frame(#file_frame{type = Type, timestamp = Timestamp}, Data) ->
+video_frame(#flv_tag{type = Type, timestamp = Timestamp, body = Data}) ->
+  FrameType = case Type of
+    video ->
+      case Data of 
+        <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4, _/binary>> -> keyframe;
+        _ -> frame
+      end;
+    _ -> undefined
+  end,
   Frame = ems_flv:decode(Type, Data),
-  Frame#video_frame{timestamp = Timestamp}.
+  Frame#video_frame{timestamp = Timestamp, frame_type = FrameType}.
 
 	
 % Extracts width and height from video frames.
@@ -289,8 +287,7 @@ extractAudioHeader(IoDev, Pos) ->
   end.
 
 
-
--spec header(#flv_header{} | <<_:72>>) -> #flv_header{version::byte(),audio::0 | 1,video::0 | 1}.
+header() -> header(#flv_header{version = 1, audio = 1, video = 1}).
 
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
 	Reserved = 0,

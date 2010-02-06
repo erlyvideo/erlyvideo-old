@@ -4,7 +4,6 @@
 -author(max@maxidoors.ru).
 -include("../include/ems.hrl").
 -include("../include/media_info.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
 
@@ -80,26 +79,17 @@ handle_call({read, '$end_of_table'}, _From, MediaInfo) ->
 handle_call({read, done}, _From, MediaInfo) ->
   {reply, {done, undefined}, MediaInfo};
 
-handle_call({read, undefined}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
-  handle_call({read, ets:first(FrameTable)}, _From, MediaInfo);
+handle_call({read, undefined}, _From, #media_info{format = Format} = MediaInfo) ->
+  handle_call({read, Format:first(MediaInfo)}, _From, MediaInfo);
 
-handle_call({read, Key}, _From, #media_info{frames = FrameTable, format = FileFormat} = MediaInfo) ->
-  Frame = FileFormat:read_frame(MediaInfo, Key),
-  Next = ets:next(FrameTable, Key),
-  {reply, {Frame, Next}, MediaInfo};
+handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
+  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
 
 handle_call({name}, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};
   
-handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable} = MediaInfo) ->
-  TimestampInt = round(Timestamp),
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
-    {Id, FrameTimestamp}
-  end)),
-  case lists:reverse(Ids) of
-    [Item | _] -> {reply, Item, MediaInfo};
-    _ -> {reply, undefined, MediaInfo}
-  end;
+handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable, format = Format} = MediaInfo) ->
+  {reply, Format:seek(FrameTable, Timestamp), MediaInfo};
 
 
 handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->

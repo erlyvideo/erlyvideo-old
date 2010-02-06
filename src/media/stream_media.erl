@@ -52,7 +52,7 @@ init([Name, record, Opts]) ->
 	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
 	(catch file:delete(FileName)),
 	ok = filelib:ensure_dir(FileName),
-	Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
+	Header = flv:header(),
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),

@@ -37,9 +37,10 @@
 -include("../../include/ems.hrl").
 -include("../../include/mp4.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 -include("../../include/media_info.hrl").
 
--export([init/1, read_frame/2, metadata/1, codec_config/2]).
+-export([init/1, read_frame/2, metadata/1, codec_config/2, seek/2, first/1]).
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2]).
 
@@ -72,11 +73,15 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 	}.
 
 
+first(#media_info{frames = FrameTable}) ->
+  ets:first(FrameTable).
+
 read_frame(#media_info{frames = FrameTable} = MediaInfo, Key) ->
   [Frame] = ets:lookup(FrameTable, Key),
   #file_frame{offset = Offset, size = Size} = Frame,
+  Next = ets:next(FrameTable, Key),
 	case read_data(MediaInfo, Offset, Size) of
-		{ok, Data, _} -> video_frame(Frame, Data);
+		{ok, Data, _} -> {video_frame(Frame, Data), Next};
     eof -> done;
     {error, Reason} -> {error, Reason}
   end.
@@ -88,6 +93,17 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
       {ok, Data, MediaInfo};
     Else -> Else
   end.
+  
+seek(FrameTable, Timestamp) ->
+  TimestampInt = round(Timestamp),
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
+    {Id, FrameTimestamp}
+  end)),
+  case lists:reverse(Ids) of
+    [Item | _] -> Item;
+    _ -> undefined
+  end.
+  
 
 % read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
 %   Seek = Offset - CacheOffset,
