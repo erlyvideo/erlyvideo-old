@@ -548,7 +548,7 @@ calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk,
   {CompositionOffset, FrameReader2} = next_composition_offset(FrameReader1),
   TimestampMS = round(Dts * 1000 / Timescale),
   CompositionTime = round(CompositionOffset * 1000 / Timescale),
-  ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
+  % ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
   {FrameType, Id} = case DataFormat of
     avc1 -> {video, TimestampMS*3 + 1 + 3};
     mp4a -> {audio, TimestampMS*3 + 2 + 3}
