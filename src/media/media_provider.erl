@@ -219,7 +219,11 @@ detect_http(Host, Name) ->
 detect_file(Host, Name) ->
   case check_path(Host, Name) of
     true -> {Name, file};
-    _ -> detect_prefixed_file(Host, Name)
+    _ ->
+      case check_path(Host, <<Name/binary, ".flv">>) of
+        true -> {<<Name/binary, ".flv">>, file};
+        _ -> detect_prefixed_file(Host, Name)
+      end
   end.
 
 detect_prefixed_file(Host, <<"flv:", Name/binary>>) ->

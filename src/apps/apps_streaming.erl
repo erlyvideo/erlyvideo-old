@@ -247,5 +247,5 @@ end.
 % TODO Stub at this point, need to determine proper response to this call
 
 checkBandwidth(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]}) ->
-  ?D({"checkBandwidth", Args}),
+  % ?D({"checkBandwidth", Args}),
   State.

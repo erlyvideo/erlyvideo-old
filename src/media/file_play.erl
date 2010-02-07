@@ -100,8 +100,8 @@ ready(#file_player{media_info = MediaInfo,
                     stream_id = StreamId,
                     timer_ref = Timer} = State) ->
   receive
-    {client_buffer, ClientBuffer} -> 
-      ?MODULE:ready(State#file_player{client_buffer = ClientBuffer});
+    {client_buffer, NewClientBuffer} -> 
+      ?MODULE:ready(State#file_player{client_buffer = NewClientBuffer});
       
     start ->
       case file_media:metadata(MediaInfo) of
@@ -137,7 +137,7 @@ ready(#file_player{media_info = MediaInfo,
       case file_media:seek(MediaInfo, Timestamp) of
         {Pos, NewTimestamp} ->
           timer:cancel(Timer),
-          ?D({"Player seek to", round(Timestamp), Pos, NewTimestamp}),
+          % ?D({"Player seek to", round(Timestamp), Pos, NewTimestamp}),
           self() ! play,
           ?MODULE:ready(State#file_player{pos = Pos, 
                                           ts_prev = NewTimestamp, 
@@ -191,6 +191,10 @@ play(Else) ->
   ok.
 
 send_frame(Player, undefined) ->
+  self() ! play,
+  ?MODULE:ready(Player);
+
+send_frame(Player, {undefined, undefined}) ->
   self() ! play,
   ?MODULE:ready(Player);
 
