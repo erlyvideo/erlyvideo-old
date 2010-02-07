@@ -175,11 +175,11 @@ play(#file_player{paused = true} = State) ->
 
 play(#file_player{sent_audio_config = false, media_info = MediaInfo} = Player) ->
   % ?D({"Sent audio config"}),
-  send_frame(Player#file_player{sent_audio_config = true}, file_media:codec_config(MediaInfo, audio));
+  send_frame(Player#file_player{sent_audio_config = true}, {file_media:codec_config(MediaInfo, audio), undefined});
 
 play(#file_player{sent_video_config = false, media_info = MediaInfo} = Player) ->
   % ?D({"Sent video config"}),
-  send_frame(Player#file_player{sent_video_config = true}, file_media:codec_config(MediaInfo, video));
+  send_frame(Player#file_player{sent_video_config = true}, {file_media:codec_config(MediaInfo, video), undefined});
     
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
