@@ -14,7 +14,9 @@ VSN=0.1
 MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
-all: erlang_version ebin 
+all: compile
+
+compile: 
 	ERL_LIBS=deps:lib:plugins erl -make
 	# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
@@ -63,14 +65,20 @@ start: erlang_version ebin
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-detached
 
-install:
+install: compile
 	mkdir -p $(DESTROOT)$(BEAMDIR)
 	mkdir -p $(DESTROOT)$(DOCDIR)
 	mkdir -p $(DESTROOT)$(SRCDIR)
 	mkdir -p $(DESTROOT)$(INCLUDEDIR)
 	mkdir -p $(DESTROOT)$(ETCDIR)
 	mkdir -p $(DESTROOT)$(VARDIR)
-	cp -r ebin contrib doc src include lib $(DESTROOT)$(RTMPDIR)
+	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
+	cp -r ebin src include lib $(DESTROOT)$(RTMPDIR)
+	mkdir -p $(DESTROOT)/usr/bin/
+	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
+	cp -r doc $(DESTROOT)$(DOCDIR)
+	mkdir -p $(DESTROOT)/etc/sv/
+	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	cp priv/erlmedia.conf.sample $(DESTROOT)/etc/erlyvideo/erlmedia.conf
 
@@ -86,5 +94,5 @@ debian: all
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 
-.PHONY: doc debian
+.PHONY: doc debian compile
 

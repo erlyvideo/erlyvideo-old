@@ -18,12 +18,12 @@ set -e
 # the debian-policy package
 
 
-# create rabbitmq group
+# create erlyvideo group
 if ! getent group erlyvideo >/dev/null; then
   addgroup --system erlyvideo
 fi
 
-# create rabbitmq user
+# create erlyvideo user
 if ! getent passwd erlyvideo >/dev/null; then
   adduser --system --ingroup erlyvideo --no-create-home --home /var/lib/erlyvideo --gecos "Erlyvideo streaming server" erlyvideo
 fi
@@ -31,8 +31,7 @@ fi
 chown -R erlyvideo:erlyvideo /var/lib/erlyvideo
 chown -R erlyvideo:erlyvideo /var/log/erlyvideo
 
-ln -s /usr/lib/erlyvideo/contrib/runit/erlyvideo /etc/sv/erlyvideo
-ln -s /etc/sv/erlyvideo /etc/service/erlyvideo
+ln -sf /etc/sv/erlyvideo /etc/service/erlyvideo
 
 case "$1" in
     configure)
