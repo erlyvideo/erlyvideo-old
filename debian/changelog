@@ -1,4 +1,10 @@
-erlyvideo (1.4.1) karmic; urgency=low
+erlyvideo (1.4.2) unstable; urgency=low
+
+  * Now can read flvtool2 metadata and seek flv files properly
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 07 Feb 2010 03:37:27 +0300
+
+erlyvideo (1.4.1) unstable; urgency=low
 
   * Enhanced hot reconfiguring
 
