@@ -42,7 +42,7 @@
 
 -export([init/1, read_frame/2, metadata/1, codec_config/2, seek/2, first/1]).
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
-btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2]).
+btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
 -behaviour(gen_format).
 
@@ -124,10 +124,11 @@ seek(FrameTable, Timestamp) ->
 %   end.
 %   
 
-video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe}, Data) ->
+video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe, composition_offset = Offset}, Data) ->
   #video_frame{
    	type          = video,
 		timestamp     = Timestamp,
+		composition_offset = Offset,
 		body          = Data,
 		frame_type    = case Keyframe of
 		  true ->	keyframe;
@@ -414,6 +415,13 @@ stss(<<>>, SampleList) ->
 stss(<<Sample:32/big-integer, Rest/binary>>, SampleList) ->
   stss(Rest, [Sample | SampleList]).
 
+% CTTS atom, list of B-Frames offsets
+ctts(<<>>, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
+  Mp4Track#mp4_track{composition_offsets = lists:reverse(Offsets)};
+
+ctts(<<Offset:32, CTTS/binary>>, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
+  ctts(CTTS, Mp4Track#mp4_track{composition_offsets = [Offset | Offsets]}).
+
 % STCO atom
 % sample table chunk offset
 stco(<<0:8/integer, _Flags:3/binary, OffsetCount:32/big-integer, Offsets/binary>>, #mp4_track{} = Mp4Track) when size(Offsets) == OffsetCount*4 ->
@@ -485,6 +493,7 @@ parse_avc_pps(<<Length:16, PPSData:Length/binary, Rest/binary>>, PPSCount, PPS) 
   keyframes = [],
   sample_sizes = [],
   durations = [],
+  composition_offsets = [], % ctts Composition offsets for B-frames
   duration = 0
 }).
 
@@ -512,6 +521,11 @@ next_duration(#mp4_frames{durations = [{0, _} | Durations]} = FrameReader) ->
 next_duration(#mp4_frames{durations = [{DurationCount, Duration} | Durations], duration = TotalDuration} = FrameReader) ->
   {TotalDuration, FrameReader#mp4_frames{durations = [{DurationCount - 1, Duration} | Durations], duration = TotalDuration + Duration}}.
 
+next_composition_offset(#mp4_frames{composition_offsets = []} = FrameReader) ->
+  {0, FrameReader};
+next_composition_offset(#mp4_frames{composition_offsets = [Offset|Offsets]} = FrameReader) ->
+  {Offset, FrameReader#mp4_frames{composition_offsets = Offsets}}.
+  
 
 chunk_samples_count(#mp4_frames{chunk_table = [{_, SamplesInChunk, _}]} = FrameReader) ->
   {SamplesInChunk, FrameReader};
@@ -531,16 +545,19 @@ calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk,
     sample_sizes = [SampleSize | SampleSizes]} = FrameReader) ->
   % add dts field
   {Dts, FrameReader1} = next_duration(FrameReader),
+  {CompositionOffset, FrameReader2} = next_composition_offset(FrameReader1),
   TimestampMS = round(Dts * 1000 / Timescale),
+  CompositionTime = round(CompositionOffset * 1000 / Timescale),
+  ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
   {FrameType, Id} = case DataFormat of
     avc1 -> {video, TimestampMS*3 + 1 + 3};
     mp4a -> {audio, TimestampMS*3 + 2 + 3}
   end,
-  Frame = #file_frame{id = Id, timestamp = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes)},
+  Frame = #file_frame{id = Id, timestamp = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes), composition_offset = CompositionTime},
   % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
   ets:insert(FrameTable, Frame),
-  FrameReader2 = FrameReader1#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
-  calculate_samples_in_chunk(FrameTable, SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader2).
+  FrameReader3 = FrameReader2#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
+  calculate_samples_in_chunk(FrameTable, SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader3).
   
 calculate_sample_offsets(_FrameTable, #mp4_frames{chunk_offsets = []} = FrameReader) ->
   FrameReader;
@@ -560,8 +577,10 @@ calculate_sample_offsets(#media_info{frames = FrameTable} = MediaInfo, Track) ->
     sample_sizes = SampleSizes, 
     sample_durations = Durations,
     data_format = DataFormat,
-    timescale = Timescale} = Track,
-      
+    timescale = Timescale,
+    composition_offsets = CompositionOffsets} = Track,
+  
+  % ?D({"Track", length(SampleSizes), length(Durations), length(CompositionOffsets)}),
   calculate_sample_offsets(FrameTable, 
     #mp4_frames{
       chunk_offsets = ChunkOffsets, 
@@ -570,7 +589,8 @@ calculate_sample_offsets(#media_info{frames = FrameTable} = MediaInfo, Track) ->
       sample_sizes = SampleSizes, 
       durations = Durations, 
       data_format = DataFormat,
-      timescale = Timescale}),
+      timescale = Timescale,
+      composition_offsets = CompositionOffsets}),
   MediaInfo.
 
   

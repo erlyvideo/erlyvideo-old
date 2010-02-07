@@ -86,7 +86,8 @@
   type,
   offset,
   size,
-  keyframe
+  keyframe,
+  composition_offset
 }).
 
 		

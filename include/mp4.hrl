@@ -20,9 +20,10 @@
   sample_sizes = [],        % stsz Sample sizes
   sample_durations = [],    % stts Durations
   chunk_table = [],         % stsc Chunk info
-  keyframes = [],           % stss  Sample Table Sync Samples
+  keyframes = [],           % stss Sample Table Sync Samples
   key_offset = 0,
-  chunk_offsets = [],       % stco  Sample Table Chunk Offsets
+  chunk_offsets = [],       % stco Sample Table Chunk Offsets
+  composition_offsets = [], % ctts Composition offsets for B-frames
   frames
 }).
 

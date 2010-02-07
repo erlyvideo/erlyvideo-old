@@ -2,6 +2,7 @@
   decoder_config = false,
 	type           = undefined,
 	timestamp      = undefined,
+	composition_offset = 0,
 	stream_id      = 0,
 	codec_id 	     = undefined,
 	frame_type     = undefined,

@@ -77,16 +77,18 @@ encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	decoder_config = true,
                    	codec_id = avc,
+                   	composition_offset = Offset,
                     body = Body}) when is_binary(Body) ->
-  CompositionTime = 0,
-	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, CompositionTime:24, Body/binary>>;
+  Time = 0,
+	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	codec_id = avc,
+                   	composition_offset = Offset,
                     body = Body}) when is_binary(Body) ->
-  CompositionTime = 0,
-	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, CompositionTime:24, Body/binary>>;
+  Time = 0,
+	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
