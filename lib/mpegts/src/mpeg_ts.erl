@@ -32,7 +32,7 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(mpeg_ts).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(TIMEOUT, 4000).
 -include_lib("erlyvideo/include/video_frame.hrl").

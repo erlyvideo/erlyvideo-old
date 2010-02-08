@@ -1,6 +1,6 @@
 -module(h264).
 
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 
 % -include("../../include/ems.hrl").
 -include_lib("h264/include/h264.hrl").

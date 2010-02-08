@@ -31,7 +31,7 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(mkv).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -export([init/1, read_frame/1]).
 -behaviour(gen_format).

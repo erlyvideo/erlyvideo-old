@@ -1,5 +1,5 @@
 -module(rtsp_connection).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(gen_fsm).
 -include("../include/rtsp.hrl").
