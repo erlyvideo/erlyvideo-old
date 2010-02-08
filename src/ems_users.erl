@@ -75,9 +75,8 @@ start_link() ->
 %% @doc Show list of clients
 %% @end
 %%----------------------------------------------------------------------
-clients(_Host) ->
- Timeout = 10,
- lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_session_sup)).
+clients(Host) ->
+  gen_server:call({local, ?MODULE}, {clients, Host}).
 
 
 %%--------------------------------------------------------------------
@@ -169,6 +168,10 @@ handle_call(logout, {Client, _Ref}, #ems_users{clients = Clients, user_ids = Use
   ets:match_delete(UserIds, #user_id_entry{user_id = '_', client = Client}),
   ets:match_delete(Channels, #channel_entry{channel = '_', client = Client}),
   {reply, {ok}, Server};
+
+handle_call({clients, Host}, _From, #ems_users{clients = Clients} = Server) ->
+  Clients = ets:lookup_element(Clients, Host, #client_entry.host),
+  {reply, {ok, Clients}, Server};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
