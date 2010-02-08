@@ -75,9 +75,8 @@ start_link() ->
 %% @doc Show list of clients
 %% @end
 %%----------------------------------------------------------------------
-clients(_Host) ->
- Timeout = 10,
- lists:map(fun({_, Pid, _, _}) -> {Pid, gen_fsm:sync_send_event(Pid, {info}, Timeout)} end, supervisor:which_children(rtmp_session_sup)).
+clients(Host) ->
+  gen_server:call(?MODULE, {clients, Host}).
 
 
 %%--------------------------------------------------------------------
@@ -141,6 +140,7 @@ init([]) ->
   Clients = ets:new(clients, [set, {keypos, #client_entry.session_id}]),
   UserIds = ets:new(clients, [bag, {keypos, #user_id_entry.user_id}]),
   Channels = ets:new(clients, [bag, {keypos, #channel_entry.channel}]),
+  process_flag(trap_exit, true),
   {ok, #ems_users{clients = Clients, user_ids = UserIds, channels = Channels}}.
 
 %%-------------------------------------------------------------------------
@@ -162,18 +162,26 @@ handle_call({login, Host, UserId, UserChannels}, {Client, _Ref},
   ets:insert(Clients, #client_entry{host = Host, session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
   ets:insert(UserIds, #user_id_entry{user_id = {Host, UserId}, client = Client}),
   lists:foreach(fun(Channel) -> ets:insert(Channels, #channel_entry{channel = {Host, Channel}, client = Client}) end, UserChannels),
+  link(Client),
   {reply, {ok, SessionId}, Server#ems_users{session_id = SessionId}};
 
-handle_call(logout, {Client, _Ref}, #ems_users{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
-  ets:match_delete(Clients, #client_entry{session_id = '_', user_id = '_', channels = '_', client = Client}),
-  ets:match_delete(UserIds, #user_id_entry{user_id = '_', client = Client}),
-  ets:match_delete(Channels, #channel_entry{channel = '_', client = Client}),
-  {reply, {ok}, Server};
+handle_call(logout, {Client, _Ref}, Server) ->
+  internal_logout(Client, Server),
+  {reply, ok, Server};
+
+handle_call({clients, Host}, _From, #ems_users{clients = Clients} = Server) ->
+  ClientList = [Client || [Client] <- ets:match(Clients, #client_entry{host = Host, session_id = '_', user_id = '_', channels = '_', client = '$1'})],
+  {reply, {ok, ClientList}, Server};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
 
+internal_logout(Client, #ems_users{clients = Clients, user_ids = UserIds, channels = Channels}) ->
+  ets:match_delete(Clients, #client_entry{host= '_', session_id = '_', user_id = '_', channels = '_', client = Client}),
+  ets:match_delete(UserIds, #user_id_entry{user_id = '_', client = Client}),
+  ets:match_delete(Channels, #channel_entry{channel = '_', client = Client}),
+  ok.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -213,6 +221,10 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_info({'EXIT', Client, _}, Server) ->
+  internal_logout(Client, Server),
+  {noreply, Server};
+
 handle_info(_Info, State) ->
   {noreply, State}.
 

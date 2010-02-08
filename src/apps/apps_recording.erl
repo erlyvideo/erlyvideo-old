@@ -36,7 +36,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -include_lib("erlyvideo/include/rtmp_session.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
@@ -75,6 +75,7 @@ publish(State, #rtmp_funcall{args = [null,Name,<<"append">>]} = _AMF) ->
 
 
 publish(State, #rtmp_funcall{args = [null,URL,<<"LIVE">>]} = AMF) ->
+  ?D({"publish LIVE rewriting to live", URL}),
   publish(State, AMF#rtmp_funcall{args = [null,URL,<<"live">>]});
 
 publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null,URL,<<"live">>], stream_id = StreamId} = _AMF) -> 

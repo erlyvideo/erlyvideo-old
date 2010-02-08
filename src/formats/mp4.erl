@@ -33,7 +33,7 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(mp4).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -include("../../include/mp4.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
@@ -630,6 +630,4 @@ esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag, Length/integer, 
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary, 6>>.
   
-    
-    
-    
+ 

@@ -31,7 +31,7 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(gen_format).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 
 -export([behaviour_info/1]).

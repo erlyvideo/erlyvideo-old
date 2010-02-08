@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/flv.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").

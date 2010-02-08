@@ -34,7 +34,8 @@
 			mochinum,
 			rtmp_session,
 			rtmp_handshake,
-			rtmp_session
+			rtmp_session,
+      fitc_demo
  				]},
   {registered,   []},
   {applications, [kernel, stdlib]},

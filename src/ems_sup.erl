@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
 -behaviour(supervisor).
 

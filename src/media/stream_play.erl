@@ -32,7 +32,7 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(stream_play).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -include("../../include/ems.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").

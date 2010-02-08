@@ -30,7 +30,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(apps_shared_objects).
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 
 -export(['WAIT_FOR_DATA'/2]).

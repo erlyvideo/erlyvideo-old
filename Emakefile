@@ -3,6 +3,7 @@
 {"src/apps/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/media/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/auth/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
+{"src/demos/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/formats/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/protocols/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"src/shared_objects/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
