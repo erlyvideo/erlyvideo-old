@@ -46,13 +46,16 @@ clean-doc:
 player:
 	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
-run: erlang_version ebin
+run: erlang_version ebin priv/erlmedia.conf
 	ERL_LIBS=deps:lib:plugins $(ERL) +bin_opt_info +debug \
 	-pa ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME)
+
+priv/erlmedia.conf: priv/erlmedia.conf.sample
+	cp priv/erlmedia.conf.sample priv/erlmedia.conf
 	
 start: erlang_version ebin
 	ERL_LIBS=deps:lib:plugins $(ERL) -pa `pwd`/ebin \
