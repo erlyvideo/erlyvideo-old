@@ -57,6 +57,7 @@ play(_Name, Player, Req) ->
   Player ! start,
   send_pat(Req),
   send_pmt(Req),
+  ?MODULE:play(Req),
   % ?D({"MPEG TS", Req}),
   Req:stream(close),
   ok.
@@ -78,7 +79,7 @@ mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, Req, Pid, Start, Counter) ->
   % (size(Adaptation)), Adaptation/binary
   Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, Data/binary>>,
   Req:stream(Part),
-  mux_parts(Rest, Req, Pid, 0, Counter+1);
+  mux_parts(Rest, Req, Pid, 0, (Counter+1) mod 16);
   
 mux_parts(<<>>, _Req, _Pid, _Start, _Counter) ->
   ok;
@@ -109,8 +110,7 @@ send_pat(Req) ->
   Length = size(Programs)+5+4,
   CRC32 = 0,
   PAT = <<0, ?PAT_TABLEID, 2#10:2, 2#11:2, Length:12, TSStream:16, Misc/binary, Programs/binary, CRC32:32>>,
-  mux(PAT, Req, 0),
-  send_pmt(Req).
+  mux(PAT, Req, 0).
 
 send_pmt(Req) ->
   _Pointer = 0,
@@ -132,8 +132,7 @@ send_pmt(Req) ->
       ProgramNum:16, 0:2, _Version:5, _CurrentNext:1, _SectionNumber,
       _LastSectionNumber, 0:3, ?PCR_PID:13, 0:4, (size(ProgramInfo)):12, 
       ProgramInfo/binary, Streams/binary, CRC32:32>>,
-  mux(PMT, Req, 0),
-  ?MODULE:play(Req).
+  mux(PMT, Req, 0).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
@@ -154,7 +153,7 @@ play(Req) ->
       send_video(Frame, Req),
       ?MODULE:play(Req);
     #video_frame{} = _Frame ->
-      Req:stream(<<"frame\n">>),
+      % Req:stream(<<"frame\n">>),
       ?MODULE:play(Req);
     {'EXIT', _, _} ->
       ?D({"MPEG TS reader disconnected"}),
