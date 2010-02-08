@@ -79,7 +79,7 @@ mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, Req, Pid, Start, Counter) ->
   % (size(Adaptation)), Adaptation/binary
   Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, Data/binary>>,
   Req:stream(Part),
-  mux_parts(Rest, Req, Pid, 0, (Counter+1) mod 16);
+  mux_parts(Rest, Req, Pid, 0, (Counter+1) rem 16);
   
 mux_parts(<<>>, _Req, _Pid, _Start, _Counter) ->
   ok;
