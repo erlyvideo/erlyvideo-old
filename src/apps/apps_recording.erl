@@ -75,6 +75,7 @@ publish(State, #rtmp_funcall{args = [null,Name,<<"append">>]} = _AMF) ->
 
 
 publish(State, #rtmp_funcall{args = [null,URL,<<"LIVE">>]} = AMF) ->
+  ?D({"publish LIVE rewriting to live", URL}),
   publish(State, AMF#rtmp_funcall{args = [null,URL,<<"live">>]});
 
 publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null,URL,<<"live">>], stream_id = StreamId} = _AMF) -> 

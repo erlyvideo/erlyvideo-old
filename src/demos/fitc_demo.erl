@@ -31,9 +31,12 @@ getStreams(#rtmp_session{host = Host} = State, AMF) ->
   apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, Streams]}),
   State.
 
-publish(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null,URL,<<"LIVE">>]} = AMF) ->
+publish(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null,URL,_]} = AMF) ->
+  io:format("Publish videoConf ~p~n", [URL]),
   State1 = apps_recording:publish(State, AMF),
-  [Client ! {newStreamRegistered, URL} || Client <- ems_users:clients(Host), Client /= self()],
+  {ok, Clients} = ems_users:clients(Host),
+  io:format("Notifying ~p~n", [Clients]),
+  [gen_fsm:send_event(Client, {newStreamRegistered, URL}) || Client <- Clients, Client /= self()],
   State1.
   
   
