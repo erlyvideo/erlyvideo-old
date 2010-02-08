@@ -3,11 +3,11 @@
 -compile(export_all).
 
 find_value(Key, L) when is_list(L) ->
-    case proplists:get_value(Key, L) of
-        undefined ->
-            case proplists:get_value(atom_to_list(Key), L) of
-                undefined ->
-                    proplists:get_value(list_to_binary(atom_to_list(Key)), L);
+    % io:format("Lookup ~p in ~p~n", [Key, L]),
+    case lists:keyfind(Key, 1, L) of
+        false ->
+            case lists:keyfind(atom_to_list(Key), 1, L) of
+                false -> lists:keyfind(list_to_binary(atom_to_list(Key)), 1, L);
                 Val -> Val
             end;
         Val -> Val
@@ -15,9 +15,9 @@ find_value(Key, L) when is_list(L) ->
 find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
     case gb_trees:lookup(Key, {GBSize, GBData}) of
         {value, Val} ->
-            Val;
+            {Key, Val};
         _ ->
-            undefined
+            false
     end;
 find_value(Key, Tuple) when is_tuple(Tuple) ->
     Module = element(1, Tuple),
@@ -25,25 +25,34 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
         dict -> 
             case dict:find(Key, Tuple) of
                 {ok, Val} ->
-                    Val;
+                    {Key, Val};
                 _ ->
-                    undefined
+                    false
             end;
         Module ->
             case proplists:get_value(Key, Module:module_info(exports)) of
                 1 ->
-                    Tuple:Key();
+                    {Key, Tuple:Key()};
                 _ ->
-                    undefined
+                    false
             end
     end.
 
 fetch_value(Key, Data) ->
     case find_value(Key, Data) of
-        undefined ->
-            throw({undefined_variable, Key});
-        Val ->
-            Val
+        {Key, Val} when is_list(Val)->
+            Val;
+        {Key, Val} when is_binary(Val)->
+            Val;
+        {Key, Val} when is_integer(Val)->
+             integer_to_list(Val);
+        {Key, undefined} ->
+             "";
+        {Key, Val} when is_atom(Val) ->
+              atom_to_binary(Val, latin1);
+        _ ->
+            ""
+            % throw({undefined_variable, Key});
     end.
 
 are_equal(Arg1, Arg2) when Arg1 =:= Arg2 ->
