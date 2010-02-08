@@ -9,7 +9,7 @@
 -export([decode_nal/2, video_config/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([open_dump/0, dump_nal/2, fake_open_dump/0, fake_dump_nal/2]).
-
+-export([parse_sps/1]).
 
 fake_open_dump() -> ok.
 fake_dump_nal(_File, _Nal) -> ok.
@@ -197,7 +197,21 @@ remove_trailing_zero(Bin) ->
   end.
 
 
+parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) when Profile >= 100 ->
+  {ChromaFormat, Rest1} = exp_golomb_read(Data),
+  case ChromaFormat of
+    3 -> <<_:1, Rest2/bitstring>> = Rest1;
+    _ -> Rest2 = Rest1
+  end,
+  {_BitDepthLuma, Rest3} = exp_golomb_read(Rest2),
+  {_BitDepthChroma, Rest4} = exp_golomb_read(Rest3),
+  parse_sps_data(Rest4);
+
 parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
+  parse_sps_data(Data).
+  
+  
+parse_sps_data(Data) ->
   {SPS_ID, Rest1} = exp_golomb_read(Data),
   {Log2FrameNum, Rest2} = exp_golomb_read(Rest1),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
@@ -219,7 +233,7 @@ parse_sps_ref_frames(Data, SPS) ->
   {NumRefFrames, <<Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
   {PicWidth, Rest2} = exp_golomb_read(Rest1),
   Width = (PicWidth + 1)*16,
-  {PicHeight, <<FrameMbsOnly:1, Rest3/bitstring>>} = exp_golomb_read(Rest2),
+  {PicHeight, <<_FrameMbsOnly:1, Rest3/bitstring>>} = exp_golomb_read(Rest2),
   Height = (PicHeight + 1)*16,
   SPS#h264_sps{width = Width, height = Height}.
   
