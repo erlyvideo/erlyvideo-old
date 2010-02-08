@@ -198,25 +198,28 @@ remove_trailing_zero(Bin) ->
 
 
 parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) when Profile >= 100 ->
-  {ChromaFormat, Rest1} = exp_golomb_read(Data),
+  {SPS_ID, Rest} = exp_golomb_read(Data),
+  {ChromaFormat, Rest1} = exp_golomb_read(Rest),
   case ChromaFormat of
     3 -> <<_:1, Rest2/bitstring>> = Rest1;
     _ -> Rest2 = Rest1
   end,
   {_BitDepthLuma, Rest3} = exp_golomb_read(Rest2),
   {_BitDepthChroma, Rest4} = exp_golomb_read(Rest3),
-  parse_sps_data(Rest4);
+  <<_:2, Rest5/bitstring>> = Rest4,
+  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
+  parse_sps_data(Rest5, SPS);
 
 parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
-  parse_sps_data(Data).
-  
-  
-parse_sps_data(Data) ->
   {SPS_ID, Rest1} = exp_golomb_read(Data),
-  {Log2FrameNum, Rest2} = exp_golomb_read(Rest1),
+  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
+  parse_sps_data(Rest1, SPS).
+  
+  
+parse_sps_data(Data, SPS) ->
+  {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
-  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID, max_frame_num = Log2FrameNum},
-  parse_sps_pic_order(Rest3, PicOrder, SPS).
+  parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum}).
   
 parse_sps_pic_order(Data, 0, SPS) ->
   {_Log2PicOrder, Rest} = exp_golomb_read(Data),
@@ -299,4 +302,15 @@ exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
   <<ReadBits:LeadingZeros, Rest/bitstring>> = Data,
   CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
   {CodeNum, Rest}.
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
+
+parse_sps_for_high_profile_test() ->
+  ?assertEqual(#h264_sps{profile = 100, level = 50, sps_id = 0, max_frame_num = 5, width = 1280, height = 720}, parse_sps(<<103,100,0,50,172,52,226,192,80,5,187,1,16,0,0,62,144,0,11,184,8,241,131,24,184>>)).
+
+parse_sps_for_low_profile_test() ->
+  ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 4, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
 
