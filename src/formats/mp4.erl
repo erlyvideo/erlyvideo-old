@@ -630,6 +630,4 @@ esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag, Length/integer, 
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary, 6>>.
   
-    
-    
-    
+ 
