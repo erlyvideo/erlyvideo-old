@@ -132,7 +132,7 @@ send_pmt(Req) ->
       ProgramNum:16, 0:2, _Version:5, _CurrentNext:1, _SectionNumber,
       _LastSectionNumber, 0:3, ?PCR_PID:13, 0:4, (size(ProgramInfo)):12, 
       ProgramInfo/binary, Streams/binary, CRC32:32>>,
-  mux(PMT, Req, 0).
+  mux(PMT, Req, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
@@ -145,7 +145,20 @@ send_pmt(Req) ->
   
   
 send_video(#video_frame{timestamp = Timestamp, body = Body}, Req) ->
-  NAL = <<16#000001:24, Body/binary, 16#000001:24>>.
+  PtsDts = 2#11,
+  HeaderSize = 16#0A,
+  NAL = [<<1:24>>, Body, <<1:24>>],
+  ESsize = iolist_size(NAL),
+  PesHeaderSize = HeaderSize + 3 + ESsize,
+  Alignment = 1,
+  Pts = Timestamp * 90,
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
+  PESHeader = <<1:24, ?TYPE_VIDEO_H264, PesHeaderSize:16, 2:2, 0:2, 0:1, 
+                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, HeaderSize:8,
+                PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
+                1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  PES = iolist_to_binary([PESHeader | NAL]),
+  mux(PES, Req, ?VIDEO_PID).
   
 play(Req) ->
   receive
