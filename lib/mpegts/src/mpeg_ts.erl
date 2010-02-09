@@ -112,8 +112,8 @@ send_pat(Counter, Req) ->
   Misc = <<Reserved:2, Version:5, CNI:1, Section, LastSection>>,
   Length = size(Programs)+5+4,
   PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
-  CRC32 = erlang:crc32(PAT1),
-  PAT = <<PAT1/binary, CRC32:32>>,
+  CRC32 = mpeg2_crc32:crc32(PAT1),
+  PAT = <<0, PAT1/binary, CRC32:32>>,
   mux(PAT, Req, 0, Counter).
 
 send_pmt(Counter, Req) ->
