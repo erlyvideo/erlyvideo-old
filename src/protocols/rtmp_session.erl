@@ -61,13 +61,55 @@
 
 
 -export([create_client/1]).
+-export([accept_connection/2]).
+-export([reply/2, fail/2]).
 
-
+%%% 
 create_client(Socket) ->
   {ok, Pid} = ems_sup:start_rtmp_session(Socket),
   {ok, Pid}.
 
+accept_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args = [{object, PlayerInfo} | _]} = AMF) ->
+  
+  
+  Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
+  % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
+  rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
+  rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
+  % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
+  rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
+  
+  AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
+    {objectEncoding, 0.0} -> 0;
+    {objectEncoding, 3.0} -> 3;
+    {objectEncoding, _N} -> 
+      error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
+      Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
+      throw(invalid_amf3_encoding);
+    _ -> 0
+  end,
+  
+  
+  ConnectObj = [{fmsVer, <<"FMS/3,0,1,123">>}, {capabilities, 31}],
+  StatusObj = [{level, <<"status">>}, 
+               {code, <<?NC_CONNECT_SUCCESS>>},
+               {description, <<"Connection succeeded.">>},
+               {objectEncoding, AMFVersion}],
+  reply(Socket, AMF#rtmp_funcall{args = [{object, ConnectObj}, {object, StatusObj}]}),
+  rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
+  Session.
+  
+  
+reply(#rtmp_session{socket = Socket}, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke});
+reply(Socket, AMF) when is_pid(Socket) ->
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke}).
 
+
+fail(#rtmp_session{socket = Socket}, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
+
+  
 %%%------------------------------------------------------------------------
 %%% API
 %%%------------------------------------------------------------------------

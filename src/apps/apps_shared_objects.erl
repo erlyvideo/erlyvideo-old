@@ -44,7 +44,7 @@
 
 
 getServiceList(State, AMF) -> 
-  apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, [<<"hello">>, <<"setData">>, <<"getData">>]]}),
+  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, [<<"hello">>, <<"setData">>, <<"getData">>]]}),
   % gen_fsm:send_event(self(), {publish, record, Name}),
   State.
 

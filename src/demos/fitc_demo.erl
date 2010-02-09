@@ -28,7 +28,7 @@ client_login(#rtmp_session{host = Host, socket = Socket} = State, _) ->
 getStreams(#rtmp_session{host = Host} = State, AMF) ->
   Streams = [Name || {Name, _} <- media_provider:entries(Host)],
   io:format("getStreams() -> ~p~n", [Streams]),
-  apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, Streams]}),
+  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, Streams]}),
   State.
 
 publish(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null,URL,_]} = AMF) ->

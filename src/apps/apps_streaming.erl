@@ -96,11 +96,11 @@
 %%-------------------------------------------------------------------------
 createStream(State, AMF) -> 
   {State1, StreamId} = next_stream(State),
-  apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
+  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   State1.
 
 releaseStream(State, _AMF) -> 
-  % apps_rtmp:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
+  % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
   State.
 
 next_stream(State) -> next_stream(State, 1).
