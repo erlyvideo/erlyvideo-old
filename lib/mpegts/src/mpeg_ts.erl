@@ -43,7 +43,7 @@
 -define(PMT_PID, 66).
 -define(PCR_PID, 69).
 -define(AUDIO_PID, 68).
--define(VIDEO_PID, 68).
+-define(VIDEO_PID, 69).
 -define(PAT_TABLEID, 0).
 -define(PMT_TABLEID, 2).
 
@@ -56,9 +56,10 @@ play(_Name, Player, Req) ->
   Player ! start,
   Counter = 0,
   Count1 = send_pat(Counter, Req),
-  Count2 = send_pat(Count1, Req),
-  Count3 = send_pat(Count2, Req),
-  send_pat(Count3, Req),
+  send_pat(Count1, Req),
+  Count3 = send_pmt(Counter, Req),
+  Count4 = send_pmt(Count3, Req),
+  send_pmt(Count4, Req),
   % send_pmt(Req),
   % ?MODULE:play(Req),
   % ?D({"MPEG TS", Req}),
@@ -117,25 +118,32 @@ send_pat(Counter, Req) ->
   mux(PAT, Req, 0, Counter).
 
 send_pmt(Counter, Req) ->
-  _Pointer = 0,
   SectionSyntaxInd = 1,
-  CRC32 = 0,
-  SectionLength = 50,  % Don't know why, just from vlc output
   ProgramNum = 1,
-  _Version = 12,
-  _CurrentNext = 1,
+  Version = 0,
+  CurrentNext = 1,
   _SectionNumber = 0,
   _LastSectionNumber = 0,
-  ProgramInfo = <<29,13,17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  ProgramInfo = <<>>,
   AudioES = <<>>,
   AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 0:4, (size(AudioES)):12, AudioES/binary>>,
   VideoES = <<>>,
   VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 0:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([AudioStream, VideoStream]),
-  PMT = <<_Pointer, ?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, 
-      ProgramNum:16, 0:2, _Version:5, _CurrentNext:1, _SectionNumber,
-      _LastSectionNumber, 0:3, ?PCR_PID:13, 0:4, (size(ProgramInfo)):12, 
-      ProgramInfo/binary, Streams/binary, CRC32:32>>,
+  PMT1 = <<ProgramNum:16, 
+           11:2, Version:5, CurrentNext:1, 
+           _SectionNumber,
+           _LastSectionNumber, 
+           0:3, ?PCR_PID:13, 
+           0:4, (size(ProgramInfo)):12, 
+           ProgramInfo/binary, 
+           Streams/binary>>,
+
+  SectionLength = size(PMT1) + 4, % Add CRC32
+  PMT2 = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, PMT1/binary>>,
+
+  CRC32 = mpeg2_crc32:crc32(PMT1),
+  PMT = <<0, PMT1/binary, CRC32:32>>,
   mux(PMT, Req, ?PMT_PID, Counter).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
