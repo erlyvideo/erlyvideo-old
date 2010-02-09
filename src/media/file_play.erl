@@ -202,7 +202,7 @@ send_frame(Player, {#video_frame{body = undefined}, Next}) ->
   self() ! play,
   ?MODULE:ready(Player#file_player{pos = Next});
   
-send_frame(#file_player{} = Player, done) ->
+send_frame(#file_player{} = Player, {done, undefined}) ->
   ?MODULE:ready(Player);
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
