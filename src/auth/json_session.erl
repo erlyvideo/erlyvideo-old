@@ -1,19 +1,24 @@
 -module(json_session).
 -author(max@maxidoors.ru).
+-include_lib("rtmp/include/rtmp.hrl").
 -include_lib("erlyvideo/include/rtmp_session.hrl").
--export([decode/2, encode/2, client_login/2, binary_to_hexbin/1]).
+-export([decode/2, encode/2, connect/2, binary_to_hexbin/1]).
 
 
 
-client_login(#rtmp_session{host = Host} = State, [Cookie, _UserIdObj]) ->
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, Cookie | _]} = AMF) ->
   Secret = ems:get_var(secret_key, Host, undefined),
   Session = decode(Cookie, Secret),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
-	State#rtmp_session{user_id = UserId, session_id = SessionId};
+	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
 
-client_login(_, _) ->
+	ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), self()]),
+  rtmp_session:accept_connection(NewState, AMF),
+  NewState;
+
+connect(_, _) ->
   throw(login_failed).
 
 

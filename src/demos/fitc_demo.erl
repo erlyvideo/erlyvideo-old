@@ -3,7 +3,7 @@
 
 -include_lib("erlyvideo/include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--export([client_login/2]).
+-export([connect/2]).
 
 -export([getStreams/2, publish/2]).
 
@@ -18,12 +18,17 @@
 'WAIT_FOR_DATA'(_Message, #rtmp_session{} =_State) -> {unhandled}.
 
 
-client_login(#rtmp_session{host = Host, socket = Socket} = State, _) ->
+connect(#rtmp_session{host = Host, addr = Address, socket = Socket, player_info = PlayerInfo} = State, AMF) ->
   UserId = random:uniform(10000000),
   Channels = [10],
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
+	NewState = State#rtmp_session{session_id = SessionId},
+
+	ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), self()]),
+  rtmp_session:accept_connection(NewState, AMF),
   rtmp_socket:invoke(Socket, #rtmp_funcall{command = 'setId', args = [null, UserId]}),
-	State#rtmp_session{session_id = SessionId}.
+  NewState.
+	
 	
 getStreams(#rtmp_session{host = Host} = State, AMF) ->
   Streams = [Name || {Name, _} <- media_provider:entries(Host)],

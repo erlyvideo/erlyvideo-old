@@ -2,16 +2,25 @@
 -author(max@maxidoors.ru).
 
 -include_lib("erlyvideo/include/rtmp_session.hrl").
--export([client_login/2]).
+-include_lib("rtmp/include/rtmp.hrl").
 
-client_login(#rtmp_session{host = Host} = State, [SessionData, UserIdF]) ->
+-export([connect/2]).
+
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, SessionData, UserIdF]} = AMF) ->
   UserId = round(UserIdF),
   Channels = case (catch mochijson2:decode(SessionData)) of
     Chan when is_list(Chan) -> Chan;
     _ -> []
   end,
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
-	State#rtmp_session{user_id = UserId, session_id = SessionId};
+	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
+	ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), self()]),
+	rtmp_session:accept_connection(NewState, AMF),
+  NewState;
+  
 	
-client_login(State, _) ->
-  State#rtmp_session{user_id = undefined}.
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
+  ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo), self()]),
+	rtmp_session:accept_connection(State, AMF),
+  State.
+	

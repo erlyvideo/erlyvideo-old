@@ -62,6 +62,7 @@
 
 -export([create_client/1]).
 -export([accept_connection/2]).
+
 -export([reply/2, fail/2]).
 
 %%% 
@@ -251,6 +252,17 @@ find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} =
 call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_funcall{command = Command, args = Args}) ->
   ems_log:error(Host, "Client ~p requested unknown function ~p(~p)~n", [IP, Command, Args]),
   State;
+
+call_function(App, #rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
+  ?D({"PlayerInfo", PlayerInfo}),
+  URL = proplists:get_value(tcUrl, PlayerInfo),
+  {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
+  {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
+  Host = ems:host(HostName),
+  
+	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path},
+
+	App:connect(NewState1, AMF);
 
 call_function(App, State, #rtmp_funcall{command = Command} = AMF) ->
 	App:Command(State, AMF).
