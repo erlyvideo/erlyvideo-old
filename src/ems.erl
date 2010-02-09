@@ -241,7 +241,7 @@ host(FullHostname) ->
 %%--------------------------------------------------------------------
 start_modules() -> call_modules(start, []).
 
-call_modules(Function, Args) -> call_modules(Function, Args, ems:get_var(applications, [])).
+call_modules(Function, Args) -> call_modules(Function, Args, ems:get_var(modules, [])).
 
 call_modules(_, _, []) -> 
   ok;
@@ -271,7 +271,7 @@ stop_modules() -> call_modules(stop, []).
 %%--------------------------------------------------------------------
 
 try_method_chain(Host, Method, Args) when is_atom(Host) ->
-  try_method_chain(ems:get_var(applications, Host, ['apps_rtmp']), Method, Args);
+  try_method_chain(ems:get_var(modules, Host, ['trusted_login']), Method, Args);
 
 try_method_chain([], _Method, _Args) ->
   {unhandled};
@@ -292,9 +292,6 @@ try_method_chain([Module | Applications], Method, Args) ->
 %% @end 
 %%--------------------------------------------------------------------
 
-check_app(_, connect, _) ->
-  apps_rtmp;
-  
 check_app([], _Command, _Arity) ->
   unhandled;
 
@@ -306,7 +303,7 @@ check_app([Module | Applications], Command, Arity) ->
 
 
 check_app(#rtmp_session{host = Host} = _State, Command, Arity) ->
-  Applications = ems:get_var(applications, Host, ['apps_rtmp']),
+  Applications = ems:get_var(modules, Host, ['trusted_login']),
   check_app(Applications, Command, Arity).
 
 

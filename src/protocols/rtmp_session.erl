@@ -254,7 +254,6 @@ call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_fu
   State;
 
 call_function(App, #rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
-  ?D({"PlayerInfo", PlayerInfo}),
   URL = proplists:get_value(tcUrl, PlayerInfo),
   {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
   {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
