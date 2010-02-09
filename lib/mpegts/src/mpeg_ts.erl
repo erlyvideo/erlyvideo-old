@@ -38,8 +38,9 @@
 -include_lib("erlyvideo/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([play/3, play/2]).
--define(TS_PACKET, 183). % 188 - 4 bytes of header - 1 byte syncword
+-export([play/3, play/1]).
+-define(TS_PACKET, 184). % 188 - 4 bytes of header
+-define(PAT_PID, 0).
 -define(PMT_PID, 66).
 -define(PCR_PID, 69).
 -define(AUDIO_PID, 68).
@@ -48,31 +49,45 @@
 -define(PMT_TABLEID, 2).
 
 
+-record(streamer, {
+  req,
+  pat_counter = 0,
+  pmt_counter = 0,
+  audio_counter = 0,
+  video_counter = 0
+}).
+
 play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   process_flag(trap_exit, true),
   link(Req:socket_pid()),
   Player ! start,
-  Counter = 0,
-  Count1 = send_pat(Counter, Req),
-  send_pat(Count1, Req),
-  Count3 = send_pmt(Counter, Req),
-  Count4 = send_pmt(Count3, Req),
-  send_pmt(Count4, Req),
-  % send_pmt(Req),
-  % ?MODULE:play(Req),
-  % ?D({"MPEG TS", Req}),
+  Streamer = #streamer{req = Req},
+  Streamer1 = send_pat(Streamer),
+  Streamer2 = send_pat(Streamer1),
+  Streamer3 = send_pmt(Streamer2),
+  Streamer4 = send_pmt(Streamer3),
+  Streamer5 = send_pmt(Streamer4),
+  ?MODULE:play(Streamer5),
   Req:stream(close),
   ok.
 
-mux(Data, Req, Pid, Counter) ->
+mux(Data, Streamer, Pid) ->
   Start = 1,
-  mux_parts(Data, Req, Pid, Start, Counter).
+  mux_parts(Data, Streamer, Pid, Start).
   
+increment_counter(#streamer{pat_counter = C} = Streamer, ?PAT_PID) ->
+  {C, Streamer#streamer{pat_counter = (C + 1) rem 16}};
+increment_counter(#streamer{pmt_counter = C} = Streamer, ?PMT_PID) ->
+  {C, Streamer#streamer{pmt_counter = (C + 1) rem 16}};
+increment_counter(#streamer{audio_counter = C} = Streamer, ?AUDIO_PID) ->
+  {C, Streamer#streamer{audio_counter = (C + 1) rem 16}};
+increment_counter(#streamer{video_counter = C} = Streamer, ?VIDEO_PID) ->
+  {C, Streamer#streamer{video_counter = (C + 1) rem 16}}.
   
 % 4 bytes header, 1 byte syncwork, 188 packet, so data is 183
-mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, Req, Pid, Start, Counter) ->
+mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, #streamer{req = Req} = Streamer, Pid, Start) ->
   TEI = 0,
   Priority = 0,
   Scrambling = 0,
@@ -80,29 +95,31 @@ mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, Req, Pid, Start, Counter) ->
   HasPayload = 1,
   % Adaptation = <<>>,
   % (size(Adaptation)), Adaptation/binary
+  {Counter, Streamer1} = increment_counter(Streamer, Pid),
   Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, Data/binary>>,
   Req:stream(Part),
-  mux_parts(Rest, Req, Pid, 0, (Counter+1) rem 16);
+  mux_parts(Rest, Streamer1, Pid, 0);
   
-mux_parts(<<>>, _Req, _Pid, _Start, Counter) ->
-  Counter;
+mux_parts(<<>>, Streamer, _, _) ->
+  Streamer;
 
-mux_parts(Data, Req, Pid, Start, Counter) ->
+mux_parts(Data, #streamer{req = Req} = Streamer, Pid, Start) ->
   TEI = 0,
   Priority = 0,
   Scrambling = 0,
   Adapt = 1,
   HasPayload = 1,
-  Adaptation = padding(<<0>>, ?TS_PACKET - size(Data) - 1),
+  Adaptation = padding(<<0>>, ?TS_PACKET - size(Data) - 2),
+  {Counter, Streamer1} = increment_counter(Streamer, Pid),
   Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, (size(Adaptation)), Adaptation/binary, Data/binary>>,
   Req:stream(Part),
-  (Counter+1) rem 16.
+  Streamer1.
 
 
 padding(Padding, 0) -> Padding;
 padding(Padding, Size) -> padding(<<Padding/binary, 255>>, Size - 1).
   
-send_pat(Counter, Req) ->
+send_pat(Streamer) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
   TSStream = 29998, % Just the same, as VLC does
   Reserved = 0,
@@ -115,9 +132,9 @@ send_pat(Counter, Req) ->
   PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
   CRC32 = mpeg2_crc32:crc32(PAT1),
   PAT = <<0, PAT1/binary, CRC32:32>>,
-  mux(PAT, Req, 0, Counter).
+  mux(PAT, Streamer, 0).
 
-send_pmt(Counter, Req) ->
+send_pmt(Streamer) ->
   SectionSyntaxInd = 1,
   ProgramNum = 1,
   Version = 0,
@@ -142,9 +159,9 @@ send_pmt(Counter, Req) ->
   SectionLength = size(PMT1) + 4, % Add CRC32
   PMT2 = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, PMT1/binary>>,
 
-  CRC32 = mpeg2_crc32:crc32(PMT1),
-  PMT = <<0, PMT1/binary, CRC32:32>>,
-  mux(PMT, Req, ?PMT_PID, Counter).
+  CRC32 = mpeg2_crc32:crc32(PMT2),
+  PMT = <<0, PMT2/binary, CRC32:32>>,
+  mux(PMT, Streamer, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
@@ -156,10 +173,10 @@ send_pmt(Counter, Req) ->
   % 
   
   
-send_video(Counter, #video_frame{timestamp = Timestamp, body = Body}, Req) ->
+send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
   PtsDts = 2#11,
   HeaderSize = 16#0A,
-  NAL = [<<1:24>>, Body, <<1:24>>],
+  NAL = [<<1:24>>, Body],
   ESsize = iolist_size(NAL),
   PesHeaderSize = HeaderSize + 3 + ESsize,
   Alignment = 1,
@@ -170,22 +187,22 @@ send_video(Counter, #video_frame{timestamp = Timestamp, body = Body}, Req) ->
                 PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
                 1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PES = iolist_to_binary([PESHeader | NAL]),
-  mux(PES, Req, ?VIDEO_PID, Counter).
+  mux(PES, Streamer, ?VIDEO_PID).
   
-play(Counter, Req) ->
+play(Streamer) ->
   receive
     #video_frame{type = video} = Frame ->
-      Count = send_video(Counter, Frame, Req),
-      ?MODULE:play(Count, Req);
+      Streamer1 = send_video(Streamer, Frame),
+      ?MODULE:play(Streamer1);
     #video_frame{} = _Frame ->
       % Req:stream(<<"frame\n">>),
-      ?MODULE:play(Counter, Req);
+      ?MODULE:play(Streamer);
     {'EXIT', _, _} ->
       ?D({"MPEG TS reader disconnected"}),
       ok;
     Message -> 
       ?D(Message),
-      ?MODULE:play(Counter, Req)
+      ?MODULE:play(Streamer)
   after
     ?TIMEOUT ->
       ?D("MPEG TS player stopping"),
