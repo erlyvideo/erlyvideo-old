@@ -39,7 +39,7 @@
 -include("mpegts.hrl").
 
 -export([play/3, play/1]).
--define(TS_PACKET, 184). % 188 - 4 bytes of header
+-define(TS_PACKET, 183). % 188 - 4 bytes of header - 1 byte syncword
 -define(PMT_PID, 66).
 -define(PCR_PID, 69).
 -define(AUDIO_PID, 68).
@@ -51,7 +51,6 @@
 play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  Req:stream(<<"MPEG TS\r\n\n\n">>),
   process_flag(trap_exit, true),
   link(Req:socket_pid()),
   Player ! start,
@@ -68,7 +67,7 @@ mux(Data, Req, Pid) ->
   mux_parts(Data, Req, Pid, Start, Counter).
   
   
-% 4 bytes header, 188 packet, so data is 184
+% 4 bytes header, 1 byte syncwork, 188 packet, so data is 183
 mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, Req, Pid, Start, Counter) ->
   TEI = 0,
   Priority = 0,
@@ -101,15 +100,16 @@ padding(Padding, Size) -> padding(<<Padding/binary, 255>>, Size - 1).
 send_pat(Req) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
   TSStream = 29998, % Just the same, as VLC does
-  Reserved = 3,
-  Version = 26,
+  Reserved = 0,
+  Version = 2,
   CNI = 1,
   Section = 0,
   LastSection = 0,
   Misc = <<Reserved:2, Version:5, CNI:1, Section, LastSection>>,
   Length = size(Programs)+5+4,
-  CRC32 = 0,
-  PAT = <<0, ?PAT_TABLEID, 2#10:2, 2#11:2, Length:12, TSStream:16, Misc/binary, Programs/binary, CRC32:32>>,
+  PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
+  CRC32 = erlang:crc32(PAT1),
+  PAT = <<PAT1/binary, CRC32:32>>,
   mux(PAT, Req, 0).
 
 send_pmt(Req) ->
