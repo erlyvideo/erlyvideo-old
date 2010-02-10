@@ -98,7 +98,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, _Rest/binary>> = _Data, H264) ->
   {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
-  % ?D("I-frame"),
+  % io:format("I-frame ~p~n", [size(Data)]),
   (catch slice_header(Data)),
   ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
