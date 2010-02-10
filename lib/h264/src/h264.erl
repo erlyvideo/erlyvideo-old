@@ -6,7 +6,7 @@
 -include_lib("h264/include/h264.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
--export([decode_nal/2, video_config/1]).
+-export([decode_nal/2, video_config/1, unpack_config/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([open_dump/0, dump_nal/2, fake_open_dump/0, fake_dump_nal/2]).
 -export([parse_sps/1]).
@@ -45,6 +45,13 @@ video_config(H264) ->
     	{H264, [Frame]}
   end.
       
+
+unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 
+                SPSCount:5, SPSLength:16, SPSBin:SPSLength/binary,
+                PPSCount, PPSLength:16, PPSBin:PPSLength/binary>>) ->
+  SPSCount = 1,
+  PPSCount = 1,
+  {LengthSize + 1, [SPSBin, PPSBin]}.
 
 decoder_config(#h264{sps = undefined}) -> ok;
 decoder_config(#h264{pps = undefined}) -> ok;
@@ -314,3 +321,9 @@ parse_sps_for_high_profile_test() ->
 parse_sps_for_low_profile_test() ->
   ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 4, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
 
+
+unpack_config_test() ->
+  Config = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>,
+  Result = [<<103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80>>, <<104,206,50,200>>],
+  LengthSize = 2,
+  ?assertEqual({LengthSize, Result}, unpack_config(Config)).
