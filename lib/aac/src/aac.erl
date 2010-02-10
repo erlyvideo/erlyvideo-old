@@ -9,7 +9,28 @@
   samples_per_frame
 }).
 
--export([decode_config/1, decode/1, config/1]).
+-export([decode_config/1, decode/1, encode/2, config/1]).
+
+encode(Frame, #aac_config{type = ObjectType, frequency = Frequency, channels = ChannelConfig}) ->
+  ID = 0,
+  Layer = 1,
+  ProtectionAbsent = 1,
+  Profile = object_type(ObjectType) - 1,
+  SampleRate = frequency(Frequency),
+  Private = 0,
+  Channels = channels(ChannelConfig),
+  Original = 1,
+  Home = 0,
+  Copyright = 0,
+  CopyrightStart = 0,
+  FrameLength = size(Frame) + 9,
+  ADTS = 2#10001010101,
+  Count = 1,
+  <<16#FFF:12, ID:1, Layer:2, ProtectionAbsent:1, Profile:2, SampleRate:4,
+    Private:1, Channels:3, Original:1, Home:1, Copyright:1, CopyrightStart:1,
+    FrameLength:13, ADTS:11, Count:2, Frame/binary>>.
+
+
 
 
 %
@@ -30,7 +51,6 @@ decode(<<16#FFF:12, _ID:1, _Layer:2, 0:1, _Profile:2, _SampleRate:4,
   {Frame, Rest} = split_binary(Data, FrameLength - 9),
   % ?D({err, _ID, _Layer, _Profile, frequency(SampleRate), _Private, channels(Channels), _Original, _Home, _Copyright, _CopyrightStart, FrameLength, _Count}),
   {ok, Frame, Rest};
-
 
 decode(<<16#FFF:12, _:4, _/binary>>) ->
   {more, undefined};
@@ -64,7 +84,9 @@ config(<<16#FFF:12, _ID:1, _Layer:2, _:1, Profile:2, SampleRate:4,
 
 
 samples_per_frame(0) -> 1024;
-samples_per_frame(1) -> 960.
+samples_per_frame(1) -> 960;
+samples_per_frame(1024) -> 0;
+samples_per_frame(960) -> 1.
 
 object_type(0) -> null;
 object_type(1) -> aac_main;
@@ -72,6 +94,12 @@ object_type(2) -> aac_lc;
 object_type(3) -> aac_ssr;
 object_type(4) -> aac_ltp;
 object_type(5) -> aac_sbr;
+object_type(null) -> 0;
+object_type(aac_main) -> 1;
+object_type(aac_lc) -> 2;
+object_type(aac_ssr) -> 3;
+object_type(aac_ltp) -> 4;
+object_type(aac_sbr) -> 5;
 object_type(Other) -> Other.
 
 frequency(0) -> 96000;
@@ -87,6 +115,19 @@ frequency(9) -> 12000;
 frequency(10) -> 11025;
 frequency(11) -> 8000;
 frequency(12) -> 7350;
+frequency(96000) -> 0;
+frequency(88200) -> 1;
+frequency(64000) -> 2;
+frequency(48000) -> 3;
+frequency(44100) -> 4;
+frequency(32000) -> 5;
+frequency(24000) -> 6;
+frequency(22050) -> 7;
+frequency(16000) -> 8;
+frequency(12000) -> 9;
+frequency(11025) -> 10;
+frequency(8000) -> 11;
+frequency(7350) -> 12;
 frequency(Other) -> Other.
 
 channels(0) -> specific;
@@ -97,4 +138,12 @@ channels(4) -> flcr_bc;
 channels(5) -> flcr_blr;
 channels(6) -> flcr_blr_lfe;
 channels(7) -> flcr_slr_blr_lfe;
+channels(specific) -> 0;
+channels(fc) -> 1;
+channels(flr) -> 2;
+channels(flcr) -> 3;
+channels(flcr_bc) -> 4;
+channels(flcr_blr) -> 5;
+channels(flcr_blr_lfe) -> 6;
+channels(flcr_slr_blr_lfe) -> 7;
 channels(Other) -> Other.
