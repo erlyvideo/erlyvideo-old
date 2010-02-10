@@ -60,7 +60,6 @@
 
 play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
-  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   process_flag(trap_exit, true),
   link(Player),
   link(Req:socket_pid()),

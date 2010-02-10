@@ -131,14 +131,17 @@ handle(Host, 'POST', ["users", UserS, "message"], Req) ->
 
   
 handle(Host, 'GET', ["stream", Name], Req) ->
+  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   case media_provider:play(Host, Name, [{stream_id, 1}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;
     {notfound, Reason} ->
-      Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s\n", [Name, Reason]);
+      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s\n", [Name, Reason])),
+      Req:stream(close);
     Reason -> 
-      Req:respond(500, [{"Content-Type", "text/plain"}], "500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])
+      Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
+      Req:stream(close)
   end;
   
 handle(Host, 'GET', Path, Req) ->
