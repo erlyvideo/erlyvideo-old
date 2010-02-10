@@ -55,7 +55,8 @@
   pat_counter = 0,
   pmt_counter = 0,
   audio_counter = 0,
-  video_counter = 0
+  video_counter = 0,
+  length_size = 2
 }).
 
 play(_Name, Player, Req) ->
@@ -97,13 +98,13 @@ adaptation_field(Data) when is_binary(Data) ->
   Field = padding(<<0>>, ?TS_PACKET - size(Data) - 2),
   {1, <<(size(Field)), Field/binary>>};
 
-adaptation_field({Timestamp, Data}) ->
+adaptation_field({Timestamp, Data, Random}) ->
   PCR = Timestamp * 27000,
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
   AdaptationMinLength = 1 + 1 + 6,
 
-  Adaptation = <<0:3, 1:1, 0:4, PCR1:33, PCR2:9, 0:6>>,
+  Adaptation = <<0:1, Random:1, 0:1, 1:1, 0:4, PCR1:33, PCR2:9, 0:6>>,
   Field = padding(Adaptation, ?TS_PACKET - AdaptationMinLength - size(Data)),
   {1, <<(size(Field)), Field/binary>>}.
 
@@ -118,7 +119,7 @@ mux_parts(Data, Streamer, Pid, Start) ->
 
   Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adaptation:1, HasPayload:1, Counter:4, Field/binary>>,
   Payload = case Data of
-    {_, Bin} -> Bin;
+    {_, Bin, _} -> Bin;
     _ -> Data
   end,
   send_ts(Header, Payload, Streamer1, Pid).
@@ -191,7 +192,7 @@ send_pmt(Streamer) ->
   % 
   
   
-send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
+send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body, frame_type = FrameType}) ->
   PtsDts = 2#11,
   Marker = 2#10,
   Scrambling = 0,
@@ -202,13 +203,28 @@ send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
                    1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
+  % ?D({"Sending nal", Body}),
   PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary>>,
-  mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
+  RandomAccess = case FrameType of
+    keyframe -> 1;
+    _ -> 0
+  end,
+  mux({Timestamp, PES, RandomAccess}, Streamer, ?VIDEO_PID).
   
-play(#streamer{player = Player} = Streamer) ->
+play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
   receive
-    #video_frame{type = video} = Frame ->
-      Streamer1 = send_video(Streamer, Frame),
+    #video_frame{type = video, decoder_config = true, body = Config} = Frame->
+      F = fun(NAL, S) ->
+        send_video(S, Frame#video_frame{decoder_config = false, body = NAL})
+      end,
+      {LengthSize, NALS} = h264:unpack_config(Config),
+      ?D({"Length size", LengthSize}),
+      Streamer1 = lists:foldl(F, Streamer, NALS),
+      ?MODULE:play(Streamer1#streamer{length_size = LengthSize});
+    #video_frame{type = video, body = Body} = Frame ->
+      <<_:LengthSize/binary, NAL/binary>> = Body,
+      % ?D({"NAL", NAL}),
+      Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer1);
     #video_frame{} = _Frame ->
       % Req:stream(<<"frame\n">>),
@@ -223,6 +239,7 @@ play(#streamer{player = Player} = Streamer) ->
   after
     ?TIMEOUT ->
       ?D("MPEG TS player stopping"),
+      Player ! stop,
       ok
   end.
   
