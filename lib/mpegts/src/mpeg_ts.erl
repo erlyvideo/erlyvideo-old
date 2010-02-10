@@ -56,7 +56,9 @@
   pmt_counter = 0,
   audio_counter = 0,
   video_counter = 0,
-  length_size = 2
+  length_size = 2,
+  audio_config = undefined,
+  video_config = undefined
 }).
 
 play(_Name, Player, Req) ->
@@ -67,11 +69,7 @@ play(_Name, Player, Req) ->
   Player ! start,
   Streamer = #streamer{player = Player, req = Req},
   Streamer1 = send_pat(Streamer),
-  Streamer2 = send_pat(Streamer1),
-  Streamer3 = send_pmt(Streamer2),
-  Streamer4 = send_pmt(Streamer3),
-  Streamer5 = send_pmt(Streamer4),
-  ?MODULE:play(Streamer5),
+  ?MODULE:play(Streamer1),
   Req:stream(close),
   ok.
 
@@ -153,7 +151,7 @@ send_pat(Streamer) ->
   PAT = <<0, PAT1/binary, CRC32:32>>,
   mux(PAT, Streamer, 0).
 
-send_pmt(Streamer) ->
+send_pmt(#streamer{video_config = VideoConfig} = Streamer) ->
   SectionSyntaxInd = 1,
   ProgramNum = 1,
   Version = 0,
@@ -163,7 +161,15 @@ send_pmt(Streamer) ->
   ProgramInfo = <<>>,
   AudioES = <<>>,
   AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 0:4, (size(AudioES)):12, AudioES/binary>>,
-  VideoES = <<>>,
+  
+  MultipleFrameRate = 0,
+  FrameRateCode = 0,
+  MPEG1Only = 0,
+  ProfileLevel = 0,
+  Chroma = 0,
+  FrameRateExt = 0,
+  VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
+              0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig>>,
   VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 0:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([AudioStream, VideoStream]),
   PMT1 = <<ProgramNum:16, 
@@ -211,19 +217,35 @@ send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body, frame_type
   end,
   mux({Timestamp, PES, RandomAccess}, Streamer, ?VIDEO_PID).
   
-play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
+
+play(#streamer{player = Player, video_config = undefined} = Streamer) ->
+  receive
+    #video_frame{type = video, decoder_config = true, body = Config} = Frame ->
+      Streamer1 = send_pmt(Streamer#streamer{video_config = Config}),
+      F = fun(NAL, S) ->
+        send_video(S, Frame#video_frame{decoder_config = false, body = NAL})
+      end,
+      {LengthSize, NALS} = h264:unpack_config(Config),
+      Streamer2 = lists:foldl(F, Streamer1, NALS),
+      ?MODULE:play(Streamer2#streamer{length_size = LengthSize*8})
+  after
+    ?TIMEOUT ->
+      ?D("No video decoder config received"),
+      Player ! stop,
+      ok
+  end;
+  
+play(#streamer{player = Player, length_size = LengthSize, audio_config = AudioConfig, video_config = VideoConfig} = Streamer) ->
   receive
     #video_frame{type = video, decoder_config = true, body = Config} = Frame->
       F = fun(NAL, S) ->
         send_video(S, Frame#video_frame{decoder_config = false, body = NAL})
       end,
       {LengthSize, NALS} = h264:unpack_config(Config),
-      ?D({"Length size", LengthSize}),
       Streamer1 = lists:foldl(F, Streamer, NALS),
-      ?MODULE:play(Streamer1#streamer{length_size = LengthSize});
-    #video_frame{type = video, body = Body} = Frame ->
-      <<_:LengthSize/binary, NAL/binary>> = Body,
-      % ?D({"NAL", NAL}),
+      ?MODULE:play(Streamer1#streamer{length_size = LengthSize*8});
+    #video_frame{type = video, body = Body, timestamp = Timestamp} = Frame ->
+      <<Length:LengthSize, NAL:Length/binary>> = Body,
       Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer1);
     #video_frame{} = _Frame ->
