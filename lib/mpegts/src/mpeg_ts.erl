@@ -50,6 +50,7 @@
 
 
 -record(streamer, {
+  player,
   req,
   pat_counter = 0,
   pmt_counter = 0,
@@ -61,9 +62,10 @@ play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   process_flag(trap_exit, true),
+  link(Player),
   link(Req:socket_pid()),
   Player ! start,
-  Streamer = #streamer{req = Req},
+  Streamer = #streamer{player = Player, req = Req},
   Streamer1 = send_pat(Streamer),
   Streamer2 = send_pat(Streamer1),
   Streamer3 = send_pmt(Streamer2),
@@ -187,7 +189,7 @@ send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
   PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary>>,
   mux(PES, Streamer, ?VIDEO_PID).
   
-play(Streamer) ->
+play(#streamer{player = Player} = Streamer) ->
   receive
     #video_frame{type = video} = Frame ->
       Streamer1 = send_video(Streamer, Frame),
@@ -197,6 +199,7 @@ play(Streamer) ->
       ?MODULE:play(Streamer);
     {'EXIT', _, _} ->
       ?D({"MPEG TS reader disconnected"}),
+      Player ! stop,
       ok;
     Message -> 
       ?D(Message),
