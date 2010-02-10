@@ -339,7 +339,9 @@ socket_loop(#c{sock = Sock} = C) ->
 			close(Sock);
 		shutdown ->
 			?DEBUG(debug, "shutting down socket loop", []),
-			shutdown
+			shutdown;
+		Other ->
+		  io:format("Unknown message to misultin socket loop: ~p~n", [Other])
 	end.
 
 % Description: Add content length
