@@ -19,16 +19,20 @@ encode(Frame, #aac_config{type = ObjectType, frequency = Frequency, channels = C
   SampleRate = frequency(Frequency),
   Private = 0,
   Channels = channels(ChannelConfig),
-  Original = 1,
+  Original = 0,
   Home = 0,
   Copyright = 0,
   CopyrightStart = 0,
-  FrameLength = size(Frame) + 9,
-  ADTS = 2#10001010101,
-  Count = 1,
-  <<16#FFF:12, ID:1, Layer:2, ProtectionAbsent:1, Profile:2, SampleRate:4,
-    Private:1, Channels:3, Original:1, Home:1, Copyright:1, CopyrightStart:1,
-    FrameLength:13, ADTS:11, Count:2, Frame/binary>>.
+  FrameLength = size(Frame) + 7,
+  % ADTS = 2#10001010101,
+  ADTS = 16#7ff,
+  Count = 0,
+  <<16#FFF:12, ID:1, Layer:2, ProtectionAbsent:1,  % byte 1-2
+    Profile:2, SampleRate:4, Private:1, Channels:3,  % byte 3, 2 bits left
+    Original:1, Home:1, Copyright:1, CopyrightStart:1, % byte 4 and 2 bits follow
+    FrameLength:13, % byte 5, 3 bits follow
+    ADTS:11, Count:2, % byte 6,7
+    Frame/binary>>.
 
 
 
