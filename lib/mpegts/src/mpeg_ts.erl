@@ -89,37 +89,54 @@ increment_counter(#streamer{video_counter = C} = Streamer, ?VIDEO_PID) ->
   {C, Streamer#streamer{video_counter = (C + 1) rem 16}}.
   
 % 4 bytes header, 1 byte syncwork, 188 packet, so data is 183
-mux_parts(<<Data:?TS_PACKET/binary, Rest/binary>>, #streamer{req = Req} = Streamer, Pid, Start) ->
-  TEI = 0,
-  Priority = 0,
-  Scrambling = 0,
-  Adapt = 0,
-  HasPayload = 1,
-  % Adaptation = <<>>,
-  % (size(Adaptation)), Adaptation/binary
-  {Counter, Streamer1} = increment_counter(Streamer, Pid),
-  Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, Data/binary>>,
-  Req:stream(Part),
-  mux_parts(Rest, Streamer1, Pid, 0);
+
+
+adaptation_field(Data) when size(Data) >= ?TS_PACKET -> 
+  {0, <<>>};
   
-mux_parts(<<>>, Streamer, _, _) ->
+adaptation_field(Data) when is_binary(Data) ->
+  Field = padding(<<0>>, ?TS_PACKET - size(Data) - 2),
+  {1, <<(size(Field)), Field/binary>>};
+
+adaptation_field({Timestamp, Data}) ->
+  PCR = Timestamp * 27000,
+  PCR1 = round(PCR / 300),
+  PCR2 = PCR rem 300,
+  AdaptationMinLength = 1 + 1 + 6,
+
+  Adaptation = <<0:3, 1:1, 0:4, PCR1:33, PCR2:9, 0:6>>,
+  Field = padding(Adaptation, ?TS_PACKET - AdaptationMinLength - size(Data)),
+  {1, <<(size(Field)), Field/binary>>}.
+
+
+mux_parts(Data, Streamer, Pid, Start) ->
+  {Adaptation, Field} = adaptation_field(Data),
+  {Counter, Streamer1} = increment_counter(Streamer, Pid),
+  HasPayload = 1,
+  Scrambling = 0,
+  Priority = 0,
+  TEI = 0,
+
+  Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adaptation:1, HasPayload:1, Counter:4, Field/binary>>,
+  Payload = case Data of
+    {_, Bin} -> Bin;
+    _ -> Data
+  end,
+  send_ts(Header, Payload, Streamer1, Pid).
+  
+send_ts(Header, Data, #streamer{req = Req} = Streamer, _) when size(Data) == 188 - size(Header) ->
+  Req:stream(<<Header/binary, Data/binary>>),
   Streamer;
 
-mux_parts(Data, #streamer{req = Req} = Streamer, Pid, Start) ->
-  TEI = 0,
-  Priority = 0,
-  Scrambling = 0,
-  Adapt = 1,
-  HasPayload = 1,
-  Adaptation = padding(<<0>>, ?TS_PACKET - size(Data) - 2),
-  {Counter, Streamer1} = increment_counter(Streamer, Pid),
-  Part = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adapt:1, HasPayload:1, Counter:4, (size(Adaptation)), Adaptation/binary, Data/binary>>,
-  Req:stream(Part),
-  Streamer1.
+send_ts(Header, Data, #streamer{req = Req} = Streamer, Pid) when size(Data) > 188 - size(Header) ->
+  Length = 188 - size(Header),
+  <<Packet:Length/binary, Rest/binary>> = Data,
+  Req:stream(<<Header/binary, Packet/binary>>),
+  mux_parts(Rest, Streamer, Pid, 0).
+  
 
-
-padding(Padding, 0) -> Padding;
-padding(Padding, Size) -> padding(<<Padding/binary, 255>>, Size - 1).
+padding(Padding, Size) when Size =< 0 -> Padding;
+padding(Padding, Size) when Size > 0 -> padding(<<Padding/binary, 255>>, Size - 1).
   
 send_pat(Streamer) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
@@ -187,7 +204,7 @@ send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary>>,
-  mux(PES, Streamer, ?VIDEO_PID).
+  mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
   
 play(#streamer{player = Player} = Streamer) ->
   receive
