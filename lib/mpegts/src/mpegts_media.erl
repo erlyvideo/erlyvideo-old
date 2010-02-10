@@ -376,7 +376,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> =
   % Stream1;
   decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
   
-pes_packet(<<1:24, _:5/binary, PESHeaderLength, _PESHeader:PESHeaderLength/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   Stream1 = stream_timestamp(Packet, Stream, Header),
   % ?D({"Video", Stream1#stream.timestamp}),
@@ -484,6 +484,7 @@ extract_nal(Stream, _, false) ->
 extract_nal(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp, h264 = H264} = Stream, Offset1, Offset2) ->
   Length = Offset2-Offset1,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
+  % ?D({"Found NAL", Offset1, Offset2, NAL}),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   lists:foreach(fun(Frame) ->
     Consumer ! Frame#video_frame{timestamp = Timestamp}
