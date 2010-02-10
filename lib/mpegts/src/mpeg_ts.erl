@@ -175,18 +175,16 @@ send_pmt(Streamer) ->
   
 send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
   PtsDts = 2#11,
-  HeaderSize = 16#0A,
-  NAL = [<<1:24>>, Body],
-  ESsize = iolist_size(NAL),
-  PesHeaderSize = HeaderSize + 3 + ESsize,
+  Marker = 2#10,
+  Scrambling = 0,
   Alignment = 1,
   Pts = Timestamp * 90,
   <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
-  PESHeader = <<1:24, ?TYPE_VIDEO_H264, PesHeaderSize:16, 2:2, 0:2, 0:1, 
-                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, HeaderSize:8,
-                PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
-                1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
-  PES = iolist_to_binary([PESHeader | NAL]),
+  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
+                   1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  PesHeader = <<Marker:2, Scrambling:2, 0:1,
+                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
+  PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary>>,
   mux(PES, Streamer, ?VIDEO_PID).
   
 play(Streamer) ->
