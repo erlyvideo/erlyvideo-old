@@ -96,13 +96,13 @@ adaptation_field(Data) when is_binary(Data) ->
   Field = padding(<<0>>, ?TS_PACKET - size(Data) - 2),
   {1, <<(size(Field)), Field/binary>>};
 
-adaptation_field({Timestamp, Data, Random}) ->
+adaptation_field({Timestamp, Data}) ->
   PCR = Timestamp * 27000,
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
   AdaptationMinLength = 1 + 1 + 6,
 
-  Adaptation = <<0:1, Random:1, 0:1, 1:1, 0:4, PCR1:33, PCR2:9, 0:6>>,
+  Adaptation = <<0:1, 0:1, 0:1, 1:1, 0:4, PCR1:33, PCR2:9, 0:6>>,
   Field = padding(Adaptation, ?TS_PACKET - AdaptationMinLength - size(Data)),
   {1, <<(size(Field)), Field/binary>>}.
 
@@ -117,7 +117,7 @@ mux_parts(Data, Streamer, Pid, Start) ->
 
   Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adaptation:1, HasPayload:1, Counter:4, Field/binary>>,
   Payload = case Data of
-    {_, Bin, _} -> Bin;
+    {_, Bin} -> Bin;
     _ -> Data
   end,
   send_ts(Header, Payload, Streamer1, Pid).
@@ -158,7 +158,10 @@ send_pmt(#streamer{video_config = VideoConfig} = Streamer) ->
   CurrentNext = 1,
   _SectionNumber = 0,
   _LastSectionNumber = 0,
-  ProgramInfo = <<>>,
+  
+  % Some hardcoded output from VLC
+  ProgramInfo = <<29,13,17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  
   AudioES = <<>>,
   AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 0:4, (size(AudioES)):12, AudioES/binary>>,
   
@@ -168,8 +171,9 @@ send_pmt(#streamer{video_config = VideoConfig} = Streamer) ->
   ProfileLevel = 0,
   Chroma = 0,
   FrameRateExt = 0,
-  VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
-              0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig>>,
+  % VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
+  %             0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig/binary>>,
+  VideoES = <<>>,
   VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 0:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([AudioStream, VideoStream]),
   PMT1 = <<ProgramNum:16, 
@@ -210,47 +214,77 @@ send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body, frame_type
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
-  PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary>>,
-  RandomAccess = case FrameType of
-    keyframe -> 1;
-    _ -> 0
+  PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary, 0>>,
+  mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
+
+
+send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
+  PtsDts = 2#11,
+  Marker = 2#10,
+  Scrambling = 0,
+  Alignment = 1,
+  Pts = Timestamp * 90,
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
+  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
+                   1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  PesHeader = <<Marker:2, Scrambling:2, 0:1,
+                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
+  % ?D({"Sending nal", Body}),
+  ADTS = aac:encode(Body, AudioConfig),
+  
+  PES = <<1:24, ?TYPE_AUDIO_AAC, (size(PesHeader)):16, PesHeader/binary, ADTS/binary>>,
+  mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
+
+
+send_video_config(#streamer{video_config = Config} = Streamer) ->
+  F = fun(NAL, S) ->
+    send_video(S, #video_frame{type = video, timestamp = 0, decoder_config = true, body = NAL})
   end,
-  mux({Timestamp, PES, RandomAccess}, Streamer, ?VIDEO_PID).
+  {_LengthSize, NALS} = h264:unpack_config(Config),
+  lists:foldl(F, Streamer, NALS).
   
 
 play(#streamer{player = Player, video_config = undefined} = Streamer) ->
   receive
     #video_frame{type = video, decoder_config = true, body = Config} = Frame ->
       Streamer1 = send_pmt(Streamer#streamer{video_config = Config}),
-      F = fun(NAL, S) ->
-        send_video(S, Frame#video_frame{decoder_config = false, body = NAL})
-      end,
-      {LengthSize, NALS} = h264:unpack_config(Config),
-      Streamer2 = lists:foldl(F, Streamer1, NALS),
-      ?MODULE:play(Streamer2#streamer{length_size = LengthSize*8})
+      {LengthSize, _} = h264:unpack_config(Config),
+      Streamer2 = send_video_config(Streamer1#streamer{length_size = LengthSize*8}),
+      ?MODULE:play(Streamer2)
   after
     ?TIMEOUT ->
       ?D("No video decoder config received"),
       Player ! stop,
       ok
   end;
-  
-play(#streamer{player = Player, length_size = LengthSize, audio_config = AudioConfig, video_config = VideoConfig} = Streamer) ->
+
+play(#streamer{player = Player, audio_config = undefined} = Streamer) ->
   receive
-    #video_frame{type = video, decoder_config = true, body = Config} = Frame->
-      F = fun(NAL, S) ->
-        send_video(S, Frame#video_frame{decoder_config = false, body = NAL})
-      end,
-      {LengthSize, NALS} = h264:unpack_config(Config),
-      Streamer1 = lists:foldl(F, Streamer, NALS),
-      ?MODULE:play(Streamer1#streamer{length_size = LengthSize*8});
+    #video_frame{type = audio, decoder_config = true, body = AudioConfig} = Frame ->
+      Config = aac:decode_config(AudioConfig),
+      ?D({"Audio config", Config}),
+      ?MODULE:play(Streamer#streamer{audio_config = Config})
+  after
+    ?TIMEOUT ->
+      ?D("No audio decoder config received"),
+      Player ! stop,
+      ok
+  end;
+  
+play(#streamer{player = Player, length_size = LengthSize, video_config = VideoConfig} = Streamer) ->
+  receive
+    #video_frame{type = video, frame_type = keyframe, body = Body} = Frame->
+      % Streamer1 = send_video_config(Streamer),
+      <<Length:LengthSize, NAL:Length/binary>> = Body,
+      Streamer2 = send_video(Streamer, Frame#video_frame{body = NAL}),
+      ?MODULE:play(Streamer2);
     #video_frame{type = video, body = Body, timestamp = Timestamp} = Frame ->
       <<Length:LengthSize, NAL:Length/binary>> = Body,
       Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer1);
-    #video_frame{} = _Frame ->
-      % Req:stream(<<"frame\n">>),
-      ?MODULE:play(Streamer);
+    #video_frame{type = audio} = Frame ->
+      Streamer1 = send_audio(Streamer, Frame),
+      ?MODULE:play(Streamer1);
     {'EXIT', _, _} ->
       ?D({"MPEG TS reader disconnected"}),
       Player ! stop,

@@ -302,11 +302,12 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, 
-    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids} = TSLander, _, _) ->
+    ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids} = TSLander, _, _) ->
   _SectionCount = round(SectionLength - 13),
-  % io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, PCRPID]),
+  io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, _PCRPID]),
+  % io:format("Program info: ~p~n", [ProgramInfo]),
   Descriptors = extract_pmt(PMT, []),
-  io:format("Streams: ~p~n", [Descriptors]),
+  % io:format("Streams: ~p~n", [Descriptors]),
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
@@ -453,7 +454,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
     type          = audio,
     timestamp     = Timestamp,
     body          = Data,
-	  codec_id	= aac,
+	  codec_id	    = aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
