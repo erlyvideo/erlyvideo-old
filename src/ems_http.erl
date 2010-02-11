@@ -137,7 +137,7 @@ handle(Host, 'GET', ["stream", Name], Req) ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;
     {notfound, Reason} ->
-      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s\n", [Name, Reason])),
+      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
       Req:stream(close);
     Reason -> 
       Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
