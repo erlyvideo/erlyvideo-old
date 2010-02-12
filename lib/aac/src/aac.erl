@@ -13,7 +13,7 @@
 
 encode(Frame, #aac_config{type = ObjectType, frequency = Frequency, channels = ChannelConfig}) ->
   ID = 0,
-  Layer = 1,
+  Layer = 0,
   ProtectionAbsent = 1,
   Profile = object_type(ObjectType) - 1,
   SampleRate = frequency(Frequency),
@@ -56,7 +56,7 @@ decode(<<16#FFF:12, _ID:1, _Layer:2, 0:1, _Profile:2, _SampleRate:4,
   % ?D({err, _ID, _Layer, _Profile, frequency(SampleRate), _Private, channels(Channels), _Original, _Home, _Copyright, _CopyrightStart, FrameLength, _Count}),
   {ok, Frame, Rest};
 
-decode(<<16#FFF:12, _:4, _/binary>>) ->
+decode(<<16#FFF:12, _:4, _Rest/binary>>) ->
   {more, undefined};
 
 decode(<<16#FF>>) ->

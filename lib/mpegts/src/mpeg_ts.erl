@@ -102,7 +102,7 @@ adaptation_field({Timestamp, Data}) ->
   PCR2 = PCR rem 300,
   AdaptationMinLength = 1 + 1 + 6,
 
-  Adaptation = <<0:1, 0:1, 0:1, 1:1, 0:4, PCR1:33, PCR2:9, 0:6>>,
+  Adaptation = <<0:1, 0:1, 0:1, 1:1, 0:4, PCR1:33, 2#111111:6, PCR2:9>>,
   Field = padding(Adaptation, ?TS_PACKET - AdaptationMinLength - size(Data)),
   {1, <<(size(Field)), Field/binary>>}.
 
@@ -139,12 +139,11 @@ padding(Padding, Size) when Size > 0 -> padding(<<Padding/binary, 255>>, Size - 
 send_pat(Streamer) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
   TSStream = 29998, % Just the same, as VLC does
-  Reserved = 0,
   Version = 2,
   CNI = 1,
   Section = 0,
   LastSection = 0,
-  Misc = <<Reserved:2, Version:5, CNI:1, Section, LastSection>>,
+  Misc = <<2#11:2, Version:5, CNI:1, Section, LastSection>>,
   Length = size(Programs)+5+4,
   PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
   CRC32 = mpeg2_crc32:crc32(PAT1),
@@ -160,10 +159,11 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   _LastSectionNumber = 0,
   
   % Some hardcoded output from VLC
-  ProgramInfo = <<29,13,17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  ProgramInfo1 = <<29,13,17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  ProgramInfo = <<>>,
   
   AudioES = <<>>,
-  AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 0:4, (size(AudioES)):12, AudioES/binary>>,
+  AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
   % MultipleFrameRate = 0,
   % FrameRateCode = 0,
@@ -174,14 +174,14 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   % VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
   %             0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig/binary>>,
   VideoES = <<>>,
-  VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 0:4, (size(VideoES)):12, VideoES/binary>>,
+  VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 2#1111:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([AudioStream, VideoStream]),
   PMT1 = <<ProgramNum:16, 
-           11:2, Version:5, CurrentNext:1, 
+           2#11:2, Version:5, CurrentNext:1, 
            _SectionNumber,
            _LastSectionNumber, 
-           0:3, ?PCR_PID:13, 
-           0:4, (size(ProgramInfo)):12, 
+           2#111:3, ?PCR_PID:13, 
+           2#1111:4, (size(ProgramInfo)):12, 
            ProgramInfo/binary, 
            Streams/binary>>,
 
@@ -203,37 +203,35 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   
   
 send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
-  PtsDts = 2#11,
-  Marker = 2#10,
-  Scrambling = 0,
-  Alignment = 1,
-  Pts = Timestamp * 90,
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
-  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
-                   1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
-  PesHeader = <<Marker:2, Scrambling:2, 0:1,
-                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
-  % ?D({"Sending nal", Body}),
-  PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
-  mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
-
-
-send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
-  PtsDts = 2#11,
+  PtsDts = 2#10,
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
   Pts = Timestamp * 90,
   <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
-  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1,
-                   1:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  PesHeader = <<Marker:2, Scrambling:2, 0:1,
+                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
+  % ?D({"Sending nal", Body}),
+  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
+  mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
+
+
+send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
+  PtsDts = 2#10,
+  Marker = 2#10,
+  Scrambling = 0,
+  Alignment = 0,
+  Pts = Timestamp * 90,
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
+  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending audio", Timestamp, Body}),
   ADTS = aac:encode(Body, AudioConfig),
   
-  % PES = <<1:24, ?TYPE_AUDIO_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
-  PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
+  PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
+  % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
   mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
 
 

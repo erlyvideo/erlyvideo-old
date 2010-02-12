@@ -3,6 +3,8 @@
 -export([start_link/3]).
 -behaviour(gen_server).
 
+-export([ts/1]).
+
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -include_lib("h264/include/h264.hrl").
@@ -50,9 +52,11 @@
 
 -record(ts_header, {
   payload_start,
+  pid,
   pcr = undefined,
   opcr = undefined,
-  timestamp
+  timestamp,
+  payload
 }).
 
 
@@ -229,6 +233,11 @@ synchronizer(<<_, Bin/binary>>, TSLander) when size(Bin) >= 374 ->
 
 synchronizer(Bin, TSLander) ->
   TSLander#ts_lander{buffer = Bin}.
+
+
+ts(<<16#47, _TEI:1, PayloadStart:1, _:1, Pid:13, _Opt:4, Counter:4, _/binary>> = Packet) ->
+  Header = packet_timestamp(adaptation_field(Packet, #ts_header{payload_start = PayloadStart})),
+  Header#ts_header{pid = Pid, payload = ts_payload(Packet)}.
 
 
 demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
