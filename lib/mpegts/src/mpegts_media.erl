@@ -247,10 +247,12 @@ demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid
   
       
 
-ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 0:1, 1:1, _Counter:4, Payload/binary>>)  -> Payload;
+ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 0:1, 1:1, _Counter:4, Payload/binary>>)  -> 
+  Payload;
 
 ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 1:1, 1:1, _Counter:4, 
-              AdaptationLength, _AdaptationField:AdaptationLength/binary, Payload/binary>>) -> Payload;
+              AdaptationLength, _AdaptationField:AdaptationLength/binary, Payload/binary>>) -> 
+  Payload;
 
 ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
               _Adaptation:1, 0:1, _Counter:4, _Payload/binary>>)  ->
@@ -380,7 +382,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> =
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   Stream1 = stream_timestamp(Packet, Stream, Header),
-  % ?D({"Video", Stream1#stream.timestamp}),
+  % ?D({"Video", Stream1#stream.timestamp, _PESHeader}),
   decode_avc(Stream1#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 

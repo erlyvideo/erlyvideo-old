@@ -214,7 +214,7 @@ send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body, frame_type
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
-  PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader)):16, PesHeader/binary, 1:24, Body/binary, 0>>,
+  PES = <<1:24, ?TYPE_VIDEO_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
   mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
 
 
@@ -232,7 +232,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{timest
   % ?D({"Sending nal", Body}),
   ADTS = aac:encode(Body, AudioConfig),
   
-  PES = <<1:24, ?TYPE_AUDIO_AAC, (size(PesHeader)):16, PesHeader/binary, ADTS/binary>>,
+  PES = <<1:24, ?TYPE_AUDIO_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
   mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
 
 
