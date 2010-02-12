@@ -21,7 +21,7 @@
     <div>
       <form action="" onsubmit="addVideo(); return false;">
         Server: <input type="text" id="server" value="rtmp://localhost">
-        Path: <input type="text" id="path" value="video.mp4">
+        Path: <input type="text" id="path" value="first">
         <input type="submit" value="Play" />
 
       </form>
@@ -50,7 +50,8 @@
   			},
   			clip: {
   				provider: 'rtmp',
-  				autoPlay: true
+  				autoPlay: true,
+  				live: true
   			}
   		});
     }
