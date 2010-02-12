@@ -1,0 +1,22 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -name configure
+
+-define(TIMEOUT, 4000).
+-define(COUNTER, 100).
+-define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
+
+main(["reload", Node]) ->
+  rpc:call(list_to_atom(Node), ems, reconfigure, []);
+main(["restart", Node]) ->
+  rpc:call(list_to_atom(Node), ems, restart, []);
+main(["clients", Hostname, Node]) ->
+  Host = list_to_atom(Hostname),
+  Entries = rpc:call(list_to_atom(Node), media_provider, entries, [Host]),
+  io:format("~p~n", [Entries]);
+main(_) ->
+  io:format("Commands:~n  reload Node~n  restart Node~n  clients Hostname Node~n").
+
+  
+  
+
