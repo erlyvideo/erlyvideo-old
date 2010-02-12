@@ -130,9 +130,25 @@ handle(Host, 'POST', ["users", UserS, "message"], Req) ->
   Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
 
   
-handle(Host, 'GET', ["stream", Name], Req) ->
+handle(Host, 'GET', ["stream" | Name], Req) ->
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, Name, [{stream_id, 1}]) of
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}]) of
+    {ok, PlayerPid} ->
+      mpeg_ts:play(Name, PlayerPid, Req),
+      ok;
+    {notfound, Reason} ->
+      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
+      Req:stream(close);
+    Reason -> 
+      Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
+      Req:stream(close)
+  end;
+
+handle(Host, 'GET', ["iphone" | StreamName], Req) ->
+  {Name, [SegmentId]} = lists:split(length(StreamName) - 1, StreamName),
+  Segment = (list_to_integer(SegmentId) - 1) * 10000,
+  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Segment}, {duration, 10000}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;
