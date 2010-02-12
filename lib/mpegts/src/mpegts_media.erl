@@ -448,6 +448,7 @@ decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsen
                                  _FrameLength:13, _ADTS:11, _Count:2, Rest/binary>>} = Stream) ->
   % ?D({"AAC", Syncword, ID, Layer, ProtectionAbsent, Profile, Sampling, Private, Channel, Original, Home,
   % Copyright, CopyrightStart, FrameLength, ADTS, Count}),
+  % ?D({"AAC", Rest}),
   send_aac(Stream#stream{es_buffer = Rest}).
 
 send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} = Stream) ->
