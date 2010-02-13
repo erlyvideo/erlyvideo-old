@@ -202,22 +202,21 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   % 
   
   
-send_video(Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
+send_video(Streamer, #video_frame{dts = DTS, body = Body}) ->
   PtsDts = 2#10,
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
-  Pts = Timestamp * 90,
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<(DTS * 90):33>>,
   AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
-  mux({Timestamp, PES}, Streamer, ?VIDEO_PID).
+  mux({DTS, PES}, Streamer, ?VIDEO_PID).
 
 
-send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{timestamp = Timestamp, body = Body}) ->
+send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
   PtsDts = 2#10,
   Marker = 2#10,
   Scrambling = 0,
@@ -237,7 +236,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{timest
 
 send_video_config(#streamer{video_config = Config} = Streamer) ->
   F = fun(NAL, S) ->
-    send_video(S, #video_frame{type = video, timestamp = 0, decoder_config = true, body = NAL})
+    send_video(S, #video_frame{type = video, dts = 0, pts = 0, decoder_config = true, body = NAL})
   end,
   {_LengthSize, NALS} = h264:unpack_config(Config),
   lists:foldl(F, Streamer, NALS).
@@ -248,6 +247,7 @@ play(#streamer{player = Player, video_config = undefined} = Streamer) ->
     #video_frame{type = video, decoder_config = true, body = Config} ->
       Streamer1 = send_pmt(Streamer#streamer{video_config = Config}),
       {LengthSize, _} = h264:unpack_config(Config),
+      ?D({"Set length size", LengthSize}),
       Streamer2 = send_video_config(Streamer1#streamer{length_size = LengthSize*8}),
       ?MODULE:play(Streamer2)
   after

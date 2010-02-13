@@ -174,12 +174,12 @@ handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients} = MediaInf
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
 
-handle_info(#video_frame{timestamp = TS} = Frame, #media_info{base_timestamp = undefined} = Recorder) ->
+handle_info(#video_frame{dts = TS} = Frame, #media_info{base_timestamp = undefined} = Recorder) ->
   handle_info(Frame, Recorder#media_info{base_timestamp = TS});
 
-handle_info(#video_frame{timestamp = TS} = Frame, 
+handle_info(#video_frame{dts = DTS, pts = PTS} = Frame, 
             #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
-  Frame1 = Frame#video_frame{timestamp = TS - BaseTS, stream_id = 1},
+  Frame1 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
   lists:foreach(fun(Client) -> Client ! Frame1 end, Clients),
   Recorder1 = parse_metadata(Recorder, Frame),
   Recorder2 = copy_audio_config(Recorder1, Frame),
@@ -230,7 +230,7 @@ handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
-  ?D({"New GOP", round((Frame#video_frame.timestamp - MediaInfo#media_info.base_timestamp)/1000)}),
+  ?D({"New GOP", round((Frame#video_frame.dts - MediaInfo#media_info.base_timestamp)/1000)}),
   MediaInfo#media_info{gop = [Frame]};
 
 store_last_gop(#media_info{gop = GOP} = MediaInfo, _) when length(GOP) == 5000 ->

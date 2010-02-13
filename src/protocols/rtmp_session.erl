@@ -220,8 +220,8 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State,
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   Recorder = array:get(StreamId, Streams),
   
-  Frame = ems_flv:decode(Type, Body),
-  stream_media:publish(Recorder, Frame#video_frame{timestamp = Timestamp}),
+  Frame = ems_flv:decode(#video_frame{dts = Timestamp, type = Type}, Body),
+  stream_media:publish(Recorder, Frame),
   State;
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
@@ -365,10 +365,10 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,timestamp = TimeStamp} = Frame, 'WAIT_FOR_DATA', State) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', State) ->
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
-    timestamp = TimeStamp,
+    timestamp = DTS,
     type = Type,
     stream_id = StreamId,
     body = ems_flv:encode(Frame)},

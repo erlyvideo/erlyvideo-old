@@ -155,16 +155,21 @@ send_frame(#stream_player{synced = false} = Player, #video_frame{decoder_config 
 
 
 
-send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{timestamp = Ts} = Frame) when is_number(Ts) andalso Ts > 0 ->
+send_frame(#stream_player{base_ts = undefined} = Player, #video_frame{dts = Ts} = Frame) when is_number(Ts) andalso Ts > 0 ->
   send_frame(Player#stream_player{base_ts = Ts}, Frame);
 
 send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = BaseTs} = Player, 
-           #video_frame{timestamp = Ts, decoder_config = Decoder, type = Type} = Frame) ->
-  Timestamp = case BaseTs of
+           #video_frame{dts = DTS1, pts = PTS1, decoder_config = Decoder, type = Type} = Frame) ->
+  DTS2 = case BaseTs of
     undefined -> 0;
-    _ -> Ts - BaseTs
+    _ -> DTS1 - BaseTs
   end,
-  Consumer ! Frame#video_frame{stream_id = StreamId, timestamp = Timestamp},
+  PTS2 = case {PTS1, BaseTs} of
+    {undefined, _} -> DTS2;
+    {_, undefined} -> 0;
+    _ -> PTS1 - BaseTs
+  end,
+  Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS2, pts = PTS2},
   % ?D({"Frame", Timestamp, Ts, BaseTs, Type, Decoder, Frame#video_frame.frame_type}),
   Player1 = case {Decoder, Type} of
     {true, audio} -> Player#stream_player{sent_audio_decoder = true};

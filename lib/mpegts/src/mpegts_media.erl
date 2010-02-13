@@ -435,9 +435,9 @@ decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
   AudioConfig = #video_frame{       
    	type          = audio,
    	decoder_config = true,
-		timestamp      = 0,
+		dts           = 0,
 		body          = Config,
-	  codec_id	= aac,
+	  codec_id	    = aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
@@ -464,7 +464,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp} =
   % ?D({"Audio", Timestamp, Data}),
   AudioFrame = #video_frame{       
     type          = audio,
-    timestamp     = Timestamp,
+    dts           = Timestamp,
     body          = Data,
 	  codec_id	    = aac,
 	  sound_type	  = stereo,
@@ -500,7 +500,7 @@ extract_nal(#stream{es_buffer = Data, consumer = Consumer, timestamp = Timestamp
   % ?D({"Found NAL", Offset1, Offset2, NAL}),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   lists:foreach(fun(Frame) ->
-    Consumer ! Frame#video_frame{timestamp = Timestamp}
+    Consumer ! Frame#video_frame{dts = Timestamp}
   end, Frames),
   decode_avc(Stream#stream{es_buffer = Rest1, h264 = H264_1}).
 

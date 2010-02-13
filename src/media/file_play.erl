@@ -210,7 +210,7 @@ play(Else) ->
   ?D(Else),
   ok.
 
-send_frame(#file_player{play_end = PlayEnd}, {#video_frame{timestamp = Timestamp}, _}) when PlayEnd =< Timestamp ->
+send_frame(#file_player{play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when PlayEnd =< Timestamp ->
   ok;
 
 send_frame(Player, undefined) ->
@@ -270,7 +270,7 @@ file_format(Name) ->
 %% @end
 %%-------------------------------------------------------------------------	
 
-timeout_play(#video_frame{timestamp = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
+timeout_play(#video_frame{dts = AbsTime}, #file_player{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
   SeekTime = AbsTime - PlayingFrom,
   Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
   % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
