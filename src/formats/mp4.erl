@@ -158,10 +158,12 @@ init(MediaInfo) ->
 
 init(MediaInfo, Pos) -> 
   case next_atom(#media_info{device = Device} = MediaInfo, Pos) of
-    {eof} -> {ok, MediaInfo};
+    eof -> {ok, MediaInfo};
     {error, Reason} -> {error, Reason};
     {atom, mdat, Offset, Length} ->
       init(MediaInfo, Offset + Length);
+    {atom, AtomName, Offset, 0} -> 
+      init(MediaInfo, Offset);
     {atom, AtomName, Offset, Length} -> 
       {ok, AtomData} = file:pread(Device, Offset, Length),
       NewInfo = case ems:respond_to(?MODULE, AtomName, 2) of
@@ -170,6 +172,16 @@ init(MediaInfo, Pos) ->
       end,
       init(NewInfo, Offset + Length)
   end.
+
+next_atom(#media_info{device = Device}, Pos) ->
+  case file:pread(Device, Pos, 8) of
+    {ok, <<AtomLength:32/big-integer, AtomName/binary>>} when AtomLength >= 8 ->
+      % ?D({"Atom", binary_to_atom(AtomName, latin1), Pos, AtomLength}),
+      {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8};
+    Else -> Else
+  end.
+
+
   
 metadata(#media_info{width = Width, height = Height, seconds = Duration}) -> 
   [{width, Width}, 
@@ -436,22 +448,6 @@ stco(<<Offset:32/big-integer, Rest/binary>>, OffsetList) ->
 
 extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
-
-next_atom(#media_info{device = Device}, Pos) ->
-  case file:pread(Device, Pos, 4) of
-    {ok, Data} ->
-      <<AtomLength:32/big-integer>> = Data,
-      if 
-        AtomLength < 8 -> throw(invalid_atom_size_0);
-        true ->
-          {ok, AtomName} = file:pread(Device, Pos+4, 4),
-          {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8}
-      end;
-    eof -> 
-      {eof};
-    {error, Reason} -> 
-      {error, Reason}           
-  end.
 
 %  Decoder config from one file:
 %   <<1,77,0,50,255,225,0,22,103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192,1,0,4,104,238,60,128>>

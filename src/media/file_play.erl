@@ -157,7 +157,7 @@ ready(#file_player{media_info = MediaInfo,
       case file_media:seek(MediaInfo, Timestamp) of
         {Pos, NewTimestamp} ->
           timer:cancel(Timer),
-          ?D({"Player seek to", round(Timestamp), Pos, NewTimestamp}),
+          ?D({"Player real seek to", round(Timestamp), NewTimestamp}),
           self() ! play,
           ?MODULE:ready(State#file_player{pos = Pos, 
                                           ts_prev = NewTimestamp, 
@@ -203,7 +203,6 @@ play(#file_player{sent_video_config = false, media_info = MediaInfo, pos = Pos} 
     
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
-  ?D({"Process read frame", self(), Key}),
   Reply = file_media:read_frame(MediaInfo, Key),
   send_frame(Player, Reply);
   
@@ -234,8 +233,8 @@ send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, don
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  Player1 = timeout_play(Frame, Player#file_player{pos = Next}),
-  ?MODULE:ready(Player1).
+  timeout_play(Frame, Player#file_player{pos = Next}).
+  
 
 
 
@@ -279,7 +278,7 @@ timeout_play(#video_frame{timestamp = AbsTime}, #file_player{timer_start = Timer
   (Prepush > SeekTime) ->
     ?MODULE:play(Player#file_player{prepush = Prepush - SeekTime});
 	(Timeout > 0) -> 
-    Player#file_player{timer_ref = timer:send_after(Timeout, play)};
+    ?MODULE:ready(Player#file_player{timer_ref = timer:send_after(Timeout, play)});
   true -> 
     ?MODULE:play(Player)
   end.
