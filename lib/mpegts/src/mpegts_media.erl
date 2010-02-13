@@ -44,6 +44,8 @@
   pcr = 0,
   start_dts = 0,
   dts = 0,
+  start_pts = 0,
+  pts = 0,
   video_config = undefined,
   send_audio_config = false,
   timestamp = 0,
@@ -127,7 +129,9 @@ handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Cli
   ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
   case TSLander#ts_lander.video_config of
     undefined -> ok;
-    VideoConfig -> Pid ! VideoConfig
+    VideoConfig -> 
+      Pid ! VideoConfig,
+      Pid ! h264:metadata(VideoConfig#video_frame.body)
   end,
   case TSLander#ts_lander.audio_config of
     undefined -> ok;
@@ -192,8 +196,10 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
 handle_info(#video_frame{decoder_config = true, type = audio} = Frame, TSLander) ->
   {noreply, send_frame(Frame, TSLander#ts_lander{audio_config = Frame})};
 
-handle_info(#video_frame{decoder_config = true, type = video} = Frame, TSLander) ->
-  {noreply, send_frame(Frame, TSLander#ts_lander{video_config = Frame})};
+handle_info(#video_frame{body = Config, decoder_config = true, type = video} = Frame, TSLander) ->
+  Lander = send_frame(Frame, TSLander#ts_lander{video_config = Frame}),
+  send_frame(h264:metadata(Config), Lander),
+  {noreply, Lander};
 
 handle_info(#video_frame{} = Frame, TSLander) ->
   {noreply, send_frame(Frame, TSLander)};
@@ -403,28 +409,36 @@ stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, _PESHeader:PESHeade
   normalize_timestamp(Stream#stream{pcr = round(TimeStamp)});
 
 stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
-  <<3:4/integer, _:36/integer, 1:4/integer, Dts3:3/integer, 1:1/integer, Dts2:15/integer, 1:1/integer, Dts1:15/integer, 1:1/integer>> = PESHeader,
-  % ?D({"Have DTS & PTS", round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)}),
-  normalize_timestamp(Stream#stream{dts = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90)});
+  <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
+    2#0001:4, Dts3:3, 1:1, Dts2:15, 1:1, Dts1:15, 1:1, Rest/binary>> = PESHeader,
+  DTS = round((Dts1 + (Dts2 bsl 15) + (Dts3 bsl 30))/90),
+  PTS = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90),
+  % ?D({"Have DTS & PTS", DTS, PTS, Rest}),
+  normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
   
 
 stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
-  <<2:4/integer, Pts3:3/integer, 1:1/integer, Pts2:15/integer, 1:1/integer, Pts1:15/integer, 1:1/integer>> = PESHeader,
-  % ?D("Have DTS"),
-  normalize_timestamp(Stream#stream{dts = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90)});
+  <<2#10:4, Pts3:3, 1:1, Pts2:15, 1:1, Pts1:15, 1:1, Rest/binary>> = PESHeader,
+  PTS = round((Pts1 + (Pts2 bsl 15) + (Pts3 bsl 30))/90),
+  % ?D({"Have ony PTS", PTS, Rest}),
+  normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
 
 % FIXME!!!
 % Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only OPCR, once a second,
 % thus I increment timestamp counter on each NAL, assuming, that there is 25 FPS.
 % This is very, very wrong, but I really don't know how to calculate it in other way.
-stream_timestamp(_, #stream{timestamp = TimeStamp} = Stream, _) ->
-  Stream#stream{timestamp = TimeStamp + 40}.
+stream_timestamp(_, #stream{timestamp = TimeStamp, dts = DTS, pts = PTS} = Stream, _) ->
+  Stream#stream{timestamp = TimeStamp + 40, dts = DTS + 40, pts = PTS + 40}.
 
 % normalize_timestamp(Stream) -> Stream;
 normalize_timestamp(#stream{start_dts = 0, dts = DTS} = Stream) when is_integer(DTS) andalso DTS > 0 -> 
   Stream#stream{start_dts = DTS, timestamp = 0, dts = 0};
 normalize_timestamp(#stream{start_dts = Start, dts = DTS} = Stream) when is_integer(DTS) andalso DTS > 0 -> 
   Stream#stream{timestamp = DTS - Start, dts = 0};
+normalize_timestamp(#stream{start_pts = 0, pts = PTS} = Stream) when is_integer(PTS) andalso PTS > 0 -> 
+  Stream#stream{start_pts = PTS, timestamp = 0, pts = 0};
+normalize_timestamp(#stream{start_pts = Start, pts = PTS} = Stream) when is_integer(PTS) andalso PTS > 0 -> 
+  Stream#stream{timestamp = PTS - Start, pts = 0};
 normalize_timestamp(#stream{start_pcr = 0, pcr = PCR} = Stream) when is_integer(PCR) andalso PCR > 0 -> 
   Stream#stream{start_pcr = PCR, timestamp = 0, pcr = 0};
 normalize_timestamp(#stream{start_pcr = Start, pcr = PCR} = Stream) -> 

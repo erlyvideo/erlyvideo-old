@@ -6,7 +6,7 @@
 -include_lib("h264/include/h264.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
--export([decode_nal/2, video_config/1, unpack_config/1]).
+-export([decode_nal/2, video_config/1, unpack_config/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([open_dump/0, dump_nal/2, fake_open_dump/0, fake_dump_nal/2]).
 -export([parse_sps/1]).
@@ -44,6 +44,17 @@ video_config(H264) ->
     	},
     	{H264, [Frame]}
   end.
+
+metadata(Config) ->
+  {_, [SPSBin, _]} = unpack_config(Config),
+  #h264_sps{width = Width, height = Height} = parse_sps(SPSBin),
+  #video_frame{       
+   	type          = metadata,
+		dts           = 0,
+		pts           = 0,
+		body          = [<<"onMetaData">>, {object, [{width, Width}, {height, Height}]}]
+	}.
+  
       
 
 unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 
@@ -124,7 +135,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   ?DUMP_H264(File, SPS),
   SPSInfo = parse_sps(SPS),
-  io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
+  % io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{dump_file = File} = H264) ->

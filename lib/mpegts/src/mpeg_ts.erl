@@ -289,7 +289,7 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
       Player ! stop,
       ok;
     Message -> 
-      ?D(Message),
+      ?D({LengthSize, Message}),
       ?MODULE:play(Streamer)
   after
     ?TIMEOUT ->

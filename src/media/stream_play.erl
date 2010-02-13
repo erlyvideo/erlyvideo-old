@@ -162,12 +162,14 @@ send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = B
            #video_frame{dts = DTS1, pts = PTS1, decoder_config = Decoder, type = Type} = Frame) ->
   DTS2 = case BaseTs of
     undefined -> 0;
-    _ -> DTS1 - BaseTs
+    _ when BaseTs < DTS1 -> DTS1 - BaseTs;
+    _ -> 0
   end,
   PTS2 = case {PTS1, BaseTs} of
     {undefined, _} -> DTS2;
     {_, undefined} -> 0;
-    _ -> PTS1 - BaseTs
+    _ when BaseTs < PTS1 -> PTS1 - BaseTs;
+    _ -> 0
   end,
   Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS2, pts = PTS2},
   % ?D({"Frame", Timestamp, Ts, BaseTs, Type, Decoder, Frame#video_frame.frame_type}),

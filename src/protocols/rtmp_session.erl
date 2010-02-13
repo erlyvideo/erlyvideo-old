@@ -99,7 +99,7 @@ accept_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args =
   Session.
 
 
-reject_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args = [{object, PlayerInfo} | _]} = AMF) ->
+reject_connection(#rtmp_session{socket = Socket} = Session, AMF) ->
   ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<?NC_CONNECT_REJECTED>>},
