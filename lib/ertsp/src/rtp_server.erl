@@ -206,15 +206,15 @@ unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
   Audio#audio{audio_headers = <<>>, audio_data = <<>>};
   
 unpack_audio_units(#audio{media = Media, clock_map = ClockMap, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode} = Audio) ->
-  Timestamp = convert_timecode(Audio),
+  DTS = convert_timecode(Audio),
   % ?D({"Audio", Timecode, Timestamp}),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
       AudioFrame = #video_frame{       
         type          = audio,
-        timestamp     = Timestamp,
+        dts           = DTS,
         body          = Data,
-    	  codec_id	= aac,
+    	  codec_id	    = aac,
     	  sound_type	  = stereo,
     	  sound_size	  = bit16,
     	  sound_rate	  = rate44
@@ -265,6 +265,6 @@ send_video(#video{media = Media, buffer = Frames, timecode = Timecode} = Video) 
   % ?D({"Video", Timecode, Timestamp}),
   case Frame of
     undefined -> ok;
-    _ -> Media ! Frame#video_frame{timestamp = Timestamp, type = video}
+    _ -> Media ! Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}
   end,
   Video#video{synced = true, buffer = []}.

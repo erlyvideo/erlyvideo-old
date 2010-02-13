@@ -25,7 +25,7 @@ config_media(Media, [#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream |
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, Configs} = h264:decode_nal(PPS, H264),
   lists:foreach(fun(Frame) ->
-    Media ! Frame#video_frame{timestamp = 0}
+    Media ! Frame#video_frame{dts = 0, pts = 0}
   end, Configs),
   config_media(Media, Streams, [Stream#rtsp_stream{config = H264_2} | Output]);
 
@@ -33,9 +33,10 @@ config_media(Media, [#rtsp_stream{type = audio, config = Config} = Stream | Stre
   AudioConfig = #video_frame{       
    	type          = audio,
    	decoder_config = true,
-		timestamp      = 0,
+		dts           = 0,
+		pts           = 0,
 		body          = Config,
-	  codec_id	= aac,
+	  codec_id	    = aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
