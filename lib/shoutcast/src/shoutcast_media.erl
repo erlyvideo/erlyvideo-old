@@ -13,6 +13,7 @@
   url,
   audio_config = undefined,
   state,
+  sync_count = 0,
   format = aac,
   buffer = <<>>,
   timestamp,
@@ -181,20 +182,29 @@ decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) 
 %   State;
 %
 
-decode(#shoutcast{state = unsynced_body, format = mp3, buffer = <<_, Rest/binary>>} = State) ->
+decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3} = State) when SyncCount == 50 ->
+  decode(State#shoutcast{format = aac, sync_count = SyncCount + 1});
+
+decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = aac} = State) when SyncCount == 50 ->
+  decode(State#shoutcast{format = mp3});
+
+decode(#shoutcast{state = unsynced_body, sync_count = SyncCount}) when SyncCount == 100 ->
+  error;
+
+decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3, buffer = <<_, Rest/binary>>} = State) ->
   case mp3:decode(State#shoutcast.buffer) of
     {ok, _, _} ->
       ?D({"Sync MP3"}),
       decode(State#shoutcast{state = body, timestamp = 0});
     {more, undefined} ->
       ?D({"Want more MP3 for sync"}),
-      State;
+      State#shoutcast{sync_count = SyncCount + 1};
     {error, unknown} ->
-      decode(State#shoutcast{buffer = Rest})
+      decode(State#shoutcast{buffer = Rest, sync_count = SyncCount + 1})
   end;
 
 
-decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<_, Rest/binary>>} = State) ->
+decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, buffer = <<_, Rest/binary>>} = State) ->
   case aac:decode(State#shoutcast.buffer) of
     {ok, _Frame, Second} ->
       ?D({"Presync AAC"}),
@@ -204,7 +214,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, buffer = <<_, Rest/binary
           State;
         {error, unknown} ->
           ?D({"Presync failed"}),
-          decode(State#shoutcast{buffer = Rest});
+          decode(State#shoutcast{buffer = Rest, sync_count = SyncCount + 1});
         {ok, _, _} ->
           ?D({"Synced AAC"}),
           AudioConfig = #video_frame{       
