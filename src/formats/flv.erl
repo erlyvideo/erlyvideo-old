@@ -41,6 +41,8 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../../include/media_info.hrl").
 
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+
 -export([init/1, read_frame/2, codec_config/2, header/0, header/1, seek/2, first/1]).
 -behaviour(gen_format).
 
@@ -97,6 +99,7 @@ video_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 -record(flv_tag, {
   type,
   timestamp,
+  composition_offset,
   size,
   offset,
   body
@@ -164,7 +167,12 @@ parse_metadata(FrameTable, [<<"onMetaData">>, Meta]) ->
       Times = proplists:get_value(times, Keyframes),
       insert_keyframes(FrameTable, Offsets, Times);
     _ -> ok
-  end.  
+  end;
+  
+parse_metadata(FrameTable, Meta) ->
+  ?D({"Unknown metadata", Meta}),
+  ok.
+
   
 insert_keyframes(_, [], _) -> ok;
 insert_keyframes(_, _, []) -> ok;
@@ -215,8 +223,7 @@ video_frame(#flv_tag{type = Type, timestamp = Timestamp, body = Data}) ->
       end;
     _ -> undefined
   end,
-  Frame = ems_flv:decode(Type, Data),
-  Frame#video_frame{timestamp = Timestamp, frame_type = FrameType}.
+  ems_flv:decode(#video_frame{type = Type, dts = Timestamp, frame_type = FrameType}, Data).
 
 	
 % Extracts width and height from video frames.

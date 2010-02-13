@@ -83,12 +83,12 @@
 
 -record(file_frame, {
   id,
-  timestamp,
+  dts,
+  pts,
   type,
   offset,
   size,
-  keyframe,
-  composition_offset
+  keyframe
 }).
 
 		
