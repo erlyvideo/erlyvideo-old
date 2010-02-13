@@ -127,29 +127,29 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({graceful}, #media_info{owner = undefined, name = FileName, clients = Clients} = MediaInfo) ->
+handle_info(graceful, #media_info{owner = undefined, name = FileName, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
-    0 -> ?D({"No readers for file", FileName}),
+    0 -> ?D({"No readers for file", FileName, erlang:now()}),
          {stop, normal, MediaInfo};
     _ -> {noreply, MediaInfo}
   end;
 
 
-handle_info({graceful}, #media_info{owner = _Owner} = MediaInfo) ->
+handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo};
   
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
-    0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
+    0 -> timer:send_after(?FILE_CACHE_TIME, graceful);
     _ -> ok
   end,
   {noreply, MediaInfo#media_info{owner = Owner}};
 
 handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients, name = FileName} = MediaInfo) ->
   ets:delete(Clients, Client),
-  ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size)}),
+  ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size), erlang:now()}),
   case ets:info(Clients, size) of
-    0 -> timer:send_after(?FILE_CACHE_TIME, {graceful});
+    0 -> timer:send_after(?FILE_CACHE_TIME, graceful);
     _ -> ok
   end,
   {noreply, MediaInfo};

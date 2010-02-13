@@ -89,9 +89,13 @@ init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
   link(Consumer),
   Seek = proplists:get_value(seek, Options),
-  PlayEnd = case proplists:get_value(duration, Options) of
+  PlayEnd = case proplists:get_value(duration_before, Options) of
     undefined -> undefined;
-    Duration -> Seek + Duration
+    Duration -> 
+      case file_media:seek(MediaEntry, Seek + Duration) of
+        {_Pos, NewTimestamp} -> NewTimestamp;
+        _ -> undefined
+      end
   end,
   ready(#file_player{consumer = Consumer,
                      stream_id = proplists:get_value(stream_id, Options),

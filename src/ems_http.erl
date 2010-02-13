@@ -148,7 +148,7 @@ handle(Host, 'GET', ["iphone" | StreamName], Req) ->
   {Name, [SegmentId]} = lists:split(length(StreamName) - 1, StreamName),
   Segment = (list_to_integer(SegmentId) - 1) * 10000,
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Segment}, {duration, 10000}]) of
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Segment}, {duration_before, 10000}, {client_buffer, 0}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;

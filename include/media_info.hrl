@@ -1,4 +1,4 @@
--define(FILE_CACHE_TIME, 10000).
+-define(FILE_CACHE_TIME, 20000).
 
 -record(media_info, {
   host,
