@@ -17,6 +17,8 @@
           verify_crc32/1,
           verify_crc32/2]).
 
+-export([benchmark/0]).
+
 %%====================================================================
 %% Internal exports
 %%====================================================================
@@ -100,10 +102,11 @@ verify_crc32 (Buffer, InitCRC32) ->
 %% crc32_erl
 %%
 
-crc32 (Buffer, InitCRC32) when binary (Buffer) ->
-  crc32 (binary_to_list (Buffer), InitCRC32);
 
-crc32 (Buffer, InitCRC32) when list (Buffer) ->
+crc32(Buffer, InitCRC32) when is_list(Buffer) ->
+  crc32(list_to_binary(Buffer), InitCRC32);
+
+crc32(Buffer, InitCRC32) when is_binary(Buffer) ->
   Table = { 16#00000000, 16#04c11db7, 16#09823b6e, 16#0d4326d9,
             16#130476dc, 16#17c56b6b, 16#1a864db2, 16#1e475005,
             16#2608edb8, 16#22c9f00f, 16#2f8ad6d6, 16#2b4bcb61,
@@ -168,14 +171,38 @@ crc32 (Buffer, InitCRC32) when list (Buffer) ->
             16#9abc8bd5, 16#9e7d9662, 16#933eb0bb, 16#97ffad0c,
             16#afb010b1, 16#ab710d06, 16#a6322bdf, 16#a2f33668,
             16#bcb4666d, 16#b8757bda, 16#b5365d03, 16#b1f740b4 },
-  crc32_erl_1 (Buffer, Table, InitCRC32).
+  crc32_erl_1(Buffer, Table, InitCRC32).
 
-crc32_erl_1 ([], _Table, CRC32) ->
+crc32_erl_1(<<>>, _Table, CRC32) ->
   CRC32;
 
-crc32_erl_1 ([Value | Buffer], Table, CRC32) ->
+crc32_erl_1(<<Value, Buffer/binary>>, Table, CRC32) ->
   crc32_erl_1 (Buffer, Table, ((CRC32 bsl 8) band 16#FFFFFFFF) bxor element (1 + ((CRC32 bsr 24) bxor Value), Table)).
 
+
+
 %%
-%% crc32_drv
+%% Tests
 %%
+-include_lib("eunit/include/eunit.hrl").
+
+crc32_1_test() ->
+  [?_assertEqual(4294967295, crc32(<<"">>)),
+   ?_assertEqual(3794043894, crc32(<<"111111">>)),
+   ?_assertEqual(0, crc32(<<255,255,255,255>>)),
+   ?_assertEqual(2985771188, crc32(<<255,255,255,255,255>>))].
+
+
+benchmark() ->
+  Bin = iolist_to_binary(lists:map(fun(N) -> integer_to_list(N) end, lists:seq(1, 100))),
+  F = fun(100000, _) -> ok;
+         (N, F) -> crc32(Bin), F(N+1, F)
+  end,
+  erlang:statistics(wall_clock),
+  F(0, F),
+  {_, Time2} = erlang:statistics(wall_clock),
+  Time2.
+
+
+
+
