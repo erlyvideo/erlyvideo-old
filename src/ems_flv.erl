@@ -77,17 +77,18 @@ encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	decoder_config = true,
                    	codec_id = avc,
-                   	composition_offset = Offset,
+                   	pts = PTS,
                     body = Body}) when is_binary(Body) ->
-  Time = 0,
+  Time = PTS,
 	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	codec_id = avc,
-                   	composition_offset = Offset,
+                   	pts = PTS,
+                   	dts = DTS,
                     body = Body}) when is_binary(Body) ->
-  Time = 0,
+  Time = PTS - DTS,
 	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
@@ -100,48 +101,49 @@ encode(#video_frame{type = metadata, body = Metadata}) ->
   Metadata.
 
 
-decode(video, <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, _CTime:24, Body/binary>>) ->
-  #video_frame{type = video, frame_type = flv:video_type(FrameType), codec_id = avc, body= Body};
+decode(#video_frame{type = video, dts = DTS} = Frame, 
+       <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
+  Frame#video_frame{codec_id = avc, pts = DTS + CTime, body= Body};
 
-decode(video, <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, _CTime:24, Body/binary>>) ->
-  #video_frame{type = video, decoder_config = true, frame_type = flv:video_type(FrameType), 
-               codec_id = avc, body= Body};
+decode(#video_frame{type = video, dts = DTS} = Frame, 
+       <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
+  Frame#video_frame{codec_id = avc, decoder_config = true, pts = DTS + CTime, body= Body};
 
-decode(video, <<FrameType:4, CodecId:4, Body/binary>>) ->
-  #video_frame{type = video, frame_type = flv:video_type(FrameType), codec_id = flv:video_codec(CodecId), body = Body};
+decode(#video_frame{type = video, dts = DTS} = Frame, <<FrameType:4, CodecId:4, Body/binary>>) ->
+  Frame#video_frame{codec_id = flv:video_codec(CodecId), pts = DTS, body = Body};
 
-decode(audio, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
-  #video_frame{type = audio, codec_id = aac, sound_type = flv:audio_type(SoundType), 
+decode(#video_frame{type = audio} = Frame, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
+  Frame#video_frame{codec_id = aac, sound_type = flv:audio_type(SoundType), 
               sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
 
-decode(audio, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
-  #video_frame{type = audio, codec_id = aac, decoder_config = true, sound_type = flv:audio_type(SoundType), 
+decode(#video_frame{type = audio} = Frame, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
+  Frame#video_frame{codec_id = aac, decoder_config = true, sound_type = flv:audio_type(SoundType), 
             sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
 
 
-decode(audio, <<CodecId:4, SoundRate:2, SoundSize:1, SoundType:1, Body/binary>>) ->
-  #video_frame{type = audio, codec_id = flv:audio_codec(CodecId), sound_type = flv:audio_type(SoundType), 
+decode(#video_frame{type = audio} = Frame, <<CodecId:4, SoundRate:2, SoundSize:1, SoundType:1, Body/binary>>) ->
+  Frame#video_frame{codec_id = flv:audio_codec(CodecId), sound_type = flv:audio_type(SoundType), 
               sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
 
-decode(metadata, Metadata) when is_binary(Metadata) ->
-  #video_frame{type = metadata, body = rtmp:decode_list(Metadata)};
+decode(#video_frame{type = metadata} = Frame, Metadata) when is_binary(Metadata) ->
+  Frame#video_frame{body = rtmp:decode_list(Metadata)};
               
-decode(metadata, Metadata) ->
+decode(#video_frame{type = metadata} = Frame, Metadata) ->
   % ?D({"Metadata", Metadata}),
-  #video_frame{type = metadata, body = Metadata}.
+  Frame#video_frame{body = Metadata}.
 
 
 to_tag(#video_frame{type = video} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_VIDEO});
 to_tag(#video_frame{type = audio} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_AUDIO});
 to_tag(#video_frame{type = metadata} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_META});
 
-to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, timestamp = CurrentTimeStamp}) ->
+to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, dts = DTS}) ->
 	BodyLength = size(Msg),
-	{TimeStampExt, TimeStamp} = case CurrentTimeStamp of
+	{TimeStampExt, TimeStamp} = case <<DTS:32>> of
 		<<TimeStampExt1:8,TimeStamp1:24>> -> 
 			{TimeStampExt1, TimeStamp1};
 		_ ->
-			{0, CurrentTimeStamp}
+			{0, DTS}
 	end,
 	PrevTagSize = BodyLength + 11,
 	<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>.
