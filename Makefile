@@ -1,4 +1,4 @@
-VERSION=1.5
+VERSION=1.5.1
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
@@ -79,6 +79,7 @@ install: compile
 	cp -r ebin src include lib $(DESTROOT)$(RTMPDIR)
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
+	cp contrib/erlyctl $(DESTROOT)/usr/bin/erlyctl
 	cp -r doc $(DESTROOT)$(DOCDIR)
 	mkdir -p $(DESTROOT)/etc/sv/
 	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
@@ -93,7 +94,7 @@ archive: ../erlyvideo-$(VERSION).tgz
 
 debian: all
 	#dpkg-buildpackage
-	cp ../erlyvideo_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	cp ../erlyvideo_$(VERSION)_*.deb ../erlyvideo_$(VERSION).dsc $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 

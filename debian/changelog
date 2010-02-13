@@ -1,3 +1,9 @@
+erlyvideo (1.5.1) unstable; urgency=low
+
+  * Adde  support for b-frames and difference between pts and dts
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 13 Feb 2010 23:06:15 +0300
+
 erlyvideo (1.5) unstable; urgency=low
 
   * Can stream MPEG-TS
