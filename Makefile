@@ -1,6 +1,7 @@
 VERSION=1.5.1
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
+ERL_ROOT=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
 VARDIR=/var/lib/erlyvideo
 ETCDIR=/etc/erlyvideo
@@ -16,9 +17,15 @@ MXMLC=mxmlc
 
 all: compile
 
-compile: 
+compile: ebin/mpeg2_crc32.so
 	ERL_LIBS=deps:lib:plugins erl -make
-	# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
+	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
+
+	
+ebin/mpeg2_crc32.so: lib/mpegts/src/mpeg2_crc32.c
+	gcc  -O3 -fPIC -bundle -flat_namespace -undefined suppress -fno-common -Wall -o $@ $< -I $(ERL_ROOT)/usr/include/ || touch $@
+	
+
 
 erlang_version:
 	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
@@ -32,7 +39,7 @@ doc:
 	-run edoc_run application  "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
 
 clean:
-	rm -fv ebin/*.beam
+	rm -fv ebin/*.beam ebin/*.so
 	rm -fv deps/*/ebin/*.beam
 	rm -fv lib/*/ebin/*.beam
 	rm -fv plugins/*/ebin/*.beam
@@ -76,7 +83,7 @@ install: compile
 	mkdir -p $(DESTROOT)$(ETCDIR)
 	mkdir -p $(DESTROOT)$(VARDIR)
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
-	cp -r ebin src include lib $(DESTROOT)$(RTMPDIR)
+	cp -r ebin src include lib $(DESTROOT)/usr/lib/erlyvideo
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
 	cp contrib/erlyctl $(DESTROOT)/usr/bin/erlyctl

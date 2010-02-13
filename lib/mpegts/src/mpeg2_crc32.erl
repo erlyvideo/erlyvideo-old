@@ -17,7 +17,8 @@
           verify_crc32/1,
           verify_crc32/2]).
 
--export([benchmark/0]).
+-export([start/0]).
+-export([benchmark/0, benchmark_calc/2]).
 
 %%====================================================================
 %% Internal exports
@@ -37,6 +38,13 @@
 %%====================================================================
 %% External functions
 %%====================================================================
+
+start() ->
+  case erlang:load_nif("ebin/mpeg2_crc32", 0) of
+    ok -> ok;
+    _ -> erlang:load_nif("/usr/lib/erlyvideo/ebin/mpeg2_crc32", 0)
+  end.
+
 
 %%
 %% crc32
@@ -195,14 +203,10 @@ crc32_1_test() ->
 
 benchmark() ->
   Bin = iolist_to_binary(lists:map(fun(N) -> integer_to_list(N) end, lists:seq(1, 100))),
-  F = fun(100000, _) -> ok;
-         (N, F) -> crc32(Bin), F(N+1, F)
-  end,
-  erlang:statistics(wall_clock),
-  F(0, F),
-  {_, Time2} = erlang:statistics(wall_clock),
-  Time2.
+  {Time, _} = timer:tc(?MODULE, benchmark_calc, [Bin, 0]),
+  round(Time/1000).
 
-
+benchmark_calc(_, 100000) -> ok;
+benchmark_calc(Bin, N) -> crc32(Bin), benchmark_calc(Bin, N+1).
 
 
