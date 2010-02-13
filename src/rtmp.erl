@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
--author('max@maxidoors.ru').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
 -include("shared_objects.hrl").
@@ -575,4 +575,10 @@ encode_so_type(clear_data) -> ?SO_CLEAR_DATA;
 encode_so_type(delete_data) -> ?SO_DELETE_DATA;
 encode_so_type(delete_attribute) -> ?SO_DELETE_ATTRIBUTE;
 encode_so_type(initial_data) -> ?SO_INITIAL_DATA.
+
+
+
+
+
+
 
