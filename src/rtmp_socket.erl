@@ -139,10 +139,12 @@ setopts(RTMP, Options) ->
 %% @doc Just the same as {@link inet:getopts/2. inet:getopts/2} this function gets state of 
 %% rtmp socket.<br/>
 %%  Available options:
-%%  <ul><li><code>chunk_size</code> - get outgoing chunk size</li>
+%%  <ul>
+%%  <li><code>chunk_size</code> - get outgoing chunk size</li>
 %%  <li><code>window_size</code> - get remote client read acknowlegement window size bytes</li>
 %%  <li><code>amf_version</code> - get AMF0 or AMF3</li>
 %%  <li><code>consumer</code> - get messages consumer</li>
+%%  <li><code>address</code> - get remote client IP and port</li>
 %% </ul>
 %% @end
 -spec(getopts(RTMP::rtmp_socket_pid(), Options::[Key::atom()]) -> ok).
@@ -273,6 +275,9 @@ get_options(State, window_size) ->
 
 get_options(State, client_buffer) ->
   {client_buffer, State#rtmp_socket.client_buffer};
+
+get_options(State, address) ->
+  {address, {State#rtmp_socket.address, State#rtmp_socket.port}};
   
 get_options(State, [Key | Options]) ->
   [get_options(State, Key) | get_options(State, Options)].

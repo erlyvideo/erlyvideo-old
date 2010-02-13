@@ -28,7 +28,7 @@ main([URL, CountS]) ->
 start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
   io:format("Starting client ~p~n", [Number]),
   spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
-  timer:sleep(1000),
+  timer:sleep(500),
   start_spawner(Server, Port, Path, Count, Number + 1);
 
 start_spawner(Server, Port, Path, Count, Count) ->
