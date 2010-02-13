@@ -448,7 +448,7 @@ normalize_timestamp(#stream{start_pcr = Start, pcr = PCR} = Stream) ->
 % <<18,16,6>>
 decode_aac(#stream{send_audio_config = false, consumer = Consumer} = Stream) ->
   % Config = <<16#A:4, 3:2, 1:1, 1:1, 0>>,
-  Config = <<18,16,6>>,
+  Config = <<18,16>>,
   AudioConfig = #video_frame{       
    	type          = audio,
    	decoder_config = true,

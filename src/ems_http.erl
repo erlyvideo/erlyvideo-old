@@ -2,6 +2,8 @@
 -export([start_link/0, stop/0, handle_http/1]).
 -include("../include/ems.hrl").
 
+-define(STREAM_TIME, 10000).
+
 % start misultin http server
 start_link() ->
   Port = ems:get_var(http_port, 8082),
@@ -146,11 +148,34 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
       Req:stream(close)
   end;
 
-handle(Host, 'GET', ["iphone" | StreamName], Req) ->
-  {Name, [SegmentId]} = lists:split(length(StreamName) - 1, StreamName),
-  Segment = (list_to_integer(SegmentId) - 1) * 10000,
+handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
+  ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
+  FullName = string:join(StreamName, "/"),
+  {ok, Re} = re:compile("^(.+).m3u8$"),
+  {match, [_, Name]} = re:run(FullName, Re, [{capture, all, binary}]),
+  
+  Duration = media_provider:length(Host, Name),
+  SegmentLength = trunc(?STREAM_TIME/1000),
+  Count = trunc(Duration/?STREAM_TIME)+1,
+  SegmentList = lists:map(fun(N) ->
+    io_lib:format("#EXTINF:~p~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
+  end, lists:seq(1, Count)),
+  Playlist = [
+    io_lib:format("#EXTM3U~n#EXT-X-MEDIA-SEQUENCE:0~n#EXT-X-TARGETDURATION:~p~n", [SegmentLength]),
+    SegmentList,
+    "#EXT-X-ENDLIST\n"
+  ],
+  Req:respond(200, [{"Content-Type", "application/vnd.apple.mpegurl"}], Playlist);
+  
+
+handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
+  ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
+  {ok, Re} = re:compile("^(.+)/(\\d+).ts$"),
+  {match, [_, Name, SegmentId]} = re:run(string:join(StreamName, "/"), Re, [{capture, all, binary}]),
+  
+  Segment = (list_to_integer(binary_to_list(SegmentId)) - 1) * ?STREAM_TIME,
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Segment}, {duration_before, 10000}, {client_buffer, 0}]) of
+  case media_provider:play(Host, Name, [{stream_id, 1}, {seek, Segment}, {duration_before, ?STREAM_TIME}, {client_buffer, 0}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;

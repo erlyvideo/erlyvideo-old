@@ -62,7 +62,13 @@ unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSi
                 PPSCount, PPSLength:16, PPSBin:PPSLength/binary>>) ->
   SPSCount = 1,
   PPSCount = 1,
-  {LengthSize + 1, [SPSBin, PPSBin]}.
+  {LengthSize + 1, [SPSBin, PPSBin]};
+  
+unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 0:5, 0>>) ->
+  {LengthSize + 1, []}.
+
+  
+  
 
 decoder_config(#h264{sps = undefined}) -> ok;
 decoder_config(#h264{pps = undefined}) -> ok;
@@ -333,8 +339,12 @@ parse_sps_for_low_profile_test() ->
   ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 4, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
 
 
-unpack_config_test() ->
+unpack_config_1_test() ->
   Config = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>,
   Result = [<<103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80>>, <<104,206,50,200>>],
   LengthSize = 2,
   ?assertEqual({LengthSize, Result}, unpack_config(Config)).
+
+unpack_config_2_test() ->
+  Config = <<1,77,64,30,255,224,0>>,
+  ?assertEqual({4, []}, unpack_config(Config)).

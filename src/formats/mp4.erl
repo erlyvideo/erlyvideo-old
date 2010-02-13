@@ -633,10 +633,13 @@ esds_tag(<<3, Rest/binary>>) ->
   <<_HardcodedOffset1:13/binary, ?MP4DecSpecificDescrtag, ConfigData/binary>> = SpecificInfoTag,
   {Config, _Other3} = mp4_desc_length(ConfigData),
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
-  <<Config/binary, 6>>;
+  <<Config/binary>>;
 
 esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag, Length/integer, Config:Length/binary, _Rest/binary>>) ->
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
-  <<Config/binary, 6>>.
+  <<Config/binary>>;
+  
+esds_tag(_) ->
+  undefined.
   
  

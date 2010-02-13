@@ -88,10 +88,7 @@ client(Player) ->
 init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
   link(Consumer),
-  Seek = case proplists:get_value(seek, Options) of
-    0 -> undefined;
-    S -> S
-  end,
+  Seek = proplists:get_value(seek, Options),
   PlayEnd = case proplists:get_value(duration_before, Options) of
     undefined -> undefined;
     Duration -> 
@@ -126,6 +123,9 @@ ready(#file_player{media_info = MediaInfo,
       end,
       case State#file_player.seek of
         undefined -> 
+        	self() ! play,
+          ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
+        0 -> 
         	self() ! play,
           ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
         Seek ->
