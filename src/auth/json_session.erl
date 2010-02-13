@@ -9,23 +9,25 @@
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
   try perform_login(State, AMF) of
     NewState -> 
-  	  ems_log:access(Host, "CONNECT ~s ~s ~p ~s", [Address, Host, NewState#rtmp_session.user_id, proplists:get_value(pageUrl, PlayerInfo)]),
       rtmp_session:accept_connection(NewState, AMF),
       NewState
   catch
     _:_ ->
-    	ems_log:access(Host, "REJECT ~s ~s ~p ~s", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
+    	ems_log:access(Host, "REJECT ~s ~s ~p ~s json_session", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
       rtmp_session:reject_connection(State, AMF),
       State
   end.
 
-perform_login(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [_, Cookie | _]} = AMF) ->
+perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, Cookie | _]}) ->
   Secret = ems:get_var(secret_key, Host, undefined),
   Session = decode(Cookie, Secret),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
-	State#rtmp_session{user_id = UserId, session_id = SessionId}.
+	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
+	ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~p json_session", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
+	NewState.
+  
 
 decode(Session, Secret) when is_binary(Session) ->
   decode(0, Session, Secret);
@@ -61,15 +63,18 @@ decode(Offset, Subscription, _Secret) when Offset >= size(Subscription) - 2 ->
   {error};
 
 decode(Offset, Subscription, Secret) ->
-  case Subscription of
-    <<Session64:Offset/binary, "--", Sign/binary>> ->
+  case {Subscription, Secret} of
+    {<<Session64:Offset/binary, "--", _/binary>>, undefined} ->
+      {struct, Session} = mochijson2:decode(base64:decode(Session64)),
+      Session;
+    {<<Session64:Offset/binary, "--", Sign/binary>>, _} ->
       GeneratedSign = session_sign(Session64, Secret),
       case Sign of
         GeneratedSign ->
           {struct, Session} = mochijson2:decode(base64:decode(Session64)),
           Session;
         _ ->
-          {invalid_signature}
+          invalid_signature
       end;
     _ ->
       decode(Offset + 1, Subscription, Secret)

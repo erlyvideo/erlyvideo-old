@@ -23,11 +23,16 @@
 * seek it again to the end and wait for end
 * open flv file and repeat previous steps
 
-=== MPEG TS ===
+=== input MPEG TS ===
 
 * start VLC to transcode video to MPEG TS
 * check http://localhost:8082/?file=http://localhost:8080/
 * ./contrib/reverse_mpegts http://localhost:8080/ http://localhost:8082/stream/my_stream
 * check http://localhost:8082/?file=my_stream
+
+=== output MPEG TS ===
+
+* open VLC on http://localhost:8082/stream/video.mp4
+* open VLC on http://localhost:8082/iphone/video.mp4/1 http://localhost:8082/iphone/video.mp4/2 http://localhost:8082/iphone/video.mp4/3 http://localhost:8082/iphone/video.mp4/4
 
 @end
