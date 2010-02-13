@@ -42,7 +42,7 @@
 
 -export([file_dir/1, file_format/1, start_link/1, start_link/2, client/1]).
 
--export([init/2, ready/1]).
+-export([init/2, ready/1, play/1]).
 
 
 
@@ -203,6 +203,7 @@ play(#file_player{sent_video_config = false, media_info = MediaInfo, pos = Pos} 
     
 
 play(#file_player{media_info = MediaInfo, pos = Key} = Player) ->
+  ?D({"Process read frame", self(), Key}),
   Reply = file_media:read_frame(MediaInfo, Key),
   send_frame(Player, Reply);
   
@@ -226,7 +227,10 @@ send_frame(Player, {#video_frame{body = undefined}, Next}) ->
   ?MODULE:ready(Player#file_player{pos = Next});
   
 send_frame(#file_player{} = Player, {done, undefined}) ->
-  ?MODULE:ready(Player);
+  ok;
+
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, done) ->
+  ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
@@ -273,13 +277,11 @@ timeout_play(#video_frame{timestamp = AbsTime}, #file_player{timer_start = Timer
   % ?D({"Timeout", Timeout, SeekTime, ClientBuffer, trunc(timer:now_diff(now(), TimerStart) / 1000)}),
   if
   (Prepush > SeekTime) ->
-    self() ! play,
-    Player#file_player{prepush = Prepush - SeekTime};
+    ?MODULE:play(Player#file_player{prepush = Prepush - SeekTime});
 	(Timeout > 0) -> 
     Player#file_player{timer_ref = timer:send_after(Timeout, play)};
   true -> 
-    self() ! play,
-    Player
+    ?MODULE:play(Player)
   end.
 
  

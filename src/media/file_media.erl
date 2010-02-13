@@ -185,7 +185,7 @@ open_file(Name, Host) when is_binary(Name) ->
   
 open_file(Name, Host) ->
   FileName = filename:join([file_play:file_dir(Host), Name]), 
-	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}]),
+	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}, raw]),
 	FileFormat = file_play:file_format(FileName),
 	MediaInfo = #media_info{
 	  device = Device,
