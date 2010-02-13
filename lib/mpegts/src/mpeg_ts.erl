@@ -202,13 +202,23 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   % 
   
   
-send_video(Streamer, #video_frame{dts = DTS, body = Body}) ->
-  PtsDts = 2#10,
+send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<(DTS * 90):33>>,
-  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<(PTS * 90):33>>,
+  <<Dts1:3, Dts2:15, Dts3:15>> = <<(DTS * 90):33>>,
+
+  case DTS of
+    PTS ->
+      PtsDts = 2#10,
+      AddPesHeader = <<2#10:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>;
+    _ ->
+      PtsDts = 2#11,
+      AddPesHeader = <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
+                       2#0001:4, Dts3:3, 1:1, Dts2:15, 1:1, Dts1:15, 1:1>>
+  end,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
@@ -277,13 +287,20 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
       % <<Length:LengthSize, NAL:Length/binary>> = Body,
       Streamer2 = send_video(Streamer, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer2);
-    #video_frame{type = video, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame ->
-      % <<Length:LengthSize, NAL:Length/binary>> = Body,
+    #video_frame{type = video, body = Body} = Frame ->
+      <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
+      case size(Rest) of
+        0 -> ok;
+        Remain -> 
+          self() ! Frame#video_frame{body = Rest}
+      end,
       Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer1);
     #video_frame{type = audio} = Frame ->
       Streamer1 = send_audio(Streamer, Frame),
       ?MODULE:play(Streamer1);
+    #video_frame{type = metadata} ->
+      ?MODULE:play(Streamer);
     {'EXIT', _, _} ->
       ?D({"MPEG TS reader disconnected"}),
       Player ! stop,
