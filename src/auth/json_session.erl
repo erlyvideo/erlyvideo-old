@@ -6,21 +6,26 @@
 
 
 
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, Cookie | _]} = AMF) ->
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
+  try perform_login(State, AMF) of
+    NewState -> 
+  	  ems_log:access(Host, "CONNECT ~s ~s ~p ~s", [Address, Host, NewState#rtmp_session.user_id, proplists:get_value(pageUrl, PlayerInfo)]),
+      rtmp_session:accept_connection(NewState, AMF),
+      NewState
+  catch
+    _:_ ->
+    	ems_log:access(Host, "REJECT ~s ~s ~p ~s", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
+      rtmp_session:reject_connection(State, AMF),
+      State
+  end.
+
+perform_login(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [_, Cookie | _]} = AMF) ->
   Secret = ems:get_var(secret_key, Host, undefined),
   Session = decode(Cookie, Secret),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
-	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
-
-	ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), self()]),
-  rtmp_session:accept_connection(NewState, AMF),
-  NewState;
-
-connect(_, _) ->
-  throw(login_failed).
-
+	State#rtmp_session{user_id = UserId, session_id = SessionId}.
 
 decode(Session, Secret) when is_binary(Session) ->
   decode(0, Session, Secret);

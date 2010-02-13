@@ -14,13 +14,13 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
   end,
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
 	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
-	ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), self()]),
+	ems_log:access(Host, "CONNECT ~s ~s ~p ~s", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo)]),
 	rtmp_session:accept_connection(NewState, AMF),
   NewState;
   
 	
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
-  ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo), self()]),
+  ems_log:access(Host, "CONNECT ~s ~s ~p ~s", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
 	rtmp_session:accept_connection(State, AMF),
   State.
 	

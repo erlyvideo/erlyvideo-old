@@ -61,7 +61,7 @@
 
 
 -export([create_client/1]).
--export([accept_connection/2]).
+-export([accept_connection/2, reject_connection/2]).
 
 -export([reply/2, fail/2]).
 
@@ -71,8 +71,6 @@ create_client(Socket) ->
   {ok, Pid}.
 
 accept_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args = [{object, PlayerInfo} | _]} = AMF) ->
-  
-  
   Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
   % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
@@ -91,13 +89,23 @@ accept_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args =
   end,
   
   
-  ConnectObj = [{fmsVer, <<"FMS/3,0,1,123">>}, {capabilities, 31}],
+  ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<?NC_CONNECT_SUCCESS>>},
                {description, <<"Connection succeeded.">>},
                {objectEncoding, AMFVersion}],
   reply(Socket, AMF#rtmp_funcall{args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
+  Session.
+
+
+reject_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args = [{object, PlayerInfo} | _]} = AMF) ->
+  ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
+  StatusObj = [{level, <<"status">>}, 
+               {code, <<?NC_CONNECT_REJECTED>>},
+               {description, <<"Connection rejected.">>}],
+  reply(Socket, AMF#rtmp_funcall{args = [{object, ConnectObj}, {object, StatusObj}]}),
+  gen_fsm:send_event(self(), exit),
   Session.
   
   
@@ -158,7 +166,9 @@ send(Session, Message) ->
 %% @private
 %%-------------------------------------------------------------------------
 'WAIT_FOR_SOCKET'({socket_ready, RTMP}, State) when is_pid(RTMP) ->
-  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP}};
+  {address, {IP, Port}} = rtmp_socket:getopts(RTMP, address),
+  Addr = lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP))),
+  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 
 
     
@@ -172,7 +182,7 @@ send(Session, Message) ->
 
 %% Notification event coming from client
 
-'WAIT_FOR_DATA'({exit}, State) ->
+'WAIT_FOR_DATA'(exit, State) ->
   {stop, normal, State};
 
 'WAIT_FOR_DATA'(#rtmp_message{} = Message, State) ->
