@@ -1,3 +1,9 @@
+erlang-rtmp (1.2.1) unstable; urgency=low
+
+  * Added option address to getopts
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 13 Feb 2010 23:24:44 +0300
+
 erlang-rtmp (1.2) karmic; urgency=low
 
   * Various changes to rtmp_lib
