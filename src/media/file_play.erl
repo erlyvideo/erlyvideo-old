@@ -88,7 +88,10 @@ client(Player) ->
 init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
   link(Consumer),
-  Seek = proplists:get_value(seek, Options),
+  Seek = case proplists:get_value(seek, Options) of
+    0 -> undefined;
+    S -> S
+  end,
   PlayEnd = case proplists:get_value(duration_before, Options) of
     undefined -> undefined;
     Duration -> 

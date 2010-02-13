@@ -131,8 +131,10 @@ handle(Host, 'POST', ["users", UserS, "message"], Req) ->
 
   
 handle(Host, 'GET', ["stream" | Name], Req) ->
+  Query = Req:parse_qs(),
+  Seek = list_to_integer(proplists:get_value("start", Query, "0")),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}]) of
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Seek}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;
