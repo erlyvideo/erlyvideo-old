@@ -52,7 +52,8 @@ codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
   #video_frame{       
    	type          = video,
    	decoder_config = true,
-		timestamp      = 0,
+		dts           = 0,
+		pts           = 0,
 		body          = Config,
 		frame_type    = keyframe,
 		codec_id      = VideoCodec
@@ -64,7 +65,8 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
   #video_frame{       
    	type          = audio,
    	decoder_config = true,
-		timestamp     = 0,
+		dts           = 0,
+		pts           = 0,
 		body          = Config,
 	  codec_id	= AudioCodec,
 	  sound_type	  = stereo,
@@ -96,7 +98,7 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
   
 seek(FrameTable, Timestamp) ->
   TimestampInt = round(Timestamp),
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id,timestamp = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Id, FrameTimestamp}
   end)),
   case lists:reverse(Ids) of
@@ -124,11 +126,11 @@ seek(FrameTable, Timestamp) ->
 %   end.
 %   
 
-video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe, composition_offset = Offset}, Data) ->
+video_frame(#file_frame{type = video, dts = DTS, keyframe = Keyframe, pts = PTS}, Data) ->
   #video_frame{
    	type          = video,
-		timestamp     = Timestamp,
-		composition_offset = Offset,
+		dts           = DTS,
+		pts           = PTS,
 		body          = Data,
 		frame_type    = case Keyframe of
 		  true ->	keyframe;
@@ -137,12 +139,12 @@ video_frame(#file_frame{type = video, timestamp = Timestamp, keyframe = Keyframe
 		codec_id      = avc
   };  
 
-video_frame(#file_frame{type = audio, timestamp = Timestamp}, Data) ->
+video_frame(#file_frame{type = audio, dts = DTS}, Data) ->
   #video_frame{       
    	type          = audio,
-  	timestamp     = Timestamp,
+  	dts           = DTS,
   	body          = Data,
-	  codec_id	= aac,
+	  codec_id	    = aac,
 	  sound_type	  = stereo,
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
@@ -162,9 +164,10 @@ init(MediaInfo, Pos) ->
     {error, Reason} -> {error, Reason};
     {atom, mdat, Offset, Length} ->
       init(MediaInfo, Offset + Length);
-    {atom, AtomName, Offset, 0} -> 
+    {atom, _AtomName, Offset, 0} -> 
       init(MediaInfo, Offset);
     {atom, AtomName, Offset, Length} -> 
+      ?D({"Root atom", AtomName, Length}),
       {ok, AtomData} = file:pread(Device, Offset, Length),
       NewInfo = case ems:respond_to(?MODULE, AtomName, 2) of
         true -> ?MODULE:AtomName(AtomData, MediaInfo);
@@ -428,11 +431,21 @@ stss(<<Sample:32/big-integer, Rest/binary>>, SampleList) ->
   stss(Rest, [Sample | SampleList]).
 
 % CTTS atom, list of B-Frames offsets
-ctts(<<>>, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
+ctts(<<0:32, Count:32, CTTS/binary>>, Mp4Track) ->
+  Track = read_ctts(CTTS, Count, Mp4Track),
+  ?D({"CTTS atom", Count, length(Track#mp4_track.composition_offsets)}),
+  Track.
+  
+
+read_ctts(<<>>, 0, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
   Mp4Track#mp4_track{composition_offsets = lists:reverse(Offsets)};
 
-ctts(<<Offset:32, CTTS/binary>>, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
-  ctts(CTTS, Mp4Track#mp4_track{composition_offsets = [Offset | Offsets]}).
+read_ctts(<<Count:32, Offset:32, CTTS/binary>>, OffsetsCount, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
+  % ?D({"CTTS", Count, Offset}),
+  read_ctts(CTTS, OffsetsCount - 1, Mp4Track#mp4_track{composition_offsets = add_offsets(Count, Offset, Offsets)}).
+
+add_offsets(0, _, List) -> List;
+add_offsets(Count, Offset, List) -> add_offsets(Count - 1, Offset, [Offset | List]).
 
 % STCO atom
 % sample table chunk offset
@@ -549,7 +562,7 @@ calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk,
     avc1 -> {video, TimestampMS*3 + 1 + 3};
     mp4a -> {audio, TimestampMS*3 + 2 + 3}
   end,
-  Frame = #file_frame{id = Id, timestamp = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes), composition_offset = CompositionTime},
+  Frame = #file_frame{id = Id, dts = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes), pts = TimestampMS + CompositionTime},
   % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
   ets:insert(FrameTable, Frame),
   FrameReader3 = FrameReader2#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
