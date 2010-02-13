@@ -78,8 +78,9 @@ encode(#video_frame{type = video,
                    	decoder_config = true,
                    	codec_id = avc,
                    	pts = PTS,
+                   	dts = DTS,
                     body = Body}) when is_binary(Body) ->
-  Time = PTS,
+  Time = PTS - DTS,
 	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
@@ -88,7 +89,7 @@ encode(#video_frame{type = video,
                    	pts = PTS,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
-  Time = PTS - DTS,
+  Time = round(PTS - DTS),
 	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
@@ -148,3 +149,11 @@ to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, dts = DTS}) -
 	PrevTagSize = BodyLength + 11,
 	<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>.
 
+
+-include_lib("eunit/include/eunit.hrl").
+
+encode_video_test() ->
+  ?assertMatch(<<_/binary>>, ems_flv:encode({video_frame,false,video,1664.2277777772397,
+                                             1664.2277777772397,1,avc,keyframe,
+                                             undefined,undefined,undefined,
+                                             <<0,0,4,112,37,184,32,33,241,158,155,37,243>>})).

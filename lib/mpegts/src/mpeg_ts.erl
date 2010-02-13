@@ -1,6 +1,11 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
 %%% @doc        MPEG TS stream module
+%%% Links:
+%%%  http://dvd.sourceforge.net/dvdinfo/pes-hdr.html
+%%%  http://en.wikipedia.org/wiki/MPEG-TS
+%%%  http://en.wikipedia.org/wiki/Packetized_Elementary_Stream
+%%%  http://en.wikipedia.org/wiki/Program_Specific_Information
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%

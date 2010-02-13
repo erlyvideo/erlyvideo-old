@@ -213,6 +213,7 @@ unpack_audio_units(#audio{media = Media, clock_map = ClockMap, audio_headers = <
       AudioFrame = #video_frame{       
         type          = audio,
         dts           = DTS,
+        pts           = DTS,
         body          = Data,
     	  codec_id	    = aac,
     	  sound_type	  = stereo,

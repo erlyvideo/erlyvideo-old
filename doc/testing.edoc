@@ -35,4 +35,11 @@
 * open VLC on http://localhost:8082/stream/video.mp4
 * open VLC on http://localhost:8082/iphone/video.mp4/1 http://localhost:8082/iphone/video.mp4/2 http://localhost:8082/iphone/video.mp4/3 http://localhost:8082/iphone/video.mp4/4
 
+=== RTSP publish ===
+
+* start Quicktime Broadcaster
+* follow setup instructions
+* start broadcast
+* check video in flash player
+
 @end
