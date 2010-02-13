@@ -93,6 +93,9 @@ handle_call({create_player, Options}, _From, #media_info{name = Name, clients = 
   lists:foreach(fun(Frame) -> Pid ! Frame end, lists:reverse(GOP)),
   {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
 
+handle_call(length, _From, MediaInfo) ->
+  {reply, 0, MediaInfo};
+
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
   {reply, Clients, MediaInfo, ?TIMEOUT};

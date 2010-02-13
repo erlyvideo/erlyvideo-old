@@ -142,14 +142,13 @@ read_tag(Device, Offset) ->
     Else -> Else
   end.
 
-read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, Offset) ->
+read_frame_list(#media_info{device = Device} = MediaInfo, Offset) ->
   % We need to bypass PreviousTagSize and read header.
 	case read_tag_header(Device, Offset)	of
 	  #flv_tag{type = ?FLV_TAG_TYPE_META, size = Length, offset = Offset} ->
 			{ok, MetaBody} = file:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Length),
 			Meta = rtmp:decode_list(MetaBody),
-      parse_metadata(FrameTable, Meta),
-			{ok, MediaInfo};
+			{ok, parse_metadata(MediaInfo, Meta)};
 		#flv_tag{size = Length} ->
 			read_frame_list(MediaInfo, Offset + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + Length);
     eof -> 
@@ -160,25 +159,32 @@ read_frame_list(#media_info{device = Device, frames = FrameTable} = MediaInfo, O
   
 codec_config(_, _) -> undefined.
 
-parse_metadata(FrameTable, [<<"onMetaData">>, Meta]) ->
+parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
+  MediaInfo1 = MediaInfo#media_info{
+    width = round(proplists:get_value(<<"width">>, Meta)*1000),
+    height = round(proplists:get_value(<<"height">>, Meta)*1000),
+    duration = round(proplists:get_value(<<"duration">>, Meta)*1000),
+    audio_codec = audio_codec(round(proplists:get_value(<<"audiocodecid">>, Meta))),
+    video_codec = video_codec(round(proplists:get_value(<<"videocodecid">>, Meta)))
+  },
   case proplists:get_value(<<"keyframes">>, Meta) of
     {object, Keyframes} ->
       Offsets = proplists:get_value(filepositions, Keyframes),
       Times = proplists:get_value(times, Keyframes),
-      insert_keyframes(FrameTable, Offsets, Times);
-    _ -> ok
+      insert_keyframes(MediaInfo1, Offsets, Times);
+    _ -> MediaInfo1
   end;
   
-parse_metadata(FrameTable, Meta) ->
+parse_metadata(MediaInfo, Meta) ->
   ?D({"Unknown metadata", Meta}),
-  ok.
+  MediaInfo.
 
   
-insert_keyframes(_, [], _) -> ok;
-insert_keyframes(_, _, []) -> ok;
-insert_keyframes(FrameTable, [Offset|Offsets], [Time|Times]) ->
+insert_keyframes(MediaInfo, [], _) -> MediaInfo;
+insert_keyframes(MediaInfo, _, []) -> MediaInfo;
+insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets], [Time|Times]) ->
   ets:insert(FrameTable, {round(Time*1000), round(Offset)}),
-  insert_keyframes(FrameTable, Offsets, Times).
+  insert_keyframes(MediaInfo, Offsets, Times).
   
 
 seek(FrameTable, Timestamp) ->

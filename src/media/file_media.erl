@@ -61,6 +61,9 @@ handle_call({create_player, Options}, _From, #media_info{clients = Clients} = Me
   link(Pid),
   {reply, {ok, Pid}, MediaInfo};
 
+handle_call(length, _From, #media_info{duration = Duration} = MediaInfo) ->
+  {reply, Duration, MediaInfo};
+
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(
     fun([Pid]) -> 

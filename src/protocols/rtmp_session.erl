@@ -352,6 +352,8 @@ handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{socket = Sock
     undefined -> 
       {next_state, StateName, State};
     StreamId ->
+      ?D({"Play complete on", StreamId}),
+      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       NewStreams = array:reset(StreamId, Streams),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}

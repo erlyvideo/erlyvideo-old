@@ -135,6 +135,9 @@ handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Cli
   end,
   {reply, {ok, Pid}, TSLander#ts_lander{clients = [Pid | Clients]}};
 
+handle_call(length, _From, MediaInfo) ->
+  {reply, 0, MediaInfo};
+
 handle_call(clients, _From, #ts_lander{clients = Clients} = TSLander) ->
   Entries = lists:map(fun(Pid) -> file_play:client(Pid) end, Clients),
   {reply, Entries, TSLander};

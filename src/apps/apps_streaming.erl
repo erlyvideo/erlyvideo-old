@@ -193,9 +193,10 @@ receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [nul
   State.
 
 
-getStreamLength(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]} = AMF) ->
-  ?D({"getStreamLength", Args}),
-  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, 0]}),
+getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, Name | _]} = AMF) ->
+  Length = media_provider:length(Host, Name),
+  ?D({"getStreamLength", Name, Length}),
+  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, Length / 1000]}),
   State.
 
 %%-------------------------------------------------------------------------
@@ -204,7 +205,7 @@ getStreamLength(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]} = A
 %% @end
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
-  ?D({"invoke - seek", round(Timestamp)}),
+  ?D({"seek", round(Timestamp)}),
   Player = array:get(StreamId, Streams),
   Player ! {seek, Timestamp},
   rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
@@ -224,6 +225,7 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
     Player when is_pid(Player) ->
       Player ! exit,
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
+      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       State#rtmp_session{streams = array:set(StreamId, null, Streams)};
     _ -> State
@@ -236,6 +238,7 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
 %%-------------------------------------------------------------------------
 
 closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
+  ?D({"Close stream", StreamId}),
 case array:get(StreamId, Streams) of
   undefined -> State;
   null ->
@@ -250,5 +253,5 @@ end.
 % TODO Stub at this point, need to determine proper response to this call
 
 checkBandwidth(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]}) ->
-  % ?D({"checkBandwidth", Args}),
+  ?D({"checkBandwidth", Args}),
   State.
