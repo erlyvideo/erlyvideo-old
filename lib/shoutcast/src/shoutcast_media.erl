@@ -88,7 +88,8 @@ handle_call(clients, _From, #shoutcast{clients = Clients} = State) ->
 handle_call({set_owner, _}, _From, State) ->
   {reply, ok, State};
 
-
+handle_call(length, _From, State) ->
+  {reply, 0, State};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
