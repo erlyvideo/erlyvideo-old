@@ -44,6 +44,9 @@
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
+
+-export([mp4_desc_length/1]).
+
 -behaviour(gen_format).
 
 codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
@@ -625,6 +628,11 @@ mp4_desc_length(<<1:1, Length3:7, 1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7,
   ?D({"MP4 desc length", TagLength}),
   <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
   {Rest1, Rest2}.
+
+%% FIXME: Code here must be relocated in some more generic place and way. 
+%% Here goes not some esds tag, but IOD (Initial Object Description)
+%% Look how to parse it at vlc/modules/demux/ts.c:2400
+%%
 
 esds_tag(<<3, Rest/binary>>) ->
   {DecoderConfigTag, _Other1} = mp4_desc_length(Rest),

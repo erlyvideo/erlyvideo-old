@@ -164,9 +164,22 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   _LastSectionNumber = 0,
   
   % Some hardcoded output from VLC
-  ProgramInfo1 = <<29,13,17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  IOD = <<17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  
+  %% FIXME: Program info is not just for IOD, but also for other descriptors
+  %% Look at libdvbpsi/src/tables/pmt.c:468
+  ProgramInfo1 = <<?DESCRIPTOR_IOD, (size(IOD)), IOD/binary>>,
   ProgramInfo = <<>>,
   
+  %% FIXME: Here also goes the same descriptor as in ProgramInfo
+  %% libdvbpsi/src/tables/pmt.c:499
+  %% Also, look at mp4:esds_tag, here goes the same content
+  %%
+  %% It is required to add audio config here, if we don't want to see 
+  %% "MPEG-4 descriptor not found" from VLC
+  %% Code, that read it is in vlc/modules/demux/ts.c:3177
+  %%
+  AudioES1 = <<?DESCRIPTOR_SL, 2, 1:16>>, % means, 2 byte and ES ID = 1
   AudioES = <<>>,
   AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
@@ -181,7 +194,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   VideoES = <<>>,
   VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 2#1111:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([AudioStream, VideoStream]),
-  PMT1 = <<ProgramNum:16, 
+  Program = <<ProgramNum:16, 
            2#11:2, Version:5, CurrentNext:1, 
            _SectionNumber,
            _LastSectionNumber, 
@@ -189,13 +202,13 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
            2#1111:4, (size(ProgramInfo)):12, 
            ProgramInfo/binary, 
            Streams/binary>>,
+           
+  Programs = Program, % Only one program for now
+  SectionLength = size(Programs) + 4, % Add CRC32
+  PMT = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, Programs/binary>>,
 
-  SectionLength = size(PMT1) + 4, % Add CRC32
-  PMT2 = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, PMT1/binary>>,
-
-  CRC32 = mpeg2_crc32:crc32(PMT2),
-  PMT = <<0, PMT2/binary, CRC32:32>>,
-  mux(PMT, Streamer, ?PMT_PID).
+  CRC32 = mpeg2_crc32:crc32(PMT),
+  mux(<<0, PMT/binary, CRC32:32>>, Streamer, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,

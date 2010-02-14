@@ -13,3 +13,7 @@
 
 -define(MPEGTS_STREAMID_AAC, 192).
 -define(MPEGTS_STREAMID_H264, 224).
+
+-define(DESCRIPTOR_IOD, 29).
+-define(DESCRIPTOR_CA, 9).
+-define(DESCRIPTOR_SL, 31).
