@@ -65,8 +65,10 @@ remove(Host, Name) ->
   gen_server:cast(name(Host), {remove, Name}).
 
 length(Host, Name) ->
-  Media = find_or_open(Host, Name),
-  media_provider:length(Media).
+  case find_or_open(Host, Name) of
+    Media when is_pid(Media) -> media_provider:length(Media);
+    _ -> 0
+  end.
   
 
 length(undefined) ->
