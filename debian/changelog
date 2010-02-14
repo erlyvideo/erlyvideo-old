@@ -1,3 +1,10 @@
+erlyvideo (1.5.2) unstable; urgency=low
+
+  * Added win32 installer
+  * Fix in shoutcast
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 14 Feb 2010 22:16:35 +0300
+
 erlyvideo (1.5.1) unstable; urgency=low
 
   * Adde  support for b-frames and difference between pts and dts
