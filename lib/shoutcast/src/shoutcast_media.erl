@@ -1,5 +1,5 @@
 -module(shoutcast_media).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -export([start_link/2]).
 -behaviour(gen_server).
 

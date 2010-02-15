@@ -2,7 +2,7 @@
 % go here to open file. If file is already opened, you will get cached copy. 
 
 -module(media_provider).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
 
 -behaviour(gen_server).

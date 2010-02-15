@@ -29,7 +29,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_users).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 
 -record(user_id_entry, {

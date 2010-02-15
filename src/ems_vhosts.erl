@@ -1,5 +1,5 @@
 -module(ems_vhosts).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
 -export([start/0, stop/0]).
 

@@ -1,7 +1,7 @@
 % Media entry is instance of some resource
 
 -module(stream_media).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 -include("../include/media_info.hrl").

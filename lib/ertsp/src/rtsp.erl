@@ -1,5 +1,5 @@
 -module(rtsp).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -export([start_server/3]).
 

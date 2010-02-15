@@ -1,5 +1,5 @@
 -module(shared_objects).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -include("shared_object.hrl").
 

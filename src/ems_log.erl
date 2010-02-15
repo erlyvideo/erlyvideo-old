@@ -1,5 +1,5 @@
 -module(ems_log).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -export([start/0, stop/0, access/2, error/2, access/3, error/3]).
 

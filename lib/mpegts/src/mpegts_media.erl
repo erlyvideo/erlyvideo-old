@@ -1,5 +1,5 @@
 -module(mpegts_media).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -export([start_link/3]).
 -behaviour(gen_server).
 

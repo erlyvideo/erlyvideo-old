@@ -1,6 +1,6 @@
 %% @private
 -module(rtsp_app).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(application).
 
 -export([start/2, stop/1, config_change/3]).

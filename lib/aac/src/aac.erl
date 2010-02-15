@@ -1,5 +1,5 @@
 -module(aac).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -record(aac_config, {

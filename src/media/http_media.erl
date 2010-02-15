@@ -1,5 +1,5 @@
 -module(http_media).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -export([start_link/2]).
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).

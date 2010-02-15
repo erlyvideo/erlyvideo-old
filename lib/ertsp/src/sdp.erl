@@ -1,5 +1,5 @@
 -module(sdp).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -export([decode/1]).
 -include("../include/rtsp.hrl").

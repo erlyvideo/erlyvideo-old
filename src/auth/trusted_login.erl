@@ -1,5 +1,5 @@
 -module(trusted_login).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("erlyvideo/include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").

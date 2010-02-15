@@ -1,6 +1,6 @@
 %% @private
 -module(rtsp_sessions).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(gen_server).
 

@@ -1,6 +1,6 @@
 % http://www.datavoyage.com/mpgscript/mpeghdr.htm
 -module(mp3).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -export([decode/1]).
 

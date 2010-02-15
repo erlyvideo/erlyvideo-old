@@ -1,6 +1,6 @@
 %% @private
 -module(rtsp_sup).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(supervisor).
 
