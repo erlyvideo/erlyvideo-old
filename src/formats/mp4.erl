@@ -362,7 +362,6 @@ esds(<<Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{da
 % avcC atom
 avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
   % ?D({"Extracted video config"}),
-  parse_avc_decoder_config(DecoderConfig),
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
 btrt(<<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{} = Mp4Track) ->
@@ -465,34 +464,6 @@ stco(<<Offset:32/big-integer, Rest/binary>>, OffsetList) ->
 extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
 
-%  Decoder config from one file:
-%   <<1,77,0,50,255,225,0,22,103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192,1,0,4,104,238,60,128>>
-%     1,77,0,50,255,225,0,22,103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192,1,0,4,104,238,60,128
-% 1 — version
-% 77 — profile
-% 0 — Compat
-% 50 — Level 5.0
-% 2 bytes for slice length
-% 1 SPS
-% 22 bytes length of SPS:  103,77,0,50,154,118,4,1,141,8,0,0,31,72,0,5,220,4,120,193,137,192
-% 1 PPS
-% 4 bytes length of PPS: 104,238,60,128
-% 
-% Other decoder config
-% <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>
-parse_avc_decoder_config(<<_Version, _Profile, _ProfileCompat, _Level, _:6, _LengthSize:2, _:3, SPSCount:5, Rest/binary>> = _DecoderConfig) ->
-  {_SPS, <<PPSCount, PPSRest/binary>>} = parse_avc_sps(Rest, SPSCount, []),
-  {_PPS, _Rest1} = parse_avc_pps(PPSRest, PPSCount, []),
-  % ?D({"Length size", LengthSize+1, SPSCount, Version, Profile, ProfileCompat, Level/10.0, SPS, PPS}),
-  ok.
-
-parse_avc_sps(Rest, 0, SPS) -> {SPS, Rest};
-parse_avc_sps(<<Length:16, SPSData:Length/binary, Rest/binary>>, SPSCount, SPS) -> 
-  parse_avc_sps(Rest, SPSCount - 1, [SPSData|SPS]).
-  
-parse_avc_pps(Rest, 0, PPS) -> {PPS, Rest};
-parse_avc_pps(<<Length:16, PPSData:Length/binary, Rest/binary>>, PPSCount, PPS) -> 
-  parse_avc_pps(Rest, PPSCount - 1, [PPSData|PPS]).
 
 % Internal structure to parse all moov data, untill it reaches mp4_frame table
 -record(mp4_frames, {
