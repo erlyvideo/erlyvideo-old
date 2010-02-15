@@ -5,6 +5,7 @@
 	addr,      % client address
 	port,
 	session_id,
+	amf_ver = 0,
 	user_id     = undefined,
 	player_info = [],
 	streams      = undefined,

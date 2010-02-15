@@ -9,12 +9,12 @@
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
   try perform_login(State, AMF) of
     NewState -> 
-      rtmp_session:accept_connection(NewState, AMF),
+      rtmp_session:accept_connection(NewState),
       NewState
   catch
     _:_ ->
     	ems_log:access(Host, "REJECT ~s ~s ~p ~s json_session", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
-      rtmp_session:reject_connection(State, AMF),
+      rtmp_session:reject_connection(State),
       State
   end.
 

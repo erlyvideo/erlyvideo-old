@@ -61,7 +61,7 @@
 
 
 -export([create_client/1]).
--export([accept_connection/2, reject_connection/2]).
+-export([accept_connection/1, reject_connection/1]).
 
 -export([reply/2, fail/2]).
 
@@ -70,7 +70,8 @@ create_client(Socket) ->
   {ok, Pid} = ems_sup:start_rtmp_session(Socket),
   {ok, Pid}.
 
-accept_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args = [{object, PlayerInfo} | _]} = AMF) ->
+
+accept_connection(#rtmp_session{socket = Socket, amf_ver = AMFVersion} = Session) ->
   Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
   % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
@@ -78,35 +79,31 @@ accept_connection(#rtmp_session{socket = Socket} = Session, #rtmp_funcall{args =
   % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
   rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
   
-  AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
-    {objectEncoding, 0.0} -> 0;
-    {objectEncoding, 3.0} -> 3;
-    {objectEncoding, _N} -> 
-      error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
-      Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
-      throw(invalid_amf3_encoding);
-    _ -> 0
-  end,
-  
-  
   ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<?NC_CONNECT_SUCCESS>>},
                {description, <<"Connection succeeded.">>},
                {objectEncoding, AMFVersion}],
-  reply(Socket, AMF#rtmp_funcall{args = [{object, ConnectObj}, {object, StatusObj}]}),
+  reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
-  Session.
+  Session;
+  
+accept_connection(Session) when is_pid(Session) ->
+  gen_fsm:send_event(Session, accept_connection).
 
 
-reject_connection(#rtmp_session{socket = Socket} = Session, AMF) ->
+reject_connection(#rtmp_session{socket = Socket} = Session) ->
   ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<?NC_CONNECT_REJECTED>>},
                {description, <<"Connection rejected.">>}],
-  reply(Socket, AMF#rtmp_funcall{args = [{object, ConnectObj}, {object, StatusObj}]}),
+  reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   gen_fsm:send_event(self(), exit),
-  Session.
+  Session;
+  
+reject_connection(Session) when is_pid(Session) ->
+  gen_fsm:send_event(Session, reject_connection).
+
   
   
 reply(#rtmp_session{socket = Socket}, AMF) ->
@@ -189,6 +186,14 @@ send(Session, Message) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State};
 
+'WAIT_FOR_DATA'(accept_connection, Session) ->
+  {next_state, 'WAIT_FOR_DATA', accept_connection(Session)};
+
+'WAIT_FOR_DATA'(reject_connection, Session) ->
+  reject_connection(Session),
+  {stop, normal, Session};
+
+
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
     {unhandled} ->
@@ -197,8 +202,11 @@ send(Session, Message) ->
     Reply -> Reply
   end.
 
+%% Sync event
+
 'WAIT_FOR_DATA'(info, _From, #rtmp_session{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
   {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State};
+
   
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
@@ -269,7 +277,18 @@ call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args 
   {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   Host = ems:host(HostName),
 
-	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path},
+  AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
+    {objectEncoding, 0.0} -> 0;
+    {objectEncoding, 3.0} -> 3;
+    {objectEncoding, _N} -> 
+      error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
+      Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
+      throw(invalid_amf3_encoding);
+    _ -> 0
+  end,
+  
+
+	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion},
 
   {Module, Function} = ems:check_app(NewState1, connect, 2),
 
