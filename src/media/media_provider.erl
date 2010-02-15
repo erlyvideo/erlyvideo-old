@@ -49,7 +49,7 @@ open(Host, Name, Type) when is_list(Name)->
   open(Host, list_to_binary(Name), Type);
 
 open(Host, Name, Type) ->
-  gen_server:call(name(Host), {open, Name, Type}, 10000).
+  gen_server:call(name(Host), {open, Name, Type}, 60000).
 
 find(Host, Name) when is_list(Name)->
   find(Host, list_to_binary(Name));

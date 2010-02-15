@@ -132,7 +132,7 @@ handle_cast(_Msg, State) ->
 
 handle_info(graceful, #media_info{owner = undefined, name = FileName, clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
-    0 -> ?D({"No readers for file", FileName, erlang:now()}),
+    0 -> ?D({"No readers for file", FileName}),
          {stop, normal, MediaInfo};
     _ -> {noreply, MediaInfo}
   end;
