@@ -181,7 +181,7 @@ init(MediaInfo, Pos) ->
 
 next_atom(#media_info{device = Device}, Pos) ->
   case file:pread(Device, Pos, 8) of
-    {ok, <<AtomLength:32/big-integer, AtomName/binary>>} when AtomLength >= 8 ->
+    {ok, <<AtomLength:32, AtomName/binary>>} when AtomLength >= 8 ->
       % ?D({"Atom", binary_to_atom(AtomName, latin1), Pos, AtomLength}),
       {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8};
     Else -> Else
@@ -207,7 +207,7 @@ parse_atom(<<>>, Mp4Parser) ->
 parse_atom(Atom, _) when size(Atom) < 4 ->
   {error, "Invalid atom"};
   
-parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
+parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
   AtomName = binary_to_atom(BinaryAtomName, utf8),
@@ -217,11 +217,11 @@ parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, AtomRest/bin
   end,
   parse_atom(Rest, NewMp4Parser);
   
-parse_atom(<<AllAtomLength:32/big-integer, BinaryAtomName:4/binary, _Rest/binary>>, Mp4Parser) ->
+parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, _Rest/binary>>, Mp4Parser) ->
   ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, utf8), size(_Rest)}),
   Mp4Parser;
 
-parse_atom(<<0:32/big-integer>>, Mp4Parser) ->
+parse_atom(<<0:32>>, Mp4Parser) ->
   ?D("NULL atom"),
   Mp4Parser.
 
@@ -243,8 +243,8 @@ moov(Atom, MediaInfo) ->
   parse_atom(Atom, MediaInfo).
 
 % MVHD atom
-mvhd(<<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer, TimeScale:32/big-integer,
-                    Duration:32/big-integer, _Rest/binary>>, #media_info{} = MediaInfo) ->
+mvhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32, TimeScale:32,
+                    Duration:32, _Rest/binary>>, #media_info{} = MediaInfo) ->
   MediaInfo#media_info{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
 % Track box
@@ -257,10 +257,10 @@ trak(Atom, #media_info{} = MediaInfo) ->
   
 
 % Track header
-tkhd(<<0:8/integer, _Flags:3/binary, _CTime:32/big-integer, _MTime:32/big-integer,
-                    TrackID:32/big-integer, _Reserved1:4/binary, 
-                    Duration:32/big-integer, _Reserved2:8/binary,
-                    _Layer:16/big-integer, _AlternateGroup:2/binary,
+tkhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32,
+                    TrackID:32, _Reserved1:4/binary, 
+                    Duration:32, _Reserved2:8/binary,
+                    _Layer:16, _AlternateGroup:2/binary,
                     _Volume:2/binary, _Reserved3:2/binary,
                     _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
@@ -270,24 +270,24 @@ mdia(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 % Media header
-mdhd(<<0:8/integer, _Flags:24/integer, _Ctime:32/big-integer, 
-                  _Mtime:32/big-integer, TimeScale:32/big-integer, Duration:32/big-integer,
-                  _Language:2/binary, _Quality:16/big-integer>>, #mp4_track{} = Mp4Track) ->
+mdhd(<<0:8, _Flags:24, _Ctime:32, 
+                  _Mtime:32, TimeScale:32, Duration:32,
+                  _Language:2/binary, _Quality:16>>, #mp4_track{} = Mp4Track) ->
   % ?D({"Timescale:", Duration, extract_language(_Language)}),
   _DecodedLanguate = extract_language(_Language),
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
 
-mdhd(<<1:8/integer, _Flags:24/integer, _Ctime:64/big-integer, 
-                     _Mtime:64/big-integer, TimeScale:32/big-integer, Duration:64/big-integer, 
-                     _Language:2/binary, _Quality:16/big-integer>>, Mp4Track) ->
+mdhd(<<1:8, _Flags:24, _Ctime:64, 
+                     _Mtime:64, TimeScale:32, Duration:64, 
+                     _Language:2/binary, _Quality:16>>, Mp4Track) ->
   % ?D({"Timescale:", Duration, extract_language(_Language)}),
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration}.
   
 % SMHD atom
-smhd(<<0:8/integer, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
+smhd(<<0:8, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track;
 
-smhd(<<0:8/integer, _Flags:3/binary, _Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
+smhd(<<0:8, _Flags:3/binary, _Balance:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track.
 
 % Media information
@@ -299,7 +299,7 @@ stbl(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 % Sample description
-stsd(<<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, EntryData/binary>>, Mp4Track) ->
+stsd(<<0:8, _Flags:3/binary, EntryCount:32, EntryData/binary>>, Mp4Track) ->
   stsd({EntryCount, EntryData}, Mp4Track);
 
 stsd({0, _}, Mp4Track) ->
@@ -308,54 +308,54 @@ stsd({0, _}, Mp4Track) ->
 stsd({_, <<>>}, Mp4Track) ->
   Mp4Track;
   
-stsd({_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
-                                  "mp4a", _Reserved:6/binary, _RefIndex:16/big-integer, 
-                                  _Unknown:8/binary, _ChannelsCount:32/big-integer,
-                                  _SampleSize:32/big-integer, _SampleRate:32/big-integer,
+stsd({_EntryCount, <<_SampleDescriptionSize:32, 
+                                  "mp4a", _Reserved:6/binary, _RefIndex:16, 
+                                  _Unknown:8/binary, _ChannelsCount:32,
+                                  _SampleSize:32, _SampleRate:32,
                                   Atom/binary>>}, Mp4Track) ->
   parse_atom(Atom, Mp4Track#mp4_track{data_format = mp4a});
 
-stsd({_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
-                                  "avc1", _Reserved:6/binary, _RefIndex:16/big-integer, 
+stsd({_EntryCount, <<_SampleDescriptionSize:32, 
+                                  "avc1", _Reserved:6/binary, _RefIndex:16, 
                                   _Unknown1:16/binary, 
-                                  Width:16/big-integer, Height:16/big-integer,
-                                  _HorizRes:32/big-integer, _VertRes:32/big-integer,
-                                  _FrameCount:16/big-integer, _CompressorName:32/binary,
-                                  _Depth:16/big-integer, _Predefined:16/big-integer,
+                                  Width:16, Height:16,
+                                  _HorizRes:32, _VertRes:32,
+                                  _FrameCount:16, _CompressorName:32/binary,
+                                  _Depth:16, _Predefined:16,
                                   _Unknown:4/binary,
                                   Atom/binary>>}, Mp4Track) ->
   % ?D({"Video size:", Width, Height}),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1, width = Width, height = Height});
 
-stsd({_EntryCount, <<_SampleDescriptionSize:32/big-integer, 
-                                  "s263", _Reserved:6/binary, _RefIndex:16/big-integer, 
+stsd({_EntryCount, <<_SampleDescriptionSize:32, 
+                                  "s263", _Reserved:6/binary, _RefIndex:16, 
                                   _Unknown1:16/binary, 
-                                  Width:16/big-integer, Height:16/big-integer,
-                                  _HorizRes:32/big-integer, _VertRes:32/big-integer,
-                                  _FrameCount:16/big-integer, _CompressorName:32/binary,
-                                  _Depth:16/big-integer, _Predefined:16/big-integer,
+                                  Width:16, Height:16,
+                                  _HorizRes:32, _VertRes:32,
+                                  _FrameCount:16, _CompressorName:32/binary,
+                                  _Depth:16, _Predefined:16,
                                   _Unknown:4/binary,
                                   Atom/binary>>}, Mp4Track) ->
   % ?D({"Video size:", Width, Height}),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = s263, width = Width, height = Height});
 
-stsd({_EntryCount,   <<_SampleDescriptionSize:32/big-integer, 
-                                    "samr", _Reserved:2/binary, _RefIndex:16/big-integer, 
+stsd({_EntryCount,   <<_SampleDescriptionSize:32, 
+                                    "samr", _Reserved:2/binary, _RefIndex:16, 
                                     Atom/binary>> = AMR}, Mp4Track) ->
   ?D(AMR),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = samr});
 
 
 
-stsd({_EntryCount, <<SampleDescriptionSize:32/big-integer, DataFormat:4/binary, 
-                                 _Reserved:6/binary, _RefIndex:16/big-integer, EntryData/binary>>}, Mp4Track) 
+stsd({_EntryCount, <<SampleDescriptionSize:32, DataFormat:4/binary, 
+                                 _Reserved:6/binary, _RefIndex:16, EntryData/binary>>}, Mp4Track) 
            when SampleDescriptionSize == size(EntryData) + 16 ->
   NewTrack = Mp4Track#mp4_track{data_format = binary_to_atom(DataFormat, utf8)},
   ?D({"Unknown sample description:", NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData), binary_to_list(EntryData)}),
   NewTrack.
   
 % ESDS atom
-esds(<<Version:8/integer, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) when Version == 0 ->
+esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) when Version == 0 ->
   % ?D({"Extracted audio config", DecoderConfig}),
   Mp4Track#mp4_track{decoder_config = esds_tag(DecoderConfig)}.
 
@@ -364,11 +364,11 @@ avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
   % ?D({"Extracted video config"}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
-btrt(<<_BufferSize:32/big-integer, _MaxBitRate:32/big-integer, _AvgBitRate:32/big-integer>>, #mp4_track{} = Mp4Track) ->
+btrt(<<_BufferSize:32, _MaxBitRate:32, _AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
   Mp4Track.
 
 % STSZ atom
-stsz(<<_Version:8/integer, _Flags:24/integer, 0:32/big-integer, SampleCount:32/big-integer, SampleSizeData/binary>>, Mp4Track) ->
+stsz(<<_Version:8, _Flags:24, 0:32, SampleCount:32, SampleSizeData/binary>>, Mp4Track) ->
   Mp4Track#mp4_track{sample_sizes = stsz({SampleCount, SampleSizeData}, [])};
   
 stsz({0, _}, SampleSizes) ->
@@ -377,7 +377,7 @@ stsz({0, _}, SampleSizes) ->
 stsz({_, <<>>}, SampleSizes) ->
   lists:reverse(SampleSizes);
 
-stsz({SampleCount, <<Size:32/big-integer, Rest/binary>>}, SampleSizes) ->
+stsz({SampleCount, <<Size:32, Rest/binary>>}, SampleSizes) ->
   stsz({SampleCount - 1, Rest}, [Size | SampleSizes]);
 
 stsz({_, <<Rest/binary>>}, SampleSizes) ->
@@ -386,7 +386,7 @@ stsz({_, <<Rest/binary>>}, SampleSizes) ->
   
 
 % STTS atom
-stts(<<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
+stts(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{} = Mp4Track) ->
   Table = stts({EntryCount, Rest}, []),
   % ?D({"Sample time table", Table}),
   Mp4Track#mp4_track{sample_durations = lists:reverse(Table)};
@@ -397,11 +397,11 @@ stts({0, _}, Table) ->
 stts({_, <<>>}, Table) ->
   Table;
   
-stts({EntryCount, <<SampleCount:32/big-integer, SampleDuration:32/big-integer, Rest/binary>>}, Table) ->
+stts({EntryCount, <<SampleCount:32, SampleDuration:32, Rest/binary>>}, Table) ->
   stts({EntryCount - 1, Rest}, [{SampleCount, SampleDuration} | Table]).
   
 % STSC atom
-stsc(<<0:8/integer, _Flags:3/binary, EntryCount:32/big-integer, Rest/binary>>, #mp4_track{} = Mp4Track) ->
+stsc(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{} = Mp4Track) ->
   Table = stsc({EntryCount, Rest}, []),
   % ?D({"Sample chunk table", lists:reverse(Table)}),
   Mp4Track#mp4_track{chunk_table = lists:reverse(Table)};
@@ -412,12 +412,12 @@ stsc({0, _}, Table) ->
 stsc({_, <<>>}, Table) ->
   Table;
   
-stsc({EntryCount, <<FirstChunk:32/big-integer, SamplesPerChunk:32/big-integer, SampleID:32/big-integer, Rest/binary>>}, Table) ->
+stsc({EntryCount, <<FirstChunk:32, SamplesPerChunk:32, SampleID:32, Rest/binary>>}, Table) ->
   stsc({EntryCount - 1, Rest}, [{FirstChunk, SamplesPerChunk, SampleID} | Table]).
 
 % STSS atom
 % List of keyframes
-stss(<<0:8/integer, _Flags:3/binary, SampleCount:32/big-integer, Samples/binary>>, #mp4_track{} = Mp4Track) when size(Samples) == SampleCount*4->
+stss(<<0:8, _Flags:3/binary, SampleCount:32, Samples/binary>>, #mp4_track{} = Mp4Track) when size(Samples) == SampleCount*4->
   NewTrack = Mp4Track#mp4_track{keyframes = stss(Samples, [])},
   case NewTrack#mp4_track.keyframes of
     [1 | _] ->
@@ -429,7 +429,7 @@ stss(<<0:8/integer, _Flags:3/binary, SampleCount:32/big-integer, Samples/binary>
 stss(<<>>, SampleList) ->
   lists:reverse(SampleList);
   
-stss(<<Sample:32/big-integer, Rest/binary>>, SampleList) ->
+stss(<<Sample:32, Rest/binary>>, SampleList) ->
   stss(Rest, [Sample | SampleList]).
 
 % CTTS atom, list of B-Frames offsets
@@ -451,17 +451,17 @@ add_offsets(Count, Offset, List) -> add_offsets(Count - 1, Offset, [Offset | Lis
 
 % STCO atom
 % sample table chunk offset
-stco(<<0:8/integer, _Flags:3/binary, OffsetCount:32/big-integer, Offsets/binary>>, #mp4_track{} = Mp4Track) when size(Offsets) == OffsetCount*4 ->
+stco(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, #mp4_track{} = Mp4Track) when size(Offsets) == OffsetCount*4 ->
   Mp4Track#mp4_track{chunk_offsets = stco(Offsets, [])};
 
 stco(<<>>, OffsetList) ->
   lists:reverse(OffsetList);
   
-stco(<<Offset:32/big-integer, Rest/binary>>, OffsetList) ->
+stco(<<Offset:32, Rest/binary>>, OffsetList) ->
   stco(Rest, [Offset | OffsetList]).
 
 
-extract_language(<<L1:5/integer, L2:5/integer, L3:5/integer, _:1/integer>>) ->
+extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
 
 
@@ -614,7 +614,7 @@ esds_tag(<<3, Rest/binary>>) ->
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary>>;
 
-esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag, Length/integer, Config:Length/binary, _Rest/binary>>) ->
+esds_tag(<<_HardcodedOffset:20/binary, ?MP4DecSpecificDescrtag, Length, Config:Length/binary, _Rest/binary>>) ->
   % ?D({"MP4DecSpecificDescrtag", Length, Config}),
   <<Config/binary>>;
   
