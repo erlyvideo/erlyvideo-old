@@ -29,7 +29,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_lib).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -version(1.1).
 
 -include("../include/rtmp.hrl").

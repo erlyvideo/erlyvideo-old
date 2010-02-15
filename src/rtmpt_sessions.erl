@@ -30,7 +30,7 @@
 %%%---------------------------------------------------------------------------------------
 %% @private
 -module(rtmpt_sessions).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -version(1.1).
 
 -behaviour(gen_server).

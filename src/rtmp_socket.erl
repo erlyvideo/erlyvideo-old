@@ -52,7 +52,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_socket).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
 -version(1.1).

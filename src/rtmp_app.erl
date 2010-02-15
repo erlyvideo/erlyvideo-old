@@ -30,7 +30,7 @@
 %%%---------------------------------------------------------------------------------------
 %% @private
 -module(rtmp_app).
--author(max@maxidoors.ru).
+-author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(application).
 -version(1.1).
 
