@@ -58,14 +58,16 @@ metadata(Config) ->
       
 
 unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 
-                SPSCount:5, SPSLength:16, SPSBin:SPSLength/binary,
-                PPSCount, PPSLength:16, PPSBin:PPSLength/binary>>) ->
-  SPSCount = 1,
-  PPSCount = 1,
-  {LengthSize + 1, [SPSBin, PPSBin]};
+                SPSCount:5, Rest/binary>>) ->
+  {SPS, <<PPSCount, Rest1/binary>>} = parse_avc_config(Rest, SPSCount, []),
+  {PPS, <<>>} = parse_avc_config(Rest1, PPSCount, SPS),
+  {LengthSize + 1, lists:reverse(PPS)}.
   
-unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 0:5, 0>>) ->
-  {LengthSize + 1, []}.
+  
+  
+parse_avc_config(Rest, 0, List) -> {List, Rest};
+parse_avc_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) -> 
+  parse_avc_config(Rest, Count - 1, [NAL|List]).
 
   
   
@@ -140,7 +142,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file =
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   ?DUMP_H264(File, SPS),
-  SPSInfo = parse_sps(SPS),
+  _SPSInfo = parse_sps(SPS),
   % io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
@@ -257,10 +259,10 @@ parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
   parse_sps_ref_frames(Rest3, SPS).
   
 parse_sps_ref_frames(Data, SPS) ->
-  {NumRefFrames, <<Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
+  {_NumRefFrames, <<_Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
   {PicWidth, Rest2} = exp_golomb_read(Rest1),
   Width = (PicWidth + 1)*16,
-  {PicHeight, <<_FrameMbsOnly:1, Rest3/bitstring>>} = exp_golomb_read(Rest2),
+  {PicHeight, <<_FrameMbsOnly:1, _Rest3/bitstring>>} = exp_golomb_read(Rest2),
   Height = (PicHeight + 1)*16,
   SPS#h264_sps{width = Width, height = Height}.
   
