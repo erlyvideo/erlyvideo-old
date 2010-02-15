@@ -35,7 +35,8 @@
 			rtmp_session,
 			rtmp_handshake,
 			rtmp_session,
-      fitc_demo
+      fitc_demo,
+      ems_script
  				]},
   {registered,   []},
   {applications, [kernel, stdlib]},

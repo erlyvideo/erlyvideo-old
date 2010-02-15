@@ -90,6 +90,7 @@ start_rtsp() ->
 stop() ->
 	io:format("Stopping ErlMedia ...~n"),
 	ems:stop_modules(),
+	ems_script:stop(),
   ems_log:stop(),
 	application:stop(erlmedia),
 	application:unload(erlmedia),
@@ -177,6 +178,7 @@ reload() ->
 			io:format("Reloading EMS Modules ...~n"),
 			reload(lists:usort(Modules))
 	end.
+	
 reload(Module) when is_atom(Module) ->
 	code:purge(Module),
 	code:delete(Module),

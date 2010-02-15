@@ -259,7 +259,7 @@ init([]) ->
   
   
   
-  Supervisors = [
+  Supervisors1 = [
     {   rtmp_session_sup,
         {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
         permanent,                               % Restart  = permanent | transient | temporary
@@ -342,9 +342,18 @@ init([]) ->
     }
   | MediaProviders],
   
-  
-  
-  
+  Supervisors2 = case ems:get_var(scripting, false) of
+    true -> [{   ems_script_sup,
+        {ems_script,start_link,[]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    } | Supervisors1];
+    false -> Supervisors1
+  end,
+
+  Supervisors = Supervisors2,
   {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors}}.
 
 
