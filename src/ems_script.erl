@@ -73,14 +73,17 @@ port() ->
 rtmp_method_missing(#rtmp_session{host = Host, player_info = PlayerInfo} = Session, #rtmp_funcall{args = [_ | Args], command = Command} = AMF) ->
   case gen_server:call(?MODULE, {call, application, Command, Args}) of
     {ok, {bert, nil}} -> 
-      ok;
+      Session;
     {ok, Reply} -> 
+      ?D({"Returning", Reply}),
       rtmp_session:reply(Session, AMF#rtmp_funcall{args = [Reply]}),
-      ok;
+      Session;
+    {error, {server, 0, _, _, _}} ->
+      unhandled;
     {error, Reason} ->
       Dump = lists:flatten(io_lib:format("~p", [Reason])),
-      rtmp_session:fail(Session, AMF#rtmp_funcall{args = Dump})
-      ok
+      rtmp_session:fail(Session, AMF#rtmp_funcall{args = Dump}),
+      Session
   end.    
       
 

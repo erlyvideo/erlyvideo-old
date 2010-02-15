@@ -37,6 +37,11 @@ module Application
     
     nil
   end
+  
+  def getStreamLength(movie)
+    puts "Movie length: #{movie.inspect}"
+    1000
+  end
 end
 
 Ernie.expose(:application, Application)
