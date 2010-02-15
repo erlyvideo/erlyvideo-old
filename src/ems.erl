@@ -274,18 +274,27 @@ stop_modules() -> call_modules(stop, []).
 %%--------------------------------------------------------------------
 
 try_method_chain(Host, Method, Args) when is_atom(Host) ->
-  try_method_chain(ems:get_var(modules, Host, ['trusted_login']), Method, Args);
+  try_method_chain(ems:get_var(modules, Host, [trusted_login]), Method, Args);
 
 try_method_chain([], _Method, _Args) ->
   {unhandled};
 
-try_method_chain([Module | Applications], Method, Args) ->
+try_method_chain([Module | Modules], Method, Args) ->
   case respond_to(Module, Method, length(Args)) of
-    true -> case apply(Module, Method, Args) of
-      {unhandled} -> try_method_chain(Applications, Method, Args);
-      Else -> Else
-    end;
-    false -> try_method_chain(Applications, Method, Args)
+    true -> 
+      case apply(Module, Method, Args) of
+        {unhandled} -> try_method_chain(Modules, Method, Args);
+        Else -> Else
+      end;
+    false -> 
+      case respond_to(Module, rtmp_method_missing, length(Args)) of
+        true -> 
+          case apply(Module, rtmp_method_missing, Args) of
+            {unhandled} -> try_method_chain(Modules, Method, Args);
+            Else -> Else
+          end;
+        false -> try_method_chain(Modules, Method, Args)
+      end
   end.  
 
 
@@ -300,14 +309,18 @@ check_app([], _Command, _Arity) ->
 
 check_app([Module | Applications], Command, Arity) ->
   case respond_to(Module, Command, Arity) of
-    true -> Module;
-    false -> check_app(Applications, Command, Arity)
+    true -> {Module, Command};
+    false -> 
+      case respond_to(Module, rtmp_method_missing, Arity) of
+        true -> {Module, rtmp_method_missing};
+        false -> check_app(Applications, Command, Arity)
+      end
   end;
 
 
-check_app(#rtmp_session{host = Host} = _State, Command, Arity) ->
-  Applications = ems:get_var(modules, Host, ['trusted_login']),
-  check_app(Applications, Command, Arity).
+check_app(#rtmp_session{host = Host}, Command, Arity) ->
+  Modules = ems:get_var(modules, Host, [trusted_login]),
+  check_app(Modules, Command, Arity).
 
 
 

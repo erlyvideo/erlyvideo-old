@@ -31,4 +31,12 @@ module Test
   end
 end
 
+module Application
+  def connect(*args)
+    puts "Connect: #{args.inspect}"
+    
+  end
+end
+
+Ernie.expose(:application, Application)
 Ernie.expose(:test, Test)

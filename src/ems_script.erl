@@ -36,6 +36,8 @@
 %% External API
 -export([start_link/0, reload/0, stop/0, call/3, send/1, port/0]).
 
+-export([rtmp_method_missing/2]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -67,6 +69,11 @@ send(Message) ->
 
 port() ->
   gen_server:call(?MODULE, port).
+
+rtmp_method_missing(#rtmp_session{host = Host, player_info = PlayerInfo} = Session, #rtmp_funcall{args = [_ | Args], command = Command} = AMF) ->
+  gen_server:call(?MODULE, {call, application, Command, Args}).
+
+  % rtmp_session:accept_connection(NewState, AMF),
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server

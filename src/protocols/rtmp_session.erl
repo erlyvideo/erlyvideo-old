@@ -263,18 +263,20 @@ call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_fu
   ems_log:error(Host, "Client ~p requested unknown function ~p(~p)~n", [IP, Command, Args]),
   State;
 
-call_function(App, #rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
+call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
   URL = proplists:get_value(tcUrl, PlayerInfo),
   {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
   {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   Host = ems:host(HostName),
-  
+
 	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path},
 
-	App:connect(NewState1, AMF);
+  {Module, Function} = ems:check_app(NewState1, connect, 2),
 
-call_function(App, State, #rtmp_funcall{command = Command} = AMF) ->
-	App:Command(State, AMF).
+	Module:Function(NewState1, AMF);
+
+call_function({Module, Function}, State, AMF) ->
+	Module:Function(State, AMF).
   % try
   %   App:Command(AMF, State)
   % catch
