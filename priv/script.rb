@@ -35,6 +35,7 @@ module Application
   def connect(*args)
     puts "Connect: #{args.inspect}"
     
+    nil
   end
 end
 

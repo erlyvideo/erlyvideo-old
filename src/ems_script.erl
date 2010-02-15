@@ -71,7 +71,18 @@ port() ->
   gen_server:call(?MODULE, port).
 
 rtmp_method_missing(#rtmp_session{host = Host, player_info = PlayerInfo} = Session, #rtmp_funcall{args = [_ | Args], command = Command} = AMF) ->
-  gen_server:call(?MODULE, {call, application, Command, Args}).
+  case gen_server:call(?MODULE, {call, application, Command, Args}) of
+    {ok, {bert, nil}} -> 
+      ok;
+    {ok, Reply} -> 
+      rtmp_session:reply(Session, AMF#rtmp_funcall{args = [Reply]}),
+      ok;
+    {error, Reason} ->
+      Dump = lists:flatten(io_lib:format("~p", [Reason])),
+      rtmp_session:fail(Session, AMF#rtmp_funcall{args = Dump})
+      ok
+  end.    
+      
 
   % rtmp_session:accept_connection(NewState, AMF),
 
@@ -121,8 +132,11 @@ handle_call({call, _M, _F, _A} = Command, _From, #ems_script{port = Port} = Stat
   port_command(Port, term_to_binary(Command)),
   receive
     {Port, {data, Data}} ->
-      {reply, Reply} = binary_to_term(Data),
-      {reply, {ok, Reply}, State}
+      Response = case binary_to_term(Data) of
+        {reply, Reply} -> {ok, Reply};
+        Else -> Else
+      end,
+      {reply, Response, State}
     after 10000 ->
       {reply, timeout, State}
   end;
