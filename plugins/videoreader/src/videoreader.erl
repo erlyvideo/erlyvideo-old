@@ -48,7 +48,7 @@
          code_change/3]).
 
 -record(videoreader, {
-  path = Path
+  path
 }).
 	
 

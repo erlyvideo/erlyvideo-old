@@ -22,6 +22,12 @@ parse_announce([{<<"o">>, _} | Announce], Streams, Stream) ->
 parse_announce([{<<"s">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
+parse_announce([{<<"e">>, _} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{<<"b">>, _} | Announce], Streams, undefined) ->
+  parse_announce(Announce, Streams, undefined);
+
 parse_announce([{<<"c">>, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
@@ -61,11 +67,11 @@ parse_announce([{<<"a">>, <<"control:trackid=", Track/binary>>} | Announce], Str
 
 parse_announce([{<<"a">>, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
   {ok, Re} = re:compile("([^=]+)=(.*)"),
-  [_, OptList] = string:tokens(binary_to_list(Info), " "),
+  [_ | OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
     {Key, Value}
-  end, string:tokens(OptList, ";")),
+  end, string:tokens(string:join(OptList, ""), ";")),
   
   parse_announce(Announce, Streams, parse_fmtp(Stream, Opts ));
 
