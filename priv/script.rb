@@ -1,16 +1,11 @@
 #!/usr/bin/env ruby
-
-$LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
-$LOAD_PATH.unshift(File.dirname(__FILE__))
-require 'ernie'
-
-Ernie.log = Logger.new("script.log")
-Ernie.log.level = Logger::DEBUG
+require 'rubygems'
+require 'eventmachine'
+require 'bertrem'
 
 module Test
   # Add two numbers together
   def add(a, b)
-    Ernie.log.debug "ZZZ"
     a + b
   end
 
@@ -44,5 +39,24 @@ module Application
   end
 end
 
-Ernie.expose(:application, Application)
-Ernie.expose(:test, Test)
+input = IO.new(3)
+output = IO.new(4)
+output.sync = true
+
+BERTREM::Server.logfile(STDOUT)
+BERTREM::Server.loglevel(Logger::DEBUG)
+
+BERTREM::Server.send(:define_method, :write_berp) do |ruby|
+  data = BERT.encode(ruby)
+  output.write([data.length].pack("N"))
+  output.write(data)
+end
+
+EM.run do
+  BERTREM::Server.expose(:application, Application)
+  BERTREM::Server.expose(:test, Test)
+  
+  puts "Attaching to #{input.inspect}"
+  svc = EM.attach(input, BERTREM::Server)
+end
+

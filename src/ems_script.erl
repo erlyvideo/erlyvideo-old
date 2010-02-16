@@ -193,12 +193,15 @@ handle_info({'EXIT', Port, _}, #ems_script{port = Port, state = started} = Serve
 
 handle_info({'EXIT', Port, _}, #ems_script{port = Port, state = stopped} = Server) ->
   {noreply, Server};
+
+handle_info({'EXIT', _, _}, Server) ->
+  {noreply, Server};
   
 handle_info(init_script, State) ->
   {noreply, open_script(State)};
 
 handle_info(_Info, State) ->
-  ?D({"Unknown script message", _Info}),
+  ?D({"Unknown script message", _Info, State}),
   {noreply, State}.
 
 %%-------------------------------------------------------------------------
