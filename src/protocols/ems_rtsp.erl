@@ -8,6 +8,7 @@
 -include_lib("ertsp/include/rtsp.hrl").
 
 -export([announce/4]).
+-export([config_media/2]).
 
 announce(Hostname, Path, Streams, _Headers) -> 
   Host = ems:host(Hostname),

@@ -30,7 +30,7 @@
   wall_clock = undefined,
   base_wall_clock = undefined,
   timecode = undefined,
-  h264,
+  h264 = #h264{},
   synced = false,
   broken = false,
   buffer = []

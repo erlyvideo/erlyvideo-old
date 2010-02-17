@@ -20,6 +20,8 @@
   content_length = 0,
   buffer = <<>>,
   streams,
+  rtp_streams = {undefined, undefined, undefined, undefined},
+  media,
   session,
   clients = []
 }).
@@ -40,16 +42,20 @@
 start_link(URL, Type, Opts) ->
   gen_server:start_link(?MODULE, [URL, Type, Opts], []).
 
-init([URL, rtsp, _Opts]) ->
+init([URL, rtsp, Opts]) ->
   process_flag(trap_exit, true),
   {ok, Re} = re:compile("rtsp://([^/]*):(\\d+)/(.*)"),
-  {match, [_, Host, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {match, [_, RTSPHost, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
   
-  {ok, Socket} = gen_tcp:connect(Host, list_to_integer(Port), [binary, {packet, line}, {active, false}], 1000),
+  {ok, Socket} = gen_tcp:connect(RTSPHost, list_to_integer(Port), [binary, {packet, line}, {active, false}], 1000),
   ok = inet:setopts(Socket, [{active, once}]),
   
+  Host = proplists:get_value(host, Opts),
+  Name = proplists:get_value(name, Opts),
+  Media = media_provider:open(Host, Name, live),
+  
   gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
-  {ok, #rtsp_client{socket = Socket, url = URL, method = describe}}.
+  {ok, #rtsp_client{socket = Socket, url = URL, method = describe, media = Media}}.
       
 
 
@@ -130,18 +136,33 @@ handle_info({'EXIT', Client, _Reason}, #rtsp_client{clients = Clients} = TSLande
 handle_info({tcp_closed, Socket}, #rtsp_client{socket = Socket} = TSLander) ->
   {stop, normal, TSLander#rtsp_client{socket = undefined}};
   
-handle_info({tcp, Socket, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, #rtsp_client{state = binary} = State) ->
-  % ?D({"RTP packet", ChannelId, Length}),
+handle_info({tcp, Socket, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, #rtsp_client{rtp_streams = Streams, state = binary, buffer = <<>>} = State) ->
+  % ?D({"RTP", ChannelId, Length, Streams}),
+  Streams1 = case element(ChannelId+1, Streams) of
+    {rtcp, RTPNum} ->
+      {Type, RtpState} = element(RTPNum+1, Streams),
+      RtpState1 = rtp_server:decode(rtcp, RtpState, RTP),
+      setelement(RTPNum+1, Streams, {Type, RtpState1});
+    {Type, RtpState} ->
+      RtpState1 = rtp_server:decode(Type, RtpState, RTP),
+      setelement(ChannelId+1, Streams, {Type, RtpState1});
+    undefined ->
+      Streams
+  end,
   inet:setopts(Socket, [{active, once}]),
-  handle_info({tcp, Socket, Request}, State);
+  handle_info({tcp, Socket, Request}, State#rtsp_client{rtp_streams = Streams1});
 
 handle_info({tcp, Socket, <<$$, _/binary>> = Bin}, #rtsp_client{state = binary, buffer = <<>>} = State) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, State#rtsp_client{buffer = Bin}};
 
+handle_info({tcp, Socket, <<>>}, #rtsp_client{state = binary, buffer = <<>>} = State) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, State};
+
 handle_info({tcp, Socket, Bin}, #rtsp_client{state = binary, buffer = Buf} = State) ->
   inet:setopts(Socket, [{active, once}]),
-  {noreply, State#rtsp_client{buffer = <<Buf/binary, Bin/binary>>}};
+  handle_info({tcp, Socket, <<Buf/binary, Bin/binary>>}, State#rtsp_client{buffer = <<>>});
   
   
 handle_info({tcp, Socket, <<"RTSP/1.0 200 OK\r\n">>}, #rtsp_client{state = request} = RTSP) ->
@@ -232,13 +253,22 @@ split_body(Body, List) ->
       lists:reverse([Body | List])
   end.
 
-read_body(#rtsp_client{buffer = Body, socket = Socket, url = URL, seq = Seq} = RTSP) ->
+read_body(#rtsp_client{buffer = Body, socket = Socket, url = URL, seq = Seq, media = Media} = RTSP) ->
   Decoded = decode_body(Body),
   % ?D({"Decoded", Decoded}),
   Streams = sdp:decode(Decoded),
-  ?D({"Parsed streams", Streams}),
+  
+  RTP = 0,
+  RTCP = 1,
+  Streams1 = ems_rtsp:config_media(Media, Streams),
+  Stream = hd(Streams1),
+  RtpConfig = rtp_server:init(Stream, Media),
+  RtpStreams = setelement(RTP+1, RTSP#rtsp_client.rtp_streams, {Stream#rtsp_stream.type, RtpConfig}),
+  RtpStreams1 = setelement(RTCP+1, RtpStreams, {rtcp, RTP}),  
+  
   gen_tcp:send(Socket, io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast\r\n\r\n", [URL, Seq + 1])),
-  RTSP#rtsp_client{buffer = <<>>, streams = Streams, state = request, method = setup, seq = Seq + 1}.
+  ?D({"Parsed streams", RtpStreams1}),
+  RTSP#rtsp_client{buffer = <<>>, streams = Streams1, state = request, method = setup, seq = Seq + 1, rtp_streams = RtpStreams1}.
 
 send_frame(Frame, #rtsp_client{clients = Clients} = TSLander) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
@@ -253,6 +283,7 @@ send_frame(Frame, #rtsp_client{clients = Clients} = TSLander) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
+  ?D({"RTSP stopping"}),
   ok.
 
 %%-------------------------------------------------------------------------
