@@ -5,7 +5,7 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export([start_rtsp_connection/1, start_rtsp_session/2]).
+-export([start_rtsp_connection/1, start_rtsp_session/2, start_rtsp_media/3]).
 -export([start_rtsp_listener/3]).
 -export([start_rtp_server/2]).
 
@@ -22,6 +22,9 @@ start_rtsp_connection(Callback) -> supervisor:start_child(rtsp_connection_sup, [
 start_rtsp_session(Consumer, Type) -> supervisor:start_child(rtsp_session_sup, [Consumer, Type]).
 start_rtp_server(Media, Stream) -> supervisor:start_child(rtp_server_sup, [Media, Stream]).
 
+start_rtsp_media(URL, Type, Options) -> supervisor:start_child(rtsp_media_sup, [URL, Type, Options]).
+
+%% {ok, Pid} = rtsp_sup:start_rtsp_media("rtsp://212.90.177.134:41554/axis-media/media.amp", rtsp, [{host,default},{name,<<"camera">>}]).
 
 start_rtsp_listener(Port, Name, Callback) ->
   Listener = {Name,
@@ -39,6 +42,21 @@ init([rtsp_connection]) ->
       [
         {   undefined,                               % Id       = internal id
             {rtsp_connection,start_link,[]},             % StartFun = {M, F, A}
+            temporary,                               % Restart  = permanent | transient | temporary
+            2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+            worker,                                  % Type     = worker | supervisor
+            []                            % Modules  = [Module] | dynamic
+        }
+      ]
+    }
+  };
+
+init([rtsp_media]) ->
+  {ok,
+    {{simple_one_for_one, 5, 60},
+      [
+        {   undefined,                               % Id       = internal id
+            {rtsp_media,start_link,[]},             % StartFun = {M, F, A}
             temporary,                               % Restart  = permanent | transient | temporary
             2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
             worker,                                  % Type     = worker | supervisor
@@ -96,6 +114,13 @@ init([]) ->
     },
     {rtsp_session_sup,
       {supervisor,start_link,[{local, rtsp_session_sup}, ?MODULE, [rtsp_session]]},
+      permanent,                               % Restart  = permanent | transient | temporary
+      infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+      supervisor,                              % Type     = worker | supervisor
+      []                                       % Modules  = [Module] | dynamic
+    },
+    {rtsp_media_sup,
+      {supervisor,start_link,[{local, rtsp_media_sup}, ?MODULE, [rtsp_media]]},
       permanent,                               % Restart  = permanent | transient | temporary
       infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
       supervisor,                              % Type     = worker | supervisor

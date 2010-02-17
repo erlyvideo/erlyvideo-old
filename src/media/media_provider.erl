@@ -194,13 +194,16 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
   end.
 
 
-open_media_entry({Name, notfound}, _) ->
+open_media_entry({Name, _URL, notfound}, _) ->
   {notfound, <<"No file ", Name/binary>>};
 
-open_media_entry({Name, Type}, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
+open_media_entry({Name, Type}, MediaProvider) ->
+  open_media_entry({Name, Name, Type}, MediaProvider);
+
+open_media_entry({Name, URL, Type}, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
-      case ems_sup:start_media(Name, Type, [{host, Host}]) of
+      case ems_sup:start_media(URL, Type, [{host, Host}, {name, Name}]) of
         {ok, Pid} ->
           link(Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
@@ -214,25 +217,33 @@ open_media_entry({Name, Type}, #media_provider{host = Host, opened_media = Opene
   end.
   
 detect_type(Host, Name) ->
+  ?D({"Detecting type", Host, Name}),
   detect_mpegts(Host, Name).
   
 detect_mpegts(Host, Name) ->
   Urls = ems:get_var(mpegts, Host, []),
   case proplists:get_value(binary_to_list(Name), Urls) of
+    undefined -> detect_rtsp(Host, Name);
+    URL -> {Name, URL, http}
+  end.
+  
+detect_rtsp(Host, Name) ->
+  Urls = ems:get_var(rtsp, Host, []),
+  case proplists:get_value(binary_to_list(Name), Urls) of
     undefined -> detect_http(Host, Name);
-    URL -> {URL, http}
+    URL -> {Name, URL, rtsp}
   end.
 
 detect_http(Host, Name) ->
   {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
-    {match, _Captured} -> {Name, http};
+    {match, _Captured} -> {Name, Name, http};
     _ -> detect_file(Host, Name)
   end.
 
 detect_file(Host, Name) ->
   case check_path(Host, Name) of
-    true -> {Name, file};
+    true -> {Name, Name, file};
     _ ->
       case check_path(Host, <<Name/binary, ".flv">>) of
         true -> {<<Name/binary, ".flv">>, file};
@@ -242,7 +253,7 @@ detect_file(Host, Name) ->
 
 detect_prefixed_file(Host, <<"flv:", Name/binary>>) ->
   case check_path(Host, Name) of
-    true -> {Name, file};
+    true -> {Name, Name, file};
     _ -> {Name, notfound}
   end;
 
@@ -250,12 +261,12 @@ detect_prefixed_file(Host, <<"mp4:", Name/binary>>) ->
   case check_path(Host, Name) of
     true -> 
       ?D({"File found", Name}),
-      {Name, file};
-    _ -> {Name, notfound}
+      {Name, Name, file};
+    _ -> {Name, Name, notfound}
   end;
   
 detect_prefixed_file(_Host, Name) ->
-  {Name, notfound}.
+  {Name, Name, notfound}.
 
 
 

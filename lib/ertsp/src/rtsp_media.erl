@@ -12,6 +12,7 @@
 -record(rtsp_client, {
   socket,
   url,
+  options,
   seq = 1,
   state = request,
   method,
@@ -21,7 +22,6 @@
   buffer = <<>>,
   streams,
   rtp_streams = {undefined, undefined, undefined, undefined},
-  media,
   session,
   clients = []
 }).
@@ -50,12 +50,8 @@ init([URL, rtsp, Opts]) ->
   {ok, Socket} = gen_tcp:connect(RTSPHost, list_to_integer(Port), [binary, {packet, line}, {active, false}], 1000),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  Host = proplists:get_value(host, Opts),
-  Name = proplists:get_value(name, Opts),
-  Media = media_provider:open(Host, Name, live),
-  
-  gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
-  {ok, #rtsp_client{socket = Socket, url = URL, method = describe, media = Media}}.
+  self() ! describe,
+  {ok, #rtsp_client{socket = Socket, url = URL, options = Opts, method = describe}}.
       
 
 
@@ -129,8 +125,18 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({'EXIT', Client, _Reason}, #rtsp_client{clients = Clients} = TSLander) ->
-  {noreply, TSLander#rtsp_client{clients = lists:delete(Client, Clients)}};
+handle_info(describe, #rtsp_client{options = Opts, socket = Socket, url = URL} = RTSP) ->
+  gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
+  {noreply, RTSP};
+  
+
+handle_info({'EXIT', Client, _Reason}, #rtsp_client{clients = Clients} = RTSP) ->
+  case length(Clients) of
+    Length when Length =< 1 ->
+      {stop, normal, RTSP#rtsp_client{clients =[]}};
+    _ ->
+      {noreply, RTSP#rtsp_client{clients = lists:delete(Client, Clients)}}
+  end;
 
 
 handle_info({tcp_closed, Socket}, #rtsp_client{socket = Socket} = TSLander) ->
@@ -213,6 +219,10 @@ handle_info(stop, #rtsp_client{socket = Socket} = TSLander) ->
   ?D({"RTSP stopped"}),
   {stop, normal, TSLander#rtsp_client{socket = undefined}};
 
+handle_info(#video_frame{} = Frame, RTSP) ->
+  send_frame(Frame, RTSP),
+  {noreply, RTSP};
+
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info, State}),
   {noreply, State}.
@@ -253,16 +263,16 @@ split_body(Body, List) ->
       lists:reverse([Body | List])
   end.
 
-read_body(#rtsp_client{buffer = Body, socket = Socket, url = URL, seq = Seq, media = Media} = RTSP) ->
+read_body(#rtsp_client{buffer = Body, socket = Socket, url = URL, seq = Seq} = RTSP) ->
   Decoded = decode_body(Body),
   % ?D({"Decoded", Decoded}),
   Streams = sdp:decode(Decoded),
   
   RTP = 0,
   RTCP = 1,
-  Streams1 = ems_rtsp:config_media(Media, Streams),
+  Streams1 = ems_rtsp:config_media(self(), Streams),
   Stream = hd(Streams1),
-  RtpConfig = rtp_server:init(Stream, Media),
+  RtpConfig = rtp_server:init(Stream, self()),
   RtpStreams = setelement(RTP+1, RTSP#rtsp_client.rtp_streams, {Stream#rtsp_stream.type, RtpConfig}),
   RtpStreams1 = setelement(RTCP+1, RtpStreams, {rtcp, RTP}),  
   

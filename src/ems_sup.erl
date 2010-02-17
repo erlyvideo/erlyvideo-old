@@ -84,7 +84,8 @@ start_media(Name, mpeg_ts_passive = Type, Opts) -> supervisor:start_child(mpegts
 start_media(Name, record = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, live = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, shoutcast, Opts) -> supervisor:start_child(shoutcast_media_sup, [Name, Opts]);
-start_media(Name, http, Opts) -> http_media:start_link(Name, Opts).
+start_media(Name, http, Opts) -> http_media:start_link(Name, Opts);
+start_media(Name, rtsp, Opts) -> rtsp_sup:start_rtsp_media(Name, rtsp, Opts).
 
 
 start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, Options]).
