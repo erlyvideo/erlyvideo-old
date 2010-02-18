@@ -3,8 +3,8 @@
 
 -export([start_link/3]).
 -behaviour(rtsp_socket).
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--include("../include/rtsp.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 % ems_sup:start_rtsp_client("http://localhost:8080").
@@ -174,17 +174,9 @@ handle_rtp_packet(#rtsp_client{rtp_streams = Streams} = State, {rtp, Channel, Pa
   State#rtsp_client{rtp_streams = Streams1}.
 
 
-handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, 
+handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe, rtp_streams = RTPStreams} = RTSP, 
                {response, 200, _, _Headers, Body}) ->
-  Streams = sdp:decode(Body),
-  
-  RTP = 0,
-  RTCP = 1,
-  Streams1 = ems_rtsp:config_media(self(), Streams),
-  Stream = hd(Streams1),
-  RtpConfig = rtp_server:init(Stream, self()),
-  RtpStreams = setelement(RTP+1, RTSP#rtsp_client.rtp_streams, {Stream#rtsp_stream.type, RtpConfig}),
-  RtpStreams1 = setelement(RTCP+1, RtpStreams, {rtcp, RTP}),  
+  {Streams1, RtpStreams1} = rtp_server:configure(Body, RTPStreams),
   
   gen_tcp:send(Socket, io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast\r\n\r\n", [URL, Seq + 1])),
   % ?D({"Parsed streams", RtpStreams1}),

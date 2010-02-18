@@ -61,6 +61,7 @@
 %% gen_server callbacks
 
 -export([video/2, audio/2, decode/3, init/2, get_socket/3, wait_data/1]).
+-export([configure/2]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -77,6 +78,19 @@ start_link(Media, #rtsp_stream{type = Type} = Stream)  ->
   gen_udp:controlling_process(RTCPSocket, Pid),
   Pid ! {socket, RTPSocket, RTCPSocket},
   {ok, Pid, {RTP, RTCP}}.
+
+
+configure(Body, RTPStreams) ->
+  Streams = sdp:decode(Body),
+  
+  RTP = 0,
+  RTCP = 1,
+  Streams1 = ems_rtsp:config_media(self(), Streams),
+  Stream = hd(Streams1),
+  RtpConfig = rtp_server:init(Stream, self()),
+  RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
+  RtpStreams2 = setelement(RTCP+1, RtpStreams1, {rtcp, RTP}),  
+  {Streams1, RtpStreams2}.
 
 
 init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
