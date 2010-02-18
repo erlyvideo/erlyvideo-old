@@ -14,8 +14,8 @@ start_server(Port, Name, Callback) ->
 parse(ready, <<$$, ChannelId, Length:16, RTP:Length/binary, Rest/binary>>) ->
   {ok, {rtp, ChannelId, RTP}, Rest};
 
-parse(ready, <<$$, _>> = Data) ->
-  {more, Data};
+parse(ready, <<$$, _/binary>> = Data) ->
+  {more, ready, Data};
 
 parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
   case erlang:decode_packet(line, Response, []) of
@@ -87,10 +87,13 @@ decode_headers(Data, Headers, BodyLength) ->
       NewLength = list_to_integer(binary_to_list(Length)),
       decode_headers(Rest, [{'Content-Length', NewLength} | Headers], NewLength);
     {ok, {header, <<"Cseq">>, CSeq}, Rest} ->
-      Seq = list_to_integer(binary_to_list(CSeq)),
-      decode_headers(Rest, [{'Cseq', Seq} | Headers], BodyLength);
+      decode_headers(Rest, [{'Cseq', CSeq} | Headers], BodyLength);
+    {ok, {header, <<"Transport">>, Value}, Rest} ->
+      decode_headers(Rest, [{'Transport', Value} | Headers], BodyLength);
+    {ok, {header, <<"Session">>, Value}, Rest} ->
+      decode_headers(Rest, [{'Session', Value} | Headers], BodyLength);
     {ok, {header, Key, Value}, Rest} -> 
-      decode_headers(Rest, [{Key, Value}], BodyLength);
+      decode_headers(Rest, [{Key, Value} | Headers], BodyLength);
       
       
     {ok, header_end, Rest} when BodyLength == undefined ->
@@ -112,7 +115,8 @@ decode_headers(Data, Headers, BodyLength) ->
 
 parse_rtp_test() ->
   ?assertEqual({ok, {rtp, 0, <<1,2,3,4,5,6>>}, <<7,8>>}, parse(ready, <<$$, 0, 6:16, 1,2,3,4,5,6,7,8>>)),
-  ?assertEqual({more, ready, <<$$, 0, 6:16, 1,2,3>>}, parse(ready, <<$$, 0, 6:16, 1,2,3>>)).
+  Chunk = <<$$,0,26:16,1,2,3,4,5,6,7,8,9,10,11,12>>,
+  ?assertEqual({more, ready, Chunk}, parse(ready, Chunk)).
   
 
 parse_request_test() ->
@@ -151,12 +155,19 @@ decode_request_test() ->
               RTP/binary>>,
   ?assertEqual({more, <<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\nCSeq: 1\r\n">>},
                decode(<<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\nCSeq: 1\r\n">>)),
-  ?assertEqual({ok, {request, 'ANNOUNCE', <<"rtsp://erlyvideo.org">>, [ {'Content-Length', 12},{'Cseq', 1}],
+  ?assertEqual({ok, {request, 'ANNOUNCE', <<"rtsp://erlyvideo.org">>, [ {'Content-Length', 12},{'Cseq', <<"1">>}],
                <<"a=fmtp: 96\r\n">>}, RTP},
                decode(Request)),
   ?assertEqual({ok, {rtp, 1, <<1,2,3,4,5>>}, <<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>}, decode(RTP)),
-  ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', 2}], undefined}, <<"">>}, 
-               decode(<<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>)).
+  ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', <<"2">>}], undefined}, <<"">>}, 
+               decode(<<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>)),
+  ?assertEqual({ok, {response, 200, <<"OK">>, [
+                    {'Date', <<"Thu, 18 Feb 2010 06:21:00 GMT">>},
+                    {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>}, 
+                    {'Session', <<"94544680; timeout=60">>}, 
+                    {'Cseq', <<"2">>}
+                ], undefined}, <<>>},
+               decode(<<"RTSP/1.0 200 OK\r\nCSeq: 2\r\nSession: 94544680; timeout=60\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"\r\nDate: Thu, 18 Feb 2010 06:21:00 GMT\r\n\r\n">>)).
   
   
   

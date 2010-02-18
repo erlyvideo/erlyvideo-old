@@ -4,8 +4,38 @@
 -export([decode/1]).
 -include("../include/rtsp.hrl").
 
+decode(Announce) when is_binary(Announce) ->
+  decode(decode_body(Announce));
+
 decode(Announce) ->
   parse_announce(Announce, [], undefined).
+
+
+decode_body(Body) ->
+  {ok, Re} = re:compile("(\\w)=(.*)\\r\\n$"),
+  Split = split_body(Body, []),
+  % ?D({"Split", Split}),
+  decode_body(Split, [], Re).
+
+decode_body([], List, _Re) ->
+  lists:reverse(List);
+
+decode_body([Message | Body], List, Re) ->
+  % ?D({"SDP", Message}),
+  {match, [_, Key, Value]} = re:run(Message, Re, [{capture, all, binary}]),
+  decode_body(Body, [{Key, Value} | List], Re).
+
+split_body(<<>>, List) ->
+  lists:reverse(List);
+
+split_body(Body, List) ->
+  case erlang:decode_packet(line, Body, []) of
+    {ok, Line, More} ->
+      split_body(More, [Line | List]);
+    {more, undefined} ->
+      lists:reverse([Body | List])
+  end.
+
 
 parse_announce([], Streams, undefined) ->
   Streams;
@@ -108,4 +138,22 @@ parse_fmtp(#rtsp_stream{type = audio} = Stream, Opts) ->
   % parse_announce(Announce, Streams, [{config, Config} | Stream])
   Stream#rtsp_stream{config = Config}.
   
+  
+% Example of SDP:
+%  
+% v=0
+% o=- 1266472632763124 1266472632763124 IN IP4 192.168.4.1
+% s=Media Presentation
+% e=NONE
+% c=IN IP4 0.0.0.0
+% b=AS:50000
+% t=0 0
+% a=control:*
+% a=range:npt=0.000000-
+% m=video 0 RTP/AVP 96
+% b=AS:50000
+% a=framerate:25.0
+% a=control:trackID=1
+% a=rtpmap:96 H264/90000
+% a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==
   
