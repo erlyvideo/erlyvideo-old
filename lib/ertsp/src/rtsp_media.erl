@@ -1,7 +1,8 @@
 -module(rtsp_media).
 -author('Max Lapshin <max@maxidoors.ru>').
+
 -export([start_link/3]).
--behaviour(gen_server).
+-behaviour(rtsp_socket).
 
 -include("../include/rtsp.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
@@ -27,9 +28,9 @@
 
 
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
-
+%% rtsp_socket callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-export([handle_rtsp_response/2, handle_rtp_packet/2, handle_rtsp_request/2]).
 
 % {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, http_bin}, {active, false}], 1000),
 % gen_tcp:send(Socket, "GET / HTTP/1.0\r\n\r\n"),
@@ -39,7 +40,7 @@
 % {ok, Pid1} = ems_sup:start_rtsp_client("http://localhost:8080").
 
 start_link(URL, Type, Opts) ->
-  gen_server:start_link(?MODULE, [URL, Type, Opts], []).
+  rtsp_socket:start_link(?MODULE, [URL, Type, Opts]).
 
 init([URL, rtsp, Opts]) ->
   process_flag(trap_exit, true),
@@ -49,7 +50,11 @@ init([URL, rtsp, Opts]) ->
   {ok, Socket} = gen_tcp:connect(RTSPHost, list_to_integer(Port), [binary, {packet, raw}, {active, once}], 1000),
   
   self() ! describe,
-  {ok, #rtsp_client{socket = Socket, url = URL, options = Opts, method = describe}}.
+  {ok, #rtsp_client{socket = Socket, url = URL, options = Opts, method = describe}};
+  
+init([_, rtsp_server, _]) ->
+  {ok, #rtsp_client{}}.
+  
       
 
 
@@ -123,25 +128,12 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_packet(#rtsp_client{buffer = Data} = State) ->
-  case rtsp:decode(Data) of
-    {more, Data} ->
-      State;
-    {ok, {rtp, _Channel, _} = RTP, Rest} ->
-      NewState = handle_rtp(State#rtsp_client{buffer = Rest}, RTP),
-      handle_packet(NewState);
-    {ok, {response, _Code, _, _, _} = Response, Rest} ->
-      NewState = handle_response(State#rtsp_client{buffer = Rest}, Response),
-      handle_packet(NewState);
-    {ok, {request, _Method, _, _, _} = Request, Rest} ->
-      NewState = handle_request(State#rtsp_client{buffer = Rest}, Request),
-      handle_packet(NewState)
-  end.
   
-handle_info(describe, #rtsp_client{options = Opts, socket = Socket, url = URL} = RTSP) ->
+handle_info(describe, #rtsp_client{socket = Socket, url = URL} = RTSP) ->
   gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
   {noreply, RTSP#rtsp_client{method = describe}};
   
+
 
 handle_info({'EXIT', Client, _Reason}, #rtsp_client{clients = Clients} = RTSP) ->
   case length(Clients) of
@@ -151,15 +143,6 @@ handle_info({'EXIT', Client, _Reason}, #rtsp_client{clients = Clients} = RTSP) -
       {noreply, RTSP#rtsp_client{clients = lists:delete(Client, Clients)}}
   end;
 
-
-handle_info({tcp_closed, Socket}, #rtsp_client{socket = Socket} = TSLander) ->
-  {stop, normal, TSLander#rtsp_client{socket = undefined}};
-  
-  
-handle_info({tcp, Socket, Bin}, #rtsp_client{buffer = Buf} = State) ->
-  % ?D({"TCP", Bin}),
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, handle_packet(State#rtsp_client{buffer = <<Buf/binary, Bin/binary>>})};
   
   
 handle_info(stop, #rtsp_client{socket = Socket} = TSLander) ->
@@ -176,7 +159,7 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 
-handle_rtp(#rtsp_client{rtp_streams = Streams} = State, {rtp, Channel, Packet}) ->
+handle_rtp_packet(#rtsp_client{rtp_streams = Streams} = State, {rtp, Channel, Packet}) ->
   Streams1 = case element(Channel+1, Streams) of
     {rtcp, RTPNum} ->
       {Type, RtpState} = element(RTPNum+1, Streams),
@@ -191,8 +174,8 @@ handle_rtp(#rtsp_client{rtp_streams = Streams} = State, {rtp, Channel, Packet}) 
   State#rtsp_client{rtp_streams = Streams1}.
 
 
-handle_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, 
-               {response, 200, _, Headers, Body}) ->
+handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, 
+               {response, 200, _, _Headers, Body}) ->
   Streams = sdp:decode(Body),
   
   RTP = 0,
@@ -208,7 +191,7 @@ handle_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = des
   RTSP#rtsp_client{streams = Streams1, method = setup, seq = Seq + 1, rtp_streams = RtpStreams1};
   
   
-handle_response(#rtsp_client{url = URL, method = setup, socket = Socket, seq = Seq}=RTSP, {response, 200, _, Headers, _}) ->
+handle_rtsp_response(#rtsp_client{url = URL, method = setup, socket = Socket, seq = Seq}=RTSP, {response, 200, _, Headers, _}) ->
   % ?D({"Setup done"}),
   FullSession = proplists:get_value('Session', Headers, <<"111">>),
   Session = hd(string:tokens(binary_to_list(FullSession), ";")),
@@ -216,38 +199,18 @@ handle_response(#rtsp_client{url = URL, method = setup, socket = Socket, seq = S
   ?D({"Send play command"}),
   RTSP#rtsp_client{seq = Seq + 1, method = play};
 
-handle_response(#rtsp_client{method = play} = RTSP, {response, 200, _, _, _}) ->
+handle_rtsp_response(#rtsp_client{method = play} = RTSP, {response, 200, _, _, _}) ->
   ?D({"PLay started"}),
   RTSP;
   
-handle_response(RTSP, {response, 200, _, _, _} = R) ->
+handle_rtsp_response(RTSP, {response, 200, _, _, _} = R) ->
   ?D({"Unknown response", R, RTSP}),
   RTSP.
 
-handle_request(RTSP, _Request) ->
+handle_rtsp_request(RTSP, _Request) ->
   RTSP.
 
 send_frame(Frame, #rtsp_client{clients = Clients} = TSLander) ->
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
   TSLander.
 
-%%-------------------------------------------------------------------------
-%% @spec (Reason, State) -> any
-%% @doc  Callback executed on server shutdown. It is only invoked if
-%%       `process_flag(trap_exit, true)' is set by the server process.
-%%       The return value is ignored.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
-  ?D({"RTSP stopping"}),
-  ok.
-
-%%-------------------------------------------------------------------------
-%% @spec (OldVsn, State, Extra) -> {ok, NewState}
-%% @doc  Convert process state when code is changed.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
