@@ -1,9 +1,11 @@
 -module(rtsp).
 -author('Max Lapshin <max@maxidoors.ru>').
 
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+
 -export([start_server/3]).
 
--export([parse/2]).
+-export([parse/2, decode/1]).
 
 start_server(Port, Name, Callback) ->
   rtsp_sup:start_rtsp_listener(Port, Name, Callback).
@@ -16,20 +18,22 @@ parse(ready, <<$$, _>> = Data) ->
   {more, Data};
 
 parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
-  {ok, Re} = re:compile("(\\d+) ([^\\r]+)\\r\\n(.*)"),
-  case re:run(Response, Re, [{capture, all, binary}]) of
-    {match, [_, Code, Message, Rest]} ->
+  case erlang:decode_packet(line, Response, []) of
+    {ok, Line, Rest} ->
+      {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
+      {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
       {ok, {response, list_to_integer(binary_to_list(Code)), Message}, Rest};
-    nomatch ->
+    _ ->
       {more, ready, Data}
   end;
 
 parse(ready, Data) ->
-  {ok, Re} = re:compile("([^ ]+) ([^ ]+) RTSP/1.0\\r\\n(.*)"),
-  case re:run(Data, Re, [{capture, all, binary}]) of
-    {match, [_, Method, URL, Rest]} ->
+  case erlang:decode_packet(line, Data, []) of
+    {ok, Line, Rest} ->
+      {ok, Re} = re:compile("([^ ]+) ([^ ]+) RTSP/1.0"),
+      {match, [_, Method, URL]} = re:run(Line, Re, [{capture, all, binary}]),
       {ok, {request, binary_to_atom(Method, latin1), URL}, Rest};
-    nomatch ->
+    _ ->
       {more, ready, Data}
   end;
   
@@ -53,6 +57,57 @@ parse(header, Data) ->
 parse(State, Data) ->
   {error, State, Data}.
 
+
+decode(Data) ->
+  case parse(ready, Data) of
+    {more, ready, Data} ->
+      {more, Data};
+    {ok, {request, Method, URL}, Rest} ->
+      case decode_headers(Rest, [], undefined) of
+        more ->
+          {more, Data};
+        {ok, Headers, Body, Rest1} ->
+          {ok, {request, Method, URL, Headers, Body}, Rest1}
+      end;
+    {ok, {rtp, _Channel, _Packet}, _Rest} = Reply ->
+      Reply;
+    {ok, {response, Code, Status}, Rest} ->
+      case decode_headers(Rest, [], undefined) of
+        more ->
+          {more, Data};
+        {ok, Headers, Body, Rest1} ->
+          {ok, {response, Code, Status, Headers, Body}, Rest1}
+      end
+  end.
+
+decode_headers(Data, Headers, BodyLength) ->
+  case parse(header, Data) of
+    
+    {ok, {header, 'Content-Length', Length}, Rest} ->
+      NewLength = list_to_integer(binary_to_list(Length)),
+      decode_headers(Rest, [{'Content-Length', NewLength} | Headers], NewLength);
+    {ok, {header, <<"Cseq">>, CSeq}, Rest} ->
+      Seq = list_to_integer(binary_to_list(CSeq)),
+      decode_headers(Rest, [{'Cseq', Seq} | Headers], BodyLength);
+    {ok, {header, Key, Value}, Rest} -> 
+      decode_headers(Rest, [{Key, Value}], BodyLength);
+      
+      
+    {ok, header_end, Rest} when BodyLength == undefined ->
+      {ok, Headers, undefined, Rest};
+    {ok, header_end, Rest} ->
+      case parse({body, BodyLength}, Rest) of
+        {ok, {body, Body}, Rest1} ->
+          {ok, Headers, Body, Rest1};
+        {more, body, _} ->
+          more
+      end;
+      
+      
+    {more, header, Data} ->
+      more
+  end.
+
 -include_lib("eunit/include/eunit.hrl").
 
 parse_rtp_test() ->
@@ -63,14 +118,14 @@ parse_rtp_test() ->
 parse_request_test() ->
   ?assertEqual({more, ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>}, 
                 parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>)),
-  ?assertEqual({ok, {request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1">>}, 
-                parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0\r\nCSeq: 1">>)).
+  ?assertEqual({ok, {request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1\r\nSession: 5\r\n\r\naa">>}, 
+                parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0\r\nCSeq: 1\r\nSession: 5\r\n\r\naa">>)).
 
 parse_response_test() ->
   ?assertEqual({more, ready, <<"RTSP/1.0 200 OK">>}, 
                 parse(ready, <<"RTSP/1.0 200 OK">>)),
-  ?assertEqual({ok, {response, 200, <<"OK">>}, <<"Session: 10">>}, 
-                parse(ready, <<"RTSP/1.0 200 OK\r\nSession: 10">>)).
+  ?assertEqual({ok, {response, 200, <<"OK">>}, <<"Session: 10\r\nCSeq: 4\r\n\r\n">>}, 
+                parse(ready, <<"RTSP/1.0 200 OK\r\nSession: 10\r\nCSeq: 4\r\n\r\n">>)).
 
   
 parse_body_test() ->
@@ -85,5 +140,23 @@ parse_header_test() ->
   ?assertEqual({ok, header_end, <<"zzz">>}, 
           parse(header, <<"\r\nzzz">>)).
           
+  
+decode_request_test() ->
+  RTP = <<$$, 1, 5:16, 1,2,3,4,5, "RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>,
+  Request = <<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\n",
+              "CSeq: 1\r\n"
+              "Content-Length: 12\r\n",
+              "\r\n",
+              "a=fmtp: 96\r\n",
+              RTP/binary>>,
+  ?assertEqual({more, <<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\nCSeq: 1\r\n">>},
+               decode(<<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\nCSeq: 1\r\n">>)),
+  ?assertEqual({ok, {request, 'ANNOUNCE', <<"rtsp://erlyvideo.org">>, [ {'Content-Length', 12},{'Cseq', 1}],
+               <<"a=fmtp: 96\r\n">>}, RTP},
+               decode(Request)),
+  ?assertEqual({ok, {rtp, 1, <<1,2,3,4,5>>}, <<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>}, decode(RTP)),
+  ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', 2}], undefined}, <<"">>}, 
+               decode(<<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>)).
+  
   
   
