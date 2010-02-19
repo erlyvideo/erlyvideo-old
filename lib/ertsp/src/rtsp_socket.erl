@@ -118,10 +118,10 @@ handle_packet(#rtsp_socket{buffer = Data, state = State, module = Module} = Sock
     {ok, {rtp, _Channel, _} = RTP, Rest} ->
       NewState = Module:handle_rtp_packet(State, RTP),
       handle_packet(Socket#rtsp_socket{buffer = Rest, state = NewState});
-    {ok, {response, _Code, _, _, _} = Response, Rest} ->
+    {ok, {response, _Code, _Message, _Headers, _Body} = Response, Rest} ->
       NewState = Module:handle_rtsp_response(State, Response),
       handle_packet(Socket#rtsp_socket{buffer = Rest, state = NewState});
-    {ok, {request, _Method, _, _, _} = Request, Rest} ->
+    {ok, {request, _Method, _URL, _Headers, _Body} = Request, Rest} ->
       NewState = Module:handle_rtsp_request(State, Request),
       handle_packet(Socket#rtsp_socket{buffer = Rest, state = NewState})
   end.
