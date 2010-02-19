@@ -1,27 +1,20 @@
 -module(rtsp_connection).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--behaviour(gen_fsm).
--include("../include/rtsp.hrl").
+-behaviour(rtsp_socket).
+% -include("../include/rtsp.hrl").
 % -include("../../../include/ems.hrl").
 % -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 % -define(TIMEOUT, 1000).
 
 -export([start_link/1, set_socket/2]).
 
-%% gen_fsm callbacks
--export([init/1, handle_event/3,
-         handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+%% rtsp_socket callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-export([handle_rtsp_response/2, handle_rtp_packet/2, handle_rtsp_request/2]).
 
--export([binarize_header/1, handle_request/1]).
+-export([binarize_header/1]).
 
-%% FSM States
--export([
-  'WAIT_FOR_SOCKET'/2,
-	'WAIT_FOR_REQUEST'/2,
-	'WAIT_FOR_BINARY'/2,
-	'WAIT_FOR_HEADERS'/2,
-  'WAIT_FOR_DATA'/2]).
 
 -record(rtsp_connection, {
   socket,
@@ -31,13 +24,7 @@
   request_re,
   rtsp_re,
   url_re,
-  content_length,
-  bytes_read = 0,
-  request,
-  headers,
-  body,
   session_id,
-  sequence,
   streams,
   buffer = <<>>,
   rtp_streams = {undefined, undefined, undefined, undefined},
@@ -47,21 +34,10 @@
 
 
 start_link(Callback) ->
-  % All possible headers:
-  'ANNOUNCE', 'PLAY', 'SETUP', 'OPTIONS', 'DESCRIBE', 'PAUSE', 'RECORD',
-  'TEARDOWN', 'GET_PARAMETER', 'SET_PARAMETER',
-  'Accept', 'Accept-Encoding', 'Accept-Language', 'Allow', 'Authorization', 'Bandwidth',
-  'Blocksize', 'Cache-Control', 'ClientChallenge', 'Conference', 'Connection', 'Content-Base', 'Content-Encoding',
-  'Content-Language', 'Content-Length', 'Content-Location', 'Content-Type', 'Cseq',
-  'Date', 'Expires', 'From', 'Host', 'If-Match', 'If-Modiﬁed-Since', 'Last-Modiﬁed', 
-  'Location', 'Proxy-Authenticate', 'Proxy-Require', 'Public', 'Range', 
-  'Referer', 'Retry-After', 'Require', 'RTP-Info', 'Scale', 'Speed', 'Server',
-  'Session', 'Timestamp', 'Transport', 'Unsupported', 'User-Agent', 'Vary', 'Via',
-  'WWW-Authenticate',
   gen_fsm:start_link(?MODULE, [Callback], []).
 
 set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
-    gen_fsm:send_event(Pid, {socket_ready, Socket}).
+    gen_server:cast(Pid, {socket_ready, Socket}).
 
 %%-------------------------------------------------------------------------
 %% Func: init/1
@@ -77,7 +53,7 @@ init([Callback]) ->
   {ok, RequestRe} = re:compile("([^ ]+) ([^ ]+) (\\w+)/([\\d]+\\.[\\d]+)"),
   {ok, RtspRe} = re:compile("(\\w)=(.*)\\r\\n$"),
   {ok, UrlRe} = re:compile("rtsp://([^/]+)/(.*)$"),
-  {ok, 'WAIT_FOR_SOCKET', #rtsp_connection{request_re = RequestRe, rtsp_re = RtspRe, url_re = UrlRe, callback = Callback}}.
+  {ok, #rtsp_connection{request_re = RequestRe, rtsp_re = RtspRe, url_re = UrlRe, callback = Callback}}.
 
 
 
@@ -88,29 +64,15 @@ init([Callback]) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-'WAIT_FOR_SOCKET'({socket_ready, Socket}, State) ->
-  inet:setopts(Socket, [{active, once}, {packet, line}, binary]),
+handle_cast({socket_ready, Socket}, State) ->
+  inet:setopts(Socket, [{active, once}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
-  {next_state, 'WAIT_FOR_REQUEST', State#rtsp_connection{socket=Socket, addr=IP, port = Port}, ?TIMEOUT}.
+  {noreply, State#rtsp_connection{socket=Socket, addr=IP, port = Port}, ?TIMEOUT}.
 
-'WAIT_FOR_REQUEST'(timeout, State) ->
-  {stop, normal, State};
+handle_info(timeout, State) ->
+  {stop, normal, State}.
 
-'WAIT_FOR_REQUEST'({data, <<$$, _/binary>> = RTP}, State) ->
-  'WAIT_FOR_BINARY'({data, RTP}, State);
-
-'WAIT_FOR_REQUEST'({data, <<>>}, State) ->
-  {next_state, 'WAIT_FOR_REQUEST', State};
-  
-'WAIT_FOR_REQUEST'({data, Request}, #rtsp_connection{socket = Socket, url_re = UrlRe, request_re = RequestRe} = State) ->
-  {match, [_, Method, URL, <<"RTSP">>, <<"1.0">>]} = re:run(Request, RequestRe, [{capture, all, binary}]),
-  MethodName = binary_to_existing_atom(Method, utf8),
-  {match, [_, Host, _Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
-  io:format("[RTSP] ~s ~s RTSP/1.0~n", [Method, URL]),
-  inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_connection{request = [MethodName, URL], headers = [], host = Host}, ?TIMEOUT}.
-
-'WAIT_FOR_BINARY'({data, <<$$, ChannelId, Length:16, RTP:Length/binary, Request/binary>>}, #rtsp_connection{buffer = <<>>, rtp_streams = Streams} = State) ->
+handle_rtp_packet(#rtsp_connection{rtp_streams = Streams} = State, {rtp, ChannelId, RTP}) ->
   Streams1 = case element(ChannelId+1, Streams) of
     {rtcp, RTPNum} ->
       {Type, RtpState} = element(RTPNum+1, Streams),
@@ -122,83 +84,7 @@ init([Callback]) ->
     undefined ->
       Streams
   end,
-  'WAIT_FOR_BINARY'({data, Request}, State#rtsp_connection{buffer = <<>>, rtp_streams = Streams1});
-
-'WAIT_FOR_BINARY'({data, <<$$, _/binary>> = Bin}, #rtsp_connection{buffer = <<>>, socket = Socket} = State) ->
-  inet:setopts(Socket, [{packet, raw}, {active, once}]),
-  {next_state, 'WAIT_FOR_BINARY', State#rtsp_connection{buffer = Bin}};
-
-'WAIT_FOR_BINARY'({data, Bin}, #rtsp_connection{buffer = Buffer} = State) when size(Buffer) > 0 ->
-  'WAIT_FOR_BINARY'({data, <<Buffer/binary, Bin/binary>>}, State#rtsp_connection{buffer = <<>>});
-
-'WAIT_FOR_BINARY'({data, <<>>}, #rtsp_connection{buffer = <<>>, socket = Socket} = State) ->
-  inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_REQUEST', State};
-
-'WAIT_FOR_BINARY'({data, Bin}, #rtsp_connection{buffer = <<>>, socket = Socket} = State) when size(Bin) > 0 ->
-  % F = fun({more, undefined}, _G) -> ?D("ready"), ok;
-  %        ({ok, Line, Rest}, G) ->
-  %   ?D({Line, Rest}),
-  %   self() ! {tcp, Socket, Line},
-  %   G(erlang:decode_packet(line, Rest, []), G)
-  % end,
-  % ?D({"Feeding with lines"}),
-  % F(erlang:decode_packet(line, Bin, []), F),
-  ?D({"Unimplemented proper stop"}),
-  'WAIT_FOR_REQUEST'({data, Bin}, State).
-
-
-
-'WAIT_FOR_HEADERS'({header, 'Content-Length', LengthBin}, #rtsp_connection{socket = Socket} = State) ->
-  Length = list_to_integer(binary_to_list(LengthBin)),
-  io:format("[RTSP] Content-Length: ~s~n", [LengthBin]),
-  inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_connection{content_length = Length}, ?TIMEOUT};
-
-'WAIT_FOR_HEADERS'({header, 'Cseq', Sequence}, #rtsp_connection{socket = Socket} = State) ->
-  io:format("[RTSP] Cseq: ~s~n", [Sequence]),
-  inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_connection{sequence = Sequence}, ?TIMEOUT};
-
-'WAIT_FOR_HEADERS'(timeout, State) ->
-  {stop, normal, State};
-
-'WAIT_FOR_HEADERS'({header, Name, Value}, #rtsp_connection{socket = Socket, headers = Headers} = State) ->
-  io:format("[RTSP] ~s: ~s~n", [Name, Value]),
-  inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_HEADERS', State#rtsp_connection{headers = [{Name, Value} | Headers]}, ?TIMEOUT};
-
-'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_connection{socket = Socket, content_length = undefined} = State) ->
-  State1 = handle_request(State),
-  inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_REQUEST', State1};
-  
-
-'WAIT_FOR_HEADERS'(end_of_headers, #rtsp_connection{socket = Socket} = State) ->
-  inet:setopts(Socket, [{packet, line}, {active, once}]),
-  {next_state, 'WAIT_FOR_DATA', State#rtsp_connection{body = []}, ?TIMEOUT}.
-
-
-'WAIT_FOR_DATA'(timeout, State) ->
-  ?D({"Client timeout"}),
-  {stop, normal, State};
-
-'WAIT_FOR_DATA'({data, Message}, #rtsp_connection{bytes_read = BytesRead, content_length = ContentLength, socket = Socket} = State) when BytesRead + size(Message) == ContentLength ->
-  State1 = decode_line(Message, State),
-  State2 = handle_request(State1),
-  inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_REQUEST', State2};
-
-'WAIT_FOR_DATA'({data, Message}, #rtsp_connection{bytes_read = BytesRead, socket = Socket} = State) ->
-  NewBytesRead = BytesRead + size(Message),
-  State1 = decode_line(Message, State),
-  inet:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_DATA', State1#rtsp_connection{bytes_read = NewBytesRead}};
-
-
-'WAIT_FOR_DATA'(Message, State) ->
-  ?D({"Message", Message}),
-  {next_state, 'WAIT_FOR_DATA', State}.
+  State#rtsp_connection{rtp_streams = Streams1};
 
 
 % split_params(String) ->
@@ -207,13 +93,7 @@ init([Callback]) ->
 %     [Key, Value] -> {Key, Value}
 %   end end, string:tokens(binary_to_list(String), ";")).
 
-
-handle_request(#rtsp_connection{request = [_Method, _URL], body = Body} = State) ->
-  State1 = run_request(State#rtsp_connection{body = lists:reverse(Body)}),
-  State1#rtsp_connection{request = undefined, content_length = undefined, headers = [], body = [], bytes_read = 0}.
-  
-
-run_request(#rtsp_connection{request = ['ANNOUNCE', _URL], host = Host, body = Body, callback = Callback, headers = Headers} = State) ->
+handle_rtsp_request(#rtsp_connection{host = Host, callback = Callback, headers = Headers} = State, {request, 'ANNOUNCE', _URL, Headers, Body}) ->
   Path = path(State),
   Streams = sdp:decode(Body),
   case Callback:announce(Host, Path, Streams, Headers) of
@@ -223,22 +103,22 @@ run_request(#rtsp_connection{request = ['ANNOUNCE', _URL], host = Host, body = B
   end;
   
 
-run_request(#rtsp_connection{request = ['OPTIONS', _URL]} = State) ->
+handle_rtsp_request(#rtsp_connection{request = ['OPTIONS', _URL]} = State) ->
   reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
 
-run_request(#rtsp_connection{request = ['RECORD', _URL]} = State) ->
+handle_rtsp_request(#rtsp_connection{request = ['RECORD', _URL]} = State) ->
   reply(State, "200 OK", []);
 
-run_request(#rtsp_connection{request = ['PAUSE', _URL]} = State) ->
+handle_rtsp_request(#rtsp_connection{request = ['PAUSE', _URL]} = State) ->
   reply(State, "200 OK", []);
 
-run_request(#rtsp_connection{request = ['TEARDOWN', _URL], media = Media, host = Host} = State) ->
+handle_rtsp_request(#rtsp_connection{request = ['TEARDOWN', _URL], media = Media, host = Host} = State) ->
   % Path = path(State),
   % Media = media_provider:find(Host, Path),
   Media ! stop,
   reply(State, "200 OK", []);
 
-run_request(#rtsp_connection{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
+handle_rtsp_request(#rtsp_connection{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
   {match, [_, HostPort, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
   TrackId = list_to_integer(TrackIdS),
@@ -282,7 +162,7 @@ run_request(#rtsp_connection{request = ['SETUP', URL], headers = Headers, stream
   ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State1#rtsp_connection{session_id = 42}, "200 OK", ReplyHeaders);
 
-run_request(#rtsp_connection{request = [_Method, _URL]} = State) ->
+handle_rtsp_request(#rtsp_connection{request = [_Method, _URL]} = State) ->
   reply(State, "200 OK", []).
   
 
