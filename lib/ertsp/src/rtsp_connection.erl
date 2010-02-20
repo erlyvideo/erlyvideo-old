@@ -73,7 +73,7 @@ handle_cast({socket_ready, Socket}, State) ->
   {ok, {IP, Port}} = inet:peername(Socket),
   {noreply, State#rtsp_connection{socket=Socket, addr=IP, port = Port}}.
 
-handle_info({tcp_closed, Socket}, State) ->
+handle_info({tcp_closed, _Socket}, State) ->
   {stop, normal, State};
 
 handle_info(timeout, State) ->
@@ -111,31 +111,36 @@ hostpath(URL) ->
   {match, [_, HostPort, Path]} = re:run(URL, Re, [{capture, all, binary}]),
   {ems:host(HostPort), Path}.
   
+seq(Headers) ->
+  proplists:get_value('Cseq', Headers, 1).
 
 handle_rtsp_request(#rtsp_connection{callback = Callback} = State, {request, 'ANNOUNCE', URL, Headers, Body}) ->
   Streams = sdp:decode(Body),
   {Host, Path} = hostpath(URL),
   case Callback:announce(Host, Path, Streams, Headers) of
-    {ok, Media, NewStreams} -> reply(State#rtsp_connection{media = Media, streams = NewStreams}, "200 OK", []);
-    {error, not_authed} -> reply(State, "401 Authorization Required", []);
-    {error, _Reason} -> reply(State, "500 Server error", [])
+    {ok, Media, NewStreams} -> 
+      reply(State#rtsp_connection{media = Media, streams = NewStreams}, "200 OK", [{'Cseq', seq(Headers)}]);
+    {error, not_authed} -> 
+      reply(State, "401 Authorization Required", [{'Cseq', seq(Headers)}]);
+    {error, _Reason} -> 
+      reply(State, "500 Server error", [{'Cseq', seq(Headers)}])
   end;
   
 
-handle_rtsp_request(State, {request, 'OPTIONS', _, _, _}) ->
-  reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
+handle_rtsp_request(State, {request, 'OPTIONS', _, Headers, _}) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}, {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
 
-handle_rtsp_request(State, {request, 'RECORD', _, _, _}) ->
-  reply(State, "200 OK", []);
+handle_rtsp_request(State, {request, 'RECORD', _, Headers, _}) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 
-handle_rtsp_request(State, {request, 'PAUSE', _, _, _}) ->
-  reply(State, "200 OK", []);
+handle_rtsp_request(State, {request, 'PAUSE', _, Headers, _}) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 
-handle_rtsp_request(#rtsp_connection{media = Media} = State, {request, 'TEARDOWN', _URL, _, _}) ->
+handle_rtsp_request(#rtsp_connection{media = Media} = State, {request, 'TEARDOWN', _URL, Headers, _}) ->
   % Path = path(State),
   % Media = media_provider:find(Host, Path),
   Media ! stop,
-  reply(State, "200 OK", []);
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 
 handle_rtsp_request(#rtsp_connection{streams = Streams, media = Media} = State, {request, 'SETUP', URL, Headers, _}) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
@@ -178,18 +183,17 @@ handle_rtsp_request(#rtsp_connection{streams = Streams, media = Media} = State, 
       NewStreams1 = setelement(RTCP+1, NewStreams, {rtcp, RTP}),
       State#rtsp_connection{rtp_streams = NewStreams1}
   end,
-  ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
+  ReplyHeaders = [{"Transport", TransportReply},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State1#rtsp_connection{session_id = 42}, "200 OK", ReplyHeaders);
 
-handle_rtsp_request(State, {request, _Method, _URL, _Headers, _Body}) ->
-  reply(State, "200 OK", []).
+handle_rtsp_request(State, {request, _Method, _URL, Headers, _Body}) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]).
   
 
-reply(#rtsp_connection{socket = Socket, sequence = Sequence, session_id = SessionId} = State, Code, Headers) ->
-  Headers1 = [{'Cseq', Sequence} | Headers],
+reply(#rtsp_connection{socket = Socket, session_id = SessionId} = State, Code, Headers) ->
   Headers2 = case SessionId of
-    undefined -> Headers1;
-    _ -> [{'Session', SessionId} | Headers1]
+    undefined -> Headers;
+    _ -> [{'Session', SessionId} | Headers]
   end,
   ReplyList = lists:map(fun binarize_header/1, Headers2),
   Reply = iolist_to_binary(["RTSP/1.0 ", Code, <<"\r\n">>, ReplyList, <<"\r\n">>]),
