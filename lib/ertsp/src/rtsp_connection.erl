@@ -2,6 +2,9 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(rtsp_socket).
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include_lib("ertsp/include/rtsp.hrl").
+
 % -include("../include/rtsp.hrl").
 % -include("../../../include/ems.hrl").
 % -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
@@ -26,6 +29,7 @@
   url_re,
   session_id,
   streams,
+  sequence = 0,
   buffer = <<>>,
   rtp_streams = {undefined, undefined, undefined, undefined},
   media,
@@ -34,10 +38,10 @@
 
 
 start_link(Callback) ->
-  gen_fsm:start_link(?MODULE, [Callback], []).
+  rtsp_socket:start_link(?MODULE, [Callback]).
 
 set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
-    gen_server:cast(Pid, {socket_ready, Socket}).
+  gen_server:cast(Pid, {socket_ready, Socket}).
 
 %%-------------------------------------------------------------------------
 %% Func: init/1
@@ -67,10 +71,17 @@ init([Callback]) ->
 handle_cast({socket_ready, Socket}, State) ->
   inet:setopts(Socket, [{active, once}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
-  {noreply, State#rtsp_connection{socket=Socket, addr=IP, port = Port}, ?TIMEOUT}.
+  {noreply, State#rtsp_connection{socket=Socket, addr=IP, port = Port}}.
+
+handle_info({tcp_closed, Socket}, State) ->
+  {stop, normal, State};
 
 handle_info(timeout, State) ->
   {stop, normal, State}.
+  
+
+handle_call(Call, _From, State) ->
+  {stop, {unknown_call, Call}, State}.
 
 handle_rtp_packet(#rtsp_connection{rtp_streams = Streams} = State, {rtp, ChannelId, RTP}) ->
   Streams1 = case element(ChannelId+1, Streams) of
@@ -84,8 +95,10 @@ handle_rtp_packet(#rtsp_connection{rtp_streams = Streams} = State, {rtp, Channel
     undefined ->
       Streams
   end,
-  State#rtsp_connection{rtp_streams = Streams1};
+  State#rtsp_connection{rtp_streams = Streams1}.
 
+handle_rtsp_response(State, _Response) ->
+  State.
 
 % split_params(String) ->
 %   lists:map(fun(Opt) -> case string:tokens(Opt, "=") of
@@ -93,32 +106,38 @@ handle_rtp_packet(#rtsp_connection{rtp_streams = Streams} = State, {rtp, Channel
 %     [Key, Value] -> {Key, Value}
 %   end end, string:tokens(binary_to_list(String), ";")).
 
-handle_rtsp_request(#rtsp_connection{host = Host, callback = Callback, headers = Headers} = State, {request, 'ANNOUNCE', _URL, Headers, Body}) ->
-  Path = path(State),
+hostpath(URL) ->
+  {ok, Re} = re:compile("rtsp://([^/]+)/(.*)$"),
+  {match, [_, HostPort, Path]} = re:run(URL, Re, [{capture, all, binary}]),
+  {ems:host(HostPort), Path}.
+  
+
+handle_rtsp_request(#rtsp_connection{callback = Callback} = State, {request, 'ANNOUNCE', URL, Headers, Body}) ->
   Streams = sdp:decode(Body),
+  {Host, Path} = hostpath(URL),
   case Callback:announce(Host, Path, Streams, Headers) of
     {ok, Media, NewStreams} -> reply(State#rtsp_connection{media = Media, streams = NewStreams}, "200 OK", []);
     {error, not_authed} -> reply(State, "401 Authorization Required", []);
-    {error, Reason} -> reply(State, "500 Server error", [])
+    {error, _Reason} -> reply(State, "500 Server error", [])
   end;
   
 
-handle_rtsp_request(#rtsp_connection{request = ['OPTIONS', _URL]} = State) ->
+handle_rtsp_request(State, {request, 'OPTIONS', _, _, _}) ->
   reply(State, "200 OK", [{'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
 
-handle_rtsp_request(#rtsp_connection{request = ['RECORD', _URL]} = State) ->
+handle_rtsp_request(State, {request, 'RECORD', _, _, _}) ->
   reply(State, "200 OK", []);
 
-handle_rtsp_request(#rtsp_connection{request = ['PAUSE', _URL]} = State) ->
+handle_rtsp_request(State, {request, 'PAUSE', _, _, _}) ->
   reply(State, "200 OK", []);
 
-handle_rtsp_request(#rtsp_connection{request = ['TEARDOWN', _URL], media = Media, host = Host} = State) ->
+handle_rtsp_request(#rtsp_connection{media = Media} = State, {request, 'TEARDOWN', _URL, _, _}) ->
   % Path = path(State),
   % Media = media_provider:find(Host, Path),
   Media ! stop,
   reply(State, "200 OK", []);
 
-handle_rtsp_request(#rtsp_connection{request = ['SETUP', URL], headers = Headers, streams = Streams, media = Media} = State) ->
+handle_rtsp_request(#rtsp_connection{streams = Streams, media = Media} = State, {request, 'SETUP', URL, Headers, _}) ->
   {ok, Re} = re:compile("rtsp://([^/]*)/(.*)/trackid=(\\d+)"),
   {match, [_, HostPort, _Path, TrackIdS]} = re:run(URL, Re, [{capture, all, list}]),
   TrackId = list_to_integer(TrackIdS),
@@ -162,16 +181,8 @@ handle_rtsp_request(#rtsp_connection{request = ['SETUP', URL], headers = Headers
   ReplyHeaders = [{"Transport", TransportReply},  {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State1#rtsp_connection{session_id = 42}, "200 OK", ReplyHeaders);
 
-handle_rtsp_request(#rtsp_connection{request = [_Method, _URL]} = State) ->
+handle_rtsp_request(State, {request, _Method, _URL, _Headers, _Body}) ->
   reply(State, "200 OK", []).
-  
-
-decode_line(Message, #rtsp_connection{rtsp_re = RtspRe, body = Body} = State) ->
-  {match, [_, Key, Value]} = re:run(Message, RtspRe, [{capture, all, binary}]),
-  io:format("[RTSP]  ~s: ~s~n", [Key, Value]),
-  State#rtsp_connection{body = [{Key, Value} | Body]}.
-
-  
   
 
 reply(#rtsp_connection{socket = Socket, sequence = Sequence, session_id = SessionId} = State, Code, Headers) ->
@@ -202,96 +213,5 @@ binarize_header([Key, Value]) ->
   [Key, <<" ">>, Value, <<"\r\n">>].
   
   
-path(#rtsp_connection{url_re = UrlRe, request = [_, URL]}) ->
-  {match, [_, _Host, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
-  Path.
   
-  
-
-%%-------------------------------------------------------------------------
-%% Func: handle_event/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
-handle_event(Event, StateName, StateData) ->
-  {stop, {StateName, undefined_event, Event}, StateData}.
-
-
-%%-------------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
-handle_sync_event(Event, _From, StateName, StateData) ->
-   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request]),
-  {stop, {StateName, undefined_event, Event}, StateData}.
-
-%%-------------------------------------------------------------------------
-%% Func: handle_info/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
-handle_info({tcp, _Socket, Bin}, 'WAIT_FOR_HEADERS' = StateName, State) ->
-  case erlang:decode_packet(httph_bin, <<Bin/binary, "pad">>, []) of
-    {ok, {http_header, _, Name, _, Value}, <<"pad">>} -> 
-      Key = case Name of
-        _ when is_binary(Name) -> binary_to_existing_atom(Name, utf8);
-        _ when is_atom(Name) -> Name
-      end,
-      ?MODULE:StateName({header, Key, Value}, State);
-    {ok, http_eoh, <<"pad">>} -> ?MODULE:StateName(end_of_headers, State)
-  end;
-
-handle_info({tcp, _Socket, Bin}, StateName, State) ->
-  ?MODULE:StateName({data, Bin}, State);
-
-% handle_info({http, _Socket, {http_header, _, Name, _, Value}}, StateName, State) ->
-%   ?MODULE:StateName({header, Name, Value}, State);
-% 
-% handle_info({http, _Socket, http_eoh}, StateName, State) ->
-%   ?MODULE:StateName(end_of_headers, State);
-
-
-handle_info({tcp_closed, Socket}, _StateName, #rtsp_connection{socket=Socket, addr=Addr, port = Port} = StateData) ->
-  error_logger:info_msg("~p Client ~p:~p disconnected.\n", [self(), Addr, Port]),
-  {stop, normal, StateData};
-
-handle_info(timeout, StateName, StateData) ->
-  ?D({"Stop due timeout", StateName, StateData}),
-  {stop, normal, StateData};
-
-
-handle_info(_Info, StateName, StateData) ->
-  ?D({"Some info handled", _Info, StateName, StateData}),
-  {noreply, StateName, StateData}.
-
-
-%%-------------------------------------------------------------------------
-%% Func: terminate/3
-%% Purpose: Shutdown the fsm
-%% Returns: any
-%% @private
-%%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtsp_connection{socket=Socket}) ->
-  (catch gen_tcp:close(Socket)),
-  ok.
-
-
-%%-------------------------------------------------------------------------
-%% Func: code_change/4
-%% Purpose: Convert process state when code is changed
-%% Returns: {ok, NewState, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
-code_change(_OldVsn, StateName, StateData, _Extra) ->
-  {ok, StateName, StateData}.
 
