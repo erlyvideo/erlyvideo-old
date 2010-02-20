@@ -13,6 +13,8 @@
 -record(rtsp_socket, {
   buffer = <<>>,
   module,
+  sdp_config = [],
+  rtp_streams = {undefined, undefined, undefined, undefined},
   state
 }).
 
@@ -116,16 +118,59 @@ handle_packet(#rtsp_socket{buffer = Data, state = State, module = Module} = Sock
     {more, Data} ->
       Socket;
     {ok, {rtp, _Channel, _} = RTP, Rest} ->
-      NewState = Module:handle_rtp_packet(State, RTP),
-      handle_packet(Socket#rtsp_socket{buffer = Rest, state = NewState});
-    {ok, {response, _Code, _Message, _Headers, _Body} = Response, Rest} ->
+      Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
+      handle_packet(Socket1);
+    {ok, {response, _Code, _Message, Headers, Body} = Response, Rest} ->
       NewState = Module:handle_rtsp_response(State, Response),
-      handle_packet(Socket#rtsp_socket{buffer = Rest, state = NewState});
-    {ok, {request, _Method, _URL, _Headers, _Body} = Request, Rest} ->
+      Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest, state = NewState}, Headers, Body),
+      handle_packet(Socket1);
+    {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
       NewState = Module:handle_rtsp_request(State, Request),
-      handle_packet(Socket#rtsp_socket{buffer = Rest, state = NewState})
+      Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest, state = NewState}, Headers, Body),
+      handle_packet(Socket1)
   end.
 
+
+configure_rtp(Socket, _Headers, undefined) ->
+  Socket;
+  
+configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, module = Module, state = State} = Socket, Headers, Body) ->
+  case proplists:get_value('Content-Type', Headers) of
+    <<"application/sdp">> ->
+      {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams),
+
+      State1 = lists:foldl(fun(Frame, ClientState) ->
+        Module:handle_rtp_packet(ClientState, Frame)
+      end, State, Frames),
+      
+      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1, state = State1};
+    undefined ->
+      Socket;
+    Else ->
+      ?D({"Unknown body type", Else}),
+      Socket
+  end.
+
+handle_rtp(#rtsp_socket{rtp_streams = Streams, module = Module, state = State} = Socket, {rtp, Channel, Packet}) ->
+  {Streams1, NewState} = case element(Channel+1, Streams) of
+    {rtcp, RTPNum} ->
+      {Type, RtpState} = element(RTPNum+1, Streams),
+      {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
+      {setelement(RTPNum+1, Streams, {Type, RtpState1}), State};
+    {Type, RtpState} ->
+      % ?D({"Decode rtp on", Channel, Type}),
+      {RtpState1, Frames} = rtp_server:decode(Type, RtpState, Packet),
+      % ?D({"Frame", Frames}),
+      State1 = lists:foldl(fun(Frame, ClientState) ->
+        % ?D({"F", Frame}),
+        Module:handle_rtp_packet(ClientState, Frame)
+      end, State, Frames),
+      {setelement(Channel+1, Streams, {Type, RtpState1}), State1};
+    undefined ->
+      {Streams, State}
+  end,
+  Socket#rtsp_socket{rtp_streams = Streams1, state = NewState}.
+      
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any

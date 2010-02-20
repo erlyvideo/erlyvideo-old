@@ -85,12 +85,36 @@ configure(Body, RTPStreams) ->
   
   RTP = 0,
   RTCP = 1,
-  Streams1 = ems_rtsp:config_media(self(), Streams),
+  {Streams1, Frames} = config_media(Streams),
   Stream = hd(Streams1),
   RtpConfig = rtp_server:init(Stream, self()),
   RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
   RtpStreams2 = setelement(RTCP+1, RtpStreams1, {rtcp, RTP}),  
-  {Streams1, RtpStreams2}.
+  {Streams1, RtpStreams2, Frames}.
+
+
+config_media(Streams) -> config_media(Streams, [], []).
+
+config_media([], Output, Frames) -> {Output, Frames};
+config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
+  {H264, _} = h264:decode_nal(SPS, #h264{}),
+  {H264_2, Configs} = h264:decode_nal(PPS, H264),
+  config_media(Streams, [Stream#rtsp_stream{config = H264_2} | Output], Configs ++ Frames);
+
+config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) ->
+  AudioConfig = #video_frame{       
+   	type          = audio,
+   	decoder_config = true,
+		dts           = 0,
+		pts           = 0,
+		body          = Config,
+	  codec_id	    = aac,
+	  sound_type	  = stereo,
+	  sound_size	  = bit16,
+	  sound_rate	  = rate44
+	},
+
+  config_media(Streams, [Stream | Output], [AudioConfig | Frames]).
 
 
 init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
@@ -182,11 +206,11 @@ decode(rtcp, State, <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, _StreamId:32, NTP:
   end,
   State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
   State3 = setelement(#base_rtp.base_timestamp, State2, round(Timecode / ClockMap)),
-  setelement(#base_rtp.timecode, State3, Timecode);
+  {setelement(#base_rtp.timecode, State3, Timecode), []};
   % State3.
   
 decode(_, State, _Bin) when element(#base_rtp.base_timestamp, State) == undefined ->
-  State;
+  {State, []};
 
 decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
   ?MODULE:Type(State, {data, Data, Sequence, Timecode}).
@@ -206,20 +230,20 @@ convert_timecode(State) ->
   
   
 audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, _Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData});
+  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData}, []);
   
 audio(#audio{media = _Media, audio_data = AudioData} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}).
+  unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []).
 
 
   
-unpack_audio_units(#audio{audio_headers = <<>>} = Audio) ->
-  Audio#audio{audio_headers = <<>>, audio_data = <<>>};
+unpack_audio_units(#audio{audio_headers = <<>>} = Audio, Frames) ->
+  {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
   
-unpack_audio_units(#audio{audio_data = <<>>} = Audio) ->
-  Audio#audio{audio_headers = <<>>, audio_data = <<>>};
+unpack_audio_units(#audio{audio_data = <<>>} = Audio, Frames) ->
+  {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
   
-unpack_audio_units(#audio{media = Media, clock_map = ClockMap, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode} = Audio) ->
+unpack_audio_units(#audio{clock_map = ClockMap, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode} = Audio, Frames) ->
   DTS = convert_timecode(Audio),
   % ?D({"Audio", Timecode, Timestamp}),
   case AudioData of
@@ -234,10 +258,9 @@ unpack_audio_units(#audio{media = Media, clock_map = ClockMap, audio_headers = <
     	  sound_size	  = bit16,
     	  sound_rate	  = rate44
       },
-      Media ! AudioFrame,
-      unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024});
+      unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024}, [AudioFrame | Frames]);
     _ ->
-      Audio
+      {Audio, lists:reverse(Frames)}
   end.
     
 video(#video{timecode = undefined} = Video, {data, _, _, Timecode} = Packet) ->
@@ -253,23 +276,23 @@ video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when 
 
 video(#video{h264 = H264, buffer = Buffer, timecode = Timecode} = Video, {data, Body, Sequence, Timecode}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
-  Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames};
+  {Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames}, []};
   
 video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, Body, Sequence, NewTimecode}) ->
 
-  Video1 = case Broken of
-    true -> ?D({"Drop broken video frame", Timecode}), Video;
+  {Video1, Frames} = case Broken of
+    true -> ?D({"Drop broken video frame", Timecode}), {Video, []};
     false -> send_video(Video)
   end,
-  {H264_1, Frames} = h264:decode_nal(Body, H264),
+  {H264_1, NewFrames} = h264:decode_nal(Body, H264),
 
-  Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = Frames, timecode = NewTimecode}.
+  {Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = NewFrames, timecode = NewTimecode}, Frames}.
  
 send_video(#video{synced = false, buffer = [#video_frame{frame_type = frame} | _]} = Video) ->
-  Video#video{buffer = []};
+  {Video#video{buffer = []}, []};
 
 send_video(#video{buffer = []} = Video) ->
-  Video;
+  {Video, []};
 
 send_video(#video{media = Media, buffer = Frames, timecode = Timecode} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
@@ -278,8 +301,8 @@ send_video(#video{media = Media, buffer = Frames, timecode = Timecode} = Video) 
   end, #video_frame{body = <<>>}, Frames),
   Timestamp = convert_timecode(Video),
   % ?D({"Video", Timecode, Timestamp}),
-  case Frame of
-    undefined -> ok;
-    _ -> Media ! Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}
+  Frame1 = case Frame of
+    undefined -> [];
+    _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}]
   end,
-  Video#video{synced = true, buffer = []}.
+  {Video#video{synced = true, buffer = []}, Frame1}.

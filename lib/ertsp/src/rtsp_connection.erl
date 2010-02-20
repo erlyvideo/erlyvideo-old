@@ -21,19 +21,21 @@
 
 -record(rtsp_connection, {
   socket,
-  host,
-  addr,
-  port,
-  request_re,
-  rtsp_re,
-  url_re,
-  session_id,
+  url,
+  options,
+  seq = 1,
+  method,
+  audio_config = undefined,
+  video_config = undefined,
   streams,
-  sequence = 0,
-  buffer = <<>>,
   rtp_streams = {undefined, undefined, undefined, undefined},
+  session,
+  clients = [],
+  
   media,
-  callback
+  callback,
+  addr,
+  port
 }).
 
 
@@ -54,10 +56,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 init([Callback]) ->
   process_flag(trap_exit, true),
   random:seed(now()),
-  {ok, RequestRe} = re:compile("([^ ]+) ([^ ]+) (\\w+)/([\\d]+\\.[\\d]+)"),
-  {ok, RtspRe} = re:compile("(\\w)=(.*)\\r\\n$"),
-  {ok, UrlRe} = re:compile("rtsp://([^/]+)/(.*)$"),
-  {ok, #rtsp_connection{request_re = RequestRe, rtsp_re = RtspRe, url_re = UrlRe, callback = Callback}}.
+  {ok, #rtsp_connection{callback = Callback}}.
 
 
 
@@ -184,13 +183,13 @@ handle_rtsp_request(#rtsp_connection{streams = Streams, media = Media} = State, 
       State#rtsp_connection{rtp_streams = NewStreams1}
   end,
   ReplyHeaders = [{"Transport", TransportReply},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
-  reply(State1#rtsp_connection{session_id = 42}, "200 OK", ReplyHeaders);
+  reply(State1#rtsp_connection{session = 42}, "200 OK", ReplyHeaders);
 
 handle_rtsp_request(State, {request, _Method, _URL, Headers, _Body}) ->
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]).
   
 
-reply(#rtsp_connection{socket = Socket, session_id = SessionId} = State, Code, Headers) ->
+reply(#rtsp_connection{socket = Socket, session = SessionId} = State, Code, Headers) ->
   Headers2 = case SessionId of
     undefined -> Headers;
     _ -> [{'Session', SessionId} | Headers]

@@ -18,10 +18,6 @@
   method,
   audio_config = undefined,
   video_config = undefined,
-  content_length = 0,
-  buffer = <<>>,
-  streams,
-  rtp_streams = {undefined, undefined, undefined, undefined},
   session,
   clients = []
 }).
@@ -150,37 +146,22 @@ handle_info(stop, #rtsp_client{socket = Socket} = TSLander) ->
   ?D({"RTSP stopped"}),
   {stop, normal, TSLander#rtsp_client{socket = undefined}};
 
-handle_info(#video_frame{} = Frame, RTSP) ->
-  send_frame(Frame, RTSP),
-  {noreply, RTSP};
-
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info, State}),
   {noreply, State}.
 
 
-handle_rtp_packet(#rtsp_client{rtp_streams = Streams} = State, {rtp, Channel, Packet}) ->
-  Streams1 = case element(Channel+1, Streams) of
-    {rtcp, RTPNum} ->
-      {Type, RtpState} = element(RTPNum+1, Streams),
-      RtpState1 = rtp_server:decode(rtcp, RtpState, Packet),
-      setelement(RTPNum+1, Streams, {Type, RtpState1});
-    {Type, RtpState} ->
-      RtpState1 = rtp_server:decode(Type, RtpState, Packet),
-      setelement(Channel+1, Streams, {Type, RtpState1});
-    undefined ->
-      Streams
-  end,
-  State#rtsp_client{rtp_streams = Streams1}.
+handle_rtp_packet(#rtsp_client{clients = Clients} = State, #video_frame{} = Frame) ->
+  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  State.
 
 
-handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe, rtp_streams = RTPStreams} = RTSP, 
-               {response, 200, _, _Headers, Body}) ->
-  {Streams1, RtpStreams1} = rtp_server:configure(Body, RTPStreams),
-  
+
+handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, 
+               {response, 200, _, _Headers, _Body}) ->
   gen_tcp:send(Socket, io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast\r\n\r\n", [URL, Seq + 1])),
   % ?D({"Parsed streams", RtpStreams1}),
-  RTSP#rtsp_client{streams = Streams1, method = setup, seq = Seq + 1, rtp_streams = RtpStreams1};
+  RTSP#rtsp_client{method = setup, seq = Seq + 1};
   
   
 handle_rtsp_response(#rtsp_client{url = URL, method = setup, socket = Socket, seq = Seq}=RTSP, {response, 200, _, Headers, _}) ->
@@ -201,8 +182,4 @@ handle_rtsp_response(RTSP, {response, 200, _, _, _} = R) ->
 
 handle_rtsp_request(RTSP, _Request) ->
   RTSP.
-
-send_frame(Frame, #rtsp_client{clients = Clients} = TSLander) ->
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
-  TSLander.
 
