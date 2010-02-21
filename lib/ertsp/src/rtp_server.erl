@@ -61,7 +61,7 @@
 %% gen_server callbacks
 
 -export([video/2, audio/2, decode/3, init/2, get_socket/3, wait_data/1]).
--export([configure/2]).
+-export([configure/2, configure/3]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -81,17 +81,25 @@ start_link(Media, #rtsp_stream{type = Type} = Stream)  ->
 
 
 configure(Body, RTPStreams) ->
+  configure(Body, RTPStreams, self()).
+
+configure(Body, RTPStreams, Media) ->
   Streams = sdp:decode(Body),
   
-  RTP = 0,
-  RTCP = 1,
   {Streams1, Frames} = config_media(Streams),
-  Stream = hd(Streams1),
-  RtpConfig = rtp_server:init(Stream, self()),
-  RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
-  RtpStreams2 = setelement(RTCP+1, RtpStreams1, {rtcp, RTP}),  
+  
+  RtpStreams2 = configure(Streams1, RTPStreams, Media, 0),
   {Streams1, RtpStreams2, Frames}.
 
+
+configure([], RTPStreams, _, _) -> 
+  RTPStreams;
+
+configure([Stream | Streams], RTPStreams, Media, RTP) ->
+  RtpConfig = rtp_server:init(Stream, Media),
+  RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
+  RTPStreams2 = setelement(RTP+2, RtpStreams1, {rtcp, RTP}),
+  configure(Streams, RTPStreams2, Media, RTP+2).
 
 config_media(Streams) -> config_media(Streams, [], []).
 

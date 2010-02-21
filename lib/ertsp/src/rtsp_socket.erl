@@ -20,7 +20,8 @@
 
 -export([behaviour_info/1]).
 behaviour_info(callbacks) -> [{init, 1}, {handle_call, 3}, {handle_cast, 2}, {handle_info, 2}, 
-                              {handle_rtp_packet, 2}, {handle_rtsp_response, 2}, {handle_rtsp_request, 2}];
+                              {handle_rtp_packet, 2}, {handle_rtsp_response, 2}, {handle_rtsp_request, 2},
+                              {media, 1}];
 behaviour_info(_Other) -> undefined.
 
 
@@ -137,7 +138,8 @@ configure_rtp(Socket, _Headers, undefined) ->
 configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, module = Module, state = State} = Socket, Headers, Body) ->
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
-      {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams),
+      {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Module:media(State)),
+      ?D({"Autoconfiguring RTP", SDPConfig, RtpStreams1}),
 
       State1 = lists:foldl(fun(Frame, ClientState) ->
         Module:handle_rtp_packet(ClientState, Frame)

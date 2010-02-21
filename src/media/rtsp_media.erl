@@ -26,7 +26,9 @@
 
 %% rtsp_socket callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
--export([handle_rtsp_response/2, handle_rtp_packet/2, handle_rtsp_request/2]).
+-export([handle_rtsp_response/2, handle_rtp_packet/2, handle_rtsp_request/2, media/1]).
+
+media(_) -> self().
 
 % {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, http_bin}, {active, false}], 1000),
 % gen_tcp:send(Socket, "GET / HTTP/1.0\r\n\r\n"),

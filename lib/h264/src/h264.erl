@@ -38,6 +38,7 @@ video_config(H264) ->
        	type          = video,
        	decoder_config = true,
     		dts           = 0,
+    		pts           = 0,
     		body          = DecoderConfig,
     		frame_type    = keyframe,
     		codec_id      = avc
