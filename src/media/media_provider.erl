@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, find_or_open/2]).
+-export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, find_or_open/2, register/3]).
 -export([length/1, length/2]). % just for getStreamLength
 
 %% gen_server callbacks
@@ -56,7 +56,9 @@ find(Host, Name) when is_list(Name)->
 
 find(Host, Name) ->
   gen_server:call(name(Host), {find, Name}).
-  
+
+register(Host, Name, Pid) ->
+  gen_server:call(name(Host), {register, Name, Pid}).
 
 entries(Host) ->
   gen_server:call(name(Host), entries).
@@ -166,6 +168,15 @@ handle_call({open, Name}, {_Opener, _Ref}, #media_provider{host = Host} = MediaP
 handle_call({open, Name, Type}, {_Opener, _Ref}, MediaProvider) ->
   {reply, open_media_entry({Name, Type}, MediaProvider), MediaProvider};
 
+handle_call({register, Name, Pid}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  case find_in_cache(Name, MediaProvider) of
+    undefined ->
+      ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+      ?D({"Registering", Name, Pid}),
+      {reply, {ok, {Name, Pid}}, MediaProvider};
+    OldPid ->
+      {reply, {error, {already_set, Name, OldPid}}, MediaProvider}
+  end;
 
 handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   Entries = lists:map(
