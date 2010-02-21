@@ -23,6 +23,13 @@
 * seek it again to the end and wait for end
 * open flv file and repeat previous steps
 
+=== Live recording ===
+
+* open http://localhost:8082
+* press record
+* open in second window new recorded stream and press play
+* video should be seen
+
 === input MPEG TS ===
 
 * start VLC to transcode video to MPEG TS
