@@ -81,7 +81,7 @@ encode(#video_frame{type = video,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
   Time = PTS - DTS,
-	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
@@ -90,13 +90,13 @@ encode(#video_frame{type = video,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
   Time = round(PTS - DTS),
-	<<(flv:video_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
                    	codec_id = CodecId,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:video_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>;
 	
 encode(#video_frame{type = metadata, body = Metadata}) ->
   Metadata.
@@ -104,14 +104,14 @@ encode(#video_frame{type = metadata, body = Metadata}) ->
 
 decode(#video_frame{type = video, dts = DTS} = Frame, 
        <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
-  Frame#video_frame{codec_id = avc, pts = DTS + CTime, body= Body};
+  Frame#video_frame{frame_type = flv:frame_type(FrameType), codec_id = avc, pts = DTS + CTime, body= Body};
 
 decode(#video_frame{type = video, dts = DTS} = Frame, 
        <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
-  Frame#video_frame{codec_id = avc, decoder_config = true, pts = DTS + CTime, body= Body};
+  Frame#video_frame{frame_type = flv:frame_type(FrameType), codec_id = avc, decoder_config = true, pts = DTS + CTime, body= Body};
 
 decode(#video_frame{type = video, dts = DTS} = Frame, <<FrameType:4, CodecId:4, Body/binary>>) ->
-  Frame#video_frame{codec_id = flv:video_codec(CodecId), pts = DTS, body = Body};
+  Frame#video_frame{frame_type = flv:frame_type(FrameType), codec_id = flv:video_codec(CodecId), pts = DTS, body = Body};
 
 decode(#video_frame{type = audio} = Frame, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
   Frame#video_frame{codec_id = aac, sound_type = flv:audio_type(SoundType), 

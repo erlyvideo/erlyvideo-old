@@ -46,7 +46,7 @@
 -export([init/1, read_frame/2, codec_config/2, header/0, header/1, seek/2, first/1]).
 -behaviour(gen_format).
 
--export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, video_type/1]).
+-export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1]).
 
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
 
@@ -88,12 +88,12 @@ video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
 video_codec(?FLV_VIDEO_CODEC_SORENSEN) -> sorensen;
 video_codec(?FLV_VIDEO_CODEC_AVC) -> avc.
 
-video_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
-video_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
-video_type(disposable) -> ?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME;
-video_type(?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME) -> disposable;
-video_type(?FLV_VIDEO_FRAME_TYPEINTER_FRAME) -> frame;
-video_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
+frame_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
+frame_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
+frame_type(disposable) -> ?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME;
+frame_type(?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME) -> disposable;
+frame_type(?FLV_VIDEO_FRAME_TYPEINTER_FRAME) -> frame;
+frame_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
 
 -record(flv_tag, {
