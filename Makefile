@@ -100,7 +100,8 @@ archive: ../erlyvideo-$(VERSION).tgz
 	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='*.log' --exclude=build --exclude=erlyvideo/debian --exclude=erlyvideo/log --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
 
 debian: all
-	#dpkg-buildpackage
+	dpkg-buildpackage
+	linux32 dpkg-buildpackage -ai386
 	cp ../erlyvideo_$(VERSION)_*.deb ../erlyvideo_$(VERSION).dsc $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
