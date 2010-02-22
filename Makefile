@@ -1,4 +1,4 @@
-VERSION=1.5.1
+VERSION=1.5.3
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 ERL_ROOT=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`

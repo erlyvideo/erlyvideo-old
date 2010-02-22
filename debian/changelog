@@ -1,3 +1,9 @@
+erlyvideo (1.5.3) unstable; urgency=low
+
+  * RTSP refactoring. Can read cameras
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 22 Feb 2010 12:50:35 +0300
+
 erlyvideo (1.5.2) unstable; urgency=low
 
   * Added win32 installer
