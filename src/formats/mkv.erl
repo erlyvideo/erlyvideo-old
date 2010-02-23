@@ -53,19 +53,24 @@ hex(N) when N >= 10, N < 16 ->
   
 open_file(Path) ->
   {ok, File} = file:open(Path, [read, binary]),
-  
-  {ok, Data1} = file:pread(File, 0, 16),
-  {tag, ClassId, Size, Length} = next_tag(Data1),
-  {ok, Bin1} = file:pread(File, Length, Size),
-  ?D({"Tag1", ClassId, Size, Length, Bin1}),
-  
-  ?D(read_container(Bin1)),
+  Offset1 = read_tag_from_file(File, 0),
+  read_tag_from_file(File, Offset1),
   
   % {ok, Data1} = file:pread(File, 0, 16),
   % {tag, ClassId, Size, Length} = next_tag(Data1),
   % ?D({"Tag1", int_to_hex(ClassId), Size, Length}),
   
   file:close(File).
+  
+read_tag_from_file(File, Offset) ->
+  {ok, Data} = file:pread(File, Offset, 16),
+  {tag, ClassId, Size, Length} = next_tag(Data),
+  ?D({ClassId, Size, Length}),
+  % {ok, Bin} = file:pread(File, Length, Size),
+  % ?D({"Tag1", ClassId, Size, Length, Bin}),
+  % 
+  % ?D(read_container(Bin1)),
+  Offset + Size + Length.
 
 % match_int(#video_player{pos = Pos, device = IoDev}, Bytes) ->
 %   {ok, Data} = file:pread(IoDev, Pos, Bytes),
@@ -101,6 +106,8 @@ tag(16#42F2) -> ebml_max_id_length;
 tag(16#4282) -> doctype;
 tag(16#4287) -> doctype_version;
 tag(16#4285) -> doctype_read_version;
+
+tag(16#18538067) -> segment;
 tag(ClassId) -> int_to_hex(ClassId).
 
 next_tag(Binary) ->
