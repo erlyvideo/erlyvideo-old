@@ -53,9 +53,18 @@ hex(N) when N >= 10, N < 16 ->
   
 open_file(Path) ->
   {ok, File} = file:open(Path, [read, binary]),
+  
   {ok, Data1} = file:pread(File, 0, 16),
   {tag, ClassId, Size, Length} = next_tag(Data1),
-  ?D({"Tag", int_to_hex(ClassId), Size, Length}),
+  {ok, Bin1} = file:pread(File, Length, Size),
+  ?D({"Tag1", ClassId, Size, Length, Bin1}),
+  
+  ?D(read_container(Bin1)),
+  
+  % {ok, Data1} = file:pread(File, 0, 16),
+  % {tag, ClassId, Size, Length} = next_tag(Data1),
+  % ?D({"Tag1", int_to_hex(ClassId), Size, Length}),
+  
   file:close(File).
 
 % match_int(#video_player{pos = Pos, device = IoDev}, Bytes) ->
@@ -68,20 +77,51 @@ open_file(Path) ->
 %   ?D({"Int", Int, WholeInt}),
 %   {ok, Int, Bytes}.
 %   
-value(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value, 1, Rest};
-value(<<0:1, 1:1, Value:(6+8*1), Rest/binary>>) -> {Value, 2, Rest};
-value(<<0:2, 1:1, Value:(5+8*2), Rest/binary>>) -> {Value, 3, Rest};
-value(<<0:3, 1:1, Value:(4+8*3), Rest/binary>>) -> {Value, 4, Rest};
-value(<<0:4, 1:1, Value:(3+8*4), Rest/binary>>) -> {Value, 5, Rest};
-value(<<0:5, 1:1, Value:(2+8*5), Rest/binary>>) -> {Value, 6, Rest};
-value(<<0:6, 1:1, Value:(1+8*6), Rest/binary>>) -> {Value, 7, Rest};
-value(<<0:7, 1:1, Value:(0+8*7), Rest/binary>>) -> {Value, 8, Rest}.
+class_id(<<0:3, 1:1, Value:(4+8*3), Rest/binary>>) -> {Value + 16#10000000, 4, Rest};
+class_id(<<0:2, 1:1, Value:(5+8*2), Rest/binary>>) -> {Value + 16#200000, 3, Rest};
+class_id(<<0:1, 1:1, Value:(6+8*1), Rest/binary>>) -> {Value + 16#4000, 2, Rest};
+class_id(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value + 16#80, 1, Rest}.
+
+
+
+data_size(<<0:7, 1:1, Value:(0+8*7), Rest/binary>>) -> {Value, 8, Rest};
+data_size(<<0:6, 1:1, Value:(1+8*6), Rest/binary>>) -> {Value, 7, Rest};
+data_size(<<0:5, 1:1, Value:(2+8*5), Rest/binary>>) -> {Value, 6, Rest};
+data_size(<<0:4, 1:1, Value:(3+8*4), Rest/binary>>) -> {Value, 5, Rest};
+data_size(<<0:3, 1:1, Value:(4+8*3), Rest/binary>>) -> {Value, 4, Rest};
+data_size(<<0:2, 1:1, Value:(5+8*2), Rest/binary>>) -> {Value, 3, Rest};
+data_size(<<0:1, 1:1, Value:(6+8*1), Rest/binary>>) -> {Value, 2, Rest};
+data_size(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value, 1, Rest}.
+
+
+tag(16#1A45DFA3) -> ebml;
+tag(16#4286) -> ebml_version;
+tag(16#42F7) -> ebml_read_version;
+tag(16#42F2) -> ebml_max_id_length;
+tag(16#4282) -> doctype;
+tag(16#4287) -> doctype_version;
+tag(16#4285) -> doctype_read_version;
+tag(ClassId) -> int_to_hex(ClassId).
 
 next_tag(Binary) ->
-  ?D(int_to_hex(binary_to_list(Binary))),
-  {ClassId, Length1, Rest1} = value(Binary),
-  {Size, Length2, _} = value(Rest1),
-  {tag, ClassId, Size, Length1 + Length2}.
+  {ClassId, Length1, Rest1} = class_id(Binary),
+  {Size, Length2, _} = data_size(Rest1),
+  {tag, tag(ClassId), Size, Length1 + Length2}.
+  
+  
+read_container(Binary) -> 
+  read_container(Binary, []).
+  
+read_container(<<>>, Tags) -> 
+  lists:reverse(Tags);
+  
+read_container(Binary, Tags) ->
+  Tag = next_tag(Binary),
+  {tag, _, Size, Length} = Tag,
+  AllLength = (Size + Length),
+  <<_:Length/binary, Body:Size/binary, Rest/binary>> = Binary,
+  ?D({Tag, Body, Rest}),
+  read_container(Rest, [{Tag, Body} | Tags]).
   
 %%
 %% Tests
