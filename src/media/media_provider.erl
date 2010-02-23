@@ -133,7 +133,7 @@ create_player({notfound, Reason}, _) ->
   {notfound, Reason};
   
 create_player(MediaEntry, Options) ->
-  gen_server:call(MediaEntry, {create_player, lists:keymerge(1, Options, [{consumer, self()}])}).
+  gen_server:call(MediaEntry, {create_player, lists:ukeymerge(1, Options, [{consumer, self()}])}).
   
   
 
