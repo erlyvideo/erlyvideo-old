@@ -459,6 +459,11 @@ handle_rtmp_message({#rtmp_socket{consumer = Consumer, pinged = true} = State, #
   Consumer ! {rtmp, self(), Message},
   rtmp_message_sent(State#rtmp_socket{pinged = false, buffer = Rest});
 
+handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, #rtmp_message{type = ping, body = Timestamp} = Message, Rest}) ->
+  Consumer ! {rtmp, self(), Message},
+  send_data(State, #rtmp_message{type = pong, body = Timestamp}),
+  rtmp_message_sent(State#rtmp_socket{buffer = Rest});
+
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
   rtmp_message_sent(State#rtmp_socket{buffer = Rest});
