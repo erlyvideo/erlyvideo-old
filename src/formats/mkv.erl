@@ -1,6 +1,7 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @doc        Matroska file reader
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+%%% Source documentation is here: http://matroska.org/technical/specs/index.html
 %%% @end
 %%%
 %%%
