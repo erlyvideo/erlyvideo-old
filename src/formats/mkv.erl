@@ -36,6 +36,11 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -compile(export_all).
 
+-record(tag, {
+  name,
+  length,
+  size
+}).
 
 int_to_hex(N) when N < 256 ->
   [hex(N div 16), hex(N rem 16)];
@@ -54,8 +59,17 @@ hex(N) when N >= 10, N < 16 ->
   
 open_file(Path) ->
   {ok, File} = file:open(Path, [read, binary]),
-  Offset1 = read_tag_from_file(File, 0),
-  read_tag_from_file(File, Offset1),
+  {EBML, Offset2} = read_tag_from_file(File, 0),
+
+  {ok, EBMLBin} = file:pread(File, 0 + EBML#tag.length, EBML#tag.size),
+  ?D(read_container(EBMLBin)),
+  
+  {Segment, _} = read_tag_from_file(File, Offset2),
+  ?D(Segment),
+  
+  peek_container_in_file(File, Offset2 + Segment#tag.length, Segment#tag.size),
+  % {Tag1, _, Off1} = read_tag_from_file(File, Offset2 + Segment#tag.length),
+  % ?D(Tag1),
   
   % {ok, Data1} = file:pread(File, 0, 16),
   % {tag, ClassId, Size, Length} = next_tag(Data1),
@@ -64,14 +78,21 @@ open_file(Path) ->
   file:close(File).
   
 read_tag_from_file(File, Offset) ->
-  {ok, Data} = file:pread(File, Offset, 16),
-  {tag, ClassId, Size, Length} = next_tag(Data),
-  ?D({ClassId, Size, Length}),
-  % {ok, Bin} = file:pread(File, Length, Size),
-  % ?D({"Tag1", ClassId, Size, Length, Bin}),
-  % 
-  % ?D(read_container(Bin1)),
-  Offset + Size + Length.
+  case file:pread(File, Offset, 12) of
+    {ok, Data} ->
+      Tag = next_tag(Data),
+      {Tag, Offset + Tag#tag.size + Tag#tag.length};
+    eof ->
+      eof
+  end.
+
+
+peek_container_in_file(_, _, 0) -> ok;
+
+peek_container_in_file(File, Offset, Size) ->
+  {Tag, NextOffset} = read_tag_from_file(File, Offset),
+  ?D(Tag),
+  peek_container_in_file(File, NextOffset, Size - Tag#tag.size - Tag#tag.length).
 
 % match_int(#video_player{pos = Pos, device = IoDev}, Bytes) ->
 %   {ok, Data} = file:pread(IoDev, Pos, Bytes),
@@ -100,6 +121,7 @@ data_size(<<0:1, 1:1, Value:(6+8*1), Rest/binary>>) -> {Value, 2, Rest};
 data_size(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value, 1, Rest}.
 
 
+%% EBML basics
 tag(16#1A45DFA3) -> ebml;
 tag(16#4286) -> ebml_version;
 tag(16#42F7) -> ebml_read_version;
@@ -107,14 +129,31 @@ tag(16#42F2) -> ebml_max_id_length;
 tag(16#4282) -> doctype;
 tag(16#4287) -> doctype_version;
 tag(16#4285) -> doctype_read_version;
-
+%% Global elements
+tag(16#BF)   -> crc32;
+tag(16#EC)   -> void;
+%% Segment
 tag(16#18538067) -> segment;
+%% Meta Seek information
+tag(16#114D9B74) -> seek_head;
+tag(16#4DBB) -> seek;
+tag(16#53AB) -> seek_id;
+tag(16#53AC) -> seek_position;
+
+%% Segment information
+tag(16#1549A966) -> info;
+%% Cluster
+tag(16#1F43B675) -> cluster;
+%% Track
+tag(16#1654AE6B) -> track;
+%% Cueing data
+tag(16#1C53BB6B) -> cues;
 tag(ClassId) -> int_to_hex(ClassId).
 
 next_tag(Binary) ->
   {ClassId, Length1, Rest1} = class_id(Binary),
   {Size, Length2, _} = data_size(Rest1),
-  {tag, tag(ClassId), Size, Length1 + Length2}.
+  #tag{name = tag(ClassId), size = Size, length = Length1 + Length2}.
   
   
 read_container(Binary) -> 
@@ -125,8 +164,7 @@ read_container(<<>>, Tags) ->
   
 read_container(Binary, Tags) ->
   Tag = next_tag(Binary),
-  {tag, _, Size, Length} = Tag,
-  AllLength = (Size + Length),
+  #tag{size = Size, length = Length} = Tag,
   <<_:Length/binary, Body:Size/binary, Rest/binary>> = Binary,
   ?D({Tag, Body, Rest}),
   read_container(Rest, [{Tag, Body} | Tags]).
