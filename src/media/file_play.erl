@@ -58,7 +58,6 @@
 	stream_id,
 	buffer,
 	timer_start,
-	timer_ref,
 	playing_from = 0,
 	ts_prev = 0,
 	pos = 0,
@@ -107,12 +106,18 @@ init(MediaEntry, Options) ->
                      timer_start = erlang:now()}).
   
 
-ready(#file_player{media_info = MediaInfo, 
+
+ready(State) ->
+  receive
+    Message ->
+      handle_info(Message, State)
+  end.
+  
+handle_info(Message, #file_player{media_info = MediaInfo, 
                     consumer = Consumer, 
                     client_buffer = ClientBuffer,
-                    stream_id = StreamId,
-                    timer_ref = Timer} = State) ->
-  receive
+                    stream_id = StreamId} = State) ->
+  case Message of
     {client_buffer, NewClientBuffer} -> 
       ?MODULE:ready(State#file_player{client_buffer = NewClientBuffer});
       
@@ -140,7 +145,6 @@ ready(#file_player{media_info = MediaInfo,
       
     pause ->
       ?D("Player paused"),
-      timer:cancel(Timer),
       ?MODULE:ready(State#file_player{paused = true});
 
     resume ->
@@ -159,7 +163,6 @@ ready(#file_player{media_info = MediaInfo,
     {seek, Timestamp} ->
       case file_media:seek(MediaInfo, Timestamp) of
         {Pos, NewTimestamp} ->
-          timer:cancel(Timer),
           ?D({"Player real seek to", round(Timestamp), NewTimestamp}),
           self() ! play,
           ?MODULE:ready(State#file_player{pos = Pos, 
@@ -228,10 +231,10 @@ send_frame(Player, {#video_frame{body = undefined}, Next}) ->
   self() ! play,
   ?MODULE:ready(Player#file_player{pos = Next});
   
-send_frame(#file_player{} = Player, {done, undefined}) ->
+send_frame(#file_player{} = _Player, {done, undefined}) ->
   ok;
 
-send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, done) ->
+send_frame(#file_player{} = _Player, done) ->
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
@@ -281,7 +284,13 @@ timeout_play(#video_frame{dts = AbsTime}, #file_player{timer_start = TimerStart,
   (Prepush > SeekTime) ->
     ?MODULE:play(Player#file_player{prepush = Prepush - SeekTime});
 	(Timeout > 0) -> 
-    ?MODULE:ready(Player#file_player{timer_ref = timer:send_after(Timeout, play)});
+	  receive
+	    Message ->
+	      handle_info(Message, Player)
+	  after
+	    Timeout ->
+	      handle_info(play, Player)
+	  end;
   true -> 
     ?MODULE:play(Player)
   end.
