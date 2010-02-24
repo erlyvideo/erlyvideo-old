@@ -88,8 +88,9 @@ unload(ErlNifEnv* env, void* priv)
 }
 
 static ERL_NIF_TERM
-crc32_erl(ErlNifEnv* env, ERL_NIF_TERM bin)
+crc32_erl(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
+  ERL_NIF_TERM bin = argv[0];
   ErlNifBinary data;
   uint32_t res;
   if (!enif_inspect_binary(env, bin, &data)) {
