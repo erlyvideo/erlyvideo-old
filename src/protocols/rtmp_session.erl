@@ -62,6 +62,7 @@
 
 -export([create_client/1]).
 -export([accept_connection/1, reject_connection/1]).
+-export([message/4]).
 
 -export([reply/2, fail/2]).
 
@@ -114,6 +115,10 @@ reply(Socket, AMF) when is_pid(Socket) ->
 
 fail(#rtmp_session{socket = Socket}, AMF) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
+
+
+message(Pid, Stream, Code, Body) ->
+  gen_fsm:send_event(Pid, {message, Stream, Code, Body}).
 
   
 %%%------------------------------------------------------------------------
@@ -193,6 +198,9 @@ send(Session, Message) ->
   reject_connection(Session),
   {stop, normal, Session};
 
+'WAIT_FOR_DATA'({message, Stream, Code, Body}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:status(Socket, Stream, Code, Body),
+  {next_state, 'WAIT_FOR_DATA', State};
 
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of

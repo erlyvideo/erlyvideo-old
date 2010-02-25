@@ -45,6 +45,7 @@
          getStreamLength1/2, prepareStream/2, checkBandwidth/2, 'FCSubscribe'/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
+-export([next_stream/1]).
 
 'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
   {client_buffer, ClientBuffer} = rtmp_socket:getopts(Socket, client_buffer),
