@@ -65,7 +65,7 @@ publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{arg
   ?D({"Publish - Action - record",Name}),
   Recorder = media_provider:create(Host, Name, record),
   ?D({"Recording", Recorder}),
-  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
+  State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, Recorder}], Streams)};
 
 
 publish(State, #rtmp_funcall{args = [null,Name,<<"append">>]} = _AMF) -> 
@@ -85,7 +85,7 @@ publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, 
   Recorder = media_provider:create(Host, Name, live),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
-  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)};
+  State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, Recorder}], Streams)};
 
 publish(State, #rtmp_funcall{args = [null, false]} = AMF) ->
   apps_streaming:stop(State, AMF);
@@ -99,5 +99,5 @@ publish(State, #rtmp_funcall{args = [null, <<"null">>]} = AMF) ->
 publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name], stream_id = StreamId} = _AMF) -> 
   ems_log:access(Host, "LIVE ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
   Recorder = media_provider:create(Host, Name, live),
-  State#rtmp_session{streams = array:set(StreamId, Recorder, Streams)}.
+  State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, Recorder}], Streams)}.
 

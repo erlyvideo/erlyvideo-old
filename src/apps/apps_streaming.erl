@@ -51,7 +51,7 @@
   {client_buffer, ClientBuffer} = rtmp_socket:getopts(Socket, client_buffer),
   StreamId = proplists:get_value(stream_id, Options),
   
-  case array:get(StreamId, Streams) of
+  case proplists:get_value(StreamId, Streams) of
     CurrentPlayer when is_pid(CurrentPlayer) -> 
       ?D({"Stop current player", CurrentPlayer}),
       CurrentPlayer ! exit;
@@ -61,7 +61,7 @@
     {ok, Player} ->
       Player ! start,
       ems_log:access(Host, "PLAY ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-      NewState = State#rtmp_session{streams = array:set(StreamId, Player, Streams)},
+      NewState = State#rtmp_session{streams = lists:ukeymerge(1, Streams, [{StreamId, Player}])},
       {next_state, 'WAIT_FOR_DATA', NewState};
     {notfound, _Reason} ->
       ems_log:access(Host, "NOTFOUND ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
@@ -106,8 +106,8 @@ releaseStream(State, _AMF) ->
 
 next_stream(State) -> next_stream(State, 1).
 next_stream(#rtmp_session{streams = Streams} = State, StreamId) ->
-  case array:get(StreamId, Streams) of
-    undefined -> {State#rtmp_session{streams = array:set(StreamId, null, Streams)}, StreamId};
+  case proplists:get_value(StreamId, Streams) of
+    undefined -> {State#rtmp_session{streams = lists:ukeymerge(1, Streams, [{StreamId, null}])}, StreamId};
     _ -> next_stream(State, StreamId + 1)
   end.
 
@@ -118,12 +118,12 @@ next_stream(#rtmp_session{streams = Streams} = State, StreamId) ->
 %% @end
 %%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
-  case array:get(StreamId, Streams) of
+  case proplists:get_value(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! stop;
     _ -> ok
   end,
   ?D({"Delete stream", StreamId}),
-  State#rtmp_session{streams = array:reset(StreamId, Streams)}.
+  State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)}.
 
 
 %%-------------------------------------------------------------------------
@@ -167,7 +167,7 @@ prepareStream(#rtmp_session{socket = Socket}, StreamId) ->
 %%-------------------------------------------------------------------------
 pause(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}) -> 
     ?D({"PAUSE", Pausing, round(NewTs)}),
-    Player = array:get(StreamId, Streams),
+    Player = proplists:get_value(StreamId, Streams),
     case Pausing of
       true ->
         Player ! pause,
@@ -184,12 +184,12 @@ pauseRaw(AMF, State) -> pause(AMF, State).
 
 
 receiveAudio(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Audio], stream_id = StreamId}) ->
-  Player = array:get(StreamId, Streams),
+  Player = proplists:get_value(StreamId, Streams),
   (catch Player ! {send_audio, Audio}),
   State.
 
 receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Video], stream_id = StreamId}) ->
-  Player = array:get(StreamId, Streams),
+  Player = proplists:get_value(StreamId, Streams),
   (catch Player ! {send_video, Video}),
   State.
 
@@ -207,7 +207,7 @@ getStreamLength1(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null,
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
   ?D({"seek", round(Timestamp)}),
-  Player = array:get(StreamId, Streams),
+  Player = proplists:get_value(StreamId, Streams),
   Player ! {seek, Timestamp},
   rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
@@ -222,13 +222,13 @@ seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{ar
 %% @end
 %%-------------------------------------------------------------------------
 stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rtmp_funcall{stream_id = StreamId}) -> 
-  case array:get(StreamId, Streams) of
+  case proplists:get_value(StreamId, Streams) of
     Player when is_pid(Player) ->
       Player ! exit,
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
-      State#rtmp_session{streams = array:set(StreamId, null, Streams)};
+      State#rtmp_session{streams = lists:ukeymerge(1, Streams, [{StreamId, null}])};
     _ -> State
   end.
 
@@ -240,13 +240,13 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
 
 closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
   ?D({"Close stream", StreamId}),
-case array:get(StreamId, Streams) of
+case proplists:get_value(StreamId, Streams) of
   undefined -> State;
   null ->
-    State#rtmp_session{streams = array:reset(StreamId, Streams)};
+    State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)};
   Player when is_pid(Player) ->
     (catch Player ! exit),
-    State#rtmp_session{streams = array:reset(StreamId, Streams)}
+    State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)}
 end.
 
 % Required for latest flash players like (http://www.longtailvideo.com/players/jw-flv-player/)

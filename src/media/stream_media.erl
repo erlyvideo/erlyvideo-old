@@ -39,10 +39,11 @@ set_owner(Server, Owner) ->
 init([Name, live, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LiveTimeout = proplists:get_value(live_timeout, Opts, ?FILE_CACHE_TIME),
+  Owner = proplists:get_value(owner, Opts),
   process_flag(trap_exit, true),
   Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type = live, name = Name, host = Host, 
+	Recorder = #media_info{type = live, name = Name, host = Host, owner = Owner,
 	                       clients = Clients, live_timeout = LiveTimeout},
 	{ok, Recorder, ?TIMEOUT};
 
@@ -50,6 +51,7 @@ init([Name, live, Opts]) ->
 init([Name, record, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LiveTimeout = proplists:get_value(live_timeout, Opts, ?FILE_CACHE_TIME),
+  Owner = proplists:get_value(owner, Opts),
   process_flag(trap_exit, true),
   Clients = [],
 	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
@@ -59,7 +61,7 @@ init([Name, record, Opts]) ->
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),
-		  Recorder = #media_info{type = record, host = Host, device = Device, name = Name, 
+		  Recorder = #media_info{type = record, host = Host, device = Device, name = Name, owner = Owner,
 		                         path = FileName, clients = Clients, live_timeout = LiveTimeout},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
@@ -114,6 +116,7 @@ handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
+  ?D({"Owner of", MediaInfo#media_info.name, Owner}),
   {reply, ok, MediaInfo#media_info{owner = Owner}, ?TIMEOUT};
 
 handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
@@ -154,10 +157,12 @@ handle_info(graceful, #media_info{owner = undefined, name = Name, clients = Clie
   {stop, normal, MediaInfo};
 
 handle_info(graceful, #media_info{owner = undefined} = MediaInfo) ->
+  ?D({"Graceful no owner"}),
   {noreply, MediaInfo, ?TIMEOUT};
 
 
 handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
+  ?D({"Graceful", _Owner}),
   {noreply, MediaInfo, ?TIMEOUT};
   
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
@@ -166,7 +171,7 @@ handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clien
 
 handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, live_timeout = LiveTimeout} = MediaInfo) ->
   timer:send_after(LiveTimeout, graceful),
-  ?D({self(), "Owner exits", Owner}),
+  ?D({self(), "Owner exits", Owner, LiveTimeout}),
   {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT};
 
 handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
@@ -175,9 +180,10 @@ handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_
 
 handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients, live_timeout = LiveTimeout} = MediaInfo) ->
   Clients1 = lists:delete(Client, Clients),
-  ?D({"Removing client", Client, "left", length(Clients1)}),
-  case length(Clients1) of
-    0 -> timer:send_after(LiveTimeout, graceful);
+  ?D({"Removing client", Client, "left", length(Clients1), LiveTimeout}),
+  case {length(Clients1), LiveTimeout} of
+    {0, 0} -> self() ! graceful;
+    {0, _} -> timer:send_after(LiveTimeout, graceful);
     _ -> ok
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};

@@ -146,7 +146,7 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 init([]) ->
   process_flag(trap_exit, true),
   random:seed(now()),
-  {ok, 'WAIT_FOR_SOCKET', #rtmp_session{streams = array:new()}}.
+  {ok, 'WAIT_FOR_SOCKET', #rtmp_session{streams = []}}.
 
 
 send(Session, Message) ->
@@ -234,7 +234,7 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  Recorder = array:get(StreamId, Streams),
+  Recorder = proplists:get_value(StreamId, Streams),
   
   Frame = ems_flv:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
   stream_media:publish(Recorder, Frame),
@@ -247,7 +247,7 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
   NewState;
 
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
-  case array:get(StreamId, Streams) of
+  case proplists:get_value(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
     _ -> ok
   end,
@@ -379,8 +379,9 @@ handle_info({'EXIT', Socket, _Reason}, _StateName, #rtmp_session{socket = Socket
   {stop, normal, State};
 
 handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
-  case find_stream(Streams, array:size(Streams), 1, PlayerPid) of
-    undefined -> 
+  case lists:keyfind(PlayerPid, 2, Streams) of
+    false -> 
+      ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
     StreamId ->
       ?D({"Play complete on", StreamId}),
@@ -417,14 +418,6 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
-find_stream(Streams, Size, StreamId, Stream) when StreamId < Size ->
-  case array:get(StreamId, Streams) of
-    Stream -> StreamId;
-    _Other -> find_stream(Streams, Size, StreamId+1, Stream)
-  end;
-  
-find_stream(_, _, _, _) -> undefined.
-
 flush_reply(State) ->
   receive
     #rtmp_message{} = Message ->
@@ -442,10 +435,10 @@ flush_reply(State) ->
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_session{socket=Socket, streams = Streams} = State) ->
   lists:foreach(fun(Player) when is_pid(Player) -> Player ! exit;
-                   (_) -> ok end, array:sparse_to_list(Streams)),
+                   (_) -> ok end, Streams),
 
   lists:foreach(fun(Player) when is_pid(Player) -> (catch erlang:exit(Player));
-                   (_) -> ok end, array:sparse_to_list(Streams)),
+                   (_) -> ok end, Streams),
   ems:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
