@@ -74,8 +74,8 @@ client(Player) ->
 init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
   ?D({"Starting stream play for consumer", Consumer}),
-  link(Consumer),
-  link(MediaEntry),
+  erlang:monitor(process, Consumer),
+  erlang:monitor(process, MediaEntry),
   ?MODULE:ready(#stream_player{consumer = Consumer,
                       stream_id = proplists:get_value(stream_id, Options, undefined),
                       media_info = MediaEntry}).
@@ -136,6 +136,10 @@ ready(#stream_player{consumer = Consumer} = State) ->
   	{tcp_closed, _Socket} ->
       error_logger:info_msg("~p Video player lost connection.\n", [self()]),
       ok;
+    
+    {'DOWN', _Ref, process, _Consumer, _Reason} ->
+      ok;
+    
   	Else ->
   	  ?D({"Unknown message", self(), Else}),
   	  ?MODULE:ready(State)

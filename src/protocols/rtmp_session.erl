@@ -144,7 +144,6 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %% @private
 %%-------------------------------------------------------------------------
 init([]) ->
-  process_flag(trap_exit, true),
   random:seed(now()),
   {ok, 'WAIT_FOR_SOCKET', #rtmp_session{streams = []}}.
 
@@ -375,25 +374,19 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
   ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
   {stop, normal, State};
   
-handle_info({'EXIT', Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
-  {stop, normal, State};
-
-handle_info({'EXIT', PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
+handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
+  ?D({"Monitored pid stopped", PlayerPid}),
   case lists:keyfind(PlayerPid, 2, Streams) of
     false -> 
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
-    StreamId ->
+    {StreamId, PlayerPid} ->
       ?D({"Play complete on", StreamId}),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
-      NewStreams = array:reset(StreamId, Streams),
+      NewStreams = lists:keydelete(StreamId, 1, Streams),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}
   end;
-
-handle_info({'EXIT', Pid, _Reason}, StateName, StateData) ->
-  ?D({"Died child", Pid, _Reason}),
-  {next_state, StateName, StateData};
 
 handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
@@ -434,11 +427,12 @@ flush_reply(State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_session{socket=Socket, streams = Streams} = State) ->
-  lists:foreach(fun(Player) when is_pid(Player) -> Player ! exit;
-                   (_) -> ok end, Streams),
-
-  lists:foreach(fun(Player) when is_pid(Player) -> (catch erlang:exit(Player));
-                   (_) -> ok end, Streams),
+  % ?D(Streams),
+  % lists:foreach(fun({_, Player}) when is_pid(Player) -> Player ! exit;
+  %                  (_) -> ok end, Streams),
+  % 
+  % lists:foreach(fun({_, Player}) when is_pid(Player) -> (catch erlang:exit(Player));
+  %                  (_) -> ok end, Streams),
   ems:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),

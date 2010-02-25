@@ -61,7 +61,7 @@
     {ok, Player} ->
       Player ! start,
       ems_log:access(Host, "PLAY ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-      NewState = State#rtmp_session{streams = lists:ukeymerge(1, Streams, [{StreamId, Player}])},
+      NewState = State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, Player}], Streams)},
       {next_state, 'WAIT_FOR_DATA', NewState};
     {notfound, _Reason} ->
       ems_log:access(Host, "NOTFOUND ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
@@ -107,7 +107,7 @@ releaseStream(State, _AMF) ->
 next_stream(State) -> next_stream(State, 1).
 next_stream(#rtmp_session{streams = Streams} = State, StreamId) ->
   case proplists:get_value(StreamId, Streams) of
-    undefined -> {State#rtmp_session{streams = lists:ukeymerge(1, Streams, [{StreamId, null}])}, StreamId};
+    undefined -> {State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, null}], Streams)}, StreamId};
     _ -> next_stream(State, StreamId + 1)
   end.
 
@@ -228,7 +228,7 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
-      State#rtmp_session{streams = lists:ukeymerge(1, Streams, [{StreamId, null}])};
+      State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, null}], Streams)};
     _ -> State
   end.
 
