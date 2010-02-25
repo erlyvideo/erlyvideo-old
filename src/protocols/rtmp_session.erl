@@ -375,7 +375,6 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
   {stop, normal, State};
   
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
-  ?D({"Monitored pid stopped", PlayerPid}),
   case lists:keyfind(PlayerPid, 2, Streams) of
     false -> 
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
@@ -426,7 +425,7 @@ flush_reply(State) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_session{socket=Socket, streams = Streams} = State) ->
+terminate(_Reason, _StateName, #rtmp_session{socket=Socket} = State) ->
   % ?D(Streams),
   % lists:foreach(fun({_, Player}) when is_pid(Player) -> Player ! exit;
   %                  (_) -> ok end, Streams),

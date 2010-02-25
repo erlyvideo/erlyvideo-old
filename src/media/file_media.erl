@@ -33,11 +33,11 @@ metadata(Server) ->
 
 
 init([Name, file, Opts]) ->
-  process_flag(trap_exit, true),
   Clients = ets:new(clients, [set, private]),
   Host = proplists:get_value(host, Opts),
+  LiveTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   {ok, Info} = open_file(Name, Host),
-  {ok, Info#media_info{clients = Clients, type = file, host = Host}}.
+  {ok, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LiveTimeout}}.
 
 
 
@@ -59,6 +59,7 @@ handle_call({create_player, Options}, _From, #media_info{clients = Clients} = Me
   {ok, Pid} = ems_sup:start_file_play(self(), Options),
   ets:insert(Clients, {Pid}),
   link(Pid),
+  erlang:monitor(process, Pid),
   {reply, {ok, Pid}, MediaInfo};
 
 handle_call(length, _From, #media_info{duration = Duration} = MediaInfo) ->
@@ -130,32 +131,31 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info(graceful, #media_info{owner = undefined, name = FileName, clients = Clients} = MediaInfo) ->
+handle_info(graceful, #media_info{clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
-    0 -> ?D({"No readers for file", FileName}),
+    0 -> ?D({"No readers for file", MediaInfo#media_info.name}),
          {stop, normal, MediaInfo};
     _ -> {noreply, MediaInfo}
   end;
 
 
-handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
+handle_info(graceful, MediaInfo) ->
   {noreply, MediaInfo};
   
-handle_info({'EXIT', Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) ->
-  case ets:info(Clients, size) of
-    0 -> timer:send_after(?FILE_CACHE_TIME, graceful);
-    _ -> ok
-  end,
-  {noreply, MediaInfo#media_info{owner = Owner}};
-
-handle_info({'EXIT', Client, _Reason}, #media_info{clients = Clients, name = FileName} = MediaInfo) ->
+handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, name = FileName, life_timeout = LifeTimeout} = MediaInfo) ->
   ets:delete(Clients, Client),
   ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size), erlang:now()}),
-  case ets:info(Clients, size) of
-    0 -> timer:send_after(?FILE_CACHE_TIME, graceful);
-    _ -> ok
-  end,
-  {noreply, MediaInfo};
+  case {ets:info(Clients, size), LifeTimeout} of
+    {0, false} ->
+      {stop, normal, MediaInfo};
+    {0, 0} ->
+      {stop, normal, MediaInfo};
+    {0, _} -> 
+      timer:send_after(LifeTimeout, graceful),
+      {noreply, MediaInfo};
+    {_, _} ->
+      {noreply, MediaInfo}
+  end;
 
   
 handle_info(_Info, State) ->

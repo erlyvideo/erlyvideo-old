@@ -38,7 +38,7 @@ set_owner(Server, Owner) ->
 
 init([Name, live, Opts]) ->
   Host = proplists:get_value(host, Opts),
-  LiveTimeout = proplists:get_value(live_timeout, Opts, ?FILE_CACHE_TIME),
+  LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   Owner = proplists:get_value(owner, Opts),
   case Owner of
     undefined -> ok;
@@ -47,13 +47,13 @@ init([Name, live, Opts]) ->
   Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
 	Recorder = #media_info{type = live, name = Name, host = Host, owner = Owner,
-	                       clients = Clients, live_timeout = LiveTimeout},
+	                       clients = Clients, life_timeout = LifeTimeout},
 	{ok, Recorder, ?TIMEOUT};
 
 
 init([Name, record, Opts]) ->
   Host = proplists:get_value(host, Opts),
-  LiveTimeout = proplists:get_value(live_timeout, Opts, ?FILE_CACHE_TIME),
+  LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   Owner = proplists:get_value(owner, Opts),
   Clients = [],
 	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
@@ -64,7 +64,7 @@ init([Name, record, Opts]) ->
 		{ok, Device} ->
 		  file:write(Device, Header),
 		  Recorder = #media_info{type = record, host = Host, device = Device, name = Name, owner = Owner,
-		                         path = FileName, clients = Clients, live_timeout = LiveTimeout},
+		                         path = FileName, clients = Clients, life_timeout = LifeTimeout},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
 		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, _Error]),
@@ -89,6 +89,7 @@ init([Name, record, Opts]) ->
 handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients, gop = GOP} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   erlang:monitor(process, Pid),
+  link(Pid),
   ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options), "->", Pid}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
@@ -98,7 +99,6 @@ handle_call({create_player, Options}, _From, #media_info{name = Name, clients = 
     undefined -> ok;
     AudioConfig -> Pid ! AudioConfig
   end,
-  link(Pid),
   lists:foreach(fun(Frame) -> Pid ! Frame end, lists:reverse(GOP)),
   {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
 
@@ -173,14 +173,14 @@ handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, 
   ?D({self(), "Owner exits", Owner}),
   {stop, normal, MediaInfo};
 
-handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, live_timeout = LiveTimeout} = MediaInfo) ->
-  case LiveTimeout of
+handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, life_timeout = LifeTimeout} = MediaInfo) ->
+  case LifeTimeout of
     false ->
       ?D({self(), "Owner exits", Owner}),
       {stop, normal, MediaInfo};
     _ ->
-      timer:send_after(LiveTimeout, graceful),
-      ?D({self(), "Owner exits", Owner, LiveTimeout}),
+      timer:send_after(LifeTimeout, graceful),
+      ?D({self(), "Owner exits", Owner, LifeTimeout}),
       {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT}
   end;
 
@@ -188,12 +188,12 @@ handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_
   lists:foreach(fun(Client) -> Client ! eof end, Clients),
   {stop, normal, MediaInfo};
 
-handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, live_timeout = LiveTimeout} = MediaInfo) ->
+handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
   Clients1 = lists:delete(Client, Clients),
-  ?D({self(), "Removing client", Client, "left", length(Clients1), LiveTimeout}),
-  case {length(Clients1), LiveTimeout} of
+  ?D({self(), "Removing client", Client, "left", length(Clients1), LifeTimeout}),
+  case {length(Clients1), LifeTimeout} of
     {0, 0} -> self() ! graceful;
-    {0, _} when LiveTimeout > 0 -> timer:send_after(LiveTimeout, graceful);
+    {0, _} when LifeTimeout > 0 -> timer:send_after(LifeTimeout, graceful);
     _ -> ok
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};

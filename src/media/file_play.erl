@@ -86,7 +86,8 @@ client(Player) ->
   
 init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
-  link(Consumer),
+  erlang:monitor(process, Consumer),
+  erlang:monitor(process, MediaEntry),
   Seek = proplists:get_value(seek, Options),
   PlayEnd = case proplists:get_value(duration_before, Options) of
     undefined -> undefined;
@@ -178,6 +179,9 @@ handle_info(Message, #file_player{media_info = MediaInfo,
       ok;
   
     exit ->
+      ok;
+      
+    {'DOWN', _Ref, process, _Pid, _Reason} ->
       ok;
       
     play ->
