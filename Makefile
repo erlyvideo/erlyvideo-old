@@ -91,7 +91,7 @@ install: compile
 	mkdir -p $(DESTROOT)/etc/sv/
 	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
-	cp priv/erlmedia.conf.sample $(DESTROOT)/etc/erlyvideo/erlmedia.conf
+	cp priv/erlmedia.conf.debian $(DESTROOT)/etc/erlyvideo/erlmedia.conf
 
 archive: ../erlyvideo-$(VERSION).tgz
 	
