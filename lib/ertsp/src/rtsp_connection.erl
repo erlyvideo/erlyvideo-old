@@ -57,7 +57,6 @@ media(#rtsp_connection{media = Media}) -> Media.
 %% @private
 %%-------------------------------------------------------------------------
 init([Callback]) ->
-  process_flag(trap_exit, true),
   random:seed(now()),
   {ok, #rtsp_connection{callback = Callback}}.
 

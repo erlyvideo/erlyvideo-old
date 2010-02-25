@@ -80,7 +80,6 @@ start_link(URL, Type, Opts) ->
   gen_server:start_link(?MODULE, [URL, Type, Opts], []).
 
 init([undefined, Type, _]) ->
-  process_flag(trap_exit, true),
   {ok, #ts_lander{pids = [#stream{pid = 0, handler = pat}]}};
   
 
@@ -88,11 +87,9 @@ init([URL, Type, Opts]) when is_binary(URL)->
   init([binary_to_list(URL), Type, Opts]);
 
 init([URL, mpeg_ts_passive, _Opts]) ->
-  process_flag(trap_exit, true),
   {ok, #ts_lander{url = URL, pids = [#stream{pid = 0, handler = pat}]}};
   
 init([URL, mpeg_ts, _Opts]) ->
-  process_flag(trap_exit, true),
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
@@ -126,6 +123,7 @@ handle_call({set_socket, Socket}, _From, TSLander) ->
 handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Clients} = TSLander) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
+  erlang:monitor(process, Pid),
   ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
   case TSLander#ts_lander.video_config of
     undefined -> ok;
@@ -205,7 +203,7 @@ handle_info(#video_frame{} = Frame, TSLander) ->
   {noreply, send_frame(Frame, TSLander)};
 
 
-handle_info({'EXIT', Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
+handle_info({'DOWN', _Ref, process, Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
   {noreply, TSLander#ts_lander{clients = lists:delete(Client, Clients)}};
 
 handle_info({tcp, Socket, Bin}, #ts_lander{buffer = <<>>, byte_counter = Counter} = TSLander) ->

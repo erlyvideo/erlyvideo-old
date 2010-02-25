@@ -41,7 +41,6 @@ start_link(URL, Type, Opts) ->
   rtsp_socket:start_link(?MODULE, [URL, Type, Opts]).
 
 init([URL, rtsp, Opts]) ->
-  process_flag(trap_exit, true),
   {ok, Re} = re:compile("rtsp://([^/]*):(\\d+)/(.*)"),
   {match, [_, RTSPHost, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
   
@@ -72,6 +71,7 @@ init([_, rtsp_server, _]) ->
 handle_call({create_player, Options}, _From, #rtsp_client{url = URL, clients = Clients} = Lander) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   link(Pid),
+  erlang:monitor(process, Pid),
   ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
   case Lander#rtsp_client.video_config of
     undefined -> ok;
@@ -133,7 +133,7 @@ handle_info(describe, #rtsp_client{socket = Socket, url = URL} = RTSP) ->
   
 
 
-handle_info({'EXIT', Client, _Reason}, #rtsp_client{clients = Clients} = RTSP) ->
+handle_info({'DOWN', _Ref, process, Client, _Reason}, #rtsp_client{clients = Clients} = RTSP) ->
   case length(Clients) of
     Length when Length =< 1 ->
       {stop, normal, RTSP#rtsp_client{clients =[]}};
