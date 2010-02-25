@@ -289,7 +289,10 @@ timeout_play(#video_frame{dts = AbsTime}, #file_player{timer_start = TimerStart,
     ?MODULE:play(Player#file_player{prepush = Prepush - SeekTime});
 	(Timeout > 0) -> 
 	  receive
+	    play ->
+	      handle_info(play, Player);
 	    Message ->
+	      self() ! play,
 	      handle_info(Message, Player)
 	  after
 	    Timeout ->
