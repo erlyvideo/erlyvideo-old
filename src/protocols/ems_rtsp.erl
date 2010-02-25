@@ -13,7 +13,7 @@ announce(Hostname, Path) ->
   Host = ems:host(Hostname),
   ?D({"ANNOUNCE", Host, Host}),
   ems_log:access(Host, "RTSP ANNOUNCE ~s ~s", [Host, Path]),
-  Media = media_provider:open(Host, Path, live),
+  Media = media_provider:open(Host, Path, [{type, live}]),
   {ok, Media}.
 
 

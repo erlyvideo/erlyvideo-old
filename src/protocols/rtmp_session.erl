@@ -284,6 +284,8 @@ call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args 
   {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
   {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   Host = ems:host(HostName),
+  
+  ?D({"Client connected", HostName, Host}),
 
   AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
     {objectEncoding, 0.0} -> 0;

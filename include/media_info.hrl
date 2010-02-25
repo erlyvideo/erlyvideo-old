@@ -7,6 +7,7 @@
   header = undefined,
   name = undefined,
   path = undefined,
+  live_timeout = ?FILE_CACHE_TIME,
   format,
   width,
   height,
