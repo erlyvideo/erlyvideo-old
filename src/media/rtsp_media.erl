@@ -129,6 +129,7 @@ handle_cast(_Msg, State) ->
   
 handle_info(describe, #rtsp_client{socket = Socket, url = URL} = RTSP) ->
   gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
+  ems_log:access(default, "DESCRIBE ~s RTSP/1.0", [URL]),
   {noreply, RTSP#rtsp_client{method = describe}};
   
 
@@ -171,7 +172,7 @@ handle_rtsp_response(#rtsp_client{url = URL, method = setup, socket = Socket, se
   FullSession = proplists:get_value('Session', Headers, <<"111">>),
   Session = hd(string:tokens(binary_to_list(FullSession), ";")),
   gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session])),
-  ?D({"Send play command"}),
+  ems_log:access(default, "PLAY ~s RTSP/1.0", [URL]),
   RTSP#rtsp_client{seq = Seq + 1, method = play};
 
 handle_rtsp_response(#rtsp_client{method = play} = RTSP, {response, 200, _, _, _}) ->
