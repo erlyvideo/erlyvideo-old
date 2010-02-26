@@ -8,7 +8,13 @@
 
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, SessionData, UserIdF]} = AMF) ->
   UserId = round(UserIdF),
-  Session = json_session:decode(SessionData, undefined),
+  Session = try json_session:decode(SessionData, undefined) of
+    S -> S
+  catch
+    _Class:_Error ->
+      ?D({"Session decoding", _Class, _Error, erlang:get_stacktrace()}),
+      []
+  end,
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
 	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},

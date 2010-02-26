@@ -28,7 +28,9 @@ perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInf
 	ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~p json_session", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
 	NewState.
   
-
+decode(undefined, undefined) ->
+  [];
+  
 decode(Session, Secret) when is_binary(Session) ->
   decode(0, Session, Secret);
 
@@ -63,11 +65,8 @@ decode(Offset, Subscription, _Secret) when Offset >= size(Subscription) - 2 ->
   {error};
 
 decode(Offset, Subscription, Secret) ->
-  case {Subscription, Secret} of
-    {<<Session64:Offset/binary, "--", _/binary>>, undefined} ->
-      {struct, Session} = mochijson2:decode(base64:decode(Session64)),
-      Session;
-    {<<Session64:Offset/binary, "--", Sign/binary>>, _} ->
+  case Subscription of
+    <<Session64:Offset/binary, "--", Sign/binary>> ->
       GeneratedSign = session_sign(Session64, Secret),
       case Sign of
         GeneratedSign ->
