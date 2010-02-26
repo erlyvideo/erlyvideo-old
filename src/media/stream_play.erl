@@ -73,7 +73,7 @@ client(Player) ->
   
 init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
-  ?D({"Starting stream play for consumer", Consumer}),
+  % ?D({"Starting stream play for consumer", Consumer}),
   erlang:monitor(process, Consumer),
   erlang:monitor(process, MediaEntry),
   ?MODULE:ready(#stream_player{consumer = Consumer,

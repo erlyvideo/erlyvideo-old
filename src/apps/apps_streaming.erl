@@ -97,6 +97,7 @@
 %%-------------------------------------------------------------------------
 createStream(State, AMF) -> 
   {State1, StreamId} = next_stream(State),
+  % ?D({"Create stream", self(), StreamId}),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   State1.
 
@@ -122,7 +123,7 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
     Player when is_pid(Player) -> Player ! stop;
     _ -> ok
   end,
-  ?D({"Delete stream", StreamId}),
+  % ?D({"Delete stream", self(), StreamId}),
   State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)}.
 
 
@@ -222,6 +223,7 @@ seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{ar
 %% @end
 %%-------------------------------------------------------------------------
 stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rtmp_funcall{stream_id = StreamId}) -> 
+  % ?D({"Stop on", self(), StreamId}),
   case proplists:get_value(StreamId, Streams) of
     Player when is_pid(Player) ->
       Player ! exit,
@@ -239,15 +241,15 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
 %%-------------------------------------------------------------------------
 
 closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
-  ?D({"Close stream", StreamId}),
-case proplists:get_value(StreamId, Streams) of
-  undefined -> State;
-  null ->
-    State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)};
-  Player when is_pid(Player) ->
-    (catch Player ! exit),
-    State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)}
-end.
+  % ?D({"Close stream", self(), StreamId, proplists:get_value(StreamId, Streams)}),
+  case proplists:get_value(StreamId, Streams) of
+    undefined -> State;
+    null ->
+      State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)};
+    Player when is_pid(Player) ->
+      (catch Player ! exit),
+      State#rtmp_session{streams = lists:keydelete(StreamId, 1, Streams)}
+  end.
 
 % Required for latest flash players like (http://www.longtailvideo.com/players/jw-flv-player/)
 % http://www.adobe.com/devnet/flashmediaserver/articles/dynamic_stream_switching_04.html

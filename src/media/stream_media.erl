@@ -86,11 +86,11 @@ init([Name, record, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{name = Name, clients = Clients, gop = GOP} = MediaInfo) ->
+handle_call({create_player, Options}, _From, #media_info{clients = Clients, gop = GOP} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   erlang:monitor(process, Pid),
   link(Pid),
-  ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options), "->", Pid}),
+  % ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options), "->", Pid}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
@@ -176,11 +176,11 @@ handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, 
 handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, life_timeout = LifeTimeout} = MediaInfo) ->
   case LifeTimeout of
     false ->
-      ?D({self(), "Owner exits", Owner}),
+      % ?D({MediaInfo#media_info.name, "Owner exits, we too"}),
       {stop, normal, MediaInfo};
     _ ->
       timer:send_after(LifeTimeout, graceful),
-      ?D({self(), "Owner exits", Owner, LifeTimeout}),
+      % ?D({MediaInfo#media_info.name, "Owner exits, wait him", LifeTimeout}),
       {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT}
   end;
 
@@ -190,7 +190,7 @@ handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_
 
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
   Clients1 = lists:delete(Client, Clients),
-  ?D({self(), "Removing client", Client, "left", length(Clients1), LifeTimeout}),
+  ?D({MediaInfo#media_info.name, "Removing client", Client, "left", length(Clients1), LifeTimeout}),
   case {length(Clients1), LifeTimeout} of
     {0, 0} -> self() ! graceful;
     {0, _} when LifeTimeout > 0 -> timer:send_after(LifeTimeout, graceful);
@@ -227,12 +227,8 @@ handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
   media_provider:remove(Host, Name),
   {noreply, MediaInfo, ?TIMEOUT};
 
-handle_info(exit, #media_info{type = live} = State) ->
-  {noreply, State, ?TIMEOUT};
-
-handle_info(exit, #media_info{host = Host, name = Name} = State) ->
-  media_provider:remove(Host, Name),
-  {noreply, State, ?TIMEOUT};
+handle_info(exit, State) ->
+  {stop, normal, State};
 
 handle_info(timeout, #media_info{type = live} = State) ->
   {stop, normal, State};

@@ -380,7 +380,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_sessio
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
     {StreamId, PlayerPid} ->
-      ?D({"Play complete on", StreamId}),
+      % ?D({"Play complete on", StreamId}),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       NewStreams = lists:keydelete(StreamId, 1, Streams),
