@@ -9,7 +9,7 @@ start() ->
     undefined -> vhosts = ets:new(vhosts, [set, named_table, public]);
     _ -> ets:delete_all_objects(vhosts)
   end,
-  case application:get_env(?APPLICATION, vhosts) of
+  case application:get_env(erlyvideo, vhosts) of
     {ok, Hosts} when is_list(Hosts) -> init_vhosts(Hosts);
     _ -> ok
   end.

@@ -45,7 +45,7 @@ handle(Host, 'GET', [], Req) ->
 
 
 handle(_, 'GET', ["admin", "config.xml"], Req) ->
-  Config = mochijson2:encode({struct, application:get_all_env(erlmedia)}),
+  Config = mochijson2:encode({struct, application:get_all_env(erlyvideo)}),
   Req:ok([{'Content-Type', "text/json; charset=utf8"}], iolist_to_binary(Config));
 
 handle(Host, 'GET', ["admin"], Req) ->

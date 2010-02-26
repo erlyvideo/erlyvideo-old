@@ -2,7 +2,6 @@
 % uppercase breaks the syntax highlighting in textmate"
 -include("debug.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--define(APPLICATION, erlmedia).
 
 -define(MAX_RESTART,      5).
 -define(MAX_TIME,        60).

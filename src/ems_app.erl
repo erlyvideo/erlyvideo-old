@@ -49,7 +49,7 @@
 %%--------------------------------------------------------------------
 
 start(_Type, _Args) -> 
-  application:load(?APPLICATION),
+  application:load(erlyvideo),
   ems:load_config(),
   mnesia:create_schema([node()]),
   mnesia:start(),

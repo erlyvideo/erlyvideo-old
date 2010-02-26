@@ -53,7 +53,7 @@ clean-doc:
 player:
 	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
-run: erlang_version ebin priv/erlmedia.conf
+run: erlang_version ebin priv/erlyvideo.conf
 	ERL_LIBS=deps:lib:plugins $(ERL) +bin_opt_info +debug \
 	-pa ebin \
 	-boot start_sasl \
@@ -61,8 +61,8 @@ run: erlang_version ebin priv/erlmedia.conf
 	-mnesia dir "\"${MNESIA_DATA}\"" \
 	-name $(NODE_NAME)
 
-priv/erlmedia.conf: priv/erlmedia.conf.sample
-	cp priv/erlmedia.conf.sample priv/erlmedia.conf
+priv/erlyvideo.conf: priv/erlyvideo.conf.sample
+	cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 	
 start: erlang_version ebin
 	ERL_LIBS=deps:lib:plugins $(ERL) -pa `pwd`/ebin \
@@ -91,7 +91,7 @@ install: compile
 	mkdir -p $(DESTROOT)/etc/sv/
 	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
-	cp priv/erlmedia.conf.debian $(DESTROOT)/etc/erlyvideo/erlmedia.conf
+	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 
 archive: ../erlyvideo-$(VERSION).tgz
 	

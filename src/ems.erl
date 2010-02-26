@@ -56,7 +56,7 @@ start() ->
   application:start(crypto),
   application:start(rtsp),
   application:start(rtmp),
-	application:start(erlmedia),
+	application:start(erlyvideo),
   ems_log:start(),
   start_rtmp(),
   start_rtsp(),
@@ -92,8 +92,8 @@ stop() ->
 	ems:stop_modules(),
 	ems_script:stop(),
   ems_log:stop(),
-	application:stop(erlmedia),
-	application:unload(erlmedia),
+	application:stop(erlyvideo),
+	application:unload(erlyvideo),
 	application:stop(rtsp),
 	application:unload(rtsp),
 	application:stop(rtmp),
@@ -139,12 +139,12 @@ reconfigure() ->
   ok.
   
 load_config() ->
-  % [application:unset_env(erlmedia, Key) || {Key, _} <- application:get_all_env(erlmedia)],
+  % [application:unset_env(erlyvideo, Key) || {Key, _} <- application:get_all_env(erlyvideo)],
   
-  case file:path_consult(["priv", "/etc/erlyvideo"], "erlmedia.conf") of
+  case file:path_consult(["priv", "/etc/erlyvideo"], "erlyvideo.conf") of
     {ok, Env, Path} -> 
       io:format("Loading config from file ~s~n", [Path]),
-      [application:set_env(erlmedia, Key, Value) || {Key, Value} <- Env],
+      [application:set_env(erlyvideo, Key, Value) || {Key, Value} <- Env],
       ok;
     {error, enoent} -> ok
   end,
@@ -169,10 +169,10 @@ rebuild() ->
 %% @end
 %%--------------------------------------------------------------------
 reload() ->
-	application:load(erlmedia),
-	case application:get_key(erlmedia,modules) of
+	application:load(erlyvideo),
+	case application:get_key(erlyvideo,modules) of
 		undefined    -> 
-			application:load(erlmedia),
+			application:load(erlyvideo),
 			reload();
 		{ok,Modules} -> 
 			io:format("Reloading EMS Modules ...~n"),
@@ -202,7 +202,7 @@ reload([H|T]) ->
 %% @end 
 %%--------------------------------------------------------------------
 get_var(Opt, Default) ->
-	case application:get_env(erlmedia, Opt) of
+	case application:get_env(erlyvideo, Opt) of
 	{ok, Val} -> Val;
 	_ ->
 		case init:get_argument(Opt) of
