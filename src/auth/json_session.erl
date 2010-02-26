@@ -62,7 +62,7 @@ session_sign(Session, Secret) ->
   binary_to_hexbin(crypto:sha_mac(Secret, Session)).
   
 decode(Offset, Subscription, _Secret) when Offset >= size(Subscription) - 2 ->
-  {error};
+  {error, no_signature};
 
 decode(Offset, Subscription, Secret) ->
   case Subscription of

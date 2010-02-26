@@ -9,7 +9,8 @@
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, SessionData, UserIdF]} = AMF) ->
   UserId = round(UserIdF),
   Session = try json_session:decode(SessionData, undefined) of
-    S -> S
+    S when is_list(S) -> S;
+    _ -> []
   catch
     _Class:_Error ->
       ems_log:error(Host, "Session decoding: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
