@@ -12,7 +12,7 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
     S -> S
   catch
     _Class:_Error ->
-      ?D({"Session decoding", _Class, _Error, erlang:get_stacktrace()}),
+      ems_log:error(Host, "Session decoding: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
       []
   end,
   Channels = proplists:get_value(channels, Session, []),
