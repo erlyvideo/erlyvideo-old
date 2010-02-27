@@ -92,7 +92,6 @@ handle_call({create_player, Options}, _From, #media_info{clients = Clients, gop 
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   erlang:monitor(process, Pid),
   link(Pid),
-  ?D({"Creating player", MediaInfo#media_info.name}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
@@ -225,7 +224,7 @@ handle_info(#video_frame{dts = DTS, pts = PTS} = Frame,
 
 handle_info({filter, Module, Message}, #media_info{filter = {Module, State}} = Recorder) ->
   State1 = Module:handle_message(State, Recorder, Message),
-  {noreply, State#media_info{filter = {Module, State1}}, ?TIMEOUT};
+  {noreply, Recorder#media_info{filter = {Module, State1}}, ?TIMEOUT};
 
 handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
