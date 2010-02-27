@@ -145,11 +145,11 @@ ready(#stream_player{consumer = Consumer} = State) ->
   	  ?MODULE:ready(State)
   end.
 
-send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{decoder_config = true, type = video}) ->
-  ?MODULE:ready(Player);
-
-send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
-  ?MODULE:ready(Player);
+% send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{decoder_config = true, type = video}) ->
+%   ?MODULE:ready(Player);
+% 
+% send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
+%   ?MODULE:ready(Player);
 
 send_frame(#stream_player{synced = false} = Player, #video_frame{decoder_config = false, frame_type = frame}) ->
   ?MODULE:ready(Player);
@@ -176,7 +176,7 @@ send_frame(#stream_player{consumer = Consumer, stream_id = StreamId, base_ts = B
     _ -> 0
   end,
   Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS2, pts = PTS2},
-  % ?D({"Frame", Timestamp, Ts, BaseTs, Type, Decoder, Frame#video_frame.frame_type}),
+  % ?D({"Frame", Type, DTS2}),
   Player1 = case {Decoder, Type} of
     {true, audio} -> Player#stream_player{sent_audio_decoder = true};
     {true, video} -> Player#stream_player{sent_video_decoder = true};

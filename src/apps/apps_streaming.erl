@@ -60,7 +60,7 @@
   case media_provider:play(Host, Name, [{client_buffer, ClientBuffer} | Options]) of
     {ok, Player} ->
       Player ! start,
-      ems_log:access(Host, "PLAY ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
+      ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       NewState = State#rtmp_session{streams = lists:ukeymerge(1, [{StreamId, Player}], Streams)},
       {next_state, 'WAIT_FOR_DATA', NewState};
     {notfound, _Reason} ->

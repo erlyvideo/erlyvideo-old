@@ -39,6 +39,7 @@ set_owner(Server, Owner) ->
 init([Name, live, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
+  Filter = proplists:get_value(filter, Opts),
   Owner = proplists:get_value(owner, Opts),
   case Owner of
     undefined -> ok;
@@ -46,7 +47,7 @@ init([Name, live, Opts]) ->
   end,
   Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type = live, name = Name, host = Host, owner = Owner,
+	Recorder = #media_info{type = live, name = Name, host = Host, owner = Owner, filter = Filter,
 	                       clients = Clients, life_timeout = LifeTimeout},
 	{ok, Recorder, ?TIMEOUT};
 
@@ -54,6 +55,7 @@ init([Name, live, Opts]) ->
 init([Name, record, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
+  Filter = proplists:get_value(filter, Opts),
   Owner = proplists:get_value(owner, Opts),
   Clients = [],
 	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
@@ -63,7 +65,7 @@ init([Name, record, Opts]) ->
 	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, Device} ->
 		  file:write(Device, Header),
-		  Recorder = #media_info{type = record, host = Host, device = Device, name = Name, owner = Owner,
+		  Recorder = #media_info{type = record, host = Host, device = Device, name = Name, owner = Owner, filter = Filter,
 		                         path = FileName, clients = Clients, life_timeout = LifeTimeout},
 			{ok, Recorder, ?TIMEOUT};
 		_Error ->
@@ -90,7 +92,7 @@ handle_call({create_player, Options}, _From, #media_info{clients = Clients, gop 
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   erlang:monitor(process, Pid),
   link(Pid),
-  % ?D({"Creating media player for", MediaInfo#media_info.host, Name, "client", proplists:get_value(consumer, Options), "->", Pid}),
+  ?D({"Creating player", MediaInfo#media_info.name}),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
     VideoConfig -> Pid ! VideoConfig
@@ -203,19 +205,27 @@ handle_info(#video_frame{dts = TS} = Frame, #media_info{base_timestamp = undefin
 
 handle_info(#video_frame{dts = DTS, pts = PTS} = Frame, 
             #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
-  Frame1 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
+              
+  Frame0 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
+  {Frame1, Recorder0} = pass_through_filter(Frame0, Recorder),
+  
   lists:foreach(fun(Client) -> Client ! Frame1 end, Clients),
-  Recorder1 = parse_metadata(Recorder, Frame),
+  Recorder1 = parse_metadata(Recorder0, Frame),
   Recorder2 = copy_audio_config(Recorder1, Frame),
   Recorder3 = copy_video_config(Recorder2, Frame),
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder4 = Recorder3,
-  % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, TS-BaseTS}),
+  % ?D({Recorder#media_info.name, Frame#video_frame.type, DTS-BaseTS}),
   case Device of
 	  undefined -> ok;
 	  _ -> file:write(Device, ems_flv:to_tag(Frame1))
 	end,
   {noreply, Recorder4, ?TIMEOUT};
+
+
+handle_info({filter, Module, Message}, #media_info{filter = {Module, State}} = Recorder) ->
+  State1 = Module:handle_message(State, Message),
+  {noreply, State#media_info{filter = {Module, State1}}, ?TIMEOUT};
 
 handle_info(start, State) ->
   {noreply, State, ?TIMEOUT};
@@ -248,6 +258,14 @@ handle_info({client_buffer, 0}, State) ->
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
+  
+  
+pass_through_filter(#video_frame{} = Frame, #media_info{filter = undefined} = Recorder) ->
+  {Frame, Recorder};
+
+pass_through_filter(#video_frame{} = Frame, #media_info{filter = {Module, State}} = Recorder) ->
+  {ok, Frame1, State1} = Module:handle_frame(State, Frame),
+  {Frame1, Recorder#media_info{filter = {Module, State1}}}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
   ?D({"New GOP", round((Frame#video_frame.dts - MediaInfo#media_info.base_timestamp)/1000)}),

@@ -8,6 +8,7 @@
   name = undefined,
   path = undefined,
   life_timeout = ?FILE_CACHE_TIME,
+  filter,
   format,
   width,
   height,
