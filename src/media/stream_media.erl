@@ -4,7 +4,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
--include("../include/media_info.hrl").
+-include_lib("erlyvideo/include/media_info.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
@@ -207,7 +207,7 @@ handle_info(#video_frame{dts = DTS, pts = PTS} = Frame,
             #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
               
   Frame0 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
-  {Frame1, Recorder0} = pass_through_filter(Frame0, Recorder),
+  {Frame1, Recorder0} = pass_through_filter(Frame0, Recorder#media_info{last_dts = Frame0#video_frame.dts}),
   
   lists:foreach(fun(Client) -> Client ! Frame1 end, Clients),
   Recorder1 = parse_metadata(Recorder0, Frame),
@@ -224,7 +224,7 @@ handle_info(#video_frame{dts = DTS, pts = PTS} = Frame,
 
 
 handle_info({filter, Module, Message}, #media_info{filter = {Module, State}} = Recorder) ->
-  State1 = Module:handle_message(State, Message),
+  State1 = Module:handle_message(State, Recorder, Message),
   {noreply, State#media_info{filter = {Module, State1}}, ?TIMEOUT};
 
 handle_info(start, State) ->
@@ -264,7 +264,7 @@ pass_through_filter(#video_frame{} = Frame, #media_info{filter = undefined} = Re
   {Frame, Recorder};
 
 pass_through_filter(#video_frame{} = Frame, #media_info{filter = {Module, State}} = Recorder) ->
-  {ok, Frame1, State1} = Module:handle_frame(State, Frame),
+  {ok, State1, Frame1} = Module:handle_frame(State, Recorder, Frame),
   {Frame1, Recorder#media_info{filter = {Module, State1}}}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->

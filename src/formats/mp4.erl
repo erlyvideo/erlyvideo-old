@@ -38,7 +38,7 @@
 -include("../../include/mp4.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
--include("../../include/media_info.hrl").
+-include_lib("erlyvideo/include/media_info.hrl").
 
 -export([init/1, read_frame/2, metadata/1, codec_config/2, seek/2, first/1]).
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,

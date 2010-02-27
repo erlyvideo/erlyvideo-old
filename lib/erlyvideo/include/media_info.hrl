@@ -25,5 +25,6 @@
 	owner = undefined,
 	clients = undefined,
 	base_timestamp = undefined, % Timestamp of first frame
+	last_dts,
 	gop = []
 }).
