@@ -160,7 +160,7 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   SegmentLength = trunc(?STREAM_TIME/1000),
   Count = trunc(Duration/?STREAM_TIME)+1,
   SegmentList = lists:map(fun(N) ->
-    io_lib:format("#EXTINF:~p~nhttp://~s:8082/iphone/segments/~s/~p.ts~n", [SegmentLength, Hostname, Name, N])
+    io_lib:format("#EXTINF:~p,~nhttp://~s:8082/iphone/segments/~s/~p.ts~n", [SegmentLength, Hostname, Name, N])
   end, lists:seq(1, Count)),
   Playlist = [
     io_lib:format("#EXTM3U~n#EXT-X-MEDIA-SEQUENCE:0~n#EXT-X-TARGETDURATION:~p~n", [SegmentLength]),
