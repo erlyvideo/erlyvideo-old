@@ -57,6 +57,7 @@
 -record(streamer, {
   player,
   req,
+  base_dts = 0,
   pat_counter = 0,
   pmt_counter = 0,
   audio_counter = 0,
@@ -73,8 +74,7 @@ play(_Name, Player, Req) ->
   link(Req:socket_pid()),
   Player ! start,
   Streamer = #streamer{player = Player, req = Req},
-  Streamer1 = send_pat(Streamer),
-  ?MODULE:play(Streamer1),
+  ?MODULE:play(Streamer),
   Req:stream(close),
   ok.
 
@@ -102,6 +102,7 @@ adaptation_field(Data) when is_binary(Data) ->
   {1, <<(size(Field)), Field/binary>>};
 
 adaptation_field({Timestamp, Data}) ->
+  % ?D({"PCR", Timestamp}),
   PCR = Timestamp * 27000,
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
@@ -157,7 +158,7 @@ padding(Padding, Size) when Size > 0 ->
   {Pad, _} = split_binary(Padder, Size),           
   padding(<<Padding/binary, Pad/binary>>, Size - size(Pad)).
   
-send_pat(Streamer) ->
+send_pat(Streamer, DTS) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
   TSStream = 29998, % Just the same, as VLC does
   Version = 2,
@@ -169,9 +170,9 @@ send_pat(Streamer) ->
   PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
   CRC32 = mpeg2_crc32:crc32(PAT1),
   PAT = <<0, PAT1/binary, CRC32:32>>,
-  mux(PAT, Streamer, 0).
+  mux({DTS, PAT}, Streamer, 0).
 
-send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
+send_pmt(#streamer{video_config = _VideoConfig} = Streamer, DTS) ->
   SectionSyntaxInd = 1,
   ProgramNum = 1,
   Version = 0,
@@ -181,6 +182,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   
   % Some hardcoded output from VLC
   IOD = <<17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  
   
   %% FIXME: Program info is not just for IOD, but also for other descriptors
   %% Look at libdvbpsi/src/tables/pmt.c:468
@@ -224,7 +226,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   PMT = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, Programs/binary>>,
 
   CRC32 = mpeg2_crc32:crc32(PMT),
-  mux(<<0, PMT/binary, CRC32:32>>, Streamer, ?PMT_PID).
+  mux({DTS, <<0, PMT/binary, CRC32:32>>}, Streamer, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
@@ -236,13 +238,19 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer) ->
   % 
   
   
-send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
+send_video(#streamer{base_dts = BaseDTS} = Streamer, #video_frame{dts = DTS1, pts = PTS1, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
+  
+  % DTS = DTS1 - BaseDTS,
+  % PTS = PTS1 - BaseDTS,
+  DTS = DTS1,
+  PTS = PTS1,
 
   <<Pts1:3, Pts2:15, Pts3:15>> = <<(PTS * 90):33>>,
   <<Dts1:3, Dts2:15, Dts3:15>> = <<(DTS * 90):33>>,
+  % ?D({"Video", PTS, DTS, BaseDTS}),
 
   case DTS of
     PTS ->
@@ -257,7 +265,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
-  mux({DTS, PES}, Streamer, ?VIDEO_PID).
+  mux({DTS1, PES}, Streamer, ?VIDEO_PID).
 
 
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
@@ -278,9 +286,9 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
 
 
-send_video_config(#streamer{video_config = Config} = Streamer) ->
+send_video_config(#streamer{video_config = Config} = Streamer, DTS) ->
   F = fun(NAL, S) ->
-    send_video(S, #video_frame{type = video, dts = 0, pts = 0, decoder_config = true, body = NAL})
+    send_video(S, #video_frame{type = video, dts = DTS, pts = DTS, decoder_config = true, body = NAL})
   end,
   {_LengthSize, NALS} = h264:unpack_config(Config),
   lists:foldl(F, Streamer, NALS).
@@ -288,12 +296,14 @@ send_video_config(#streamer{video_config = Config} = Streamer) ->
 
 play(#streamer{player = Player, video_config = undefined} = Streamer) ->
   receive
-    #video_frame{type = video, decoder_config = true, body = Config} ->
-      Streamer1 = send_pmt(Streamer#streamer{video_config = Config}),
+    #video_frame{type = video, decoder_config = true, body = Config, dts = DTS} = Frame ->
+      Streamer1 = send_pat(Streamer, DTS),
+
+      Streamer2 = send_pmt(Streamer1#streamer{video_config = Config, base_dts = DTS}, DTS),
       {LengthSize, _} = h264:unpack_config(Config),
       ?D({"Set length size", LengthSize}),
-      Streamer2 = send_video_config(Streamer1#streamer{length_size = LengthSize*8}),
-      ?MODULE:play(Streamer2)
+      Streamer3 = send_video_config(Streamer2#streamer{length_size = LengthSize*8}, DTS),
+      ?MODULE:play(Streamer3)
   after
     ?TIMEOUT ->
       ?D("No video decoder config received"),

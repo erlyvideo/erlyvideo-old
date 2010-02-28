@@ -138,10 +138,10 @@ handle_info(Message, #file_player{media_info = MediaInfo,
       ?MODULE:ready(State#file_player{client_buffer = NewClientBuffer});
       
     start ->
-      case file_media:metadata(MediaInfo) of
-        undefined -> ok;
-        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
-      end,
+      % case file_media:metadata(MediaInfo) of
+      %   undefined -> ok;
+      %   MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
+      % end,
     	self() ! play,
       ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
       
@@ -247,7 +247,6 @@ send_frame(#file_player{} = _Player, done) ->
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
-  % ?D({"Fr", DTS, val(DTS - BaseDTS), Player#file_player.play_end}),
   case DTS of
     0 ->
       Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS + BaseDTS, pts = PTS + BaseDTS};
