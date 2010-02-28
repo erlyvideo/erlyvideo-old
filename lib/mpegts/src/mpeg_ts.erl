@@ -57,7 +57,6 @@
 -record(streamer, {
   player,
   req,
-  base_dts = 0,
   pat_counter = 0,
   pmt_counter = 0,
   audio_counter = 0,
@@ -238,15 +237,11 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, DTS) ->
   % 
   
   
-send_video(#streamer{base_dts = BaseDTS} = Streamer, #video_frame{dts = DTS1, pts = PTS1, body = Body}) ->
+send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
   
-  % DTS = DTS1 - BaseDTS,
-  % PTS = PTS1 - BaseDTS,
-  DTS = DTS1,
-  PTS = PTS1,
 
   <<Pts1:3, Pts2:15, Pts3:15>> = <<(PTS * 90):33>>,
   <<Dts1:3, Dts2:15, Dts3:15>> = <<(DTS * 90):33>>,
@@ -265,7 +260,7 @@ send_video(#streamer{base_dts = BaseDTS} = Streamer, #video_frame{dts = DTS1, pt
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
-  mux({DTS1, PES}, Streamer, ?VIDEO_PID).
+  mux({DTS, PES}, Streamer, ?VIDEO_PID).
 
 
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
@@ -299,7 +294,7 @@ play(#streamer{player = Player, video_config = undefined} = Streamer) ->
     #video_frame{type = video, decoder_config = true, body = Config, dts = DTS} = Frame ->
       Streamer1 = send_pat(Streamer, DTS),
 
-      Streamer2 = send_pmt(Streamer1#streamer{video_config = Config, base_dts = DTS}, DTS),
+      Streamer2 = send_pmt(Streamer1#streamer{video_config = Config}, DTS),
       {LengthSize, _} = h264:unpack_config(Config),
       ?D({"Set length size", LengthSize}),
       Streamer3 = send_video_config(Streamer2#streamer{length_size = LengthSize*8}, DTS),
