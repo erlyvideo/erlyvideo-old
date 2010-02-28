@@ -142,10 +142,11 @@ video_frame(#file_frame{type = video, dts = DTS, keyframe = Keyframe, pts = PTS}
 		codec_id      = avc
   };  
 
-video_frame(#file_frame{type = audio, dts = DTS}, Data) ->
+video_frame(#file_frame{type = audio, dts = DTS, pts = PTS}, Data) ->
   #video_frame{       
    	type          = audio,
   	dts           = DTS,
+  	pts           = PTS,
   	body          = Data,
 	  codec_id	    = aac,
 	  sound_type	  = stereo,
