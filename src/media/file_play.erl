@@ -60,6 +60,7 @@
 	timer_start,
 	playing_from = 0,
 	ts_prev = 0,
+	base_dts = 0,
 	pos = 0,
 	paused = false,
 	stopped = false,
@@ -88,20 +89,34 @@ init(MediaEntry, Options) ->
   Consumer = proplists:get_value(consumer, Options),
   erlang:monitor(process, Consumer),
   erlang:monitor(process, MediaEntry),
-  Seek = proplists:get_value(seek, Options),
+  {Seek, BaseTS, PlayingFrom} = case  proplists:get_value(seek, Options) of
+    undefined -> {undefined, 0, 0};
+    SeekTo ->
+      case file_media:seek(MediaEntry, SeekTo) of
+        {Pos, NewTimestamp} ->
+          ?D({"Starting from", round(SeekTo), NewTimestamp}),
+          {Pos, NewTimestamp, NewTimestamp};
+        _ ->
+          {undefined, 0, 0}
+      end
+  end,
+  
+  
   PlayEnd = case proplists:get_value(duration_before, Options) of
     undefined -> undefined;
     Duration -> 
-      case file_media:seek(MediaEntry, Seek + Duration) of
-        {_Pos, NewTimestamp} -> NewTimestamp;
+      case file_media:seek(MediaEntry, PlayingFrom + Duration) of
+        {_Pos, EndTimestamp} -> EndTimestamp;
         _ -> undefined
       end
   end,
+  % ?D({"Seek:", Seek, BaseTS, PlayingFrom, PlayEnd}),
   ready(#file_player{consumer = Consumer,
                      stream_id = proplists:get_value(stream_id, Options),
-                     pos = undefined,
+                     pos = Seek,
+                     base_dts = BaseTS,
+                     playing_from = PlayingFrom,
                      media_info = MediaEntry,
-                     seek = Seek,
                      play_end = PlayEnd,
                      client_buffer = proplists:get_value(client_buffer, Options, 10000),
                      timer_start = element(1, erlang:statistics(wall_clock))}).
@@ -127,18 +142,8 @@ handle_info(Message, #file_player{media_info = MediaInfo,
         undefined -> ok;
         MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
       end,
-      case State#file_player.seek of
-        undefined -> 
-        	self() ! play,
-          ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
-        0 -> 
-        	self() ! play,
-          ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
-        Seek ->
-          ?D({"Seeking to", Seek}),
-          self() ! {seek, Seek},
-          ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false, seek = undefined})
-      end;
+    	self() ! play,
+      ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
       
     {client, Pid, Ref} ->
       Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
@@ -241,11 +246,13 @@ send_frame(#file_player{} = _Player, {done, undefined}) ->
 send_frame(#file_player{} = _Player, done) ->
   ok;
 
-send_frame(#file_player{consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
-  Consumer ! Frame#video_frame{stream_id = StreamId},
+send_frame(#file_player{consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
+  % ?D({"Fr", DTS, val(DTS - BaseDTS), Player#file_player.play_end}),
+  Consumer ! Frame#video_frame{stream_id = StreamId, dts = val(DTS - BaseDTS), pts = val(PTS - BaseDTS)},
   timeout_play(Frame, Player#file_player{pos = Next}).
   
-
+val(A) when A < 0 -> 0;
+val(A) -> A.
 
 
 
