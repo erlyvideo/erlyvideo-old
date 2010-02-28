@@ -248,7 +248,12 @@ send_frame(#file_player{} = _Player, done) ->
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
   % ?D({"Fr", DTS, val(DTS - BaseDTS), Player#file_player.play_end}),
-  Consumer ! Frame#video_frame{stream_id = StreamId, dts = val(DTS - BaseDTS), pts = val(PTS - BaseDTS)},
+  case DTS of
+    0 ->
+      Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS + BaseDTS, pts = PTS + BaseDTS};
+    _ ->
+      Consumer ! Frame#video_frame{stream_id = StreamId}
+  end,    
   timeout_play(Frame, Player#file_player{pos = Next}).
   
 val(A) when A < 0 -> 0;
