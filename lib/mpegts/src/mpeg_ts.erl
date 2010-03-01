@@ -101,10 +101,10 @@ adaptation_field(Data) when is_binary(Data) ->
   {1, <<(size(Field)), Field/binary>>};
 
 adaptation_field({Timestamp, Data}) ->
-  % ?D({"PCR", Timestamp}),
   PCR = Timestamp * 27000,
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
+  % ?D({"PCR", PCR}),
   AdaptationMinLength = 1 + 1 + 6,
 
   Adaptation = <<0:1, 0:1, 0:1, 1:1, 0:4, PCR1:33, 2#111111:6, PCR2:9>>,
@@ -240,12 +240,22 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, DTS) ->
 send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
-  Alignment = 0,
+  Priority = 0,
+  Alignment = 1,
+  Copyright = 0,
+  Original = 0,
+  
+  ESCR = 0,
+  ESRate = 0,
+  DSMTrick = 0,
+  CopyInfo = 0,
+  CRC = 0,
+  Extension = 0,
   
 
   <<Pts1:3, Pts2:15, Pts3:15>> = <<(PTS * 90):33>>,
   <<Dts1:3, Dts2:15, Dts3:15>> = <<(DTS * 90):33>>,
-  % ?D({"Video", PTS, DTS, BaseDTS}),
+  % ?D({"Video", PTS, DTS, "--", PTS*90, DTS*90}),
 
   case DTS of
     PTS ->
@@ -254,10 +264,11 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
     _ ->
       PtsDts = 2#11,
       AddPesHeader = <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
-                       2#0001:4, Dts3:3, 1:1, Dts2:15, 1:1, Dts1:15, 1:1>>
+                       2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1>>
   end,
-  PesHeader = <<Marker:2, Scrambling:2, 0:1,
-                Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
+  PesHeader = <<Marker:2, Scrambling:2, Priority:1, Alignment:1, Copyright:1, Original:1, PtsDts:2, 
+                ESCR:1,ESRate:1,DSMTrick:1,CopyInfo:1,CRC:1,Extension:1,  % All these bits are usually zero
+                (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
   mux({DTS, PES}, Streamer, ?VIDEO_PID).
@@ -273,7 +284,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
-  % ?D({"Sending audio", Timestamp, Body}),
+  % ?D({"Audio", Timestamp}),
   ADTS = aac:encode(Body, AudioConfig),
   
   PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
