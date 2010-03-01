@@ -184,10 +184,10 @@ decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) 
 %
 
 decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3} = State) when SyncCount == 50 ->
-  decode(State#shoutcast{format = aac, sync_count = SyncCount + 1});
+  decode(State#shoutcast{format = mp3, sync_count = SyncCount + 1});
 
 decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = aac} = State) when SyncCount == 50 ->
-  decode(State#shoutcast{format = mp3});
+  decode(State#shoutcast{format = aac});
 
 decode(#shoutcast{state = unsynced_body, sync_count = SyncCount}) when SyncCount == 100 ->
   error;
