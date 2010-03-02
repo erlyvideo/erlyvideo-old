@@ -101,13 +101,24 @@ adaptation_field(Data) when is_binary(Data) ->
   {1, <<(size(Field)), Field/binary>>};
 
 adaptation_field({Timestamp, Data}) ->
+  adaptation_field({Timestamp, 0, Data});
+  
+adaptation_field({Timestamp, Keyframe, Data}) ->
   PCR = Timestamp * 27000,
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
   % ?D({"PCR", PCR}),
   AdaptationMinLength = 1 + 1 + 6,
+  Discontinuity = Keyframe,
+  RandomAccess = Keyframe,
+  Priority = 0,
+  HasPCR = 1,
+  HasOPCR = 0,
+  Splice = 0,
+  Private = 0,
+  Ext = 0,
 
-  Adaptation = <<0:1, 0:1, 0:1, 1:1, 0:4, PCR1:33, 2#111111:6, PCR2:9>>,
+  Adaptation = <<Discontinuity:1, RandomAccess:1, Priority:1, HasPCR:1, HasOPCR:1, Splice:1, Private:1, Ext:1, PCR1:33, 2#111111:6, PCR2:9>>,
   Field = padding(Adaptation, ?TS_PACKET - AdaptationMinLength - size(Data)),
   {1, <<(size(Field)), Field/binary>>}.
 
@@ -122,6 +133,7 @@ mux_parts(Data, Streamer, Pid, Start) ->
 
   Header = <<16#47, TEI:1, Start:1, Priority:1, Pid:13, Scrambling:2, Adaptation:1, HasPayload:1, Counter:4, Field/binary>>,
   Payload = case Data of
+    {_, _, Bin} -> Bin;
     {_, Bin} -> Bin;
     _ -> Data
   end,
@@ -237,7 +249,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, DTS) ->
   % 
   
   
-send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
+send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type = FrameType}) ->
   Marker = 2#10,
   Scrambling = 0,
   Priority = 0,
@@ -270,8 +282,14 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body}) ->
                 ESCR:1,ESRate:1,DSMTrick:1,CopyInfo:1,CRC:1,Extension:1,  % All these bits are usually zero
                 (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
-  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + 4):16, PesHeader/binary, 1:24, Body/binary, 0>>,
-  mux({DTS, PES}, Streamer, ?VIDEO_PID).
+  NALHeader = <<1:32>>,
+  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader) + 1):16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
+  
+  Keyframe = case FrameType of
+    keyframe -> 1;
+    _ -> 0
+  end,
+  mux({DTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
 
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
@@ -335,7 +353,8 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
     #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame->
       % Streamer1 = send_video_config(Streamer),
       % <<Length:LengthSize, NAL:Length/binary>> = Body,
-      Streamer2 = send_video(Streamer, Frame#video_frame{body = NAL}),
+      Streamer1 = send_video(Streamer, Frame#video_frame{body = <<9, 16#E0>>}), %H264 NAL_DELIM
+      Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer2);
     #video_frame{type = video, body = Body} = Frame ->
       <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
