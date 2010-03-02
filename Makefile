@@ -103,7 +103,7 @@ debian: all
 	dpkg-buildpackage
 	linux32 dpkg-buildpackage -ai386
 	cp ../erlyvideo_$(VERSION)_*.deb ../erlyvideo_$(VERSION).dsc $(DEBIANREPO)/binary/
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null > Packages; dpkg-scanpackages -a i386 binary /dev/null > Packages; gzip -9 Packages; mv -f Packages.gz binary/Packages.gz)
 
 
 .PHONY: doc debian compile
