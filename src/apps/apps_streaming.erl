@@ -42,7 +42,7 @@
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
-         getStreamLength1/2, prepareStream/2, checkBandwidth/2, 'FCSubscribe'/2]).
+         getStreamLength/2, prepareStream/2, checkBandwidth/2, 'FCSubscribe'/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 -export([next_stream/1]).
@@ -195,10 +195,15 @@ receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [nul
   State.
 
 
-getStreamLength1(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, Name | _]} = AMF) ->
+getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, Name | _]} = AMF) ->
   Length = media_provider:length(Host, Name),
   ?D({"getStreamLength", Name, Length}),
-  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, Length / 1000]}),
+  case Length of
+    Length when is_integer(Length) ->
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, Length / 1000]});
+    _ ->
+      ok
+  end,
   State.
 
 %%-------------------------------------------------------------------------
