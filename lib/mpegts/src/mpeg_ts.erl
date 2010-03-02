@@ -109,7 +109,7 @@ adaptation_field({Timestamp, Keyframe, Data}) ->
   PCR2 = PCR rem 300,
   % ?D({"PCR", PCR}),
   AdaptationMinLength = 1 + 1 + 6,
-  Discontinuity = Keyframe,
+  Discontinuity = 0,
   RandomAccess = Keyframe,
   Priority = 0,
   HasPCR = 1,
