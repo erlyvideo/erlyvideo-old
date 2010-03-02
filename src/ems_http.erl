@@ -131,6 +131,11 @@ handle(Host, 'POST', ["users", UserS, "message"], Req) ->
   ems_users:send_to_user(Host, User, list_to_binary(Message)),
   Req:respond(200, [{"Content-Type", "text/plain"}], "200 OK\n");
 
+handle(Host, 'GET', ["stats.json"], Req) ->
+  Stats = lists:map(fun({Name, Clients}) ->
+    {Name, {struct, [{clients, length(Clients)}]}}
+  end, media_provider:entries(Host)),
+  Req:respond(200, [{"Content-Type", "application/json"}], [mochijson2:encode({struct, Stats}), "\n"]);
   
 handle(Host, 'GET', ["stream" | Name], Req) ->
   Query = Req:parse_qs(),
