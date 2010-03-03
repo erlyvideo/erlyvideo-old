@@ -99,7 +99,7 @@ public function onPlay(e:Event):void {
 //		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+
 //		                (stream._stream == Application.application.parameters.player2.stream._stream) + " "+
 //		                videoContainer.my_id);
-  playStream.bufferTime = 10;
+  playStream.bufferTime = Application.application.parameters.buffer ? int(Application.application.parameters.buffer) : 10;
 	if (playStream.play(player_url.text, videoContainer.video)) {
 		playButton = false;
 		enablePauseButton = true;
