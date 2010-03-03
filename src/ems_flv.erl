@@ -134,12 +134,10 @@ decode(#video_frame{type = metadata} = Frame, Metadata) ->
   Frame#video_frame{body = Metadata}.
 
 
-to_tag(#video_frame{type = video} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_VIDEO});
-to_tag(#video_frame{type = audio} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_AUDIO});
-to_tag(#video_frame{type = metadata} = Frame) -> to_tag(Frame#video_frame{type = ?FLV_TAG_TYPE_META});
-
-to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, dts = DTS}) ->
-	BodyLength = size(Msg),
+to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS} = Frame) ->
+  StreamId = 0, % by spec
+  Body = encode(Frame),
+	BodyLength = size(Body),
 	{TimeStampExt, TimeStamp} = case <<DTS:32>> of
 		<<TimeStampExt1:8,TimeStamp1:24>> -> 
 			{TimeStampExt1, TimeStamp1};
@@ -147,7 +145,7 @@ to_tag(#video_frame{body = Msg, type = Type, stream_id = StreamId, dts = DTS}) -
 			{0, DTS}
 	end,
 	PrevTagSize = BodyLength + 11,
-	<<Type:8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Msg/binary,PrevTagSize:32>>.
+	<<(flv:frame_format(Type)):8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Body/binary,PrevTagSize:32>>.
 
 
 -include_lib("eunit/include/eunit.hrl").

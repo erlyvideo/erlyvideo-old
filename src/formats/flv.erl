@@ -46,9 +46,16 @@
 -export([init/1, read_frame/2, codec_config/2, header/0, header/1, seek/2, first/1]).
 -behaviour(gen_format).
 
--export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1]).
+-export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).
 
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
+
+frame_format(audio) -> ?FLV_TAG_TYPE_AUDIO;
+frame_format(video) -> ?FLV_TAG_TYPE_VIDEO;
+frame_format(metadata) -> ?FLV_TAG_TYPE_META;
+frame_format(?FLV_TAG_TYPE_AUDIO) -> audio;
+frame_format(?FLV_TAG_TYPE_VIDEO) -> video;
+frame_format(?FLV_TAG_TYPE_META) -> metadata.
 
 audio_codec(adpcm) -> ?FLV_AUDIO_FORMAT_ADPCM;
 audio_codec(aac) -> ?FLV_AUDIO_FORMAT_AAC;
@@ -306,10 +313,10 @@ header(#flv_header{version = Version, audio = Audio, video = Video}) ->
 	Reserved = 0,
 	Offset = 9,
 	PrevTag = 0,
-	<<70,76,86,Version:8,Reserved:5,Audio:1,Reserved:1,Video:1,Offset:32,PrevTag:32>>;
+	<<"FLV",Version:8,Reserved:5,Audio:1,Reserved:1,Video:1,Offset:32,PrevTag:32>>;
 header(Bin) when is_binary(Bin) ->
-	<<70,76,86, Ver:8, _:5, Audio:1, _:1, Video:1, 0,0,0,9>> = Bin,
-	#flv_header{version=Ver,audio=Audio,video=Video}.
+	<<"FLV", Version:8, _:5, Audio:1, _:1, Video:1, 0,0,0,9>> = Bin,
+	#flv_header{version=Version,audio=Audio,video=Video}.
 		
 
 
