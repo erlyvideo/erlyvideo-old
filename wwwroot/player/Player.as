@@ -64,7 +64,10 @@ public function check() : void
 /*  Application.application.parameters.player2.videoContainer.video.visible = false;*/
 }
 
-
+private function onRecordUrlClick():void
+{
+  play_url = recordURL;
+}
 
 public function loadVideoPlayer():void
 {

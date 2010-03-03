@@ -23,7 +23,7 @@
     </mx:HBox>
     <mx:HBox>
       <mx:Button label="Record" click="onRecord(event)" id="recordButton" enabled="{enableRecordButton}"/>
-      <mx:Label text="{recordURL}" />
+      <mx:Label text="{recordURL}" click="onRecordUrlClick()" />
       <mx:TextInput width="30" text="{videoWidth}" id="videoWidthInput" change="setWidth(int(videoWidthInput.text))" />
       <mx:TextInput width="30" text="{videoHeight}" id="videoHeightInput" change="setHeight(int(videoHeightInput.text))" />
       <mx:TextInput width="25" text="{videoFps}" id="videoFpsInput" change="setFps(int(videoFpsInput.text))" />
