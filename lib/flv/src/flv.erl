@@ -44,8 +44,11 @@
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).
 
--export([read_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
+-export([header/0, read_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
+
+-export([encode_audio_tag/1, encode_video_tag/1]).
+
 
 frame_format(audio) -> ?FLV_TAG_TYPE_AUDIO;
 frame_format(video) -> ?FLV_TAG_TYPE_VIDEO;
@@ -142,6 +145,51 @@ read_tag(Device, Offset) ->
     Else -> Else
   end.
 
+
+encode_audio_tag(#flv_audio_tag{decoder_config = true,
+                    codec = aac,
+                	  channels	= Channels,
+                	  bitsize	= BitSize,
+                	  rate	= SoundRate,
+                    body = Body}) when is_binary(Body) ->
+  <<?FLV_AUDIO_FORMAT_AAC:4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(BitSize)):1, (flv:audio_type(Channels)):1,
+    ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>;
+
+
+encode_audio_tag(#flv_audio_tag{codec = aac,
+                    channels	= Channels,
+                    bitsize	= BitSize,
+                	  rate	= SoundRate,
+                    body = Body}) when is_binary(Body) ->
+	<<?FLV_AUDIO_FORMAT_AAC:4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(BitSize)):1, (flv:audio_type(Channels)):1,
+	  ?FLV_AUDIO_AAC_RAW:8, Body/binary>>;
+
+encode_audio_tag(#flv_audio_tag{codec = Codec,
+                    channels	= Channels,
+                    bitsize	= BitSize,
+                	  rate	= SoundRate,
+                    body = Body}) when is_binary(Body) ->
+	<<(flv:audio_codec(Codec)):4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(BitSize)):1, (flv:audio_type(Channels)):1, Body/binary>>.
+
+
+
+encode_video_tag(#flv_video_tag{frame_type = FrameType,
+                   	decoder_config = true,
+                   	codec = avc,
+                   	composition_time = Time,
+                    body = Body}) when is_binary(Body) ->
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
+
+encode_video_tag(#flv_video_tag{frame_type = FrameType,
+                   	codec = avc,
+                   	composition_time = Time,
+                    body = Body}) when is_binary(Body) ->
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
+
+encode_video_tag(#flv_video_tag{frame_type = FrameType,
+                   	codec = CodecId,
+                    body = Body}) when is_binary(Body) ->
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>.
 
 	
 % Extracts width and height from video frames.

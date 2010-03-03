@@ -37,6 +37,7 @@
 -author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
+-include_lib("flv/include/flv.hrl").
 -include_lib("flv/include/flv_constants.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
@@ -44,60 +45,27 @@
 
 
 encode(#video_frame{type = audio,
-                    decoder_config = true,
-                    codec_id = aac,
-                	  sound_type	= SoundType,
-                	  sound_size	= SoundSize,
-                	  sound_rate	= SoundRate,
-                    body = Body}) when is_binary(Body) ->
-  <<?FLV_AUDIO_FORMAT_AAC:4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(SoundSize)):1, (flv:audio_type(SoundType)):1,
-    ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>;
-
-
-encode(#video_frame{type = audio,
-                    codec_id = aac,
-                	  sound_type	= SoundType,
-                	  sound_size	= SoundSize,
-                	  sound_rate	= SoundRate,
-                    body = Body}) when is_binary(Body) ->
-	<<?FLV_AUDIO_FORMAT_AAC:4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(SoundSize)):1, (flv:audio_type(SoundType)):1,
-	  ?FLV_AUDIO_AAC_RAW:8, Body/binary>>;
-
-encode(#video_frame{type = audio,
+                    decoder_config = DecoderConfig,
                     codec_id = Codec,
                 	  sound_type	= SoundType,
                 	  sound_size	= SoundSize,
                 	  sound_rate	= SoundRate,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:audio_codec(Codec)):4, (flv:audio_rate(SoundRate)):2, (flv:audio_size(SoundSize)):1, (flv:audio_type(SoundType)):1,
-	  Body/binary>>;
+  flv:encode_audio_tag(#flv_audio_tag{codec = Codec, rate = SoundRate, bitsize = SoundSize, channels = SoundType, body = Body, decoder_config = DecoderConfig});
+
 
 
 encode(#video_frame{type = video,
                     frame_type = FrameType,
-                   	decoder_config = true,
-                   	codec_id = avc,
+                   	decoder_config = DecoderConfig,
+                   	codec_id = Codec,
                    	pts = PTS,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
   Time = PTS - DTS,
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
+  flv:encode_video_tag(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = PTS - DTS, body = Body});
 
-encode(#video_frame{type = video,
-                    frame_type = FrameType,
-                   	codec_id = avc,
-                   	pts = PTS,
-                   	dts = DTS,
-                    body = Body}) when is_binary(Body) ->
-  Time = round(PTS - DTS),
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
 
-encode(#video_frame{type = video,
-                    frame_type = FrameType,
-                   	codec_id = CodecId,
-                    body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>;
-	
 encode(#video_frame{type = metadata, body = Metadata}) ->
   Metadata.
 

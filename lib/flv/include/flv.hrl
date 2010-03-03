@@ -10,6 +10,23 @@
   body
 }).
 
+-record(flv_audio_tag, {
+  codec,
+  rate,
+  bitsize,
+  channels,
+  decoder_config,
+  body
+}).
+
+-record(flv_video_tag, {
+  codec,
+  frame_type,
+  composition_time,
+  decoder_config,
+  body
+}).
+
 
 -record(flv_header,{
 	version = 1,
