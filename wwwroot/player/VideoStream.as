@@ -61,6 +61,23 @@ package
 		  }
 		}
 		
+		public function get bufferLength():Number
+		{
+		  return _stream ? _stream.bufferLength : -1;
+		}
+
+		public function get bufferTime():Number
+		{
+		  return _stream ? _stream.bufferTime : -1;
+		}
+
+		public function set bufferTime(time:Number):void
+		{
+		  if (_stream) {
+		    _stream.bufferTime = time;
+		  }
+		}
+		
 		public function get time():int
 		{
 			if (_stream) return _stream.time;

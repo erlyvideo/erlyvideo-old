@@ -20,6 +20,8 @@
       
 
   		<mx:HSlider id="volSlider" liveDragging="true" value="0.9" minimum="0.0" maximum="1.0" snapInterval="0.01" change="setVolume(volSlider.value)" width="100"/>
+  		
+  		<mx:Label text="Buffer: {bufferStat}" width="150" />
     </mx:HBox>
     <mx:HBox>
       <mx:Button label="Record" click="onRecord(event, 'record')" id="recordButton" enabled="{enableRecordButton}"/>

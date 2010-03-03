@@ -20,6 +20,9 @@ private var recordStream : RecordStream;
 private var playStream : PlayStream;
 
 [Bindable]
+private var bufferStat:String = "empty";
+
+[Bindable]
 private var playButton:Boolean = false;
 [Bindable]
 private var stopButton:Boolean = false;
@@ -96,6 +99,7 @@ public function onPlay(e:Event):void {
 //		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+
 //		                (stream._stream == Application.application.parameters.player2.stream._stream) + " "+
 //		                videoContainer.my_id);
+  playStream.bufferTime = 10;
 	if (playStream.play(player_url.text, videoContainer.video)) {
 		playButton = false;
 		enablePauseButton = true;
@@ -171,6 +175,7 @@ public function setQuality(quality : int) : void
 public function setProgressBar(event:VideoSourceEvent) : void
 {
 	currentTime = int(event.payload);
+	bufferStat = playStream.bufferLength + "/" + playStream.bufferTime;
 }
 
 public function seek(event:SliderEvent) : void
