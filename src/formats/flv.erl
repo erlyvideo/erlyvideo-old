@@ -236,7 +236,7 @@ video_frame(#flv_tag{type = Type, timestamp = Timestamp, body = Data}) ->
       end;
     _ -> undefined
   end,
-  ems_flv:decode(#video_frame{type = Type, dts = Timestamp, frame_type = FrameType}, Data).
+  ems_flv:decode(#video_frame{type = Type, dts = Timestamp, pts = Timestamp, frame_type = FrameType}, Data).
 
 	
 % Extracts width and height from video frames.
