@@ -178,13 +178,13 @@ encode_video_tag(#flv_video_tag{frame_type = FrameType,
                    	codec = avc,
                    	composition_time = Time,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, Time:24, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, (round(Time)):24, Body/binary>>;
 
 encode_video_tag(#flv_video_tag{frame_type = FrameType,
                    	codec = avc,
                    	composition_time = Time,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, Time:24, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, (round(Time)):24, Body/binary>>;
 
 encode_video_tag(#flv_video_tag{frame_type = FrameType,
                    	codec = CodecId,
