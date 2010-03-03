@@ -78,13 +78,20 @@ read_frame_list(#media_info{device = Device} = MediaInfo, Offset) ->
 
 codec_config(_, _) -> undefined.
 
+get_int(Key, Meta, Coeff) ->
+  case {proplists:get_value(Key, Meta), Coeff} of
+    {undefined, _} -> undefined;
+    {Value, Coeff} when is_number(Coeff) andalso is_number(Value) -> round(Value*Coeff);
+    {Value, {M, F}} -> M:F(round(Value))
+  end.
+
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
   MediaInfo1 = MediaInfo#media_info{
-    width = round(proplists:get_value(<<"width">>, Meta)*1000),
-    height = round(proplists:get_value(<<"height">>, Meta)*1000),
-    duration = round(proplists:get_value(<<"duration">>, Meta)*1000),
-    audio_codec = flv:audio_codec(round(proplists:get_value(<<"audiocodecid">>, Meta))),
-    video_codec = flv:video_codec(round(proplists:get_value(<<"videocodecid">>, Meta)))
+    width = get_int(<<"width">>, Meta, 1),
+    height = get_int(<<"height">>, Meta, 1),
+    duration = get_int(<<"duration">>, Meta, 1000),
+    audio_codec = get_int(<<"audiocodecid">>, Meta, {flv, audio_codec}),
+    video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec})
   },
   case proplists:get_value(<<"keyframes">>, Meta) of
     {object, Keyframes} ->
@@ -130,5 +137,7 @@ read_frame(#media_info{device = Device}, Offset) ->
     {error, Reason} -> {error, Reason}
   end.
 
-video_frame(#flv_tag{type = Type, timestamp = Timestamp, body = Data, frame_type = FrameType}) ->
-  ems_flv:decode(#video_frame{type = Type, dts = Timestamp, pts = Timestamp, frame_type = FrameType}, Data).
+video_frame(#flv_tag{type = Type, timestamp = Timestamp, body = AVTag}) ->
+  Frame = ems_flv:tag_to_video_frame(AVTag),
+  CTime = Frame#video_frame.pts,
+  Frame#video_frame{type = Type, dts = Timestamp, pts = Timestamp+CTime}.

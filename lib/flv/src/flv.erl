@@ -154,7 +154,7 @@ decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_
   #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = avc, decoder_config = true, composition_time = CTime, body= Body};
 
 decode_video_tag(<<FrameType:4, CodecId:4, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), body = Body}.
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), composition_time = 0, body = Body}.
 
 
 
@@ -175,7 +175,7 @@ decode_meta_tag(Metadata) when is_binary(Metadata) ->
   decode_list(Metadata);
 
 decode_meta_tag(Metadata) ->
-  decode_list(Metadata).
+  Metadata.
 
 decode_tag(#flv_tag{type = video, body = VideoTag} = Tag) ->
   Tag#flv_tag{body = decode_video_tag(VideoTag)};

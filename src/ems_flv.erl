@@ -42,6 +42,7 @@
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
+-export([tag_to_video_frame/1]).
 
 
 
@@ -87,6 +88,8 @@ tag_to_video_frame(#flv_audio_tag{codec = Codec, rate = Rate, bitsize = Size, ch
                sound_type	= SoundType,
                sound_size	= Size,
                sound_rate	= Rate,
+               pts = 0,
+               dts = 0,
                body = Body};
 
 
@@ -101,7 +104,7 @@ tag_to_video_frame(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig,
 
 
 tag_to_video_frame(Metadata) ->
-  #video_frame{type = metadata, body = Metadata}.
+  #video_frame{type = metadata, body = Metadata, dts = 0, pts = 0}.
 
 
 decode(#video_frame{type = video, dts = DTS} = Frame, Data) ->

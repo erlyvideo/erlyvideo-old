@@ -250,9 +250,6 @@ send_frame(#file_player{consumer = Consumer, stream_id = StreamId, base_dts = Ba
   end,    
   timeout_play(Frame, Player#file_player{pos = Next}).
   
-val(A) when A < 0 -> 0;
-val(A) -> A.
-
 
 
 %%-------------------------------------------------------------------------
@@ -267,8 +264,8 @@ file_dir(Host) ->
 
 file_format(Name) ->
   case filename:extension(Name) of
-      ".flv" -> flv;
-      ".FLV" -> flv;
+      ".flv" -> flv_reader;
+      ".FLV" -> flv_reader;
       ".3gp" -> mp4;
       ".mp4" -> mp4;
       ".MP4" -> mp4;
