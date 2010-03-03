@@ -13,7 +13,7 @@
 * click "Chat" link in head of page and open on new page
 * type something into "send message"
 * it must appear in both pages.
-
+* check same steps with json_session
 
 === File reading ===
 

@@ -30,12 +30,17 @@ perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInf
   
 decode(undefined, undefined) ->
   [];
-  
-decode(Session, Secret) when is_binary(Session) ->
-  decode(0, Session, Secret);
 
-decode(Session, Secret) when is_list(Session) ->
-  decode(0, list_to_binary(Session), Secret).
+decode(Cookie, Secret) when is_list(Cookie) ->
+  decode(list_to_binary(Cookie), Secret);
+  
+decode(Cookie, Secret) when is_binary(Cookie) ->
+  {Session64, Sign} = split_cookie(Cookie),
+  verify_signature(Session64, Sign, Secret),
+  {struct, Session} = mochijson2:decode(base64:decode(Session64)),
+  Session.
+  
+
   
 encode(Session, undefined) ->
   Json = iolist_to_binary(mochijson2:encode({struct, Session})),
@@ -61,20 +66,24 @@ hex(N) when N >= 10, N < 16 ->
 session_sign(Session, Secret) ->
   binary_to_hexbin(crypto:sha_mac(Secret, Session)).
   
-decode(Offset, Subscription, _Secret) when Offset >= size(Subscription) - 2 ->
-  {error, no_signature};
+  
+verify_signature(_, _, undefined) ->
+  ok;
+  
+verify_signature(Session64, Sign, Secret) ->
+  Sign = session_sign(Session64, Secret).
 
-decode(Offset, Subscription, Secret) ->
-  case Subscription of
+split_cookie(Cookie) -> split_cookie(0, Cookie).
+
+split_cookie(Offset, Cookie) when Offset >= size(Cookie) - 2 ->
+  {Cookie, undefined};
+  
+split_cookie(Offset, Cookie) ->
+  case Cookie of
     <<Session64:Offset/binary, "--", Sign/binary>> ->
-      GeneratedSign = session_sign(Session64, Secret),
-      case Sign of
-        GeneratedSign ->
-          {struct, Session} = mochijson2:decode(base64:decode(Session64)),
-          Session;
-        _ ->
-          invalid_signature
-      end;
+      {Session64, Sign};
     _ ->
-      decode(Offset + 1, Subscription, Secret)
+      split_cookie(Offset + 1, Cookie)
   end.
+  
+
