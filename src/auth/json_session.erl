@@ -25,7 +25,7 @@ perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInf
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
 	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
-	ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~p json_session", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
+	ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~w json_session", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
 	NewState.
   
 decode(undefined, undefined) ->
