@@ -168,7 +168,9 @@ handle_call({open, Name, Opts}, {_Opener, _Ref}, #media_provider{host = Host} = 
   Opts0 = lists:ukeysort(1, Opts),
   Opts1 = case proplists:get_value(type, Opts0) of
     undefined ->
-      lists:ukeymerge(1, detect_type(Host, Name), Opts0);
+      DetectedOpts = detect_type(Host, Name),
+      ?D({"Detecting type", Host, Name, DetectedOpts}),
+      lists:ukeymerge(1, DetectedOpts, Opts0);
     _ ->
       Opts0
   end,
@@ -238,7 +240,6 @@ open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvid
   end.
   
 detect_type(Host, Name) ->
-  ?D({"Detecting type", Host, Name}),
   detect_mpegts(Host, Name).
   
 detect_mpegts(Host, Name) ->

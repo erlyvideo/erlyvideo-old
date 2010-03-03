@@ -104,7 +104,7 @@ adaptation_field({Timestamp, Data}) ->
   adaptation_field({Timestamp, 0, Data});
   
 adaptation_field({Timestamp, Keyframe, Data}) ->
-  PCR = Timestamp * 27000,
+  PCR = round(Timestamp * 27000),
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
   % ?D({"PCR", PCR}),
@@ -265,9 +265,9 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
   Extension = 0,
   
 
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<(PTS * 90):33>>,
-  <<Dts1:3, Dts2:15, Dts3:15>> = <<(DTS * 90):33>>,
   % ?D({"Video", PTS, DTS, "--", PTS*90, DTS*90}),
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<(round(PTS * 90)):33>>,
+  <<Dts1:3, Dts2:15, Dts3:15>> = <<(round(DTS * 90)):33>>,
 
   case DTS of
     PTS ->
@@ -297,7 +297,8 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
-  Pts = Timestamp * 90,
+  % ?D({"Audio", Timestamp}),
+  Pts = round(Timestamp * 90),
   <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
   AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
