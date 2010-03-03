@@ -97,7 +97,7 @@ adaptation_field(Data) when size(Data) >= ?TS_PACKET ->
   {0, <<>>};
   
 adaptation_field(Data) when is_binary(Data) ->
-  Field = padding(<<0>>, ?TS_PACKET - size(Data) - 2),
+  Field = padding(<<0>>, ?TS_PACKET - size(Data) - 1),
   {1, <<(size(Field)), Field/binary>>};
 
 adaptation_field({Timestamp, Data}) ->
@@ -108,7 +108,6 @@ adaptation_field({Timestamp, Keyframe, Data}) ->
   PCR1 = round(PCR / 300),
   PCR2 = PCR rem 300,
   % ?D({"PCR", PCR}),
-  AdaptationMinLength = 1 + 1 + 6,
   Discontinuity = 0,
   RandomAccess = Keyframe,
   Priority = 0,
@@ -119,7 +118,8 @@ adaptation_field({Timestamp, Keyframe, Data}) ->
   Ext = 0,
 
   Adaptation = <<Discontinuity:1, RandomAccess:1, Priority:1, HasPCR:1, HasOPCR:1, Splice:1, Private:1, Ext:1, PCR1:33, 2#111111:6, PCR2:9>>,
-  Field = padding(Adaptation, ?TS_PACKET - AdaptationMinLength - size(Data)),
+  Field = padding(Adaptation, ?TS_PACKET - 1 - size(Data)),
+  % ?D({"Adapt", size(Adaptation), size(Field)+1, size(Data)}),
   {1, <<(size(Field)), Field/binary>>}.
 
 
@@ -139,19 +139,21 @@ mux_parts(Data, Streamer, Pid, Start) ->
   end,
   send_ts(Header, Payload, Streamer1, Pid).
   
-send_ts(Header, Data, #streamer{req = Req} = Streamer, _) when size(Data) == 188 - size(Header) ->
+send_ts(Header, Data, #streamer{req = Req} = Streamer, _Pid) when size(Data) + size(Header) == 188 ->
+  % ?D({"TS packet", _Pid, size(<<Header/binary, Data/binary>>)}),
   Req:stream(<<Header/binary, Data/binary>>),
   Streamer;
 
-send_ts(Header, Data, #streamer{req = Req} = Streamer, Pid) when size(Data) > 188 - size(Header) ->
+send_ts(Header, Data, #streamer{req = Req} = Streamer, Pid) when size(Data) + size(Header) > 188  ->
   Length = 188 - size(Header),
   <<Packet:Length/binary, Rest/binary>> = Data,
+  % ?D({"TS packet", Pid, size(<<Header/binary, Packet/binary>>), size(Rest)}),
   Req:stream(<<Header/binary, Packet/binary>>),
   mux_parts(Rest, Streamer, Pid, 0).
   
 
-padding(Padding, Size) when Size =< 0 -> Padding;
-padding(Padding, Size) when Size > 0 -> 
+padding(Padding, Size) when size(Padding) >= Size -> Padding;
+padding(Padding, Size) when size(Padding) < Size -> 
   Padder = <<255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
              255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
              255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
@@ -166,10 +168,10 @@ padding(Padding, Size) when Size > 0 ->
              255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
              255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
              255,255,255,255,255,255,255,255>>,
-  {Pad, _} = split_binary(Padder, Size),           
+  {Pad, _} = split_binary(Padder, Size - size(Padding)),
   padding(<<Padding/binary, Pad/binary>>, Size - size(Pad)).
   
-send_pat(Streamer, DTS) ->
+send_pat(Streamer, _DTS) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
   TSStream = 29998, % Just the same, as VLC does
   Version = 2,
@@ -181,9 +183,11 @@ send_pat(Streamer, DTS) ->
   PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
   CRC32 = mpeg2_crc32:crc32(PAT1),
   PAT = <<0, PAT1/binary, CRC32:32>>,
-  mux({DTS, PAT}, Streamer, 0).
+  PATBin = padding(PAT, ?TS_PACKET),
+  ?D({"Sending PAT", size(PAT), size(PATBin)}),
+  mux(PATBin, Streamer, 0).
 
-send_pmt(#streamer{video_config = _VideoConfig} = Streamer, DTS) ->
+send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   SectionSyntaxInd = 1,
   ProgramNum = 1,
   Version = 0,
@@ -237,7 +241,8 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, DTS) ->
   PMT = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, Programs/binary>>,
 
   CRC32 = mpeg2_crc32:crc32(PMT),
-  mux({DTS, <<0, PMT/binary, CRC32:32>>}, Streamer, ?PMT_PID).
+  PMTBin = <<0, PMT/binary, CRC32:32>>,
+  mux(padding(PMTBin, ?TS_PACKET), Streamer, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,

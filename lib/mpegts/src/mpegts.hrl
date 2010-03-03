@@ -17,3 +17,9 @@
 -define(DESCRIPTOR_IOD, 29).
 -define(DESCRIPTOR_CA, 9).
 -define(DESCRIPTOR_SL, 31).
+
+
+-record(mpegts_pat, {
+  descriptors
+}).
+

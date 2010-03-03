@@ -64,10 +64,11 @@
 
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([pat/4, pmt/4, pes/1]).
+-export([handle_pat/4, pmt/4, pes/1]).
+
+-export([pat/1]).
 
 % {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, http_bin}, {active, false}], 1000),
 % gen_tcp:send(Socket, "GET / HTTP/1.0\r\n\r\n"),
@@ -87,7 +88,7 @@ init([URL, Type, Opts]) when is_binary(URL)->
   init([binary_to_list(URL), Type, Opts]);
 
 init([URL, mpeg_ts_passive, _Opts]) ->
-  {ok, #ts_lander{url = URL, pids = [#stream{pid = 0, handler = pat}]}};
+  {ok, #ts_lander{url = URL, pids = [#stream{pid = 0, handler = handle_pat}]}};
   
 init([URL, mpeg_ts, _Opts]) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
@@ -95,7 +96,7 @@ init([URL, mpeg_ts, _Opts]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   
-  {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
+  {ok, #ts_lander{socket = Socket, url = URL, pids = [#stream{pid = 0, handler = handle_pat}]}}.
   
   % io:format("HTTP Request ~p~n", [RequestId]),
   % {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.
@@ -301,30 +302,39 @@ packet_timestamp(Header) -> Header.
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
-pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>>, #ts_lander{pids = Pids} = TSLander, _, _) -> % PAT
+handle_pat(PATBin, #ts_lander{pids = Pids} = TSLander, _, _) ->
+  ?D({"Full PAT", size(PATBin), PATBin}),
+  PAT = pat(PATBin),
+  #mpegts_pat{descriptors = Descriptors} = PAT,
+  TSLander#ts_lander{pids = lists:ukeymerge(#stream.pid, Pids, Descriptors)}.
+  
+
+pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = PATBin) -> % PAT
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
+  ?D({"PAT descriptors", ProgramCount, PAT}),
   Descriptors = extract_pat(PAT, ProgramCount, []),
-  TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors)}.
+  #mpegts_pat{descriptors = Descriptors}.
+
 
 
 extract_pat(<<_CRC32/binary>>, 0, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
+  
 extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
-  % io:format("Program ~p on pid ~p~n", [ProgramNum, Pid]),
   extract_pat(PAT, ProgramCount - 1, [#stream{handler = pmt, pid = Pid, counter = 0, program_num = ProgramNum} | Descriptors]).
-
 
 
 
 pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
-    _LastSectionNumber, _:3, _PCRPID:13, _:4, ProgramInfoLength:12, 
-    ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #ts_lander{pids = Pids} = TSLander, _, _) ->
-  _SectionCount = round(SectionLength - 13),
+    _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
+    ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = PMTBin, #ts_lander{pids = Pids} = TSLander, _, _) ->
+  ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
+  PMTLength = round(SectionLength - 13),
   io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, _PCRPID]),
   % io:format("Program info: ~p~n", [ProgramInfo]),
-  Descriptors = extract_pmt(PMT, []),
+  Descriptors = extract_pmt(PMT, PMTLength, []),
   % io:format("Streams: ~p~n", [Descriptors]),
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
@@ -342,13 +352,15 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
   TSLander#ts_lander{pids = Descriptors1}.
 
-extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, Descriptors) ->
-  ?D({"Pid -> Type", Pid, StreamType}),
-  extract_pmt(Rest, [#stream{handler = pes, counter = 0, pid = Pid, type = stream_type(StreamType)}|Descriptors]);
-  
-extract_pmt(_CRC32, Descriptors) ->
+extract_pmt(_CRC32, 0, Descriptors) ->
+  ?D({"Left CRC32", _CRC32}),
   % io:format("Unknown PMT: ~p~n", [PMT]),
-  lists:keysort(#stream.pid, Descriptors).
+  lists:keysort(#stream.pid, Descriptors);
+
+extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, PMTLength, Descriptors) ->
+  ?D({"Pid -> Type", Pid, StreamType}),
+  extract_pmt(Rest, PMTLength - 5 - ESLength, [#stream{handler = pes, counter = 0, pid = Pid, type = stream_type(StreamType)}|Descriptors]).
+  
 
 
 stream_type(?TYPE_VIDEO_H264) -> video;
