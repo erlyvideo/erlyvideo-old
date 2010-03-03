@@ -44,18 +44,30 @@
 -export([to_tag/1, encode/1, decode/2]).
 
 
-encode(#video_frame{type = audio,
+
+
+
+encode(#video_frame{type = audio} = VideoFrame) ->
+  flv:encode_audio_tag(video_frame_to_tag(VideoFrame));
+
+encode(#video_frame{type = video} = VideoFrame) ->
+  flv:encode_audio_tag(video_frame_to_tag(VideoFrame));
+
+encode(#video_frame{type = metadata} = VideoFrame) ->
+  flv:encode_meta_tag(video_frame_to_tag(VideoFrame)).
+
+video_frame_to_tag(#video_frame{type = audio,
                     decoder_config = DecoderConfig,
                     codec_id = Codec,
                 	  sound_type	= SoundType,
                 	  sound_size	= SoundSize,
                 	  sound_rate	= SoundRate,
                     body = Body}) when is_binary(Body) ->
-  flv:encode_audio_tag(#flv_audio_tag{codec = Codec, rate = SoundRate, bitsize = SoundSize, channels = SoundType, body = Body, decoder_config = DecoderConfig});
+  #flv_audio_tag{codec = Codec, rate = SoundRate, bitsize = SoundSize, channels = SoundType, body = Body, decoder_config = DecoderConfig};
 
 
 
-encode(#video_frame{type = video,
+video_frame_to_tag(#video_frame{type = video,
                     frame_type = FrameType,
                    	decoder_config = DecoderConfig,
                    	codec_id = Codec,
@@ -63,44 +75,48 @@ encode(#video_frame{type = video,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
   Time = PTS - DTS,
-  flv:encode_video_tag(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = PTS - DTS, body = Body});
+  #flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = PTS - DTS, body = Body};
 
 
-encode(#video_frame{type = metadata, body = Metadata}) ->
+video_frame_to_tag(#video_frame{type = metadata, body = Metadata}) ->
   Metadata.
 
-
-decode(#video_frame{type = video, dts = DTS} = Frame, 
-       <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
-  Frame#video_frame{frame_type = flv:frame_type(FrameType), codec_id = avc, pts = DTS + CTime, body= Body};
-
-decode(#video_frame{type = video, dts = DTS} = Frame, 
-       <<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
-  Frame#video_frame{frame_type = flv:frame_type(FrameType), codec_id = avc, decoder_config = true, pts = DTS + CTime, body= Body};
-
-decode(#video_frame{type = video, dts = DTS} = Frame, <<FrameType:4, CodecId:4, Body/binary>>) ->
-  Frame#video_frame{frame_type = flv:frame_type(FrameType), codec_id = flv:video_codec(CodecId), pts = DTS, body = Body};
-
-decode(#video_frame{type = audio} = Frame, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
-  Frame#video_frame{codec_id = aac, sound_type = flv:audio_type(SoundType), 
-              sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
-
-decode(#video_frame{type = audio} = Frame, <<?FLV_AUDIO_FORMAT_AAC:4, SoundRate:2, SoundSize:1, SoundType:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
-  Frame#video_frame{codec_id = aac, decoder_config = true, sound_type = flv:audio_type(SoundType), 
-            sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
+tag_to_video_frame(#flv_audio_tag{codec = Codec, rate = Rate, bitsize = Size, channels = SoundType, body = Body, decoder_config = DecoderConfig}) ->
+  #video_frame{type = audio,
+               decoder_config = DecoderConfig,
+               codec_id = Codec,
+               sound_type	= SoundType,
+               sound_size	= Size,
+               sound_rate	= Rate,
+               body = Body};
 
 
-decode(#video_frame{type = audio} = Frame, <<CodecId:4, SoundRate:2, SoundSize:1, SoundType:1, Body/binary>>) ->
-  Frame#video_frame{codec_id = flv:audio_codec(CodecId), sound_type = flv:audio_type(SoundType), 
-              sound_size	= flv:audio_size(SoundSize), sound_rate	= flv:audio_rate(SoundRate), body= Body};
+tag_to_video_frame(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = CTime, body = Body}) ->
+  #video_frame{type = video,
+               frame_type = FrameType,
+               decoder_config = DecoderConfig,
+               codec_id = Codec,
+               pts = CTime,
+               dts = 0,
+               body = Body};
 
-decode(#video_frame{type = metadata} = Frame, Metadata) when is_binary(Metadata) ->
-  Frame#video_frame{body = rtmp:decode_list(Metadata)};
-              
+
+tag_to_video_frame(Metadata) ->
+  #video_frame{type = metadata, body = Metadata}.
+
+
+decode(#video_frame{type = video, dts = DTS} = Frame, Data) ->
+  #flv_video_tag{codec = Codec, frame_type = FrameType, composition_time = CTime, decoder_config = Cfg, body = Body} = flv:decode_video_tag(Data),
+  Frame#video_frame{frame_type = FrameType, codec_id = Codec, decoder_config = Cfg, pts = DTS + CTime, body= Body};
+
+
+decode(#video_frame{type = audio} = Frame, Data) ->
+  #flv_audio_tag{codec = Codec, rate = Rate, bitsize = Bitsize, channels = Channels, decoder_config = Cfg, body = Body} = flv:decode_audio_tag(Data),
+  Frame#video_frame{codec_id = Codec, sound_type = Channels, sound_size = Bitsize, sound_rate = Rate, body= Body, decoder_config = Cfg};
+
 decode(#video_frame{type = metadata} = Frame, Metadata) ->
-  % ?D({"Metadata", Metadata}),
-  Frame#video_frame{body = Metadata}.
-
+  Frame#video_frame{body = flv:decode_meta_tag(Metadata)}.
+              
 
 to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS} = Frame) ->
   StreamId = 0, % by spec

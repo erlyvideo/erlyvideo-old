@@ -47,7 +47,8 @@
 -export([header/0, read_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
 
--export([encode_audio_tag/1, encode_video_tag/1]).
+-export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1,
+         decode_audio_tag/1, decode_video_tag/1, decode_meta_tag/1, decode_tag/1]).
 
 
 frame_format(audio) -> ?FLV_TAG_TYPE_AUDIO;
@@ -141,9 +142,65 @@ read_tag(Device, Offset) ->
         _ -> frame
       end,
       
-      Tag#flv_tag{body = Body, frame_type = FrameType};
+      decode_tag(Tag#flv_tag{body = Body, frame_type = FrameType});
     Else -> Else
   end.
+
+
+decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = avc, composition_time = CTime, body= Body};
+
+decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = avc, decoder_config = true, composition_time = CTime, body= Body};
+
+decode_video_tag(<<FrameType:4, CodecId:4, Body/binary>>) ->
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), body = Body}.
+
+
+
+decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
+  #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
+                 rate	= flv:audio_rate(Rate), body= Body};
+
+decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
+  #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
+                 decoder_config = true, rate	= flv:audio_rate(Rate), body= Body};
+
+decode_audio_tag(<<CodecId:4, Rate:2, Bitsize:1, Channels:1, Body/binary>>) ->
+  #flv_audio_tag{codec = flv:audio_codec(CodecId), channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
+                 rate	= flv:audio_rate(Rate), body= Body}.
+
+
+decode_meta_tag(Metadata) when is_binary(Metadata) ->
+  decode_list(Metadata);
+
+decode_meta_tag(Metadata) ->
+  decode_list(Metadata).
+
+decode_tag(#flv_tag{type = video, body = VideoTag} = Tag) ->
+  Tag#flv_tag{body = decode_video_tag(VideoTag)};
+
+decode_tag(#flv_tag{type = audio, body = AudioTag} = Tag) ->
+  Tag#flv_tag{body = decode_audio_tag(AudioTag)};
+
+decode_tag(#flv_tag{type = metadata, body = Metadata} = Tag) ->
+  Tag#flv_tag{body = decode_meta_tag(Metadata)}.
+
+
+decode_list(Data) -> decode_list(Data, []).
+
+decode_list(<<>>, Acc) -> lists:reverse(Acc);
+
+decode_list(Body, Acc) ->
+  {Element, Rest} = amf0:decode(Body),
+  decode_list(Rest, [Element | Acc]).
+
+encode_list(List) -> encode_list(<<>>, List).
+
+encode_list(Message, []) -> Message;
+encode_list(Message, [Arg | Args]) ->
+  AMF = amf0:encode(Arg),
+  encode_list(<<Message/binary, AMF/binary>>, Args).
 
 
 encode_audio_tag(#flv_audio_tag{decoder_config = true,
@@ -190,6 +247,13 @@ encode_video_tag(#flv_video_tag{frame_type = FrameType,
                    	codec = CodecId,
                     body = Body}) when is_binary(Body) ->
 	<<(flv:frame_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>.
+
+
+encode_meta_tag(Metadata) when is_binary(Metadata) ->
+  Metadata;
+
+encode_meta_tag(Metadata) ->
+  encode_list(Metadata).
 
 	
 % Extracts width and height from video frames.

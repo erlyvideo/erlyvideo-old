@@ -26,9 +26,18 @@
 === Live recording ===
 
 * open http://localhost:8082
-* press record
+* press live
 * open in second window new recorded stream and press play
 * video should be seen
+
+=== Recording camera ===
+
+* open http://localhost:8082
+* press record
+* record something
+* stop
+* press on generated UUID, so that it appears in play url
+* play it
 
 === input MPEG TS ===
 
