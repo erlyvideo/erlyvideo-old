@@ -55,7 +55,7 @@ package
 		}
 		
 		
-		public function record(url : String, playback : Video) : Boolean
+		public function record(url : String, playback : Video, recordType:String) : Boolean
 		{
 			if (!_stream) {
 				return false;
@@ -78,7 +78,7 @@ package
 		  _microphone.gain = volume;
 		  _microphone.setUseEchoSuppression(true);
 
-		  _stream.publish(url, "live");
+		  _stream.publish(url, recordType);
 		
 			if (playback) {
 				playback.attachCamera(_camera);

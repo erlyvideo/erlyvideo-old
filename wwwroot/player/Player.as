@@ -188,7 +188,7 @@ public function onFinish(e:Event) : void
   }
 }
 
-public function onRecord(e:Event) : void
+public function onRecord(e:Event, recordType:String) : void
 {
   if (recording) {
     videoContainer.video.attachCamera(null);
@@ -200,7 +200,7 @@ public function onRecord(e:Event) : void
     recordStream.width = videoWidth;
     recordStream.height = videoHeight;
     recordStream.fps = videoFps;
-  	if(recordStream.record(recordURL, videoContainer.video)) {
+  	if(recordStream.record(recordURL, videoContainer.video, recordType)) {
   	  recordButton.label = "Stop";
       recording = true;
   	}
