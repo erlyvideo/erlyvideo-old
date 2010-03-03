@@ -56,9 +56,3 @@
 -define(FLV_VIDEO_AVC_NALU,                   1).
 -define(FLV_VIDEO_AVC_SEQUENCE_END,           2).
 
-
--record(flv_header,{
-	version = 1,
-	audio = 0,
-	video = 0
-	}).

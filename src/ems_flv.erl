@@ -37,7 +37,7 @@
 -author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
--include("../include/flv.hrl").
+-include_lib("flv/include/flv_constants.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
