@@ -139,7 +139,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, module = Module, state = St
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Module:media(State)),
-      ?D({"Autoconfiguring RTP", SDPConfig, RtpStreams1}),
+      ?D({"Autoconfiguring RTP", SDPConfig, RtpStreams1, Frames}),
 
       State1 = lists:foldl(fun(Frame, ClientState) ->
         Module:handle_rtp_packet(ClientState, Frame)

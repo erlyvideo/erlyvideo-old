@@ -91,14 +91,14 @@ init([Name, record, Opts]) ->
 handle_call({create_player, Options}, _From, #media_info{clients = Clients, gop = GOP} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_stream_play(self(), Options),
   erlang:monitor(process, Pid),
-  link(Pid),
+  % link(Pid),
   case MediaInfo#media_info.video_decoder_config of
     undefined -> ok;
-    VideoConfig -> Pid ! VideoConfig
+    VideoConfig -> ?D({"Sending video config to new pid", Pid}), Pid ! VideoConfig
   end,
   case MediaInfo#media_info.audio_decoder_config of
     undefined -> ok;
-    AudioConfig -> Pid ! AudioConfig
+    AudioConfig -> ?D({"Sending audio config to new pid", Pid}), Pid ! AudioConfig
   end,
   lists:foreach(fun(Frame) -> Pid ! Frame end, lists:reverse(GOP)),
   {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
@@ -288,7 +288,6 @@ copy_audio_config(MediaInfo, #video_frame{decoder_config = true, type = audio} =
 copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
-  ?D({"Video decoder config"}),
   MediaInfo#media_info{video_decoder_config = Frame};
 
 copy_video_config(MediaInfo, _) -> MediaInfo.

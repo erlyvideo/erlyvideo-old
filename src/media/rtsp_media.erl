@@ -155,9 +155,18 @@ handle_info(_Info, State) ->
 
 
 handle_rtp_packet(#rtsp_client{clients = Clients} = State, #video_frame{} = Frame) ->
+  RTSP = copy_config(State, Frame),
   lists:foreach(fun(Client) -> Client ! Frame end, Clients),
-  State.
+  RTSP.
 
+
+copy_config(RTSP, #video_frame{decoder_config = true, type = audio} = Frame) ->
+  RTSP#rtsp_client{audio_config = Frame};
+
+copy_config(RTSP, #video_frame{decoder_config = true, type = video} = Frame) ->
+  RTSP#rtsp_client{video_config = Frame};
+
+copy_config(RTSP, _) -> RTSP.
 
 
 handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, 
