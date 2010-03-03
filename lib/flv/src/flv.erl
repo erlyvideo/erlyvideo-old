@@ -44,10 +44,10 @@
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).
 
--export([header/0, read_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
+-export([header/0, header/1, read_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
 
--export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1,
+-export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1, encode_tag/1,
          decode_audio_tag/1, decode_video_tag/1, decode_meta_tag/1, decode_tag/1]).
 
 
@@ -202,6 +202,19 @@ encode_list(Message, [Arg | Args]) ->
   AMF = amf0:encode(Arg),
   encode_list(<<Message/binary, AMF/binary>>, Args).
 
+
+
+encode_tag(#flv_tag{type = Type, timestamp = Time, body = InnerTag}) ->
+  <<TimeStampExt, TimeStamp:24>> = <<Time:32>>,
+  StreamId = 0,
+  Body = case Type of
+    audio -> encode_audio_tag(InnerTag);
+    video -> encode_video_tag(InnerTag);
+    metadata -> encode_meta_tag(InnerTag)
+  end,
+  BodyLength = size(Body),
+  PrevTagSize = ?FLV_TAG_HEADER_LENGTH + BodyLength,
+  <<(flv:frame_format(Type)):8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Body/binary,PrevTagSize:32>>.
 
 encode_audio_tag(#flv_audio_tag{decoder_config = true,
                     codec = aac,
