@@ -273,7 +273,7 @@ file_format(Name) ->
       ".m4v" -> mp4;
       ".mkv" -> mkv;
       ".MKV" -> mkv;
-      _ -> flv
+      _ -> flv_reader
   end.
   
 
