@@ -303,7 +303,7 @@ packet_timestamp(Header) -> Header.
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
 handle_pat(PATBin, #ts_lander{pids = Pids} = TSLander, _, _) ->
-  ?D({"Full PAT", size(PATBin), PATBin}),
+  % ?D({"Full PAT", size(PATBin), PATBin}),
   PAT = pat(PATBin),
   #mpegts_pat{descriptors = Descriptors} = PAT,
   TSLander#ts_lander{pids = lists:ukeymerge(#stream.pid, Pids, Descriptors)}.
@@ -312,7 +312,7 @@ handle_pat(PATBin, #ts_lander{pids = Pids} = TSLander, _, _) ->
 pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = PATBin) -> % PAT
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
-  ?D({"PAT descriptors", ProgramCount, PAT}),
+  % ?D({"PAT descriptors", ProgramCount, PAT}),
   Descriptors = extract_pat(PAT, ProgramCount, []),
   #mpegts_pat{descriptors = Descriptors}.
 
@@ -330,7 +330,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
     ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = PMTBin, #ts_lander{pids = Pids} = TSLander, _, _) ->
-  ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
+  % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
   PMTLength = round(SectionLength - 13),
   io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, _PCRPID]),
   % io:format("Program info: ~p~n", [ProgramInfo]),
@@ -353,12 +353,12 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   TSLander#ts_lander{pids = Descriptors1}.
 
 extract_pmt(_CRC32, 0, Descriptors) ->
-  ?D({"Left CRC32", _CRC32}),
+  % ?D({"Left CRC32", _CRC32}),
   % io:format("Unknown PMT: ~p~n", [PMT]),
   lists:keysort(#stream.pid, Descriptors);
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, PMTLength, Descriptors) ->
-  ?D({"Pid -> Type", Pid, StreamType}),
+  % ?D({"Pid -> Type", Pid, StreamType}),
   extract_pmt(Rest, PMTLength - 5 - ESLength, [#stream{handler = pes, counter = 0, pid = Pid, type = stream_type(StreamType)}|Descriptors]).
   
 

@@ -100,8 +100,7 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
   end.
   
 seek(FrameTable, Timestamp) ->
-  TimestampInt = round(Timestamp),
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< TimestampInt ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
     {Id, FrameTimestamp}
   end)),
   case lists:reverse(Ids) of
@@ -530,8 +529,8 @@ calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk,
   % add dts field
   {Dts, FrameReader1} = next_duration(FrameReader),
   {CompositionOffset, FrameReader2} = next_composition_offset(FrameReader1),
-  TimestampMS = round(Dts * 1000 / Timescale),
-  CompositionTime = round(CompositionOffset * 1000 / Timescale),
+  TimestampMS = Dts * 1000 / Timescale,
+  CompositionTime = CompositionOffset * 1000 / Timescale,
   % ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
   {FrameType, Id} = case DataFormat of
     avc1 -> {video, TimestampMS*3 + 1 + 3};

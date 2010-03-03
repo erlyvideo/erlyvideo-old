@@ -290,7 +290,7 @@ timeout_play(#video_frame{dts = AbsTime}, #file_player{timer_start = TimerStart,
   Timeout = SeekTime - ClientBuffer - (element(1, erlang:statistics(wall_clock)) - TimerStart),
 
   
-  make_play(Player, Prepush - SeekTime, Timeout).
+  make_play(Player, Prepush - SeekTime, round(Timeout)).
   
 make_play(Player, Prepush, _Timeout) when Prepush > 0 ->
   ?MODULE:play(Player#file_player{prepush = Prepush});

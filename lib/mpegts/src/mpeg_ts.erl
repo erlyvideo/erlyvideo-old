@@ -105,7 +105,7 @@ adaptation_field({Timestamp, Data}) ->
   
 adaptation_field({Timestamp, Keyframe, Data}) ->
   PCR = round(Timestamp * 27000),
-  PCR1 = round(PCR / 300),
+  PCR1 = round(Timestamp * 90),
   PCR2 = PCR rem 300,
   % ?D({"PCR", PCR}),
   Discontinuity = 0,
