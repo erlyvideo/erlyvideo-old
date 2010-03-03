@@ -5,11 +5,9 @@
 %%% @end
 %%%
 %%%
+%%% The MIT License
+%%%
 %%% Copyright (c) 2009 Max Lapshin
-%%%    This program is free software: you can redistribute it and/or modify
-%%%    it under the terms of the GNU Affero General Public License as
-%%%    published by the Free Software Foundation, either version 3 of the
-%%%    License, or any later version.
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -32,9 +30,6 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(file_play).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include("../../include/ems.hrl").
@@ -138,10 +133,10 @@ handle_info(Message, #file_player{media_info = MediaInfo,
       ?MODULE:ready(State#file_player{client_buffer = NewClientBuffer});
       
     start ->
-      % case file_media:metadata(MediaInfo) of
-      %   undefined -> ok;
-      %   MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
-      % end,
+      case file_media:metadata(MediaInfo) of
+        undefined -> ok;
+        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
+      end,
     	self() ! play,
       ?MODULE:ready(State#file_player{prepush = ClientBuffer, stopped = false, paused = false});
       

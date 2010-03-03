@@ -51,7 +51,7 @@ encode(#video_frame{type = audio} = VideoFrame) ->
   flv:encode_audio_tag(video_frame_to_tag(VideoFrame));
 
 encode(#video_frame{type = video} = VideoFrame) ->
-  flv:encode_audio_tag(video_frame_to_tag(VideoFrame));
+  flv:encode_video_tag(video_frame_to_tag(VideoFrame));
 
 encode(#video_frame{type = metadata} = VideoFrame) ->
   flv:encode_meta_tag(video_frame_to_tag(VideoFrame)).
@@ -74,7 +74,6 @@ video_frame_to_tag(#video_frame{type = video,
                    	pts = PTS,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
-  Time = PTS - DTS,
   #flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = PTS - DTS, body = Body};
 
 

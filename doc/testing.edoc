@@ -18,6 +18,7 @@
 === File reading ===
 
 * open mp4 file: video.mp4, mp4:video.mp4, mp4:video, video.flv, flv:video.flv, flv:video
+* on mp4 files metadata should arrive: video size change and scrollbar appears
 * seek it almost to the end
 * seek it back to the beginning
 * seek it again to the end and wait for end
