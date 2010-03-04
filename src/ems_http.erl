@@ -182,7 +182,7 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   
   Segment = (list_to_integer(binary_to_list(SegmentId)) - 1) * ?STREAM_TIME,
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, Name, [{stream_id, 1}, {seek, Segment}, {duration_before, ?STREAM_TIME}, {client_buffer, 0}]) of
+  case media_provider:play(Host, Name, [{stream_id, 1}, {seek, Segment}, {duration_before, ?STREAM_TIME}, {client_buffer, ?STREAM_TIME}]) of
     {ok, PlayerPid} ->
       mpeg_ts:play(Name, PlayerPid, Req),
       ok;

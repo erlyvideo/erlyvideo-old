@@ -242,13 +242,14 @@ send_frame(#file_player{} = _Player, done) ->
   ok;
 
 send_frame(#file_player{consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
-  case DTS of
+  Frame1 = case DTS of
     0 ->
-      Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS + BaseDTS, pts = PTS + BaseDTS};
+      Frame#video_frame{stream_id = StreamId, dts = DTS + BaseDTS, pts = PTS + BaseDTS};
     _ ->
-      Consumer ! Frame#video_frame{stream_id = StreamId}
-  end,    
-  timeout_play(Frame, Player#file_player{pos = Next}).
+      Frame#video_frame{stream_id = StreamId}
+  end,
+  Consumer ! Frame1,    
+  timeout_play(Frame1, Player#file_player{pos = Next}).
   
 
 
@@ -289,7 +290,7 @@ timeout_play(#video_frame{dts = AbsTime}, #file_player{timer_start = TimerStart,
   
   Timeout = SeekTime - ClientBuffer - (element(1, erlang:statistics(wall_clock)) - TimerStart),
 
-  
+  % ?D({"Timeout", Timeout, AbsTime, PlayingFrom, ClientBuffer, (element(1, erlang:statistics(wall_clock)) - TimerStart)}),
   make_play(Player, Prepush - SeekTime, round(Timeout)).
   
 make_play(Player, Prepush, _Timeout) when Prepush > 0 ->

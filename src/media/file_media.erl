@@ -55,12 +55,13 @@ init([Name, file, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{clients = Clients} = MediaInfo) ->
+handle_call({create_player, Options}, _From, #media_info{clients = Clients, life_timer = TRef} = MediaInfo) ->
   {ok, Pid} = ems_sup:start_file_play(self(), Options),
   ets:insert(Clients, {Pid}),
   link(Pid),
   erlang:monitor(process, Pid),
-  {reply, {ok, Pid}, MediaInfo};
+  (catch timer:cancel(TRef)),
+  {reply, {ok, Pid}, MediaInfo#media_info{life_timer = undefined}};
 
 handle_call(length, _From, #media_info{duration = Duration} = MediaInfo) ->
   {reply, Duration, MediaInfo};
@@ -144,15 +145,15 @@ handle_info(graceful, MediaInfo) ->
   
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, name = FileName, life_timeout = LifeTimeout} = MediaInfo) ->
   ets:delete(Clients, Client),
-  ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size), erlang:now()}),
+  ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size), LifeTimeout}),
   case {ets:info(Clients, size), LifeTimeout} of
     {0, false} ->
       {stop, normal, MediaInfo};
     {0, 0} ->
       {stop, normal, MediaInfo};
     {0, _} -> 
-      timer:send_after(LifeTimeout, graceful),
-      {noreply, MediaInfo};
+      {ok, TRef} = timer:send_after(LifeTimeout, graceful),
+      {noreply, MediaInfo#media_info{life_timer = TRef}};
     {_, _} ->
       {noreply, MediaInfo}
   end;

@@ -119,6 +119,7 @@ adaptation_field({Timestamp, Keyframe, Data}) ->
 
   Adaptation = <<Discontinuity:1, RandomAccess:1, Priority:1, HasPCR:1, HasOPCR:1, Splice:1, Private:1, Ext:1, PCR1:33, 2#111111:6, PCR2:9>>,
   Field = padding(Adaptation, ?TS_PACKET - 1 - size(Data)),
+  % ?D({"Adaptation PCR", Timestamp}),
   % ?D({"Adapt", size(Adaptation), size(Field)+1, size(Data)}),
   {1, <<(size(Field)), Field/binary>>}.
 
@@ -184,7 +185,7 @@ send_pat(Streamer, _DTS) ->
   CRC32 = mpeg2_crc32:crc32(PAT1),
   PAT = <<0, PAT1/binary, CRC32:32>>,
   PATBin = padding(PAT, ?TS_PACKET),
-  ?D({"Sending PAT", size(PAT), size(PATBin)}),
+  % ?D({"Sending PAT", size(PAT), size(PATBin)}),
   mux(PATBin, Streamer, 0).
 
 send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
