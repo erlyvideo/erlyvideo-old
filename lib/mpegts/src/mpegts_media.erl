@@ -444,12 +444,16 @@ stream_timestamp(_, #stream{dts = DTS, pts = PTS} = Stream, _) ->
   Stream#stream{dts = DTS + 40, pts = PTS + 40}.
 
 % normalize_timestamp(Stream) -> Stream;
-normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when DTS > 0 -> 
+normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) -> 
   normalize_timestamp(Stream#stream{start_dts = DTS});
-normalize_timestamp(#stream{start_dts = undefined, pts = PTS} = Stream) when PTS > 0 -> 
+normalize_timestamp(#stream{start_dts = undefined, pts = PTS} = Stream) when is_number(PTS) -> 
   normalize_timestamp(Stream#stream{start_dts = PTS});
-normalize_timestamp(#stream{start_dts = Start, dts = DTS, pts = PTS} = Stream) -> 
-  Stream#stream{dts = DTS - Start, pts = PTS - Start}.
+normalize_timestamp(#stream{start_dts = Start, dts = DTS, pts = PTS} = Stream) when is_number(Start) andalso Start > 0 -> 
+  ?D({"Normalize", Start, DTS, PTS}),
+  Stream#stream{dts = DTS - Start, pts = PTS - Start};
+normalize_timestamp(#stream{dts = DTS, pts = PTS} = Stream) ->
+  Stream.
+  
 % normalize_timestamp(#stream{start_pcr = 0, pcr = PCR} = Stream) when is_integer(PCR) andalso PCR > 0 -> 
 %   Stream#stream{start_pcr = PCR, pcr = 0};
 % normalize_timestamp(#stream{start_pcr = Start, pcr = PCR} = Stream) -> 
