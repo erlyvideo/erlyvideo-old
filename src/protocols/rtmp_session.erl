@@ -394,7 +394,7 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', State) ->
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
-    timestamp = DTS,
+    timestamp = round(DTS),
     type = Type,
     stream_id = StreamId,
     body = ems_flv:encode(Frame)},
