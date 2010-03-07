@@ -36,7 +36,7 @@ set_owner(Server, Owner) ->
   gen_server:call(Server, {set_owner, Owner}).
   
 
-init([Name, live, Opts]) ->
+init([Name, Type, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   Filter = proplists:get_value(filter, Opts),
@@ -47,31 +47,19 @@ init([Name, live, Opts]) ->
   end,
   Clients = [],
   % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
-	Recorder = #media_info{type = live, name = Name, host = Host, owner = Owner, filter = Filter,
-	                       clients = Clients, life_timeout = LifeTimeout},
-	{ok, Recorder, ?TIMEOUT};
-
-
-init([Name, record, Opts]) ->
-  Host = proplists:get_value(host, Opts),
-  LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
-  Filter = proplists:get_value(filter, Opts),
-  Owner = proplists:get_value(owner, Opts),
-  Clients = [],
-	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
-	(catch file:delete(FileName)),
-	ok = filelib:ensure_dir(FileName),
-	Header = flv:header(),
-	case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
-		{ok, Device} ->
-		  file:write(Device, Header),
-		  Recorder = #media_info{type = record, host = Host, device = Device, name = Name, owner = Owner, filter = Filter,
-		                         path = FileName, clients = Clients, life_timeout = LifeTimeout},
-			{ok, Recorder, ?TIMEOUT};
-		_Error ->
-		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, _Error]),
-			ignore
-  end.
+  Device = case Type of
+    live -> 
+      undefined;
+    record ->
+    	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
+    	(catch file:delete(FileName)),
+    	ok = filelib:ensure_dir(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName),
+      Writer
+  end,
+	Recorder = #media_info{type = Type, name = Name, host = Host, owner = Owner, filter = Filter,
+	                       clients = Clients, life_timeout = LifeTimeout, device = Device},
+	{ok, Recorder, ?TIMEOUT}.
 
 
 
@@ -215,10 +203,7 @@ handle_info(#video_frame{dts = DTS, pts = PTS} = Frame,
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder4 = Recorder3,
   % ?D({Recorder#media_info.name, Frame#video_frame.type, DTS-BaseTS}),
-  case Device of
-	  undefined -> ok;
-	  _ -> file:write(Device, ems_flv:to_tag(Frame1))
-	end,
+  (catch Device ! Frame1),
   {noreply, Recorder4, ?TIMEOUT};
 
 
