@@ -392,7 +392,12 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   {next_state, StateName, State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', State) ->
-  % ?D({Type, round(DTS), round(Frame#video_frame.pts - DTS)}),
+  % case element(2, erlang:statistics(wall_clock)) of
+  %   Timer when Timer > 60 ->
+  %     % ?D({Type, round(DTS), Timer});
+  %   _ ->
+  %     ok
+  % end,
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp = DTS,
