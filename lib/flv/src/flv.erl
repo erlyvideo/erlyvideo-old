@@ -205,7 +205,7 @@ encode_list(Message, [Arg | Args]) ->
 
 
 encode_tag(#flv_tag{type = Type, timestamp = Time, body = InnerTag}) ->
-  <<TimeStampExt, TimeStamp:24>> = <<Time:32>>,
+  <<TimeStampExt, TimeStamp:24>> = <<(round(Time)):32>>,
   StreamId = 0,
   Body = case Type of
     audio -> encode_audio_tag(InnerTag);

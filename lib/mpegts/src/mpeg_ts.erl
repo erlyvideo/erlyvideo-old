@@ -272,11 +272,13 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
   
 
   % ?D({"Video", PTS, DTS, "--", PTS*90, DTS*90}),
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<(round(PTS * 90)):33>>,
-  <<Dts1:3, Dts2:15, Dts3:15>> = <<(round(DTS * 90)):33>>,
+  DTS1 = round(DTS*90),
+  PTS1 = round(PTS*90),
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<PTS1:33>>,
+  <<Dts1:3, Dts2:15, Dts3:15>> = <<DTS1:33>>,
 
-  case DTS of
-    PTS ->
+  case DTS1 of
+    PTS1 ->
       PtsDts = 2#10,
       AddPesHeader = <<2#10:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>;
     _ ->
@@ -333,8 +335,9 @@ play(#streamer{player = Player, video_config = undefined} = Streamer) ->
       Streamer2 = send_pmt(Streamer1#streamer{video_config = Config}, DTS),
       {LengthSize, _} = h264:unpack_config(Config),
       ?D({"Set length size", LengthSize}),
-      Streamer3 = send_video_config(Streamer2#streamer{length_size = LengthSize*8}, DTS),
-      ?MODULE:play(Streamer3)
+      Streamer3 = send_video(Streamer2, Frame#video_frame{body = <<9, 16#E0>>}), %H264 NAL_DELIM
+      Streamer4 = send_video_config(Streamer3#streamer{length_size = LengthSize*8}, DTS),
+      ?MODULE:play(Streamer4)
   after
     ?TIMEOUT ->
       ?D("No video decoder config received"),
@@ -360,7 +363,7 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
     #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame->
       % Streamer1 = send_video_config(Streamer),
       % <<Length:LengthSize, NAL:Length/binary>> = Body,
-      Streamer1 = send_video(Streamer, Frame#video_frame{body = <<9, 16#E0>>}), %H264 NAL_DELIM
+      Streamer1 = Streamer,
       Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer2);
     #video_frame{type = video, body = Body} = Frame ->

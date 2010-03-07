@@ -42,8 +42,8 @@
   counter = 0,
   pcr,
   start_dts,
-  dts = 0,
-  pts = 0,
+  dts,
+  pts,
   video_config = undefined,
   send_audio_config = false,
   h264
@@ -54,7 +54,6 @@
   pid,
   pcr = undefined,
   opcr = undefined,
-  timestamp,
   payload
 }).
 
@@ -241,12 +240,12 @@ synchronizer(Bin, TSLander) ->
 
 
 ts(<<16#47, _TEI:1, PayloadStart:1, _:1, Pid:13, _Opt:4, _Counter:4, _/binary>> = Packet) ->
-  Header = packet_timestamp(adaptation_field(Packet, #ts_header{payload_start = PayloadStart})),
+  Header = adaptation_field(Packet, #ts_header{payload_start = PayloadStart, pid = Pid}),
   Header#ts_header{pid = Pid, payload = ts_payload(Packet)}.
 
 
 demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
-  Header = packet_timestamp(adaptation_field(Packet, #ts_header{payload_start = PayloadStart})),
+  Header = adaptation_field(Packet, #ts_header{payload_start = PayloadStart, pid = Pid}),
   case lists:keyfind(Pid, #stream.pid, Pids) of
     #stream{handler = Handler, counter = _OldCounter} = Stream ->
       % Counter = (OldCounter + 1) rem 15,
@@ -284,17 +283,14 @@ parse_adaptation_field(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, 
   parse_adaptation_field(Data, PCR, OPCR, Header).
 
 parse_adaptation_field(<<Pcr1:33, Pcr2:9, Rest/bitstring>>, 1, OPCR, Header) ->
-  parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = (Pcr1 * 300 + Pcr2) / 27000});
+  % ?D({Header#ts_header.pid, round(Pcr1/90 + Pcr2 / 27000)}),
+  parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = Pcr1 / 90 + Pcr2 / 27000});
 
 parse_adaptation_field(<<OPcr1:33, OPcr2:9, _Rest/bitstring>>, 0, 1, Header) ->
-  Header#ts_header{opcr = (OPcr1 * 300 + OPcr2) / 27000};
+  Header#ts_header{opcr = OPcr1 / 90 + OPcr2 / 27000};
   
 parse_adaptation_field(_, 0, 0, Field) -> Field.
 
-
-packet_timestamp(#ts_header{pcr = PCR} = Header) when is_integer(PCR) andalso PCR > 0 -> Header#ts_header{timestamp = PCR};
-packet_timestamp(#ts_header{opcr = OPCR} = Header) when is_integer(OPCR) andalso OPCR > 0 -> Header#ts_header{timestamp = OPCR};
-packet_timestamp(Header) -> Header.
 
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
@@ -375,83 +371,107 @@ pes(#stream{synced = false, pid = Pid} = Stream) ->
       ?D({"Synced PES", Pid}),
       Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
       ?MODULE:pes(Stream1);
+    {ts_packet, #ts_header{}, _} ->
+      % ?D({"Not synced pes", Pid}),
+      ?MODULE:pes(Stream);
     Other ->
       ?D({"Undefined message to pid", Pid, Other})
   end;
   
 pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
   receive
-    {ts_packet, #ts_header{payload_start = 0}, Packet} ->
-      Stream1 = Stream#stream{synced = true, ts_buffer = [Packet | Buf]},
+    {ts_packet, #ts_header{payload_start = 0} = Header, Packet} ->
+      Stream1 = copy_pcr(Header, Stream#stream{synced = true, ts_buffer = [Packet | Buf]}),
       ?MODULE:pes(Stream1);
     {ts_packet, #ts_header{payload_start = 1} = Header, Packet} ->
-      PES = list_to_binary(lists:reverse(Buf)),
-      % ?D({"Decode PES", Pid, size(Stream#stream.es_buffer), length(Stream#stream.ts_buffer)}),
-      % ?D({"Decode PES", Pid, length(element(2, process_info(self(), binary)))}),
-      % ?D({"Decode PES", Pid, length(Stream#stream.parameters)}),
-      Stream1 = pes_packet(PES, Stream, Header),
-      Stream2 = Stream1#stream{ts_buffer = [Packet]},
-      ?MODULE:pes(Stream2);
+      PES = iolist_to_binary(lists:reverse(Buf)),
+      Stream1 = stream_timestamp(Packet, copy_pcr(Header, Stream)),
+      % ?D({Stream1#stream.type, Stream1#stream.pcr, Stream1#stream.dts}),
+      Stream2 = pes_packet(PES, Stream1),
+      ?MODULE:pes(Stream2#stream{ts_buffer = [Packet]});
     Other ->
       ?D({"Undefined message to pid", Pid, Other})
   end.
-    
-      
-pes_packet(_, #stream{type = unhandled} = Stream, _) -> Stream#stream{ts_buffer = []};
 
-pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>> = Packet, #stream{type = audio, es_buffer = Buffer} = Stream, Header) ->
-  Stream1 = stream_timestamp(Packet, Stream, Header),
+copy_pcr(#ts_header{pcr = undefined}, Stream) -> Stream;
+copy_pcr(#ts_header{pcr = PCR}, Stream) -> Stream#stream{pcr = PCR}.
+      
+pes_packet(_, #stream{type = unhandled} = Stream) -> Stream#stream{ts_buffer = []};
+
+pes_packet(_, #stream{dts = undefiend} = Stream) ->
+  ?D({"No PCR or DTS yes"}),
+  Stream#stream{ts_buffer = []};
+
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, #stream{type = audio, es_buffer = Buffer} = Stream) ->
   % ?D({"Audio", Stream1#stream.pcr, Stream1#stream.dts}),
   % Stream1;
-  decode_aac(Stream1#stream{es_buffer = <<Buffer/binary, Data/binary>>});
+  decode_aac(Stream#stream{es_buffer = <<Buffer/binary, Data/binary>>});
   
-pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>> = Packet, #stream{es_buffer = Buffer, type = video} = Stream, Header) ->
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>>, #stream{es_buffer = Buffer, type = video} = Stream) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
-  Stream1 = stream_timestamp(Packet, Stream, Header),
   % ?D({"Video", Stream1#stream.pcr, Stream1#stream.dts}),
   % ?D({"Video", Stream1#stream.timestamp, _PESHeader}),
-  decode_avc(Stream1#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
+  decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
-stream_timestamp(<<_:7/binary, 2#00:2, _:6, PESHeaderLength, _PESHeader:PESHeaderLength/binary, _/binary>>, Stream, #ts_header{timestamp = TimeStamp}) when is_integer(TimeStamp) andalso TimeStamp > 0 ->
-  % ?D({"No DTS, taking", TimeStamp}),
-  normalize_timestamp(Stream#stream{pcr = round(TimeStamp)});
-
-stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
+stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
   PTS = PTS1/90,
   DTS = DTS1/90,
-  % ?D({"Have DTS & PTS", DTS, PTS}),
+  ?D({"Have DTS & PTS", round(DTS), round(PTS)}),
   normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
   
 
-stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream, _Header) ->
+stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
   <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   PTS = PTS1/90,
-  % ?D({"Have ony PTS", PTS}),
+  % ?D({"Have pts", Stream#stream.pid, round(PTS)}),
   normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
 
 % FIXME!!!
 % Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only OPCR, once a second,
 % thus I increment timestamp counter on each NAL, assuming, that there is 25 FPS.
 % This is very, very wrong, but I really don't know how to calculate it in other way.
-stream_timestamp(_, #stream{dts = DTS, pts = PTS} = Stream, _) ->
-  % ?D("Have no timestamps"),
-  Stream#stream{dts = DTS + 40, pts = PTS + 40}.
+% stream_timestamp(_, #stream{pcr = PCR} = Stream, _) when is_number(PCR) ->
+%   % ?D({"Set DTS to PCR", PCR}),
+%   normalize_timestamp(Stream#stream{dts = PCR, pts = PCR});
+stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
+  ?D({"Increasing", DTS}),
+  % Stream#stream{dts = DTS + 40, pts = PTS + 40};
+  Stream;
+
+stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
+  ?D({"Have no timestamps", DTS}),
+  Stream#stream{dts = DTS + 40, pts = PTS + 40};
+
+stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
+  ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
+  normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
+  
+stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
+  Stream.
+
 
 % normalize_timestamp(Stream) -> Stream;
-normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) -> 
+% normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) -> 
+%   normalize_timestamp(Stream#stream{start_dts = DTS});
+% normalize_timestamp(#stream{start_dts = undefined, pts = PTS} = Stream) when is_number(PTS) -> 
+%   normalize_timestamp(Stream#stream{start_dts = PTS});
+
+normalize_timestamp(#stream{start_dts = undefined, pcr = PCR} = Stream) when is_number(PCR) -> 
+  normalize_timestamp(Stream#stream{start_dts = PCR});
+
+normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) andalso DTS > 0 -> 
   normalize_timestamp(Stream#stream{start_dts = DTS});
-normalize_timestamp(#stream{start_dts = undefined, pts = PTS} = Stream) when is_number(PTS) -> 
-  normalize_timestamp(Stream#stream{start_dts = PTS});
+
 normalize_timestamp(#stream{start_dts = Start, dts = DTS, pts = PTS} = Stream) when is_number(Start) andalso Start > 0 -> 
-  ?D({"Normalize", Start, DTS, PTS}),
+  % ?D({"Normalize", Stream#stream.pid, round(DTS - Start), round(PTS - Start)}),
   Stream#stream{dts = DTS - Start, pts = PTS - Start};
-normalize_timestamp(#stream{dts = DTS, pts = PTS} = Stream) ->
+normalize_timestamp(Stream) ->
   Stream.
   
 % normalize_timestamp(#stream{start_pcr = 0, pcr = PCR} = Stream) when is_integer(PCR) andalso PCR > 0 -> 
@@ -496,7 +516,7 @@ decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsen
   send_aac(Stream#stream{es_buffer = Rest}).
 
 send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = Stream) ->
-  % ?D({"Audio", Timestamp, Data}),
+  % ?D({audio, }),
   AudioFrame = #video_frame{       
     type          = audio,
     dts           = DTS,
@@ -507,6 +527,7 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = 
 	  sound_size	  = bit16,
 	  sound_rate	  = rate44
   },
+  % ?D({audio, Stream#stream.pcr, DTS}),
   Consumer ! AudioFrame,
   Stream#stream{es_buffer = <<>>}.
   
@@ -535,7 +556,7 @@ extract_nal(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS,
   <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
   % ?D({"Found NAL", Offset1, Offset2, NAL}),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
-  % ?D({"DTS", DTS, PTS-DTS}),
+  % ?D({video, Stream#stream.pcr, DTS}),
   lists:foreach(fun(Frame) ->
     Consumer ! Frame#video_frame{dts = DTS, pts = PTS}
     % Consumer ! Frame#video_frame{dts = TS, pts = TS}
