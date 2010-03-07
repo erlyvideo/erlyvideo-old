@@ -58,7 +58,7 @@ public function init()  : void
     play_url = Application.application.parameters.file;
 	}
 	loadVideoPlayer();
-	recordURL = UIDUtil.createUID();
+	recordURL = "erly-"+UIDUtil.createUID()+".flv";
 }
 
 public function check() : void
