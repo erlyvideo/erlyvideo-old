@@ -440,16 +440,16 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
 %   % ?D({"Set DTS to PCR", PCR}),
 %   normalize_timestamp(Stream#stream{dts = PCR, pts = PCR});
 stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
-  ?D({"Increasing", DTS}),
+  % ?D({"Increasing", DTS}),
   % Stream#stream{dts = DTS + 40, pts = PTS + 40};
   Stream;
 
 stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
-  ?D({"Have no timestamps", DTS}),
+  % ?D({"Have no timestamps", DTS}),
   Stream#stream{dts = DTS + 40, pts = PTS + 40};
 
 stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
-  ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
+  % ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
 stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
