@@ -15,6 +15,7 @@
 {"lib/aac/src/*", [{outdir, "lib/aac/ebin"}, {i, "lib/aac/include"}]}.
 {"lib/mp3/src/*", [{outdir, "lib/mp3/ebin"}, {i, "lib/mp3/include"}]}.
 {"lib/ertsp/src/*", [{outdir, "lib/ertsp/ebin"}, {i, "lib/ertsp/include"}]}.
+{"lib/erlyvideo/src/*", [{outdir, "lib/erlyvideo/ebin"}, {i, "lib/erlyvideo/include"}]}.
 {"lib/mpegts/src/*", [{outdir, "lib/mpegts/ebin"}, {i, "lib/mpegts/include"}]}.
 {"lib/shoutcast/src/*", [{outdir, "lib/shoutcast/ebin"}, {i, "lib/shoutcast/include"}]}.
 {"deps/amf/src/*", [{outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.

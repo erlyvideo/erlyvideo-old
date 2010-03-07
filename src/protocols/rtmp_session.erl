@@ -235,7 +235,7 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State,
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   Recorder = proplists:get_value(StreamId, Streams),
   
-  Frame = ems_flv:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
+  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
   stream_media:publish(Recorder, Frame),
   State;
 
@@ -403,7 +403,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WA
     timestamp = DTS,
     type = Type,
     stream_id = StreamId,
-    body = ems_flv:encode(Frame)},
+    body = flv_video_frame:encode(Frame)},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, 'WAIT_FOR_DATA', State};
 

@@ -37,22 +37,24 @@ start_link(URL, Type, Opts) ->
   gen_server:start_link(?MODULE, [URL, Type, Opts], []).
 
 init([undefined, _Type, _]) ->
-  {ok, #ts_lander{mpegts_reader = mpegts_reader:start_link(self())}};
+  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, #ts_lander{mpegts_reader = Reader}};
   
 
 init([URL, Type, Opts]) when is_binary(URL)->
   init([binary_to_list(URL), Type, Opts]);
 
 init([URL, mpeg_ts_passive, _Opts]) ->
-  {ok, #ts_lander{url = URL, mpegts_reader = mpegts_reader:start_link(self())}};
+  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, #ts_lander{url = URL, mpegts_reader = Reader}};
   
 init([URL, mpeg_ts, _Opts]) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
-  
-  {ok, #ts_lander{socket = Socket, url = URL, mpegts_reader = mpegts_reader:start_link(self())}}.
+  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, #ts_lander{socket = Socket, url = URL, mpegts_reader = Reader}}.
   
   % io:format("HTTP Request ~p~n", [RequestId]),
   % {ok, #ts_lander{request_id = RequestId, url = URL, pids = [#stream{pid = 0, handler = pat}]}}.

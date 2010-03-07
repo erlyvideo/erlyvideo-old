@@ -1,16 +1,13 @@
-%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
-%%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
-%%% @doc        RTMP encoding/decoding and command handling module
+%%% @copyright  2009 Max Lapshin
+%%% @doc        Module, that glues video_frame and flv
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
+%%% Copyright (c) 2009 Max Lapshin
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -31,14 +28,9 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_flv).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
+-module(flv_video_frame).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../include/ems.hrl").
 -include_lib("flv/include/flv.hrl").
--include_lib("flv/include/flv_constants.hrl").
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
@@ -120,7 +112,8 @@ decode(#video_frame{type = metadata} = Frame, Metadata) ->
   Frame#video_frame{body = flv:decode_meta_tag(Metadata)}.
               
 
-to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS} = Frame) ->
+to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS1} = Frame) ->
+  DTS = round(DTS1),
   StreamId = 0, % by spec
   Body = encode(Frame),
 	BodyLength = size(Body),
@@ -137,7 +130,7 @@ to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS} = Frame) 
 -include_lib("eunit/include/eunit.hrl").
 
 encode_video_test() ->
-  ?assertMatch(<<_/binary>>, ems_flv:encode({video_frame,false,video,1664.2277777772397,
+  ?assertMatch(<<_/binary>>, encode({video_frame,false,video,1664.2277777772397,
                                              1664.2277777772397,1,avc,keyframe,
                                              undefined,undefined,undefined,
                                              <<0,0,4,112,37,184,32,33,241,158,155,37,243>>})).

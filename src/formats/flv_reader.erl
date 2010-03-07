@@ -138,6 +138,6 @@ read_frame(#media_info{device = Device}, Offset) ->
   end.
 
 video_frame(#flv_tag{type = Type, timestamp = Timestamp, body = AVTag}) ->
-  Frame = ems_flv:tag_to_video_frame(AVTag),
+  Frame = flv_video_frame:tag_to_video_frame(AVTag),
   CTime = Frame#video_frame.pts,
   Frame#video_frame{type = Type, dts = Timestamp, pts = Timestamp+CTime}.

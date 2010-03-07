@@ -29,7 +29,7 @@ init([FileName]) ->
 writer(#flv_file_writer{file = File} = Writer) ->
   receive
     #video_frame{} = Frame ->
-    	file:write(File, ems_flv:to_tag(Frame)),
+    	file:write(File, flv_video_frame:to_tag(Frame)),
     	?MODULE:writer(Writer);
     Else ->
       ?D({"flv_writer", Else})

@@ -62,7 +62,7 @@
 
 
 start_link(Consumer) ->
-  spawn_link(?MODULE, init, [[Consumer]]).
+  {ok, spawn_link(?MODULE, init, [[Consumer]])}.
 
 
 init([Consumer]) ->
