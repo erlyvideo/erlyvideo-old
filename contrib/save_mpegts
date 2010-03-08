@@ -1,6 +1,13 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -smp enable -name save_mpegts -pa ebin -pa lib -pa deps -env ERL_LIBS "lib:deps"
+%%! -smp enable -pa ebin -pa lib -pa deps -env ERL_LIBS "lib:deps"
+
+%%%%%%%%%%  FFMPEG
+%%%
+%%% ffmpeg -i file.flv -vcodec copy -vbsf h264_mp4toannexb -an file.h264
+%%% ffmpeg -i file.flv -acodec copy  -vn file.aac
+%%% mp4box  -add 'file.h264#video' -fps 25  -add file.aac -tight file.mp4
+
 
 -define(TIMEOUT, 4000).
 -define(COUNTER, 100).
@@ -35,13 +42,16 @@ start_saver(URL, FileName) ->
   loop(#saver{url = URL, filename = FileName, writer = Writer, reader = Reader, request = RequestId}).
   
   
-loop(#saver{request = Request, reader = MPEGTS} = Saver) ->
+loop(#saver{request = Request, reader = MPEGTS, filename = FileName} = Saver) ->
   receive
     {http, {Request, stream_start, _Headers}} ->
       loop(Saver);
     {http, {Request, stream, Bin}} ->
       MPEGTS ! {data, Bin},
       loop(Saver);
+    {http, {Request, stream_end, _Headers}} ->
+      ?D("Now flvtool2 -U "++FileName),
+      ok;
     Message ->
       ?D(Message),
       loop(Saver)
