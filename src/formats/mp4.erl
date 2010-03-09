@@ -252,7 +252,7 @@ trak(<<>>, MediaInfo) ->
   MediaInfo;
   
 trak(Atom, #media_info{} = MediaInfo) ->
-  Track = parse_atom(Atom, #mp4_track{}),
+  Track = parse_atom(Atom, #mp4_track{frames = ets:new(frames, [ordered_set, {keypos, #mp4_frame.id}])}),
   fill_track_info(MediaInfo, Track).
   
 
@@ -367,10 +367,30 @@ avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
 btrt(<<_BufferSize:32, _MaxBitRate:32, _AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
   Mp4Track.
 
+
+set_frame(Frames, Id, Pos, Value) ->
+  case ets:update_element(Frames, Id, {Pos, Value}) of
+    true -> 
+      ok;
+    false ->
+      Frame = #mp4_frame{id = Id},
+      ets:insert(Frames, setelement(Pos, Frame, Value)),
+      ok
+  end.
+
+set_frames(_, _, _, _, 0) ->
+  ok;
+
+set_frames(Frames, Id, Pos, Value, Count) ->
+  set_frame(Frames, Id, Pos, Value),
+  set_frames(Frames, Id + 1, Pos, Value, Count - 1).
+
 % STSZ atom
-stsz(<<_Version:8, _Flags:24, 0:32, SampleCount:32, SampleSizeData/binary>>, Mp4Track) ->
+
+stsz(<<_Version:8, _Flags:24, 0:32, SampleCount:32, SampleSizeData/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
+  read_stsz(SampleSizeData, SampleCount, Frames, 0),
   Mp4Track#mp4_track{sample_sizes = stsz({SampleCount, SampleSizeData}, [])};
-  
+
 stsz({0, _}, SampleSizes) ->
   lists:reverse(SampleSizes);
 
@@ -383,10 +403,19 @@ stsz({SampleCount, <<Size:32, Rest/binary>>}, SampleSizes) ->
 stsz({_, <<Rest/binary>>}, SampleSizes) ->
   ?D("Invalid stsz atom"),
   stsz({0, Rest}, SampleSizes).
+
+read_stsz(_, 0, _, _) ->
+  ok;
+read_stsz(<<Size:32, Rest/binary>>, Count, Frames, Id) ->
+  set_frame(Frames, Id, #mp4_frame.size, Size),
+  read_stsz(Rest, Count - 1, Frames, Id + 1).
+
+
   
 
 % STTS atom
-stts(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{} = Mp4Track) ->
+stts(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
+  read_stts(Rest, EntryCount, Frames, 0, 0),
   Table = stts({EntryCount, Rest}, []),
   % ?D({"Sample time table", Table}),
   Mp4Track#mp4_track{sample_durations = lists:reverse(Table)};
@@ -399,10 +428,25 @@ stts({_, <<>>}, Table) ->
   
 stts({EntryCount, <<SampleCount:32, SampleDuration:32, Rest/binary>>}, Table) ->
   stts({EntryCount - 1, Rest}, [{SampleCount, SampleDuration} | Table]).
+
+read_stts(_, 0, _Frames, _, _) ->
+  ok;
+  
+read_stts(<<SampleCount:32, SampleDuration:32, Rest/binary>>, EntryCount, Frames, Id, Timestamp) ->
+  NewTS = set_stts(SampleCount, SampleDuration, Timestamp, Frames, Id),
+  read_stts(Rest, EntryCount - 1, Frames, Id + SampleCount, NewTS).
+
+set_stts(0, _Duration, Timestamp, _Frames, _Id) ->
+  Timestamp;
+  
+set_stts(SampleCount, Duration, Timestamp, Frames, Id) ->
+  set_frame(Frames, Id, #mp4_frame.dts, Timestamp),
+  set_stts(SampleCount - 1, Duration, Timestamp + Duration, Frames, Id + 1).
   
 % STSC atom
-stsc(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{} = Mp4Track) ->
+stsc(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
   Table = stsc({EntryCount, Rest}, []),
+  read_stsc(Rest, EntryCount, Frames, 0),
   % ?D({"Sample chunk table", lists:reverse(Table)}),
   Mp4Track#mp4_track{chunk_table = lists:reverse(Table)};
 
@@ -415,9 +459,37 @@ stsc({_, <<>>}, Table) ->
 stsc({EntryCount, <<FirstChunk:32, SamplesPerChunk:32, SampleID:32, Rest/binary>>}, Table) ->
   stsc({EntryCount - 1, Rest}, [{FirstChunk, SamplesPerChunk, SampleID} | Table]).
 
+
+set_chunk_id(ChunkId, _SamplesPerChunk, ChunkId, _Frames, Id) ->
+  Id;
+
+set_chunk_id(ChunkId, SamplesPerChunk, undefined, Frames, Id) ->
+  set_frames(Frames, Id, #mp4_frame.chunk_id, ChunkId - 1, SamplesPerChunk),
+  case ets:last(Frames) of
+    MaxId when MaxId =< Id + SamplesPerChunk -> ok;
+    _ -> set_chunk_id(ChunkId + 1, SamplesPerChunk, undefined, Frames, Id + SamplesPerChunk)
+  end;
+
+set_chunk_id(ChunkId, SamplesPerChunk, NextChunk, Frames, Id) ->
+  set_frames(Frames, Id, #mp4_frame.chunk_id, ChunkId - 1, SamplesPerChunk),
+  set_chunk_id(ChunkId + 1, SamplesPerChunk, NextChunk, Frames, Id + SamplesPerChunk).
+  
+read_stsc(_, 0, _Frames, _) ->
+  ok;
+
+read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32>>, 1, Frames, Id) ->
+  set_chunk_id(ChunkId, SamplesPerChunk, undefined, Frames, Id),
+  ok;
+
+read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32, Rest/binary>>, EntryCount, Frames, Id) ->
+  <<NextChunk:32, _/binary>> = Rest,
+  NextId = set_chunk_id(ChunkId, SamplesPerChunk, NextChunk, Frames, Id),
+  read_stsc(Rest, EntryCount - 1, Frames, NextId).
+
 % STSS atom
 % List of keyframes
-stss(<<0:8, _Flags:3/binary, SampleCount:32, Samples/binary>>, #mp4_track{} = Mp4Track) when size(Samples) == SampleCount*4->
+stss(<<0:8, _Flags:3/binary, SampleCount:32, Samples/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
+  read_stss(Samples, SampleCount, Frames),
   NewTrack = Mp4Track#mp4_track{keyframes = stss(Samples, [])},
   case NewTrack#mp4_track.keyframes of
     [1 | _] ->
@@ -432,26 +504,46 @@ stss(<<>>, SampleList) ->
 stss(<<Sample:32, Rest/binary>>, SampleList) ->
   stss(Rest, [Sample | SampleList]).
 
+
+read_stss(_, 0, _Frames) ->
+  ok;
+
+read_stss(<<Sample:32, Rest/binary>>, EntryCount, Frames) ->
+  set_frame(Frames, Sample, #mp4_frame.keyframe, true),
+  read_stss(Rest, EntryCount - 1, Frames).
+
+
+
 % CTTS atom, list of B-Frames offsets
-ctts(<<0:32, Count:32, CTTS/binary>>, Mp4Track) ->
-  Track = read_ctts(CTTS, Count, Mp4Track),
+ctts(<<0:32, Count:32, CTTS/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
+  Track = read_ctts1(CTTS, Count, Mp4Track),
+  read_ctts(CTTS, Count, Frames, 0),
   ?D({"CTTS atom", Count, length(Track#mp4_track.composition_offsets)}),
   Track.
   
 
-read_ctts(<<>>, 0, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
+read_ctts1(<<>>, 0, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
   Mp4Track#mp4_track{composition_offsets = lists:reverse(Offsets)};
 
-read_ctts(<<Count:32, Offset:32, CTTS/binary>>, OffsetsCount, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
+read_ctts1(<<Count:32, Offset:32, CTTS/binary>>, OffsetsCount, #mp4_track{composition_offsets = Offsets} = Mp4Track) ->
   % ?D({"CTTS", Count, Offset}),
-  read_ctts(CTTS, OffsetsCount - 1, Mp4Track#mp4_track{composition_offsets = add_offsets(Count, Offset, Offsets)}).
+  read_ctts1(CTTS, OffsetsCount - 1, Mp4Track#mp4_track{composition_offsets = add_offsets(Count, Offset, Offsets)}).
 
 add_offsets(0, _, List) -> List;
 add_offsets(Count, Offset, List) -> add_offsets(Count - 1, Offset, [Offset | List]).
 
+read_ctts(_, 0, _Frames, _) ->
+  ok;
+
+read_ctts(<<Count:32, Offset:32, Rest/binary>>, EntryCount, Frames, Id) ->
+  set_frames(Frames, Id, #mp4_frame.composition, Offset, Count),
+  read_ctts(Rest, EntryCount - 1, Frames, Id + Count).
+  
+
 % STCO atom
 % sample table chunk offset
-stco(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, #mp4_track{} = Mp4Track) when size(Offsets) == OffsetCount*4 ->
+stco(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
+  read_stco(Offsets, OffsetCount, Frames, 0, 0),
   Mp4Track#mp4_track{chunk_offsets = stco(Offsets, [])};
 
 stco(<<>>, OffsetList) ->
@@ -460,6 +552,21 @@ stco(<<>>, OffsetList) ->
 stco(<<Offset:32, Rest/binary>>, OffsetList) ->
   stco(Rest, [Offset | OffsetList]).
 
+read_stco(_, 0, _Frames, _FrameId, _ChunkId) ->
+  ok;
+
+read_stco(<<Offset:32, Rest/binary>>, OffsetCount, Frames, FrameId, ChunkId) ->
+  SampleCount = length(ets:match(Frames, #mp4_frame{id = '_', dts = '_', size = '_', chunk_id = ChunkId, composition = '_', keyframe = '_', offset = '_'})),
+  read_stco_samples(Offset, Frames, SampleCount, FrameId),
+  read_stco(Rest, OffsetCount - 1, Frames, FrameId + SampleCount, ChunkId + 1).
+
+read_stco_samples(_, _, 0, _) ->
+  ok;
+  
+read_stco_samples(Offset, Frames, SampleCount, Id) ->
+  Size = ets:lookup_element(Frames, Id, #mp4_frame.size),
+  ets:update_element(Frames, Id, {#mp4_frame.offset, Offset}),
+  read_stco_samples(Offset + Size, Frames, SampleCount - 1, Id + 1).
 
 extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
@@ -471,6 +578,7 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
   timescale,
   index = 1,
   dts = 0,
+  frames,
   chunk_table = [],
   chunk_offsets = [],
   keyframes = [],
@@ -482,17 +590,44 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
-  calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
-
+  % calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
+  copy_track_info(MediaInfo, Track);
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
-  calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+  % calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+  copy_track_info(MediaInfo, Track);
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),
   MediaInfo.
-  
+
+
+copy_track_info(#media_info{frames = FileFrames} = MediaInfo, #mp4_track{timescale = Timescale, frames = Frames, data_format = DataFormat}) ->
+  Type = case DataFormat of
+    avc1 -> video;
+    mp4a -> audio
+  end,
+  copy_track_info(FileFrames, Frames, Timescale, Type, 0),
+  MediaInfo.
+
+copy_track_info(FileFrames, Frames, Timescale, Type, Id) ->
+  case ets:lookup(Frames, Id) of
+    [#mp4_frame{dts = DTS, size = Size, composition = CTime, keyframe = Keyframe, offset = Offset}] ->
+      TimestampMS = DTS * 1000 / Timescale,
+      ?D({Type, DTS, Timescale}),
+      FrameId = case Type of
+        video -> round(TimestampMS)*3 + 1 + 3;
+        audio -> round(TimestampMS)*3 + 2 + 3
+      end,
+      
+      Frame = #file_frame{id = FrameId, dts = TimestampMS, type = Type, offset = Offset, size = Size, keyframe = Keyframe, pts = TimestampMS + CTime},
+      ets:insert(FileFrames, Frame),
+      copy_track_info(FileFrames, Frames, Timescale, Type, Id + 1);
+    [] ->
+      ok
+  end.
+      
 
 
 next_duration(#mp4_frames{durations = []}) ->
@@ -525,12 +660,17 @@ calculate_samples_in_chunk(_FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameR
 
 calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, 
   #mp4_frames{index = Index, data_format = DataFormat, keyframes = Keyframes, timescale = Timescale,
-    sample_sizes = [SampleSize | SampleSizes]} = FrameReader) ->
+    sample_sizes = [SampleSize | SampleSizes], frames = Frames} = FrameReader) ->
   % add dts field
   {Dts, FrameReader1} = next_duration(FrameReader),
   {CompositionOffset, FrameReader2} = next_composition_offset(FrameReader1),
   TimestampMS = Dts * 1000 / Timescale,
   CompositionTime = CompositionOffset * 1000 / Timescale,
+  
+  NewOffset = ets:lookup_element(Frames, Index - 1, #mp4_frame.offset),
+  NewTs = ets:lookup_element(Frames, Index - 1, #mp4_frame.dts),
+  ?D({Index - 1, SampleOffset, NewOffset, Dts, NewTs}),
+  
   % ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
   {FrameType, Id} = case DataFormat of
     avc1 -> {video, TimestampMS*3 + 1 + 3};
@@ -554,6 +694,7 @@ calculate_sample_offsets(FrameTable, #mp4_frames{chunk_offsets = [ChunkOffset | 
 
 calculate_sample_offsets(#media_info{frames = FrameTable} = MediaInfo, Track) ->
   #mp4_track{
+    frames = Frames,
     chunk_offsets = ChunkOffsets, 
     chunk_table = ChunkTable, 
     keyframes = Keyframes, 
@@ -566,6 +707,7 @@ calculate_sample_offsets(#media_info{frames = FrameTable} = MediaInfo, Track) ->
   % ?D({"Track", length(SampleSizes), length(Durations), length(CompositionOffsets)}),
   calculate_sample_offsets(FrameTable, 
     #mp4_frames{
+      frames = Frames,
       chunk_offsets = ChunkOffsets, 
       chunk_table = ChunkTable, 
       keyframes = Keyframes, 

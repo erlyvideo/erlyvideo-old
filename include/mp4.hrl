@@ -27,6 +27,16 @@
   frames
 }).
 
+-record(mp4_frame, {
+  id,
+  dts,
+  size,
+  chunk_id,
+  composition = 0,
+  keyframe = false,
+  offset
+}).
+
 -record(mp4_sample_description, {
 
 }).
