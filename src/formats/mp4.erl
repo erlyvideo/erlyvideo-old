@@ -509,7 +509,7 @@ read_stss(_, 0, _Frames) ->
   ok;
 
 read_stss(<<Sample:32, Rest/binary>>, EntryCount, Frames) ->
-  set_frame(Frames, Sample, #mp4_frame.keyframe, true),
+  set_frame(Frames, Sample - 1, #mp4_frame.keyframe, true),
   read_stss(Rest, EntryCount - 1, Frames).
 
 
@@ -590,13 +590,13 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
-  % calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
-  copy_track_info(MediaInfo, Track);
+  calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
+  % copy_track_info(MediaInfo, Track);
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
-  % calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
-  copy_track_info(MediaInfo, Track);
+  calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+  % copy_track_info(MediaInfo, Track);
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),
@@ -612,21 +612,29 @@ copy_track_info(#media_info{frames = FileFrames} = MediaInfo, #mp4_track{timesca
   MediaInfo.
 
 copy_track_info(FileFrames, Frames, Timescale, Type, Id) ->
+  case file_frame_from_track(Frames, Id, Timescale, Type) of
+    undefined ->
+      ok;
+    Frame ->
+      ets:insert(FileFrames, Frame),
+      copy_track_info(FileFrames, Frames, Timescale, Type, Id + 1)
+  end.
+  
+file_frame_from_track(Frames, Id, Timescale, Type) ->
   case ets:lookup(Frames, Id) of
     [#mp4_frame{dts = DTS, size = Size, composition = CTime, keyframe = Keyframe, offset = Offset}] ->
       TimestampMS = DTS * 1000 / Timescale,
-      ?D({Type, DTS, Timescale}),
+      % ?D({Type, DTS, Timescale}),
       FrameId = case Type of
         video -> round(TimestampMS)*3 + 1 + 3;
         audio -> round(TimestampMS)*3 + 2 + 3
       end,
       
-      Frame = #file_frame{id = FrameId, dts = TimestampMS, type = Type, offset = Offset, size = Size, keyframe = Keyframe, pts = TimestampMS + CTime},
-      ets:insert(FileFrames, Frame),
-      copy_track_info(FileFrames, Frames, Timescale, Type, Id + 1);
+      #file_frame{id = FrameId, dts = TimestampMS, type = Type, offset = Offset, size = Size, keyframe = Keyframe, pts = (DTS + CTime)*1000/Timescale};
     [] ->
-      ok
+      undefined
   end.
+  
       
 
 
@@ -669,16 +677,29 @@ calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk,
   
   NewOffset = ets:lookup_element(Frames, Index - 1, #mp4_frame.offset),
   NewTs = ets:lookup_element(Frames, Index - 1, #mp4_frame.dts),
-  ?D({Index - 1, SampleOffset, NewOffset, Dts, NewTs}),
+  NewSize = ets:lookup_element(Frames, Index - 1, #mp4_frame.size),
+  NewKey = ets:lookup_element(Frames, Index - 1, #mp4_frame.keyframe),
+  NewComp = ets:lookup_element(Frames, Index - 1, #mp4_frame.composition),
+  Key = lists:member(Index, Keyframes),
+  case {NewOffset, NewTs, NewSize, NewKey, NewComp} of
+    {SampleOffset, Dts, SampleSize, Key, CompositionOffset} -> ok;
+    _ -> ?D({Index - 1, SampleOffset, NewOffset, Dts, NewTs, SampleSize, NewSize, Key, NewKey})
+  end,
   
   % ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
   {FrameType, Id} = case DataFormat of
-    avc1 -> {video, TimestampMS*3 + 1 + 3};
-    mp4a -> {audio, TimestampMS*3 + 2 + 3}
+    avc1 -> {video, round(TimestampMS)*3 + 1 + 3};
+    mp4a -> {audio, round(TimestampMS)*3 + 2 + 3}
   end,
   Frame = #file_frame{id = Id, dts = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes), pts = TimestampMS + CompositionTime},
+  Frame1 = file_frame_from_track(Frames, Index - 1, Timescale, FrameType),
+  case Frame1 of 
+    Frame -> ok;
+    _ -> ?D({Index - 1, Frame, Frame1})
+  end,
+  Frame1 = Frame,
   % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
-  ets:insert(FrameTable, Frame),
+  ets:insert(FrameTable, Frame1),
   FrameReader3 = FrameReader2#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
   calculate_samples_in_chunk(FrameTable, SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader3).
   
