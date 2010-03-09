@@ -651,8 +651,8 @@ chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, SamplesInChunk, Samp
   {SamplesInChunk, FrameReader#mp4_frames{chunk_table = [{FirstChunk + 1, SamplesInChunk, SampleId} | ChunkTable]}}.
 
   
-calculate_samples_in_chunk(_FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameReader) ->
-  FrameReader;
+% calculate_samples_in_chunk(_FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameReader) ->
+%   FrameReader;
 
 calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, 
   #mp4_frames{index = Index, data_format = DataFormat, timescale = Timescale, frames = Frames} = FrameReader) ->
@@ -694,17 +694,20 @@ calculate_sample_offsets(#media_info{frames = FrameTable} = MediaInfo, Track) ->
     composition_offsets = CompositionOffsets} = Track,
   
   % ?D({"Track", length(SampleSizes), length(Durations), length(CompositionOffsets)}),
-  calculate_sample_offsets(FrameTable, 
-    #mp4_frames{
-      frames = Frames,
-      chunk_offsets = ChunkOffsets, 
-      chunk_table = ChunkTable, 
-      keyframes = Keyframes, 
-      sample_sizes = SampleSizes, 
-      durations = Durations, 
-      data_format = DataFormat,
-      timescale = Timescale,
-      composition_offsets = CompositionOffsets}),
+  % calculate_sample_offsets(FrameTable, 
+  %   #mp4_frames{
+  %     frames = Frames,
+  %     chunk_offsets = ChunkOffsets, 
+  %     chunk_table = ChunkTable, 
+  %     keyframes = Keyframes, 
+  %     sample_sizes = SampleSizes, 
+  %     durations = Durations, 
+  %     data_format = DataFormat,
+  %     timescale = Timescale,
+  %     composition_offsets = CompositionOffsets}),
+  ?D("Inserting"),
+  calculate_samples_in_chunk(FrameTable, 0, 0, #mp4_frames{frames = Frames, data_format = DataFormat, timescale = Timescale}),
+  ?D({"Inserted", length(ets:tab2list(FrameTable))}),
   MediaInfo.
 
   
