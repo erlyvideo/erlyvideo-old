@@ -12,6 +12,7 @@
 
 -export([ts/1]).
 
+-on_load(load_nif/0).
 
 
 -record(ts_lander, {
@@ -62,6 +63,19 @@
 
 -export([start_link/1, init/1, synchronizer/1]).
 
+
+load_nif() ->
+  load_nif(erlang:system_info(otp_release) >= "R13B04").
+  
+load_nif(true) ->
+  case erlang:load_nif("ebin/mpegts_reader", 0) of
+    ok -> ok;
+    _ -> erlang:load_nif("/usr/lib/erlyvideo/ebin/mpegts_reader", 0)
+  end;
+
+load_nif(false) ->
+  ok.
+  
 
 start_link(Consumer) ->
   {ok, spawn_link(?MODULE, init, [[Consumer]])}.
@@ -396,20 +410,20 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = 
   Stream#stream{es_buffer = <<>>}.
   
 
-decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
-  find_nal_end(Stream, 3);
+decode_avc(#stream{es_buffer = <<1:32, _/binary>>} = Stream) ->
+  find_nal_end(Stream, 4);
   
 decode_avc(#stream{es_buffer = Data} = Stream) ->
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
   % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
-  Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
+  Offset1 = nal_unit_start_code_finder(Data, 0) + 4,
   find_nal_end(Stream, Offset1).
   
 find_nal_end(Stream, false) ->  
   Stream;
   
 find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
-  Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
+  Offset2 = nal_unit_start_code_finder(Data, Offset1+4),
   extract_nal(Stream, Offset1, Offset2).
 
 extract_nal(Stream, _, false) ->
@@ -435,22 +449,22 @@ nal_unit_start_code_finder(Bin, Offset) ->
 
 find_nal_start_code(Bin, Offset) -> find_nal_start_code_erl(Bin, Offset).
 
-find_nal_start_code_erl(<<16#000001:24, _/binary>>, Offset) -> Offset;
-find_nal_start_code_erl(<<_:1/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 1;
-find_nal_start_code_erl(<<_:2/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 2;
-find_nal_start_code_erl(<<_:3/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 3;
-find_nal_start_code_erl(<<_:4/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 4;
-find_nal_start_code_erl(<<_:5/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 5;
-find_nal_start_code_erl(<<_:6/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 6;
-find_nal_start_code_erl(<<_:7/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 7;
-find_nal_start_code_erl(<<_:8/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 8;
-find_nal_start_code_erl(<<_:9/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 9;
-find_nal_start_code_erl(<<_:10/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 10;
-find_nal_start_code_erl(<<_:11/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 11;
-find_nal_start_code_erl(<<_:12/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 12;
-find_nal_start_code_erl(<<_:13/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 13;
-find_nal_start_code_erl(<<_:14/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 14;
-find_nal_start_code_erl(<<_:15/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 15;
+find_nal_start_code_erl(<<1:32, _/binary>>, Offset) -> Offset;
+find_nal_start_code_erl(<<_:1/binary, 1:32, _/binary>>, Offset) -> Offset + 1;
+find_nal_start_code_erl(<<_:2/binary, 1:32, _/binary>>, Offset) -> Offset + 2;
+find_nal_start_code_erl(<<_:3/binary, 1:32, _/binary>>, Offset) -> Offset + 3;
+find_nal_start_code_erl(<<_:4/binary, 1:32, _/binary>>, Offset) -> Offset + 4;
+find_nal_start_code_erl(<<_:5/binary, 1:32, _/binary>>, Offset) -> Offset + 5;
+find_nal_start_code_erl(<<_:6/binary, 1:32, _/binary>>, Offset) -> Offset + 6;
+find_nal_start_code_erl(<<_:7/binary, 1:32, _/binary>>, Offset) -> Offset + 7;
+find_nal_start_code_erl(<<_:8/binary, 1:32, _/binary>>, Offset) -> Offset + 8;
+find_nal_start_code_erl(<<_:9/binary, 1:32, _/binary>>, Offset) -> Offset + 9;
+find_nal_start_code_erl(<<_:10/binary, 1:32, _/binary>>, Offset) -> Offset + 10;
+find_nal_start_code_erl(<<_:11/binary, 1:32, _/binary>>, Offset) -> Offset + 11;
+find_nal_start_code_erl(<<_:12/binary, 1:32, _/binary>>, Offset) -> Offset + 12;
+find_nal_start_code_erl(<<_:13/binary, 1:32, _/binary>>, Offset) -> Offset + 13;
+find_nal_start_code_erl(<<_:14/binary, 1:32, _/binary>>, Offset) -> Offset + 14;
+find_nal_start_code_erl(<<_:15/binary, 1:32, _/binary>>, Offset) -> Offset + 15;
 find_nal_start_code_erl(<<_:16/binary, Rest/binary>>, Offset) -> find_nal_start_code_erl(Rest, Offset+16);
 % find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
 find_nal_start_code_erl(_, _) -> false.
@@ -459,7 +473,8 @@ find_nal_start_code_erl(_, _) -> false.
 -include_lib("eunit/include/eunit.hrl").
 
 benchmark() ->
-  find_nal_start_code_bm().
+  find_nal_start_code_bm(),
+  find_nal_start_code_c_bm().
 
 find_nal_code_bin() ->
   Bin = <<0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %50
@@ -467,27 +482,37 @@ find_nal_code_bin() ->
           0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %150
           0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %200
           0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %250
-          0,0,1,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9, %303
-          0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %353
-          0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %403
-          0,0,1>>,
+          0,0,0,1,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9, %304
+          0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %354
+          0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %404
+          0,0,0,1>>,
   Bin.
 
 find_nal_start_code_test() ->
   Bin = find_nal_code_bin(),
   ?assertEqual(250, find_nal_start_code(Bin, 0)),
-  {_, Bin1} = split_binary(Bin, 253),
-  ?assertEqual(403, find_nal_start_code(Bin1, 253)).
+  {_, Bin1} = split_binary(Bin, 254),
+  ?assertEqual(404, find_nal_start_code(Bin1, 254)).
 
 find_nal_start_code_bm() ->
   Bin = find_nal_code_bin(),
   erlang:statistics(wall_clock),
-  N = 1000000,
+  N = 100000,
+  lists:foreach(fun(_) ->
+    find_nal_start_code_erl(Bin, 0)
+  end, lists:seq(1,N)),
+  {_, Timer} = erlang:statistics(wall_clock),
+  ?D({"Timer erl", N, Timer}).
+
+find_nal_start_code_c_bm() ->
+  Bin = find_nal_code_bin(),
+  erlang:statistics(wall_clock),
+  N = 100000,
   lists:foreach(fun(_) ->
     find_nal_start_code(Bin, 0)
   end, lists:seq(1,N)),
   {_, Timer} = erlang:statistics(wall_clock),
-  ?D({"Timer", N, Timer}).
+  ?D({"Timer native", N, Timer}).
 
 
 

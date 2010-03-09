@@ -17,12 +17,15 @@ MXMLC=mxmlc
 
 all: compile
 
-compile: ebin/mpeg2_crc32.so
+compile: ebin/mpeg2_crc32.so ebin/mpegts_reader.so
 	ERL_LIBS=deps:lib:plugins erl -make
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
 	
 ebin/mpeg2_crc32.so: lib/mpegts/src/mpeg2_crc32.c
+	gcc  -O3 -fPIC -bundle -flat_namespace -undefined suppress -fno-common -Wall -o $@ $< -I $(ERL_ROOT)/usr/include/ || touch $@
+
+ebin/mpegts_reader.so: lib/mpegts/src/mpegts_reader.c
 	gcc  -O3 -fPIC -bundle -flat_namespace -undefined suppress -fno-common -Wall -o $@ $< -I $(ERL_ROOT)/usr/include/ || touch $@
 	
 
