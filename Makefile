@@ -1,60 +1,32 @@
 SRC_ERLS = `find src -name '*.erl'`
 TEST_ERLS = `find test -name '*.erl'`
-LINE = "\\n=================================================================\\n"
-MSG = "\n$(LINE) $1 $(LINE)"
+APPS = `find src -name '*.app'`
+COPY_APPS = for APP in $(APPS); do cp $$APP ebin; done
 
 all: 
-	make compile-release 
-	make docs 
-	make tests
-	rm -rf tmp
-	
+	@ $(COPY_APPS)
+	@ erl -make
+
 debug: 
-	make compile-debug
-	make tests-verbose 
-	make analyze
+	@ make tmp
+	@ cd tmp; erlc +debug_info *.erl; cp amf0.beam amf3.beam ../ebin
 	
-compile-debug: clean
-	@echo "Compiling in debug mode ..."
-	make compile-setup
-	cd tmp; erlc -d -W +debug_info *.erl; cp amf0.beam amf3.beam ../ebin
-
-compile-release: clean	
-	@echo "Compiling ..."
-	make compile-setup
-	cd tmp; erlc -W *.erl; cp amf0.beam amf3.beam ../ebin
-
-analyze: compile-debug
-	make analyze-coverage
-	make analyze-dialyzer
-
-analyze-coverage:
-	@echo "Analyzing Code Coverage ..."
-	cd tmp; erl -noshell -eval "test_coverage:analyze([amf0, amf3])" -s init stop
-
-analyze-dialyzer:
-	@echo "Analyzing with Dialyzer ..."
-	cd tmp; dialyzer --build_plt -r "."
+tests: 
+	@ make clean debug
+	@ cd tmp; erl -noshell -eval "eunit:test([amf0,amf3],[verbose])" -s init stop
 	
-docs:
-	@echo "Creating Documentation ..."
-	mkdir docs
-	cd tmp; erl -run edoc file amf3.erl -run init stop -noshell 
-	mv tmp/*.html docs
+cover:
+	@ make clean debug	
+	@ cd tmp; erl -noshell -eval "test_coverage:analyze([amf0, amf3])" -s init stop
 	
-tests:
-	@echo "Running Tests ..."
-	cd tmp; erl -noshell -eval "eunit:test([amf0,amf3])" -s init stop
-
-tests-verbose:
-	@echo "Running Tests ..."
-	cd tmp; erl -noshell -eval "eunit:test(amf3,[verbose])" -s init stop
+dialyzer:
+	@ make clean debug	
+	@ cd tmp; dialyzer --build_plt -r "."
 	
 clean:
-	@echo "Cleaning ..."
-	rm -rf ebin tmp docs
-	
-compile-setup:
-	mkdir ebin tmp;
-	cp $(SRC_ERLS) tmp/
-	cp $(TEST_ERLS) tmp/	
+	@ rm -rf tmp ebin/* 
+
+tmp:
+	@ mkdir tmp;
+	@ cp $(SRC_ERLS) tmp/
+	@ cp $(TEST_ERLS) tmp/
