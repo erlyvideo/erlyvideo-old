@@ -667,41 +667,18 @@ calculate_samples_in_chunk(_FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameR
   FrameReader;
 
 calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, 
-  #mp4_frames{index = Index, data_format = DataFormat, keyframes = Keyframes, timescale = Timescale,
-    sample_sizes = [SampleSize | SampleSizes], frames = Frames} = FrameReader) ->
-  % add dts field
-  {Dts, FrameReader1} = next_duration(FrameReader),
-  {CompositionOffset, FrameReader2} = next_composition_offset(FrameReader1),
-  TimestampMS = Dts * 1000 / Timescale,
-  CompositionTime = CompositionOffset * 1000 / Timescale,
-  
-  NewOffset = ets:lookup_element(Frames, Index - 1, #mp4_frame.offset),
-  NewTs = ets:lookup_element(Frames, Index - 1, #mp4_frame.dts),
-  NewSize = ets:lookup_element(Frames, Index - 1, #mp4_frame.size),
-  NewKey = ets:lookup_element(Frames, Index - 1, #mp4_frame.keyframe),
-  NewComp = ets:lookup_element(Frames, Index - 1, #mp4_frame.composition),
-  Key = lists:member(Index, Keyframes),
-  case {NewOffset, NewTs, NewSize, NewKey, NewComp} of
-    {SampleOffset, Dts, SampleSize, Key, CompositionOffset} -> ok;
-    _ -> ?D({Index - 1, SampleOffset, NewOffset, Dts, NewTs, SampleSize, NewSize, Key, NewKey})
+  #mp4_frames{index = Index, data_format = DataFormat, timescale = Timescale, frames = Frames} = FrameReader) ->
+  FrameType = case DataFormat of
+    avc1 -> video;
+    mp4a -> audio
   end,
-  
-  % ?D({"Comp", CompositionOffset, Timescale, CompositionTime}),
-  {FrameType, Id} = case DataFormat of
-    avc1 -> {video, round(TimestampMS)*3 + 1 + 3};
-    mp4a -> {audio, round(TimestampMS)*3 + 2 + 3}
-  end,
-  Frame = #file_frame{id = Id, dts = TimestampMS, type = FrameType, offset = SampleOffset, size = SampleSize, keyframe = lists:member(Index, Keyframes), pts = TimestampMS + CompositionTime},
-  Frame1 = file_frame_from_track(Frames, Index - 1, Timescale, FrameType),
-  case Frame1 of 
-    Frame -> ok;
-    _ -> ?D({Index - 1, Frame, Frame1})
-  end,
-  Frame1 = Frame,
-  % ~D([Id, TimestampMS, SampleOffset, SampleSize, Dts, lists:member(Index, Keyframes)]),
-  ets:insert(FrameTable, Frame1),
-  FrameReader3 = FrameReader2#mp4_frames{sample_sizes = SampleSizes, index = Index + 1},
-  calculate_samples_in_chunk(FrameTable, SampleOffset + SampleSize, SamplesInChunk - 1, FrameReader3).
+  case file_frame_from_track(Frames, Index - 1, Timescale, FrameType) of
+    undefined -> FrameReader;
+    Frame1 ->
+      ets:insert(FrameTable, Frame1),
+      FrameReader3 = FrameReader#mp4_frames{index = Index + 1},
+      calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, FrameReader3)
+  end.
   
 calculate_sample_offsets(_FrameTable, #mp4_frames{chunk_offsets = []} = FrameReader) ->
   FrameReader;
