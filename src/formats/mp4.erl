@@ -156,7 +156,10 @@ video_frame(#file_frame{type = audio, dts = DTS, pts = PTS}, Data) ->
 
 
 init(#media_info{header = undefined} = MediaInfo) -> 
-  init(MediaInfo#media_info{header = #mp4_header{}, frames = ets:new(frames, [ordered_set, {keypos, #file_frame.id}])});
+  Info1 = MediaInfo#media_info{header = #mp4_header{}, frames = ets:new(frames, [ordered_set, {keypos, #file_frame.id}])},
+  {Time, Result} = timer:tc(?MODULE, init, [Info1]),
+  ?D({"Time to parse moov", round(Time/1000)}),
+  Result;
 
 init(MediaInfo) -> 
   init(MediaInfo, 0).
