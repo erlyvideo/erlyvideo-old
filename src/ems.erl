@@ -60,7 +60,6 @@ start() ->
   ems_log:start(),
   start_rtmp(),
   start_rtsp(),
-  mpeg2_crc32:start(),
 	ems:start_modules().
   
 
