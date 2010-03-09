@@ -536,40 +536,6 @@ fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   MediaInfo.
 
 
-copy_track_info(#media_info{frames = FileFrames} = MediaInfo, #mp4_track{timescale = Timescale, frames = Frames, data_format = DataFormat}) ->
-  Type = case DataFormat of
-    avc1 -> video;
-    mp4a -> audio
-  end,
-  copy_track_info(FileFrames, Frames, Timescale, Type, 0),
-  MediaInfo.
-
-copy_track_info(FileFrames, Frames, Timescale, Type, Id) ->
-  case file_frame_from_track(Frames, Id, Timescale, Type) of
-    undefined ->
-      ok;
-    Frame ->
-      ets:insert(FileFrames, Frame),
-      copy_track_info(FileFrames, Frames, Timescale, Type, Id + 1)
-  end.
-  
-  
-file_frame_from_track(Frames, Id, Timescale, Type) ->
-  case ets:lookup(Frames, Id) of
-    [#mp4_frame{dts = DTS, size = Size, composition = CTime, keyframe = Keyframe, offset = Offset}] ->
-      TimestampMS = DTS * 1000 / Timescale,
-      % ?D({Type, DTS, Timescale}),
-      FrameId = case Type of
-        video -> round(TimestampMS)*3 + 1 + 3;
-        audio -> round(TimestampMS)*3 + 2 + 3
-      end,
-      
-      #file_frame{id = FrameId, dts = TimestampMS, type = Type, offset = Offset, size = Size, keyframe = Keyframe, pts = (DTS + CTime)*1000/Timescale};
-    [] ->
-      undefined
-  end.
-  
-      
   
 
 mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
