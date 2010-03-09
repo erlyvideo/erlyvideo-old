@@ -42,9 +42,9 @@ find_nal_start_code(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
   if (!enif_get_uint(env, offset, &current_offset)) {
     return enif_make_badarg(env);
   }
-  for(i = 0; i < data.size; i++) {
+  for(i = 0; i < data.size - 3; i++) {
     if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 0 && data.data[i+3] == 1) {
-      enif_make_ulong(env, current_offset + i);
+      return enif_make_ulong(env, current_offset + i);
     }
   }
   return enif_make_atom(env, "false");
