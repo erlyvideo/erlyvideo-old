@@ -157,8 +157,12 @@ video_frame(#file_frame{type = audio, dts = DTS, pts = PTS}, Data) ->
 
 init(#media_info{header = undefined} = MediaInfo) -> 
   Info1 = MediaInfo#media_info{header = #mp4_header{}, frames = ets:new(frames, [ordered_set, {keypos, #file_frame.id}])},
+  eprof:start(),
+  eprof:start_profiling([self()]),
   {Time, Result} = timer:tc(?MODULE, init, [Info1]),
   ?D({"Time to parse moov", round(Time/1000)}),
+  eprof:total_analyse(),
+  eprof:stop(),
   Result;
 
 init(MediaInfo) -> 

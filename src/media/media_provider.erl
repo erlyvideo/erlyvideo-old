@@ -49,13 +49,13 @@ open(Host, Name, Opts) when is_list(Name)->
   open(Host, list_to_binary(Name), Opts);
 
 open(Host, Name, Opts) ->
-  gen_server:call(name(Host), {open, Name, Opts}, 20000).
+  gen_server:call(name(Host), {open, Name, Opts}, infinity).
 
 find(Host, Name) when is_list(Name)->
   find(Host, list_to_binary(Name));
 
 find(Host, Name) ->
-  gen_server:call(name(Host), {find, Name}).
+  gen_server:call(name(Host), {find, Name}, infinity).
 
 register(Host, Name, Pid) ->
   gen_server:call(name(Host), {register, Name, Pid}).
