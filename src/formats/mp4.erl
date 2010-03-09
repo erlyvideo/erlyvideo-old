@@ -591,14 +591,14 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 
 fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   ?D({"Video frames", length(ets:tab2list(Track#mp4_track.frames)), ets:last(Track#mp4_track.frames) + 1}),
-  calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
-  % copy_track_info(MediaInfo, Track);
+  % calculate_sample_offsets(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
+  copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
   ?D({"Audio frames", length(ets:tab2list(Track#mp4_track.frames)), ets:last(Track#mp4_track.frames) + 1}),
-  calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
-  % copy_track_info(MediaInfo, Track);
+  % calculate_sample_offsets(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+  copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),
@@ -623,6 +623,30 @@ copy_track_info(FileFrames, Frames, Timescale, Type, Id) ->
       copy_track_info(FileFrames, Frames, Timescale, Type, Id + 1)
   end.
   
+  
+calculate_sample_offsets(FrameTable, Frames, Timescale, Type, Id) ->
+  case file_frame_from_track(Frames, Id, Timescale, Type) of
+    undefined -> 
+      ?D({"Inserted", Type, Id}),
+      ok;
+    Frame ->
+      ets:insert(FrameTable, Frame),
+      calculate_sample_offsets(FrameTable, Frames, Timescale, Type, Id + 1)
+  end.
+
+
+calculate_sample_offsets(#media_info{frames = FileFrames} = MediaInfo, #mp4_track{timescale = Timescale, frames = Frames, data_format = DataFormat}) ->
+  Type = case DataFormat of
+    avc1 -> video;
+    mp4a -> audio
+  end,
+             copy_track_info(FileFrames, Frames, Timescale, Type, 0),
+  % calculate_sample_offsets(FileFrames, Frames, Timescale, Type, 0),
+  MediaInfo.
+
+  
+  
+  
 file_frame_from_track(Frames, Id, Timescale, Type) ->
   case ets:lookup(Frames, Id) of
     [#mp4_frame{dts = DTS, size = Size, composition = CTime, keyframe = Keyframe, offset = Offset}] ->
@@ -639,77 +663,6 @@ file_frame_from_track(Frames, Id, Timescale, Type) ->
   end.
   
       
-
-
-chunk_samples_count(#mp4_frames{chunk_table = [{_, SamplesInChunk, _}]} = FrameReader) ->
-  {SamplesInChunk, FrameReader};
-  
-chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, _, _} | [{NextChunk, NextSamplesInChunk, SampleId} | ChunkTable]]} = FrameReader) when FirstChunk == NextChunk ->
-  {NextSamplesInChunk, FrameReader#mp4_frames{chunk_table = [{NextChunk + 1, NextSamplesInChunk, SampleId} | ChunkTable]}};
-
-chunk_samples_count(#mp4_frames{chunk_table = [{FirstChunk, SamplesInChunk, SampleId} | ChunkTable]} = FrameReader) ->
-  {SamplesInChunk, FrameReader#mp4_frames{chunk_table = [{FirstChunk + 1, SamplesInChunk, SampleId} | ChunkTable]}}.
-
-  
-% calculate_samples_in_chunk(_FrameTable, _SampleOffset, 0, #mp4_frames{} = FrameReader) ->
-%   FrameReader;
-
-calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, 
-  #mp4_frames{index = Index, data_format = DataFormat, timescale = Timescale, frames = Frames} = FrameReader) ->
-  FrameType = case DataFormat of
-    avc1 -> video;
-    mp4a -> audio
-  end,
-  case file_frame_from_track(Frames, Index - 1, Timescale, FrameType) of
-    undefined -> 
-      ?D({"Inserted", FrameType, Index - 1}),
-      FrameReader;
-    Frame1 ->
-      ets:insert(FrameTable, Frame1),
-      FrameReader3 = FrameReader#mp4_frames{index = Index + 1},
-      calculate_samples_in_chunk(FrameTable, SampleOffset, SamplesInChunk, FrameReader3)
-  end.
-  
-calculate_sample_offsets(_FrameTable, #mp4_frames{chunk_offsets = []} = FrameReader) ->
-  FrameReader;
-  
-calculate_sample_offsets(FrameTable, #mp4_frames{chunk_offsets = [ChunkOffset | ChunkOffsets]} = FrameReader) ->
-  {SamplesInChunk, FrameReader1} = chunk_samples_count(FrameReader),
-  
-  % io:format("~p~n", [[ChunkOffset, SamplesInChunk]]),
-  FrameReader2 = calculate_samples_in_chunk(FrameTable, ChunkOffset, SamplesInChunk, FrameReader1),
-  % calculate_sample_offsets(FrameTable, FrameReader2#mp4_frames{chunk_offsets = ChunkOffsets});
-  FrameReader2;
-
-calculate_sample_offsets(#media_info{frames = FrameTable} = MediaInfo, Track) ->
-  #mp4_track{
-    frames = Frames,
-    chunk_offsets = ChunkOffsets, 
-    chunk_table = ChunkTable, 
-    keyframes = Keyframes, 
-    sample_sizes = SampleSizes, 
-    sample_durations = Durations,
-    data_format = DataFormat,
-    timescale = Timescale,
-    composition_offsets = CompositionOffsets} = Track,
-  
-  % ?D({"Track", length(SampleSizes), length(Durations), length(CompositionOffsets)}),
-  % calculate_sample_offsets(FrameTable, 
-  %   #mp4_frames{
-  %     frames = Frames,
-  %     chunk_offsets = ChunkOffsets, 
-  %     chunk_table = ChunkTable, 
-  %     keyframes = Keyframes, 
-  %     sample_sizes = SampleSizes, 
-  %     durations = Durations, 
-  %     data_format = DataFormat,
-  %     timescale = Timescale,
-  %     composition_offsets = CompositionOffsets}),
-  ?D("Inserting"),
-  calculate_samples_in_chunk(FrameTable, 0, 0, #mp4_frames{frames = Frames, data_format = DataFormat, timescale = Timescale}),
-  ?D({"Inserted", length(ets:tab2list(FrameTable))}),
-  MediaInfo.
-
   
 
 mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
