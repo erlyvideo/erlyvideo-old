@@ -165,12 +165,12 @@ video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
 
 init(#media_info{header = undefined} = MediaInfo) -> 
   Info1 = MediaInfo#media_info{header = #mp4_header{}, frames = ets:new(frames, [ordered_set, {keypos, #file_frame.id}])},
-  % eprof:start(),
-  % eprof:start_profiling([self()]),
+  eprof:start(),
+  eprof:start_profiling([self()]),
   {Time, Result} = timer:tc(?MODULE, init, [Info1]),
   ?D({"Time to parse moov", round(Time/1000)}),
-  % eprof:total_analyse(),
-  % eprof:stop(),
+  eprof:total_analyse(),
+  eprof:stop(),
   Result;
 
 init(MediaInfo) -> 
@@ -267,7 +267,8 @@ trak(<<>>, MediaInfo) ->
   MediaInfo;
   
 trak(Atom, #media_info{} = MediaInfo) ->
-  Track = parse_atom(Atom, #mp4_track{frames = ets:new(frames, [ordered_set, {keypos, #mp4_frame.id}])}),
+  Track = parse_atom(Atom, #mp4_track{frames = ets:new(frames, [ordered_set, {keypos, #mp4_frame.id}]), 
+                               chunk_samples = ets:new(chunks, [set])}),
   fill_track_info(MediaInfo, Track).
   
 
@@ -435,37 +436,39 @@ set_stts(SampleCount, Duration, Timestamp, Frames, Id, Timescale) ->
   set_stts(SampleCount - 1, Duration, Timestamp + Duration, Frames, Id + 1, Timescale).
   
 % STSC atom
-stsc(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
-  read_stsc(Rest, EntryCount, Frames, 0),
+stsc(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames, chunk_samples = Samples} = Mp4Track) ->
+  read_stsc(Rest, EntryCount, Frames, Samples, 0),
   Mp4Track.
 
 
 
-set_chunk_id(ChunkId, _SamplesPerChunk, ChunkId, _Frames, Id) ->
+set_chunk_id(ChunkId, _SamplesPerChunk, ChunkId, _Frames, _ChunkSamples, Id) ->
   Id;
 
-set_chunk_id(ChunkId, SamplesPerChunk, undefined, Frames, Id) ->
+set_chunk_id(ChunkId, SamplesPerChunk, undefined, Frames, ChunkSamples, Id) ->
   set_frames(Frames, Id, #mp4_frame.chunk_id, ChunkId - 1, SamplesPerChunk),
+  ets:insert(ChunkSamples, {ChunkId-1, SamplesPerChunk}),
   case ets:last(Frames) of
     MaxId when MaxId =< Id + SamplesPerChunk -> ok;
-    _ -> set_chunk_id(ChunkId + 1, SamplesPerChunk, undefined, Frames, Id + SamplesPerChunk)
+    _ -> set_chunk_id(ChunkId + 1, SamplesPerChunk, undefined, Frames, ChunkSamples, Id + SamplesPerChunk)
   end;
 
-set_chunk_id(ChunkId, SamplesPerChunk, NextChunk, Frames, Id) ->
+set_chunk_id(ChunkId, SamplesPerChunk, NextChunk, Frames, ChunkSamples, Id) ->
   set_frames(Frames, Id, #mp4_frame.chunk_id, ChunkId - 1, SamplesPerChunk),
-  set_chunk_id(ChunkId + 1, SamplesPerChunk, NextChunk, Frames, Id + SamplesPerChunk).
+  ets:insert(ChunkSamples, {ChunkId-1, SamplesPerChunk}),
+  set_chunk_id(ChunkId + 1, SamplesPerChunk, NextChunk, Frames, ChunkSamples, Id + SamplesPerChunk).
   
-read_stsc(_, 0, _Frames, _) ->
+read_stsc(_, 0, _Frames, _, _) ->
   ok;
 
-read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32>>, 1, Frames, Id) ->
-  set_chunk_id(ChunkId, SamplesPerChunk, undefined, Frames, Id),
+read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32>>, 1, Frames, ChunkSamples, Id) ->
+  set_chunk_id(ChunkId, SamplesPerChunk, undefined, Frames, ChunkSamples, Id),
   ok;
 
-read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32, Rest/binary>>, EntryCount, Frames, Id) ->
+read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32, Rest/binary>>, EntryCount, Frames, ChunkSamples, Id) ->
   <<NextChunk:32, _/binary>> = Rest,
-  NextId = set_chunk_id(ChunkId, SamplesPerChunk, NextChunk, Frames, Id),
-  read_stsc(Rest, EntryCount - 1, Frames, NextId).
+  NextId = set_chunk_id(ChunkId, SamplesPerChunk, NextChunk, Frames, ChunkSamples, Id),
+  read_stsc(Rest, EntryCount - 1, Frames, ChunkSamples, NextId).
 
 % STSS atom
 % List of keyframes
@@ -497,17 +500,18 @@ read_ctts(<<Count:32, Offset:32, Rest/binary>>, EntryCount, Frames, Id, Timescal
 
 % STCO atom
 % sample table chunk offset
-stco(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
-  read_stco(Offsets, OffsetCount, Frames, 0, 0),
+stco(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, #mp4_track{frames = Frames, chunk_samples = ChunkSamples} = Mp4Track) ->
+  read_stco(Offsets, OffsetCount, Frames, ChunkSamples, 0, 0),
   Mp4Track.
 
-read_stco(_, 0, _Frames, _FrameId, _ChunkId) ->
+read_stco(_, 0, _Frames, _ChunkSamples, _FrameId, _ChunkId) ->
   ok;
 
-read_stco(<<Offset:32, Rest/binary>>, OffsetCount, Frames, FrameId, ChunkId) ->
-  SampleCount = length(ets:match(Frames, #mp4_frame{id = '_', dts = '_', size = '_', chunk_id = ChunkId, composition = '_', keyframe = '_', offset = '_'})),
+read_stco(<<Offset:32, Rest/binary>>, OffsetCount, Frames, ChunkSamples, FrameId, ChunkId) ->
+  % SampleCount = ets:select_count(Frames, ets:fun2ms(fun(#mp4_frame{chunk_id = Chunk}) when Chunk == ChunkId -> true end)),
+  SampleCount = ets:lookup_element(ChunkSamples, ChunkId, 2),
   read_stco_samples(Offset, Frames, SampleCount, FrameId),
-  read_stco(Rest, OffsetCount - 1, Frames, FrameId + SampleCount, ChunkId + 1).
+  read_stco(Rest, OffsetCount - 1, Frames, ChunkSamples, FrameId + SampleCount, ChunkId + 1).
 
 read_stco_samples(_, _, 0, _) ->
   ok;

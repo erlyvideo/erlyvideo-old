@@ -17,7 +17,8 @@
   width,
   height,
   decoder_config,
-  frames
+  frames,
+  chunk_samples
 }).
 
 -record(mp4_frame, {
