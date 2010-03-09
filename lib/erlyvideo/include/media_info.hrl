@@ -22,6 +22,8 @@
   video_decoder_config,
   audio_decoder_config,
   video_decoder,
+  audio_track,
+  video_track,
 	frames = undefined,
 	owner = undefined,
 	clients = undefined,

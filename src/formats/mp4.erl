@@ -78,15 +78,42 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 	}.
 
 
-first(#media_info{frames = FrameTable}) ->
-  ets:first(FrameTable).
+first(#media_info{video_track = Video}) ->
+  {video, ets:first(Video)}.
 
-read_frame(#media_info{frames = FrameTable} = MediaInfo, Key) ->
-  [Frame] = ets:lookup(FrameTable, Key),
-  #file_frame{offset = Offset, size = Size} = Frame,
-  Next = ets:next(FrameTable, Key),
+
+lookup_frame(video, #media_info{video_track = FrameTable}, Id) ->
+  [Frame] = ets:lookup(FrameTable, Id),
+  Frame;
+
+lookup_frame(audio, #media_info{audio_track = FrameTable}, Id) ->
+  [Frame] = ets:lookup(FrameTable, Id),
+  Frame.
+
+next_frame(#media_info{video_track = Video, audio_track = Audio}, DTS) ->
+  MatchSpec = ets:fun2ms(fun(#mp4_frame{id = ID, dts = TS}) when TS > DTS ->
+    {ID, TS}
+  end),
+  {[NextVideo], _} = ets:select(Video, MatchSpec, 1),
+  {[NextAudio], _} = ets:select(Audio, MatchSpec, 1),
+  case {NextVideo, NextAudio} of
+    {'$end_of_table', '$end_of_table'} -> '$end_of_table';
+    {'$end_of_table', {NextAudioID, _}} -> {audio, NextAudioID};
+    {{NextVideoID, _}, '$end_of_table'} -> {video, NextVideoID};
+    {{NextVideoID, NextVideoDTS}, {_, NextAudioDTS}} when NextVideoDTS < NextAudioDTS -> {video, NextVideoID};
+    {_, {NextAudioID, _}} -> {audio, NextAudioID}
+  end.
+
+read_frame(#media_info{} = MediaInfo, {Type, Id}) ->
+  Frame = lookup_frame(Type, MediaInfo, Id),
+  #mp4_frame{offset = Offset, size = Size, dts = DTS} = Frame,
+  Next = next_frame(MediaInfo, DTS),
+  
+  % F1 = video_frame(Type, Frame, <<>>),
+  % ?D({Type, Id, F1#video_frame.dts, Next}),
+  
 	case read_data(MediaInfo, Offset, Size) of
-		{ok, Data, _} -> {video_frame(Frame, Data), Next};
+		{ok, Data, _} -> {video_frame(Type, Frame, Data), Next};
     eof -> done;
     {error, Reason} -> {error, Reason}
   end.
@@ -100,7 +127,7 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
   end.
   
 seek(FrameTable, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#file_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
     {Id, FrameTimestamp}
   end)),
   case lists:reverse(Ids) of
@@ -109,30 +136,11 @@ seek(FrameTable, Timestamp) ->
   end.
   
 
-% read_data(#video_player{cache = Cache, cache_offset = CacheOffset} = Player, Offset, Size) when (CacheOffset =< Offset) and (Offset + Size - CacheOffset =< size(Cache)) ->
-%   Seek = Offset - CacheOffset,
-%   % ?D({"Cache hit", Offset, Size}),
-%   <<_:Seek/binary, Data:Size/binary, Rest/binary>> = Cache,
-%   {ok, Data, Player};
-% 
-% 
-
-% read_data(#video_player{media_info = #media_info{device = IoDev}} = Player, Offset, Size) ->
-%   CacheSize = 60000 + Size,
-%   case file:pread(IoDev, Offset, CacheSize) of
-%     {ok, CacheList} ->
-%       Cache = iolist_to_binary(CacheList),
-%       <<Data:Size/binary, _/binary>> = Cache,
-%       {ok, Data, Player#video_player{cache_offset = Offset, cache = Cache}};
-%     Else -> Else
-%   end.
-%   
-
-video_frame(#file_frame{type = video, dts = DTS, keyframe = Keyframe, pts = PTS}, Data) ->
+video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, composition = CTime}, Data) ->
   #video_frame{
    	type          = video,
 		dts           = DTS,
-		pts           = PTS,
+		pts           = DTS + CTime,
 		body          = Data,
 		frame_type    = case Keyframe of
 		  true ->	keyframe;
@@ -141,11 +149,11 @@ video_frame(#file_frame{type = video, dts = DTS, keyframe = Keyframe, pts = PTS}
 		codec_id      = avc
   };  
 
-video_frame(#file_frame{type = audio, dts = DTS, pts = PTS}, Data) ->
+video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
   #video_frame{       
    	type          = audio,
-  	dts           = DTS,
-  	pts           = PTS,
+		dts           = DTS,
+		pts           = DTS,
   	body          = Data,
 	  codec_id	    = aac,
 	  sound_type	  = stereo,
@@ -157,12 +165,12 @@ video_frame(#file_frame{type = audio, dts = DTS, pts = PTS}, Data) ->
 
 init(#media_info{header = undefined} = MediaInfo) -> 
   Info1 = MediaInfo#media_info{header = #mp4_header{}, frames = ets:new(frames, [ordered_set, {keypos, #file_frame.id}])},
-  eprof:start(),
-  eprof:start_profiling([self()]),
+  % eprof:start(),
+  % eprof:start_profiling([self()]),
   {Time, Result} = timer:tc(?MODULE, init, [Info1]),
   ?D({"Time to parse moov", round(Time/1000)}),
-  eprof:total_analyse(),
-  eprof:stop(),
+  % eprof:total_analyse(),
+  % eprof:stop(),
   Result;
 
 init(MediaInfo) -> 
@@ -408,23 +416,23 @@ read_stsz(<<Size:32, Rest/binary>>, Count, Frames, Id) ->
   
 
 % STTS atom
-stts(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
-  read_stts(Rest, EntryCount, Frames, 0, 0),
+stts(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames, timescale = Timescale} = Mp4Track) ->
+  read_stts(Rest, EntryCount, Frames, 0, 0, Timescale),
   Mp4Track.
 
-read_stts(_, 0, _Frames, _, _) ->
+read_stts(_, 0, _Frames, _, _, _) ->
   ok;
   
-read_stts(<<SampleCount:32, SampleDuration:32, Rest/binary>>, EntryCount, Frames, Id, Timestamp) ->
-  NewTS = set_stts(SampleCount, SampleDuration, Timestamp, Frames, Id),
-  read_stts(Rest, EntryCount - 1, Frames, Id + SampleCount, NewTS).
+read_stts(<<SampleCount:32, SampleDuration:32, Rest/binary>>, EntryCount, Frames, Id, Timestamp, Timescale) ->
+  NewTS = set_stts(SampleCount, SampleDuration, Timestamp, Frames, Id, Timescale),
+  read_stts(Rest, EntryCount - 1, Frames, Id + SampleCount, NewTS, Timescale).
 
-set_stts(0, _Duration, Timestamp, _Frames, _Id) ->
+set_stts(0, _Duration, Timestamp, _Frames, _Id, _Timescale) ->
   Timestamp;
   
-set_stts(SampleCount, Duration, Timestamp, Frames, Id) ->
-  set_frame(Frames, Id, #mp4_frame.dts, Timestamp),
-  set_stts(SampleCount - 1, Duration, Timestamp + Duration, Frames, Id + 1).
+set_stts(SampleCount, Duration, Timestamp, Frames, Id, Timescale) ->
+  set_frame(Frames, Id, #mp4_frame.dts, Timestamp*1000/Timescale),
+  set_stts(SampleCount - 1, Duration, Timestamp + Duration, Frames, Id + 1, Timescale).
   
 % STSC atom
 stsc(<<0:8, _Flags:3/binary, EntryCount:32, Rest/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
@@ -475,16 +483,16 @@ read_stss(<<Sample:32, Rest/binary>>, EntryCount, Frames) ->
 
 
 % CTTS atom, list of B-Frames offsets
-ctts(<<0:32, Count:32, CTTS/binary>>, #mp4_track{frames = Frames} = Mp4Track) ->
-  read_ctts(CTTS, Count, Frames, 0),
+ctts(<<0:32, Count:32, CTTS/binary>>, #mp4_track{frames = Frames, timescale = Timescale} = Mp4Track) ->
+  read_ctts(CTTS, Count, Frames, 0, Timescale),
   Mp4Track.
 
-read_ctts(_, 0, _Frames, _) ->
+read_ctts(_, 0, _Frames, _, _) ->
   ok;
 
-read_ctts(<<Count:32, Offset:32, Rest/binary>>, EntryCount, Frames, Id) ->
-  set_frames(Frames, Id, #mp4_frame.composition, Offset, Count),
-  read_ctts(Rest, EntryCount - 1, Frames, Id + Count).
+read_ctts(<<Count:32, Offset:32, Rest/binary>>, EntryCount, Frames, Id, Timescale) ->
+  set_frames(Frames, Id, #mp4_frame.composition, Offset*1000/Timescale, Count),
+  read_ctts(Rest, EntryCount - 1, Frames, Id + Count, Timescale).
   
 
 % STCO atom
@@ -514,12 +522,14 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 
 
 
-fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
-  copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height}, Track);
+fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height, frames = Frames} = _Track) ->
+  % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
+  MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video_track = Frames};
 
 
-fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
-  copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig, frames = Frames} = _Track) ->
+  % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
+  MediaInfo#media_info{audio_decoder_config = DecoderConfig, audio_track = Frames};
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),

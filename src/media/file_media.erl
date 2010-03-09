@@ -33,8 +33,11 @@ metadata(Server) ->
 
 
 init([Name, file, Opts]) ->
-  self() ! init,
-  {ok, {Name, Opts}}.
+  Clients = ets:new(clients, [set, private]),
+  Host = proplists:get_value(host, Opts),
+  LiveTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
+  {ok, Info} = open_file(Name, Host),
+  {ok, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LiveTimeout}}.
 
 
 
@@ -101,7 +104,7 @@ handle_call({metadata}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
 
 
-handle_call(Request, _From, #media_info{} = State) ->
+handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
   {stop, {unknown_call, Request}, State}.
 
@@ -128,15 +131,6 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-
-
-handle_info(init, {Name, Opts}) ->
-  Clients = ets:new(clients, [set, private]),
-  Host = proplists:get_value(host, Opts),
-  LiveTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
-  {ok, Info} = open_file(Name, Host),
-  {noreply, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LiveTimeout}};
-  
 
 handle_info(graceful, #media_info{clients = Clients} = MediaInfo) ->
   case ets:info(Clients, size) of
