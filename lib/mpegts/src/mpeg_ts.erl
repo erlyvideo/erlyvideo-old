@@ -291,7 +291,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
                 (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   NALHeader = <<1:32>>,
-  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader) + 1):16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
+  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader)):16, PesHeader/binary, NALHeader/binary, Body/binary>>,
   
   Keyframe = case FrameType of
     keyframe -> 1;
