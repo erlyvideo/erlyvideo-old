@@ -45,6 +45,7 @@
 -export([call_modules/2]).
 -export([host/1, load_config/0, reconfigure/0]).
 
+-export([expand_tuple/2, tuple_find/2, element/2, setelement/3]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -191,7 +192,24 @@ reload([H|T]) ->
 	reload(T).
 	
 	
+expand_tuple(Tuple, N) when size(Tuple) < N ->
+  expand_tuple(erlang:append_element(Tuple, undefined), N);
+
+expand_tuple(Tuple, _N) -> Tuple.
+
+tuple_find(Tuple, Term) -> tuple_find(Tuple, Term, 1).
+
+tuple_find(Tuple, Term, N) when size(Tuple) < N -> false;
+tuple_find(Tuple, Term, N) when element(N, Tuple) == Term -> {N, Term};
+tuple_find(Tuple, Term, N) -> tuple_find(Tuple, Term, N+1).
 	
+	
+element(N, Tuple) when size(Tuple) < N -> undefined;
+element(N, Tuple) -> erlang:element(N, Tuple).
+
+setelement(N, Tuple, Term) ->
+  Tuple1 = expand_tuple(Tuple, N),
+  erlang:setelement(N, Tuple1, Term).
 	
 %%--------------------------------------------------------------------
 %% @spec (Opt::atom(), Default::any()) -> any()

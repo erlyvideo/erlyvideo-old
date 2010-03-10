@@ -145,7 +145,7 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %%-------------------------------------------------------------------------
 init([]) ->
   random:seed(now()),
-  {ok, 'WAIT_FOR_SOCKET', #rtmp_session{streams = []}}.
+  {ok, 'WAIT_FOR_SOCKET', #rtmp_session{}}.
 
 
 send(Session, Message) ->
@@ -233,7 +233,7 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  Recorder = proplists:get_value(StreamId, Streams),
+  Recorder = ems:element(StreamId, Streams),
   
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
   stream_media:publish(Recorder, Frame),
@@ -246,7 +246,7 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
   NewState;
 
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
-  case proplists:get_value(StreamId, Streams) of
+  case ems:element(StreamId, Streams) of
     Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
     _ -> ok
   end,
@@ -375,7 +375,7 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
   {stop, normal, State};
   
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
-  case lists:keyfind(PlayerPid, 2, Streams) of
+  case ems:tuple_find(PlayerPid, Streams) of
     false -> 
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
@@ -383,7 +383,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_sessio
       % ?D({"Play complete on", StreamId}),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
-      NewStreams = lists:keydelete(StreamId, 1, Streams),
+      NewStreams = setelement(StreamId, Streams, undefined),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}
   end;
 
@@ -448,10 +448,11 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
-flush_reply(State) ->
+
+flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive
     #rtmp_message{} = Message ->
-      rtmp_socket:send(State#rtmp_session.socket, Message),
+      rtmp_socket:send(Socket, Message),
       flush_reply(State)
     after
       0 -> State
@@ -464,12 +465,6 @@ flush_reply(State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_session{socket=Socket} = State) ->
-  % ?D(Streams),
-  % lists:foreach(fun({_, Player}) when is_pid(Player) -> Player ! exit;
-  %                  (_) -> ok end, Streams),
-  % 
-  % lists:foreach(fun({_, Player}) when is_pid(Player) -> (catch erlang:exit(Player));
-  %                  (_) -> ok end, Streams),
   ems:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
