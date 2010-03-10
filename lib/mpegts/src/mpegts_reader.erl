@@ -415,7 +415,7 @@ decode_avc(#stream{es_buffer = Data} = Stream) ->
   case extract_nal(Data) of
     undefined ->
       Stream;
-    {NAL, Rest} ->
+    {ok, NAL, Rest} ->
       Stream1 = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
       decode_avc(Stream1)
   end.
@@ -448,9 +448,9 @@ extract_nal_erl(Data, Offset, Length) ->
   case Data of
     <<_:Offset/binary, 1:32, NAL:Length/binary, 1:32, _/binary>> ->
       <<_:Offset/binary, 1:32, NAL:Length/binary, Rest/binary>> = Data,
-      {NAL, Rest};
+      {ok, NAL, Rest};
     <<_:Offset/binary, 1:32, NAL:Length/binary>> ->
-      {NAL, <<>>};
+      {ok, NAL, <<>>};
     <<_:Offset/binary, 1:32, _/binary>> ->
       extract_nal_erl(Data, Offset, Length+1)
   end.
@@ -482,10 +482,12 @@ nal_test_bin(small) ->
 
 extract_nal_test() ->
   Bin = nal_test_bin(small),
-  ?assertEqual({<<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal(Bin)),
-  ?assertEqual({<<104,206,50,200>>, <<>>}, extract_nal(<<0,0,0,1,104,206,50,200>>)),
-  ?assertEqual({<<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal_erl(Bin)),
-  ?assertEqual({<<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)).
+  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal(Bin)),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual(undefined, extract_nal(<<>>)),
+  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal_erl(Bin)),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual(undefined, extract_nal_erl(<<>>)).
 
 extract_nal_erl_bm() ->
   Bin = nal_test_bin(large),
