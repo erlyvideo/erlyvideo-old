@@ -391,7 +391,7 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{streams = Streams} = State) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
   % PrevAll = case get(prev_all_dts) of
   %   undefined -> round(DTS);
   %   PrevAllDTS -> PrevAllDTS
@@ -431,7 +431,8 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WA
   %     ok
   % end,
   
-  Streams1 = start_stream_timer(StreamId, DTS, Streams),
+  Timers1 = start_stream_timer(StreamId, DTS, Timers),
+  stream_jitter(StreamId, DTS, Timers1),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp = DTS,
@@ -439,7 +440,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WA
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame)},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = Streams1}};
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{stream_timers = Timers1}};
 
 handle_info(#rtmp_message{} = Message, StateName, State) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
@@ -461,12 +462,36 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
   end.
 
 
-start_stream_timer(StreamId, DTS, Streams) when size(Streams) < StreamId orelse element(StreamId,Streams) == undefined ->
+start_stream_timer(_StreamId, undefined, Timers) ->
+  Timers;
+
+start_stream_timer(StreamId, DTS, Timers) when size(Timers) < StreamId orelse element(StreamId,Timers) == undefined ->
   {Now, _} = erlang:statistics(wall_clock),
-  ems:setelement(Streams, {Now, DTS});
+  ems:setelement(StreamId, Timers, {Now, DTS, undefined});
   
-start_stream_timer(_StreamId, _DTS, Streams) ->
-  Streams.
+start_stream_timer(_StreamId, _DTS, Timers) ->
+  Timers.
+
+stream_jitter(_StreamId, undefined, Timers) ->
+  Timers;
+
+stream_jitter(StreamId, DTS, Timers) ->
+  {StartTime, StartDTS, Lag} = element(StreamId, Timers),
+  {Now, _} = erlang:statistics(wall_clock),
+  % ?D({"Jitter", DTS, StartDTS, Now, StartTime}),
+  Delta = (DTS - StartDTS) - (Now - StartTime),
+  case Lag of
+    undefined ->
+      setelement(StreamId, Timers, {StartTime, StartDTS, Delta});
+    _ ->
+      case Delta of
+        Delta when Delta > Lag + 100 ->
+          ?D({"Lag", Delta}),
+          Timers;
+        _ ->
+          Timers
+      end
+  end.
 
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
