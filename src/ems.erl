@@ -191,7 +191,8 @@ reload([H|T]) ->
 	reload(H),
 	reload(T).
 	
-	
+
+expand_tuple(Tuple, 0) -> Tuple;
 expand_tuple(Tuple, N) when size(Tuple) < N ->
   expand_tuple(erlang:append_element(Tuple, undefined), N);
 
@@ -199,14 +200,16 @@ expand_tuple(Tuple, _N) -> Tuple.
 
 tuple_find(Tuple, Term) -> tuple_find(Tuple, Term, 1).
 
-tuple_find(Tuple, Term, N) when size(Tuple) < N -> false;
+tuple_find(Tuple, _Term, N) when size(Tuple) < N -> false;
 tuple_find(Tuple, Term, N) when element(N, Tuple) == Term -> {N, Term};
 tuple_find(Tuple, Term, N) -> tuple_find(Tuple, Term, N+1).
 	
-	
+
+element(0, _)	-> undefined;
 element(N, Tuple) when size(Tuple) < N -> undefined;
 element(N, Tuple) -> erlang:element(N, Tuple).
 
+setelement(0, Tuple, _) -> Tuple;
 setelement(N, Tuple, Term) ->
   Tuple1 = expand_tuple(Tuple, N),
   erlang:setelement(N, Tuple1, Term).

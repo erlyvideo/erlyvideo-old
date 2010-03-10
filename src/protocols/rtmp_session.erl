@@ -391,7 +391,7 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', State) ->
+handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{streams = Streams} = State) ->
   % PrevAll = case get(prev_all_dts) of
   %   undefined -> round(DTS);
   %   PrevAllDTS -> PrevAllDTS
@@ -430,6 +430,8 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WA
   %   _ ->
   %     ok
   % end,
+  
+  Streams1 = start_stream_timer(StreamId, DTS, Streams),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp = DTS,
@@ -437,7 +439,7 @@ handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WA
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame)},
 	rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State};
+  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{streams = Streams1}};
 
 handle_info(#rtmp_message{} = Message, StateName, State) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
@@ -457,6 +459,14 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
     after
       0 -> State
   end.
+
+
+start_stream_timer(StreamId, DTS, Streams) when size(Streams) < StreamId orelse element(StreamId,Streams) == undefined ->
+  {Now, _} = erlang:statistics(wall_clock),
+  ems:setelement(Streams, {Now, DTS});
+  
+start_stream_timer(_StreamId, _DTS, Streams) ->
+  Streams.
 
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
