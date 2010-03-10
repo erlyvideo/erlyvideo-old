@@ -27,32 +27,64 @@ unload(ErlNifEnv* env, void* priv)
 }
 
 
+static int
+find_nal(ErlNifBinary data, int i) {
+  for(; i < data.size - 4; i++) {
+    if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 0 && data.data[i+3] == 1) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static ERL_NIF_TERM
-find_nal_start_code(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+extract_nal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-  ERL_NIF_TERM bin = argv[0];
-  ERL_NIF_TERM offset = argv[1];
-  int i;
-  unsigned int current_offset;
+  ERL_NIF_TERM bin, nal, rest;
+  int start, next, length;
   ErlNifBinary data;
   
+  if (argc < 1) {
+    return enif_make_badarg(env);
+  }
+  
+  bin = argv[0];
   if (!enif_inspect_binary(env, bin, &data)) {
     return enif_make_badarg(env);
   }
-  if (!enif_get_uint(env, offset, &current_offset)) {
-    return enif_make_badarg(env);
+  
+  
+  start = find_nal(data, 0);
+  
+  if(start == -1) {
+    return enif_make_atom(env, "undefined");
   }
-  for(i = 0; i < data.size - 3; i++) {
-    if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 0 && data.data[i+3] == 1) {
-      return enif_make_ulong(env, current_offset + i);
-    }
+  
+  start += 4;
+  
+  next = find_nal(data, start);
+  if (next == -1) {
+    next = data.size;
   }
-  return enif_make_atom(env, "false");
+  
+  if (start < 0 || start > data.size - 1 || next < 0 || next < start || next > data.size) {
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "Invalid start1/start2: %d/%d", start, next);
+    return enif_make_tuple2(env, 
+      enif_make_atom(env, "error"),
+      enif_make_string(env, buf, ERL_NIF_LATIN1)
+    );
+  }
+  
+  nal = enif_make_sub_binary(env, bin, start, next - start);
+  rest = enif_make_sub_binary(env, bin, next, data.size - next);
+  
+  return enif_make_tuple2(env, nal, rest);
 }
 
 static ErlNifFunc mpegts_reader_funcs[] =
 {
-    {"find_nal_start_code", 2, find_nal_start_code}
+    {"extract_nal", 1, extract_nal}
 };
 
 ERL_NIF_INIT(mpegts_reader, mpegts_reader_funcs, load, reload, upgrade, unload)

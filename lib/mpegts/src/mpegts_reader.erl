@@ -502,7 +502,7 @@ extract_nal_c_bm() ->
   erlang:statistics(wall_clock),
   N = 100000,
   lists:foreach(fun(_) ->
-    extract_nal_erl(Bin)
+    extract_nal(Bin)
   end, lists:seq(1,N)),
   {_, Timer} = erlang:statistics(wall_clock),
   ?D({"Timer native", N, Timer}).
