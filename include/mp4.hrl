@@ -18,15 +18,20 @@
   height,
   decoder_config,
   frames,
-  chunk_samples
+  sample_sizes = [],
+  sample_dts = [],
+  sample_offsets = [],
+  sample_composition = [],
+  keyframes = [],
+  chunk_offsets = [],
+  chunk_sizes = []
 }).
 
 -record(mp4_frame, {
   id,
   dts,
   size,
-  chunk_id,
-  composition = 0,
+  pts,
   keyframe = false,
   offset
 }).
