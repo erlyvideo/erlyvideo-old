@@ -4,6 +4,7 @@
 %%% @copyright  2009 Max Lapshin
 %%% @doc        RTMP handshake module
 %%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
+%%% also good reference is http://red5.googlecode.com/svn/java/server/trunk/src/org/red5/server/net/rtmp/RTMPHandshake.java
 %%% @end
 %%%
 %%%
