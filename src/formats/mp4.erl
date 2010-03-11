@@ -174,10 +174,12 @@ init(#media_info{header = undefined} = MediaInfo) ->
   % eprof:start(),
   % eprof:start_profiling([self()]),
   {Time, Result} = timer:tc(?MODULE, init, [Info1]),
+  {ok, Info1} = Result,
+  Info2 = build_index_table(Info1),
   ?D({"Time to parse moov", round(Time/1000)}),
   % eprof:total_analyse(),
   % eprof:stop(),
-  Result;
+  {ok, Info2};
 
 init(MediaInfo) -> 
   init(MediaInfo, 0).
@@ -209,6 +211,38 @@ next_atom(#media_info{device = Device}, Pos) ->
   end.
 
 
+build_index_table(#media_info{video_track = Video, audio_track = Audio} = MediaInfo) ->
+  Index = ets:new(index, [ordered_set]),
+  build_index_table(Video, ets:first(Video), Audio, ets:first(Audio), Index, 0),
+  MediaInfo#media_info{frames = Index}.
+
+
+build_index_table(_Video, '$end_of_table', _Audio, '$end_of_table', Index, _ID) ->
+  Index;
+
+build_index_table(Video, '$end_of_table', Audio, AudioID, Index, ID) ->
+  [AFrame] = ets:lookup(Audio, AudioID),
+  ets:insert(Index, {ID, audio, AFrame#mp4_frame.id}),
+  build_index_table(Video, '$end_of_table', Audio, ets:next(Audio, AudioID), Index, ID+1);
+
+build_index_table(Video, VideoID, Audio, '$end_of_table', Index, ID) ->
+  [VFrame] = ets:lookup(Video, VideoID),
+  ets:insert(Index, {ID, video, VFrame#mp4_frame.id}),
+  build_index_table(Video, ets:next(Video, VideoID), Audio, '$end_of_table', Index, ID+1);
+  
+
+build_index_table(Video, VideoID, Audio, AudioID, Index, ID) ->
+  [VFrame] = ets:lookup(Video, VideoID),
+  [AFrame] = ets:lookup(Audio, AudioID),
+  case {VFrame#mp4_frame.dts, AFrame#mp4_frame.dts} of
+    {VDTS, ADTS} when VDTS =< ADTS ->
+      ets:insert(Index, {ID, video, VFrame#mp4_frame.id}),
+      build_index_table(Video, ets:next(Video, VideoID), Audio, AudioID, Index, ID+1);
+    _ ->
+      ets:insert(Index, {ID, audio, AFrame#mp4_frame.id}),
+      build_index_table(Video, VideoID, Audio, ets:next(Audio, AudioID), Index, ID+1)
+  end.
+      
   
 metadata(#media_info{width = Width, height = Height, seconds = Duration}) -> 
   [{width, Width}, 
