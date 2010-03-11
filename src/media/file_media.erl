@@ -93,8 +93,8 @@ handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
 handle_call({name}, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};
   
-handle_call({seek, Timestamp}, _From, #media_info{frames = FrameTable, format = Format} = MediaInfo) ->
-  {reply, Format:seek(FrameTable, Timestamp), MediaInfo};
+handle_call({seek, Timestamp}, _From, #media_info{format = Format} = MediaInfo) ->
+  {reply, Format:seek(MediaInfo, Timestamp), MediaInfo};
 
 
 handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->

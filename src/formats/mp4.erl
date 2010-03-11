@@ -126,9 +126,9 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
     Else -> Else
   end.
   
-seek(FrameTable, Timestamp) ->
+seek(#media_info{video_track = FrameTable}, Timestamp) ->
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
-    {Id, FrameTimestamp}
+    {{video, Id}, FrameTimestamp}
   end)),
   case lists:reverse(Ids) of
     [Item | _] -> Item;

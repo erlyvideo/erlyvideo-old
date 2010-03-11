@@ -113,7 +113,7 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   insert_keyframes(MediaInfo, Offsets, Times).
 
 
-seek(FrameTable, Timestamp) ->
+seek(#media_info{frames = FrameTable}, Timestamp) ->
   TimestampInt = round(Timestamp),
   Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Offset, FrameTimestamp}
