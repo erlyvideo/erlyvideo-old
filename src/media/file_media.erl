@@ -78,9 +78,6 @@ handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
 handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};
 
-handle_call({read, '$end_of_table'}, _From, MediaInfo) ->
-  {reply, {done, undefined}, MediaInfo};
-
 handle_call({read, done}, _From, MediaInfo) ->
   {reply, {done, undefined}, MediaInfo};
 

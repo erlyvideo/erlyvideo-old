@@ -78,8 +78,8 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 	}.
 
 
-first(#media_info{video_track = Video}) ->
-  {video, ets:first(Video)}.
+first(#media_info{frames = Frames}) ->
+  ets:first(Frames).
 
 
 lookup_frame(video, #media_info{video_track = FrameTable}, Id) ->
@@ -90,33 +90,14 @@ lookup_frame(audio, #media_info{audio_track = FrameTable}, Id) ->
   [Frame] = ets:lookup(FrameTable, Id),
   Frame.
 
-next_frame(#media_info{video_track = Video, audio_track = Audio}, DTS) ->
-  MatchSpec = ets:fun2ms(fun(#mp4_frame{id = ID, dts = TS}) when TS > DTS ->
-    {ID, TS}
-  end),
-  NextVideo = case ets:select(Video, MatchSpec, 1) of
-    '$end_of_table' -> '$end_of_table';
-    {[NV], _} -> NV
+read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
+  [{Id, Type, FrameId}] = ets:lookup(Frames, Id),
+  Frame = lookup_frame(Type, MediaInfo, FrameId),
+  #mp4_frame{offset = Offset, size = Size} = Frame,
+  Next = case ets:next(Frames, Id) of
+    '$end_of_table' -> done;
+    NextID -> NextID
   end,
-  NextAudio = case ets:select(Audio, MatchSpec, 1) of
-    '$end_of_table' -> '$end_of_table';
-    {[NA], _} -> NA
-  end,
-  case {NextVideo, NextAudio} of
-    {'$end_of_table', '$end_of_table'} -> '$end_of_table';
-    {'$end_of_table', {NextAudioID, _}} -> {audio, NextAudioID};
-    {{NextVideoID, _}, '$end_of_table'} -> {video, NextVideoID};
-    {{NextVideoID, NextVideoDTS}, {_, NextAudioDTS}} when NextVideoDTS < NextAudioDTS -> {video, NextVideoID};
-    {_, {NextAudioID, _}} -> {audio, NextAudioID}
-  end.
-
-read_frame(#media_info{} = MediaInfo, {Type, Id}) ->
-  Frame = lookup_frame(Type, MediaInfo, Id),
-  #mp4_frame{offset = Offset, size = Size, dts = DTS} = Frame,
-  Next = next_frame(MediaInfo, DTS),
-  
-  % F1 = video_frame(Type, Frame, <<>>),
-  % ?D({Type, Id, F1#video_frame.dts, Next}),
   
 	case read_data(MediaInfo, Offset, Size) of
 		{ok, Data, _} -> {video_frame(Type, Frame, Data), Next};
@@ -132,12 +113,16 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
     Else -> Else
   end.
   
-seek(#media_info{video_track = FrameTable}, Timestamp) ->
+seek(#media_info{video_track = FrameTable, frames = Frames}, Timestamp) ->
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
-    {{video, Id}, FrameTimestamp}
+    {Id, FrameTimestamp}
   end)),
   case lists:reverse(Ids) of
-    [Item | _] -> Item;
+    [{VideoID, NewTimestamp} | _] ->
+      [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
+        {ID, NewTimestamp}
+      end)),
+      Item;
     _ -> undefined
   end.
   
@@ -173,13 +158,12 @@ init(#media_info{header = undefined} = MediaInfo) ->
   Info1 = MediaInfo#media_info{header = #mp4_header{}},
   % eprof:start(),
   % eprof:start_profiling([self()]),
-  {Time, Result} = timer:tc(?MODULE, init, [Info1]),
-  {ok, Info1} = Result,
-  Info2 = build_index_table(Info1),
+  {Time, {ok, Info2}} = timer:tc(?MODULE, init, [Info1]),
   ?D({"Time to parse moov", round(Time/1000)}),
+  Info3 = build_index_table(Info2),
   % eprof:total_analyse(),
   % eprof:stop(),
-  {ok, Info2};
+  {ok, Info3};
 
 init(MediaInfo) -> 
   init(MediaInfo, 0).
