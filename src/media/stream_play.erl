@@ -145,11 +145,11 @@ ready(#stream_player{consumer = Consumer} = State) ->
   	  ?MODULE:ready(State)
   end.
 
-% send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{decoder_config = true, type = video}) ->
-%   ?MODULE:ready(Player);
-% 
-% send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
-%   ?MODULE:ready(Player);
+send_frame(#stream_player{sent_video_decoder = true} = Player, #video_frame{decoder_config = true, type = video}) ->
+  ?MODULE:ready(Player);
+
+send_frame(#stream_player{sent_audio_decoder = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
+  ?MODULE:ready(Player);
 
 send_frame(#stream_player{synced = false} = Player, #video_frame{decoder_config = false, frame_type = frame}) ->
   ?MODULE:ready(Player);

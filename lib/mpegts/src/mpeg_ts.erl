@@ -202,7 +202,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   
   %% FIXME: Program info is not just for IOD, but also for other descriptors
   %% Look at libdvbpsi/src/tables/pmt.c:468
-  ProgramInfo1 = <<?DESCRIPTOR_IOD, (size(IOD)), IOD/binary>>,
+  _ProgramInfo1 = <<?DESCRIPTOR_IOD, (size(IOD)), IOD/binary>>,
   ProgramInfo = <<>>,
   
   %% FIXME: Here also goes the same descriptor as in ProgramInfo
@@ -213,7 +213,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   %% "MPEG-4 descriptor not found" from VLC
   %% Code, that read it is in vlc/modules/demux/ts.c:3177
   %%
-  AudioES1 = <<?DESCRIPTOR_SL, 2, 1:16>>, % means, 2 byte and ES ID = 1
+  _AudioES1 = <<?DESCRIPTOR_SL, 2, 1:16>>, % means, 2 byte and ES ID = 1
   AudioES = <<>>,
   AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
@@ -291,7 +291,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
                 (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   NALHeader = <<1:32>>,
-  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader) + 1):16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
+  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader)):16, PesHeader/binary, NALHeader/binary, Body/binary>>,
   
   Keyframe = case FrameType of
     keyframe -> 1;
@@ -321,7 +321,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
 
 send_video_config(#streamer{video_config = Config} = Streamer, DTS) ->
   F = fun(NAL, S) ->
-    send_video(S, #video_frame{type = video, dts = DTS, pts = DTS, decoder_config = true, body = NAL})
+    send_video(S, #video_frame{type = video, dts = DTS, pts = DTS, frame_type = keyframe, decoder_config = true, body = NAL})
   end,
   {_LengthSize, NALS} = h264:unpack_config(Config),
   lists:foldl(F, Streamer, NALS).
@@ -360,17 +360,17 @@ play(#streamer{player = Player, audio_config = undefined} = Streamer) ->
   
 play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
   receive
-    #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame->
-      % Streamer1 = send_video_config(Streamer),
+    #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary>>, dts = _DTS} = Frame->
+      % Streamer1 = send_video_config(Streamer, DTS),
       % <<Length:LengthSize, NAL:Length/binary>> = Body,
       Streamer1 = Streamer,
-      Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL}),
+      Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL, frame_type = frame}),
       ?MODULE:play(Streamer2);
     #video_frame{type = video, body = Body} = Frame ->
       <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
       case size(Rest) of
         0 -> ok;
-        Remain -> 
+        _Remain -> 
           self() ! Frame#video_frame{body = Rest}
       end,
       Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),

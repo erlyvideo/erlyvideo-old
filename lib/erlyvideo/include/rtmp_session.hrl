@@ -8,6 +8,7 @@
 	amf_ver = 0,
 	user_id     = undefined,
 	player_info = [],
-	streams      = undefined,
+	streams      = {},
+	stream_timers = {},
 	cached_shared_objects = []
 	}).

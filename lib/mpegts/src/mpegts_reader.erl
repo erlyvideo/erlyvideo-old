@@ -8,8 +8,11 @@
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 
+-export([benchmark/0]).
+
 -export([ts/1]).
 
+-on_load(load_nif/0).
 
 
 -record(ts_lander, {
@@ -60,6 +63,20 @@
 
 -export([start_link/1, init/1, synchronizer/1]).
 
+load_nif() ->
+  load_nif(erlang:system_info(otp_release) >= "R13B04").
+  
+load_nif(true) ->
+  case erlang:load_nif("ebin/mpegts_reader", 0) of
+    ok -> ok;
+    _ -> 
+      erlang:load_nif("/usr/lib/erlyvideo/ebin/mpegts_reader", 0),
+      ok
+  end;
+
+load_nif(false) ->
+  ok.
+  
 
 start_link(Consumer) ->
   {ok, spawn_link(?MODULE, init, [[Consumer]])}.
@@ -283,7 +300,7 @@ stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeader
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
   PTS = PTS1/90,
   DTS = DTS1/90,
-  ?D({"Have DTS & PTS", round(DTS), round(PTS)}),
+  % ?D({"Have DTS & PTS", round(DTS), round(PTS)}),
   normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
   
 
@@ -394,59 +411,105 @@ send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = 
   Stream#stream{es_buffer = <<>>}.
   
 
-decode_avc(#stream{es_buffer = <<16#000001:24, _/binary>>} = Stream) ->
-  find_nal_end(Stream, 3);
-  
 decode_avc(#stream{es_buffer = Data} = Stream) ->
-  % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
-  % io:format("PES ~p ~p ~p ~p, ~p, ~p~n", [StreamId, _DataAlignmentIndicator, _PesPacketLength, PESHeaderLength, PESHeader, Rest]),
-  Offset1 = nal_unit_start_code_finder(Data, 0) + 3,
-  find_nal_end(Stream, Offset1).
-  
-find_nal_end(Stream, false) ->  
-  Stream;
-  
-find_nal_end(#stream{es_buffer = Data} = Stream, Offset1) ->
-  Offset2 = nal_unit_start_code_finder(Data, Offset1+3),
-  extract_nal(Stream, Offset1, Offset2).
-
-extract_nal(Stream, _, false) ->
-  Stream;
-  
-extract_nal(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, Offset1, Offset2) ->
-  Length = Offset2-Offset1,
-  <<_:Offset1/binary, NAL:Length/binary, Rest1/binary>> = Data,
-  % ?D({"Found NAL", Offset1, Offset2, NAL}),
+  case extract_nal(Data) of
+    undefined ->
+      Stream;
+    {ok, NAL, Rest} ->
+      Stream1 = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
+      decode_avc(Stream1)
+  end.
+      
+handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
-  % ?D({video, Stream#stream.pcr, DTS}),
   lists:foreach(fun(Frame) ->
     Consumer ! Frame#video_frame{dts = DTS, pts = PTS}
-    % Consumer ! Frame#video_frame{dts = TS, pts = TS}
   end, Frames),
-  decode_avc(Stream#stream{es_buffer = Rest1, h264 = H264_1}).
+  Stream#stream{h264 = H264_1}.
 
-nal_unit_start_code_finder(Bin, Offset) ->
-  case Bin of
-    <<_:Offset/binary, Rest/binary>> -> find_nal_start_code(Rest, Offset);
-    _ -> false
+
+extract_nal(Data) -> extract_nal_erl(Data).
+
+extract_nal_erl(Data) ->
+  extract_nal_erl(Data, 0).
+
+extract_nal_erl(Data, Offset) ->
+  case Data of
+    <<_:Offset/binary>> ->
+      undefined;
+    <<_:Offset/binary, 1:32, _Rest/binary>> ->
+      extract_nal_erl(Data, Offset, 0);
+    _ ->
+      extract_nal_erl(Data, Offset+1)
   end.
 
-find_nal_start_code(<<16#000001:24, _/binary>>, Offset) -> Offset;
-find_nal_start_code(<<_:1/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 1;
-find_nal_start_code(<<_:2/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 2;
-find_nal_start_code(<<_:3/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 3;
-find_nal_start_code(<<_:4/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 4;
-find_nal_start_code(<<_:5/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 5;
-find_nal_start_code(<<_:6/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 6;
-find_nal_start_code(<<_:7/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 7;
-find_nal_start_code(<<_:8/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 8;
-find_nal_start_code(<<_:9/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 9;
-find_nal_start_code(<<_:10/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 10;
-find_nal_start_code(<<_:11/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 11;
-find_nal_start_code(<<_:12/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 12;
-find_nal_start_code(<<_:13/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 13;
-find_nal_start_code(<<_:14/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 14;
-find_nal_start_code(<<_:15/binary, 16#000001:24, _/binary>>, Offset) -> Offset + 15;
-find_nal_start_code(<<_:16/binary, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+16);
-% find_nal_start_code(<<_, Rest/binary>>, Offset) -> find_nal_start_code(Rest, Offset+1);
-find_nal_start_code(_, _) -> false.
+
+extract_nal_erl(Data, Offset, Length) ->
+  case Data of
+    <<_:Offset/binary, 1:32, NAL:Length/binary, 1:32, _/binary>> ->
+      <<_:Offset/binary, 1:32, NAL:Length/binary, Rest/binary>> = Data,
+      {ok, NAL, Rest};
+    <<_:Offset/binary, 1:32, NAL:Length/binary>> ->
+      {ok, NAL, <<>>};
+    <<_:Offset/binary, 1:32, _/binary>> ->
+      extract_nal_erl(Data, Offset, Length+1)
+  end.
+      
+    
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+benchmark() ->
+  extract_nal_erl_bm(),
+  extract_nal_c_bm().
+
+nal_test_bin(large) ->
+  <<0,0,0,1,
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %54
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %104
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %154
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %204
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %254
+    0,0,0,1,
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9, %308
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %358
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %408
+    0,0,0,1>>;
+  
+nal_test_bin(small) ->
+  <<0,0,0,1,9,224,0,0,0,1,104,206,50,200>>.
+
+extract_nal_test() ->
+  Bin = nal_test_bin(small),
+  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal(Bin)),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual(undefined, extract_nal(<<>>)),
+  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal_erl(Bin)),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual(undefined, extract_nal_erl(<<>>)).
+
+extract_nal_erl_bm() ->
+  Bin = nal_test_bin(large),
+  erlang:statistics(wall_clock),
+  N = 100000,
+  lists:foreach(fun(_) ->
+    extract_nal_erl(Bin)
+  end, lists:seq(1,N)),
+  {_, Timer} = erlang:statistics(wall_clock),
+  ?D({"Timer erl", N, Timer}).
+
+extract_nal_c_bm() ->
+  Bin = nal_test_bin(large),
+  erlang:statistics(wall_clock),
+  N = 100000,
+  lists:foreach(fun(_) ->
+    extract_nal(Bin)
+  end, lists:seq(1,N)),
+  {_, Timer} = erlang:statistics(wall_clock),
+  ?D({"Timer native", N, Timer}).
+
+
+
+
+
