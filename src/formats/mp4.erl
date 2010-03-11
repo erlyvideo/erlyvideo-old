@@ -94,8 +94,14 @@ next_frame(#media_info{video_track = Video, audio_track = Audio}, DTS) ->
   MatchSpec = ets:fun2ms(fun(#mp4_frame{id = ID, dts = TS}) when TS > DTS ->
     {ID, TS}
   end),
-  {[NextVideo], _} = ets:select(Video, MatchSpec, 1),
-  {[NextAudio], _} = ets:select(Audio, MatchSpec, 1),
+  NextVideo = case ets:select(Video, MatchSpec, 1) of
+    '$end_of_table' -> '$end_of_table';
+    {[NV], _} -> NV
+  end,
+  NextAudio = case ets:select(Audio, MatchSpec, 1) of
+    '$end_of_table' -> '$end_of_table';
+    {[NA], _} -> NA
+  end,
   case {NextVideo, NextAudio} of
     {'$end_of_table', '$end_of_table'} -> '$end_of_table';
     {'$end_of_table', {NextAudioID, _}} -> {audio, NextAudioID};
