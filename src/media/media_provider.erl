@@ -164,26 +164,14 @@ init([Host]) ->
 handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
-handle_call({open, Name, Opts}, {_Opener, _Ref}, #media_provider{host = Host} = MediaProvider) ->
-  Opts0 = lists:ukeysort(1, Opts),
-  Opts1 = case proplists:get_value(type, Opts0) of
+handle_call({open, Name, Opts}, {_Opener, _Ref}, MediaProvider) ->
+  case find_in_cache(Name, MediaProvider) of
     undefined ->
-      DetectedOpts = detect_type(Host, Name),
-      ?D({"Detecting type", Host, Name, DetectedOpts}),
-      lists:ukeymerge(1, DetectedOpts, Opts0);
-    _ ->
-      Opts0
-  end,
-  Opts2 = lists:ukeymerge(1, Opts1, [{host, Host}, {name, Name}]),
-  case proplists:get_value(type, Opts2) of
-    notfound ->
-      {reply, {notfound, <<"No file ", Name/binary>>}, MediaProvider};
-    undefined ->
-      {reply, {notfound, <<"Error ", Name/binary>>}, MediaProvider};
-    _ ->
-      {reply, open_media_entry(Name, MediaProvider, Opts2), MediaProvider}
+      {reply, internal_open(Name, Opts, MediaProvider), MediaProvider};
+    Player ->
+      {reply, Player, MediaProvider}
   end;
-
+    
 handle_call({register, Name, Pid}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
@@ -218,6 +206,27 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
   case ets:lookup(OpenedMedia, Name) of
     [#media_entry{handler = Pid}] -> Pid;
     _ -> undefined
+  end.
+
+
+internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
+  Opts0 = lists:ukeysort(1, Opts),
+  Opts1 = case proplists:get_value(type, Opts0) of
+    undefined ->
+      DetectedOpts = detect_type(Host, Name),
+      ?D({"Detecting type", Host, Name, DetectedOpts}),
+      lists:ukeymerge(1, DetectedOpts, Opts0);
+    _ ->
+      Opts0
+  end,
+  Opts2 = lists:ukeymerge(1, Opts1, [{host, Host}, {name, Name}]),
+  case proplists:get_value(type, Opts2) of
+    notfound ->
+      {notfound, <<"No file ", Name/binary>>};
+    undefined ->
+      {notfound, <<"Error ", Name/binary>>};
+    _ ->
+      open_media_entry(Name, MediaProvider, Opts2)
   end.
 
 
