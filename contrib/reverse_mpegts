@@ -28,7 +28,7 @@ connect_source(From) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(From),
   case gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000) of
     {ok, Socket} -> 
-      ?D({"Connected to", From}),
+      ?D({"Connected to", From, Socket}),
       gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
       read_response(Socket, From);
     {error, econnrefused} ->

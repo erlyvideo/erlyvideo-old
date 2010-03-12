@@ -69,9 +69,12 @@ handle(Host, 'GET', ["chat.html"], Req) ->
 
 handle(Host, 'GET', ["videoconf.html"], Req) ->
   erlydtl:compile(wwwroot(Host) ++ "/videoconf.html", chat_template),
+  Query = Req:parse_qs(),
+  File = proplists:get_value("file", Query, "conference"),
   Secret = ems:get_var(secret_key, Host, undefined),
   {ok, Index} = chat_template:render([
     {hostname, ems:get_var(host, Host, "rtmp://localhost")},
+    {url, File},
     {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}
   ]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
