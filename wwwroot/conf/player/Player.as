@@ -20,10 +20,10 @@ private var play_url :String = "railsconf";
 private var showPlayButton : Boolean = true;
 
 [Bindable]
-private var videoWidth:int = 320;
+private var videoWidth:int = 720;
 
 [Bindable]
-private var videoHeight:int = 240;
+private var videoHeight:int = 450;
 
 [Bindable]
 private var imageUrl:String = "ev-disabled.png";
@@ -76,14 +76,7 @@ public function onClick():void
 
 public function startPlay():void
 {
-	if (playStream.play(play_url, videoContainer.video)) {
-//		state = "playing";
-//    var t:Timer = new Timer(1000, 1);
-//    t.addEventListener(TimerEvent.TIMER, function(e:Event):void {
-//      state = "play";
-//    })
-//		t.start();
-	}
+	playStream.play(play_url, videoContainer.video);
 }
 
 public function loadVideoPlayer():void
@@ -100,11 +93,7 @@ public function onConnected(e:Event):void {
 	state = "connected";
 	if (Application.application.parameters.autostart == "true") {
 //		state = "playing";
-		var t:Timer = new Timer(2000, 1);
-		t.addEventListener(TimerEvent.TIMER, function(e:Event):void {
-		  startPlay();
-		});
-		t.start();
+		startPlay();
 	}
 }
 

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:local="*" layout="vertical" 
-	backgroundColor="#FFFFFF" verticalAlign="middle" horizontalAlign="center" viewSourceURL="srcview/index.html"
-	creationComplete="init()" paddingTop="0" paddingLeft="0" paddingRight="0" paddingBottom="0">
+	backgroundColor="#000000" creationComplete="init()" width="720" height="464" paddingTop="0" paddingLeft="0" paddingRight="0" paddingBottom="0">
 	
 	<mx:Script source="Player.as" />
 	<mx:Style>
@@ -18,7 +17,5 @@
 		backgroundImage: none;
 	}
 	</mx:Style>
-  <mx:Box verticalScrollPolicy="off" width="100%" horizontalAlign="center">
-    <local:VideoContainer id="videoContainer" width="{videoWidth}" height="{videoHeight}" top="0" backgroundColor="#FFFFFF" styleName="{state}" buttonMode="true" click="onClick()"/>
-  </mx:Box>
+  <local:VideoContainer id="videoContainer" width="{videoWidth}" height="{videoHeight}" top="0" backgroundColor="#FFFFFF" styleName="{state}" buttonMode="true" click="onClick()"/>
 </mx:Application>

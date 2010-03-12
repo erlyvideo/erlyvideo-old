@@ -4,6 +4,7 @@ package
 	import flash.events.Event;
 	import flash.media.Video;
 	import mx.containers.Canvas;
+  import mx.controls.Alert;
 
 	public class VideoContainer extends Canvas
 	{
@@ -35,6 +36,12 @@ package
 				_video.width = width;
 				_video.height = height;
 				rawChildren.addChild(_video);
+				setStyle("paddingTop", 0);
+				setStyle("paddingRight", 0);
+				setStyle("paddingBottom", 0);
+				setStyle("paddingLeft", 0);
+        setStyle("drop-shadow-enabled", 0);
+        setStyle("border-style", "none");
 			}
 			return _video;
 		}
