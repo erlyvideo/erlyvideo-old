@@ -71,12 +71,13 @@ package
         _microphone = Microphone.getMicrophone();
       }
 		  
+		  _microphone.setSilenceLevel(0);
 		  _microphone.codec = SoundCodec.SPEEX;
-		  _microphone.encodeQuality = 6;
+		  _microphone.encodeQuality = 10;
 		  _microphone.rate = 8;
 		  _microphone.framesPerPacket = 1;
-		  _microphone.gain = volume;
-		  _microphone.setUseEchoSuppression(true);
+		  _microphone.gain = 70;
+      _microphone.setUseEchoSuppression(false);
 
 		  _stream.publish(url, recordType);
 		
