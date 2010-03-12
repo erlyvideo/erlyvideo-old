@@ -17,19 +17,16 @@
         <h3 style="float: left; margin-right: 2em"><a href="/longtail/index.html">JWV Player</a></h3>
       </div>
       
-      <div class="span-18">
-        <object width="700" height="630" type="application/x-shockwave-flash" id="flash-program-player" name="flash-program-player" data="videoconf/Videoconf.swf">
+      <div class="span-24 last">
+        <object width="720" height="450" type="application/x-shockwave-flash" id="flash-program-player" name="flash-program-player" data="videoconf/Videoconf.swf">
           <param name="allowScriptAccess" value="always"/>
           <param name="allowFullScreen" value="true"/>
           <param name="wmode" value="transparent"/>
           <param name="flashvars" value="server={{hostname}}&file={{url}}&session={{session}}"/>
         </object>
-        <div class="span-14 last">
-          <a href="?file={{live_id}}">New live broadcast</a>
-        </div>
           
       </div>
-      <div class="span-6 last">
+      <div class="span-4 last">
         <h3>Chat</h3>
         <div id="chat" style="height: 300px; overflow: scroll">
           
@@ -38,11 +35,6 @@
           <input type="text" name="message">
           <input type="submit" value="Send message">
         </form>
-        <ul>
-          {% for file in files %}
-          <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>
-          {% endfor %}
-        </ul>
         
       </div>
     </div>
