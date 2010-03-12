@@ -45,7 +45,7 @@
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
 
--export([mp4_desc_length/1]).
+-export([mp4_desc_length/1, build_index_table/1]).
 
 -behaviour(gen_format).
 
@@ -159,8 +159,8 @@ init(#media_info{header = undefined} = MediaInfo) ->
   % eprof:start(),
   % eprof:start_profiling([self()]),
   {Time, {ok, Info2}} = timer:tc(?MODULE, init, [Info1]),
-  ?D({"Time to parse moov", round(Time/1000)}),
-  Info3 = build_index_table(Info2),
+  {Time2, Info3} = timer:tc(?MODULE, build_index_table, [Info2]),
+  ?D({"Time to parse moov and build index", round(Time/1000), round(Time2/1000)}),
   % eprof:total_analyse(),
   % eprof:stop(),
   {ok, Info3};
