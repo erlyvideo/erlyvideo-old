@@ -41,7 +41,7 @@
 
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
-          start_file_play/2, start_stream_play/2,
+          start_ems_stream/1,
           start_mpegts_media/1, start_shared_object/3,
           start_shoutcast_media/1]).
 
@@ -88,8 +88,7 @@ start_media(Name, http, Opts) -> http_media:start_link(Name, Opts);
 start_media(Name, rtsp, Opts) -> rtsp_sup:start_rtsp_media(Name, rtsp, Opts).
 
 
-start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, [{mode,file}|Options]]).
-start_stream_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, [{mode,stream}|Options]]).
+start_ems_stream(Options) -> supervisor:start_child(ems_stream_sup, [Options]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -199,17 +198,17 @@ init([shoutcast_media]) ->
             ]
         }
     };
-init([file_play]) ->
+init([ems_stream]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
             [
               % MediaEntry
               {   undefined,                               % Id       = internal id
-                  {file_play,start_link,[]},             % StartFun = {M, F, A}
+                  {ems_stream,start_link,[]},             % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
-                  [file_play]                            % Modules  = [Module] | dynamic
+                  [ems_stream]                            % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -283,8 +282,8 @@ init([]) ->
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     },
-    {   file_play_sup,
-        {supervisor,start_link,[{local, file_play_sup}, ?MODULE, [file_play]]},
+    {   ems_stream_sup,
+        {supervisor,start_link,[{local, ems_stream_sup}, ?MODULE, [ems_stream]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

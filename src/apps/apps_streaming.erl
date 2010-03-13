@@ -43,34 +43,34 @@
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
          getStreamLength/2, prepareStream/2, checkBandwidth/2, 'FCSubscribe'/2]).
--export(['WAIT_FOR_DATA'/2]).
+% -export(['WAIT_FOR_DATA'/2]).
 
 -export([next_stream/1]).
 
-'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
-  {client_buffer, ClientBuffer} = rtmp_socket:getopts(Socket, client_buffer),
-  StreamId = proplists:get_value(stream_id, Options),
-  
-  case ems:element(StreamId, Streams) of
-    CurrentPlayer when is_pid(CurrentPlayer) -> 
-      ?D({"Stop current player", CurrentPlayer}),
-      CurrentPlayer ! exit;
-    _ -> ok
-  end,
-  case media_provider:play(Host, Name, [{client_buffer, ClientBuffer} | Options]) of
-    {ok, Player} ->
-      Player ! start,
-      ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
-      NewState = State#rtmp_session{streams = ems:setelement(StreamId, Streams, Player)},
-      {next_state, 'WAIT_FOR_DATA', NewState};
-    {notfound, _Reason} ->
-      ems_log:access(Host, "NOTFOUND ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-      rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
-      {next_state, 'WAIT_FOR_DATA', State};
-    Reason -> 
-      ?D({"Failed to start video player", Reason}),
-      {error, Reason}
-  end;
+% 'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
+%   {client_buffer, ClientBuffer} = rtmp_socket:getopts(Socket, client_buffer),
+%   StreamId = proplists:get_value(stream_id, Options),
+%   
+%   case ems:element(StreamId, Streams) of
+%     CurrentPlayer when is_pid(CurrentPlayer) -> 
+%       ?D({"Stop current player", CurrentPlayer}),
+%       CurrentPlayer ! exit;
+%     _ -> ok
+%   end,
+%   case media_provider:play(Host, Name, [{client_buffer, ClientBuffer} | Options]) of
+%     {ok, Player} ->
+%       Player ! start,
+%       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
+%       NewState = State#rtmp_session{streams = ems:setelement(StreamId, Streams, Player)},
+%       {next_state, 'WAIT_FOR_DATA', NewState};
+%     {notfound, _Reason} ->
+%       ems_log:access(Host, "NOTFOUND ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
+%       rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
+%       {next_state, 'WAIT_FOR_DATA', State};
+%     Reason -> 
+%       ?D({"Failed to start video player", Reason}),
+%       {error, Reason}
+%   end;
 
 
 
@@ -95,11 +95,12 @@
 %% @doc  Processes a createStream command and responds
 %% @end
 %%-------------------------------------------------------------------------
-createStream(State, AMF) -> 
+createStream(#rtmp_session{host = Host} = State, AMF) -> 
   {State1, StreamId} = next_stream(State),
-  % ?D({"Create stream", self(), StreamId}),
+  #rtmp_session{streams = Streams} = State1,
+  {ok, Stream} = ems_sup:start_ems_stream([{consumer, self()}, {stream_id, StreamId}, {host, Host}]),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
-  State1.
+  State1#rtmp_session{streams = setelement(StreamId, Streams, Stream)}.
 
 releaseStream(State, _AMF) -> 
   % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
@@ -140,10 +141,13 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
-  Options = [{stream_id, StreamId} | extract_play_args(Args)],
+play(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
+  Stream = ems:element(StreamId, Streams),
+  
+  Options = extract_play_args(Args),
+  Stream ! {play, Name, Options},
   prepareStream(State, StreamId),
-  gen_fsm:send_event(self(), {play, Name, Options}),
+  % gen_fsm:send_event(self(), {play, Name, Options}),
   State.
 
 
