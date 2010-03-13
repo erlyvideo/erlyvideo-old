@@ -13,7 +13,8 @@
   request_id,
   options,
   streams = [],
-  requests = []
+  requests = [],
+  size
 }).
 
 
@@ -52,8 +53,11 @@ handle_cast(_, State) ->
 
 
 handle_info(start_download, #http_file{url = URL} = State) ->
+  {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
+  Length = proplists:get_value("content-length", Headers),
   {ok, FirstRequest} = http_file_request:start(self(), URL, 0),
-  {noreply, State#http_file{streams = [{FirstRequest, 0, 0}]}};
+  erlang:monitor(process, FirstRequest),
+  {noreply, State#http_file{streams = [{FirstRequest, 0, 0}], size = list_to_integer(Length)}};
 
 handle_info({bin, Bin, Offset, Request}, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
   case lists:keyfind(Request, 1, Streams) of
@@ -76,9 +80,19 @@ handle_info({bin, Bin, Offset, Request}, #http_file{cache_file = Cache, streams 
         ?D({"Replying to", From, Offset, Limit}),
         gen_server:reply(From, {ok, Data})
       end, Replies),
+      
       NewStreams = NewStreams2,
       {noreply, State#http_file{streams = NewStreams, requests = NewRequests}}
   end;
+  
+handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams} = State) ->
+  case lists:keytake(Stream, 1, Streams) of
+    {value, Stream, NewStreams} ->
+      {noreply, State#http_file{streams = NewStreams}};
+    _ ->
+      {noreply, State}
+  end;
+  
 
 handle_info(Message, State) ->
   io:format("Some message: ~p~n", [Message]),
@@ -96,6 +110,7 @@ code_change(_Old, State, _Extra) ->
   
 schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} = File, {_From, Offset, Limit} = Request) ->
   {ok, Stream} = http_file_request:start(self(), URL, Offset),
+  erlang:monitor(process, Stream),
   ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
   File#http_file{streams = lists:ukeymerge(1, [{Stream, Offset, 0}], Streams), requests = lists:ukeymerge(1, [Request], Requests)}.
   

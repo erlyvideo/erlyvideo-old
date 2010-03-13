@@ -15,7 +15,7 @@
 
 
 start(File, URL, Offset) ->
-  {ok, Pid} = gen_server:start_link(?MODULE, [File, URL, Offset], []).
+  gen_server:start_link(?MODULE, [File, URL, Offset], []).
   % gen_server:call(Pid, {pread, Offset, Limit}).
 
 init([File, URL, Offset]) ->
@@ -62,7 +62,6 @@ handle_info(Message, State) ->
 
 terminate(_Reason, #http_file_request{request_id = RequestID} = _State) ->
   (catch httpc:cancel_request(RequestID)),
-  ?D({"Quit request", self()}),
   ok.
 
 code_change(_Old, State, _Extra) ->
