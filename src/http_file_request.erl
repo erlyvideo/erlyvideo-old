@@ -52,7 +52,7 @@ handle_info({http, {_RequestID, stream, Bin}},
 
 
 handle_info(stop, File) ->
-  ?D({"Stopped", File}),
+  % ?D({"Stopped", File}),
   {stop, normal, File};
 
 handle_info(Message, State) ->

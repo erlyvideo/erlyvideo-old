@@ -66,15 +66,15 @@ handle_info({bin, Bin, Offset, Request}, #http_file{cache_file = Cache, streams 
       {noreply, State};
     _ -> 
       ok = file:pwrite(Cache, Offset, Bin),
-      ?D({"Got bin", Offset, size(Bin), Request, Streams}),
+      % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
       NewStreams1 = update_map(Streams, Request, Offset, size(Bin)),
       {NewStreams2, Removed} = glue_map(NewStreams1),
-      ?D({"New streams and remove", NewStreams2, Removed}),
+      ?D({"Removing streams", NewStreams2, Removed}),
       lists:foreach(fun(Stream) ->
         Stream ! stop
       end, Removed),
       {NewRequests, Replies} = match_requests(Requests, NewStreams2),
-      ?D({"Matching requests", NewRequests, Replies}),
+      % ?D({"Matching requests", NewRequests, Replies}),
       lists:foreach(fun({From, Position, Limit}) ->
         {ok, Data} = file:pread(Cache, Position, Limit),
         ?D({"Replying to", From, Offset, Limit}),
