@@ -77,7 +77,7 @@ init([Name, Type, Opts]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({create_player, Options}, _From, #media_info{clients = Clients, gop = GOP} = MediaInfo) ->
-  {ok, Pid} = ems_sup:start_stream_play(self(), Options),
+  {ok, Pid} = ems_sup:start_file_play(self(), Options),
   erlang:monitor(process, Pid),
   % link(Pid),
   case MediaInfo#media_info.video_decoder_config of

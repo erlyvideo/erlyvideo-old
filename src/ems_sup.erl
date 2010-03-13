@@ -88,8 +88,8 @@ start_media(Name, http, Opts) -> http_media:start_link(Name, Opts);
 start_media(Name, rtsp, Opts) -> rtsp_sup:start_rtsp_media(Name, rtsp, Opts).
 
 
-start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, Options]).
-start_stream_play(MediaEntry, Options) -> supervisor:start_child(stream_play_sup, [MediaEntry, Options]).
+start_file_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, [{mode,file}|Options]]).
+start_stream_play(MediaEntry, Options) -> supervisor:start_child(file_play_sup, [MediaEntry, [{mode,stream}|Options]]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -214,21 +214,6 @@ init([file_play]) ->
             ]
         }
     };
-init([stream_play]) ->
-    {ok,
-        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % MediaEntry
-              {   undefined,                               % Id       = internal id
-                  {stream_play,start_link,[]},             % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [stream_play]                            % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
 init([shared_object]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -300,13 +285,6 @@ init([]) ->
     },
     {   file_play_sup,
         {supervisor,start_link,[{local, file_play_sup}, ?MODULE, [file_play]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   stream_play_sup,
-        {supervisor,start_link,[{local, stream_play_sup}, ?MODULE, [stream_play]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
