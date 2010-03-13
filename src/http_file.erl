@@ -1,42 +1,58 @@
 -module(http_file).
 
--export([open/2, init/2, pread/3, close/1, loop/1]).
+
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([open/2, pread/3, close/1]).
 
 
 -record(http_file, {
   url,
   request_id,
-  options,
-  lala
+  options
 }).
 
 
 open(URL, Options) ->
-  spawn_link(?MODULE, init, [URL, Options]).
+  {ok, Pid} = gen_server:start_link(?MODULE, [URL, Options], []),
+  Pid.
   
 
-init(URL, Options) ->
-  ?MODULE:loop(#http_file{url = URL, options = Options}).
+init([URL, Options]) ->
+  {ok, #http_file{url = URL, options = Options}}.
   
 
-loop(#http_file{} = File) ->
-  receive
-    {pread, Offset, Limit, Sender, Ref} ->
-      {ok, Result} = internal_pread(File, Offset, Limit),
-      Sender ! {ok, Result, Ref},
-      ?MODULE:loop(File);
-    Else ->
-      io:format("Unknown message: ~p~n", [Else]),
-      ok
-  end.
+handle_call({pread, Offset, Limit}, _From, #http_file{} = File) ->
+  {ok, Result} = internal_pread(File, Offset, Limit),
+  {reply, {ok, Result}, File};
   
+handle_call(Unknown, From, File) ->
+  io:format("Unknown call: ~p from ~p (~p)~n", [Unknown, From, File]),
+  {stop, {error, unknown_call, Unknown}, File}.
+  
+
+handle_cast(close, State) ->
+  {stop, normal, State};
+  
+handle_cast(_, State) ->
+  {noreply, State}.  
+
+
+handle_info(Message, State) ->
+  io:format("Some message: ~p~n", [Message]),
+  {noreply, State}.
+  
+  
+terminate(_Reason, _State) ->
+  ok.
+  
+code_change(_Old, State, _Extra) ->
+  {ok, State}.
+  
+%%%----------------------------
   
 pread(File, Offset, Limit) ->
-  Ref = erlang:make_ref(),
-  File ! {pread, Offset, Limit, self(), Ref},
-  receive
-    {ok, Result, Ref} -> {ok, Result}
-  end.
+  gen_server:call(File, {pread, Offset, Limit}).
+
   
 internal_pread(#http_file{url = URL}, Offset, Limit) ->
   Range = lists:flatten(io_lib:format("bytes=~p-~p", [Offset, Offset+Limit])),
@@ -63,7 +79,8 @@ wait_response(RequestID, Buffer, Limit) ->
       wait_response(RequestID, Buffer, Limit)
   end.
 
-close(_) ->
+close(File) ->
+  gen_server:cast(File, close),
   ok.
   
 
