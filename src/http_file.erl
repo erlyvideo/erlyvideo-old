@@ -69,7 +69,7 @@ handle_info({bin, Bin, Offset, Request}, #http_file{cache_file = Cache, streams 
       % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
       NewStreams1 = update_map(Streams, Request, Offset, size(Bin)),
       {NewStreams2, Removed} = glue_map(NewStreams1),
-      ?D({"Removing streams", NewStreams2, Removed}),
+      % ?D({"Removing streams", NewStreams2, Removed}),
       lists:foreach(fun(Stream) ->
         Stream ! stop
       end, Removed),

@@ -33,20 +33,30 @@ handle_cast(_Cast, State) ->
 
 handle_info(start, #http_file_request{offset = Offset, url = URL} = File) ->
   Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
-  {ok, RequestID} = http:request(get, {URL, [{"Range", Range}]}, [], [{sync, false},{receiver, self()},{body_format,binary},{stream,self}]),
+  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
+  Request = "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\nRange: "++Range++"\r\n\r\n",
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, once}, {packet, http}]),
+  gen_tcp:send(Socket, Request),
   ?D({"Started request", URL, Offset, self()}),
-  {noreply, File#http_file_request{request_id = RequestID}};
+  {noreply, File#http_file_request{request_id = Socket}};
 
 
   
-handle_info({http, {_RequestID, stream_start, _}}, File) ->
+handle_info({http, Socket, {http_response, _, _Code, _Message}}, File) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, File};
+
+handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, File) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, File};
+
+handle_info({http, Socket, http_eoh}, File) ->
+  inet:setopts(Socket, [{active, once}, {packet, raw}]),
   {noreply, File};
   
-handle_info({http, {_RequestID, stream_end, _}}, File) ->
-  {stop, normal, File};
 
-handle_info({http, {_RequestID, stream, Bin}}, 
-                           #http_file_request{offset = Offset, file = Origin} = File) ->
+handle_info({tcp, Socket, Bin}, #http_file_request{offset = Offset, file = Origin} = File) ->
+  inet:setopts(Socket, [{active, once}]),
   Origin ! {bin, Bin, Offset, self()},
   {noreply, File#http_file_request{offset = Offset + size(Bin)}};
 
