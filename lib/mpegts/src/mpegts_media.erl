@@ -79,22 +79,9 @@ handle_call({set_socket, Socket}, _From, TSLander) ->
   ?D({"MPEG TS received socket"}),
   {reply, ok, TSLander#ts_lander{socket = Socket}};
 
-handle_call({create_player, Options}, _From, #ts_lander{url = URL, clients = Clients} = TSLander) ->
-  {ok, Pid} = ems_sup:start_stream_play(self(), Options),
-  link(Pid),
-  erlang:monitor(process, Pid),
-  ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
-  case TSLander#ts_lander.video_config of
-    undefined -> ok;
-    VideoConfig -> 
-      Pid ! VideoConfig,
-      Pid ! h264:metadata(VideoConfig#video_frame.body)
-  end,
-  case TSLander#ts_lander.audio_config of
-    undefined -> ok;
-    AudioConfig -> Pid ! AudioConfig
-  end,
-  {reply, {ok, Pid}, TSLander#ts_lander{clients = [Pid | Clients]}};
+handle_call({subscribe, Client}, _From, #ts_lander{clients = Clients} = MediaInfo) ->
+  erlang:monitor(process, Client),
+  {reply, {ok, stream}, MediaInfo#ts_lander{clients = [Client|Clients]}};
 
 handle_call(length, _From, MediaInfo) ->
   {reply, 0, MediaInfo};

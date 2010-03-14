@@ -129,14 +129,6 @@ find_or_open(Host, Name) ->
   end.
 
 
-create_player({notfound, Reason}, _) ->
-  {notfound, Reason};
-  
-create_player(MediaEntry, Options) ->
-  {ok, Pid} = gen_server:call(MediaEntry, {create_player, lists:ukeymerge(1, Options, [{consumer, self()}])}),
-  erlang:monitor(process, Pid),
-  {ok, Pid}.
-  
   
 
 init([Host]) ->

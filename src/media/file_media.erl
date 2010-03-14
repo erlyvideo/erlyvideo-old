@@ -23,13 +23,13 @@ codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Typ
 read_frame(MediaEntry, Key) -> gen_server:call(MediaEntry, {read, Key}).
 
 name(Server) ->
-  gen_server:call(Server, {name}).
+  gen_server:call(Server, name).
 
 seek(Server, Timestamp) ->
   gen_server:call(Server, {seek, Timestamp}).
 
 metadata(Server) ->
-  gen_server:call(Server, {metadata}).
+  gen_server:call(Server, metadata).
 
 
 init([Name, file, Opts]) ->
@@ -55,16 +55,11 @@ init([Name, file, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{clients = Clients, life_timer = TRef} = MediaInfo) ->
-  {ok, Pid} = ems_sup:start_file_play(self(), Options),
-  ets:insert(Clients, {Pid}),
-  link(Pid),
-  erlang:monitor(process, Pid),
-  (catch timer:cancel(TRef)),
-  {reply, {ok, Pid}, MediaInfo#media_info{life_timer = undefined}};
-
 handle_call(length, _From, #media_info{duration = Duration} = MediaInfo) ->
   {reply, Duration, MediaInfo};
+  
+handle_call({subscribe, Client}, _From, MediaInfo) ->
+  {reply, {ok, file}, MediaInfo};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(
@@ -87,17 +82,17 @@ handle_call({read, undefined}, _From, #media_info{format = Format} = MediaInfo) 
 handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
 
-handle_call({name}, _From, #media_info{name = FileName} = MediaInfo) ->
+handle_call(name, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};
   
 handle_call({seek, Timestamp}, _From, #media_info{format = Format} = MediaInfo) ->
   {reply, Format:seek(MediaInfo, Timestamp), MediaInfo};
 
 
-handle_call({metadata}, _From, #media_info{format = mp4} = MediaInfo) ->
+handle_call(metadata, _From, #media_info{format = mp4} = MediaInfo) ->
   {reply, {object, mp4:metadata(MediaInfo)}, MediaInfo};
 
-handle_call({metadata}, _From, MediaInfo) ->
+handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
 
 

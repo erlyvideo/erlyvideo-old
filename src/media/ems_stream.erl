@@ -109,14 +109,14 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
     MediaEntry ->
       erlang:monitor(process, MediaEntry),
       Consumer ! {ems_stream, StreamId, start_play},
-      Mode = file,
+      {ok, Mode} = gen_server:call(MediaEntry, {subscribe, self()}),
       self() ! start,
       prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode}, Options)
   end.
       
   
 
-prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
+prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   {Seek, BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
     undefined -> {undefined, 0, 0};
     SeekTo ->

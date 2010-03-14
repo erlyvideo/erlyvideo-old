@@ -76,23 +76,12 @@ init([Name, Type, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #media_info{clients = Clients, gop = GOP} = MediaInfo) ->
-  {ok, Pid} = ems_sup:start_file_play(self(), Options),
-  erlang:monitor(process, Pid),
-  % link(Pid),
-  case MediaInfo#media_info.video_decoder_config of
-    undefined -> ok;
-    VideoConfig -> ?D({"Sending video config to new pid", Pid}), Pid ! VideoConfig
-  end,
-  case MediaInfo#media_info.audio_decoder_config of
-    undefined -> ok;
-    AudioConfig -> ?D({"Sending audio config to new pid", Pid}), Pid ! AudioConfig
-  end,
-  lists:foreach(fun(Frame) -> Pid ! Frame end, lists:reverse(GOP)),
-  {reply, {ok, Pid}, MediaInfo#media_info{clients = [Pid | Clients]}, ?TIMEOUT};
 
 handle_call(length, _From, MediaInfo) ->
   {reply, 0, MediaInfo};
+
+handle_call(mode, _From, MediaInfo) ->
+  {reply, stream, MediaInfo};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
