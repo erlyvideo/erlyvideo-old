@@ -68,28 +68,27 @@ init([_, rtsp_server, _]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create_player, Options}, _From, #rtsp_client{url = URL, clients = Clients} = Lander) ->
-  {ok, Pid} = ems_sup:start_stream_play(self(), Options),
-  link(Pid),
-  erlang:monitor(process, Pid),
-  ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
-  case Lander#rtsp_client.video_config of
-    undefined -> ok;
-    VideoConfig -> 
-      Pid ! VideoConfig,
-      Pid ! h264:metadata(VideoConfig#video_frame.body)
+handle_call({subscribe, Client}, _From, #rtsp_client{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
+  Ref = erlang:monitor(process, Client),
+  Client ! Audio,
+  Client ! Video,
+  {reply, {ok, stream}, MediaInfo#rtsp_client{clients = [{Client, Ref}|Clients]}};
+
+handle_call({unsubscribe, Client}, _From, #rtsp_client{clients = Clients} = MediaInfo) ->
+  Clients1 = case lists:keytake(Client, 1, Clients) of
+    {value, {Client, Ref}, NewClients} ->
+      erlang:demonitor(Ref),
+      NewClients;
+    false ->
+      Clients
   end,
-  case Lander#rtsp_client.audio_config of
-    undefined -> ok;
-    AudioConfig -> Pid ! AudioConfig
-  end,
-  {reply, {ok, Pid}, Lander#rtsp_client{clients = [Pid | Clients]}};
+  {reply, {ok, stream}, MediaInfo#rtsp_client{clients = Clients1}};
 
 handle_call(length, _From, MediaInfo) ->
   {reply, 0, MediaInfo};
 
 handle_call(clients, _From, #rtsp_client{clients = Clients} = TSLander) ->
-  Entries = lists:map(fun(Pid) -> ems_stream:client(Pid) end, Clients),
+  Entries = lists:map(fun({Pid, _}) -> ems_stream:client(Pid) end, Clients),
   {reply, Entries, TSLander};
 
 handle_call({set_owner, _}, _From, TSLander) ->
@@ -139,7 +138,7 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #rtsp_client{clients = Cli
     Length when Length =< 1 ->
       {stop, normal, RTSP#rtsp_client{clients =[]}};
     _ ->
-      {noreply, RTSP#rtsp_client{clients = lists:delete(Client, Clients)}}
+      {noreply, RTSP#rtsp_client{clients = lists:keydelete(Client, 1, Clients)}}
   end;
 
   
@@ -156,7 +155,7 @@ handle_info(_Info, State) ->
 
 handle_rtp_packet(#rtsp_client{clients = Clients} = State, #video_frame{} = Frame) ->
   RTSP = copy_config(State, Frame),
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients),
   RTSP.
 
 
