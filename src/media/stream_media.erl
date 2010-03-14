@@ -82,6 +82,20 @@ handle_call(length, _From, MediaInfo) ->
 
 handle_call(mode, _From, MediaInfo) ->
   {reply, stream, MediaInfo};
+  
+handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
+  Ref = erlang:monitor(process, Client),
+  {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}};
+
+handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
+  Clients1 = case lists:keytake(Client, 1, Clients) of
+    {value, {Client, Ref}, NewClients} ->
+      erlang:demonitor(Ref),
+      NewClients;
+    false ->
+      Clients
+  end,
+  {reply, {ok, stream}, MediaInfo#media_info{clients = Clients1}};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
@@ -163,11 +177,11 @@ handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, 
   end;
 
 handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
-  lists:foreach(fun(Client) -> Client ! eof end, Clients),
+  lists:foreach(fun({Client, _}) -> Client ! eof end, Clients),
   {stop, normal, MediaInfo};
 
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
-  Clients1 = lists:delete(Client, Clients),
+  Clients1 = lists:keydelete(Client, 1, Clients),
   ?D({MediaInfo#media_info.name, "Removing client", Client, "left", length(Clients1), LifeTimeout}),
   case {length(Clients1), LifeTimeout} of
     {0, 0} -> self() ! graceful;
@@ -185,7 +199,7 @@ handle_info(#video_frame{dts = DTS, pts = PTS} = Frame,
   Frame0 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
   {Frame1, Recorder0} = pass_through_filter(Frame0, Recorder#media_info{last_dts = Frame0#video_frame.dts}),
   
-  lists:foreach(fun(Client) -> Client ! Frame1 end, Clients),
+  lists:foreach(fun({Client, _}) -> Client ! Frame1 end, Clients),
   Recorder1 = parse_metadata(Recorder0, Frame),
   Recorder2 = copy_audio_config(Recorder1, Frame),
   Recorder3 = copy_video_config(Recorder2, Frame),
@@ -226,7 +240,7 @@ handle_info(pause, State) ->
 handle_info(resume, State) ->
   {noreply, State, ?TIMEOUT};
   
-handle_info({client_buffer, 0}, State) ->
+handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(Message, State) ->

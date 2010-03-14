@@ -400,7 +400,12 @@ handle_stream(Message, #ems_stream{consumer = Consumer, media_info = MediaEntry}
       ok;
 
     {'DOWN', _Ref, process, Consumer, _Reason} ->
+      ?D({"Died consumer"}),
       ok;
+
+    {'DOWN', _Ref, process, MediaEntry, _Reason} ->
+      ?D("Died media info"),
+      ?MODULE:wait(State#ems_stream{media_info = undefined});
 
   	Else ->
   	  ?D({"Unknown message", self(), Else}),
