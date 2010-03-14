@@ -122,7 +122,6 @@ play(Host, Name, Options) ->
     {notfound, Reason} -> {notfound, Reason};
     _MediaEntry ->
       Opts = lists:ukeymerge(1, Options, [{consumer, self()},{host,Host},{stream_id,1}]),
-      
       {ok, Stream} = ems_sup:start_ems_stream(Opts),
       Stream ! {play, Name, Opts},
       {ok, Stream}

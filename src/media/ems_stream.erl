@@ -83,7 +83,6 @@ client(Player) ->
 
 init(Options) ->
   Consumer = proplists:get_value(consumer, Options),
-  ?D({"Consumer", Consumer}),
   erlang:monitor(process, Consumer),
   link(Consumer),
   Stream = #ems_stream{consumer = Consumer,
@@ -106,15 +105,20 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
     {notfound, Reason} ->
       Consumer ! {ems_stream, StreamId, {notfound, Reason}},
       wait(Stream);
+    {'DOWN', _, process, Consumer, _} ->
+      ok;
     MediaEntry ->
       erlang:monitor(process, MediaEntry),
       Consumer ! {ems_stream, StreamId, start_play},
       {ok, Mode} = gen_server:call(MediaEntry, {subscribe, self()}),
       self() ! start,
-      prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode}, Options)
+      prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode,
+       timer_start = element(1, erlang:statistics(wall_clock))}, Options)
   end.
       
-  
+
+prepare(#ems_stream{mode = stream} = Stream, _Options) ->
+  ready(Stream);
 
 prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   {Seek, BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
@@ -143,8 +147,7 @@ prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
                      base_dts = BaseTS,
                      playing_from = PlayingFrom,
                      play_end = PlayEnd,
-                     client_buffer = proplists:get_value(client_buffer, Options, 10000),
-                     timer_start = element(1, erlang:statistics(wall_clock))}).
+                     client_buffer = proplists:get_value(client_buffer, Options, 10000)}).
   
 
 
