@@ -118,7 +118,7 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
   end;
   
 handle_wait(Message, Stream) ->
-  ?D({"ZZZZZZZ: Unknown message", Message}),
+  ?D({"ZZZZZZZ: Unknown message", Message, Stream}),
   wait(Stream).
 
       

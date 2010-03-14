@@ -79,8 +79,10 @@ handle_call({set_socket, Socket}, _From, TSLander) ->
   ?D({"MPEG TS received socket"}),
   {reply, ok, TSLander#ts_lander{socket = Socket}};
 
-handle_call({subscribe, Client}, _From, #ts_lander{clients = Clients} = MediaInfo) ->
+handle_call({subscribe, Client}, _From, #ts_lander{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
   Ref = erlang:monitor(process, Client),
+  Client ! Audio,
+  Client ! Video,
   {reply, {ok, stream}, MediaInfo#ts_lander{clients = [{Client, Ref}|Clients]}};
 
 handle_call({unsubscribe, Client}, _From, #ts_lander{clients = Clients} = MediaInfo) ->
@@ -97,7 +99,7 @@ handle_call(length, _From, MediaInfo) ->
   {reply, 0, MediaInfo};
 
 handle_call(clients, _From, #ts_lander{clients = Clients} = TSLander) ->
-  Entries = lists:map(fun(Pid) -> file_play:client(Pid) end, Clients),
+  Entries = lists:map(fun(Pid) -> ems_stream:client(Pid) end, Clients),
   {reply, Entries, TSLander};
 
 handle_call({set_owner, _}, _From, TSLander) ->

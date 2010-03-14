@@ -51,7 +51,7 @@ init([Name, Type, Opts]) ->
     live -> 
       undefined;
     record ->
-    	FileName = filename:join([file_play:file_dir(Host), binary_to_list(Name)]),
+    	FileName = filename:join([ems_stream:file_dir(Host), binary_to_list(Name)]),
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
       {ok, Writer} = flv_writer:start_link(FileName),

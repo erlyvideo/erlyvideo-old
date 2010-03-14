@@ -58,14 +58,14 @@ init([Name, file, Opts]) ->
 handle_call(length, _From, #media_info{duration = Duration} = MediaInfo) ->
   {reply, Duration, MediaInfo};
   
-handle_call({subscribe, Client}, _From, MediaInfo) ->
+handle_call({subscribe, _Client}, _From, MediaInfo) ->
   {reply, {ok, file}, MediaInfo};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   Entries = lists:map(
     fun([Pid]) -> 
       Pid
-      % file_play:client(Pid)
+      % ems_stream:client(Pid)
     end,
   ets:match(Clients, {'$1'})),
   {reply, Entries, MediaInfo};
@@ -180,9 +180,9 @@ open_file(Name, Host) when is_binary(Name) ->
   open_file(binary_to_list(Name), Host);
   
 open_file(Name, Host) ->
-  FileName = filename:join([file_play:file_dir(Host), Name]), 
+  FileName = filename:join([ems_stream:file_dir(Host), Name]), 
 	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}, raw]),
-	FileFormat = file_play:file_format(FileName),
+	FileFormat = ems_stream:file_format(FileName),
 	MediaInfo = #media_info{
 	  device = Device,
 	  name = FileName,

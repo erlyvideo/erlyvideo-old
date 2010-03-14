@@ -28,11 +28,11 @@ handle(Host, 'GET', [], Req) ->
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
   File = proplists:get_value("file", Query, "video.mp4"),
-  case file:list_dir(file_play:file_dir(Host)) of
+  case file:list_dir(ems_stream:file_dir(Host)) of
     {ok, FileList} -> ok;
     {error, Error} -> 
       FileList = [],
-      error_logger:error_msg("Invalid file_dir directory: ~p (~p)~n", [file_play:file_dir(Req:host()), Error])
+      error_logger:error_msg("Invalid file_dir directory: ~p (~p)~n", [ems_stream:file_dir(Req:host()), Error])
   end,
   Secret = ems:get_var(secret_key, Host, undefined),
   {ok, Index} = index_template:render([

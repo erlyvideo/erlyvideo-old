@@ -89,7 +89,7 @@ handle_call(length, _From, MediaInfo) ->
   {reply, 0, MediaInfo};
 
 handle_call(clients, _From, #rtsp_client{clients = Clients} = TSLander) ->
-  Entries = lists:map(fun(Pid) -> file_play:client(Pid) end, Clients),
+  Entries = lists:map(fun(Pid) -> ems_stream:client(Pid) end, Clients),
   {reply, Entries, TSLander};
 
 handle_call({set_owner, _}, _From, TSLander) ->

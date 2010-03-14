@@ -24,7 +24,7 @@
 	gen_format,
 	mp4,
 	ems_play,
-	file_play,
+	ems_stream,
 	media_entry,
 	media_provider,
 	mpeg_ts,

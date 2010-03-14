@@ -82,7 +82,7 @@ handle_call({create_player, Options}, _From, #shoutcast{url = URL, clients = Cli
   {reply, {ok, Pid}, State#shoutcast{clients = [Pid | Clients]}};
 
 handle_call(clients, _From, #shoutcast{clients = Clients} = State) ->
-  Entries = lists:map(fun(Pid) -> file_play:client(Pid) end, Clients),
+  Entries = lists:map(fun(Pid) -> ems_stream:client(Pid) end, Clients),
   {reply, Entries, State};
 
 handle_call({set_owner, _}, _From, State) ->
