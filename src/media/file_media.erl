@@ -74,7 +74,7 @@ handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = Medi
   {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};
 
 handle_call({read, done}, _From, MediaInfo) ->
-  {reply, {done, undefined}, MediaInfo};
+  {reply, done, MediaInfo};
 
 handle_call({read, undefined}, _From, #media_info{format = Format} = MediaInfo) ->
   handle_call({read, Format:first(MediaInfo)}, _From, MediaInfo);

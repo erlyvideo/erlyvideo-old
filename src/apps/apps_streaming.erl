@@ -43,7 +43,7 @@
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
          getStreamLength/2, prepareStream/2, checkBandwidth/2, 'FCSubscribe'/2]).
-% -export(['WAIT_FOR_DATA'/2]).
+-export(['WAIT_FOR_DATA'/2]).
 
 -export([next_stream/1]).
 
@@ -141,11 +141,12 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
+play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
   Stream = ems:element(StreamId, Streams),
   
   Options = extract_play_args(Args),
   Stream ! {play, Name, Options},
+  ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),  
   prepareStream(State, StreamId),
   % gen_fsm:send_event(self(), {play, Name, Options}),
   State.
@@ -237,11 +238,11 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
   % ?D({"Stop on", self(), StreamId}),
   case ems:element(StreamId, Streams) of
     Player when is_pid(Player) ->
-      Player ! exit,
+      Player ! stop,
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
-      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
-      State#rtmp_session{streams = ems:setelement(StreamId, Streams, null)};
+      % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
+      State;
     _ -> State
   end.
 

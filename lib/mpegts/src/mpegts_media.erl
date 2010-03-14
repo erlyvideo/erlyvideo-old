@@ -80,8 +80,18 @@ handle_call({set_socket, Socket}, _From, TSLander) ->
   {reply, ok, TSLander#ts_lander{socket = Socket}};
 
 handle_call({subscribe, Client}, _From, #ts_lander{clients = Clients} = MediaInfo) ->
-  erlang:monitor(process, Client),
-  {reply, {ok, stream}, MediaInfo#ts_lander{clients = [Client|Clients]}};
+  Ref = erlang:monitor(process, Client),
+  {reply, {ok, stream}, MediaInfo#ts_lander{clients = [{Client, Ref}|Clients]}};
+
+handle_call({unsubscribe, Client}, _From, #ts_lander{clients = Clients} = MediaInfo) ->
+  Clients1 = case lists:keytake(Client, 1, Clients) of
+    {value, {Client, Ref}, NewClients} ->
+      erlang:demonitor(Ref),
+      NewClients;
+    false ->
+      Clients
+  end,
+  {reply, {ok, stream}, MediaInfo#ts_lander{clients = Clients1}};
 
 handle_call(length, _From, MediaInfo) ->
   {reply, 0, MediaInfo};
@@ -150,7 +160,7 @@ handle_info(#video_frame{} = Frame, TSLander) ->
 
 
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #ts_lander{clients = Clients} = TSLander) ->
-  {noreply, TSLander#ts_lander{clients = lists:delete(Client, Clients)}};
+  {noreply, TSLander#ts_lander{clients = lists:keydelete(Client, 1, Clients)}};
 
 handle_info({tcp, Socket, Bin}, #ts_lander{mpegts_reader = Reader, byte_counter = Counter} = TSLander) ->
   inet:setopts(Socket, [{active, once}]),
@@ -170,7 +180,7 @@ handle_info(_Info, State) ->
 
 
 send_frame(Frame, #ts_lander{clients = Clients} = TSLander) ->
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+  lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients),
   TSLander.
 
 

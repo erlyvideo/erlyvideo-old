@@ -52,6 +52,7 @@
 	
 	mode,
 	host,
+	name,
 	
 	synced = false,
   client_buffer,
@@ -112,7 +113,7 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       Consumer ! {ems_stream, StreamId, start_play},
       {ok, Mode} = gen_server:call(MediaEntry, {subscribe, self()}),
       self() ! start,
-      prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode,
+      prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, name = Name,
        timer_start = element(1, erlang:statistics(wall_clock))}, Options)
   end.
       
@@ -214,15 +215,20 @@ handle_file(Message, #ems_stream{media_info = MediaInfo,
           ?MODULE:ready(State)
       end;
 
-    stop -> 
-      ok;
+    stop ->
+      receive
+        play -> ok
+      after 
+        0 -> ok
+      end,
+      ?MODULE:wait(State);
   
     exit ->
       ok;
       
-    {'DOWN', _Ref, process, _Pid, _Reason} ->
+    {'DOWN', _Ref, process, Consumer, _Reason} ->
       ok;
-      
+
     play ->
       play(State);
     	
@@ -253,12 +259,8 @@ play(#ems_stream{sent_video_config = false, media_info = MediaInfo, pos = Pos} =
 
 play(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
   Reply = file_media:read_frame(MediaInfo, Key),
-  send_frame(Player, Reply);
+  send_frame(Player, Reply).
   
-play(Else) ->
-  ?D(Else),
-  ok.
-
 send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
   ?MODULE:ready(Player);
 
@@ -315,11 +317,15 @@ send_frame(Player, {#video_frame{body = undefined}, Next}) ->
   self() ! play,
   ?MODULE:ready(Player#ems_stream{pos = Next});
   
-send_frame(#ems_stream{} = _Player, {done, undefined}) ->
-  ok;
-
-send_frame(#ems_stream{} = _Player, done) ->
-  ok;
+send_frame(#ems_stream{name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
+  ?D({"File is over", Name}),
+  Consumer ! {ems_stream, StreamId, play_complete},
+  receive
+    play -> ok
+  after
+    0 -> ok
+  end,
+  ?MODULE:wait(Player#ems_stream{media_info = undefined});
 
 send_frame(#ems_stream{consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
   Frame1 = case DTS of
@@ -332,7 +338,7 @@ send_frame(#ems_stream{consumer = Consumer, stream_id = StreamId, base_dts = Bas
   timeout_play(Frame1, Player#ems_stream{pos = Next}).
   
 
-handle_stream(Message, #ems_stream{consumer = Consumer} = State) ->
+handle_stream(Message, #ems_stream{consumer = Consumer, media_info = MediaEntry} = State) ->
   case Message of
     {client_buffer, _ClientBuffer} ->
       ?MODULE:ready(State);
@@ -378,17 +384,17 @@ handle_stream(Message, #ems_stream{consumer = Consumer} = State) ->
 
     stop -> 
       ?D({"stream play stop", self()}),
-      ok;
+      gen_server:call(MediaEntry, {unsubscribe, self()}),
+      ?MODULE:wait(State#ems_stream{media_info = undefined});
 
     exit ->
-      % ?D({"stream play exit", self(), State#stream_player.media_info}),
       ok;
 
   	{tcp_closed, _Socket} ->
       error_logger:info_msg("~p Video player lost connection.\n", [self()]),
       ok;
 
-    {'DOWN', _Ref, process, _Consumer, _Reason} ->
+    {'DOWN', _Ref, process, Consumer, _Reason} ->
       ok;
 
   	Else ->

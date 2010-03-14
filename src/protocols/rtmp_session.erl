@@ -391,6 +391,14 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
+handle_info({ems_stream, _StreamId, start_play}, StateName, State) ->
+  {next_state, StateName, State};
+
+handle_info({ems_stream, StreamId, play_complete}, StateName, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
+  rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
+  {next_state, StateName, State};
+
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
   % PrevAll = case get(prev_all_dts) of
   %   undefined -> round(DTS);
