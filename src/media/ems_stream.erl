@@ -115,7 +115,12 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       self() ! start,
       prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, name = Name,
        timer_start = element(1, erlang:statistics(wall_clock))}, Options)
-  end.
+  end;
+  
+handle_wait(Message, Stream) ->
+  ?D({"ZZZZZZZ: Unknown message", Message}),
+  wait(Stream).
+
       
 
 prepare(#ems_stream{mode = stream} = Stream, _Options) ->
