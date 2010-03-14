@@ -117,9 +117,15 @@ init_names() ->
 %   client_buffer: client buffer size
 %
 play(Host, Name, Options) ->
+  
   case find_or_open(Host, Name) of
     {notfound, Reason} -> {notfound, Reason};
-    MediaEntry -> create_player(MediaEntry, Options)
+    _MediaEntry ->
+      Opts = lists:ukeymerge(1, Options, [{consumer, self()},{host,Host},{stream_id,1}]),
+      
+      {ok, Stream} = ems_sup:start_ems_stream(Opts),
+      Stream ! {play, Name, Opts},
+      {ok, Stream}
   end.
   
 find_or_open(Host, Name) ->
