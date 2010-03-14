@@ -52,12 +52,12 @@ public function init()  : void
 {
 	Security.allowDomain("*");
   System.useCodePage = true;
+	VideoSource.source.addEventListener(VideoSourceEvent.CONNECTED, onReady);
   VideoSource.source.connect();
 	
 	if (Application.application.parameters.file) {
     play_url = Application.application.parameters.file;
 	}
-	loadVideoPlayer();
 	recordURL = "erly-"+UIDUtil.createUID()+".flv";
 }
 
@@ -72,18 +72,25 @@ private function onRecordUrlClick():void
   play_url = recordURL;
 }
 
-public function loadVideoPlayer():void
-{
 
-	playStream = new PlayStream(VideoSource.source);
-	playStream.addEventListener(VideoSourceEvent.TICK, setProgressBar);
-	playStream.addEventListener(VideoSourceEvent.METADATA, setMetadata);
-	playStream.addEventListener(VideoSourceEvent.STREAM_READY, onReady);
-	playStream.addEventListener(VideoSourceEvent.FILE_NOT_FOUND, onStop);
-	playStream.addEventListener(VideoSourceEvent.FINISHED, onFinish);
-	recordStream = new RecordStream(VideoSource.source);
+private function initPlaystream():void
+{
+  if (!playStream) {
+  	playStream = new PlayStream(VideoSource.source);
+  	playStream.addEventListener(VideoSourceEvent.TICK, setProgressBar);
+  	playStream.addEventListener(VideoSourceEvent.METADATA, setMetadata);
+/*    playStream.addEventListener(VideoSourceEvent.STREAM_READY, onReady);*/
+  	playStream.addEventListener(VideoSourceEvent.FILE_NOT_FOUND, onStop);
+  	playStream.addEventListener(VideoSourceEvent.FINISHED, onFinish);
+  }
 }
 
+private function initRecordstream():void
+{
+  if (!recordStream) {
+  	recordStream = new RecordStream(VideoSource.source);
+  }
+}
 
 public function onHideClicked(e:Event):void {
   visible = false;
@@ -95,6 +102,7 @@ public function onReady(e:Event):void {
 }
 
 public function onPlay(e:Event):void {
+  initPlaystream();
 	playButton = false;
 //		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+
 //		                (stream._stream == Application.application.parameters.player2.stream._stream) + " "+
@@ -188,9 +196,13 @@ public function seek(event:SliderEvent) : void
 
 public function onFinish(e:Event) : void
 {
-  if (stopButton) {
-  	playStream.play(player_url.text, videoContainer.video);
-  }
+  var t:Timer = new Timer(playStream.bufferLength*1000, 1);
+  t.addEventListener(TimerEvent.TIMER, function():void {
+    if (stopButton) {
+    	playStream.play(player_url.text, videoContainer.video);
+    }
+  });
+  t.start();
 }
 
 public function onRecord(e:Event, recordType:String) : void
@@ -202,6 +214,7 @@ public function onRecord(e:Event, recordType:String) : void
     recordStream.stop();
     recording = false;
   } else {
+    initRecordstream();
     recordStream.width = videoWidth;
     recordStream.height = videoHeight;
     recordStream.fps = videoFps;
