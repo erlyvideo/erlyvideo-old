@@ -232,6 +232,9 @@ handle_file(Message, #ems_stream{media_info = MediaInfo,
       end,
       ?MODULE:wait(State);
   
+    undefined ->
+      ?MODULE:wait(State);
+  
     exit ->
       ok;
       

@@ -167,7 +167,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
-      ?D({"Autoconfiguring RTP"}),
+      ?D({"Autoconfiguring RTP", Frames}),
 
       lists:foreach(fun(Frame) ->
         Consumer ! Frame

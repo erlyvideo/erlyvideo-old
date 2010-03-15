@@ -268,11 +268,6 @@ handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Reco
   Recorder3 = copy_video_config(Recorder2, Frame),
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder4 = Recorder3,
-  % ?D({Recorder#media_info.name, Frame#video_frame.type, DTS-BaseTS}),
-  % case {Frame#video_frame.type, Frame#video_frame.decoder_config} of
-  %   {video, true} -> send_frame(h264:metadata(Frame#video_frame.body), Recorder);
-  %   _ -> ok 
-  % end,    
   (catch Device ! Frame1),
   {noreply, Recorder4, ?TIMEOUT};
 
@@ -348,6 +343,7 @@ copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
   ?D({"Video config", Frame}),
+  send_frame(h264:metadata(Frame#video_frame.body), MediaInfo),
   MediaInfo#media_info{video_config = Frame};
 
 copy_video_config(MediaInfo, _) -> MediaInfo.
