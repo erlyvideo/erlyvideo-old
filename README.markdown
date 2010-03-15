@@ -20,14 +20,6 @@ eAMF currently supports AMF3 ([Specification][amf3l]) and provides two main feat
 <code>amf3:decode/1</code> function can be used to convert binary AMF3 encoded data to Erlang terms    
 
 
-##How to build?
-
-eAMF uses [rebar](http://hg.basho.com/rebar/wiki/Home) for building binaries from source.  
-
-Builds the source: <code>$ ./rebar compile</code>
-Run EUnit tests and Code Coverage analysis: <code>$ ./rebar eunit</code>
-
-
 ##Types
 
 ###undefined
