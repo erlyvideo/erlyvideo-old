@@ -154,6 +154,7 @@ handle_info(_Info, State) ->
 
 
 handle_rtp_packet(#rtsp_client{clients = Clients} = State, #video_frame{} = Frame) ->
+  ?D({Frame#video_frame.type, round(Frame#video_frame.dts)}),
   RTSP = copy_config(State, Frame),
   lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients),
   RTSP.
@@ -183,10 +184,29 @@ handle_rtsp_response(#rtsp_client{url = URL, method = setup, socket = Socket, se
   ems_log:access(default, "PLAY ~s RTSP/1.0", [URL]),
   RTSP#rtsp_client{seq = Seq + 1, method = play};
 
-handle_rtsp_response(#rtsp_client{method = play} = RTSP, {response, 200, _, _, _}) ->
-  ?D({"PLay started"}),
-  RTSP;
-  
+handle_rtsp_response(#rtsp_client{method = play, socket = Socket, seq = Seq} = RTSP, {response, 200, _Code, Headers, _B}) ->
+  case proplists:get_value(<<"Rtp-Info">>, Headers) of
+    undefined -> 
+      ?D({"PLay started", _Code, Headers, _B}),
+      RTSP;
+    Info ->
+      FullSession = proplists:get_value('Session', Headers, <<"111">>),
+      Session = hd(string:tokens(binary_to_list(FullSession), ";")),
+      {ok, Re} = re:compile("([^=]+)=(.*)"),
+      F = fun(S) ->
+        {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
+        {K, V}
+      end,
+      RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
+      ?D({"Rtp", RtpInfo}),
+      StreamInfo = hd(RtpInfo),
+      URL = proplists:get_value("url", StreamInfo),
+      gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session])),
+      
+      % StreamInfo = hd(RtpInfo), % FIXME: only video now
+      RTSP#rtsp_client{method = play2}
+  end;
+      
 handle_rtsp_response(RTSP, {response, 200, _, _, _} = R) ->
   ?D({"Unknown response", R, RTSP}),
   RTSP.

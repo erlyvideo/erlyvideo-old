@@ -111,7 +111,7 @@ config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Stream
   {H264_2, Configs} = h264:decode_nal(PPS, H264),
   config_media(Streams, [Stream#rtsp_stream{config = H264_2} | Output], Configs ++ Frames);
 
-config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) ->
+config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
   AudioConfig = #video_frame{       
    	type          = audio,
    	decoder_config = true,
