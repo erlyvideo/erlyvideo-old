@@ -9,6 +9,7 @@
   transport,
   payload_type,
   clock_map,
+  codec,
   pps,
   sps,
   config

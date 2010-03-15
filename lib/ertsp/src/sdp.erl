@@ -81,12 +81,13 @@ parse_announce([{<<"b">>, <<"AS:", Bitrate/binary>>} | Announce], Streams, #rtsp
 
 parse_announce([{<<"a">>, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
   {ok, Re} = re:compile("\\d+ ([^/]+)/([\\d]+)"),
-  {match, [_, _Codec, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
-  % case proplists:get_value(type, Stream) of
-  %   video ->  "H264" = Codec;
-  %   audio -> "mpeg4-generic" = Codec
-  % end,
-  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000});
+  {match, [_, CodecCode, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
+  Codec = case CodecCode of
+    "H264" -> h264;
+    "mpeg4-generic" -> aac;
+    Other -> Other
+  end,
+  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000, codec = Codec});
 
 % parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
 %   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),

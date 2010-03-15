@@ -86,7 +86,9 @@ configure(Body, RTPStreams) ->
 configure(Body, RTPStreams, Media) ->
   Streams = sdp:decode(Body),
   
-  {Streams1, Frames} = config_media(Streams),
+  Streams0 = [Stream || #rtsp_stream{codec = Codec} = Stream <- Streams, is_atom(Codec)], % only those, whose codec is detected
+  
+  {Streams1, Frames} = config_media(Streams0),
   
   RtpStreams2 = configure(Streams1, RTPStreams, Media, 0),
   {Streams1, RtpStreams2, Frames}.
