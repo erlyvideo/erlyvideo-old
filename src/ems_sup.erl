@@ -89,7 +89,7 @@ start_media(Name, record = Type, Opts) -> supervisor:start_child(stream_media_su
 start_media(Name, live = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, shoutcast = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, http, Opts) -> http_media:start_link(Name, Opts);
-start_media(Name, rtsp, Opts) -> rtsp_sup:start_rtsp_media(Name, rtsp, Opts).
+start_media(Name, rtsp, Opts) -> supervisor:start_child(stream_media_sup, [Name, rtsp, Opts]).
 
 
 start_ems_stream(Options) -> supervisor:start_child(ems_stream_sup, [Options]).

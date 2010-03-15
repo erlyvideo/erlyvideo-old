@@ -69,6 +69,12 @@ init([URL, shoutcast, Opts]) ->
   {ok, #media_info{name = URL, mode = shoutcast, demuxer = Reader, host = Host}};
   
 
+init([URL, rtsp, Opts]) ->
+  Host = proplists:get_value(host, Opts),
+  {ok, Reader} = rtsp_socket:connect(URL, [{consumer, self()},{interleaved,true}]),
+  {ok, #media_info{name = URL, mode = rtsp, demuxer = Reader, host = Host}};
+  
+
 init([Name, Type, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
@@ -263,10 +269,10 @@ handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Reco
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder4 = Recorder3,
   % ?D({Recorder#media_info.name, Frame#video_frame.type, DTS-BaseTS}),
-  case {Frame#video_frame.type, Frame#video_frame.decoder_config} of
-    {video, true} -> send_frame(h264:metadata(Frame#video_frame.body), Recorder);
-    _ -> ok 
-  end,    
+  % case {Frame#video_frame.type, Frame#video_frame.decoder_config} of
+  %   {video, true} -> send_frame(h264:metadata(Frame#video_frame.body), Recorder);
+  %   _ -> ok 
+  % end,    
   (catch Device ! Frame1),
   {noreply, Recorder4, ?TIMEOUT};
 
@@ -341,6 +347,7 @@ copy_audio_config(MediaInfo, #video_frame{decoder_config = true, type = audio} =
 copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
+  ?D({"Video config", Frame}),
   MediaInfo#media_info{video_config = Frame};
 
 copy_video_config(MediaInfo, _) -> MediaInfo.

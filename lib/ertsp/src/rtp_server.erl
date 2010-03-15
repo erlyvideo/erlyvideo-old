@@ -112,6 +112,9 @@ presync(Streams, Info) ->
 
 presync(Streams, [], _N, _Now) ->
   Streams;
+
+presync(Streams, [RTP | Info], N, Now) when element(N, Streams) == undefined ->
+  presync(Streams, Info, N+2, Now);
   
 presync(Streams, [RTP | Info], N, Now) ->
   {Type, Stream} = element(N, Streams),
