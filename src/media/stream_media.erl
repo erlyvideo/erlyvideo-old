@@ -10,7 +10,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/3, codec_config/2, metadata/1, publish/2, set_owner/2]).
+-export([start_link/3, codec_config/2, metadata/1, publish/2, set_owner/2, pass_socket/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -26,6 +26,7 @@ codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Typ
 
 publish(undefined, _Frame) ->
   {error, no_stream};
+  
 
 publish(Server, #video_frame{} = Frame) ->
   % ?D({Type, Timestamp}),
@@ -35,6 +36,10 @@ publish(Server, #video_frame{} = Frame) ->
 set_owner(Server, Owner) ->
   gen_server:call(Server, {set_owner, Owner}).
 
+pass_socket(Media, Socket) ->
+  ok = gen_tcp:controlling_process(Socket, Media),
+  gen_server:call(Media, {set_socket, Socket}).
+
 
 init([URL, mpeg_ts, Opts]) ->
   OurHost = proplists:get_value(host, Opts),
@@ -43,7 +48,13 @@ init([URL, mpeg_ts, Opts]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   {ok, Reader} = mpegts_reader:start_link(self()),
-  {ok, #media_info{device = Socket, host = OurHost, name = URL, mode = mpegts, demuxer = Reader}};
+  {ok, #media_info{device = Socket, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
+
+
+init([URL, mpeg_ts_passive, Opts]) ->
+  Host = proplists:get_value(host, Opts),
+  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, #media_info{name = URL, mode = mpeg_ts_passive, demuxer = Reader, host = Host}};
 
 init([Name, Type, Opts]) ->
   Host = proplists:get_value(host, Opts),
@@ -118,6 +129,11 @@ handle_call({codec_config, audio}, _From, #media_info{audio_decoder_config = Con
 
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
+
+handle_call({set_socket, Socket}, _From, #media_info{mode = mpeg_ts_passive} = State) ->
+  inet:setopts(Socket, [{active, true}, {packet, raw}]),
+  ?D({"MPEG TS received socket", Socket}),
+  {reply, ok, State#media_info{device = Socket}};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
   ?D({"Owner of", MediaInfo#media_info.name, Owner}),
@@ -199,7 +215,7 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   {noreply, TSLander};
 
 
-handle_info({tcp, Socket, Bin}, #media_info{mode = mpegts, demuxer = Reader, byte_counter = Counter} = State) ->
+handle_info({tcp, Socket, Bin}, #media_info{mode = Mode, demuxer = Reader, byte_counter = Counter} = State) when Mode == mpeg_ts orelse Mode == mpeg_ts_passive ->
   inet:setopts(Socket, [{active, once}]),
   Reader ! {data, Bin},
   {noreply, State#media_info{byte_counter = Counter + size(Bin)}};

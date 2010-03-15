@@ -29,7 +29,7 @@
   video_track,
 	frames = undefined,
 	owner = undefined,
-	clients = undefined,
+	clients = [],
 	base_timestamp = undefined, % Timestamp of first frame
 	last_dts,
 	gop = []
