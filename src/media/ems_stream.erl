@@ -270,19 +270,17 @@ play(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
   Reply = file_media:read_frame(MediaInfo, Key),
   send_frame(Player, Reply).
   
-send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
-  ?MODULE:ready(Player);
-
-send_frame(#ems_stream{mode=stream,sent_audio_config = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
-  ?MODULE:ready(Player);
+% send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
+%   ?MODULE:ready(Player);
+% 
+% send_frame(#ems_stream{mode=stream,sent_audio_config = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
+%   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decoder_config = false, frame_type = frame}) ->
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decoder_config = false, frame_type = keyframe} = VideoFrame) ->
   send_frame(Player#ems_stream{mode=stream,synced = true}, VideoFrame);
-
-
 
 send_frame(#ems_stream{mode=stream,base_dts = undefined} = Player, #video_frame{dts = Ts} = Frame) when is_number(Ts) andalso Ts > 0 ->
   send_frame(Player#ems_stream{mode=stream,base_dts = Ts}, Frame);
@@ -300,33 +298,35 @@ send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, ba
     _ when BaseTs < PTS1 -> PTS1 - BaseTs;
     _ -> 0
   end,
+  % ?D({Type, round(BaseTs), round(DTS1), round(DTS2)}),
+  % ?D({Type, round(DTS2)}),
   Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS2, pts = PTS2},
   % ?D({"Frame", Type, round(DTS2), round(PTS2 - DTS2)}),
   Player1 = case {Decoder, Type} of
-    {true, audio} -> Player#ems_stream{mode=stream,sent_audio_config = true};
-    {true, video} -> Player#ems_stream{mode=stream,sent_video_config = true};
+    {true, audio} -> Player#ems_stream{sent_audio_config = true};
+    {true, video} -> Player#ems_stream{sent_video_config = true};
     _ -> Player
   end,
   ?MODULE:ready(Player1);
 
 
 
-send_frame(#ems_stream{play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when PlayEnd =< Timestamp ->
+send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when PlayEnd =< Timestamp ->
   ok;
 
-send_frame(Player, undefined) ->
+send_frame(#ems_stream{mode=file} = Player, undefined) ->
   self() ! play,
   ?MODULE:ready(Player);
 
-send_frame(Player, {undefined, undefined}) ->
+send_frame(#ems_stream{mode=file} = Player, {undefined, undefined}) ->
   self() ! play,
   ?MODULE:ready(Player);
 
-send_frame(Player, {#video_frame{body = undefined}, Next}) ->
+send_frame(#ems_stream{mode=file} = Player, {#video_frame{body = undefined}, Next}) ->
   self() ! play,
   ?MODULE:ready(Player#ems_stream{pos = Next});
   
-send_frame(#ems_stream{name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
+send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
   ?D({"File is over", Name}),
   Consumer ! {ems_stream, StreamId, play_complete},
   receive
@@ -336,7 +336,7 @@ send_frame(#ems_stream{name = Name, consumer = Consumer, stream_id = StreamId} =
   end,
   ?MODULE:wait(Player#ems_stream{media_info = undefined});
 
-send_frame(#ems_stream{consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
+send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
   Frame1 = case DTS of
     0 ->
       Frame#video_frame{stream_id = StreamId, dts = DTS + BaseDTS, pts = PTS + BaseDTS};

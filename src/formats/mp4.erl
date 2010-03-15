@@ -234,8 +234,8 @@ metadata(#media_info{width = Width, height = Height, seconds = Duration}) ->
    {duration, Duration}].
   
   
-decoder_config(video, #media_info{video_decoder_config = DecoderConfig}) -> DecoderConfig;
-decoder_config(audio, #media_info{audio_decoder_config = DecoderConfig}) -> DecoderConfig.
+decoder_config(video, #media_info{video_config = DecoderConfig}) -> DecoderConfig;
+decoder_config(audio, #media_info{audio_config = DecoderConfig}) -> DecoderConfig.
 
 
 
@@ -518,13 +518,13 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
   Frames = fill_track(Track),
-  MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video_track = Frames};
+  MediaInfo#media_info{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames};
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
   % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
   Frames = fill_track(Track),
-  MediaInfo#media_info{audio_decoder_config = DecoderConfig, audio_track = Frames};
+  MediaInfo#media_info{audio_config = DecoderConfig, audio_track = Frames};
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),

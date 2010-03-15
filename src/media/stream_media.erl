@@ -104,8 +104,10 @@ handle_call(length, _From, MediaInfo) ->
 handle_call(mode, _From, MediaInfo) ->
   {reply, stream, MediaInfo};
   
-handle_call({subscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
+handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
   Ref = erlang:monitor(process, Client),
+  Client ! Audio,
+  Client ! Video,
   {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}};
 
 handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
@@ -122,10 +124,10 @@ handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
   {reply, Clients, MediaInfo, ?TIMEOUT};
 
-handle_call({codec_config, video}, _From, #media_info{video_decoder_config = Config} = MediaInfo) ->
+handle_call({codec_config, video}, _From, #media_info{video_config = Config} = MediaInfo) ->
   {reply, Config, MediaInfo, ?TIMEOUT};
 
-handle_call({codec_config, audio}, _From, #media_info{audio_decoder_config = Config} = MediaInfo) ->
+handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = MediaInfo) ->
   {reply, Config, MediaInfo, ?TIMEOUT};
 
 handle_call(metadata, _From, MediaInfo) ->
@@ -240,13 +242,11 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clie
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
 
-handle_info(#video_frame{dts = TS} = Frame, #media_info{base_timestamp = undefined} = Recorder) ->
-  handle_info(Frame, Recorder#media_info{base_timestamp = TS});
-
-handle_info(#video_frame{dts = DTS, pts = PTS} = Frame, #media_info{device = Device, base_timestamp = BaseTS} = Recorder) ->
+handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->
               
-  Frame0 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
-  {Frame1, Recorder0} = pass_through_filter(Frame0, Recorder#media_info{last_dts = Frame0#video_frame.dts}),
+  % {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
+  Frame1 = Frame,
+  Recorder0 = Recorder,
   
   send_frame(Frame1, Recorder),
   Recorder1 = parse_metadata(Recorder0, Frame),
@@ -328,12 +328,12 @@ store_last_gop(MediaInfo, _) ->
 
 
 copy_audio_config(MediaInfo, #video_frame{decoder_config = true, type = audio} = Frame) ->
-  MediaInfo#media_info{audio_decoder_config = Frame};
+  MediaInfo#media_info{audio_config = Frame};
 
 copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
-  MediaInfo#media_info{video_decoder_config = Frame};
+  MediaInfo#media_info{video_config = Frame};
 
 copy_video_config(MediaInfo, _) -> MediaInfo.
 
