@@ -270,11 +270,11 @@ play(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
   Reply = file_media:read_frame(MediaInfo, Key),
   send_frame(Player, Reply).
   
-% send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
-%   ?MODULE:ready(Player);
-% 
-% send_frame(#ems_stream{mode=stream,sent_audio_config = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
-%   ?MODULE:ready(Player);
+send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
+  ?MODULE:ready(Player);
+
+send_frame(#ems_stream{mode=stream,sent_audio_config = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
+  ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decoder_config = false, frame_type = frame}) ->
   ?MODULE:ready(Player);

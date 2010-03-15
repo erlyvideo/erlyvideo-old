@@ -44,12 +44,18 @@ pass_socket(Media, Socket) ->
 
 init([URL, mpeg_ts, Opts]) ->
   OurHost = proplists:get_value(host, Opts),
-  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
-  gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
-  ok = inet:setopts(Socket, [{active, once}]),
+  Sock = case proplists:get_value(make_request, Opts, true) of
+    true ->
+      {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
+      {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
+      gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
+      ok = inet:setopts(Socket, [{active, once}]),
+      Socket;
+    false ->
+      undefined
+  end,
   {ok, Reader} = mpegts_reader:start_link(self()),
-  {ok, #media_info{socket = Socket, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
+  {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
 
 
 init([URL, mpeg_ts_passive, Opts]) ->
