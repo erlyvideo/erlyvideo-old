@@ -136,7 +136,7 @@ configure_rtp(Socket, _Headers, undefined) ->
   Socket;
   
 configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, module = Module, state = State} = Socket, Headers, Body) ->
-  case proplists:get_value('Content-Type', Headers) of
+  Socket1 = case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Module:media(State)),
       ?D({"Autoconfiguring RTP", SDPConfig, RtpStreams1, Frames}),
@@ -151,7 +151,28 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, module = Module, state = St
     Else ->
       ?D({"Unknown body type", Else}),
       Socket
-  end.
+  end,
+  
+  Socket2 = case proplists:get_value(<<"Rtp-Info">>, Headers) of
+    undefined -> 
+      Socket1;
+    Info ->
+      FullSession = proplists:get_value('Session', Headers, <<"111">>),
+      Session = hd(string:tokens(binary_to_list(FullSession), ";")),
+      {ok, Re} = re:compile("([^=]+)=(.*)"),
+      F = fun(S) ->
+        {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
+        {K, V}
+      end,
+      RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
+      % ?D({"Rtp", RtpInfo}),
+      StreamInfo = hd(RtpInfo), %FIXME: only first channel
+      RTPSeq = proplists:get_value("seq", StreamInfo),
+      RTPTime = proplists:get_value("rtptime", StreamInfo),
+      ?D({"Presync", RTPSeq, RTPTime}),
+      Socket1
+  end,
+  Socket2.    
 
 handle_rtp(#rtsp_socket{rtp_streams = Streams, module = Module, state = State} = Socket, {rtp, Channel, Packet}) ->
   {Streams1, NewState} = case element(Channel+1, Streams) of

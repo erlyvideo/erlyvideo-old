@@ -169,42 +169,29 @@ copy_config(RTSP, #video_frame{decoder_config = true, type = video} = Frame) ->
 copy_config(RTSP, _) -> RTSP.
 
 
-handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, 
-               {response, 200, _, _Headers, _Body}) ->
-  gen_tcp:send(Socket, io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast\r\n\r\n", [URL, Seq + 1])),
-  % ?D({"Parsed streams", RtpStreams1}),
+handle_rtsp_response(#rtsp_client{socket = Socket, url = URL, seq = Seq, method = describe} = RTSP, {response, 200, _, _, _}) ->
+  gen_tcp:send(Socket, io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Seq + 1])),
   RTSP#rtsp_client{method = setup, seq = Seq + 1};
-  
-  
-handle_rtsp_response(#rtsp_client{url = URL, method = setup, socket = Socket, seq = Seq}=RTSP, {response, 200, _, Headers, _}) ->
-  % ?D({"Setup done"}),
+
+handle_rtsp_response(#rtsp_client{url = URL, method = setup, socket = Socket, seq = Seq}=RTSP, {response, 200, _, Headers, _Body}) ->
+  ?D({"Setup done", Headers, _Body}),
   FullSession = proplists:get_value('Session', Headers, <<"111">>),
   Session = hd(string:tokens(binary_to_list(FullSession), ";")),
   gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session])),
   ems_log:access(default, "PLAY ~s RTSP/1.0", [URL]),
   RTSP#rtsp_client{seq = Seq + 1, method = play};
 
-handle_rtsp_response(#rtsp_client{method = play, socket = Socket, seq = Seq} = RTSP, {response, 200, _Code, Headers, _B}) ->
+handle_rtsp_response(#rtsp_client{method = play, socket = Socket, seq = Seq, url = URL} = RTSP, {response, 200, _, Headers, _B}) ->
+  ?D({"play", Headers}),
   case proplists:get_value(<<"Rtp-Info">>, Headers) of
     undefined -> 
-      ?D({"PLay started", _Code, Headers, _B}),
       RTSP;
-    Info ->
+    _ ->
       FullSession = proplists:get_value('Session', Headers, <<"111">>),
       Session = hd(string:tokens(binary_to_list(FullSession), ";")),
-      {ok, Re} = re:compile("([^=]+)=(.*)"),
-      F = fun(S) ->
-        {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
-        {K, V}
-      end,
-      RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
-      ?D({"Rtp", RtpInfo}),
-      StreamInfo = hd(RtpInfo),
-      URL = proplists:get_value("url", StreamInfo),
-      gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session])),
-      
-      % StreamInfo = hd(RtpInfo), % FIXME: only video now
-      RTSP#rtsp_client{method = play2}
+      gen_tcp:send(Socket, io_lib:format("SETUP ~s/trackID=1 RTSP/1.0\r\nSession: ~s\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Session, Seq + 1])),
+      gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 2, Session])),
+      RTSP#rtsp_client{seq = Seq+2}
   end;
       
 handle_rtsp_response(RTSP, {response, 200, _, _, _} = R) ->

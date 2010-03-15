@@ -206,7 +206,7 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
       error_logger:error_msg("RTP timeout: ~p~n", [Type])
   end.
 
-decode(rtcp, State, <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, _StreamId:32, NTP:64, Timecode:32, PacketCount:32, OctetCount:32, _/binary>>) ->
+decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
   % ?D({"RTCP", element(1, State), WallClock, Timecode}),
   ClockMap = element(#base_rtp.clock_map, State),
@@ -222,7 +222,7 @@ decode(rtcp, State, <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, _StreamId:32, NTP:
 decode(_, State, _Bin) when element(#base_rtp.base_timestamp, State) == undefined ->
   {State, []};
 
-decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
+decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
   ?MODULE:Type(State, {data, Data, Sequence, Timecode}).
 
 
@@ -231,7 +231,7 @@ convert_timecode(State) ->
   ClockMap = element(#base_rtp.clock_map, State),
   BaseTimestamp = element(#base_rtp.base_timestamp, State),
   WallClock = element(#base_rtp.wall_clock, State),
-  BaseWallClock = element(#base_rtp.base_wall_clock, State),
+  _BaseWallClock = element(#base_rtp.base_wall_clock, State),
   WallClock + Timecode/ClockMap - BaseTimestamp.
   
 
@@ -253,7 +253,7 @@ unpack_audio_units(#audio{audio_headers = <<>>} = Audio, Frames) ->
 unpack_audio_units(#audio{audio_data = <<>>} = Audio, Frames) ->
   {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
   
-unpack_audio_units(#audio{clock_map = ClockMap, audio_headers = <<AUSize:13, Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode} = Audio, Frames) ->
+unpack_audio_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode} = Audio, Frames) ->
   DTS = convert_timecode(Audio),
   % ?D({"Audio", Timecode, Timestamp}),
   case AudioData of
@@ -274,6 +274,7 @@ unpack_audio_units(#audio{clock_map = ClockMap, audio_headers = <<AUSize:13, Del
   end.
     
 video(#video{timecode = undefined} = Video, {data, _, _, Timecode} = Packet) ->
+  ?D({"No timecode"}),
   video(Video#video{timecode = Timecode}, Packet);
 
 video(#video{sequence = undefined} = Video, {data, _, Sequence, _} = Packet) ->
@@ -304,7 +305,7 @@ send_video(#video{synced = false, buffer = [#video_frame{frame_type = frame} | _
 send_video(#video{buffer = []} = Video) ->
   {Video, []};
 
-send_video(#video{media = Media, buffer = Frames, timecode = Timecode} = Video) ->
+send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
