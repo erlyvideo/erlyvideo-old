@@ -41,9 +41,7 @@
 
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
-          start_ems_stream/1,
-          start_mpegts_media/1, start_shared_object/3,
-          start_shoutcast_media/1]).
+          start_ems_stream/1, start_shared_object/3]).
 
 
 %%--------------------------------------------------------------------
@@ -96,8 +94,6 @@ start_ems_stream(Options) -> supervisor:start_child(ems_stream_sup, [Options]).
 %% To be called by the media provider.
 %% @end 
 %%--------------------------------------------------------------------
-start_mpegts_media(URL) -> supervisor:start_child(mpegts_media_sup, [URL]).
-start_shoutcast_media(URL) -> supervisor:start_child(shoutcast_media_sup, [URL, []]).
 
 start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_object_sup, [Host, Name, Persistent]).
 

@@ -4,6 +4,7 @@
   host,
   type = undefined,
   device = undefined,
+  socket = undefined,
   header = undefined,
   name = undefined,
   path = undefined,

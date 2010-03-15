@@ -18,15 +18,14 @@ start_link(URL, Opts) ->
   case Response of
     ["ICY", "200"| _] ->
       ?D({"Shoutcast detected on", URL}),
-      {ok, Pid} = supervisor:start_child(shoutcast_media_sup, [undefined, Opts]),
+      {ok, Pid} = ems_sup:start_media(URL, shoutcast, Opts),
       Pid ! {tcp, Socket, Line};
     [HTTP, "200"|_] when HTTP == "HTTP/1.0" orelse HTTP == "HTTP/1.1"-> 
       ?D({"MPEG TS detected on", URL}),
-      {ok, Pid} = supervisor:start_child(mpegts_media_sup, [undefined, mpeg_ts, Opts]),
+      {ok, Pid} = ems_sup:start_media(URL, mpeg_ts, Opts),
       Pid ! {http, Socket, {http_response, 0, 200, 0}}
   end,
-  gen_tcp:controlling_process(Socket, Pid),
-  gen_server:call(Pid, {set_socket, Socket}),
+  stream_media:pass_socket(Pid, Socket),
   {ok, Pid}.
 
 % {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, line}, {active, false}], 4000),

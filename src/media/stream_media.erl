@@ -39,6 +39,7 @@ set_owner(Server, Owner) ->
 pass_socket(Media, Socket) ->
   ok = gen_tcp:controlling_process(Socket, Media),
   gen_server:call(Media, {set_socket, Socket}).
+  
 
 
 init([URL, mpeg_ts, Opts]) ->
@@ -48,7 +49,7 @@ init([URL, mpeg_ts, Opts]) ->
   gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   {ok, Reader} = mpegts_reader:start_link(self()),
-  {ok, #media_info{device = Socket, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
+  {ok, #media_info{socket = Socket, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
 
 
 init([URL, mpeg_ts_passive, Opts]) ->
@@ -130,10 +131,10 @@ handle_call({codec_config, audio}, _From, #media_info{audio_decoder_config = Con
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
 
-handle_call({set_socket, Socket}, _From, #media_info{mode = mpeg_ts_passive} = State) ->
-  inet:setopts(Socket, [{active, true}, {packet, raw}]),
-  ?D({"MPEG TS received socket", Socket}),
-  {reply, ok, State#media_info{device = Socket}};
+handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) when Mode == mpeg_ts_passive orelse Mode == mpeg_ts->
+  inet:setopts(Socket, [{active, once}, {packet, raw}]),
+  ?D({"MPEG TS received socket"}),
+  {reply, ok, State#media_info{socket = Socket}};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
   ?D({"Owner of", MediaInfo#media_info.name, Owner}),
@@ -220,7 +221,8 @@ handle_info({tcp, Socket, Bin}, #media_info{mode = Mode, demuxer = Reader, byte_
   Reader ! {data, Bin},
   {noreply, State#media_info{byte_counter = Counter + size(Bin)}};
 
-handle_info({tcp_closed, Socket}, #media_info{device = Socket} = TSLander) ->
+handle_info({tcp_closed, _Socket}, #media_info{} = TSLander) ->
+  ?D({"FIXME: mpegts should survive socket failure"}),
   {stop, normal, TSLander#media_info{device = undefined}};
 
 
@@ -241,19 +243,22 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clie
 handle_info(#video_frame{dts = TS} = Frame, #media_info{base_timestamp = undefined} = Recorder) ->
   handle_info(Frame, Recorder#media_info{base_timestamp = TS});
 
-handle_info(#video_frame{dts = DTS, pts = PTS} = Frame, 
-            #media_info{device = Device, clients = Clients, base_timestamp = BaseTS} = Recorder) ->
+handle_info(#video_frame{dts = DTS, pts = PTS} = Frame, #media_info{device = Device, base_timestamp = BaseTS} = Recorder) ->
               
   Frame0 = Frame#video_frame{dts = DTS - BaseTS, pts = PTS - BaseTS, stream_id = 1},
   {Frame1, Recorder0} = pass_through_filter(Frame0, Recorder#media_info{last_dts = Frame0#video_frame.dts}),
   
-  lists:foreach(fun({Client, _}) -> Client ! Frame1 end, Clients),
+  send_frame(Frame1, Recorder),
   Recorder1 = parse_metadata(Recorder0, Frame),
   Recorder2 = copy_audio_config(Recorder1, Frame),
   Recorder3 = copy_video_config(Recorder2, Frame),
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder4 = Recorder3,
   % ?D({Recorder#media_info.name, Frame#video_frame.type, DTS-BaseTS}),
+  case {Frame#video_frame.type, Frame#video_frame.decoder_config} of
+    {video, true} -> send_frame(h264:metadata(Frame#video_frame.body), Recorder);
+    _ -> ok 
+  end,    
   (catch Device ! Frame1),
   {noreply, Recorder4, ?TIMEOUT};
 
@@ -293,6 +298,10 @@ handle_info({client_buffer, _Buffer}, State) ->
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
+  
+
+send_frame(Frame, #media_info{clients = Clients}) ->
+  lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients).
   
   
 pass_through_filter(#video_frame{} = Frame, #media_info{filter = undefined} = Recorder) ->

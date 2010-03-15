@@ -117,6 +117,10 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
        timer_start = element(1, erlang:statistics(wall_clock))}, Options)
   end;
   
+handle_wait({'DOWN', _, process, Consumer, _}, #ems_stream{consumer = Consumer}) ->
+  ?D("Consumer died"),
+  ok;
+  
 handle_wait(Message, Stream) ->
   ?D({"ZZZZZZZ: Unknown message", Message, Stream}),
   wait(Stream).
