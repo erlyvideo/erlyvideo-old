@@ -41,7 +41,8 @@
 
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
-          start_ems_stream/1, start_shared_object/3]).
+          start_ems_stream/1, start_shared_object/3,
+          start_mpegts_reader/1]).
 
 
 %%--------------------------------------------------------------------
@@ -69,6 +70,8 @@ start_rtmp_session(RTMPSocket) ->
 -spec start_rtsp_session() -> {'error',_} | {'ok',pid()}.
 start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
 
+start_mpegts_reader(Consumer) ->
+  supervisor:start_child(mpegts_reader_sup, [Consumer]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -126,6 +129,21 @@ init([rtsp_session]) ->
               % TCP Client
               {   undefined,                               % Id       = internal id
                   {rtsp_session,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([mpegts_reader]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {mpegts_reader,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -258,6 +276,13 @@ init([]) ->
     },
     {   stream_media_sup,
         {supervisor,start_link,[{local, stream_media_sup}, ?MODULE, [stream_media]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   mpegts_reader_sup,
+        {supervisor,start_link,[{local, mpegts_reader_sup}, ?MODULE, [mpegts_reader]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

@@ -54,13 +54,13 @@ init([URL, mpeg_ts, Opts]) ->
     false ->
       undefined
   end,
-  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
   {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
 
 
 init([URL, mpeg_ts_passive, Opts]) ->
   Host = proplists:get_value(host, Opts),
-  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
   {ok, #media_info{name = URL, mode = mpeg_ts_passive, demuxer = Reader, host = Host}};
 
 init([Name, Type, Opts]) ->
