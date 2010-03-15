@@ -79,7 +79,7 @@ start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
 %% @end 
 %%--------------------------------------------------------------------
 start_media(Name, file = Type, Opts) -> supervisor:start_child(file_media_sup, [Name, Type, Opts]);
-start_media(Name, mpeg_ts = Type, Opts) -> supervisor:start_child(mpegts_media_sup, [Name, Type, Opts]);
+start_media(Name, mpeg_ts = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, mpeg_ts_passive = Type, Opts) -> supervisor:start_child(mpegts_media_sup, [Name, Type, Opts]);
 start_media(Name, record = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, live = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);

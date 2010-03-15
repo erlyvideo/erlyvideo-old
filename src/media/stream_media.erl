@@ -34,7 +34,16 @@ publish(Server, #video_frame{} = Frame) ->
 
 set_owner(Server, Owner) ->
   gen_server:call(Server, {set_owner, Owner}).
-  
+
+
+init([URL, mpeg_ts, Opts]) ->
+  OurHost = proplists:get_value(host, Opts),
+  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
+  gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
+  ok = inet:setopts(Socket, [{active, once}]),
+  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, #media_info{device = Socket, host = OurHost, name = URL, mode = mpegts, demuxer = Reader}};
 
 init([Name, Type, Opts]) ->
   Host = proplists:get_value(host, Opts),
@@ -175,6 +184,29 @@ handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, 
       % ?D({MediaInfo#media_info.name, "Owner exits, wait him", LifeTimeout}),
       {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT}
   end;
+
+handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, State) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, State};
+
+handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, State};
+
+
+handle_info({http, Socket, http_eoh}, TSLander) ->
+  inet:setopts(Socket, [{active, once}, {packet, raw}]),
+  {noreply, TSLander};
+
+
+handle_info({tcp, Socket, Bin}, #media_info{mode = mpegts, demuxer = Reader, byte_counter = Counter} = State) ->
+  inet:setopts(Socket, [{active, once}]),
+  Reader ! {data, Bin},
+  {noreply, State#media_info{byte_counter = Counter + size(Bin)}};
+
+handle_info({tcp_closed, Socket}, #media_info{device = Socket} = TSLander) ->
+  {stop, normal, TSLander#media_info{device = undefined}};
+
 
 handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
   lists:foreach(fun({Client, _}) -> Client ! eof end, Clients),
