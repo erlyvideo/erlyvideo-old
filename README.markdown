@@ -22,21 +22,10 @@ eAMF currently supports AMF3 ([Specification][amf3l]) and provides two main feat
 
 ##How to build?
 
-eAMF uses [GNU Make](http://www.gnu.org/software/make/) for building binaries from source.  
+eAMF uses [rebar](http://hg.basho.com/rebar/wiki/Home) for building binaries from source.  
 
-<code>$ make</code>
-	
-1. Builds the source
-2. Executes eunit unit tests
-3. Creates documentation using edoc
-
-
-<code>$ make debug</code>
-	
-1. Builds the source in debug mode
-2. Executes eunit unit tests
-3. Runs code coverage analysis using the cover module
-4. Analyzes the code using dialyzer
+Builds the source: <code>$ ./rebar compile</code>
+Run EUnit tests and Code Coverage analysis: <code>$ ./rebar eunit</code>
 
 
 ##Types
