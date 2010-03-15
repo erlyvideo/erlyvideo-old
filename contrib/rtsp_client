@@ -1,0 +1,80 @@
+#!/usr/bin/env ruby
+require 'uri'
+require 'socket'
+
+def out(str)
+  puts "-"*40
+  str << "Cseq: #{@seq}\r\n"
+  str << "Session: #{@session}\r\n" if @session
+  @seq += 1
+  puts str.split("\r\n").map {|s| "> #{s}"}.join("\n")
+  @socket << str
+  @socket << "\r\n"
+end
+
+def response
+  puts "-"*10
+  r = []
+  while (line = @socket.gets) != "\r\n"
+    puts "< #{line}"
+    r << line
+    if line =~ /Content-Length: (\d+)/
+      body = @socket.read($1.to_i)
+      puts body.split("\r\n").map{|s| "< #{s}"}.join("\n")
+    end
+    if line =~ /Session: ([^;]+)/
+      @session = $1
+    end
+  end
+  r
+end
+
+def rtp_payload
+  
+  while (marker = @socket.getc) == 36
+    channel = @socket.getc
+    length = @socket.read(2).unpack("n")[0]
+    body = @socket.read(length)
+    if channel == 1 # rtcp
+      code, sr, len, stream, ntp1, ntp2, timecode, packets, octets = body.unpack("ccnNNNNN")
+      ntp = (ntp1 << 32) + ntp2
+      ntp = ntp * 1000 / 0x100000000
+      ntp -= (53*365+17*366)*24*3600*1000
+      @rtp_timecode = timecode
+      @rtp_wallclock = ntp
+      puts "> rtcp #{channel} #{timecode} #{Time.at(ntp)}"
+    else
+      seq, timecode, stream = body.unpack("xxnNN")
+      if @rtp_timecode
+        time = (timecode - @rtp_timecode)/90 + @rtp_wallclock
+        puts "> rtp #{channel} #{seq} #{timecode} #{time}"
+      else
+        puts "> rtp #{channel} #{seq} unsynced"
+      end
+    end
+  end
+  
+  @socket.ungetc(marker)
+end
+
+url = "SOME-AXIS-URL"
+uri = URI.parse(url)
+
+url = "rtsp://#{uri.host}#{uri.path}"
+@seq = 1
+@socket = TCPSocket.new(uri.host, uri.port)
+
+
+out "DESCRIBE #{url} RTSP/1.0\r\n"
+response
+
+
+out "SETUP #{url} RTSP/1.0\r\nTransport: RTP/AVP/TCP;unicast;interleaved\r\n"
+response
+
+out "PLAY #{url} RTSP/1.0\r\n"
+response
+
+rtp_payload
+
+
