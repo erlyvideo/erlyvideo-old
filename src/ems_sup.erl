@@ -42,7 +42,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
           start_ems_stream/1, start_shared_object/3,
-          start_mpegts_reader/1]).
+          start_mpegts_reader/1, start_shoutcast_reader/1]).
 
 
 %%--------------------------------------------------------------------
@@ -73,6 +73,9 @@ start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
 start_mpegts_reader(Consumer) ->
   supervisor:start_child(mpegts_reader_sup, [Consumer]).
 
+start_shoutcast_reader(Consumer) ->
+  supervisor:start_child(shoutcast_reader_sup, [Consumer]).
+
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc A startup function for spawning new media entry
@@ -84,7 +87,7 @@ start_media(Name, mpeg_ts = Type, Opts) -> supervisor:start_child(stream_media_s
 start_media(Name, mpeg_ts_passive = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, record = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, live = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
-start_media(Name, shoutcast, Opts) -> supervisor:start_child(shoutcast_media_sup, [Name, Opts]);
+start_media(Name, shoutcast = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, http, Opts) -> http_media:start_link(Name, Opts);
 start_media(Name, rtsp, Opts) -> rtsp_sup:start_rtsp_media(Name, rtsp, Opts).
 
@@ -144,6 +147,21 @@ init([mpegts_reader]) ->
               % TCP Client
               {   undefined,                               % Id       = internal id
                   {mpegts_reader,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([shoutcast_reader]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {shoutcast_reader,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -288,16 +306,15 @@ init([]) ->
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     },
-    {   ems_stream_sup,
-        {supervisor,start_link,[{local, ems_stream_sup}, ?MODULE, [ems_stream]]},
+    {   shoutcast_reader_sup,
+        {supervisor,start_link,[{local, shoutcast_reader_sup}, ?MODULE, [shoutcast_reader]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     },
-    % MPEG TS Lander
-    {   shoutcast_media_sup,
-        {supervisor,start_link,[{local, shoutcast_media_sup}, ?MODULE, [shoutcast_media]]},
+    {   ems_stream_sup,
+        {supervisor,start_link,[{local, ems_stream_sup}, ?MODULE, [ems_stream]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

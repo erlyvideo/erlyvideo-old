@@ -1,6 +1,6 @@
--module(shoutcast_media).
+-module(shoutcast_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
--export([start_link/2]).
+-export([start_link/1]).
 -behaviour(gen_server).
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
@@ -9,15 +9,13 @@
 -include_lib("erlyvideo/include/video_frame.hrl").
 
 -record(shoutcast, {
-  socket,
-  url,
+  consumer,
   audio_config = undefined,
   state,
   sync_count = 0,
   format = aac,
   buffer = <<>>,
   timestamp,
-  clients = [],
   headers = [],
   byte_counter = 0
 }).
@@ -31,27 +29,14 @@
 % MP3 example
 % {ok, Pid2} = ems_sup:start_shoutcast_media("http://205.188.215.230:8002").
 
-start_link(URL, Opts) ->
-  gen_server:start_link(?MODULE, [URL, Opts], []).
+start_link(Consumer) ->
+  gen_server:start_link(?MODULE, [Consumer], []).
 
 
-init([URL, Opts]) when is_binary(URL)->
-  init([binary_to_list(URL), Opts]);
-  
-init([undefined, _]) ->
-  process_flag(trap_exit, true),
-  {ok, #shoutcast{state = request}};
+init([Consumer]) ->
+  erlang:monitor(process, Consumer),
+  {ok, #shoutcast{state = request, consumer = Consumer}}.
 
-init([URL, _Opts]) ->
-  process_flag(trap_exit, true),
-  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, false}], 4000),
-  ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
-  gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
-  ok = inet:setopts(Socket, [{active, once}]),
-  
-  {ok, #shoutcast{socket = Socket, state = request}}.
-  
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -66,30 +51,6 @@ init([URL, _Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({set_socket, Socket}, _From, State) ->
-  inet:setopts(Socket, [binary, {active, once}, {packet, raw}]),
-  ?D({"Shoutcast received socket"}),
-  {reply, ok, State#shoutcast{socket = Socket}};
-
-handle_call({create_player, Options}, _From, #shoutcast{url = URL, clients = Clients} = State) ->
-  {ok, Pid} = ems_sup:start_stream_play(self(), Options),
-  link(Pid),
-  ?D({"Creating media player for", URL, "client", proplists:get_value(consumer, Options), Pid}),
-  case State#shoutcast.audio_config of
-    undefined -> ok;
-    AudioConfig -> Pid ! AudioConfig
-  end,
-  {reply, {ok, Pid}, State#shoutcast{clients = [Pid | Clients]}};
-
-handle_call(clients, _From, #shoutcast{clients = Clients} = State) ->
-  Entries = lists:map(fun(Pid) -> ems_stream:client(Pid) end, Clients),
-  {reply, Entries, State};
-
-handle_call({set_owner, _}, _From, State) ->
-  {reply, ok, State};
-
-handle_call(length, _From, State) ->
-  {reply, 0, State};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
@@ -120,12 +81,10 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({tcp, Socket, Bin}, #shoutcast{buffer = <<>>} = State) ->
-  inet:setopts(Socket, [{active, once}]),
+handle_info({data, Bin}, #shoutcast{buffer = <<>>} = State) ->
   {noreply, decode(State#shoutcast{buffer = Bin})};
 
-handle_info({tcp, Socket, Bin}, #shoutcast{buffer = Buffer} = State) ->
-  inet:setopts(Socket, [{active, once}]),
+handle_info({data, Bin}, #shoutcast{buffer = Buffer} = State) ->
   {noreply, decode(State#shoutcast{buffer = <<Buffer/binary, Bin/binary>>})};
 
 handle_info(#video_frame{decoder_config = true, type = audio} = Frame, State) ->
@@ -135,28 +94,13 @@ handle_info(#video_frame{} = Frame, State) ->
   {noreply, send_frame(Frame, State)};
 
 
-handle_info({'EXIT', Client, _Reason}, #shoutcast{clients = Clients} = State) ->
-  case {lists:member(Client, Clients), length(Clients)} of
-    {true, 1} ->
-      {stop, normal, State#shoutcast{clients = []}};
-    {true, _} ->
-      {noreply, State#shoutcast{clients = lists:delete(Client, Clients)}};
-    _ ->
-      {stop, {exit, Client, _Reason}, State}
-  end;
-
-
-
-handle_info({tcp_closed, Socket}, #shoutcast{socket = Socket} = State) ->
-  {stop, normal, State#shoutcast{socket = undefined}};
-  
-handle_info(stop, #shoutcast{socket = Socket} = State) ->
-  gen_tcp:close(Socket),
-  {stop, normal, State#shoutcast{socket = undefined}};
+handle_info({'DOWN', _, process, Consumer, _Reason}, #shoutcast{consumer = Consumer} = State) ->
+  ?D({"Shoutcast consumer died"}),
+  {stop, normal, State};
 
 handle_info(Message, State) ->
+  ?D({"Unknown message", Message, State}),
   {stop, {unhandled, Message}, State}.
-
 
 
 decode(#shoutcast{state = request, buffer = <<"ICY 200 OK\r\n", Rest/binary>>} = State) ->
@@ -301,8 +245,8 @@ format(#shoutcast{headers = Headers}) ->
 
 
 
-send_frame(Frame, #shoutcast{clients = Clients} = State) ->
-  lists:foreach(fun(Client) -> Client ! Frame end, Clients),
+send_frame(Frame, #shoutcast{consumer = Consumer} = State) ->
+  Consumer ! Frame,
   State.
 
 

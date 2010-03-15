@@ -63,6 +63,12 @@ init([URL, mpeg_ts_passive, Opts]) ->
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
   {ok, #media_info{name = URL, mode = mpeg_ts_passive, demuxer = Reader, host = Host}};
 
+init([URL, shoutcast, Opts]) ->
+  Host = proplists:get_value(host, Opts),
+  {ok, Reader} = ems_sup:start_shoutcast_reader(self()),
+  {ok, #media_info{name = URL, mode = shoutcast, demuxer = Reader, host = Host}};
+  
+
 init([Name, Type, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
@@ -139,9 +145,9 @@ handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = M
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
 
-handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) when Mode == mpeg_ts_passive orelse Mode == mpeg_ts->
+handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
-  ?D({"MPEG TS received socket"}),
+  ?D({"Stream received socket in mode", Mode}),
   {reply, ok, State#media_info{socket = Socket}};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
@@ -196,7 +202,7 @@ handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo, ?TIMEOUT};
   
 handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
-  ?D({self(), "Owner exits", Owner}),
+  ?D({self(), "Owner exits and no clients", Owner}),
   {stop, normal, MediaInfo};
 
 handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, life_timeout = LifeTimeout} = MediaInfo) ->
@@ -224,19 +230,15 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   {noreply, TSLander};
 
 
-handle_info({tcp, Socket, Bin}, #media_info{mode = Mode, demuxer = Reader, byte_counter = Counter} = State) when Mode == mpeg_ts orelse Mode == mpeg_ts_passive ->
+handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Counter} = State) when Reader =/= undefined ->
   inet:setopts(Socket, [{active, once}]),
   Reader ! {data, Bin},
   {noreply, State#media_info{byte_counter = Counter + size(Bin)}};
 
 handle_info({tcp_closed, _Socket}, #media_info{} = TSLander) ->
-  ?D({"FIXME: mpegts should survive socket failure"}),
+  ?D({"FIXME: mpegts/shoutcast should survive socket failure"}),
   {stop, normal, TSLander#media_info{device = undefined}};
 
-
-handle_info({'EXIT', Device, _Reason}, #media_info{device = Device, type = mpeg_ts, clients = Clients} = MediaInfo) ->
-  lists:foreach(fun({Client, _}) -> Client ! eof end, Clients),
-  {stop, normal, MediaInfo};
 
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
   Clients1 = lists:keydelete(Client, 1, Clients),
@@ -250,9 +252,9 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clie
 
 handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->
               
-  % {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
-  Frame1 = Frame,
-  Recorder0 = Recorder,
+  {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
+  % Frame1 = Frame,
+  % Recorder0 = Recorder,
   
   send_frame(Frame1, Recorder),
   Recorder1 = parse_metadata(Recorder0, Frame),
