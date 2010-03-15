@@ -1,8 +1,8 @@
 -record(video_frame,{
-  decoder_config = false,
 	type           = undefined,
 	dts            = undefined,
 	pts            = undefined,
+  decoder_config = false,
 	stream_id      = 0,
 	codec_id 	     = undefined,
 	frame_type     = undefined,

@@ -12,7 +12,6 @@ start_server(Port, Name, Callback) ->
   
 
 parse(ready, <<$$, ChannelId, Length:16, RTP:Length/binary, Rest/binary>>) ->
-  ?D({rtp, ChannelId}),
   {ok, {rtp, ChannelId, RTP}, Rest};
 
 parse(ready, <<$$, _/binary>> = Data) ->

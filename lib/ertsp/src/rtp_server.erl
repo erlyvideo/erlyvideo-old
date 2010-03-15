@@ -15,23 +15,24 @@
 -record(base_rtp, {
   media,
   clock_map,
-  base_timestamp = undefined,
+  base_timecode = undefined,
   sequence = undefined,
   wall_clock = undefined,
   base_wall_clock = undefined,
-  timecode = undefined
+  timecode = undefined,
+  synced = false
 }).
 
 -record(video, {
   media,
   clock_map,
-  base_timestamp = undefined,
+  base_timecode = undefined,
   sequence = undefined,
   wall_clock = undefined,
   base_wall_clock = undefined,
   timecode = undefined,
-  h264 = #h264{},
   synced = false,
+  h264 = #h264{},
   broken = false,
   buffer = []
 }).
@@ -39,11 +40,12 @@
 -record(audio, {
   media,
   clock_map,
-  base_timestamp = undefined,
+  base_timecode = undefined,
   sequence = undefined,
   wall_clock = undefined,
   base_wall_clock = undefined,
   timecode = undefined,
+  synced = false,
   audio_rate,
   audio_headers = <<>>,
   audio_data = <<>>
@@ -53,7 +55,7 @@
 
 -define(RTCP_SR, 200).
 -define(RTCP_SD, 202).
--define(YEARS_70, 2209032000).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
+-define(YEARS_70, 2208988800).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
 %% External API
 -export([start_link/2]).
@@ -61,7 +63,7 @@
 %% gen_server callbacks
 
 -export([video/2, audio/2, decode/3, init/2, get_socket/3, wait_data/1]).
--export([configure/2, configure/3]).
+-export([configure/2, configure/3, presync/2]).
 
 %%--------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
@@ -102,6 +104,27 @@ configure([Stream | Streams], RTPStreams, Media, RTP) ->
   RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
   RTPStreams2 = setelement(RTP+2, RtpStreams1, {rtcp, RTP}),
   configure(Streams, RTPStreams2, Media, RTP+2).
+
+
+presync(Streams, Info) ->
+  {Now, _} = erlang:statistics(wall_clock),
+  presync(Streams, Info, 1, Now).
+
+presync(Streams, [], _N, _Now) ->
+  Streams;
+  
+presync(Streams, [RTP | Info], N, Now) ->
+  {Type, Stream} = element(N, Streams),
+
+  RTPSeq = proplists:get_value("seq", RTP),
+  RTPTime = proplists:get_value("rtptime", RTP),
+  % ?D({"Presync", RTPSeq, RTPTime}),
+  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 1),
+  Stream2 = setelement(#base_rtp.base_timecode, Stream1, list_to_integer(RTPTime)),
+  Stream3 = setelement(#base_rtp.timecode, Stream2, list_to_integer(RTPTime)),
+  Stream4 = setelement(#base_rtp.synced, Stream3, true),
+  Stream5 = setelement(#base_rtp.wall_clock, Stream4, Now),
+  presync(setelement(N, Streams, {Type, Stream5}), Info, N+2, Now).
 
 config_media(Streams) -> config_media(Streams, [], []).
 
@@ -215,28 +238,30 @@ decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NT
     _ -> State
   end,
   State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
-  State3 = setelement(#base_rtp.base_timestamp, State2, round(Timecode / ClockMap)),
-  {setelement(#base_rtp.timecode, State3, Timecode), []};
+  State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
+  {setelement(#base_rtp.timecode, State, Timecode), []};
   % State3.
   
-decode(_, State, _Bin) when element(#base_rtp.base_timestamp, State) == undefined ->
+decode(_, State, _Bin) when element(#base_rtp.base_timecode, State) == undefined ->
   {State, []};
 
 decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
+  % ?D({Type, Sequence, Timecode, element(#base_rtp.base_timecode, State)}),
   ?MODULE:Type(State, {data, Data, Sequence, Timecode}).
 
 
 convert_timecode(State) ->
   Timecode = element(#base_rtp.timecode, State),
   ClockMap = element(#base_rtp.clock_map, State),
-  BaseTimestamp = element(#base_rtp.base_timestamp, State),
+  BaseTimecode = element(#base_rtp.base_timecode, State),
   WallClock = element(#base_rtp.wall_clock, State),
   _BaseWallClock = element(#base_rtp.base_wall_clock, State),
-  WallClock + Timecode/ClockMap - BaseTimestamp.
+  % ?D({"TC", WallClock, Timecode, BaseTimecode, ClockMap}),
+  WallClock + (Timecode - BaseTimecode)/ClockMap.
   
 
 % rtcp(State, {data, _, _, Timestamp} = Packet) ->
-%   audio(Audio#audio{base_timestamp = Timestamp}, Packet)ю
+%   audio(Audio#audio{base_timecode = Timestamp}, Packet)ю
   
   
 audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, _Timestamp}) ->

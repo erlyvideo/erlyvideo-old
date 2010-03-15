@@ -10,28 +10,54 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-export([connect/2, describe/1, setup/1, play/1]).
+
 -record(rtsp_socket, {
   buffer = <<>>,
-  module,
+  url,
+  socket,
   sdp_config = [],
-  rtp_streams = {undefined, undefined, undefined, undefined},
-  state
+  options,
+  rtp_streams = {undefined,undefined,undefined,undefined},
+  consumer,
+  state,
+  pending,
+  seq,
+  session
 }).
 
--export([behaviour_info/1]).
-behaviour_info(callbacks) -> [{init, 1}, {handle_call, 3}, {handle_cast, 2}, {handle_info, 2}, 
-                              {handle_rtp_packet, 2}, {handle_rtsp_response, 2}, {handle_rtsp_request, 2},
-                              {media, 1}];
-behaviour_info(_Other) -> undefined.
+
+connect(URL, Options) ->
+  {ok, RTSP} = start_link(URL, Options),
+  rtsp_socket:describe(RTSP),
+  rtsp_socket:setup(RTSP),
+  rtsp_socket:play(RTSP),
+  {ok, RTSP}.
 
 
-start_link(Module, Args) ->
-  gen_server:start_link(?MODULE, [Module, Args], []).
+describe(RTSP) ->
+  gen_server:call(RTSP, {request, describe}, 5000).
+
+setup(RTSP) ->
+  gen_server:call(RTSP, {request, setup}, 5000).
+  
+play(RTSP) ->
+  gen_server:call(RTSP, {request, play}, 5000).
 
 
-init([Module, Args]) ->
-  {ok, State} = Module:init(Args),
-  {ok, #rtsp_socket{module = Module, state = State}}.
+start_link(URL, Options) ->
+  gen_server:start_link(?MODULE, [URL, Options], []).
+
+
+
+init([URL, Options]) ->
+  Consumer = proplists:get_value(consumer, Options),
+  erlang:monitor(process, Consumer),
+  {ok, Re} = re:compile("rtsp://([^/]*):(\\d+)/(.*)"),
+  {match, [_, Host, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {ok, Socket} = gen_tcp:connect(Host, list_to_integer(Port), [binary, {packet, raw}, {active, once}], 1000),
+  ?D({"Connect", URL}),
+  {ok, #rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -46,21 +72,25 @@ init([Module, Args]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call(Request, From, #rtsp_socket{module = Module, state = State} = Socket) ->
-  case Module:handle_call(Request, From, State) of
-    {reply, Reply, State1} ->
-      {reply, Reply, Socket#rtsp_socket{state = State1}};
-    {reply, Reply, State1, Timeout} ->
-      {reply, Reply, Socket#rtsp_socket{state = State1}, Timeout};
-    {noreply, State1} ->
-      {noreply, Socket#rtsp_socket{state = State1}};
-    {noreply, State1, Timeout} ->
-      {noreply, Socket#rtsp_socket{state = State1}, Timeout};
-    {stop, Reason, Reply, State1} ->
-      {stop, Reason, Reply, Socket#rtsp_socket{state = State1}};
-    {stop, Reason, State1} ->
-      {stop, Reason, Socket#rtsp_socket{state = State1}}
-  end.
+handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL} = RTSP) ->
+  gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
+  % ems_log:access(default, "DESCRIBE ~s RTSP/1.0", [URL]),
+  io:format("DESCRIBE ~s RTSP/1.0~n", [URL]),
+  {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
+
+handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq} = RTSP) ->
+  gen_tcp:send(Socket, io_lib:format("SETUP ~s/trackID=1 RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Seq + 1])),
+  % ems_log:access(default, "DESCRIBE ~s RTSP/1.0", [URL]),
+  io:format("SETUP ~s/trackID=1 RTSP/1.0~n", [URL]),
+  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
+
+handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session} = RTSP) ->
+  gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session])),
+  io:format("PLAY ~s RTSP/1.0~n", [URL]),
+  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
+
+handle_call(Request, _From, #rtsp_socket{} = RTSP) ->
+  {stop, {unknown_call, Request}, RTSP}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -71,15 +101,8 @@ handle_call(Request, From, #rtsp_socket{module = Module, state = State} = Socket
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast(Request, #rtsp_socket{module = Module, state = State} = Socket) ->
-  case Module:handle_cast(Request, State) of
-    {noreply, State1} ->
-      {noreply, Socket#rtsp_socket{state = State1}};
-    {noreply, State1, Timeout} ->
-      {noreply, Socket#rtsp_socket{state = State1}, Timeout};
-    {stop, Reason, State1} ->
-      {stop, Reason, Socket#rtsp_socket{state = State1}}
-  end.
+handle_cast(Request, #rtsp_socket{} = Socket) ->
+  {stop, {unknown_cast, Request}, Socket}.
 
 
 %%-------------------------------------------------------------------------
@@ -101,98 +124,106 @@ handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf} = RTSPSocket) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>})};
 
-handle_info(Message, #rtsp_socket{module = Module, state = State} = Socket) ->
-  case Module:handle_info(Message, State) of
-    {noreply, State1} ->
-      {noreply, Socket#rtsp_socket{state = State1}};
-    {noreply, State1, Timeout} ->
-      {noreply, Socket#rtsp_socket{state = State1}, Timeout};
-    {stop, Reason, State1} ->
-      {stop, Reason, Socket#rtsp_socket{state = State1}}
-  end.
+handle_info(Message, #rtsp_socket{} = Socket) ->
+  ?D({"Unknown message", Message}),
+  {noreply, Socket}.
 
 
 
-
-handle_packet(#rtsp_socket{buffer = Data, state = State, module = Module} = Socket) ->
+handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
   case rtsp:decode(Data) of
     {more, Data} ->
       Socket;
     {ok, {rtp, _Channel, _} = RTP, Rest} ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
-    {ok, {response, _Code, _Message, Headers, Body} = Response, Rest} ->
-      NewState = Module:handle_rtsp_response(State, Response),
-      Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest, state = NewState}, Headers, Body),
-      handle_packet(Socket1);
-    {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
-      NewState = Module:handle_rtsp_request(State, Request),
-      Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest, state = NewState}, Headers, Body),
+    {ok, {response, _Code, _Message, Headers, Body} = _Response, Rest} ->
+      % ?D({"ZZ", _Code, _Message, Headers}),
+      Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
+      Socket2 = extract_session(Socket1, Headers),
+      Socket3 = sync_rtp(Socket2, Headers),
+      Socket4 = reply_pending(Socket3),
+      handle_packet(Socket4);
+    {ok, {request, _Method, _URL, Headers, Body} = _Request, Rest} ->
+      Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
       handle_packet(Socket1)
   end.
 
 
+reply_pending(#rtsp_socket{pending = undefined} = Socket) ->
+  Socket;
+
+reply_pending(#rtsp_socket{state = {Method, Count}} = Socket) when Count > 1 ->
+  Socket#rtsp_socket{state = {Method, Count - 1}};
+
+reply_pending(#rtsp_socket{pending = From} = Socket) ->
+  gen_server:reply(From, ok),
+  Socket#rtsp_socket{pending = undefined}.
+
 configure_rtp(Socket, _Headers, undefined) ->
   Socket;
   
-configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, module = Module, state = State} = Socket, Headers, Body) ->
-  Socket1 = case proplists:get_value('Content-Type', Headers) of
+configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Socket, Headers, Body) ->
+  case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
-      {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Module:media(State)),
-      ?D({"Autoconfiguring RTP", SDPConfig, RtpStreams1, Frames}),
+      {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
+      ?D({"Autoconfiguring RTP"}),
 
-      State1 = lists:foldl(fun(Frame, ClientState) ->
-        Module:handle_rtp_packet(ClientState, Frame)
-      end, State, Frames),
+      lists:foreach(fun(Frame) ->
+        Consumer ! Frame
+      end, Frames),
       
-      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1, state = State1};
+      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
     undefined ->
       Socket;
     Else ->
       ?D({"Unknown body type", Else}),
       Socket
-  end,
+  end.
   
-  Socket2 = case proplists:get_value(<<"Rtp-Info">>, Headers) of
+extract_session(Socket, Headers) ->
+  case proplists:get_value('Session', Headers) of
     undefined -> 
-      Socket1;
+      Socket;
+    FullSession ->
+      ?D({"Session", FullSession}),
+      Socket#rtsp_socket{session = hd(string:tokens(binary_to_list(FullSession), ";"))}
+  end.
+  
+sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
+  case proplists:get_value(<<"Rtp-Info">>, Headers) of
+    undefined -> 
+      Socket;
     Info ->
-      FullSession = proplists:get_value('Session', Headers, <<"111">>),
-      Session = hd(string:tokens(binary_to_list(FullSession), ";")),
       {ok, Re} = re:compile("([^=]+)=(.*)"),
       F = fun(S) ->
         {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
         {K, V}
       end,
       RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
-      % ?D({"Rtp", RtpInfo}),
-      StreamInfo = hd(RtpInfo), %FIXME: only first channel
-      RTPSeq = proplists:get_value("seq", StreamInfo),
-      RTPTime = proplists:get_value("rtptime", StreamInfo),
-      ?D({"Presync", RTPSeq, RTPTime}),
-      Socket1
-  end,
-  Socket2.    
+      ?D({"Rtp", RtpInfo}),
+      Streams1 = rtp_server:presync(Streams, RtpInfo),
+      Socket#rtsp_socket{rtp_streams = Streams1}
+  end.
 
-handle_rtp(#rtsp_socket{rtp_streams = Streams, module = Module, state = State} = Socket, {rtp, Channel, Packet}) ->
-  {Streams1, NewState} = case element(Channel+1, Streams) of
+handle_rtp(#rtsp_socket{rtp_streams = Streams, consumer = Consumer} = Socket, {rtp, Channel, Packet}) ->
+  Streams1 = case element(Channel+1, Streams) of
     {rtcp, RTPNum} ->
       {Type, RtpState} = element(RTPNum+1, Streams),
       {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
-      {setelement(RTPNum+1, Streams, {Type, RtpState1}), State};
+      setelement(RTPNum+1, Streams, {Type, RtpState1});
     {Type, RtpState} ->
       % ?D({"Decode rtp on", Channel, Type}),
       {RtpState1, Frames} = rtp_server:decode(Type, RtpState, Packet),
       % ?D({"Frame", Frames}),
-      State1 = lists:foldl(fun(Frame, ClientState) ->
-        % ?D({"F", Frame}),
-        Module:handle_rtp_packet(ClientState, Frame)
-      end, State, Frames),
-      {setelement(Channel+1, Streams, {Type, RtpState1}), State1};
+      lists:foreach(fun(Frame) ->
+        Consumer ! Frame
+      end, Frames),
+      setelement(Channel+1, Streams, {Type, RtpState1});
     undefined ->
-      {Streams, State}
+      Streams
   end,
-  Socket#rtsp_socket{rtp_streams = Streams1, state = NewState}.
+  Socket#rtsp_socket{rtp_streams = Streams1}.
       
 
 %%-------------------------------------------------------------------------
