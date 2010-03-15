@@ -1,5 +1,6 @@
 -module(h264).
 
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 % -include("../../include/ems.hrl").
@@ -143,7 +144,8 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file =
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
   ?DUMP_H264(File, SPS),
-  _SPSInfo = parse_sps(SPS),
+  % ?D({"Parsing SPS", SPS}),
+  % _SPSInfo = parse_sps(SPS),
   % io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
   video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
 
@@ -239,6 +241,7 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) w
 
 parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
   {SPS_ID, Rest1} = exp_golomb_read(Data),
+  % ?D({"SPS ID", SPS_ID}),
   SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
   parse_sps_data(Rest1, SPS).
   
@@ -341,6 +344,8 @@ parse_sps_for_high_profile_test() ->
 parse_sps_for_low_profile_test() ->
   ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 4, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
 
+parse_sps_for_rtsp_test() ->
+  ?assertEqual(#h264_sps{}, parse_sps(<<103,66,224,20,218,5,130,81>>)).
 
 unpack_config_1_test() ->
   Config = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>,
