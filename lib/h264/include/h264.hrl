@@ -8,6 +8,10 @@
 -define(NAL_SPS, 7).
 -define(NAL_PPS, 8).
 -define(NAL_DELIM, 9).
+-define(NAL_END_SEQ, 10).
+-define(NAL_END_STREAM, 11).
+-define(NAL_FILLER, 12).
+-define(NAL_SPS_EXT, 13).
 -define(NAL_STAP_A, 24).
 -define(NAL_STAP_B, 25).
 -define(NAL_MTAP16, 26).

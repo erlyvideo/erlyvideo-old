@@ -195,13 +195,13 @@ decode_nal(<<0:1, _NRI:2, ?NAL_FUB:5, _/binary>>, _H264) ->
 
 
 %          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, R:1, Type:1,  _Rest/binary>>
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, _Type:5, Rest/binary>>, H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, _R:1, _Type:5, Rest/binary>>, H264) ->
   {H264#h264{buffer = Rest}, []};
 
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, _R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, []};
 
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, _R:1, Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   decode_nal(<<0:1, _NRI:2, Type:5, Buf/binary, Rest/binary>>, H264#h264{buffer = <<>>});
 
 
@@ -249,7 +249,8 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) -
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
-  parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum}).
+  ?D({"Pic order", PicOrder}),
+  parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
   
 parse_sps_pic_order(Data, 0, SPS) ->
   {_Log2PicOrder, Rest} = exp_golomb_read(Data),
@@ -260,7 +261,10 @@ parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
   {_OffsetTopBottom, Rest2} = exp_golomb_read_s(Rest1),
   {NumRefFrames, Rest3} = exp_golomb_read_s(Rest2),
   NumRefFrames = 0,
-  parse_sps_ref_frames(Rest3, SPS).
+  parse_sps_ref_frames(Rest3, SPS);
+
+parse_sps_pic_order(Data, 2, SPS) ->
+  parse_sps_ref_frames(Data, SPS).
   
 parse_sps_ref_frames(Data, SPS) ->
   {_NumRefFrames, <<_Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
@@ -339,13 +343,13 @@ exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
 -include_lib("eunit/include/eunit.hrl").
 
 parse_sps_for_high_profile_test() ->
-  ?assertEqual(#h264_sps{profile = 100, level = 50, sps_id = 0, max_frame_num = 5, width = 1280, height = 720}, parse_sps(<<103,100,0,50,172,52,226,192,80,5,187,1,16,0,0,62,144,0,11,184,8,241,131,24,184>>)).
+  ?assertEqual(#h264_sps{profile = 100, level = 50, sps_id = 0, max_frame_num = 9, width = 1280, height = 720}, parse_sps(<<103,100,0,50,172,52,226,192,80,5,187,1,16,0,0,62,144,0,11,184,8,241,131,24,184>>)).
 
 parse_sps_for_low_profile_test() ->
-  ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 4, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
+  ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 8, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
 
 parse_sps_for_rtsp_test() ->
-  ?assertEqual(#h264_sps{}, parse_sps(<<103,66,224,20,218,5,130,81>>)).
+  ?assertEqual(#h264_sps{profile = 66, level = 20, sps_id = 0, max_frame_num = 4, width = 352, height = 288}, parse_sps(<<103,66,224,20,218,5,130,81>>)).
 
 unpack_config_1_test() ->
   Config = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>,
