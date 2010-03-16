@@ -242,7 +242,11 @@ decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NT
   end,
   State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
   State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
-  {setelement(#base_rtp.timecode, State, Timecode), []};
+  State4 = case element(#base_rtp.base_timecode, State) of
+    undefined -> State3;
+    _ -> State
+  end,
+  {setelement(#base_rtp.timecode, State4, Timecode), []};
   % State3.
   
 decode(_, State, _Bin) when element(#base_rtp.base_timecode, State) == undefined ->
@@ -306,7 +310,7 @@ video(#video{timecode = undefined} = Video, {data, _, _, Timecode} = Packet) ->
   video(Video#video{timecode = Timecode}, Packet);
 
 video(#video{sequence = undefined} = Video, {data, _, Sequence, _} = Packet) ->
-  ?D({"Reset seq to", Sequence}),
+  % ?D({"Reset seq to", Sequence}),
   video(Video#video{sequence = Sequence - 1}, Packet);
 
 video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when Sequence /= PrevSeq + 1->
@@ -339,7 +343,7 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode} = Video
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
   end, #video_frame{body = <<>>}, Frames),
   Timestamp = convert_timecode(Video),
-  ?D({"Video", _Timecode, Timestamp}),
+  % ?D({"Video", _Timecode, Timestamp}),
   Frame1 = case Frame of
     undefined -> [];
     _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}]
