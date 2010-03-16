@@ -40,7 +40,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(TIMEOUT, 4000).
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
 -export([play/3, play/1]).

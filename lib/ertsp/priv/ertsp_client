@@ -3,7 +3,7 @@
 %%! -smp enable -pa ebin -pa ../lib -pa deps -env ERL_LIBS "../lib:../deps"
 
 -define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
-% -include_lib("erlyvideo/include/video_frame.hrl").
+% -include_lib("erlmedia/include/video_frame.hrl").
 
 main([URL]) ->
   % code:add_pathz("lib/ertsp/ebin"),

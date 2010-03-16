@@ -38,7 +38,7 @@
 -author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlyvideo/include/rtmp_session.hrl").
 
 -behaviour(gen_fsm).

@@ -5,7 +5,7 @@
 
 -include_lib("h264/include/h264.hrl").
 -include("mpegts.hrl").
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 
 -export([benchmark/0]).

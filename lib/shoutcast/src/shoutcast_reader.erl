@@ -6,7 +6,7 @@
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -include("shoutcast.hrl").
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 -record(shoutcast, {
   consumer,

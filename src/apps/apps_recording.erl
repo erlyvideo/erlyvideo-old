@@ -39,7 +39,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -include_lib("erlyvideo/include/rtmp_session.hrl").
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 -export([publish/2]).
 -export(['FCPublish'/2, 'FCUnpublish'/2]).

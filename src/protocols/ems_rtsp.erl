@@ -3,7 +3,7 @@
 
 -include_lib("h264/include/h264.hrl").
 -include_lib("erlyvideo/include/rtmp_session.hrl").
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/ems.hrl").
 -include_lib("ertsp/include/rtsp.hrl").
 

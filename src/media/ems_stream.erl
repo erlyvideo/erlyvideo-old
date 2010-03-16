@@ -33,7 +33,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include("../../include/ems.hrl").
--include_lib("erlyvideo/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 -export([file_dir/1, file_format/1, start_link/1, client/1, init/1, ready/1, play/1, wait/1]).
 
