@@ -11,9 +11,9 @@
 {"plugins/*/src/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"lib/misultin/src/*", [{outdir, "lib/misultin/ebin"}, {i, "lib/misultin/include"}]}.
 {"lib/mpegts/src/*", [{outdir, "lib/mpegts/ebin"}, {i, "lib/mpegts/include"}]}.
-{"lib/shoutcast/src/*", [{outdir, "lib/shoutcast/ebin"}, {i, "lib/shoutcast/include"}]}.
 {"deps/erlmedia/src/*", [{outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"deps/amf/src/*", [{outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
+{"deps/shoutcast/src/*", [{outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}]}.
 {"deps/rtmp/src/*", [{outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"}]}.
 {"deps/ertsp/src/*", [{outdir, "deps/ertsp/ebin"}, {i, "deps/ertsp/src"}]}.
 {"deps/log4erl/src/*", [{outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.

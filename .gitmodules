@@ -16,3 +16,6 @@
 [submodule "deps/ertsp"]
 	path = deps/ertsp
 	url = git://github.com/erlyvideo/ertsp
+[submodule "deps/shoutcast"]
+	path = deps/shoutcast
+	url = git://github.com/erlyvideo/shoutcast
