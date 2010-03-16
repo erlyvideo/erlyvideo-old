@@ -19,3 +19,6 @@
 [submodule "deps/shoutcast"]
 	path = deps/shoutcast
 	url = git://github.com/erlyvideo/shoutcast
+[submodule "mpegts"]
+	path = mpegts
+	url = git://github.com/erlyvideo/mpegts
