@@ -10,7 +10,6 @@
 {"src/plugins/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"lib/misultin/src/*", [{outdir, "lib/misultin/ebin"}, {i, "lib/misultin/include"}]}.
-{"lib/mp3/src/*", [{outdir, "lib/mp3/ebin"}, {i, "lib/mp3/include"}]}.
 {"lib/ertsp/src/*", [{outdir, "lib/ertsp/ebin"}, {i, "lib/ertsp/include"}]}.
 {"lib/erlmedia/src/*", [{outdir, "lib/erlmedia/ebin"}, {i, "lib/erlmedia/include"}]}.
 {"lib/mpegts/src/*", [{outdir, "lib/mpegts/ebin"}, {i, "lib/mpegts/include"}]}.
