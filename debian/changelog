@@ -1,3 +1,9 @@
+erlyvideo (1.5.4) unstable; urgency=low
+
+  * Extracted mpegts, rtsp, erlmedia, shoutcast
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 17 Mar 2010 00:51:28 +0300
+
 erlyvideo (1.5.3) unstable; urgency=low
 
   * RTSP refactoring. Can read cameras
