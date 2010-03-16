@@ -1,7 +1,6 @@
 VERSION=1.5.3
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
-ERL_ROOT=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`
 RTMPDIR=/usr/lib/erlyvideo
 VARDIR=/var/lib/erlyvideo
 ETCDIR=/etc/erlyvideo
@@ -17,17 +16,12 @@ MXMLC=mxmlc
 
 all: compile
 
-compile: ebin/mpeg2_crc32.so ebin/mpegts_reader.so
+compile:
 	ERL_LIBS=deps:lib:plugins erl -make
+	(cd lib/mpegts; make -f Makefile)
+	for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && make -f Makefile) ; done
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
-	
-ebin/mpeg2_crc32.so: lib/mpegts/src/mpeg2_crc32.c
-	gcc  -O3 -fPIC -bundle -flat_namespace -undefined suppress -fno-common -Wall -o $@ $< -I $(ERL_ROOT)/usr/include/ || touch $@
-
-ebin/mpegts_reader.so: lib/mpegts/src/mpegts_reader.c
-	gcc  -O3 -fPIC -bundle -flat_namespace -undefined suppress -fno-common -Wall -o $@ $< -I $(ERL_ROOT)/usr/include/ || touch $@
-	
 
 
 erlang_version:
@@ -42,7 +36,7 @@ doc:
 	-run edoc_run application  "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
 
 clean:
-	rm -fv ebin/*.beam ebin/*.so
+	rm -fv ebin/*.beam
 	rm -fv deps/*/ebin/*.beam
 	rm -fv lib/*/ebin/*.beam
 	rm -fv plugins/*/ebin/*.beam
