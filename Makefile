@@ -1,0 +1,6 @@
+
+
+all:
+	erl -make
+
+	
