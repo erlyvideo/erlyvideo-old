@@ -15,8 +15,7 @@
 -export([start_link/3]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
 %%--------------------------------------------------------------------
@@ -100,13 +99,8 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
             #rtsp_listener{listener=ListSock, acceptor=Ref, callback=Callback} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
-        %% New client connected - spawn a new process using the simple_one_for_one
-        %% supervisor.
         {ok, Pid} = rtsp_sup:start_rtsp_connection(Callback),
-        gen_tcp:controlling_process(CliSocket, Pid),
-        %% Instruct the new FSM that it owns the socket.
         rtsp_connection:set_socket(Pid, CliSocket),
-        %% Signal the network driver that we are ready to accept another connection
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
         {noreply, State#rtsp_listener{acceptor=NewRef}};
     {error, Reason} ->
@@ -118,10 +112,6 @@ handle_info({inet_async, ListSock, Ref, Error}, #rtsp_listener{listener=ListSock
     error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
     {stop, Error, State};
     
-handle_info({clients, _From}, #rtsp_listener{} = State) ->
-  ?D("Asked for clients list"),
-  {noreply, State};
-
 handle_info(_Info, State) ->
     {noreply, State}.
 

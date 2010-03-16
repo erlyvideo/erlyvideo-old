@@ -7,12 +7,18 @@
 -include("../include/ems.hrl").
 -include_lib("ertsp/include/rtsp.hrl").
 
--export([announce/2]).
+-export([record/1]).
 
-announce(Hostname, Path) -> 
-  Host = ems:host(Hostname),
-  ?D({"ANNOUNCE", Host, Host}),
-  ems_log:access(Host, "RTSP ANNOUNCE ~s ~s", [Host, Path]),
+hostpath(URL) ->
+  {ok, Re} = re:compile("rtsp://([^/]+)/(.*)$"),
+  {match, [_, HostPort, Path]} = re:run(URL, Re, [{capture, all, binary}]),
+  {ems:host(HostPort), Path}.
+
+
+record(URL) -> 
+  {Host, Path} = hostpath(URL),
+  ?D({"RECORD", Host, Path}),
+  ems_log:access(Host, "RTSP RECORD ~s ~s", [Host, Path]),
   Media = media_provider:open(Host, Path, [{type, live}]),
   {ok, Media}.
 

@@ -6,11 +6,10 @@
 % -include_lib("erlyvideo/include/video_frame.hrl").
 
 main([URL]) ->
-  code:add_pathz("lib/ertsp/ebin"),
-  code:add_pathz("lib/erlyvideo/ebin"),
-  code:add_pathz("lib/h264/ebin"),
+  % code:add_pathz("lib/ertsp/ebin"),
+  code:add_pathz("../h264/ebin"),
   
-  RTSP = rtsp_socket:connect(URL, [{consumer, self()},{interleaved,true}]),
+  RTSP = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true}]),
   read_frames(RTSP).
   
 read_frames(RTSP) ->

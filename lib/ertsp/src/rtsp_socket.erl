@@ -2,7 +2,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 
--export([start_link/2]).
+-export([start_link/0]).
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
@@ -10,7 +10,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([connect/2, describe/1, setup/1, play/1]).
+-export([read/2, connect/3, describe/1, setup/1, play/1, accept/3]).
 
 -record(rtsp_socket, {
   buffer = <<>>,
@@ -20,6 +20,7 @@
   options,
   rtp_streams = {undefined,undefined,undefined,undefined},
   consumer,
+  acceptor,
   state,
   pending,
   seq,
@@ -27,8 +28,9 @@
 }).
 
 
-connect(URL, Options) ->
-  {ok, RTSP} = start_link(URL, Options),
+read(URL, Options) ->
+  {ok, RTSP} = start_link(),
+  rtsp_socket:connect(RTSP, URL, Options),
   rtsp_socket:describe(RTSP),
   rtsp_socket:setup(RTSP),
   rtsp_socket:play(RTSP),
@@ -44,20 +46,19 @@ setup(RTSP) ->
 play(RTSP) ->
   gen_server:call(RTSP, {request, play}, 5000).
 
+connect(RTSP, URL, Options) ->
+  gen_server:call(RTSP, {connect, URL, Options}).
 
-start_link(URL, Options) ->
-  gen_server:start_link(?MODULE, [URL, Options], []).
+accept(RTSP, Socket, Acceptor) ->
+  gen_tcp:controlling_process(Socket, RTSP),
+  gen_server:call(RTSP, {accept, Socket, Acceptor}).
+
+start_link() ->
+  gen_server:start_link(?MODULE, [], []).
 
 
-
-init([URL, Options]) ->
-  Consumer = proplists:get_value(consumer, Options),
-  erlang:monitor(process, Consumer),
-  {ok, Re} = re:compile("rtsp://([^/]*):(\\d+)/(.*)"),
-  {match, [_, Host, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
-  {ok, Socket} = gen_tcp:connect(Host, list_to_integer(Port), [binary, {packet, raw}, {active, once}], 1000),
-  ?D({"Connect", URL}),
-  {ok, #rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket}}.
+init([]) ->
+  {ok, #rtsp_socket{}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -71,6 +72,22 @@ init([URL, Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_call({accept, Socket, Acceptor}, _From, State) ->
+  erlang:monitor(process, Acceptor),
+  inet:setopts(Socket, [{active, once}, binary]),
+  {reply, ok, State#rtsp_socket{socket = Socket, acceptor = Acceptor, consumer = Acceptor}};
+
+
+handle_call({connect, URL, Options}, _From, RTSP) ->
+  Consumer = proplists:get_value(consumer, Options),
+  erlang:monitor(process, Consumer),
+  {ok, Re} = re:compile("rtsp://([^/]*):(\\d+)/(.*)"),
+  {match, [_, Host, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {ok, Socket} = gen_tcp:connect(Host, list_to_integer(Port), [binary, {packet, raw}, {active, once}], 1000),
+  ?D({"Connect", URL}),
+  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket}};
+  
 
 handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL} = RTSP) ->
   gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
@@ -117,12 +134,15 @@ handle_cast(Request, #rtsp_socket{} = Socket) ->
 %%-------------------------------------------------------------------------
 
 
-handle_info({tcp_closed, Socket}, Socket) ->
-  {stop, normal, Socket};
+handle_info({tcp_closed, Socket}, State) ->
+  {stop, normal, State};
   
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf} = RTSPSocket) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>})};
+
+handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{consumer = Consumer} = Socket) ->
+  {stop, normal, Socket};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
   ?D({"Unknown message", Message}),
@@ -138,15 +158,16 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, Body} = _Response, Rest} ->
-      % ?D({"ZZ", _Code, _Message, Headers}),
       Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
       Socket2 = extract_session(Socket1, Headers),
       Socket3 = sync_rtp(Socket2, Headers),
       Socket4 = reply_pending(Socket3),
       handle_packet(Socket4);
-    {ok, {request, _Method, _URL, Headers, Body} = _Request, Rest} ->
+    {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
+      io:format("--------------------------~n[RTSP] ~p ~p~n~p~n", [_Method, _URL, Headers]),
       Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
-      handle_packet(Socket1)
+      Socket2 = handle_request(Request, Socket1),
+      handle_packet(Socket2)
   end.
 
 
@@ -167,7 +188,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
-      ?D({"Autoconfiguring RTP", Frames}),
+      ?D({"Autoconfiguring RTP", Frames, RtpStreams1}),
 
       lists:foreach(fun(Frame) ->
         Consumer ! Frame
@@ -180,6 +201,64 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
       ?D({"Unknown body type", Else}),
       Socket
   end.
+  
+
+seq(Headers) ->
+  proplists:get_value('Cseq', Headers, 1).
+  
+handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}, {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
+
+handle_request({request, 'ANNOUNCE', _URL, Headers, _Body}, State) ->
+  reply(State#rtsp_socket{session = "42"}, "200 OK", [{'Cseq', seq(Headers)}]);
+
+handle_request({request, 'PAUSE', _URL, Headers, _Body}, State) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+
+handle_request({request, 'RECORD', URL, Headers, _}, #rtsp_socket{acceptor = Acceptor} = State) ->
+  {ok, Consumer} = gen_server:call(Acceptor, {record, URL}),
+  erlang:monitor(process, Consumer),
+  reply(State#rtsp_socket{consumer = Consumer}, "200 OK", [{'Cseq', seq(Headers)}]);
+
+handle_request({request, 'SETUP', _URL, Headers, _}, State) ->
+  Transport = proplists:get_value('Transport', Headers),
+  Date = httpd_util:rfc1123_date(),
+  ReplyHeaders = [{"Transport", Transport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
+  reply(State, "200 OK", ReplyHeaders);
+
+handle_request({request, 'TEARDOWN', _URL, Headers, _Body}, #rtsp_socket{consumer = Consumer} = State) ->
+  Consumer ! stop,
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]).
+  
+
+reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers) ->
+  Headers2 = case SessionId of
+    undefined -> Headers;
+    _ -> [{'Session', SessionId} | Headers]
+  end,
+  ReplyList = lists:map(fun binarize_header/1, Headers2),
+  Reply = iolist_to_binary(["RTSP/1.0 ", Code, <<"\r\n">>, ReplyList, <<"\r\n">>]),
+  io:format("[RTSP] ~s", [Reply]),
+  gen_tcp:send(Socket, Reply),
+  State.
+
+
+binarize_header({Key, Value}) when is_atom(Key) ->
+  binarize_header({atom_to_binary(Key, latin1), Value});
+
+binarize_header({Key, Value}) when is_list(Key) ->
+  binarize_header({list_to_binary(Key), Value});
+
+binarize_header({Key, Value}) when is_integer(Value) ->
+  binarize_header({Key, integer_to_list(Value)});
+
+binarize_header({Key, Value}) ->
+  [Key, <<": ">>, Value, <<"\r\n">>];
+
+binarize_header([Key, Value]) ->
+  [Key, <<" ">>, Value, <<"\r\n">>].
+
+
   
 extract_session(Socket, Headers) ->
   case proplists:get_value('Session', Headers) of

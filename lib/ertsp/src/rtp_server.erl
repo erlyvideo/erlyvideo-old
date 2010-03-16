@@ -339,7 +339,7 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode} = Video
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
   end, #video_frame{body = <<>>}, Frames),
   Timestamp = convert_timecode(Video),
-  % ?D({"Video", Timecode, Timestamp}),
+  ?D({"Video", _Timecode, Timestamp}),
   Frame1 = case Frame of
     undefined -> [];
     _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}]
