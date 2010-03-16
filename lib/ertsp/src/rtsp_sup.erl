@@ -51,35 +51,6 @@ init([rtsp_connection]) ->
     }
   };
 
-init([rtsp_media]) ->
-  {ok,
-    {{simple_one_for_one, 5, 60},
-      [
-        {   undefined,                               % Id       = internal id
-            {rtsp_media,start_link,[]},             % StartFun = {M, F, A}
-            temporary,                               % Restart  = permanent | transient | temporary
-            2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-            worker,                                  % Type     = worker | supervisor
-            []                            % Modules  = [Module] | dynamic
-        }
-      ]
-    }
-  };
-
-init([rtsp_session]) ->
-  {ok,
-    {{simple_one_for_one, 5, 60},
-      [
-        {   undefined,                               % Id       = internal id
-            {rtsp,start_link,[]},             % StartFun = {M, F, A}
-            temporary,                               % Restart  = permanent | transient | temporary
-            2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-            worker,                                  % Type     = worker | supervisor
-            []                            % Modules  = [Module] | dynamic
-        }
-      ]
-    }
-  };
 init([rtp_server]) ->
   {ok,
     {{simple_one_for_one, 5, 60},
@@ -98,29 +69,8 @@ init([rtp_server]) ->
 
 init([]) ->
   Supervisors = [
-    {rtsp_sessions_sup,                       % Id       = internal id
-      {rtsp_sessions,start_link,[]},          % StartFun = {M, F, A}
-      permanent,                               % Restart  = permanent | transient | temporary
-      2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-      worker,                                  % Type     = worker | supervisor
-      [rtsp_sessions]                         % Modules  = [Module] | dynamic
-    },
     {rtp_server_sup,
       {supervisor,start_link,[{local, rtp_server_sup}, ?MODULE, [rtp_server]]},
-      permanent,                               % Restart  = permanent | transient | temporary
-      infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-      supervisor,                              % Type     = worker | supervisor
-      []                                       % Modules  = [Module] | dynamic
-    },
-    {rtsp_session_sup,
-      {supervisor,start_link,[{local, rtsp_session_sup}, ?MODULE, [rtsp_session]]},
-      permanent,                               % Restart  = permanent | transient | temporary
-      infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-      supervisor,                              % Type     = worker | supervisor
-      []                                       % Modules  = [Module] | dynamic
-    },
-    {rtsp_media_sup,
-      {supervisor,start_link,[{local, rtsp_media_sup}, ?MODULE, [rtsp_media]]},
       permanent,                               % Restart  = permanent | transient | temporary
       infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
       supervisor,                              % Type     = worker | supervisor
