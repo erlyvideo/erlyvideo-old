@@ -10,3 +10,6 @@
 [submodule "deps/erlydtl"]
 	path = deps/erlydtl
 	url = git://github.com/erlyvideo/erlydtl
+[submodule "deps/erlmedia"]
+	path = deps/erlmedia
+	url = git://github.com/erlyvideo/erlmedia
