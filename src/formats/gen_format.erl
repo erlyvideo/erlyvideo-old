@@ -1,6 +1,28 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @doc        Gen_format
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+%%% 
+%%% Required functions: 
+%%%
+%%% init(#media_info{device = File} = MediaInfo) -> {ok, MediaInfo} | {error, Reason}
+%%%  This function receives already opened file.
+%%%  You may fill fields in media_info:  
+%%%    frames, video_track, audio_track, header, width, height, duration, framerate, timescale, audio_config, video_config
+%%%    
+%%%
+%%% first(MediaInfo) -> FirstOffset
+%%%  This function must return offset of first frame in file. Offset is internal number
+%%%  for format. It may be offset in file, or anything else.
+%%%
+%%% read_frame(MediaInfo, Offset) -> {#video_frame{}, NextOffset}
+%%%  Client calls this method frame by frame, retrieving NextOffset
+%%%
+%%% seek(MediaInfo, Timestamp) -> {Offset, RealTimestamp} | undefined
+%%%  This function returns new Offset, which must be used in read_frame
+%%%
+%%% codec_config(MediaInfo, audio|video) -> #video_frame{} | undefined
+%%%  Returns codec
+%%%
 %%% @end
 %%%
 %%%
@@ -42,5 +64,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {read_frame, 2}, {codec_config, 2}];
+behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 2}, {read_frame, 2}, {codec_config, 2}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.
