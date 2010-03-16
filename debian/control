@@ -1,0 +1,14 @@
+Source: erlang-mpegts
+Priority: extra
+Maintainer: Max Lapshin <max@maxidoors.ru>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.1
+Section: libs
+Homepage: http://erlyvideo.org/
+
+Package: erlang-mpegts
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia, erlang-nox (>= 1:13)
+Description: Erlang MPEG-TS library
+ Erlang library that works with MPEG-TS
