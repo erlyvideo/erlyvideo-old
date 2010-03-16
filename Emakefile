@@ -13,6 +13,7 @@
 {"deps/erlmedia/src/*", [{outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"deps/amf/src/*", [{outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
 {"deps/shoutcast/src/*", [{outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}]}.
+{"deps/mpegts/src/*", [{outdir, "deps/mpegts/ebin"}, {i, "deps/mpegts/src"}]}.
 {"deps/rtmp/src/*", [{outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"}]}.
 {"deps/ertsp/src/*", [{outdir, "deps/ertsp/ebin"}, {i, "deps/ertsp/src"}]}.
 {"deps/log4erl/src/*", [{outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.

@@ -18,7 +18,6 @@ all: compile
 
 compile:
 	ERL_LIBS=deps:lib:plugins erl -make
-	(cd lib/mpegts; make -f Makefile)
 	for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && make -f Makefile) ; done
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 

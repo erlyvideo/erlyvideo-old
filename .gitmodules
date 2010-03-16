@@ -22,3 +22,6 @@
 [submodule "mpegts"]
 	path = mpegts
 	url = git://github.com/erlyvideo/mpegts
+[submodule "deps/mpegts"]
+	path = deps/mpegts
+	url = git://github.com/erlyvideo/mpegts
