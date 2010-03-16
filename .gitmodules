@@ -13,3 +13,6 @@
 [submodule "deps/erlmedia"]
 	path = deps/erlmedia
 	url = git://github.com/erlyvideo/erlmedia
+[submodule "deps/ertsp"]
+	path = deps/ertsp
+	url = git://github.com/erlyvideo/ertsp
