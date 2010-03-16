@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "erl_nif.h"
 
 
@@ -38,7 +39,7 @@ static ERL_NIF_TERM
 extract_nal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
   ERL_NIF_TERM bin, nal, rest;
-  int start, next, length;
+  int start, next;
   ErlNifBinary data;
   
   if (argc < 1) {
