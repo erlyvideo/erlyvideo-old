@@ -1,18 +1,31 @@
+ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`
+VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
+
+DEBIANREPO=/apps/erlyvideo/debian/public
+DESTROOT=$(CURDIR)/debian/erlang-rtsp
+
 all:
 	erl -make
-	
-doc:
-	erl -pa `pwd`/ebin \
-	-noshell \
-	-run edoc_run application   "'rtsp'" '"."' '[{def,{vsn,"1.0"}}]'
 
 clean:
-	rm -fv ebin/*.beam
-	rm -fv erl_crash.dump
+	rm -f ebin/*.beam
+	rm -f erl_crash.dump
 
-clean-doc:
-	rm -fv doc/*.html
-	rm -fv doc/edoc-info
-	rm -fv doc/*.css
+install:
+	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)$(ERLDIR)/src
+	mkdir -p $(DESTROOT)$(ERLDIR)/include
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin/
+	install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin/
+	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
+	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
-.PHONY: doc
+debian:
+	debuild -us -uc
+	cp ../erlang-rtsp_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	rm ../erlang-rtsp_$(VERSION)*
+	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	
+
+.PHONY: debian
+
