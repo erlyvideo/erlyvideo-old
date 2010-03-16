@@ -3,7 +3,7 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--include_lib("h264/include/h264.hrl").
+-include_lib("erlmedia/include/h264.hrl").
 -include("mpegts.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 

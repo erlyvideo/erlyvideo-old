@@ -10,7 +10,6 @@
 {"src/plugins/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"lib/misultin/src/*", [{outdir, "lib/misultin/ebin"}, {i, "lib/misultin/include"}]}.
-{"lib/h264/src/*", [{outdir, "lib/h264/ebin"}, {i, "lib/h264/include"}]}.
 {"lib/aac/src/*", [{outdir, "lib/aac/ebin"}, {i, "lib/aac/include"}]}.
 {"lib/mp3/src/*", [{outdir, "lib/mp3/ebin"}, {i, "lib/mp3/include"}]}.
 {"lib/ertsp/src/*", [{outdir, "lib/ertsp/ebin"}, {i, "lib/ertsp/include"}]}.
