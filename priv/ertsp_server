@@ -6,8 +6,7 @@
 
 main([]) ->
   code:add_pathz("ebin"),
-  code:add_pathz("../h264/ebin"),
-  code:add_pathz("../aac/ebin"),
+  code:add_pathz("../erlmedia/ebin"),
   application:start(rtsp),
   
   

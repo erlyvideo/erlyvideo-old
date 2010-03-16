@@ -7,7 +7,7 @@
 
 main([URL]) ->
   % code:add_pathz("lib/ertsp/ebin"),
-  code:add_pathz("../h264/ebin"),
+  code:add_pathz("../erlmedia/ebin"),
   
   RTSP = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true}]),
   read_frames(RTSP).
