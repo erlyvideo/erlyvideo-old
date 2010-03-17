@@ -71,7 +71,7 @@ init([URL, shoutcast, Opts]) ->
 
 init([URL, rtsp, Opts]) ->
   Host = proplists:get_value(host, Opts),
-  {ok, Reader} = rtsp_socket:connect(URL, [{consumer, self()},{interleaved,true}]),
+  {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true}]),
   {ok, #media_info{name = URL, mode = rtsp, demuxer = Reader, host = Host}};
   
 
