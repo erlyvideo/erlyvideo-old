@@ -73,8 +73,8 @@ package
 		  
 		  _microphone.setSilenceLevel(0);
 		  _microphone.codec = SoundCodec.SPEEX;
-		  _microphone.encodeQuality = 10;
-		  _microphone.rate = 8;
+		  _microphone.encodeQuality = 6;
+/*      _microphone.rate = 16;*/
 		  _microphone.framesPerPacket = 1;
 		  _microphone.gain = 70;
       _microphone.setUseEchoSuppression(false);
