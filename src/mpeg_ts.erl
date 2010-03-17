@@ -354,8 +354,9 @@ play(#streamer{player = Player, audio_config = undefined} = Streamer) ->
   after
     ?TIMEOUT ->
       ?D("No audio decoder config received"),
-      Player ! stop,
-      ok
+      % Player ! stop,
+      % ok
+      ?MODULE:play(Streamer#streamer{audio_config = <<>>})
   end;
   
 play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
@@ -365,6 +366,12 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
       % <<Length:LengthSize, NAL:Length/binary>> = Body,
       Streamer1 = Streamer,
       Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL, frame_type = frame}),
+      ?MODULE:play(Streamer2);
+    #video_frame{type = video, frame_type = keyframe, dts = _DTS} = Frame->
+      % Streamer1 = send_video_config(Streamer, DTS),
+      % <<Length:LengthSize, NAL:Length/binary>> = Body,
+      Streamer1 = Streamer,
+      Streamer2 = send_video(Streamer1, Frame#video_frame{frame_type = frame}),
       ?MODULE:play(Streamer2);
     #video_frame{type = video, body = Body} = Frame ->
       <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,

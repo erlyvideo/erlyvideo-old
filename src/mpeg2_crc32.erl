@@ -44,7 +44,7 @@ start() ->
   load_nif(erlang:system_info(otp_release) >= "R13B04").
   
 load_nif(true) ->
-  case erlang:load_nif("ebin/mpeg2_crc32", 0) of
+  case erlang:load_nif("deps/mpegts/ebin/mpeg2_crc32", 0) of
     ok -> ok;
     _ -> erlang:load_nif("/usr/lib/erlyvideo/ebin/mpeg2_crc32", 0)
   end;
