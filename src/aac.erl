@@ -1,3 +1,33 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009 Max Lapshin
+%%% @doc        AAC unpacking module
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(aac).
 -author('Max Lapshin <max@maxidoors.ru>').
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
@@ -11,6 +41,11 @@
 
 -export([decode_config/1, decode/1, encode/2, config/1]).
 
+%%--------------------------------------------------------------------
+%% @spec (Body::binary(), Config::aac_config()) -> ADTS::binary()
+%% @doc Packs AAC frame into ADTS frame, suitable for transmitting in MPEG-TS PES or Shoutcast
+%% @end 
+%%--------------------------------------------------------------------
 encode(Frame, #aac_config{type = ObjectType, frequency = Frequency, channels = ChannelConfig}) ->
   ID = 0,
   Layer = 0,
@@ -37,11 +72,15 @@ encode(Frame, #aac_config{type = ObjectType, frequency = Frequency, channels = C
 
 
 
-%
-%     0         1             2           3         4           5         6
-% ||__sync__||sync|___e||pr|rate|_|c||hn|____|fr||ame_len_||gth|_____||______|cn||
-%
-  
+%%--------------------------------------------------------------------
+%% @spec (ADTS::binary()) -> {ok, Frame::binary(), Rest::binary()} | {more, undefined} | {error, unknown}
+%% @doc Unpacks ADTS into AAC frame. Returns {more, undefined} if data is not enough
+%%
+%%     0         1             2           3         4           5         6
+%% ||__sync__||sync|___e||pr|rate|_|c||hn|____|fr||ame_len_||gth|_____||______|cn||
+%%
+%% @end 
+%%--------------------------------------------------------------------
 decode(<<16#FFF:12, _ID:1, _Layer:2, 1:1, _Profile:2, _SampleRate:4,
          _Private:1, _Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
          FrameLength:13, _ADTS:11, _Count:2, Data/binary>>) when size(Data) >= FrameLength - 7 ->
@@ -68,6 +107,11 @@ decode(<<>>) ->
 decode(_) ->
   {error, unknown}.
 
+%%--------------------------------------------------------------------
+%% @spec (Body::binary()) -> Config::aac_config()
+%% @doc Unpack binary AAC config into #aac_config{}
+%% @end 
+%%--------------------------------------------------------------------
 decode_config(<<ObjectType:5, 2#1111:4, FrequencyIndex:24, ChannelConfig:4, FrameLength:1, _DependsCore:1, _Extension:1, _/binary>>) ->
   unpack_config(ObjectType, FrequencyIndex, ChannelConfig, FrameLength);
 decode_config(<<ObjectType:5, FrequencyIndex:4, ChannelConfig:4, FrameLength:1, _DependsCore:1, _Extension:1, _/binary>>) ->
@@ -77,6 +121,11 @@ unpack_config(ObjectType, Frequency, ChannelConfig, FrameLength) ->
   #aac_config{samples_per_frame = samples_per_frame(FrameLength), type = object_type(ObjectType), frequency = frequency(Frequency), channels = channels(ChannelConfig)}.
 
 
+%%--------------------------------------------------------------------
+%% @spec (ADTS::binary()) -> Config::binary()
+%% @doc Convert ADTS frame into AAC config
+%% @end 
+%%--------------------------------------------------------------------
 config(<<16#FFF:12, _ID:1, _Layer:2, _:1, Profile:2, SampleRate:4,
            _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
            _FrameLength:13, _ADTS:11, _Count:2, _/binary>>) ->

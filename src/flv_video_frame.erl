@@ -111,6 +111,11 @@ decode(#video_frame{type = audio} = Frame, Data) ->
 decode(#video_frame{type = metadata} = Frame, Metadata) ->
   Frame#video_frame{body = flv:decode_meta_tag(Metadata)}.
               
+%%--------------------------------------------------------------------
+%% @spec (Frame::video_frame()) -> FLVTag::binary()
+%% @doc Dumps video frame to tag
+%% @end 
+%%--------------------------------------------------------------------
 
 to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS1} = Frame) ->
   DTS = round(DTS1),

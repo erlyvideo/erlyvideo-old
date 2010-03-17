@@ -3,7 +3,8 @@
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
-%%% @doc        RTMP encoding/decoding and command handling module
+%%% @doc        Module to read and write FLV files
+%%% It has many functions, but you need only several of them: read_header/1, header/1, read_tag/2, encode_tag/1
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
@@ -105,8 +106,18 @@ frame_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
 
 
+%%--------------------------------------------------------------------
+%% @spec () -> Offset::numeric()
+%% @doc Returns offset of first frame in FLV file
+%% @end 
+%%--------------------------------------------------------------------
 data_offset() -> ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
 
+%%--------------------------------------------------------------------
+%% @spec (File::file()) -> {Header::flv_header(), Offset::numeric()}
+%% @doc Read header from freshly opened file
+%% @end 
+%%--------------------------------------------------------------------
 read_header(Device) ->  % Always on first bytes
   case file:read(Device, ?FLV_HEADER_LENGTH) of
     {ok, Data} ->
@@ -115,7 +126,11 @@ read_header(Device) ->  % Always on first bytes
       Else
   end.
 
-
+%%--------------------------------------------------------------------
+%% @spec (Body::binary()) -> Config::aac_config()
+%% @doc Unpack binary AAC config into #aac_config{}
+%% @end 
+%%--------------------------------------------------------------------
 read_tag_header(Device, Offset) ->
 	case file:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH) of
 		{ok, <<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
@@ -128,6 +143,11 @@ read_tag_header(Device, Offset) ->
     {error, Reason} -> {error, Reason}
   end.
 
+%%--------------------------------------------------------------------
+%% @spec (File::file(), Offset::numeric()) -> Tag::flv_tag()
+%% @doc Reads from File FLV tag, starting on offset Offset. NextOffset is hidden in #flv_tag{}
+%% @end 
+%%--------------------------------------------------------------------
 read_tag(Device, Offset) ->
   case read_tag_header(Device, Offset) of
     #flv_tag{type = Type, size = Size} = Tag ->
@@ -203,7 +223,11 @@ encode_list(Message, [Arg | Args]) ->
   encode_list(<<Message/binary, AMF/binary>>, Args).
 
 
-
+%%--------------------------------------------------------------------
+%% @spec (FLVTag::flv_tag()) -> Tag::binary()
+%% @doc Packs #flv_tag{} into binary, suitable for writing into file
+%% @end 
+%%--------------------------------------------------------------------
 encode_tag(#flv_tag{type = Type, timestamp = Time, body = InnerTag}) ->
   <<TimeStampExt, TimeStamp:24>> = <<(round(Time)):32>>,
   StreamId = 0,
@@ -339,6 +363,11 @@ extractAudioHeader(IoDev, Pos) ->
 
 header() -> header(#flv_header{version = 1, audio = 1, video = 1}).
 
+%%--------------------------------------------------------------------
+%% @spec (Header::flv_header()) -> Body::binary()
+%% @doc Packs FLV file header into binary
+%% @end 
+%%--------------------------------------------------------------------
 header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
 	Reserved = 0,
 	Offset = 9,
