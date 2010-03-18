@@ -241,6 +241,7 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State,
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
   #so_message{name = Name, persistent = Persistent} = SOEvent,
+  ?D({"Shared object", Name}),
   {NewState, Object} = find_shared_object(State, Name, Persistent),
   shared_object:message(Object, SOEvent),
   NewState;
@@ -400,44 +401,7 @@ handle_info({ems_stream, StreamId, play_complete}, StateName, #rtmp_session{sock
   {next_state, StateName, State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
-  % PrevAll = case get(prev_all_dts) of
-  %   undefined -> round(DTS);
-  %   PrevAllDTS -> PrevAllDTS
-  % end,
-  % DeltaAll = round(DTS) - Prev,
-  % case DeltaAll of
-  %   _ when DeltaAll < 0 -> ?D({Type, round(DTS), DeltaAll});
-  %   _ -> ok
-  % end,
-  %     
-  % 
-  % 
-  % case Type of
-  %   video ->
-  %     case {get(play_start), DTS} of
-  %       {undefined, DTS} when DTS > 0 ->
-  %         put(play_start, element(1, erlang:statistics(wall_clock))),
-  %         put(first_dts, round(DTS));
-  %       _ -> ok
-  %     end,
-  %     Prev = case get(prev_dts) of
-  %       undefined -> round(DTS);
-  %       PrevDTS -> PrevDTS
-  %     end,
-  %     Delta = round(DTS) - Prev,
-  %     
-  %     case erlang:statistics(wall_clock) of
-  %       {Now, Timer} when Timer > Delta andalso Timer > 80 andalso Delta > 0 ->
-  %         TimeOffset = Now - get(play_start),
-  %         DTSOffset = round(DTS) - get(first_dts),
-  %         ?D({Type, round(DTS), Timer, Delta, TimeOffset - DTSOffset});
-  %       _ ->
-  %         ok
-  %     end,
-  %     put(prev_dts, round(DTS));
-  %   _ ->
-  %     ok
-  % end,
+  % ?D({Type, round(DTS), Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
   
   Timers1 = start_stream_timer(StreamId, DTS, Timers),
   stream_jitter(StreamId, DTS, Timers1),

@@ -263,9 +263,9 @@ handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Reco
   % Recorder0 = Recorder,
   
   send_frame(Frame1, Recorder),
-  Recorder1 = parse_metadata(Recorder0, Frame),
-  Recorder2 = copy_audio_config(Recorder1, Frame),
-  Recorder3 = copy_video_config(Recorder2, Frame),
+  Recorder1 = parse_metadata(Recorder0, Frame1),
+  Recorder2 = copy_audio_config(Recorder1, Frame1),
+  Recorder3 = copy_video_config(Recorder2, Frame1),
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder4 = Recorder3,
   (catch Device ! Frame1),
