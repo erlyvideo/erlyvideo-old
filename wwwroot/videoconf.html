@@ -18,24 +18,13 @@
       </div>
       
       <div class="span-24 last">
-        <object width="720" height="450" type="application/x-shockwave-flash" id="flash-program-player" name="flash-program-player" data="videoconf/Videoconf.swf">
+        <object width="720" height="450" type="application/x-shockwave-flash" id="flash-program-player" name="flash-program-player" data="videoconf/videoconf.swf">
           <param name="allowScriptAccess" value="always"/>
           <param name="allowFullScreen" value="true"/>
           <param name="wmode" value="transparent"/>
-          <param name="flashvars" value="server={{hostname}}&file={{url}}&session={{session}}"/>
+          <param name="flashvars" value="server={{hostname}}&room=zzz"/>
         </object>
           
-      </div>
-      <div class="span-4 last">
-        <h3>Chat</h3>
-        <div id="chat" style="height: 300px; overflow: scroll">
-          
-        </div>
-        <form action="/channels/10/message" method="post" onsubmit="try {var self = $(this); var postData = self.serialize(); self.find('input').attr('disabled', true); $.post(this.action, postData, function() {self.find('input[type=text]').val(''); self.find('input').attr('disabled', false);}, 'text'); } catch(e) { alert(e);}; return false">
-          <input type="text" name="message">
-          <input type="submit" value="Send message">
-        </form>
-        
       </div>
     </div>
   </body>
