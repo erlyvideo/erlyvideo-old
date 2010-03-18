@@ -314,7 +314,7 @@ send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, ba
 
 
 
-send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when PlayEnd =< Timestamp ->
+send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
   ok;
 
 send_frame(#ems_stream{mode=file} = Player, undefined) ->
@@ -346,6 +346,7 @@ send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, base
     _ ->
       Frame#video_frame{stream_id = StreamId}
   end,
+  % ?D({Frame#video_frame.type, Frame1#video_frame.dts}),
   Consumer ! Frame1,    
   timeout_play(Frame1, Player#ems_stream{pos = Next}).
   

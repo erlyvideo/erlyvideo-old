@@ -231,7 +231,7 @@ build_index_table(Video, VideoID, Audio, AudioID, Index, ID) ->
 metadata(#media_info{width = Width, height = Height, seconds = Duration}) -> 
   [{width, Width}, 
    {height, Height}, 
-   {duration, Duration}].
+   {duration, Duration/1000}].
   
   
 decoder_config(video, #media_info{video_config = DecoderConfig}) -> DecoderConfig;
@@ -517,13 +517,23 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 
 fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
-  Frames = fill_track(Track),
-  MediaInfo#media_info{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames};
+  {Frames, MaxDTS} = fill_track(Track),
+  Seconds = case MediaInfo#media_info.seconds of
+    undefined -> MaxDTS;
+    S when S < MaxDTS -> MaxDTS;
+    S -> S
+  end,
+  MediaInfo#media_info{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = MaxDTS};
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
   % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
-  Frames = fill_track(Track),
+  {Frames, MaxDTS} = fill_track(Track),
+  % Seconds = case MediaInfo#media_info.seconds of
+  %   undefined -> MaxDTS;
+  %   S when S < MaxDTS -> MaxDTS;
+  %   S -> S
+  % end,
   MediaInfo#media_info{audio_config = DecoderConfig, audio_track = Frames};
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
@@ -612,16 +622,16 @@ fill_track(Mp4Track) ->
     keyframes = Keyframes,
     timescale = Timescale
   } = Track,
-  fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, 0),
-  Frames.
+  MaxDTS = fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, 0, 0),
+  {Frames, MaxDTS*1000/Timescale}.
 
-fill_track([], [], [], [], [], _, Frames, _) ->
-  Frames;
+fill_track([], [], [], [], [], _, _Frames, _, DTS) ->
+  DTS;
 
-fill_track([Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [PTS|Compositions], Timescale, Frames, Id) ->
+fill_track([Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [PTS|Compositions], Timescale, Frames, Id, _) ->
   Frame = #mp4_frame{id = Id, dts = DTS*1000/Timescale, pts = (DTS+PTS)*1000/Timescale, size = Size, offset = Offset, keyframe = Keyframe},
   ets:insert(Frames, Frame),
-  fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, Id+1).
+  fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, Id+1, DTS).
 
 mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
   {Rest, Rest2};

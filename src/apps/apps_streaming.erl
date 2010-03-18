@@ -206,7 +206,7 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
   Length = media_provider:length(Host, Name),
   ?D({"getStreamLength", Name, Length}),
   case Length of
-    Length when is_integer(Length) ->
+    Length when is_number(Length) ->
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, Length / 1000]});
     _ ->
       ok

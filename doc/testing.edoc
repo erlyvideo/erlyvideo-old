@@ -19,9 +19,10 @@
 
 * open mp4 file: video.mp4, mp4:video.mp4, mp4:video, video.flv, flv:video.flv, flv:video
 * on mp4 files metadata should arrive: video size change and scrollbar appears
+* flowplayer should indicate file size properly
 * seek it almost to the end
 * seek it back to the beginning
-* seek it again to the end and wait for end
+* seek it again to the end and wait for end. It should show till the end despite of STREAM_END
 * open flv file and repeat previous steps
 
 === Live recording ===

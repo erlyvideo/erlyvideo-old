@@ -55,7 +55,7 @@ init([Name, file, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call(length, _From, #media_info{duration = Duration} = MediaInfo) ->
+handle_call(length, _From, #media_info{seconds = Duration} = MediaInfo) ->
   {reply, Duration, MediaInfo};
   
 handle_call({subscribe, _Client}, _From, MediaInfo) ->
