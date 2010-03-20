@@ -28,6 +28,8 @@
   video_decoder,
   audio_track,
   video_track,
+  timeshift,
+  shift,
 	frames = undefined,
 	owner = undefined,
 	clients = [],

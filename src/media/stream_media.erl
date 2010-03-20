@@ -42,9 +42,9 @@ pass_socket(Media, Socket) ->
   
 
 
-init([URL, mpeg_ts, Opts]) ->
-  OurHost = proplists:get_value(host, Opts),
-  Sock = case proplists:get_value(make_request, Opts, true) of
+init([URL, mpeg_ts, Options]) ->
+  OurHost = proplists:get_value(host, Options),
+  Sock = case proplists:get_value(make_request, Options, true) of
     true ->
       {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
       {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
@@ -55,31 +55,31 @@ init([URL, mpeg_ts, Opts]) ->
       undefined
   end,
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader}};
+  {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
 
 
-init([URL, mpeg_ts_passive, Opts]) ->
-  Host = proplists:get_value(host, Opts),
+init([URL, mpeg_ts_passive, Options]) ->
+  Host = proplists:get_value(host, Options),
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  {ok, #media_info{name = URL, mode = mpeg_ts_passive, demuxer = Reader, host = Host}};
+  {ok, #media_info{name = URL, mode = mpeg_ts_passive, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
 
-init([URL, shoutcast, Opts]) ->
-  Host = proplists:get_value(host, Opts),
+init([URL, shoutcast, Options]) ->
+  Host = proplists:get_value(host, Options),
   {ok, Reader} = ems_sup:start_shoutcast_reader(self()),
-  {ok, #media_info{name = URL, mode = shoutcast, demuxer = Reader, host = Host}};
+  {ok, #media_info{name = URL, mode = shoutcast, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
   
 
-init([URL, rtsp, Opts]) ->
-  Host = proplists:get_value(host, Opts),
+init([URL, rtsp, Options]) ->
+  Host = proplists:get_value(host, Options),
   {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true}]),
-  {ok, #media_info{name = URL, mode = rtsp, demuxer = Reader, host = Host}};
+  {ok, #media_info{name = URL, mode = rtsp, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
   
 
-init([Name, Type, Opts]) ->
-  Host = proplists:get_value(host, Opts),
-  LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
-  Filter = proplists:get_value(filter, Opts),
-  Owner = proplists:get_value(owner, Opts),
+init([Name, Type, Options]) ->
+  Host = proplists:get_value(host, Options),
+  LifeTimeout = proplists:get_value(life_timeout, Options, ?FILE_CACHE_TIME),
+  Filter = proplists:get_value(filter, Options),
+  Owner = proplists:get_value(owner, Options),
   case Owner of
     undefined -> ok;
     _ -> erlang:monitor(process, Owner)
@@ -97,10 +97,17 @@ init([Name, Type, Opts]) ->
       Writer
   end,
 	Recorder = #media_info{type = Type, name = Name, host = Host, owner = Owner, filter = Filter,
-	                       clients = Clients, life_timeout = LifeTimeout, device = Device},
-	{ok, Recorder, ?TIMEOUT}.
+	                       clients = Clients, life_timeout = LifeTimeout, device = Device, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)},
+	{ok, Recorder}.
 
 
+init_timeshift(Options) ->
+  case proplists:get_value(timeshift, Options) of
+    undefined -> 
+      undefined;
+    Shift when is_number(Shift) andalso Shift > 0 ->
+      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
+  end.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
