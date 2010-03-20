@@ -341,7 +341,7 @@ handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, 
     TS
   end),
   Keys = ets:select(Frames, Spec),
-  ?D({"Cleanup", length(Keys), ets:info(Frames, size), ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)}),
+  % ?D({"Cleanup", length(Keys), ets:info(Frames, size), ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)}),
   lists:foreach(fun(Key) ->
     ets:delete(Frames, Key)
   end, Keys),
