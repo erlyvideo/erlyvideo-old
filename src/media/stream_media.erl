@@ -157,6 +157,27 @@ handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = M
 
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
+  
+handle_call({seek, Timestamp}, _From, #media_info{shift = Shift} = MediaInfo) ->
+  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
+    TS
+  end)),
+  DTS = case lists:reverse(Frames) of
+    [Fr | _] -> {ok, Fr};
+    _ -> undefined
+  end,
+  {reply, DTS, MediaInfo};
+
+handle_call({read, DTS}, _From, #media_info{shift = Shift} = MediaInfo) ->
+  Reply = case ets:lookup(Shift, DTS) of
+    [Frame] -> 
+      Next = ets:next(Shift, DTS),
+      {Frame, Next};
+    [] ->
+      {undefined, undefined}
+  end,
+  {reply, Reply, MediaInfo};
+  
 
 handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
@@ -318,6 +339,7 @@ handle_info(Message, State) ->
   
 
 send_frame(Frame, #media_info{clients = Clients}) ->
+  % ?D({"Z", Frame#video_frame.dts}),
   lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients).
   
   
@@ -365,7 +387,7 @@ copy_audio_config(MediaInfo, #video_frame{decoder_config = true, type = audio} =
 copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
-  ?D({"Video config", Frame}),
+  % ?D({"Video config", Frame}),
   send_frame(h264:metadata(Frame#video_frame.body), MediaInfo),
   MediaInfo#media_info{video_config = Frame};
 

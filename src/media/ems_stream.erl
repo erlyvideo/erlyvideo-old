@@ -211,7 +211,7 @@ handle_info(Message, #ems_stream{mode = Mode, consumer = Consumer} = State) ->
   end.
 
 
-handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
+handle_stream(Message, #ems_stream{media_info = MediaEntry, base_dts = BaseTS} = State) ->
   case Message of
     start ->
       erlang:yield(),
@@ -222,7 +222,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
       ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
 
 
-    {seek, Timestamp} ->
+    {seek, Timestamp} when is_number(BaseTS) ->
       ?D({"Requested to seek in stream", Timestamp}),
       ?MODULE:ready(State);
 
