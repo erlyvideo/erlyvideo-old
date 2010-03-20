@@ -46,6 +46,16 @@ private var currentTime : Number = 0;
 private var quality : Number = 90;
 [Bindable]
 private var recordURL : String;
+
+[Bindable]
+private var timeMin : Number = 0;
+[Bindable]
+private var timeMax : Number = 0;
+[Bindable]
+private var timeshift : Number = 0;
+[Bindable]
+private var windowSize : Number = 60*10;
+
 private var recording : Boolean = false;
 
 public function init()  : void
@@ -177,6 +187,9 @@ public function setMetadata(event : VideoSourceEvent) : void
   videoWidth = metadata.width;
   videoHeight = metadata.height;
   duration = metadata.duration;
+  if (duration > 0) {
+    timeMax = duration;
+  }
 }
 
 public function startSeek(event:SliderEvent) : void
@@ -192,15 +205,24 @@ public function setQuality(quality : int) : void
 public function setProgressBar(event:VideoSourceEvent) : void
 {
 	currentTime = int(event.payload);
-	bufferStat = playStream.bufferLength + "/" + playStream.bufferTime;
+	bufferStat = currentTime + ": " + playStream.bufferLength + "/" + playStream.bufferTime;
+	if (duration > 0) {
+	} else {
+	  timeMax = currentTime + timeshift;
+	  if (timeMax < windowSize/2) {
+	    timeMax = windowSize/2;
+	  }
+	  timeMin = timeMax - windowSize;
+	  bufferStat =   currentTime + ": " + timeMin + "/" + timeMax;
+  }
 }
 
 public function seek(event:SliderEvent) : void
 {
-  if (duration > 0) {
-	  playStream.seek(event.value);
+  //if (duration > 0) {
+	playStream.seek(event.value);
     //progressBar.value = event.value;
-  }
+  //}
 }
 
 public function onFinish(e:Event) : void

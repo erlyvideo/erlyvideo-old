@@ -7,7 +7,7 @@
 	<mx:Script source="Player.as" />
   <mx:Box verticalScrollPolicy="off" width="100%" backgroundColor="#505050" backgroundAlpha="0.6" horizontalAlign="center" paddingTop="10" paddingBottom="10">
     <local:VideoContainer id="videoContainer" width="{videoWidth}" height="{videoHeight}" top="0" backgroundColor="#CFCFCF"/>
-  	<mx:HSlider value="{currentTime}" minimum="0" maximum="{duration}" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="100%" visible="{duration > 0}"/>
+  	<mx:HSlider value="{currentTime}" minimum="{timeMin}" maximum="{timeMax}" liveDragging="false" thumbPress="startSeek(event)" change="seek(event)" width="100%" visible="{!playButton}"/>
 
 
 
