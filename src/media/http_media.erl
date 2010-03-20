@@ -22,7 +22,7 @@ start_link(URL, Opts) ->
       Pid ! {tcp, Socket, Line};
     [HTTP, "200"|_] when HTTP == "HTTP/1.0" orelse HTTP == "HTTP/1.1"-> 
       ?D({"MPEG TS detected on", URL}),
-      {ok, Pid} = ems_sup:start_media(URL, mpeg_ts, [{make_request,false}|Opts]),
+      {ok, Pid} = ems_sup:start_media(URL, mpeg_ts, [{make_request,false}, {timeshift, 60000}|Opts]),
       Pid ! {http, Socket, {http_response, 0, 200, 0}}
   end,
   stream_media:pass_socket(Pid, Socket),

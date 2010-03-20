@@ -273,10 +273,11 @@ handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Reco
   Recorder1 = parse_metadata(Recorder0, Frame1),
   Recorder2 = copy_audio_config(Recorder1, Frame1),
   Recorder3 = copy_video_config(Recorder2, Frame1),
+  Recorder4 = store_timeshift(Recorder3, Frame1),
   % Recorder4 = store_last_gop(Recorder3, Frame),
-  Recorder4 = Recorder3,
+  Recorder5 = Recorder4,
   (catch Device ! Frame1),
-  {noreply, Recorder4, ?TIMEOUT};
+  {noreply, Recorder5, ?TIMEOUT};
 
 
 handle_info({filter, Module, Message}, #media_info{filter = {Module, State}} = Recorder) ->
@@ -326,6 +327,21 @@ pass_through_filter(#video_frame{} = Frame, #media_info{filter = undefined} = Re
 pass_through_filter(#video_frame{} = Frame, #media_info{filter = {Module, State}} = Recorder) ->
   {ok, State1, Frame1} = Module:handle_frame(State, Recorder, Frame),
   {Frame1, Recorder#media_info{filter = {Module, State1}}}.
+
+store_timeshift(#media_info{shift = undefined} = MediaInfo, _Frame) ->
+  MediaInfo;
+
+store_timeshift(#media_info{timeshift = Timeshift, shift = Frames} = MediaInfo, #video_frame{dts = DTS} = Frame) ->
+  Limit = DTS - Timeshift,
+  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
+    TS
+  end),
+  Keys = ets:select(Frames, Spec),
+  lists:foreach(fun(Key) ->
+    ets:delete(Frames, Key)
+  end, Keys),
+  ets:insert(Frames, Frame),
+  MediaInfo.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
   ?D({"New GOP", round((Frame#video_frame.dts - MediaInfo#media_info.base_timestamp)/1000)}),
