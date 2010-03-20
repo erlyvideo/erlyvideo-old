@@ -161,47 +161,14 @@ prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   
 
 
-ready(#ems_stream{mode = file} = State) ->
+ready(#ems_stream{mode = Mode, consumer = Consumer} = State) ->
   receive
-    Message ->
-      handle_file(Message, State)
-  end;
-
-ready(#ems_stream{mode = stream} = State) ->
-  receive
-    Message ->
-      handle_stream(Message, State)
-  end.
-  
-handle_file(Message, #ems_stream{media_info = MediaInfo, 
-                    consumer = Consumer, 
-                    client_buffer = ClientBuffer,
-                    stream_id = StreamId} = State) ->
-  case Message of
     {client_buffer, NewClientBuffer} -> 
       ?MODULE:ready(State#ems_stream{client_buffer = NewClientBuffer});
-      
-    start ->
-      case file_media:metadata(MediaInfo) of
-        undefined -> ok;
-        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
-      end,
-    	self() ! play,
-      ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false});
-      
-    {client, Pid, Ref} ->
-      Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
-      ?MODULE:ready(State);
-      
-    pause ->
-      ?D("Player paused"),
-      ?MODULE:ready(State#ems_stream{paused = true});
 
-    resume ->
-      ?D("Player resumed"),
-      self() ! play,
-      ?MODULE:ready(State#ems_stream{paused = false});
-      
+    {'DOWN', _Ref, process, Consumer, _Reason} ->
+      ok;
+
     {send_audio, Audio} ->
       ?D({"Send audio", Audio}),
       ?MODULE:ready(State#ems_stream{send_audio = Audio});
@@ -210,6 +177,92 @@ handle_file(Message, #ems_stream{media_info = MediaInfo,
       ?D({"Send video", Video}),
       ?MODULE:ready(State#ems_stream{send_video = Video});
 
+    {client, Pid, Ref} ->
+      Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
+      ?MODULE:ready(State);
+
+    pause ->
+      ?D("Player paused"),
+      ?MODULE:ready(State#ems_stream{paused = true});
+
+    exit ->
+      ok;
+
+    undefined ->
+      ?MODULE:ready(State);
+
+    Message ->
+      case Mode of
+        file -> handle_file(Message, State);
+        stream -> handle_stream(Message, State)
+      end
+
+  end.
+
+
+handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
+  case Message of
+    start ->
+      erlang:yield(),
+      ?MODULE:ready(State);
+
+    resume ->
+      ?D("Player resumed"),
+      ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
+
+
+    {seek, Timestamp} ->
+      ?D({"Requested to seek in stream", Timestamp}),
+      ?MODULE:ready(State);
+
+    #video_frame{} = Frame ->
+      send_frame(State, Frame);
+
+    eof ->
+      ?D("MPEG TS finished"),
+      ok;
+
+    stop -> 
+      ?D({"stream play stop", self()}),
+      gen_server:call(MediaEntry, {unsubscribe, self()}),
+      ?MODULE:wait(State#ems_stream{media_info = undefined});
+
+
+  	{tcp_closed, _Socket} ->
+      error_logger:info_msg("~p Video player lost connection.\n", [self()]),
+      ok;
+
+    {'DOWN', _Ref, process, MediaEntry, _Reason} ->
+      ?D("Died media info"),
+      ?MODULE:wait(State#ems_stream{media_info = undefined});
+
+  	Else ->
+  	  ?D({"Unknown message", self(), Else}),
+  	  ?MODULE:ready(State)
+  end.
+
+
+  
+handle_file(Message, #ems_stream{media_info = MediaInfo, 
+                    consumer = Consumer, 
+                    client_buffer = ClientBuffer,
+                    stream_id = StreamId} = State) ->
+  case Message of
+    start ->
+      case file_media:metadata(MediaInfo) of
+        undefined -> ok;
+        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
+      end,
+    	self() ! play,
+      ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false});
+      
+      
+
+    resume ->
+      ?D("Player resumed"),
+      self() ! play,
+      ?MODULE:ready(State#ems_stream{paused = false});
+      
     {seek, Timestamp} ->
       case file_media:seek(MediaInfo, Timestamp) of
         {Pos, NewTimestamp} ->
@@ -232,15 +285,6 @@ handle_file(Message, #ems_stream{media_info = MediaInfo,
       end,
       ?MODULE:wait(State);
   
-    undefined ->
-      ?MODULE:wait(State);
-  
-    exit ->
-      ok;
-      
-    {'DOWN', _Ref, process, Consumer, _Reason} ->
-      ok;
-
     play ->
       play(State);
     	
@@ -350,75 +394,6 @@ send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, base
   Consumer ! Frame1,    
   timeout_play(Frame1, Player#ems_stream{pos = Next}).
   
-
-handle_stream(Message, #ems_stream{consumer = Consumer, media_info = MediaEntry} = State) ->
-  case Message of
-    {client_buffer, _ClientBuffer} ->
-      ?MODULE:ready(State);
-
-    start ->
-      erlang:yield(),
-      ?MODULE:ready(State);
-
-    {client, Pid, Ref} ->
-      Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
-      ?MODULE:ready(State);
-
-    pause ->
-      ?D("Player paused"),
-      ?MODULE:ready(State#ems_stream{mode=stream,paused = true});
-
-    resume ->
-      ?D("Player resumed"),
-      ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
-
-    {send_audio, Audio} ->
-      ?D({"Send audio", Audio}),
-      ?MODULE:ready(State#ems_stream{mode=stream,send_audio = Audio});
-
-    {send_video, Video} ->
-      ?D({"Send video", Video}),
-      ?MODULE:ready(State#ems_stream{mode=stream,send_video = Video});
-
-    {seek, Timestamp} ->
-      ?D({"Requested to seek in stream", Timestamp}),
-      ?MODULE:ready(State);
-
-    {data, Data} ->
-      gen_fsm:send_event(Consumer, {send, Data}),
-      ?MODULE:ready(State);
-
-    #video_frame{} = Frame ->
-      send_frame(State, Frame);
-
-    eof ->
-      ?D("MPEG TS finished"),
-      ok;
-
-    stop -> 
-      ?D({"stream play stop", self()}),
-      gen_server:call(MediaEntry, {unsubscribe, self()}),
-      ?MODULE:wait(State#ems_stream{media_info = undefined});
-
-    exit ->
-      ok;
-
-  	{tcp_closed, _Socket} ->
-      error_logger:info_msg("~p Video player lost connection.\n", [self()]),
-      ok;
-
-    {'DOWN', _Ref, process, Consumer, _Reason} ->
-      ?D({"Died consumer"}),
-      ok;
-
-    {'DOWN', _Ref, process, MediaEntry, _Reason} ->
-      ?D("Died media info"),
-      ?MODULE:wait(State#ems_stream{media_info = undefined});
-
-  	Else ->
-  	  ?D({"Unknown message", self(), Else}),
-  	  ?MODULE:ready(State)
-  end.
 
 
 
