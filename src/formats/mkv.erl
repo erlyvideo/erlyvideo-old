@@ -38,6 +38,7 @@
 
 -record(tag, {
   name,
+  type,
   length,
   size
 }).
@@ -60,9 +61,11 @@ hex(N) when N >= 10, N < 16 ->
 open_file(Path) ->
   {ok, File} = file:open(Path, [read, binary]),
   {EBML, Offset2} = read_tag_from_file(File, 0),
+  ?D(EBML),
+  peek_container_in_file(File, EBML#tag.length, EBML#tag.size),
 
-  {ok, EBMLBin} = file:pread(File, 0 + EBML#tag.length, EBML#tag.size),
-  ?D(read_container(EBMLBin)),
+  % {ok, EBMLBin} = file:pread(File, 0 + EBML#tag.length, EBML#tag.size),
+  % ?D(read_container(EBMLBin)),
   
   {Segment, _} = read_tag_from_file(File, Offset2),
   ?D(Segment),
@@ -91,7 +94,30 @@ peek_container_in_file(_, _, 0) -> ok;
 
 peek_container_in_file(File, Offset, Size) ->
   {Tag, NextOffset} = read_tag_from_file(File, Offset),
-  ?D(Tag),
+  case {Tag#tag.name, Tag#tag.type} of
+    {simpleblock, _} ->
+      ok;
+    {_Name, box} ->
+      % ?D(Tag),
+      ?D({_Name, '>>>>>>>>'}),
+      peek_container_in_file(File, Offset + Tag#tag.length, Tag#tag.size),
+      ?D('<<<<<<<<');
+    {_, Type} when Type == string orelse Type == utf8 ->
+      {ok, String} = file:pread(File, Offset + Tag#tag.length, Tag#tag.size),
+      ?D({Tag#tag.name, String});
+    {_, uint} ->
+      {ok, Bin} = file:pread(File, Offset + Tag#tag.length, Tag#tag.size),
+      Len = 8*size(Bin),
+      <<Val:Len>> = Bin,
+      ?D({Tag#tag.name, uint, Val});
+    {_, float} ->
+      {ok, Bin} = file:pread(File, Offset + Tag#tag.length, Tag#tag.size),
+      Len = 8*size(Bin),
+      <<Val:Len/float>> = Bin,
+      ?D({Tag#tag.name, float, round(Val)});
+    {_, _} ->
+      ?D(Tag)
+  end,
   peek_container_in_file(File, NextOffset, Size - Tag#tag.size - Tag#tag.length).
 
 % match_int(#video_player{pos = Pos, device = IoDev}, Bytes) ->
@@ -111,49 +137,87 @@ class_id(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value + 16#80, 1, Rest}.
 
 
 
-data_size(<<0:7, 1:1, Value:(0+8*7), Rest/binary>>) -> {Value, 8, Rest};
-data_size(<<0:6, 1:1, Value:(1+8*6), Rest/binary>>) -> {Value, 7, Rest};
-data_size(<<0:5, 1:1, Value:(2+8*5), Rest/binary>>) -> {Value, 6, Rest};
-data_size(<<0:4, 1:1, Value:(3+8*4), Rest/binary>>) -> {Value, 5, Rest};
-data_size(<<0:3, 1:1, Value:(4+8*3), Rest/binary>>) -> {Value, 4, Rest};
-data_size(<<0:2, 1:1, Value:(5+8*2), Rest/binary>>) -> {Value, 3, Rest};
-data_size(<<0:1, 1:1, Value:(6+8*1), Rest/binary>>) -> {Value, 2, Rest};
-data_size(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value, 1, Rest}.
+uint(<<0:7, 1:1, Value:(0+8*7), Rest/binary>>) -> {Value, 8, Rest};
+uint(<<0:6, 1:1, Value:(1+8*6), Rest/binary>>) -> {Value, 7, Rest};
+uint(<<0:5, 1:1, Value:(2+8*5), Rest/binary>>) -> {Value, 6, Rest};
+uint(<<0:4, 1:1, Value:(3+8*4), Rest/binary>>) -> {Value, 5, Rest};
+uint(<<0:3, 1:1, Value:(4+8*3), Rest/binary>>) -> {Value, 4, Rest};
+uint(<<0:2, 1:1, Value:(5+8*2), Rest/binary>>) -> {Value, 3, Rest};
+uint(<<0:1, 1:1, Value:(6+8*1), Rest/binary>>) -> {Value, 2, Rest};
+uint(<<     1:1, Value:(7+8*0), Rest/binary>>) -> {Value, 1, Rest}.
 
 
 %% EBML basics
-tag(16#1A45DFA3) -> ebml;
-tag(16#4286) -> ebml_version;
-tag(16#42F7) -> ebml_read_version;
-tag(16#42F2) -> ebml_max_id_length;
-tag(16#4282) -> doctype;
-tag(16#4287) -> doctype_version;
-tag(16#4285) -> doctype_read_version;
+tag(16#1A45DFA3) -> {ebml, box};
+tag(16#4286) -> {ebml_version, uint};
+tag(16#42F7) -> {ebml_read_version, uint};
+tag(16#42F2) -> {ebml_max_id_length, uint};
+tag(16#42F3) -> {ebml_max_size_length, uint};
+tag(16#4282) -> {doctype, string};
+tag(16#4287) -> {doctype_version, uint};
+tag(16#4285) -> {doctype_read_version, uint};
 %% Global elements
-tag(16#BF)   -> crc32;
-tag(16#EC)   -> void;
+tag(16#BF)   -> {crc32, bin};
+tag(16#EC)   -> {void, bin};
 %% Segment
-tag(16#18538067) -> segment;
+tag(16#18538067) -> {segment, box};
 %% Meta Seek information
-tag(16#114D9B74) -> seek_head;
-tag(16#4DBB) -> seek;
-tag(16#53AB) -> seek_id;
-tag(16#53AC) -> seek_position;
-
+tag(16#114D9B74) -> {seek_head, box};
+tag(16#4DBB) -> {seek, box};
+tag(16#53AB) -> {seek_id, bin};
+tag(16#53AC) -> {seek_position, uint};
 %% Segment information
-tag(16#1549A966) -> info;
+tag(16#1549A966) -> {info, box};
+tag(16#73A3) -> {segment_uid, bin};
+tag(16#2AD7B1) -> {timecode_scale, uint};
+tag(16#4D80) -> {muxing_app, utf8};
+tag(16#5741) -> {writing_app, utf8};
+tag(16#73A4) -> {segment_uid, bin};
+tag(16#4489) -> {duration, float};
 %% Cluster
-tag(16#1F43B675) -> cluster;
+tag(16#1F43B675) -> {cluster, box};
+tag(16#E7) -> {timecode, uint};
+tag(16#A7) -> {position, uint};
+tag(16#AB) -> {prevsize, uint};
+tag(16#A0) -> {blockgroup, box};
+tag(16#A1) -> {block, bin};
+tag(16#A3) -> {simpleblock, bin};
 %% Track
-tag(16#1654AE6B) -> track;
+tag(16#1654AE6B) -> {tracks, box};
+tag(16#AE) -> {track, box};
+tag(16#D7) -> {track_number, uint};
+tag(16#73C5) -> {track_uid, uint};
+tag(16#9C) -> {flag_lacing, uint};
+tag(16#23314F) -> {timescale, float};
+tag(16#22B59C) -> {language, string};
+tag(16#86) -> {codec_id, string};
+tag(16#83) -> {track_type, uint};
+%% Video
+tag(16#E0) -> {video, box};
+tag(16#B0) -> {width, uint};
+tag(16#BA) -> {height, uint};
+tag(16#54B0) -> {display_width, uint};
+tag(16#54BA) -> {display_height, uint};
+tag(16#63A2) -> {codec_private, bin};
+%% Audio
+tag(16#E1) -> {audio, box};
+tag(16#9F) -> {channels, uint};
+tag(16#B5) -> {frequency, float};
 %% Cueing data
-tag(16#1C53BB6B) -> cues;
-tag(ClassId) -> int_to_hex(ClassId).
+tag(16#1C53BB6B) -> {cues, box};
+tag(16#BB) -> {cuepoint, box};
+tag(16#B3) -> {cue_time, uint};
+tag(16#B7) -> {cue_track_positions, box};
+tag(16#F7) -> {cue_track, uint};
+tag(16#F1) -> {cue_cluster, uint};
+tag(16#5378) -> {cue_block_number, uint};
+tag(ClassId) -> {int_to_hex(ClassId), bin}.
 
 next_tag(Binary) ->
   {ClassId, Length1, Rest1} = class_id(Binary),
-  {Size, Length2, _} = data_size(Rest1),
-  #tag{name = tag(ClassId), size = Size, length = Length1 + Length2}.
+  {Size, Length2, _} = uint(Rest1),
+  {Name, Type} = tag(ClassId),
+  #tag{name = Name, type = Type, size = Size, length = Length1 + Length2}.
   
   
 read_container(Binary) -> 
@@ -166,7 +230,7 @@ read_container(Binary, Tags) ->
   Tag = next_tag(Binary),
   #tag{size = Size, length = Length} = Tag,
   <<_:Length/binary, Body:Size/binary, Rest/binary>> = Binary,
-  ?D({Tag, Body, Rest}),
+  % ?D({Tag, Body, Rest}),
   read_container(Rest, [{Tag, Body} | Tags]).
   
 %%
