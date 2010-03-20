@@ -59,6 +59,15 @@ public function init()  : void
     play_url = Application.application.parameters.file;
 	}
 	recordURL = "erly-"+UIDUtil.createUID()+".flv";
+	ExternalInterface.addCallback("play", play);
+}
+
+public function play(url:String) : void
+{
+  player_url.text = url;
+  playStream.stop();
+  currentTime = 0;
+  onPlay(null);
 }
 
 public function check() : void
@@ -101,7 +110,7 @@ public function onReady(e:Event):void {
 	enableRecordButton = true;
 }
 
-public function onPlay(e:Event):void {
+public function onPlay(e:Event = null):void {
   initPlaystream();
 	playButton = false;
 //		Alert.show("z:"+(stream._stream == Application.application.parameters.player1.stream._stream)+","+

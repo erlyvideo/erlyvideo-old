@@ -25,7 +25,7 @@
       </div>
       
       <div class="span-18">
-        <object width="700" height="630" type="application/x-shockwave-flash" id="flash-program-player" name="flash-program-player" data="player/Player.swf">
+        <object width="700" height="630" type="application/x-shockwave-flash" id="flashplayer" name="flash-program-player" data="player/Player.swf">
           <param name="allowScriptAccess" value="always"/>
           <param name="allowFullScreen" value="true"/>
           <param name="wmode" value="transparent"/>
@@ -47,7 +47,7 @@
         </form>
         <ul>
           {% for file in files %}
-          <li><a href="?file={{file}}&autostart=true">{{file}}</a></li>
+          <li><a href="?file={{file}}&autostart=true" onclick="$('#flashplayer').get(0).play('{{file}}'); return false">{{file}}</a></li>
           {% endfor %}
         </ul>
         
