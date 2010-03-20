@@ -106,6 +106,7 @@ init_timeshift(Options) ->
     undefined -> 
       undefined;
     Shift when is_number(Shift) andalso Shift > 0 ->
+      timer:send_interval(5000, clean_timeshift),
       ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
   end.
 
@@ -334,6 +335,19 @@ handle_info(resume, State) ->
 handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
+handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS} = MediaInfo) ->
+  Limit = DTS - Timeshift,
+  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
+    TS
+  end),
+  Keys = ets:select(Frames, Spec),
+  ?D({"Cleanup", length(Keys)}),
+  lists:foreach(fun(Key) ->
+    ets:delete(Frames, Key)
+  end, Keys),
+  {noreply, MediaInfo, ?TIMEOUT};
+  
+
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
   
@@ -353,15 +367,7 @@ pass_through_filter(#video_frame{} = Frame, #media_info{filter = {Module, State}
 store_timeshift(#media_info{shift = undefined} = MediaInfo, _Frame) ->
   MediaInfo;
 
-store_timeshift(#media_info{timeshift = Timeshift, shift = Frames} = MediaInfo, #video_frame{dts = DTS} = Frame) ->
-  Limit = DTS - Timeshift,
-  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
-    TS
-  end),
-  Keys = ets:select(Frames, Spec),
-  lists:foreach(fun(Key) ->
-    ets:delete(Frames, Key)
-  end, Keys),
+store_timeshift(#media_info{shift = Frames} = MediaInfo, #video_frame{} = Frame) ->
   ets:insert(Frames, Frame),
   MediaInfo.
 
