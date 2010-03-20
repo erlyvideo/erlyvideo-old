@@ -64,8 +64,10 @@ audio_codec(aac) -> ?FLV_AUDIO_FORMAT_AAC;
 audio_codec(speex) -> ?FLV_AUDIO_FORMAT_SPEEX;
 audio_codec(mp3) -> ?FLV_AUDIO_FORMAT_MP3;
 audio_codec(nelly_moser) -> ?FLV_AUDIO_FORMAT_NELLYMOSER;
+audio_codec(nelly_moser8) -> ?FLV_AUDIO_FORMAT_NELLYMOSER8;
 audio_codec(?FLV_AUDIO_FORMAT_ADPCM) -> adpcm;
 audio_codec(?FLV_AUDIO_FORMAT_MP3) -> mp3;
+audio_codec(?FLV_AUDIO_FORMAT_NELLYMOSER8) -> nelly_moser8;
 audio_codec(?FLV_AUDIO_FORMAT_NELLYMOSER) -> nelly_moser;
 audio_codec(?FLV_AUDIO_FORMAT_SPEEX) -> speex;
 audio_codec(?FLV_AUDIO_FORMAT_AAC) -> aac.
