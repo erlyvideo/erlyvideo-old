@@ -410,14 +410,23 @@ btrt(<<_BufferSize:32, _MaxBitRate:32, _AvgBitRate:32>>, #mp4_track{} = Mp4Track
 %%%%%%%%%%%%%%%%%%    STSZ  %%%%%%%%%%%%%%%%
 % Sample sizes in bytes are stored here
 %%
-stsz(<<_Version:8, _Flags:24, 0:32, SampleCount:32, SampleSizeData/binary>>, Mp4Track) ->
-  read_stsz(SampleSizeData, SampleCount, Mp4Track).
+stsz(<<_Version:8, _Flags:24, 0:32, SampleCount:32, SampleSizeData/binary>>, Mp4Track) -> % case for different sizes
+  read_stsz(SampleSizeData, SampleCount, Mp4Track);
+  
+stsz(<<_Version:8, _Flags:24, Size:32, SampleCount:32>>, Mp4Track) ->
+  fill_stsz(Size, SampleCount, Mp4Track).
   
 read_stsz(_, 0, #mp4_track{sample_sizes = SampleSizes} = Mp4Track) ->
   Mp4Track#mp4_track{sample_sizes = lists:reverse(SampleSizes)};
   
 read_stsz(<<Size:32, Rest/binary>>, Count, #mp4_track{sample_sizes = SampleSizes} = Mp4Track) ->
   read_stsz(Rest, Count - 1, Mp4Track#mp4_track{sample_sizes = [Size | SampleSizes]}).
+
+fill_stsz(_, 0, Mp4Track) ->
+  Mp4Track; % no need to lists:reverse, because all elements are equal
+
+fill_stsz(Size, Count, #mp4_track{sample_sizes = SampleSizes} = Mp4Track) ->
+  fill_stsz(Size, Count - 1, Mp4Track#mp4_track{sample_sizes = [Size | SampleSizes]}).
 
 
   
@@ -518,7 +527,7 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
   {Frames, MaxDTS} = fill_track(Track),
-  Seconds = case MediaInfo#media_info.seconds of
+  _Seconds = case MediaInfo#media_info.seconds of
     undefined -> MaxDTS;
     S when S < MaxDTS -> MaxDTS;
     S -> S
@@ -528,7 +537,7 @@ fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = Decod
 
 fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
   % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
-  {Frames, MaxDTS} = fill_track(Track),
+  {Frames, _MaxDTS} = fill_track(Track),
   % Seconds = case MediaInfo#media_info.seconds of
   %   undefined -> MaxDTS;
   %   S when S < MaxDTS -> MaxDTS;
