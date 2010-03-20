@@ -7,7 +7,8 @@
 -export([start_link/1, init/1, writer/1]).
 
 -record(flv_file_writer, {
-  file
+  file,
+  base_dts
 }).
 
 
@@ -26,11 +27,15 @@ init([FileName]) ->
 			exit({flv_file_writer, Error})
   end.
 	
-writer(#flv_file_writer{file = File} = Writer) ->
+writer(#flv_file_writer{file = File, base_dts = BaseDTS} = Writer) ->
   receive
-    #video_frame{} = Frame ->
-    	file:write(File, flv_video_frame:to_tag(Frame)),
-    	?MODULE:writer(Writer);
+    #video_frame{dts = DTS} = Frame ->
+      {DTS1, BaseDTS1} = case BaseDTS of
+        undefined -> {0, DTS};
+        _ -> {DTS - BaseDTS, BaseDTS}
+      end,    
+    	file:write(File, flv_video_frame:to_tag(Frame#video_frame{dts = DTS1})),
+    	?MODULE:writer(Writer#flv_file_writer{base_dts = BaseDTS1});
     Else ->
       ?D({"flv_writer", Else})
   end.
