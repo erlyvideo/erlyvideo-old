@@ -164,7 +164,7 @@ handle_call({seek, Timestamp}, _From, #media_info{shift = Shift} = MediaInfo) ->
     TS
   end)),
   DTS = case lists:reverse(Frames) of
-    [Fr | _] -> {ok, Fr};
+    [Fr | _] -> {Fr, Fr};
     _ -> undefined
   end,
   {reply, DTS, MediaInfo};
@@ -341,7 +341,7 @@ handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, 
     TS
   end),
   Keys = ets:select(Frames, Spec),
-  ?D({"Cleanup", length(Keys)}),
+  ?D({"Cleanup", length(Keys), ets:info(Frames, size), ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)}),
   lists:foreach(fun(Key) ->
     ets:delete(Frames, Key)
   end, Keys),

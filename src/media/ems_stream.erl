@@ -211,7 +211,7 @@ handle_info(Message, #ems_stream{mode = Mode, consumer = Consumer} = State) ->
   end.
 
 
-handle_stream(Message, #ems_stream{media_info = MediaEntry, base_dts = BaseTS} = State) ->
+handle_stream(Message, #ems_stream{media_info = MediaEntry, base_dts = BaseTS, client_buffer = ClientBuffer} = State) ->
   case Message of
     start ->
       erlang:yield(),
@@ -222,9 +222,19 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry, base_dts = BaseTS} =
       ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
 
 
-    {seek, Timestamp} when is_number(BaseTS) ->
-      ?D({"Requested to seek in stream", Timestamp}),
-      ?MODULE:ready(State);
+    {seek, RequestTS} when is_number(BaseTS) ->
+      Timestamp = BaseTS + RequestTS,
+      NewDTS = case file_media:seek(MediaEntry, Timestamp) of
+        {NewTS, _} -> NewTS;
+        undefined -> undefined
+      end,
+      gen_server:call(MediaEntry, {unsubscribe, self()}),
+      ?D({"Requested to seek in stream", Timestamp, NewDTS}),
+      self() ! play,
+      ?MODULE:ready(State#ems_stream{pos = NewDTS, mode = file,
+                                     ts_prev = NewDTS, 
+                                     playing_from = NewDTS, 
+                                     prepush = ClientBuffer});
 
     #video_frame{} = Frame ->
       send_frame(State, Frame);
@@ -256,7 +266,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry, base_dts = BaseTS} =
   
 handle_file(Message, #ems_stream{media_info = MediaInfo, 
                     consumer = Consumer, 
-                    client_buffer = ClientBuffer,
+                    client_buffer = ClientBuffer, base_dts = BaseTS,
                     stream_id = StreamId} = State) ->
   case Message of
     start ->
@@ -274,15 +284,16 @@ handle_file(Message, #ems_stream{media_info = MediaInfo,
       self() ! play,
       ?MODULE:ready(State#ems_stream{paused = false});
       
-    {seek, Timestamp} ->
+    {seek, RequestTS} when is_number(BaseTS) ->
+      Timestamp = BaseTS + RequestTS,
       case file_media:seek(MediaInfo, Timestamp) of
         {Pos, NewTimestamp} ->
           ?D({"Player real seek to", round(Timestamp), NewTimestamp}),
           self() ! play,
           ?MODULE:ready(State#ems_stream{pos = Pos, 
-                                          ts_prev = NewTimestamp, 
-                                          playing_from = NewTimestamp, 
-                                          prepush = ClientBuffer});
+                                         ts_prev = NewTimestamp, 
+                                         playing_from = NewTimestamp, 
+                                         prepush = ClientBuffer});
         undefined ->
           ?D({"Seek beyong current borders"}),
           ?MODULE:ready(State)
