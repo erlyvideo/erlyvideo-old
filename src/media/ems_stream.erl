@@ -99,6 +99,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
   case media_provider:find_or_open(Host, Name) of
     {notfound, Reason} ->
       Consumer ! {ems_stream, StreamId, {notfound, Reason}},
+      ?D({"Not found", Name, Options}),
       ?MODULE:ready(Stream);
     {'DOWN', _, process, Consumer, _} ->
       ok;
@@ -201,7 +202,10 @@ handle_info(Message, #ems_stream{mode = Mode, consumer = Consumer} = State) ->
     Message ->
       case Mode of
         file -> handle_file(Message, State);
-        stream -> handle_stream(Message, State)
+        stream -> handle_stream(Message, State);
+        undefined ->
+          ?D({"Unknown message", Message}),
+          ?MODULE:ready(State)
       end
 
   end.

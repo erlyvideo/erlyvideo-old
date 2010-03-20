@@ -196,6 +196,6 @@ open_file(Name, Host) ->
 		  {ok, MediaInfo1};
     _HdrError -> 
 		  ?D(_HdrError),
-		  {error, "Invalid header", _HdrError}
+		  {error, _HdrError}
 	end.
 
