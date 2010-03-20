@@ -35,13 +35,13 @@
 -include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
--export([file_dir/1, file_format/1, start_link/1, client/1, init/1, ready/1, play/1, wait/1]).
+-export([file_dir/1, file_format/1, start_link/1, client/1, init/1, ready/1, play/1]).
 
 
 
 -record(ems_stream, {
   consumer,
-  media_info,
+  media_info = undefined,
 	stream_id,
 	sent_video_config = false,
 	sent_audio_config = false,
@@ -89,23 +89,17 @@ init(Options) ->
   Stream = #ems_stream{consumer = Consumer,
                        host = proplists:get_value(host, Options),
                        stream_id = proplists:get_value(stream_id, Options)},
-  ?MODULE:wait(Stream).
-  
+  ?MODULE:ready(Stream).
 
-wait(Stream) ->
-  receive
-    Message ->
-      handle_wait(Message, Stream)
-  end.
+handle_play(Play, #ems_stream{media_info = MediaInfo} = Stream) when MediaInfo =/= undefined ->
+  handle_play(Play, stop(Stream));
 
-handle_wait({client_buffer, Buffer}, Stream) ->
-  wait(Stream#ems_stream{client_buffer = Buffer});
-
-handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer, stream_id = StreamId} = Stream) ->
+handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer, stream_id = StreamId} = Stream) ->
+  ?D({"Playing new file", Name, Options}),
   case media_provider:find_or_open(Host, Name) of
     {notfound, Reason} ->
       Consumer ! {ems_stream, StreamId, {notfound, Reason}},
-      wait(Stream);
+      ?MODULE:ready(Stream);
     {'DOWN', _, process, Consumer, _} ->
       ok;
     MediaEntry ->
@@ -114,18 +108,23 @@ handle_wait({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       {ok, Mode} = gen_server:call(MediaEntry, {subscribe, self()}),
       self() ! start,
       prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, name = Name,
-       timer_start = element(1, erlang:statistics(wall_clock))}, Options)
-  end;
-  
-handle_wait({'DOWN', _, process, Consumer, _}, #ems_stream{consumer = Consumer}) ->
-  ?D("Consumer died"),
-  ok;
-  
-handle_wait(Message, Stream) ->
-  ?D({"ZZZZZZZ: Unknown message", Message, Stream}),
-  wait(Stream).
+                                sent_audio_config = false, sent_video_config = false,
+                                timer_start = element(1, erlang:statistics(wall_clock))}, Options)
+  end.
 
-      
+
+stop(#ems_stream{media_info = MediaEntry} = Stream) ->
+  ?D({"Stopping", MediaEntry}),
+  gen_server:call(MediaEntry, {unsubscribe, self()}),
+  flush_play(Stream#ems_stream{media_info = undefined}).
+  
+flush_play(Stream) ->
+  receive
+    play -> flush_play(Stream)
+  after 
+    0 -> Stream
+  end.
+        
 
 prepare(#ems_stream{mode = stream} = Stream, _Options) ->
   ready(Stream);
@@ -161,10 +160,18 @@ prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   
 
 
-ready(#ems_stream{mode = Mode, consumer = Consumer} = State) ->
+ready(State) ->
   receive
+    Message -> handle_info(Message, State)
+  end.
+  
+handle_info(Message, #ems_stream{mode = Mode, consumer = Consumer} = State) ->
+  case Message of
     {client_buffer, NewClientBuffer} -> 
       ?MODULE:ready(State#ems_stream{client_buffer = NewClientBuffer});
+      
+    {play, _Name, _Options} = Play ->
+      handle_play(Play, State);
 
     {'DOWN', _Ref, process, Consumer, _Reason} ->
       ok;
@@ -225,7 +232,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
     stop -> 
       ?D({"stream play stop", self()}),
       gen_server:call(MediaEntry, {unsubscribe, self()}),
-      ?MODULE:wait(State#ems_stream{media_info = undefined});
+      ?MODULE:ready(State#ems_stream{media_info = undefined});
 
 
   	{tcp_closed, _Socket} ->
@@ -234,7 +241,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
 
     {'DOWN', _Ref, process, MediaEntry, _Reason} ->
       ?D("Died media info"),
-      ?MODULE:wait(State#ems_stream{media_info = undefined});
+      ?MODULE:ready(State#ems_stream{media_info = undefined});
 
   	Else ->
   	  ?D({"Unknown message", self(), Else}),
@@ -278,12 +285,8 @@ handle_file(Message, #ems_stream{media_info = MediaInfo,
       end;
 
     stop ->
-      receive
-        play -> ok
-      after 
-        0 -> ok
-      end,
-      ?MODULE:wait(State);
+      flush_play(State),
+      ?MODULE:ready(State);
   
     play ->
       play(State);
@@ -376,12 +379,8 @@ send_frame(#ems_stream{mode=file} = Player, {#video_frame{body = undefined}, Nex
 send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
   ?D({"File is over", Name}),
   Consumer ! {ems_stream, StreamId, play_complete},
-  receive
-    play -> ok
-  after
-    0 -> ok
-  end,
-  ?MODULE:wait(Player#ems_stream{media_info = undefined});
+  flush_play(Player),
+  ?MODULE:ready(Player#ems_stream{media_info = undefined});
 
 send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
   Frame1 = case DTS of
@@ -443,13 +442,13 @@ make_play(Player, Prepush, _Timeout) when Prepush > 0 ->
 make_play(Player, _Prepush, Timeout) when Timeout > 0 ->
   receive
     play ->
-      handle_file(play, Player);
+      handle_info(play, Player);
     Message ->
       self() ! play,
-      handle_file(Message, Player)
+      handle_info(Message, Player)
   after
     Timeout ->
-      handle_file(play, Player)
+      handle_info(play, Player)
   end;
 
 make_play(Player, _, _) ->
