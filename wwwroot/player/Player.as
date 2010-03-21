@@ -29,6 +29,8 @@ private var stopButton:Boolean = false;
 [Bindable]
 private var enablePauseButton:Boolean = false;
 [Bindable]
+private var enableLiveButton:Boolean = false;
+[Bindable]
 private var enableRecordButton:Boolean = false;
 //  [Bindable]
 //  private var url:String = "video.mp4";
@@ -197,6 +199,14 @@ public function startSeek(event:SliderEvent) : void
 	playStream.startSeek();
 }
 
+public function returnToLive() : void
+{
+  playStream.seek(0);
+  enableLiveButton = false;
+  timeshift = 0;
+  currentTime = timeMax;
+}
+
 public function setQuality(quality : int) : void
 {
   recordStream.quality = quality;
@@ -221,6 +231,10 @@ public function seek(event:SliderEvent) : void
 {
   //if (duration > 0) {
 	playStream.seek(event.value);
+	if (!duration) {
+	  timeshift = currentTime - event.value;
+	  enableLiveButton = true;
+	}
     //progressBar.value = event.value;
   //}
 }

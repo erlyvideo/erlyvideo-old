@@ -17,7 +17,7 @@
 
       <mx:Button label="Play" click="onPlay(event)" enabled="{playButton}"/>
       <mx:Button id="pauseButton" label="Pause" click="onPause(event)" enabled="{enablePauseButton}"/>
-      
+      <mx:Button id="returnLiveButton" label="Live" click="returnToLive()" enabled="{enableLiveButton}" />
 
   		<mx:HSlider id="volSlider" liveDragging="true" value="0.9" minimum="0.0" maximum="1.0" snapInterval="0.01" change="setVolume(volSlider.value)" width="100"/>
   		
