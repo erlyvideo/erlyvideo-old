@@ -71,7 +71,8 @@ init([URL, shoutcast, Options]) ->
 
 init([URL, rtsp, Options]) ->
   Host = proplists:get_value(host, Options),
-  {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true}]),
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]),
   {ok, #media_info{name = URL, mode = rtsp, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
   
 
