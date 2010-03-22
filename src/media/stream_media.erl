@@ -335,16 +335,13 @@ handle_info(resume, State) ->
 handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
-handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS} = MediaInfo) ->
+handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL} = MediaInfo) ->
   Limit = DTS - Timeshift,
   Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
-    TS
+    true
   end),
-  Keys = ets:select(Frames, Spec),
-  % ?D({"Cleanup", length(Keys), ets:info(Frames, size), ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)}),
-  lists:foreach(fun(Key) ->
-    ets:delete(Frames, Key)
-  end, Keys),
+  _Count = ets:select_delete(Frames, Spec),
+  io:format("~s timeshift is ~p bytes in time ~p-~p~n", [_URL, ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)]),
   {noreply, MediaInfo, ?TIMEOUT};
   
 
