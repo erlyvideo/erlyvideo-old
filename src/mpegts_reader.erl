@@ -423,6 +423,10 @@ decode_avc(#stream{es_buffer = Data} = Stream) ->
 handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   lists:foreach(fun(Frame) ->
+    case Frame#video_frame.frame_type of 
+      keyframe -> Consumer ! h264:video_config(H264_1);
+      _ -> ok
+    end,
     Consumer ! Frame#video_frame{dts = DTS, pts = PTS}
   end, Frames),
   Stream#stream{h264 = H264_1}.
