@@ -3,6 +3,7 @@
 
 -export([decode/1]).
 -include("../include/rtsp.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 decode(Announce) when is_binary(Announce) ->
   decode(decode_body(Announce));
@@ -101,7 +102,7 @@ parse_announce([{<<"a">>, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_
   [_ | OptList] = string:tokens(binary_to_list(Info), " "),
   Opts = lists:map(fun(Opt) ->
     {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
-    {Key, Value}
+    {string:to_lower(Key), Value}
   end, string:tokens(string:join(OptList, ""), ";")),
   
   parse_announce(Announce, Streams, parse_fmtp(Stream, Opts ));
