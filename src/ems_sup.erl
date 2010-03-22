@@ -83,8 +83,8 @@ start_shoutcast_reader(Consumer) ->
 %% @end 
 %%--------------------------------------------------------------------
 start_media(Name, file = Type, Opts) -> supervisor:start_child(file_media_sup, [Name, Type, Opts]);
-start_media(Name, mpeg_ts = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
-start_media(Name, mpeg_ts_passive = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
+start_media(Name, mpegts = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
+start_media(Name, mpegts_passive = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, record = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, live = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, shoutcast = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);

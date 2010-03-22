@@ -146,7 +146,7 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Seek}]) of
     {ok, PlayerPid} ->
-      mpeg_ts:play(Name, PlayerPid, Req),
+      mpegts:play(Name, PlayerPid, Req),
       ok;
     {notfound, Reason} ->
       Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
@@ -187,7 +187,7 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   case media_provider:play(Host, Name, [{stream_id, 1}, {seek, Segment}, {duration_before, ?STREAM_TIME}, {client_buffer, ?STREAM_TIME}]) of
     {ok, PlayerPid} ->
-      mpeg_ts:play(Name, PlayerPid, Req),
+      mpegts:play(Name, PlayerPid, Req),
       ok;
     {notfound, Reason} ->
       Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
@@ -211,7 +211,7 @@ handle(Host, 'GET', Path, Req) ->
 handle(Host, 'PUT', ["stream", Name], Req) ->
   ?D({"Stream", Name}),
   ems_log:access(Host, "MPEGTS PUT ~s ~s", [Host, Name]),
-  Stream = media_provider:open(Host, Name, [{type, mpeg_ts_passive}]),
+  Stream = media_provider:open(Host, Name, [{type, mpegts_passive}]),
   stream_media:pass_socket(Stream, Req:socket()),
   exit(leave);
   

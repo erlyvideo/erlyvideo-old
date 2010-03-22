@@ -42,7 +42,7 @@ pass_socket(Media, Socket) ->
   
 
 
-init([URL, mpeg_ts, Options]) ->
+init([URL, mpegts, Options]) ->
   OurHost = proplists:get_value(host, Options),
   Sock = case proplists:get_value(make_request, Options, true) of
     true ->
@@ -55,13 +55,13 @@ init([URL, mpeg_ts, Options]) ->
       undefined
   end,
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpeg_ts, demuxer = Reader, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
+  {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpegts, demuxer = Reader, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
 
 
-init([URL, mpeg_ts_passive, Options]) ->
+init([URL, mpegts_passive, Options]) ->
   Host = proplists:get_value(host, Options),
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  {ok, #media_info{name = URL, mode = mpeg_ts_passive, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
+  {ok, #media_info{name = URL, mode = mpegts_passive, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
 
 init([URL, shoutcast, Options]) ->
   Host = proplists:get_value(host, Options),
