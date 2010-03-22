@@ -36,7 +36,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 
--module(mpeg_ts).
+-module(mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(TIMEOUT, 4000).
