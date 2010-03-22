@@ -2,19 +2,19 @@
 {rtsp_port, 8081}.
 {http_port, 8082}.
 {vhosts, [
-   {default, [
-      {hostname, ["localhost"]},
-      {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
-      {secret_key, "123"},
-      {access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
-      {error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
-      {host, "rtmp://localhost"},
-      {file_dir, "movies"},
-      {wwwroot, "wwwroot"},
-      {mpegts, [
-        {"vlc", "http://localhost:8080"}
-      ]}
-   ]}
+  {default, [
+    {hostname, ["localhost"]},
+    {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
+    {secret_key, "123"},
+    {access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
+    {error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
+    {host, "rtmp://localhost"},
+    {file_dir, "movies"},
+    {wwwroot, "wwwroot"},
+    {rewrite, [
+      {"stream/vlc.ts", mpegts, "http://localhost:8080", [{timeshift, 60000}]}
+    ]}
+  ]}
 ]}.
 
 

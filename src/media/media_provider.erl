@@ -246,20 +246,33 @@ open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvid
   end.
   
 detect_type(Host, Name) ->
-  detect_mpegts(Host, Name).
+  detect_rewrite(Host, Name).
+
+
+detect_rewrite(Host, Name) ->
+  Rewrite = ems:get_var(rewrite, Host, []),
+  ?D({Name, Rewrite, lists:keyfind(Name, 1, Rewrite)}),
+  case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
+    false -> detect_mpegts(Host, Name);
+    {_NameS, Type, URL, Options} -> [{type, Type}, {url, URL} | Options]
+  end.
   
 detect_mpegts(Host, Name) ->
   Urls = ems:get_var(mpegts, Host, []),
   case proplists:get_value(binary_to_list(Name), Urls) of
     undefined -> detect_rtsp(Host, Name);
-    URL -> [{type, http}, {url, URL}]
+    URL -> 
+      ems_log:error(Host, "Stop using {mpegts, []} style in config, switch to {rewrite, []}"),
+      [{type, http}, {url, URL}]
   end.
   
 detect_rtsp(Host, Name) ->
   Urls = ems:get_var(rtsp, Host, []),
   case proplists:get_value(binary_to_list(Name), Urls) of
     undefined -> detect_http(Host, Name);
-    URL -> [{type, rtsp}, {url, URL}]
+    URL -> 
+      ems_log:error(Host, "Stop using {rtsp, []} style in config, switch to {rewrite, []}"),
+      [{type, rtsp}, {url, URL}]
   end.
 
 detect_http(Host, Name) ->

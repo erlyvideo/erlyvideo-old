@@ -58,7 +58,7 @@ run: erlang_version ebin priv/erlyvideo.conf
 	-name $(NODE_NAME)
 
 priv/erlyvideo.conf: priv/erlyvideo.conf.sample
-	cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
+	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 	
 start: erlang_version ebin
 	ERL_LIBS=deps:lib:plugins $(ERL) -pa `pwd`/ebin \
