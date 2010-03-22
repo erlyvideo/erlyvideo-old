@@ -345,7 +345,7 @@ play(#streamer{player = Player, video_config = undefined} = Streamer) ->
       ok
   end;
 
-play(#streamer{player = Player, audio_config = undefined} = Streamer) ->
+play(#streamer{audio_config = undefined} = Streamer) ->
   receive
     #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
       Config = aac:decode_config(AudioConfig),
@@ -362,9 +362,9 @@ play(#streamer{player = Player, audio_config = undefined} = Streamer) ->
 play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
   receive
     #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary>>, dts = _DTS} = Frame->
-      % Streamer1 = send_video_config(Streamer, DTS),
+      Streamer1 = send_video_config(Streamer, _DTS),
       % <<Length:LengthSize, NAL:Length/binary>> = Body,
-      Streamer1 = Streamer,
+      % Streamer1 = Streamer,
       Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL, frame_type = frame}),
       ?MODULE:play(Streamer2);
     #video_frame{type = video, frame_type = keyframe, dts = _DTS} = Frame->
