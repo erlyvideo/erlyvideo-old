@@ -356,7 +356,7 @@ handle_info(Message, State) ->
   
 
 send_frame(Frame, #media_info{clients = Clients}) ->
-  % ?D({"Z", Frame#video_frame.dts}),
+  % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Frame#video_frame.dts}),
   lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients).
   
   

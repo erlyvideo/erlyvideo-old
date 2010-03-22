@@ -401,7 +401,7 @@ handle_info({ems_stream, StreamId, play_complete}, StateName, #rtmp_session{sock
   {next_state, StateName, State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
-  % ?D({Type, round(DTS), Frame#video_frame.frame_type, Frame#video_frame.decoder_config}),
+  % ?D({Type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, round(DTS)}),
   
   Timers1 = start_stream_timer(StreamId, DTS, Timers),
   stream_jitter(StreamId, DTS, Timers1),
