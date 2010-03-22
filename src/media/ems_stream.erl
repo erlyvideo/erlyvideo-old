@@ -120,6 +120,14 @@ stop(#ems_stream{media_info = MediaEntry} = Stream) ->
   gen_server:call(MediaEntry, {unsubscribe, self()}),
   flush_play(Stream#ems_stream{media_info = undefined}).
   
+  
+flush_frames() ->
+  receive
+    #video_frame{} -> flush_frames()
+  after
+    0 -> ok
+  end.
+  
 flush_play(Stream) ->
   receive
     play -> flush_play(Stream)
@@ -203,6 +211,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, media_info =
           ?D({"Player real seek to", round(Timestamp), NewTimestamp}),
           gen_server:call(MediaEntry, {unsubscribe, self()}),
           self() ! play,
+          flush_frames(),
           ?MODULE:ready(State#ems_stream{pos = Pos, mode = file,
                                          ts_prev = NewTimestamp, 
                                          playing_from = NewTimestamp, 

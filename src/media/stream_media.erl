@@ -342,7 +342,7 @@ handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, 
     true
   end),
   _Count = ets:select_delete(Frames, Spec),
-  io:format("~s timeshift is ~p bytes in time ~p-~p~n", [_URL, ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)]),
+  % io:format("~s timeshift is ~p bytes in time ~p-~p~n", [_URL, ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)]),
   {noreply, MediaInfo, ?TIMEOUT};
   
 
