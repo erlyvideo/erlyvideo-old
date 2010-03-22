@@ -320,6 +320,10 @@ video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when 
 video(#video{h264 = H264, buffer = Buffer, timecode = Timecode} = Video, {data, Body, Sequence, Timecode}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   {Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames}, []};
+
+video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, <<>>, Sequence, NewTimecode}) ->
+  ?D({"Warning! Zero frame"}),
+  {Video#video{sequence = Sequence, timecode = NewTimecode}};
   
 video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, Body, Sequence, NewTimecode}) ->
 

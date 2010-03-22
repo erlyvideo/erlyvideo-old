@@ -10,7 +10,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([read/2, connect/3, describe/1, setup/1, play/1, accept/3]).
+-export([read/2, connect/3, describe/2, setup/2, play/2, accept/3]).
 
 -record(rtsp_socket, {
   buffer = <<>>,
@@ -31,23 +31,27 @@
 read(URL, Options) ->
   {ok, RTSP} = start_link(),
   rtsp_socket:connect(RTSP, URL, Options),
-  rtsp_socket:describe(RTSP),
-  rtsp_socket:setup(RTSP),
-  rtsp_socket:play(RTSP),
+  rtsp_socket:describe(RTSP, Options),
+  rtsp_socket:setup(RTSP, Options),
+  rtsp_socket:play(RTSP, Options),
   {ok, RTSP}.
 
 
-describe(RTSP) ->
-  gen_server:call(RTSP, {request, describe}, 5000).
+describe(RTSP, Options) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  gen_server:call(RTSP, {request, describe}, Timeout).
 
-setup(RTSP) ->
-  gen_server:call(RTSP, {request, setup}, 5000).
+setup(RTSP, Options) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  gen_server:call(RTSP, {request, setup}, Timeout).
   
-play(RTSP) ->
-  gen_server:call(RTSP, {request, play}, 5000).
+play(RTSP, Options) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  gen_server:call(RTSP, {request, play}, Timeout).
 
 connect(RTSP, URL, Options) ->
-  gen_server:call(RTSP, {connect, URL, Options}).
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  gen_server:call(RTSP, {connect, URL, Options}, Timeout).
 
 accept(RTSP, Socket, Acceptor) ->
   gen_tcp:controlling_process(Socket, RTSP),
