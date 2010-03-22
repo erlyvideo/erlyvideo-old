@@ -254,6 +254,7 @@ detect_rewrite(Host, Name) ->
   ?D({Name, Rewrite, lists:keyfind(Name, 1, Rewrite)}),
   case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
     false -> detect_mpegts(Host, Name);
+    {_NameS, Type, URL} -> [{type, Type}, {url, URL}];
     {_NameS, Type, URL, Options} -> [{type, Type}, {url, URL} | Options]
   end.
   
