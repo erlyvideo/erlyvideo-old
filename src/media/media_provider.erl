@@ -251,7 +251,6 @@ detect_type(Host, Name) ->
 
 detect_rewrite(Host, Name) ->
   Rewrite = ems:get_var(rewrite, Host, []),
-  ?D({Name, Rewrite, lists:keyfind(Name, 1, Rewrite)}),
   case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
     false -> detect_mpegts(Host, Name);
     {_NameS, Type, URL} -> [{type, Type}, {url, URL}];

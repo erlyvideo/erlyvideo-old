@@ -204,6 +204,9 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, media_info =
       gen_server:call(MediaEntry, {subscribe, self()}),
       ?MODULE:ready(State#ems_stream{mode = stream});
       
+    {frame, Frame} ->
+      send_frame(State, Frame);
+      
     {seek, RequestTS} when is_number(BaseTS) ->
       Timestamp = BaseTS + RequestTS,
       case file_media:seek(MediaEntry, Timestamp) of
@@ -333,8 +336,8 @@ play(#ems_stream{sent_video_config = false, media_info = MediaInfo, pos = Pos} =
     
 
 play(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
-  Reply = file_media:read_frame(MediaInfo, Key),
-  send_frame(Player, Reply).
+  file_media:read_frame(MediaInfo, Key),
+  ?MODULE:ready(Player).
   
 send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
   ?MODULE:ready(Player);

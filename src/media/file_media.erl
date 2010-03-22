@@ -4,6 +4,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
 -include_lib("erlyvideo/include/media_info.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 -behaviour(gen_server).
 
@@ -20,7 +21,8 @@ start_link(Path, Type, Opts) ->
 
 codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
    
-read_frame(MediaEntry, Key) -> gen_server:call(MediaEntry, {read, Key}).
+read_frame(MediaEntry, Key) ->
+  MediaEntry ! {read, Key, self()}.
 
 name(Server) ->
   gen_server:call(Server, name).
@@ -76,15 +78,6 @@ handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
 handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};
 
-handle_call({read, done}, _From, MediaInfo) ->
-  {reply, done, MediaInfo};
-
-handle_call({read, undefined}, _From, #media_info{format = Format} = MediaInfo) ->
-  handle_call({read, Format:first(MediaInfo)}, _From, MediaInfo);
-
-handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
-  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
-
 handle_call(name, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};
   
@@ -137,6 +130,20 @@ handle_info(graceful, #media_info{clients = Clients} = MediaInfo) ->
 
 handle_info(graceful, MediaInfo) ->
   {noreply, MediaInfo};
+  
+  
+handle_info({read, done, Pid}, MediaInfo) ->
+  Pid ! {frame, done},
+  {noreply, MediaInfo};
+
+handle_info({read, undefined, Pid}, #media_info{format = Format} = MediaInfo) ->
+  handle_info({read, Format:first(MediaInfo), Pid}, MediaInfo);
+
+handle_info({read, Key, Pid}, #media_info{format = FileFormat} = MediaInfo) ->
+  Result = FileFormat:read_frame(MediaInfo, Key),
+  Pid ! {frame, Result},
+  {noreply, MediaInfo};
+  
   
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, name = FileName, life_timeout = LifeTimeout} = MediaInfo) ->
   ets:delete(Clients, Client),
