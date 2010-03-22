@@ -24,6 +24,7 @@
   profile,
   profile_compat = 0,
   level,
+  length_size = 32,
   sps,
   pps,
   dump_file,

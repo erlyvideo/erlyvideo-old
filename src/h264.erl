@@ -33,7 +33,7 @@ dump_nal(File, NAL) ->
 
 video_config(H264) ->
   case decoder_config(H264) of
-    ok -> {H264, []};
+    undefined -> undefined;
     DecoderConfig when is_binary(DecoderConfig) ->
       Frame = #video_frame{       
        	type          = video,
@@ -43,8 +43,7 @@ video_config(H264) ->
     		body          = DecoderConfig,
     		frame_type    = keyframe,
     		codec_id      = avc
-    	},
-    	{H264, [Frame]}
+    	}
   end.
 
 metadata(Config) ->
@@ -74,8 +73,8 @@ parse_avc_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) ->
   
   
 
-decoder_config(#h264{sps = undefined}) -> ok;
-decoder_config(#h264{pps = undefined}) -> ok;
+decoder_config(#h264{sps = undefined}) -> undefined;
+decoder_config(#h264{pps = undefined}) -> undefined;
 decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = ProfileCompat, level = Level}) ->
   LengthSize = 4-1,
   Version = 1,
@@ -119,7 +118,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, _Rest/binary>> = _Data, H264) ->
   {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
-  % io:format("I-frame ~p~n", [size(Data)]),
+  % io:format("I-frame ~p ~p~n", [size(Data), element(1, split_binary(Data, 40))]),
   (catch slice_header(Data)),
   ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
@@ -147,13 +146,14 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SP
   % ?D({"Parsing SPS", SPS}),
   % _SPSInfo = parse_sps(SPS),
   % io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
-  video_config(H264#h264{profile = Profile, level = Level, sps = [remove_trailing_zero(SPS)]});
+  {H264#h264{profile = Profile, level = Level, sps = [SPS]}, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{dump_file = File} = H264) ->
   ?DUMP_H264(File, PPS),
   {_PPSId, Rest1} = exp_golomb_read(Bin),
   {_SPSId, _Rest} = exp_golomb_read(Rest1),
-  video_config(H264#h264{pps = [remove_trailing_zero(PPS)]});
+  % video_config(H264#h264{pps = [PPS]});
+  {H264#h264{pps = [PPS]}, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary>> = Delimiter, #h264{dump_file = File} = H264) ->
   % PrimaryPicType = case PrimaryPicTypeId of
@@ -194,19 +194,27 @@ decode_nal(<<0:1, _NRI:2, ?NAL_FUB:5, _/binary>>, _H264) ->
   erlang:error(h264_fub_unsupported);
 
 
-%          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, R:1, Type:1,  _Rest/binary>>
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 1:1, _End:1, _R:1, _Type:5, Rest/binary>>, H264) ->
-  {H264#h264{buffer = Rest}, []};
+%          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, R:1, Type:1,  _Rest/binary>>, R === 0
+decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, Type:5, Rest/binary>>, H264) ->
+  {H264#h264{buffer = <<0:1, NRI:2, Type:5, Rest/binary>>}, []};
 
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, _R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, []};
 
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, _R:1, Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
-  decode_nal(<<0:1, _NRI:2, Type:5, Buf/binary, Rest/binary>>, H264#h264{buffer = <<>>});
+decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 1:1, 0:1, Type:5, Rest/binary>>, H264) ->
+  decode_nal(<<0:1, NRI:2, Type:5, Rest/binary>>, H264#h264{buffer = <<>>});
+
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+  decode_nal(<<Buf/binary, Rest/binary>>, H264#h264{buffer = <<>>});
 
 
-decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>>, H264) ->
-  io:format("Unknown NAL unit type ~p~n", [_NalUnitType]),
+% decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, S:1, E:1, R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
+%   ?D({"Unknonw FUA", S, E, R, _Type}),
+%   {H264#h264{buffer = <<>>}, []};
+
+
+decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>> = NAL, H264) ->
+  ?D({"Unknown NAL unit type", _NalUnitType, size(NAL)}),
   {H264, []}.
   
 decode_stapa(<<Size:16, NAL:Size/binary, Rest/binary>>, Frames, H264) ->
@@ -217,13 +225,6 @@ decode_stapa(<<>>, Frames, H264) ->
   {H264, Frames}.
   
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
-
-remove_trailing_zero(Bin) ->
-  Size = size(Bin) - 1,
-  case Bin of
-    <<Smaller:Size/binary, 0>> -> remove_trailing_zero(Smaller);
-    _ -> Bin
-  end.
 
 
 parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) when Profile >= 100 ->
@@ -249,7 +250,7 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) -
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
-  ?D({"Pic order", PicOrder}),
+  % ?D({"Pic order", PicOrder}),
   parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
   
 parse_sps_pic_order(Data, 0, SPS) ->
