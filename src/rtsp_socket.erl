@@ -6,6 +6,7 @@
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
+-include("erlmedia/include/video_frame.hrl").
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -19,6 +20,7 @@
   sdp_config = [],
   options,
   rtp_streams = {undefined,undefined,undefined,undefined},
+  nal_size = 32,
   consumer,
   acceptor,
   state,
@@ -86,8 +88,9 @@ handle_call({accept, Socket, Acceptor}, _From, State) ->
 handle_call({connect, URL, Options}, _From, RTSP) ->
   Consumer = proplists:get_value(consumer, Options),
   erlang:monitor(process, Consumer),
-  {ok, Re} = re:compile("rtsp://([^/]*):(\\d+)/(.*)"),
+  {ok, Re} = re:compile("rtsp://([^/:]*):(\\d+)(.*)"),
   {match, [_, Host, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
+  ?D({"Connecting to", Host, Port}),
   {ok, Socket} = gen_tcp:connect(Host, list_to_integer(Port), [binary, {packet, raw}, {active, once}], 1000),
   ?D({"Connect", URL}),
   {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket}};
@@ -95,13 +98,11 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
 
 handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL} = RTSP) ->
   gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
-  % ems_log:access(default, "DESCRIBE ~s RTSP/1.0", [URL]),
   io:format("DESCRIBE ~s RTSP/1.0~n", [URL]),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
 handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq} = RTSP) ->
   gen_tcp:send(Socket, io_lib:format("SETUP ~s/trackID=1 RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Seq + 1])),
-  % ems_log:access(default, "DESCRIBE ~s RTSP/1.0", [URL]),
   io:format("SETUP ~s/trackID=1 RTSP/1.0~n", [URL]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
 
@@ -138,7 +139,7 @@ handle_cast(Request, #rtsp_socket{} = Socket) ->
 %%-------------------------------------------------------------------------
 
 
-handle_info({tcp_closed, Socket}, State) ->
+handle_info({tcp_closed, _Socket}, State) ->
   {stop, normal, State};
   
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf} = RTSPSocket) ->
@@ -198,7 +199,14 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
         Consumer ! Frame
       end, Frames),
       
-      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
+      Socket1 = case Frames of
+        [#video_frame{body = Config, type = video, decoder_config = true} |_] ->
+          {NalSize, _} = h264:unpack_config(Config),
+          Socket#rtsp_socket{nal_size = NalSize};
+        _ ->
+          Socket
+      end,
+      Socket1#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
     undefined ->
       Socket;
     Else ->

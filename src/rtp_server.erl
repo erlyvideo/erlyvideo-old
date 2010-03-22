@@ -113,7 +113,7 @@ presync(Streams, Info) ->
 presync(Streams, [], _N, _Now) ->
   Streams;
 
-presync(Streams, [RTP | Info], N, Now) when element(N, Streams) == undefined ->
+presync(Streams, [_RTP | Info], N, Now) when element(N, Streams) == undefined ->
   presync(Streams, Info, N+2, Now);
   
 presync(Streams, [RTP | Info], N, Now) ->
@@ -122,7 +122,7 @@ presync(Streams, [RTP | Info], N, Now) ->
   RTPSeq = proplists:get_value("seq", RTP),
   RTPTime = proplists:get_value("rtptime", RTP),
   % ?D({"Presync", RTPSeq, RTPTime}),
-  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 1),
+  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 2),
   Stream2 = setelement(#base_rtp.base_timecode, Stream1, list_to_integer(RTPTime)),
   Stream3 = setelement(#base_rtp.timecode, Stream2, list_to_integer(RTPTime)),
   Stream4 = setelement(#base_rtp.synced, Stream3, true),
@@ -235,7 +235,7 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
 decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
   % ?D({"RTCP", element(1, State), WallClock, Timecode}),
-  ClockMap = element(#base_rtp.clock_map, State),
+  _ClockMap = element(#base_rtp.clock_map, State),
   State1 = case element(#base_rtp.base_wall_clock, State) of
     undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
     _ -> State
@@ -310,7 +310,7 @@ video(#video{timecode = undefined} = Video, {data, _, _, Timecode} = Packet) ->
   video(Video#video{timecode = Timecode}, Packet);
 
 video(#video{sequence = undefined} = Video, {data, _, Sequence, _} = Packet) ->
-  % ?D({"Reset seq to", Sequence}),
+  ?D({"Reset seq to", Sequence}),
   video(Video#video{sequence = Sequence - 1}, Packet);
 
 video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when Sequence /= PrevSeq + 1->
@@ -321,7 +321,7 @@ video(#video{h264 = H264, buffer = Buffer, timecode = Timecode} = Video, {data, 
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   {Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames}, []};
 
-video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, <<>>, Sequence, NewTimecode}) ->
+video(#video{h264 = _H264, timecode = _Timecode, broken = _Broken} = Video, {data, <<>>, Sequence, NewTimecode}) ->
   ?D({"Warning! Zero frame"}),
   {Video#video{sequence = Sequence, timecode = NewTimecode}};
   
@@ -341,7 +341,7 @@ send_video(#video{synced = false, buffer = [#video_frame{frame_type = frame} | _
 send_video(#video{buffer = []} = Video) ->
   {Video, []};
 
-send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode} = Video) ->
+send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = H264} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
@@ -352,4 +352,8 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode} = Video
     undefined -> [];
     _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}]
   end,
-  {Video#video{synced = true, buffer = []}, Frame1}.
+  Frame2 = case Frame of 
+    #video_frame{frame_type = keyframe} -> [h264:video_config(H264) | Frame1];
+    _ -> Frame1
+  end,
+  {Video#video{synced = true, buffer = []}, Frame2}.
