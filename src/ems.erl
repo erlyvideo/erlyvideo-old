@@ -113,10 +113,11 @@ restart() ->
 reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   RTSP = ems:get_var(rtsp_port, undefined),
+  HTTP = ems:get_var(http_port, undefined),
   load_config(),
   ems_log:stop(),
   ems_log:start(),
-  ems_http:stop(),
+  % ems_http:stop(),
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
     {undefined, undefined} -> ok;
     {RTMP, RTMP} -> ok;
@@ -126,6 +127,12 @@ reconfigure() ->
       supervisor:terminate_child(rtmp_sup, rtmp_listener1),
       supervisor:delete_child(rtmp_sup, rtmp_listener1),
       {ok, _} = start_rtmp()
+  end,
+  case {HTTP, ems:get_var(http_port, undefined)} of
+    {undefined, _} -> ok;
+    {HTTP, HTTP} -> ok;
+    _ -> 
+      ems_http:stop()
   end,
   case {RTSP, ems:get_var(rtsp_port, undefined)} of
     {undefined, undefined} -> ok;
