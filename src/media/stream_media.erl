@@ -102,15 +102,6 @@ init([Name, Type, Options]) ->
 	{ok, Recorder}.
 
 
-init_timeshift(Options) ->
-  case proplists:get_value(timeshift, Options) of
-    undefined -> 
-      undefined;
-    Shift when is_number(Shift) andalso Shift > 0 ->
-      timer:send_interval(5000, clean_timeshift),
-      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
-  end.
-
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
 %%                                 {reply, Reply, State, Timeout} |
@@ -160,25 +151,11 @@ handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = M
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
   
-handle_call({seek, Timestamp}, _From, #media_info{shift = Shift} = MediaInfo) ->
-  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
-    TS
-  end)),
-  DTS = case lists:reverse(Frames) of
-    [Fr | _] -> {Fr, Fr};
-    _ -> undefined
-  end,
-  {reply, DTS, MediaInfo};
+handle_call({seek, Timestamp}, _From, MediaInfo) ->
+  {reply, seek_in_timeshift(MediaInfo, Timestamp), MediaInfo};
 
-handle_call({read, DTS}, _From, #media_info{shift = Shift} = MediaInfo) ->
-  Reply = case ets:lookup(Shift, DTS) of
-    [Frame] -> 
-      Next = ets:next(Shift, DTS),
-      {Frame, Next};
-    [] ->
-      {undefined, undefined}
-  end,
-  {reply, Reply, MediaInfo};
+handle_call({read, DTS}, _From, MediaInfo) ->
+  {reply, read_from_timeshift(MediaInfo, DTS), MediaInfo};
 
 
 handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
@@ -324,14 +301,45 @@ handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
 handle_info(clean_timeshift, #media_info{timeshift = Timeshift} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
-  clean_timeshift(MediaInfo),
-  {noreply, MediaInfo, ?TIMEOUT};
+  {noreply, clean_timeshift(MediaInfo), ?TIMEOUT};
   
 handle_info(clean_timeshift, MediaInfo) ->
   {noreply, MediaInfo, ?TIMEOUT};
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
+
+
+%%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+init_timeshift(Options) ->
+  case proplists:get_value(timeshift, Options) of
+    undefined -> 
+      undefined;
+    Shift when is_number(Shift) andalso Shift > 0 ->
+      timer:send_interval(5000, clean_timeshift),
+      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
+  end.
+
+
+seek_in_timeshift(#media_info{shift = Shift}, Timestamp) ->
+  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
+    TS
+  end)),
+  case lists:reverse(Frames) of
+    [Fr | _] -> {Fr, Fr};
+    _ -> undefined
+  end.
+  
+
+read_from_timeshift(#media_info{shift = Shift}, DTS) ->
+  case ets:lookup(Shift, DTS) of
+    [Frame] -> 
+      Next = ets:next(Shift, DTS),
+      {Frame, Next};
+    [] ->
+      {undefined, undefined}
+  end.
 
 
 clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL}) ->
@@ -345,6 +353,18 @@ clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DT
   % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
   ok.
 
+
+store_timeshift(#media_info{shift = Frames, timeshift = Timeshift} = MediaInfo, #video_frame{} = Frame) when is_number(Timeshift) andalso Timeshift > 0 andalso Frame =/= undefined->
+  ets:insert(Frames, Frame),
+  MediaInfo;
+
+store_timeshift(MediaInfo, _Frame) ->
+  MediaInfo.
+
+
+
+%%%%%%%%%%%%%%%%%%        Frame handling         %%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->
   {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
@@ -376,15 +396,6 @@ pass_through_filter(#video_frame{} = Frame, #media_info{filter = undefined} = Re
 pass_through_filter(#video_frame{} = Frame, #media_info{filter = {Module, State}} = Recorder) ->
   {ok, State1, Frame1} = Module:handle_frame(State, Recorder, Frame),
   {Frame1, Recorder#media_info{filter = {Module, State1}}}.
-
-store_timeshift(#media_info{shift = Frames, timeshift = Timeshift} = MediaInfo, #video_frame{} = Frame) when is_number(Timeshift) andalso Timeshift > 0 andalso Frame =/= undefined->
-  ets:insert(Frames, Frame),
-  MediaInfo;
-
-store_timeshift(MediaInfo, _Frame) ->
-  MediaInfo.
-
-
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
   ?D({"New GOP", round((Frame#video_frame.dts - MediaInfo#media_info.base_timestamp)/1000)}),
