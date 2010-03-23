@@ -90,7 +90,7 @@ start_server(Port, Name, Callback) ->
 %% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
 %% and returns pid of newly created RTMP socket.
 %% @end
--spec(accept(Socket::port()) -> RTMPSocket::pid()).
+-spec(accept(Socket::port()) -> {ok, RTMPSocket::pid()}).
 accept(Socket) ->
   start_socket(self(), accept, Socket).
   
@@ -98,7 +98,7 @@ accept(Socket) ->
 %% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
 %% and returns pid of newly created RTMP socket.
 %% @end
--spec(connect(Socket::port()) -> RTMPSocket::pid()).
+-spec(connect(Socket::port()) -> {ok, RTMPSocket::pid()}).
 connect(Socket) ->
   start_socket(self(), connect, Socket).
 
@@ -170,15 +170,15 @@ send(RTMP, Message) ->
   ok.
   
 
--spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::string()) -> ok).
-status(RTMP, StreamId, Code) when is_list(Code)->
+-spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::any_string()) -> ok).
+status(RTMP, StreamId, Code) when is_list(Code) ->
   status(RTMP, StreamId, list_to_binary(Code), <<"-">>);
 
-status(RTMP, StreamId, Code) when is_binary(Code)->
+status(RTMP, StreamId, Code) when is_binary(Code) ->
   status(RTMP, StreamId, Code, <<"-">>).
 
 
--spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::string(), Description::string()) -> ok).
+-spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::any_string(), Description::any_string()) -> ok).
 status(RTMP, StreamId, Code, Description) ->
   Arg = {object, [
     {code, Code}, 
@@ -208,7 +208,8 @@ init([Consumer, connect]) ->
   (catch link(Consumer)),
   {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new(), active = false}, ?RTMP_TIMEOUT}.
 
-%% @private  
+%% @private 
+
 wait_for_socket_on_server(timeout, State) ->
   {stop, normal, State};
 
@@ -223,6 +224,8 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(
 
 
 %% @private  
+-spec(wait_for_socket_on_client(Message::any(), Socket::rtmp_socket()) -> no_return()).
+
 wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
@@ -260,6 +263,9 @@ loop(#rtmp_message{} = Message, _From, State) ->
   {reply, ok, loop, State1}.
 
 
+-type(rtmp_option() ::active|amf_version|chunk_size|window_size|client_buffer|address).
+-type(rtmp_option_value() ::{rtmp_option(), any()}).
+-spec(get_options(State::rtmp_socket(), Key::rtmp_option()|[rtmp_option()]) -> term()).
 
 get_options(State, active) ->
   {active, State#rtmp_socket.active};

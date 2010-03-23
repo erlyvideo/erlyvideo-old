@@ -75,7 +75,7 @@
 -record(rtmp_socket, {
   active = false    ::true|false|once,
   consumer          ::pid(),
-  socket            ::port(),
+  socket            ::port()|pid(),
   amf_version = 0   ::integer(),
 	channels          ::array(),
 	address           ::tuple(),

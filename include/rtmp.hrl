@@ -10,6 +10,7 @@
 -type(rtmp_socket_pid() ::pid()).
 -type(proplist() ::[{Key::atom(), Value::binary()}]).
 -type(rtmp_control() ::{char(), binary()}).
+-type(any_string() ::string()|binary()).
 
 -record(rtmp_message_ack, {
   bytes_read    ::non_neg_integer(),

@@ -10,6 +10,9 @@ DESTROOT=$(CURDIR)/debian/erlang-rtmp
 all: doc
 	erl -make
 	
+analyze:
+	 dialyzer -Wno_improper_lists -c src/*.erl
+
 doc:
 	erl -pa `pwd`/ebin \
 	-noshell \
