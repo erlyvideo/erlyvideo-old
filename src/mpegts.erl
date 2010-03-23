@@ -345,19 +345,19 @@ play(#streamer{player = Player, video_config = undefined} = Streamer) ->
       ok
   end;
 
-play(#streamer{audio_config = undefined} = Streamer) ->
-  receive
-    #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
-      Config = aac:decode_config(AudioConfig),
-      ?D({"Audio config", Config}),
-      ?MODULE:play(Streamer#streamer{audio_config = Config})
-  after
-    ?TIMEOUT ->
-      ?D("No audio decoder config received"),
-      % Player ! stop,
-      % ok
-      ?MODULE:play(Streamer#streamer{audio_config = <<>>})
-  end;
+% play(#streamer{audio_config = undefined} = Streamer) ->
+%   receive
+%     #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
+%       Config = aac:decode_config(AudioConfig),
+%       ?D({"Audio config", Config}),
+%       ?MODULE:play(Streamer#streamer{audio_config = Config})
+%   after
+%     ?TIMEOUT ->
+%       ?D("No audio decoder config received"),
+%       % Player ! stop,
+%       % ok
+%       ?MODULE:play(Streamer#streamer{audio_config = <<>>})
+%   end;
   
 play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
   receive
@@ -382,6 +382,10 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
       end,
       Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
       ?MODULE:play(Streamer1);
+    #video_frame{type = audio, codec_id = aac, body = Body} = Frame when Streamer#streamer.audio_config == undefined ->
+      Streamer1 = Streamer#streamer{audio_config = aac:decode_config(aac:config(Body))},
+      Streamer2 = send_audio(Streamer1, Frame),
+      ?MODULE:play(Streamer2);
     #video_frame{type = audio} = Frame ->
       Streamer1 = send_audio(Streamer, Frame),
       ?MODULE:play(Streamer1);
