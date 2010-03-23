@@ -168,8 +168,8 @@ init(#media_info{header = undefined} = MediaInfo) ->
 init(MediaInfo) -> 
   init(MediaInfo, 0).
 
-init(MediaInfo, Pos) -> 
-  case next_atom(#media_info{device = Device} = MediaInfo, Pos) of
+init(#media_info{device = Device} = MediaInfo, Pos) -> 
+  case next_atom(MediaInfo, Pos) of
     eof -> {ok, MediaInfo};
     {error, Reason} -> {error, Reason};
     {atom, mdat, Offset, Length} ->
