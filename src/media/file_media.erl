@@ -22,7 +22,13 @@ start_link(Path, Type, Opts) ->
 codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
    
 read_frame(MediaEntry, Key) ->
-  MediaEntry ! {read, Key, self()}.
+  Ref = erlang:make_ref(),
+  MediaEntry ! {read, Key, self(), Ref},
+  receive
+    {Ref, Frame} -> Frame
+  after
+    1000 -> erlang:error(timeout_read_frame)
+  end.
 
 name(Server) ->
   gen_server:call(Server, name).
@@ -132,22 +138,22 @@ handle_info(graceful, MediaInfo) ->
   {noreply, MediaInfo};
   
   
-handle_info({read, done, Pid}, MediaInfo) ->
-  Pid ! {frame, done},
+handle_info({read, done, Pid, Ref}, MediaInfo) ->
+  Pid ! {Ref, done},
   {noreply, MediaInfo};
 
-handle_info({read, undefined, Pid}, #media_info{format = Format} = MediaInfo) ->
-  handle_info({read, Format:first(MediaInfo), Pid}, MediaInfo);
+handle_info({read, undefined, Pid, Ref}, #media_info{format = Format} = MediaInfo) ->
+  handle_info({read, Format:first(MediaInfo), Pid, Ref}, MediaInfo);
 
-handle_info({read, Key, Pid}, #media_info{format = FileFormat} = MediaInfo) ->
+handle_info({read, Key, Pid, Ref}, #media_info{format = FileFormat} = MediaInfo) ->
   Result = FileFormat:read_frame(MediaInfo, Key),
-  Pid ! {frame, Result},
+  Pid ! {Ref, Result},
   {noreply, MediaInfo};
   
   
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, name = FileName, life_timeout = LifeTimeout} = MediaInfo) ->
   ets:delete(Clients, Client),
-  ?D({"Removing client of", FileName, Client, "left", ets:info(Clients, size), LifeTimeout}),
+  ?D({self(), "Removing client of", FileName, Client, "left", ets:info(Clients, size), LifeTimeout}),
   case {ets:info(Clients, size), LifeTimeout} of
     {0, false} ->
       {stop, normal, MediaInfo};

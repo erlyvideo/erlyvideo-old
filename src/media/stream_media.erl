@@ -255,7 +255,7 @@ handle_info({http, Socket, http_eoh}, TSLander) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
   {noreply, TSLander};
 
-handle_info({read, DTS, Pid}, #media_info{shift = Shift} = MediaInfo) ->
+handle_info({read, DTS, Pid, Ref}, #media_info{shift = Shift} = MediaInfo) ->
   Reply = case ets:lookup(Shift, DTS) of
     [Frame] -> 
       Next = ets:next(Shift, DTS),
@@ -263,7 +263,7 @@ handle_info({read, DTS, Pid}, #media_info{shift = Shift} = MediaInfo) ->
     [] ->
       {undefined, undefined}
   end,
-  Pid ! {frame, Reply},
+  Pid ! {Ref, Reply},
   {noreply, MediaInfo};
 
 
