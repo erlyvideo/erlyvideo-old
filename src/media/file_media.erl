@@ -23,7 +23,8 @@ codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Typ
    
 read_frame(MediaEntry, Key) ->
   Ref = erlang:make_ref(),
-  MediaEntry ! {read, Key, self(), Ref},
+  MediaEntry ! {'$gen_call', {self(), Ref}, {read, Key}},
+  erlang:yield(),
   receive
     {Ref, Frame} -> Frame
   after
@@ -91,6 +92,17 @@ handle_call({seek, Timestamp}, _From, #media_info{format = Format} = MediaInfo) 
   {reply, Format:seek(MediaInfo, Timestamp), MediaInfo};
 
 
+handle_call({read, done}, _From, MediaInfo) ->
+  {reply, done, MediaInfo};
+
+handle_call({read, undefined}, From, #media_info{format = Format} = MediaInfo) ->
+  handle_call({read, Format:first(MediaInfo)}, From, MediaInfo);
+
+handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
+  Result = FileFormat:read_frame(MediaInfo, Key),
+  {reply, Result, MediaInfo};
+
+
 handle_call(metadata, _From, #media_info{format = mp4} = MediaInfo) ->
   {reply, {object, mp4:metadata(MediaInfo)}, MediaInfo};
 
@@ -135,19 +147,6 @@ handle_info(graceful, #media_info{clients = Clients} = MediaInfo) ->
 
 
 handle_info(graceful, MediaInfo) ->
-  {noreply, MediaInfo};
-  
-  
-handle_info({read, done, Pid, Ref}, MediaInfo) ->
-  Pid ! {Ref, done},
-  {noreply, MediaInfo};
-
-handle_info({read, undefined, Pid, Ref}, #media_info{format = Format} = MediaInfo) ->
-  handle_info({read, Format:first(MediaInfo), Pid, Ref}, MediaInfo);
-
-handle_info({read, Key, Pid, Ref}, #media_info{format = FileFormat} = MediaInfo) ->
-  Result = FileFormat:read_frame(MediaInfo, Key),
-  Pid ! {Ref, Result},
   {noreply, MediaInfo};
   
   

@@ -170,6 +170,16 @@ handle_call({seek, Timestamp}, _From, #media_info{shift = Shift} = MediaInfo) ->
   end,
   {reply, DTS, MediaInfo};
 
+handle_call({read, DTS}, _From, #media_info{shift = Shift} = MediaInfo) ->
+  Reply = case ets:lookup(Shift, DTS) of
+    [Frame] -> 
+      Next = ets:next(Shift, DTS),
+      {Frame, Next};
+    [] ->
+      {undefined, undefined}
+  end,
+  {reply, Reply, MediaInfo};
+
 
 handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
@@ -254,19 +264,6 @@ handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
 handle_info({http, Socket, http_eoh}, TSLander) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
   {noreply, TSLander};
-
-handle_info({read, DTS, Pid, Ref}, #media_info{shift = Shift} = MediaInfo) ->
-  Reply = case ets:lookup(Shift, DTS) of
-    [Frame] -> 
-      Next = ets:next(Shift, DTS),
-      {Frame, Next};
-    [] ->
-      {undefined, undefined}
-  end,
-  Pid ! {Ref, Reply},
-  {noreply, MediaInfo};
-
-
 
 
 handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Counter} = State) when Reader =/= undefined ->
