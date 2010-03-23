@@ -289,21 +289,8 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clie
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
 
-handle_info(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->
-              
-  {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
-  % Frame1 = Frame,
-  % Recorder0 = Recorder,
-  
-  send_frame(Frame1, Recorder),
-  Recorder1 = parse_metadata(Recorder0, Frame1),
-  Recorder2 = copy_audio_config(Recorder1, Frame1),
-  Recorder3 = copy_video_config(Recorder2, Frame1),
-  Recorder4 = store_timeshift(Recorder3, Frame1),
-  % Recorder4 = store_last_gop(Recorder3, Frame),
-  Recorder5 = Recorder4,
-  (catch Device ! Frame1),
-  {noreply, Recorder5, ?TIMEOUT};
+handle_info(#video_frame{} = Frame, #media_info{} = Recorder) ->
+  {noreply, handle_frame(Frame, Recorder), ?TIMEOUT};
 
 
 handle_info({filter, Module, Message}, #media_info{filter = {Module, State}} = Recorder) ->
@@ -339,13 +326,8 @@ handle_info(resume, State) ->
 handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
-handle_info(clean_timeshift, #media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL} = MediaInfo) when is_number(Timeshift) and Timeshift > 0 ->
-  Limit = DTS - Timeshift,
-  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
-    true
-  end),
-  _Count = ets:select_delete(Frames, Spec),
-  % io:format("~s timeshift is ~p bytes in time ~p-~p~n", [_URL, ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)]),
+handle_info(clean_timeshift, #media_info{timeshift = Timeshift} = MediaInfo) when is_number(Timeshift) and Timeshift > 0 ->
+  clean_timeshift(MediaInfo),
   {noreply, MediaInfo, ?TIMEOUT};
   
 handle_info(clean_timeshift, MediaInfo) ->
@@ -353,11 +335,39 @@ handle_info(clean_timeshift, MediaInfo) ->
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
-  
+
+
+clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS}) ->
+  Limit = DTS - Timeshift,
+  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
+    true
+  end),
+  % io:format("~s timeshift is ~p bytes in time ~p-~p~n", [_URL, ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)]),
+  _Count = ets:select_delete(Frames, Spec).
+
+
+handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->
+  {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
+  % Frame1 = Frame,
+  % Recorder0 = Recorder,
+
+  send_frame(Frame1, Recorder),
+  Recorder1 = parse_metadata(Recorder0, Frame1),
+  Recorder2 = copy_audio_config(Recorder1, Frame1),
+  Recorder3 = copy_video_config(Recorder2, Frame1),
+  Recorder4 = store_timeshift(Recorder3, Frame1),
+  % Recorder4 = store_last_gop(Recorder3, Frame),
+  Recorder5 = Recorder4,
+  (catch Device ! Frame1),
+  Recorder5.
+
+
+send_client_frame({Client, _}, Frame) ->
+  Client ! Frame.
 
 send_frame(Frame, #media_info{clients = Clients}) ->
   % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Frame#video_frame.dts}),
-  lists:foreach(fun({Client, _}) -> Client ! Frame end, Clients).
+  lists:foldl(fun send_client_frame/2, Frame, Clients).
   
   
 pass_through_filter(#video_frame{} = Frame, #media_info{filter = undefined} = Recorder) ->
