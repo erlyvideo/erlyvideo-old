@@ -35,7 +35,7 @@ video_config(H264) ->
   case decoder_config(H264) of
     undefined -> undefined;
     DecoderConfig when is_binary(DecoderConfig) ->
-      Frame = #video_frame{       
+      #video_frame{       
        	type          = video,
        	decoder_config = true,
     		dts           = 0,
@@ -57,7 +57,8 @@ metadata(Config) ->
 	}.
   
       
-
+%% Look at vlc/modules/demux/mp4/libmp4.c:1022
+%%
 unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 
                 SPSCount:5, Rest/binary>>) ->
   {SPS, <<PPSCount, Rest1/binary>>} = parse_avc_config(Rest, SPSCount, []),
@@ -357,7 +358,19 @@ unpack_config_1_test() ->
   Result = [<<103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80>>, <<104,206,50,200>>],
   LengthSize = 2,
   ?assertEqual({LengthSize, Result}, unpack_config(Config)).
-
+  
 unpack_config_2_test() ->
   Config = <<1,77,64,30,255,224,0>>,
   ?assertEqual({4, []}, unpack_config(Config)).
+  
+unpack_config_3_test() ->
+  Config = <<1,66,224,11,255,225,0,19,39,66,224,11,169,24,96,157,128,53,6,1,6,182,194,181,239,124,4,1,0,4,40,222,9,136>>,
+  ?assertEqual({4,[<<39,66,224,11,169,24,96,157,128,53,6,1,6,182,194,181,239,124,4>>, <<40,222,9,136>>]}, unpack_config(Config)).
+
+
+
+
+
+
+  
+  
