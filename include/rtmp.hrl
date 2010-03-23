@@ -8,25 +8,17 @@
 -type(rtmp_control_type() ::stream_begin).
 -type(time() ::{MegaSecs::integer(), Secs::integer(), MicroSecs::integer()}).
 -type(rtmp_socket_pid() ::pid()).
+-type(proplist() ::[{Key::atom(), Value::binary()}]).
+-type(rtmp_control() ::{char(), binary()}).
 
 -record(rtmp_message_ack, {
-  bytes_read    ::integer(),
+  bytes_read    ::non_neg_integer(),
   previous_ack  ::time(),
   current_ack   ::time(),
-  speed         ::integer()
+  speed         ::non_neg_integer()
 }).
 
--record(rtmp_message, {
-  channel_id ::integer(),
-  timestamp  ::integer(),
-  type       ::rtmp_message_type(),
-  stream_id  ::integer(),
-  body       ::binary()|integer()|#rtmp_message_ack{}
-}).
-
--type(rtmp_message() ::#rtmp_message{}).
-
-
+-type(rtmp_message_ack() ::#rtmp_message_ack{}).
 
 -record(rtmp_funcall,{
   version = 0,
@@ -37,12 +29,28 @@
 	type 	= invoke %if invoke then id, otherwise notify
 	}).
 
+-type(rtmp_funcall() ::#rtmp_funcall{}).
+
 -record(so_message, {
   name,
   version = 0,
   persistent = false,
   events = []
 }).
+
+-type(so_message() ::#so_message{}).
+
+-record(rtmp_message, {
+  channel_id ::non_neg_integer(),
+  timestamp  ::non_neg_integer()|float(),
+  type       ::rtmp_message_type()|integer(),
+  stream_id  ::non_neg_integer()|float(),
+  body       ::binary()|non_neg_integer()|rtmp_message_ack()|rtmp_funcall()|so_message()|proplist()|rtmp_control()
+}).
+
+-type(rtmp_message() ::#rtmp_message{}).
+
+
 
 
 

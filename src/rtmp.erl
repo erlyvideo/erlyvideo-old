@@ -64,6 +64,8 @@
 %% @end 
 %%--------------------------------------------------------------------
 
+-spec(encode(State::rtmp_socket(), Message::rtmp_message()) -> {State::rtmp_socket(), Binary::iolist()}).
+
 encode(State, #rtmp_message{timestamp = undefined} = Message) -> 
   encode(State, Message#rtmp_message{timestamp = 0});
 
@@ -159,6 +161,7 @@ encode_funcall(#rtmp_funcall{command = Command, args = Args, type = notify}) ->
 <<(amf0:encode(atom_to_binary(Command, utf8)))/binary,
   (encode_list(<<>>, Args))/binary>>.
 
+-spec(encode_list(List::proplist()) -> Binary::binary()).
 encode_list(List) -> encode_list(<<>>, List).
 
 encode_list(Message, []) -> Message;
@@ -277,14 +280,10 @@ decode_channel_header(<<Delta:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_
   #channel{timestamp = TimeStamp} = Channel,
 	decode_channel(Rest,Channel#channel{timestamp=TimeStamp + Delta, delta = Delta, length=Length,type=Type},State);
 
-decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:32,Rest/binary>>,?RTMP_HDR_NEW,Id, 
-  #rtmp_socket{channels = Channels} = State) when size(Channels) < Id ->
-  decode_channel(Rest,#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},State);
-
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:32,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case array:get(Id, State#rtmp_socket.channels) of
-    #channel{} = Channel -> ok;
-    _ -> Channel = #channel{}
+  Channel = case array:get(Id, State#rtmp_socket.channels) of
+    undefined -> #channel{};
+    Chan -> Chan
   end,
 	decode_channel(Rest,Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},State);
 	
@@ -336,13 +335,17 @@ decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtm
   {NewState#rtmp_socket{channels=NextChannelList}, Message, Rest}.
   
 extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) -> #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}.
-  
 
-command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32/big-integer>>} = Channel, State) ->
+
+
+
+-spec(command(Channel::channel(), Socket::rtmp_socket()) -> {Socket::rtmp_socket(), Message::rtmp_message()}).
+
+command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32>>} = Channel, State) ->
   Message = extract_message(Channel),
 	{State#rtmp_socket{client_chunk_size = ChunkSize}, Message#rtmp_message{type = chunk_size, body = ChunkSize}};
 
-command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>} = Channel, #rtmp_socket{previous_ack = undefined} = State) ->
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32>>} = Channel, #rtmp_socket{previous_ack = undefined} = State) ->
   TimeNow = erlang:now(),
   Message = extract_message(Channel),
   AckMessage = #rtmp_message_ack{
@@ -353,7 +356,7 @@ command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>}
   },
   {State#rtmp_socket{previous_ack = TimeNow}, Message#rtmp_message{type = ack_read, body = AckMessage}};
 
-command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>} = Channel, #rtmp_socket{previous_ack = Prev} = State) ->
+command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32>>} = Channel, #rtmp_socket{previous_ack = Prev} = State) ->
   TimeNow = erlang:now(),
   Time = timer:now_diff(TimeNow, Prev)/1000,
   Speed = round(BytesRead*1000 / Time),
@@ -366,7 +369,7 @@ command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32/big-integer>>}
   },
   {State#rtmp_socket{previous_ack = TimeNow, current_speed = Speed}, Message#rtmp_message{type = ack_read, body = AckMessage}};
 
-command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32/big-integer>>} = Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, msg = <<WindowSize:32>>} = Channel, State) ->
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = window_size, body = WindowSize}};
 
@@ -394,13 +397,9 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PONG:16
   Message = extract_message(Channel),
 	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = pong, body = Timestamp}};
 
-	
-
-
-command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16/big-integer, Body/binary>>} = Channel, State) ->
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16, Body/binary>>} = Channel, State) ->
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = control, body = {EventType, Body}}};
-
 
 command(#channel{type = Type, delta = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
   Message = extract_message(Channel),

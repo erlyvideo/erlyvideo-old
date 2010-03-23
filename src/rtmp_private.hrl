@@ -57,15 +57,18 @@
 
 
 -record(channel,{
-	id        = undefined,
-	timestamp = undefined,
-	delta     = undefined,
-	length    = undefined,
-	type      = undefined,
-	stream_id = 0,
-	msg       = <<>>,
-	chunk_size
+	id            ::non_neg_integer(),
+	timestamp     ::non_neg_integer(),
+	delta         ::non_neg_integer(),
+	length        ::non_neg_integer(),
+	type          ::non_neg_integer(),
+	stream_id = 0 ::non_neg_integer(),
+	msg       = <<>> ::binary(),
+	chunk_size    ::non_neg_integer()
 	}).
+	
+-type(channel() ::#channel{}).
+
 
 
 
@@ -83,10 +86,11 @@
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
 	window_size               ::integer(),
-	previous_ack = undefined  ::time(),
-	current_speed = 0         ::integer(),
+	previous_ack = undefined  ::time()|undefined,
+	current_speed = 0         ::non_neg_integer(),
 	pinged = false            ::boolean()
 }).
 
+-type(rtmp_socket() ::#rtmp_socket{}).
 
 
