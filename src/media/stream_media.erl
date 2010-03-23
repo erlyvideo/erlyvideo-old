@@ -323,7 +323,7 @@ handle_info(resume, State) ->
 handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
-handle_info(clean_timeshift, #media_info{timeshift = Timeshift} = MediaInfo) when is_number(Timeshift) and Timeshift > 0 ->
+handle_info(clean_timeshift, #media_info{timeshift = Timeshift} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
   clean_timeshift(MediaInfo),
   {noreply, MediaInfo, ?TIMEOUT};
   
@@ -334,13 +334,16 @@ handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
 
 
-clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS}) ->
+clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL}) ->
   Limit = DTS - Timeshift,
   Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
     true
   end),
-  % io:format("~s timeshift is ~p bytes in time ~p-~p~n", [_URL, ets:info(Frames, memory), round(ets:first(Frames)), round(DTS)]),
-  _Count = ets:select_delete(Frames, Spec).
+  _Count = ets:select_delete(Frames, Spec),
+  % _Count = 0,
+  % io:format("~s timeshift is ~p/~p bytes/frames in time ~p-~p, clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), round(ets:first(Frames)), round(DTS), _Count]),
+  % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
+  ok.
 
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->

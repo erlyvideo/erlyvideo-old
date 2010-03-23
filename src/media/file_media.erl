@@ -30,6 +30,7 @@ read_frame(MediaEntry, Key) ->
   after
     1000 -> erlang:error(timeout_read_frame)
   end.
+  % gen_server:call(MediaEntry, {read, Key}).
 
 name(Server) ->
   gen_server:call(Server, name).
