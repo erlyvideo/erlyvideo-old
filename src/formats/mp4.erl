@@ -400,7 +400,7 @@ esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_forma
 
 % avcC atom
 avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
-  % ?D({"Extracted video config"}),
+  ?D({"Extracted video config", DecoderConfig, h264:unpack_config(DecoderConfig)}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
 btrt(<<_BufferSize:32, _MaxBitRate:32, _AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
@@ -687,6 +687,8 @@ config_from_esds_tag(Data) ->
       end;
     {?MP4DecSpecificDescrTag, Config, _} ->
       Config;
+    {?MP4Unknown6Tag, _Body, Rest} ->
+      config_from_esds_tag(Rest);
     {_Tag, _Data, Rest} ->
       ?D({"Unknown esds tag. Send this line to max@maxidoors.ru: ", _Tag, _Data}),
       config_from_esds_tag(Rest);

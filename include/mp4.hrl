@@ -43,3 +43,4 @@
 -define(MP4ESDescrTag, 3).
 -define(MP4DecConfigDescrTag, 4).
 -define(MP4DecSpecificDescrTag, 5).
+-define(MP4Unknown6Tag, 6).
