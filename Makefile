@@ -6,6 +6,7 @@ VARDIR=/var/lib/erlyvideo
 ETCDIR=/etc/erlyvideo
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlyvideo
+ERL_LIBS=deps:lib:plugins
 
 ERL=erl +A 4 +K true
 APP_NAME=ems
@@ -17,7 +18,7 @@ MXMLC=mxmlc
 all: compile
 
 compile:
-	ERL_LIBS="deps;lib;plugins" erl -make
+	ERL_LIBS=$(ERL_LIBS) erl -make
 	for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && make -f Makefile) ; done
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
@@ -50,7 +51,7 @@ player:
 	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
 run: erlang_version ebin priv/erlyvideo.conf
-	ERL_LIBS="deps;lib;plugins" $(ERL) +bin_opt_info +debug \
+	ERL_LIBS=deps:lib:plugins $(ERL) +bin_opt_info +debug \
 	-pa ebin \
 	-boot start_sasl \
 	-s $(APP_NAME) \
@@ -61,7 +62,7 @@ priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 	
 start: erlang_version ebin
-	ERL_LIBS="deps;lib;plugins" $(ERL) -pa `pwd`/ebin \
+	ERL_LIBS=deps:lib:plugins $(ERL) -pa `pwd`/ebin \
 	-sasl sasl_error_logger '{file, "sasl.log"}' \
   -kernel error_logger '{file, "erlang.log"}' \
 	-boot start_sasl \
