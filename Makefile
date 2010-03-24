@@ -1,6 +1,7 @@
 VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
+ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlyvideo-$(VERSION)
 RTMPDIR=/usr/lib/erlyvideo
 VARDIR=/var/lib/erlyvideo
 ETCDIR=/etc/erlyvideo
@@ -74,7 +75,8 @@ start: erlang_version ebin
 
 install: compile
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
-	cp -r ebin src include lib $(DESTROOT)/usr/lib/erlyvideo
+	mkdir -p $(DESTROOT)$(ERLDIR)
+	cp -r ebin src include lib Emakefile $(DESTROOT)$(ERLDIR)/
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
 	cp contrib/erlyctl $(DESTROOT)/usr/bin/erlyctl
