@@ -412,9 +412,9 @@ handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_ses
 handle_info({ems_stream, StreamId, seek_notify}, StateName, #rtmp_session{socket = Socket} = State) ->
   ?D({"Send seek notify"}),
   rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
-  % rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  % rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
   {next_state, StateName, State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
