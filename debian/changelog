@@ -1,3 +1,9 @@
+erlang-rtmp (1.3.1) unstable; urgency=low
+
+  * Invalid path for installation
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 24 Mar 2010 21:41:20 +0300
+
 erlang-rtmp (1.3) unstable; urgency=low
 
   * Added ability to send continuation in RTMP channel
