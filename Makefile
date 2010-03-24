@@ -1,13 +1,9 @@
-VERSION=1.2
-RTMPDIR=`./root`/lib/rtmp-$(VERSION)
-BEAMDIR=$(RTMPDIR)/ebin/
-SRCDIR=$(RTMPDIR)/src/
-DOCDIR=$(RTMPDIR)/doc/
-INCLUDEDIR=$(RTMPDIR)/include/
+VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
+ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/rtmp-$(VERSION)
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtmp
 
-all: doc
+all: 
 	erl -make
 	
 analyze:
@@ -28,22 +24,22 @@ clean-doc:
 	rm -fv doc/*.css
 
 install:
-	mkdir -p $(DESTROOT)$(BEAMDIR)
-	mkdir -p $(DESTROOT)$(DOCDIR)
-	mkdir -p $(DESTROOT)$(SRCDIR)
-	mkdir -p $(DESTROOT)$(INCLUDEDIR)
-	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 doc/* $(DESTROOT)$(DOCDIR)
-	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
-	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)$(ERLDIR)/src
+	mkdir -p $(DESTROOT)$(ERLDIR)/include
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin
+	install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin
+	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src
+	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include
 
 debian:
 	debuild -us -uc
 	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	rm ../erlang-rtmp_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 deploy-doc:
 	(cd doc; rsync -avz . -e ssh erlyvideo.org:/apps/erlyvideo/www/public/rtmp)
 
 .PHONY: doc debian
+
