@@ -32,7 +32,6 @@ install:
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin/
 	install -c -m 644 ebin/*.so $(DESTROOT)$(ERLDIR)/ebin/
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
-	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
 debian:
 	debuild -us -uc

@@ -1,3 +1,9 @@
+erlang-mpegts (1.1) unstable; urgency=low
+
+  * Minor fixes with sending h264 stream
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 24 Mar 2010 18:35:23 +0300
+
 erlang-mpegts (1.0) unstable; urgency=low
 
   * Initial Release.
