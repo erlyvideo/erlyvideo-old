@@ -58,7 +58,7 @@
 -version(1.1).
 
 -export([accept/1, connect/1, start_link/2, getopts/2, setopts/2, getstat/2, send/2]).
--export([status/3, status/4, invoke/2]).
+-export([status/3, status/4, invoke/2, invoke/4]).
 
 -export([start_socket/3]).
 
@@ -202,11 +202,11 @@ invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
 %% @private  
 init([Consumer, accept]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new(), active = false}, ?RTMP_TIMEOUT};
+  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new(), out_channels = array:new(), active = false}, ?RTMP_TIMEOUT};
 
 init([Consumer, connect]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new(), active = false}, ?RTMP_TIMEOUT}.
+  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new(), out_channels = array:new(), active = false}, ?RTMP_TIMEOUT}.
 
 %% @private 
 

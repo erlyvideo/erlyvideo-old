@@ -78,6 +78,7 @@
   socket            ::port()|pid(),
   amf_version = 0   ::integer(),
 	channels          ::array(),
+	out_channels      ::array(),
 	address           ::tuple(),
 	port              ::integer(),
 	buffer = <<>>     ::binary(),
