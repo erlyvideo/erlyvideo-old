@@ -1,5 +1,5 @@
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`
 VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
+ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/ertsp-$(VERSION)
 
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtsp
