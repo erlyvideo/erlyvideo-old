@@ -154,9 +154,14 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
 
 % Part of RTMP specification.
 extract_play_args([]) -> [];
-extract_play_args([Start]) -> [{start, Start}];
-extract_play_args([Start, Duration]) -> [{start, Start}, {duration, Duration}];
-extract_play_args([Start, Duration, Reset]) -> [{start, Start}, {duration, Duration}, {reset, Reset}].
+extract_play_args([Start]) when Start > 0 -> [{start, Start}];
+extract_play_args([_Start]) -> [];
+extract_play_args([Start, Duration]) when Start > 0 andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
+extract_play_args([Start, _Duration]) when Start > 0 -> [{start, Start}];
+extract_play_args([_Start, _Duration]) -> [];
+extract_play_args([Start, Duration, Reset]) when Start > 0 andalso Duration > 0 -> [{start, Start}, {duration, Duration}, {reset, Reset}];
+extract_play_args([Start, _Duration, Reset]) when Start > 0 -> [{start, Start}, {reset, Reset}];
+extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].
 
 
 
@@ -182,7 +187,7 @@ pause(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{a
         rtmp_socket:status(Socket, StreamId, ?NS_PAUSE_NOTIFY),
         State;
       false ->
-        Player ! resume,
+        Player ! {resume, NewTs*1000},
         rtmp_socket:status(Socket, StreamId, ?NS_UNPAUSE_NOTIFY),
         State
     end.
@@ -222,10 +227,6 @@ seek(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{ar
   ?D({"seek", round(Timestamp)}),
   Player = ems:element(StreamId, Streams),
   Player ! {seek, Timestamp},
-  rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
   State.
   
 

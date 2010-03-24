@@ -118,7 +118,8 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
 stop(#ems_stream{media_info = MediaEntry} = Stream) ->
   ?D({"Stopping", MediaEntry}),
   gen_server:call(MediaEntry, {unsubscribe, self()}),
-  flush_play(Stream#ems_stream{media_info = undefined}).
+  flush_play(),
+  Stream#ems_stream{media_info = undefined}.
   
   
 flush_frames() ->
@@ -128,11 +129,11 @@ flush_frames() ->
     0 -> ok
   end.
   
-flush_play(Stream) ->
+flush_play() ->
   receive
-    play -> flush_play(Stream)
+    play -> flush_play()
   after 
-    0 -> Stream
+    0 -> ok
   end.
         
 
@@ -175,7 +176,7 @@ ready(State) ->
     Message -> handle_info(Message, State)
   end.
   
-handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, media_info = MediaEntry, consumer = Consumer, base_dts = BaseTS, client_buffer = ClientBuffer} = State) ->
+handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = StreamId, media_info = MediaEntry, consumer = Consumer, base_dts = BaseTS, client_buffer = ClientBuffer} = State) ->
   case Message of
     {client_buffer, NewClientBuffer} -> 
       ?MODULE:ready(State#ems_stream{client_buffer = NewClientBuffer});
@@ -200,7 +201,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, media_info =
 
     {seek, RequestTS} when RealMode == stream andalso RequestTS == 0 ->
       ?D({"Return to live"}),
-      flush_play(State),
+      flush_play(),
       gen_server:call(MediaEntry, {subscribe, self()}),
       ?MODULE:ready(State#ems_stream{mode = stream});
       
@@ -212,6 +213,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, media_info =
           gen_server:call(MediaEntry, {unsubscribe, self()}),
           self() ! play,
           flush_frames(),
+          Consumer ! {ems_stream, StreamId, seek_notify},
           ?MODULE:ready(State#ems_stream{pos = Pos, mode = file,
                                          ts_prev = NewTimestamp, 
                                          playing_from = NewTimestamp, 
@@ -223,6 +225,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, media_info =
 
     pause ->
       ?D("Player paused"),
+      flush_play(),
       ?MODULE:ready(State#ems_stream{paused = true});
 
     exit ->
@@ -249,7 +252,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
       erlang:yield(),
       ?MODULE:ready(State);
 
-    resume ->
+    {resume, _NewTS} ->
       ?D("Player resumed"),
       ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
 
@@ -295,13 +298,13 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
       
       
 
-    resume ->
-      ?D("Player resumed"),
-      self() ! play,
+    {resume, NewTS} ->
+      ?D({"Player resumed at", NewTS}),
+      self() ! {seek, NewTS},
       ?MODULE:ready(State#ems_stream{paused = false});
       
     stop ->
-      flush_play(State),
+      flush_play(),
       ?MODULE:ready(State);
   
     play ->
@@ -392,11 +395,14 @@ send_frame(#ems_stream{mode=file} = Player, {#video_frame{body = undefined}, Nex
   self() ! play,
   ?MODULE:ready(Player#ems_stream{pos = Next});
   
-send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
-  ?D({"File is over", Name}),
-  Consumer ! {ems_stream, StreamId, play_complete},
-  flush_play(Player),
-  ?MODULE:ready(Player#ems_stream{media_info = undefined});
+send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer, timer_start = TimerStart, playing_from = PlayingFrom} = Player, done) ->
+  Length = gen_server:call(Player#ems_stream.media_info, length),
+  Timeout = (element(1, erlang:statistics(wall_clock)) - TimerStart) - (Length - PlayingFrom) + ClientBuffer,
+  ?D({"File is over", Name, Length, Timeout}),
+  % timer:send_after(round(Timeout), Consumer, {ems_stream, StreamId, play_complete, Length}),
+  Consumer ! {ems_stream, StreamId, play_complete, Length},
+  flush_play(),
+  ?MODULE:ready(Player#ems_stream{});
 
 send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
   Frame1 = case DTS of
