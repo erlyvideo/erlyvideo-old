@@ -25,3 +25,6 @@
 [submodule "deps/mpegts"]
 	path = deps/mpegts
 	url = git://github.com/erlyvideo/mpegts
+[submodule "wwwroot/player"]
+	path = wwwroot/player
+	url = git://github.com/erlyvideo/erlyplayer
