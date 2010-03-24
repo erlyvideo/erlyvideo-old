@@ -73,18 +73,11 @@ start: erlang_version ebin
 	-detached
 
 install: compile
-	mkdir -p $(DESTROOT)$(BEAMDIR)
-	mkdir -p $(DESTROOT)$(DOCDIR)
-	mkdir -p $(DESTROOT)$(SRCDIR)
-	mkdir -p $(DESTROOT)$(INCLUDEDIR)
-	mkdir -p $(DESTROOT)$(ETCDIR)
-	mkdir -p $(DESTROOT)$(VARDIR)
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
 	cp -r ebin src include lib $(DESTROOT)/usr/lib/erlyvideo
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
 	cp contrib/erlyctl $(DESTROOT)/usr/bin/erlyctl
-	cp -r doc $(DESTROOT)$(DOCDIR)
 	mkdir -p $(DESTROOT)/etc/sv/
 	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
@@ -98,8 +91,9 @@ archive: ../erlyvideo-$(VERSION).tgz
 
 debian: all
 	dpkg-buildpackage
-	linux32 dpkg-buildpackage -ai386
+	#linux32 dpkg-buildpackage -ai386
 	cp ../erlyvideo_$(VERSION)_*.deb ../erlyvideo_$(VERSION).dsc $(DEBIANREPO)/binary/
+	rm ../erlyvideo_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null > Packages; dpkg-scanpackages -a i386 binary /dev/null > Packages; gzip -9 Packages; mv -f Packages.gz binary/Packages.gz)
 
 
