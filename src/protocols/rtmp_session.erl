@@ -403,7 +403,6 @@ handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_ses
     {bytes, 0}
   ]},
   
-  ?D({"Send play complete", Arg}),
   rtmp_socket:send(Socket, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, body = [<<"onPlayStatus">>, Arg], timestamp = same}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_end, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STOP),
