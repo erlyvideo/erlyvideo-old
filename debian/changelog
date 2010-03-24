@@ -1,3 +1,9 @@
+erlmedia (1.1) unstable; urgency=low
+
+  * Added some tests and fixes to aac
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 24 Mar 2010 18:24:05 +0300
+
 erlmedia (1.0) unstable; urgency=low
 
   * Initial Release.
