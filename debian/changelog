@@ -1,3 +1,15 @@
+erlyvideo (1.6.2) unstable; urgency=low
+
+  * bump rtmp
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 24 Mar 2010 21:43:20 +0300
+
+erlyvideo (1.6.1) unstable; urgency=low
+
+  * stream_media will now survive socket failure and accept life_timeout
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 24 Mar 2010 21:34:40 +0300
+
 erlyvideo (1.6) unstable; urgency=low
 
   * erlyvideo got timeshift
