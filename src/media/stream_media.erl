@@ -41,52 +41,58 @@ pass_socket(Media, Socket) ->
   gen_server:call(Media, {set_socket, Socket}).
   
 
-
-init([URL, mpegts, Options]) ->
-  OurHost = proplists:get_value(host, Options),
-  Sock = case proplists:get_value(make_request, Options, true) of
-    true ->
-      {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-      {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000),
-      gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.0\r\n\r\n"),
-      ok = inet:setopts(Socket, [{active, once}]),
-      Socket;
-    false ->
-      undefined
-  end,
-  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  {ok, #media_info{socket = Sock, host = OurHost, name = URL, mode = mpegts, demuxer = Reader, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
-
-
-init([URL, mpegts_passive, Options]) ->
-  Host = proplists:get_value(host, Options),
-  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  {ok, #media_info{name = URL, mode = mpegts_passive, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
-
-init([URL, shoutcast, Options]) ->
-  Host = proplists:get_value(host, Options),
-  {ok, Reader} = ems_sup:start_shoutcast_reader(self()),
-  {ok, #media_info{name = URL, mode = shoutcast, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
+connect_http(#media_info{name = URL}) ->
+  
+  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, line}, {active, false}], 4000),
+  ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
+  gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
+  ok = inet:setopts(Socket, [{active, once}]),
+  Socket.
   
 
-init([URL, rtsp, Options]) ->
-  Host = proplists:get_value(host, Options),
-  Timeout = proplists:get_value(timeout, Options, 5000),
-  {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]),
-  {ok, #media_info{name = URL, mode = rtsp, demuxer = Reader, host = Host, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)}};
-  
 
-init([Name, Type, Options]) ->
+init([URL, Type, Options]) ->
   Host = proplists:get_value(host, Options),
+  Timeshift = proplists:get_value(timeshift, Options),
   LifeTimeout = proplists:get_value(life_timeout, Options, ?FILE_CACHE_TIME),
   Filter = proplists:get_value(filter, Options),
+  Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, 
+                   filter = Filter, timeshift = Timeshift, shift = init_timeshift(Options), options = Options}),
+  {ok, Media, ?TIMEOUT};
+
+
+init(#media_info{type = mpegts, options = Options} = Media) ->
+  ?D({"Stream media", proplists:get_value(make_request, Options, true)}),
+  Sock = case proplists:get_value(make_request, Options, true) of
+    true -> connect_http(Media);
+    _ -> undefined
+  end,
+  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
+  Media#media_info{socket = Sock, demuxer = Reader};
+
+
+init(#media_info{type = mpegts_passive} = Media) ->
+  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
+  Media#media_info{demuxer = Reader};
+
+init(#media_info{type = shoutcast} = Media) ->
+  {ok, Reader} = ems_sup:start_shoutcast_reader(self()),
+  Media#media_info{demuxer = Reader};
+  
+
+init(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]),
+  Media#media_info{demuxer = Reader};
+  
+
+init(#media_info{host = Host, type = Type, name = Name, options = Options} = Media) ->
   Owner = proplists:get_value(owner, Options),
   case Owner of
     undefined -> ok;
     _ -> erlang:monitor(process, Owner)
   end,
-  Clients = [],
-  % Header = flv:header(#flv_header{version = 1, audio = 1, video = 1}),
   Device = case Type of
     live -> 
       undefined;
@@ -97,9 +103,7 @@ init([Name, Type, Options]) ->
       {ok, Writer} = flv_writer:start_link(FileName),
       Writer
   end,
-	Recorder = #media_info{type = Type, name = Name, host = Host, owner = Owner, filter = Filter,
-	                       clients = Clients, life_timeout = LifeTimeout, device = Device, shift = init_timeshift(Options), timeshift = proplists:get_value(timeshift, Options)},
-	{ok, Recorder}.
+	Media#media_info{owner = Owner, device = Device}.
 
 
 %%-------------------------------------------------------------------------
@@ -117,16 +121,16 @@ init([Name, Type, Options]) ->
 
 
 handle_call(length, _From, MediaInfo) ->
-  {reply, 0, MediaInfo};
+  {reply, 0, MediaInfo, ?TIMEOUT};
 
 handle_call(mode, _From, MediaInfo) ->
-  {reply, stream, MediaInfo};
+  {reply, stream, MediaInfo, ?TIMEOUT};
   
 handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
   Ref = erlang:monitor(process, Client),
   Client ! Audio,
   Client ! Video,
-  {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}};
+  {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}, ?TIMEOUT};
 
 handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
   Clients1 = case lists:keytake(Client, 1, Clients) of
@@ -136,7 +140,7 @@ handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = Media
     false ->
       Clients
   end,
-  {reply, {ok, stream}, MediaInfo#media_info{clients = Clients1}};
+  {reply, {ok, stream}, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
 
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
@@ -152,16 +156,16 @@ handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
   
 handle_call({seek, Timestamp}, _From, MediaInfo) ->
-  {reply, seek_in_timeshift(MediaInfo, Timestamp), MediaInfo};
+  {reply, seek_in_timeshift(MediaInfo, Timestamp), MediaInfo, ?TIMEOUT};
 
 handle_call({read, DTS}, _From, MediaInfo) ->
-  {reply, read_from_timeshift(MediaInfo, DTS), MediaInfo};
+  {reply, read_from_timeshift(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
 
 
 handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
   ?D({"Stream received socket in mode", Mode}),
-  {reply, ok, State#media_info{socket = Socket}};
+  {reply, ok, State#media_info{socket = Socket}, ?TIMEOUT};
 
 handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
   ?D({"Owner of", MediaInfo#media_info.name, Owner}),
@@ -201,7 +205,8 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info(graceful, #media_info{owner = undefined, name = Name, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
+
+handle_info(graceful, #media_info{owner = undefined, name = Name, clients = Clients, life_timeout = LifeTimeout} = MediaInfo) when length(Clients) == 0 andalso LifeTimeout =/= false ->
   ?D({self(), "No readers for stream", Name}),
   {stop, normal, MediaInfo};
 
@@ -214,43 +219,16 @@ handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
   ?D({self(), "Graceful", _Owner}),
   {noreply, MediaInfo, ?TIMEOUT};
   
-handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, clients = Clients} = MediaInfo) when length(Clients) == 0 ->
-  ?D({self(), "Owner exits and no clients", Owner}),
-  {stop, normal, MediaInfo};
-
 handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, life_timeout = LifeTimeout} = MediaInfo) ->
   case LifeTimeout of
     false ->
-      % ?D({MediaInfo#media_info.name, "Owner exits, we too"}),
-      {stop, normal, MediaInfo};
+      ?D({MediaInfo#media_info.name, "Owner exits, we don't"}),
+      {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT};
     _ ->
       timer:send_after(LifeTimeout, graceful),
       % ?D({MediaInfo#media_info.name, "Owner exits, wait him", LifeTimeout}),
       {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT}
   end;
-
-handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, State) ->
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, State};
-
-handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, State};
-
-
-handle_info({http, Socket, http_eoh}, TSLander) ->
-  inet:setopts(Socket, [{active, once}, {packet, raw}]),
-  {noreply, TSLander};
-
-
-handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Counter} = State) when Reader =/= undefined ->
-  inet:setopts(Socket, [{active, once}]),
-  Reader ! {data, Bin},
-  {noreply, State#media_info{byte_counter = Counter + size(Bin)}};
-
-handle_info({tcp_closed, _Socket}, #media_info{} = TSLander) ->
-  ?D({"FIXME: mpegts/shoutcast should survive socket failure"}),
-  {stop, normal, TSLander#media_info{device = undefined}};
 
 
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
@@ -258,10 +236,36 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clie
   ?D({MediaInfo#media_info.name, "Removing client", Client, "left", length(Clients1), LifeTimeout}),
   case {length(Clients1), LifeTimeout} of
     {0, 0} -> self() ! graceful;
-    {0, _} when LifeTimeout > 0 -> timer:send_after(LifeTimeout, graceful);
+    {0, _} when is_number(LifeTimeout) andalso LifeTimeout > 0 -> timer:send_after(LifeTimeout, graceful);
     _ -> ok
   end,
   {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
+
+
+handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, State) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, State, ?TIMEOUT};
+
+handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, State, ?TIMEOUT};
+
+
+handle_info({http, Socket, http_eoh}, TSLander) ->
+  inet:setopts(Socket, [{active, once}, {packet, raw}]),
+  {noreply, TSLander, ?TIMEOUT};
+
+
+handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Counter} = State) when Reader =/= undefined ->
+  inet:setopts(Socket, [{active, once}]),
+  Reader ! {data, Bin},
+  {noreply, State#media_info{byte_counter = Counter + size(Bin)}, ?TIMEOUT};
+
+handle_info({tcp_closed, _Socket}, #media_info{} = Media) ->
+  ?D({"Disconnected socket in mode",Media#media_info.type}),
+  Socket = connect_http(Media),
+  {noreply, Media#media_info{socket = Socket}, ?TIMEOUT};
+
 
 handle_info(#video_frame{} = Frame, #media_info{} = Recorder) ->
   {noreply, handle_frame(Frame, Recorder), ?TIMEOUT};
@@ -284,11 +288,7 @@ handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
 handle_info(exit, State) ->
   {stop, normal, State};
 
-handle_info(timeout, #media_info{type = live} = State) ->
-  {stop, normal, State};
-
-handle_info(timeout, #media_info{host = Host, name = Name} = State) ->
-  media_provider:remove(Host, Name),
+handle_info(timeout, #media_info{type = live, life_timeout = LifeTimeout} = State) when LifeTimeout =/= false ->
   {stop, normal, State};
 
 handle_info(pause, State) ->
@@ -342,7 +342,7 @@ read_from_timeshift(#media_info{shift = Shift}, DTS) ->
   end.
 
 
-clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL}) ->
+clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL} = MediaInfo) ->
   Limit = DTS - Timeshift,
   Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
     true
@@ -351,7 +351,7 @@ clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DT
   % _Count = 0,
   % io:format("~s timeshift is ~p/~p bytes/frames in time ~p-~p, clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), round(ets:first(Frames)), round(DTS), _Count]),
   % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
-  ok.
+  MediaInfo.
 
 
 store_timeshift(#media_info{shift = Frames, timeshift = Timeshift} = MediaInfo, #video_frame{} = Frame) when is_number(Timeshift) andalso Timeshift > 0 andalso Frame =/= undefined->
@@ -489,5 +489,5 @@ terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
 %% @private
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+  {ok, State}.
 

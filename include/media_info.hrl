@@ -10,6 +10,7 @@
   path = undefined,
   life_timeout = ?FILE_CACHE_TIME,
   life_timer = undefined,
+  options,
   mode,
   demuxer,
   byte_counter = 0,

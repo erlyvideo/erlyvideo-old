@@ -395,6 +395,11 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
 handle_info({ems_stream, _StreamId, start_play}, StateName, State) ->
   {next_state, StateName, State};
 
+handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
+  {next_state, StateName, State};
+  
+
 handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
   Arg = {object, [
     {code, <<?NS_PLAY_COMPLETE>>}, 

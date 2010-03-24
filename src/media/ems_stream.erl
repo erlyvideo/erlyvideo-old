@@ -187,6 +187,12 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
     {'DOWN', _Ref, process, Consumer, _Reason} ->
       ok;
 
+    {'DOWN', _Ref, process, MediaEntry, _Reason} ->
+      ?D("Died media info"),
+      Consumer ! {ems_stream, StreamId, play_complete, 0},
+      ?MODULE:ready(State#ems_stream{media_info = undefined});
+
+
     {send_audio, Audio} ->
       ?D({"Send audio", Audio}),
       ?MODULE:ready(State#ems_stream{send_audio = Audio});
@@ -199,13 +205,13 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
       ?MODULE:ready(State);
 
-    {seek, RequestTS} when RealMode == stream andalso RequestTS == 0 ->
+    {seek, RequestTS} when RealMode == stream andalso RequestTS == 0 andalso MediaEntry =/= undefined ->
       ?D({"Return to live"}),
       flush_play(),
       gen_server:call(MediaEntry, {subscribe, self()}),
       ?MODULE:ready(State#ems_stream{mode = stream});
       
-    {seek, RequestTS} when is_number(BaseTS) ->
+    {seek, RequestTS} when is_number(BaseTS) andalso MediaEntry =/= undefined ->
       Timestamp = BaseTS + RequestTS,
       case file_media:seek(MediaEntry, Timestamp) of
         {Pos, NewTimestamp} ->
@@ -274,10 +280,6 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
   	{tcp_closed, _Socket} ->
       error_logger:info_msg("~p Video player lost connection.\n", [self()]),
       ok;
-
-    {'DOWN', _Ref, process, MediaEntry, _Reason} ->
-      ?D("Died media info"),
-      ?MODULE:ready(State#ems_stream{media_info = undefined});
 
   	Else ->
   	  ?D({"Unknown message", self(), Else}),
