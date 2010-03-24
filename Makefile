@@ -91,10 +91,9 @@ archive: ../erlyvideo-$(VERSION).tgz
 
 debian: all
 	dpkg-buildpackage
-	#linux32 dpkg-buildpackage -ai386
 	cp ../erlyvideo_$(VERSION)_*.deb ../erlyvideo_$(VERSION).dsc $(DEBIANREPO)/binary/
 	rm ../erlyvideo_$(VERSION)*
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null > Packages; dpkg-scanpackages -a i386 binary /dev/null > Packages; gzip -9 Packages; mv -f Packages.gz binary/Packages.gz)
+	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9 > binary/Packages.gz)
 
 
 .PHONY: doc debian compile
