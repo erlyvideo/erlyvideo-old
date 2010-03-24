@@ -1,8 +1,8 @@
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`
 VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
+ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/shoutcast-$(VERSION)
 
 DEBIANREPO=/apps/erlyvideo/debian/public
-DESTROOT=$(CURDIR)/debian/erlang-rtmp
+DESTROOT=$(CURDIR)/debian/erlang-shoutcast
 
 all:
 	erl -make
@@ -16,9 +16,7 @@ install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/src
 	mkdir -p $(DESTROOT)$(ERLDIR)/include
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin/
-	@#install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin/
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
-	@#install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
 debian:
 	debuild -us -uc
