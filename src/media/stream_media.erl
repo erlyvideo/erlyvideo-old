@@ -317,55 +317,49 @@ init_timeshift(Options) ->
     undefined -> 
       undefined;
     Shift when is_number(Shift) andalso Shift > 0 ->
-      First = 0,
-      Last = 0,
-      Size = round(Shift*7 / 100),
       timer:send_interval(5000, clean_timeshift),
-      {First, Last, array:new([{size,Size},{fixed,true}])}
+      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
   end.
 
-store_timeshift(MediaInfo, #video_frame{decoder_config = true}) ->
-  MediaInfo;
 
-store_timeshift(#media_info{shift = {First, Last, Frames}} = MediaInfo, #video_frame{} = Frame) ->
-  Last1 = (Last + 1) rem array:size(Frames),
-  First1 = case Last1 of
-    First -> (First + 1) rem array:size(Frames);
-    _ -> First
-  end,
-  MediaInfo#media_info{shift = {First1, Last1, array:set(Last, Frame, Frames)}};
+seek_in_timeshift(#media_info{shift = Shift}, Timestamp) ->
+  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
+    TS
+  end)),
+  case lists:reverse(Frames) of
+    [Fr | _] -> {Fr, Fr};
+    _ -> undefined
+  end.
+  
+
+read_from_timeshift(#media_info{shift = Shift}, DTS) ->
+  case ets:lookup(Shift, DTS) of
+    [Frame] -> 
+      Next = ets:next(Shift, DTS),
+      {Frame, Next};
+    [] ->
+      {undefined, undefined}
+  end.
+
+
+clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL} = MediaInfo) ->
+  Limit = DTS - Timeshift,
+  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
+    true
+  end),
+  _Count = ets:select_delete(Frames, Spec),
+  % _Count = 0,
+  % io:format("~s timeshift is ~p/~p bytes/frames in time ~p-~p, clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), round(ets:first(Frames)), round(DTS), _Count]),
+  % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
+  MediaInfo.
+
+
+store_timeshift(#media_info{shift = Frames, timeshift = Timeshift} = MediaInfo, #video_frame{} = Frame) when is_number(Timeshift) andalso Timeshift > 0 andalso Frame =/= undefined->
+  ets:insert(Frames, Frame),
+  MediaInfo;
 
 store_timeshift(MediaInfo, _Frame) ->
   MediaInfo.
-
-
-
-seek_in_timeshift(#media_info{shift = {First, Last, Frames}}, Timestamp) ->
-  seek_in_timeshift(First, Last, Frames, Timestamp, {undefined, undefined}).
-
-seek_in_timeshift(First, First, _Frames, _Timestamp, Key) ->
-  Key;
-  
-seek_in_timeshift(First, Last, Frames, Timestamp, Key) ->
-  case array:get(First, Frames) of
-    #video_frame{dts = DTS} when DTS > Timestamp ->
-      Key;
-    #video_frame{type = video, frame_type = keyframe, decoder_config = false, dts = DTS} ->
-      seek_in_timeshift(First+1, Last, Frames, Timestamp, {First, DTS});
-    #video_frame{} ->
-      seek_in_timeshift(First+1, Last, Frames, Timestamp, Key)
-  end.
-  
-
-read_from_timeshift(#media_info{shift = {_First, _Last, Shift}}, I) ->
-  Frame = array:get(I, Shift),
-  {Frame, (I + 1) rem array:size(Shift)}.
-
-
-clean_timeshift(#media_info{shift = {First, Last, Frames}} = MediaInfo) ->
-  ?D({"Store", First, Last, array:size(Frames)}),
-  MediaInfo.
-
 
 
 
