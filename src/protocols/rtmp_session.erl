@@ -407,10 +407,7 @@ handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_sessio
 
 handle_info({ems_stream, StreamId, play_complete, _LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
   ?D({"Send play complete"}),
-  rtmp_socket:notify(Socket, StreamId, <<"onMetaData">>, [{code, <<?NS_PLAY_COMPLETE>>}]),
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_end, stream_id = StreamId}),
-  rtmp_socket:notify(Socket, StreamId, <<"onPlayStatus">>, [{code, <<?NS_PLAY_COMPLETE>>}]),
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STOP),
+  rtmp_lib:play_complete(Socket, StreamId),
   {next_state, StateName, State};
   
 handle_info({ems_stream, StreamId, seek_notify}, StateName, #rtmp_session{socket = Socket} = State) ->
