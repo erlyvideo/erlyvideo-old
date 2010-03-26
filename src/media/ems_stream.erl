@@ -216,14 +216,15 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       Timestamp = BaseTS + RequestTS,
       case file_media:seek(MediaEntry, Timestamp) of
         {Pos, NewTimestamp} ->
-          ?D({"Player real seek to", round(Timestamp), NewTimestamp}),
+          ?D({"Player real seek to", round(Timestamp), NewTimestamp, ClientBuffer}),
           gen_server:call(MediaEntry, {unsubscribe, self()}),
           self() ! play,
           flush_frames(),
           Consumer ! {ems_stream, StreamId, seek_notify},
           ?MODULE:ready(State#ems_stream{pos = Pos, mode = file,
                                          ts_prev = NewTimestamp, 
-                                         playing_from = NewTimestamp, 
+                                         playing_from = NewTimestamp,
+                                         timer_start = element(1, erlang:statistics(wall_clock)),
                                          prepush = ClientBuffer});
         undefined ->
           ?D({"Seek beyong current borders", Timestamp, BaseTS}),
@@ -460,7 +461,7 @@ timeout_play(#video_frame{dts = AbsTime}, #ems_stream{timer_start = TimerStart, 
   
   Timeout = SeekTime - ClientBuffer - (element(1, erlang:statistics(wall_clock)) - TimerStart),
 
-  % ?D({"Timeout", Timeout, AbsTime, PlayingFrom, ClientBuffer, (element(1, erlang:statistics(wall_clock)) - TimerStart)}),
+  ?D({"Timeout", Timeout, AbsTime, PlayingFrom, ClientBuffer, (element(1, erlang:statistics(wall_clock)) - TimerStart)}),
   make_play(Player, Prepush - SeekTime, round(Timeout)).
   
 make_play(Player, Prepush, _Timeout) when Prepush > 0 ->
