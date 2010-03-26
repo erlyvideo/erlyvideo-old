@@ -31,6 +31,7 @@
   video_track,
   timeshift,
   shift,
+  timeshift_module = ets_timeshift,
 	frames = undefined,
 	owner = undefined,
 	clients = [],

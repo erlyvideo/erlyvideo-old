@@ -5,7 +5,6 @@
 -include("../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlyvideo/include/media_info.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
 
@@ -57,8 +56,9 @@ init([URL, Type, Options]) ->
   Timeshift = proplists:get_value(timeshift, Options),
   LifeTimeout = proplists:get_value(life_timeout, Options, ?FILE_CACHE_TIME),
   Filter = proplists:get_value(filter, Options),
+  TimeshiftModule = proplists:get_value(timeshift_module, Options, ets_timeshift),
   Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, 
-                   filter = Filter, timeshift = Timeshift, shift = init_timeshift(Options), options = Options}),
+                   filter = Filter, timeshift = Timeshift, shift = TimeshiftModule:init(Options), options = Options}),
   {ok, Media, ?TIMEOUT};
 
 
@@ -155,11 +155,11 @@ handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = M
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
   
-handle_call({seek, Timestamp}, _From, MediaInfo) ->
-  {reply, seek_in_timeshift(MediaInfo, Timestamp), MediaInfo, ?TIMEOUT};
+handle_call({seek, Timestamp}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
+  {reply, Module:seek(MediaInfo, Timestamp), MediaInfo, ?TIMEOUT};
 
-handle_call({read, DTS}, _From, MediaInfo) ->
-  {reply, read_from_timeshift(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
+handle_call({read, DTS}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
+  {reply, Module:read(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
 
 
 handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
@@ -300,8 +300,8 @@ handle_info(resume, State) ->
 handle_info({client_buffer, _Buffer}, State) ->
   {noreply, State, ?TIMEOUT};
 
-handle_info(clean_timeshift, #media_info{timeshift = Timeshift} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
-  {noreply, clean_timeshift(MediaInfo), ?TIMEOUT};
+handle_info(clean_timeshift, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
+  {noreply, Module:clean(MediaInfo), ?TIMEOUT};
   
 handle_info(clean_timeshift, MediaInfo) ->
   {noreply, MediaInfo, ?TIMEOUT};
@@ -310,63 +310,13 @@ handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
 
 
-%%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-init_timeshift(Options) ->
-  case proplists:get_value(timeshift, Options) of
-    undefined -> 
-      undefined;
-    Shift when is_number(Shift) andalso Shift > 0 ->
-      timer:send_interval(5000, clean_timeshift),
-      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
-  end.
-
-
-seek_in_timeshift(#media_info{shift = Shift}, Timestamp) ->
-  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
-    TS
-  end)),
-  case lists:reverse(Frames) of
-    [Fr | _] -> {Fr, Fr};
-    _ -> undefined
-  end.
-  
-
-read_from_timeshift(#media_info{shift = Shift}, DTS) ->
-  case ets:lookup(Shift, DTS) of
-    [Frame] -> 
-      Next = ets:next(Shift, DTS),
-      {Frame, Next};
-    [] ->
-      {undefined, undefined}
-  end.
-
-
-clean_timeshift(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL} = MediaInfo) ->
-  Limit = DTS - Timeshift,
-  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
-    true
-  end),
-  _Count = ets:select_delete(Frames, Spec),
-  % _Count = 0,
-  % io:format("~s timeshift is ~p/~p bytes/frames in time ~p-~p, clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), round(ets:first(Frames)), round(DTS), _Count]),
-  % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
-  MediaInfo.
-
-
-store_timeshift(#media_info{shift = Frames, timeshift = Timeshift} = MediaInfo, #video_frame{} = Frame) when is_number(Timeshift) andalso Timeshift > 0 andalso Frame =/= undefined->
-  ets:insert(Frames, Frame),
-  MediaInfo;
-
-store_timeshift(MediaInfo, _Frame) ->
-  MediaInfo.
 
 
 
 %%%%%%%%%%%%%%%%%%        Frame handling         %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Recorder) ->
+handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device, timeshift_module = Module} = Recorder) ->
   {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
   % Frame1 = Frame,
   % Recorder0 = Recorder,
@@ -375,7 +325,7 @@ handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device} = Rec
   Recorder1 = parse_metadata(Recorder0, Frame1),
   Recorder2 = copy_audio_config(Recorder1, Frame1),
   Recorder3 = copy_video_config(Recorder2, Frame1),
-  Recorder4 = store_timeshift(Recorder3, Frame1),
+  Recorder4 = Module:store(Recorder3, Frame1),
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder5 = Recorder4,
   (catch Device ! Frame1),

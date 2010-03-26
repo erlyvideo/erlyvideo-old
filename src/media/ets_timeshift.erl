@@ -1,0 +1,58 @@
+-module(ets_timeshift).
+-author('Max Lapshin <max@maxidoors.ru>').
+-include_lib("erlyvideo/include/media_info.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
+
+-export([init/1, seek/2, read/2, clean/1, store/2]).
+
+%%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+init(Options) ->
+  case proplists:get_value(timeshift, Options) of
+    undefined -> 
+      undefined;
+    Shift when is_number(Shift) andalso Shift > 0 ->
+      timer:send_interval(5000, clean_timeshift),
+      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
+  end.
+
+
+seek(#media_info{shift = Shift}, Timestamp) ->
+  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
+    TS
+  end)),
+  case lists:reverse(Frames) of
+    [Fr | _] -> {Fr, Fr};
+    _ -> undefined
+  end.
+  
+
+read(#media_info{shift = Shift}, DTS) ->
+  case ets:lookup(Shift, DTS) of
+    [Frame] -> 
+      Next = ets:next(Shift, DTS),
+      {Frame, Next};
+    [] ->
+      {undefined, undefined}
+  end.
+
+
+clean(#media_info{timeshift = Timeshift, shift = Frames, last_dts = DTS, name = _URL} = MediaInfo) ->
+  Limit = DTS - Timeshift,
+  Spec = ets:fun2ms(fun(#video_frame{dts = TS} = F) when TS < Limit -> 
+    true
+  end),
+  _Count = ets:select_delete(Frames, Spec),
+  % _Count = 0,
+  % io:format("~s timeshift is ~p/~p bytes/frames in time ~p-~p, clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), round(ets:first(Frames)), round(DTS), _Count]),
+  % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
+  MediaInfo.
+
+
+store(#media_info{shift = Frames, timeshift = Timeshift} = MediaInfo, #video_frame{} = Frame) when is_number(Timeshift) andalso Timeshift > 0 andalso Frame =/= undefined->
+  ets:insert(Frames, Frame),
+  MediaInfo;
+
+store(MediaInfo, _Frame) ->
+  MediaInfo.
