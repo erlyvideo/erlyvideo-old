@@ -8,14 +8,9 @@
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-init(Options) ->
-  case proplists:get_value(timeshift, Options) of
-    undefined -> 
-      undefined;
-    Shift when is_number(Shift) andalso Shift > 0 ->
-      timer:send_interval(5000, clean_timeshift),
-      ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}])
-  end.
+init(_Options) ->
+  timer:send_interval(5000, clean_timeshift),
+  ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}]).
 
 
 seek(#media_info{shift = Shift}, Timestamp) ->

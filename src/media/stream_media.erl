@@ -53,17 +53,24 @@ connect_http(#media_info{name = URL}) ->
 
 init([URL, Type, Options]) ->
   Host = proplists:get_value(host, Options),
-  Timeshift = proplists:get_value(timeshift, Options),
   LifeTimeout = proplists:get_value(life_timeout, Options, ?FILE_CACHE_TIME),
   Filter = proplists:get_value(filter, Options),
+  Timeshift = proplists:get_value(timeshift, Options),
   TimeshiftModule = proplists:get_value(timeshift_module, Options, ets_timeshift),
-  Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, 
-                   filter = Filter, timeshift = Timeshift, shift = TimeshiftModule:init(Options), options = Options}),
+  Shift = case Timeshift of
+    undefined -> undefined;
+    Timeshift -> 
+      ?D({"Initializing timeshift", TimeshiftModule, Timeshift}),
+      TimeshiftModule:init(Options)
+  end,
+  Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, filter = Filter, 
+                           timeshift = Timeshift, shift = Shift, timeshift_module = TimeshiftModule,
+                           options = Options}),
   {ok, Media, ?TIMEOUT};
 
 
 init(#media_info{type = mpegts, options = Options} = Media) ->
-  ?D({"Stream media", proplists:get_value(make_request, Options, true)}),
+  % ?D({"Stream media", proplists:get_value(make_request, Options, true)}),
   Sock = case proplists:get_value(make_request, Options, true) of
     true -> connect_http(Media);
     _ -> undefined
@@ -156,7 +163,8 @@ handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
   
 handle_call({seek, Timestamp}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
-  {reply, Module:seek(MediaInfo, Timestamp), MediaInfo, ?TIMEOUT};
+  Res = (catch Module:seek(MediaInfo, Timestamp)),
+  {reply, Res, MediaInfo, ?TIMEOUT};
 
 handle_call({read, DTS}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
   {reply, Module:read(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
