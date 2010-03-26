@@ -47,6 +47,7 @@
 	sent_audio_config = false,
 	base_dts = undefined,
 	paused = false,
+	pause_ts = undefined,
 	send_audio = true,
 	send_video = true,
 	
@@ -229,10 +230,10 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
           ?MODULE:ready(State)
       end;
 
-    pause ->
+    {pause, NewTS} ->
       ?D("Player paused"),
       flush_play(),
-      ?MODULE:ready(State#ems_stream{paused = true});
+      ?MODULE:ready(State#ems_stream{paused = true, pause_ts = NewTS});
 
     exit ->
       ok;
@@ -288,7 +289,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
 
 
   
-handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer} = State) ->
+handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer, pause_ts = PauseTS} = State) ->
   case Message of
     start ->
       case file_media:metadata(MediaInfo) of
@@ -301,8 +302,11 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
       
 
     {resume, NewTS} ->
-      ?D({"Player resumed at", NewTS}),
-      self() ! {seek, NewTS},
+      ?D({"Player resumed at", PauseTS, NewTS}),
+      case PauseTS of
+        NewTS -> self() ! play;
+        _ -> self() ! {seek, NewTS}
+      end,
       ?MODULE:ready(State#ems_stream{paused = false});
       
     stop ->
@@ -397,10 +401,9 @@ send_frame(#ems_stream{mode=file} = Player, {#video_frame{body = undefined}, Nex
   self() ! play,
   ?MODULE:ready(Player#ems_stream{pos = Next});
   
-send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer, timer_start = TimerStart, playing_from = PlayingFrom} = Player, done) ->
+send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
   Length = gen_server:call(Player#ems_stream.media_info, length),
-  Timeout = (element(1, erlang:statistics(wall_clock)) - TimerStart) - (Length - PlayingFrom) + ClientBuffer,
-  ?D({"File is over", Name, Length, Timeout}),
+  ?D({"File is over", Name, Length}),
   % timer:send_after(round(Timeout), Consumer, {ems_stream, StreamId, play_complete, Length}),
   Consumer ! {ems_stream, StreamId, play_complete, Length},
   flush_play(),

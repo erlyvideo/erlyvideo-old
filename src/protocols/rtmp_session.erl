@@ -383,7 +383,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_sessio
     {StreamId, PlayerPid} ->
       % ?D({"Play complete on", StreamId}),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
-      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
+      rtmp_socket:notify(Socket, StreamId, <<"onPlayStatus">>, [{code, <<?NS_PLAY_COMPLETE>>}]),
       NewStreams = setelement(StreamId, Streams, undefined),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}
   end;
@@ -392,7 +392,12 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info({ems_stream, _StreamId, start_play}, StateName, State) ->
+handle_info({ems_stream, StreamId, start_play}, StateName, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
+  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_RESET),
+  rtmp_socket:notify(Socket, StreamId, <<"onStatus">>, [{code, <<?NS_DATA_START>>}]),
   {next_state, StateName, State};
 
 handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_session{socket = Socket} = State) ->
@@ -400,25 +405,22 @@ handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_sessio
   {next_state, StateName, State};
   
 
-handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
-  Arg = {object, [
-    {code, <<?NS_PLAY_COMPLETE>>}, 
-    {level, <<"status">>}, 
-    {duration, LastDTS/1000},
-    {bytes, 0}
-  ]},
-  
-  rtmp_socket:send(Socket, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, body = [<<"onPlayStatus">>, Arg], timestamp = same}),
+handle_info({ems_stream, StreamId, play_complete, _LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
+  ?D({"Send play complete"}),
+  rtmp_socket:notify(Socket, StreamId, <<"onMetaData">>, [{code, <<?NS_PLAY_COMPLETE>>}]),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_end, stream_id = StreamId}),
+  rtmp_socket:notify(Socket, StreamId, <<"onPlayStatus">>, [{code, <<?NS_PLAY_COMPLETE>>}]),
   rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STOP),
   {next_state, StateName, State};
   
 handle_info({ems_stream, StreamId, seek_notify}, StateName, #rtmp_session{socket = Socket} = State) ->
   ?D({"Send seek notify"}),
-  rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
+  rtmp_socket:send(Socket, #rtmp_message{type = stream_end, stream_id = StreamId}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  rtmp_socket:status(Socket, StreamId, ?NS_SEEK_NOTIFY),
   rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
+  rtmp_socket:notify(Socket, StreamId, <<"onStatus">>, [{code, <<?NS_DATA_START>>}]),
   {next_state, StateName, State};
 
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->

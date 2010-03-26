@@ -42,7 +42,7 @@
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
-         getStreamLength/2, prepareStream/2, checkBandwidth/2, 'FCSubscribe'/2]).
+         getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2]).
 -export(['WAIT_FOR_DATA'/2]).
 
 -export([next_stream/1]).
@@ -147,7 +147,6 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   Options = extract_play_args(Args),
   Stream ! {play, Name, Options},
   ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),  
-  prepareStream(State, StreamId),
   % gen_fsm:send_event(self(), {play, Name, Options}),
   State.
 
@@ -164,12 +163,6 @@ extract_play_args([Start, _Duration, Reset]) when Start > 0 -> [{start, Start}, 
 extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].
 
 
-
-prepareStream(#rtmp_session{socket = Socket}, StreamId) ->
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_RESET).
   
   
 
@@ -183,11 +176,11 @@ pause(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{a
     Player = ems:element(StreamId, Streams),
     case Pausing of
       true ->
-        Player ! pause,
+        Player ! {pause, NewTs},
         rtmp_socket:status(Socket, StreamId, ?NS_PAUSE_NOTIFY),
         State;
       false ->
-        Player ! {resume, NewTs*1000},
+        Player ! {resume, NewTs},
         rtmp_socket:status(Socket, StreamId, ?NS_UNPAUSE_NOTIFY),
         State
     end.
