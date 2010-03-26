@@ -36,7 +36,7 @@
 -export([wait_for_reply/2]).
 -export([connect/1, connect/2, createStream/1, play/3]).
 -export([shared_object_connect/2, shared_object_set/4]).
--export([play_complete/3]).
+-export([play_complete/3, seek_notify/2]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -126,6 +126,15 @@ shared_object_set(RTMP, Name, Key, Value) ->
   after
     30000 -> erlang:error(timeout)
   end.
+  
+
+seek_notify(RTMP, StreamId) ->
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Seek.Notify">>),
+  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Start">>),
+  rtmp_socket:notify(RTMP, StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]).
   
 
 play_complete(RTMP, StreamId, Options) ->
