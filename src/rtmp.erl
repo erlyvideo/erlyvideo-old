@@ -154,7 +154,7 @@ encode(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = St
   ChunkList = chunk(Data, ChunkSize, Id),
 
   case array:get(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined ->
+    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS < Timestamp ->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
