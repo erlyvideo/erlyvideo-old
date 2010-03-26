@@ -393,11 +393,7 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   {next_state, StateName, State};
 
 handle_info({ems_stream, StreamId, start_play}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_START),
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_RESET),
-  rtmp_socket:notify(Socket, StreamId, <<"onStatus">>, [{code, <<?NS_DATA_START>>}]),
+  rtmp_lib:play_start(Socket, StreamId),
   {next_state, StateName, State};
 
 handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_session{socket = Socket} = State) ->
