@@ -152,9 +152,9 @@ encode(State, #rtmp_message{stream_id = StreamId} = Message) when is_float(Strea
 encode(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type)-> 
   ChunkList = chunk(Data, ChunkSize, Id),
-       
+
   case array:get(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel ->
+    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined ->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
@@ -164,13 +164,17 @@ encode(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = St
     	Bin = [<<BinId/binary,Delta:24,(size(Data)):24,Type:8>> | ChunkList],
       {State#rtmp_socket{out_channels = array:set(Id, Channel1, Channels)}, Bin};
     Chan ->
+      TS = case Timestamp of
+        same -> 0;
+        _ -> Timestamp
+      end,
       Channel = case Chan of
         undefined -> #channel{id = Id};
         _ -> Chan
       end,
     	BinId = encode_id(?RTMP_HDR_NEW,Id),
-    	Channel1 = Channel#channel{timestamp = Timestamp, delta = undefined, stream_id = StreamId},
-    	Bin = [<<BinId/binary,Timestamp:24,(size(Data)):24,Type:8,StreamId:32/little>> | ChunkList],
+      Channel1 = Channel#channel{timestamp = TS, delta = undefined, stream_id = StreamId},
+      Bin = [<<BinId/binary,TS:24,(size(Data)):24,Type:8,StreamId:32/little>> | ChunkList],
       {State#rtmp_socket{out_channels = array:set(Id, Channel1, Channels)}, Bin}
   end.
 
