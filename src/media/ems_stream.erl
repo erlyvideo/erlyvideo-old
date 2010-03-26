@@ -461,7 +461,8 @@ timeout_play(#video_frame{dts = AbsTime}, #ems_stream{timer_start = TimerStart, 
   
   Timeout = SeekTime - ClientBuffer - (element(1, erlang:statistics(wall_clock)) - TimerStart),
 
-  ?D({"Timeout", Timeout, AbsTime, PlayingFrom, ClientBuffer, (element(1, erlang:statistics(wall_clock)) - TimerStart)}),
+  % ?D({"Timeout", Timeout, AbsTime, PlayingFrom, ClientBuffer, Prepush - SeekTime, 
+  %  (element(1, erlang:statistics(wall_clock)) - TimerStart)}),
   make_play(Player, Prepush - SeekTime, round(Timeout)).
   
 make_play(Player, Prepush, _Timeout) when Prepush > 0 ->
