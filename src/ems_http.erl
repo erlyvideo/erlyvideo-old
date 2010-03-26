@@ -28,6 +28,7 @@ handle(Host, 'GET', [], Req) ->
   Query = Req:parse_qs(),
   io:format("GET / ~p~n", [Query]),
   File = proplists:get_value("file", Query, "video.mp4"),
+  Autostart = proplists:get_value("autostart", Query, "false"),
   case file:list_dir(ems_stream:file_dir(Host)) of
     {ok, FileList} -> ok;
     {error, Error} -> 
@@ -38,6 +39,7 @@ handle(Host, 'GET', [], Req) ->
   {ok, Index} = index_template:render([
     {files, FileList},
     {hostname, ems:get_var(host, Host, "rtmp://localhost")},
+    {autostart, Autostart},
     {live_id, uuid:to_string(uuid:v4())},
     {url, File},
     {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}]),
