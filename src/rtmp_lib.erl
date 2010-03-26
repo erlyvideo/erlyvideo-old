@@ -36,6 +36,7 @@
 -export([wait_for_reply/2]).
 -export([connect/1, connect/2, createStream/1, play/3]).
 -export([shared_object_connect/2, shared_object_set/4]).
+-export([play_complete/2]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -126,6 +127,35 @@ shared_object_set(RTMP, Name, Key, Value) ->
     30000 -> erlang:error(timeout)
   end.
   
+
+play_complete(RTMP, StreamId) ->
+  PlayCompleteArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}]},
+  PlayComplete = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
+                body = [<<"onMetaData">>, PlayCompleteArg], timestamp = 0},
+  rtmp_socket:send(RTMP, PlayComplete),
+  
+  % rtmp_socket:notify(RTMP, StreamId, <<"onMetaStatus">>, [{code, <<"NetStream.Play.Complete">>}]),
+  
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0}),
+  
+  % rtmp_socket:notify(RTMP, StreamId, <<"onPlayStatus">>, [{code, <<"NetStream.Play.Complete">>}]),
+  PlayComplete1Arg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}]},
+  PlayComplete1 = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
+                body = [<<"onPlayStatus">>, PlayComplete1Arg], timestamp = 0},
+  rtmp_socket:send(RTMP, PlayComplete1),
+
+
+
+  PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Stop">>}]},
+  PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(video, StreamId), timestamp = same, stream_id = StreamId, 
+                body = #rtmp_funcall{command = onStatus, id = 0, stream_id = StreamId, args = [null, PlayStopArg]}},
+  rtmp_socket:send(RTMP, PlayStop).
+  % rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Stop">>).
+  
+
+channel_id(metadata, StreamId) -> 3 + StreamId;
+channel_id(video, StreamId) -> 4 + StreamId;
+channel_id(audio, StreamId) -> 5 + StreamId.
 
 % wait_for(Msg) ->
 %   receive

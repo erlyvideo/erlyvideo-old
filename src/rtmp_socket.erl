@@ -205,7 +205,7 @@ invoke(RTMP, StreamId, Command, Args) ->
         id = 0,
         stream_id = StreamId,
         args = [null | Args ]},
-  send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF, timestamp = 0}).
+  send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
 
 invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
