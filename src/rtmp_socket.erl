@@ -58,7 +58,7 @@
 -version(1.1).
 
 -export([accept/1, connect/1, start_link/2, getopts/2, setopts/2, getstat/2, send/2]).
--export([status/3, status/4, invoke/2, invoke/4]).
+-export([status/3, status/4, invoke/2, invoke/4, notify/4]).
 
 -export([start_socket/3]).
 
@@ -169,6 +169,17 @@ send(RTMP, Message) ->
   RTMP ! Message,
   ok.
   
+
+channel_id(metadata, StreamId) -> 3 + StreamId;
+channel_id(video, StreamId) -> 4 + StreamId;
+channel_id(audio, StreamId) -> 5 + StreamId.
+
+
+
+notify(RTMP, StreamId, Name, Args) ->
+  Arg = {object, lists:ukeymerge(1, [{level, <<"status">>}], lists:keysort(1, Args))},
+  send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}).
+
 
 -spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::any_string()) -> ok).
 status(RTMP, StreamId, Code) when is_list(Code) ->
