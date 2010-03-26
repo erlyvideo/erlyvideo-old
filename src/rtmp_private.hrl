@@ -24,7 +24,7 @@
 
 %% RTMP data 
 -define(RTMP_TYPE_CHUNK_SIZE,     1).
-%-define(RTMP_TYPE_UNKNOWN,       2).
+-define(RTMP_TYPE_ABORT,          2).
 -define(RTMP_TYPE_ACK_READ,       3).
 -define(RTMP_TYPE_CONTROL,        4).
 -define(RTMP_TYPE_WINDOW_ACK_SIZE,5).

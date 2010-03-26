@@ -101,7 +101,7 @@ encode(State, #rtmp_message{type = ping} = Message) ->
 
 encode(State, #rtmp_message{type = pong} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PONG});
-  
+
 encode(State, #rtmp_message{type = control, body = EventType, stream_id = StreamId} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, StreamId:32>>});
 
@@ -116,6 +116,9 @@ encode(State, #rtmp_message{type = audio} = Message) ->
 
 encode(State, #rtmp_message{type = video} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_VIDEO});
+
+encode(State, #rtmp_message{type = abort, body = ChannelId} = Message) ->
+  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_ABORT, body = <<ChannelId:32>>});
 
 encode(#rtmp_socket{amf_version = 0} = State, #rtmp_message{type = invoke, body = AMF} = Message) when is_record(AMF, rtmp_funcall)-> 
 	encode(State, Message#rtmp_message{body = encode_funcall(AMF), type = ?RTMP_INVOKE_AMF0});
