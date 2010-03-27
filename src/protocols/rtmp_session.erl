@@ -409,6 +409,11 @@ handle_info({ems_stream, StreamId, seek_notify}, StateName, #rtmp_session{socket
   rtmp_lib:seek_notify(Socket, StreamId),
   {next_state, StateName, State};
 
+handle_info({ems_stream, StreamId, seek_failed}, StateName, #rtmp_session{socket = Socket} = State) ->
+  ?D({"Send seek failed"}),
+  rtmp_lib:seek_failed(Socket, StreamId),
+  {next_state, StateName, State};
+
 handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
   % ?D({Type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, round(DTS)}),
   

@@ -227,6 +227,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
                                          prepush = ClientBuffer});
         undefined ->
           ?D({"Seek beyong current borders", Timestamp}),
+          Consumer ! {ems_stream, StreamId, seek_failed},
           ?MODULE:ready(State)
       end;
 
@@ -381,7 +382,7 @@ send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, se
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
-  ?D({"Refuse to sent unsynced frame", _Type, _DTS}),
+  ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.body}),
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
