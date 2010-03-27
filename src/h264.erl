@@ -7,7 +7,7 @@
 -include_lib("erlmedia/include/h264.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
--export([decode_nal/2, video_config/1, unpack_config/1, metadata/1]).
+-export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([open_dump/0, dump_nal/2, fake_open_dump/0, fake_dump_nal/2]).
 -export([parse_sps/1]).
@@ -32,15 +32,15 @@ dump_nal(File, NAL) ->
 -endif.
 
 video_config(H264) ->
-  case decoder_config(H264) of
-    undefined -> undefined;
-    DecoderConfig when is_binary(DecoderConfig) ->
+  case has_config(H264) of
+    false -> undefined;
+    true ->
       #video_frame{       
        	type          = video,
        	decoder_config = true,
     		dts           = 0,
     		pts           = 0,
-    		body          = DecoderConfig,
+    		body          = decoder_config(H264),
     		frame_type    = keyframe,
     		codec_id      = avc
     	}
@@ -72,7 +72,8 @@ parse_avc_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) ->
   parse_avc_config(Rest, Count - 1, [NAL|List]).
 
   
-  
+has_config(#h264{sps = SPS, pps = PPS}) when length(SPS) > 0 andalso length(PPS) > 0 -> true;
+has_config(_) -> false.
 
 decoder_config(#h264{sps = undefined}) -> undefined;
 decoder_config(#h264{pps = undefined}) -> undefined;
