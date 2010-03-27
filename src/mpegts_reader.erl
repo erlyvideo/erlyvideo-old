@@ -341,15 +341,15 @@ stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
 % normalize_timestamp(#stream{start_dts = undefined, pts = PTS} = Stream) when is_number(PTS) -> 
 %   normalize_timestamp(Stream#stream{start_dts = PTS});
 
-normalize_timestamp(#stream{start_dts = undefined, pcr = PCR} = Stream) when is_number(PCR) -> 
-  normalize_timestamp(Stream#stream{start_dts = PCR});
-
-normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) andalso DTS > 0 -> 
-  normalize_timestamp(Stream#stream{start_dts = DTS});
-
-normalize_timestamp(#stream{start_dts = Start, dts = DTS, pts = PTS} = Stream) when is_number(Start) andalso Start > 0 -> 
-  % ?D({"Normalize", Stream#stream.pid, round(DTS - Start), round(PTS - Start)}),
-  Stream#stream{dts = DTS - Start, pts = PTS - Start};
+% normalize_timestamp(#stream{start_dts = undefined, pcr = PCR} = Stream) when is_number(PCR) -> 
+%   normalize_timestamp(Stream#stream{start_dts = PCR});
+% 
+% normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) andalso DTS > 0 -> 
+%   normalize_timestamp(Stream#stream{start_dts = DTS});
+% 
+% normalize_timestamp(#stream{start_dts = Start, dts = DTS, pts = PTS} = Stream) when is_number(Start) andalso Start > 0 -> 
+%   % ?D({"Normalize", Stream#stream.pid, round(DTS - Start), round(PTS - Start)}),
+%   Stream#stream{dts = DTS - Start, pts = PTS - Start};
 normalize_timestamp(Stream) ->
   Stream.
   
@@ -422,11 +422,11 @@ decode_avc(#stream{es_buffer = Data} = Stream) ->
       
 handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
+  case {h264:has_config(H264), h264:has_config(H264_1)} of
+    {false, true} -> Consumer ! h264:video_config(H264_1);
+    _ -> ok
+  end,
   lists:foreach(fun(Frame) ->
-    case Frame#video_frame.frame_type of 
-      keyframe -> Consumer ! h264:video_config(H264_1);
-      _ -> ok
-    end,
     Consumer ! Frame#video_frame{dts = DTS, pts = PTS}
   end, Frames),
   Stream#stream{h264 = H264_1}.
