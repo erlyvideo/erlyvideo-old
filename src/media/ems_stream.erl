@@ -45,7 +45,8 @@
 	stream_id,
 	sent_video_config = false,
 	sent_audio_config = false,
-	base_dts = undefined,
+	video_config,
+	audio_config,
 	paused = false,
 	pause_ts = undefined,
 	send_audio = true,
@@ -142,7 +143,7 @@ prepare(#ems_stream{mode = stream} = Stream, _Options) ->
   ready(Stream);
 
 prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
-  {Seek, BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
+  {Seek, _BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
     undefined -> {undefined, 0, 0};
     SeekTo ->
       case file_media:seek(MediaEntry, SeekTo) of
@@ -165,7 +166,6 @@ prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   end,
   % ?D({"Seek:", Seek, BaseTS, PlayingFrom, PlayEnd}),
   ready(Stream#ems_stream{pos = Seek,
-                     base_dts = BaseTS,
                      playing_from = PlayingFrom,
                      play_end = PlayEnd,
                      client_buffer = proplists:get_value(client_buffer, Options, 10000)}).
@@ -177,7 +177,7 @@ ready(State) ->
     Message -> handle_info(Message, State)
   end.
   
-handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = StreamId, media_info = MediaEntry, consumer = Consumer, base_dts = BaseTS, client_buffer = ClientBuffer} = State) ->
+handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = StreamId, media_info = MediaEntry, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
   case Message of
     {client_buffer, NewClientBuffer} -> 
       ?MODULE:ready(State#ems_stream{client_buffer = NewClientBuffer});
@@ -226,7 +226,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
                                          timer_start = element(1, erlang:statistics(wall_clock)),
                                          prepush = ClientBuffer});
         undefined ->
-          ?D({"Seek beyong current borders", Timestamp, BaseTS}),
+          ?D({"Seek beyong current borders", Timestamp}),
           ?MODULE:ready(State)
       end;
 
@@ -345,30 +345,44 @@ play(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
   Reply = file_media:read_frame(MediaInfo, Key),
   send_frame(Player, Reply).
   
-send_frame(#ems_stream{mode=stream,sent_video_config = true} = Player, #video_frame{decoder_config = true, type = video}) ->
+send_frame(#ems_stream{mode=stream} = Player, #video_frame{decoder_config = true, type = video} = F) ->
+  ?MODULE:ready(Player#ems_stream{video_config = F});
+
+send_frame(#ems_stream{mode=stream} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
+  ?MODULE:ready(Player#ems_stream{audio_config = F});
+
+
+send_frame(#ems_stream{mode = stream, consumer = Consumer, stream_id = StreamId} = Player, #video_frame{type = metadata} = F) ->
+  Consumer ! F#video_frame{stream_id = StreamId},
   ?MODULE:ready(Player);
 
-send_frame(#ems_stream{mode=stream,sent_audio_config = true} = Player, #video_frame{decoder_config = true, type = audio}) ->
-  ?MODULE:ready(Player);
-
-send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decoder_config = false, frame_type = frame}) ->
-  ?MODULE:ready(Player);
-
-send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decoder_config = false, frame_type = keyframe} = VideoFrame) ->
-  send_frame(Player#ems_stream{mode=stream,synced = true}, VideoFrame);
-
-send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId} = Player, 
-           #video_frame{decoder_config = Decoder, type = Type} = Frame) ->
+send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, audio_config = A, sent_audio_config = false} = Player, 
+           #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
+  Consumer ! A#video_frame{stream_id = StreamId, dts = DTS},
+  ?D({"Send audio config", DTS}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  % ?D({"Frame", Type, round(DTS2), round(PTS2 - DTS2)}),
-  Player1 = case {Decoder, Type} of
-    {true, audio} -> Player#ems_stream{sent_audio_config = true};
-    {true, video} -> Player#ems_stream{sent_video_config = true};
-    _ -> Player
-  end,
-  ?MODULE:ready(Player1);
+  ?MODULE:ready(Player#ems_stream{sent_audio_config = true});
 
+send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, video_config = V, sent_video_config = false} = Player, 
+           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
+  Consumer ! V#video_frame{stream_id = StreamId, dts = DTS},
+  ?D({"Send video config", DTS}),
+  Consumer ! Frame#video_frame{stream_id = StreamId},
+  ?MODULE:ready(Player#ems_stream{sent_video_config = true});
 
+send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_audio_config = true} = Player, 
+           #video_frame{type = audio} = Frame) ->
+  Consumer ! Frame#video_frame{stream_id = StreamId},
+  ?MODULE:ready(Player);
+
+send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_video_config = true} = Player, 
+           #video_frame{type = video} = Frame) ->
+  Consumer ! Frame#video_frame{stream_id = StreamId},
+  ?MODULE:ready(Player);
+
+send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
+  ?D({"Refuse to sent unsynced frame", _Type, _DTS}),
+  ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
   ok;
@@ -393,16 +407,10 @@ send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = 
   flush_play(),
   ?MODULE:ready(Player#ems_stream{});
 
-send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, base_dts = BaseDTS} = Player, {#video_frame{dts = DTS, pts = PTS} = Frame, Next}) ->
-  Frame1 = case DTS of
-    0 ->
-      Frame#video_frame{stream_id = StreamId, dts = DTS + BaseDTS, pts = PTS + BaseDTS};
-    _ ->
-      Frame#video_frame{stream_id = StreamId}
-  end,
+send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
   % ?D({Frame#video_frame.type, Frame1#video_frame.dts}),
-  Consumer ! Frame1,    
-  timeout_play(Frame1, Player#ems_stream{pos = Next}).
+  Consumer ! Frame#video_frame{stream_id = StreamId},    
+  timeout_play(Frame, Player#ems_stream{pos = Next}).
   
 
 
