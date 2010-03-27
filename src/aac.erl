@@ -200,3 +200,20 @@ channels(flcr_blr) -> 5;
 channels(flcr_blr_lfe) -> 6;
 channels(flcr_slr_blr_lfe) -> 7;
 channels(Other) -> Other.
+
+
+
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
+
+config1_test() ->
+  ?assertEqual(ok, aac:config(<<255,16>>)).
+
+
+
+
+
+
