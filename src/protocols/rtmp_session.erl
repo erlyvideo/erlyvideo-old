@@ -381,9 +381,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_sessio
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
     {StreamId, PlayerPid} ->
-      % ?D({"Play complete on", StreamId}),
-      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
-      rtmp_socket:notify(Socket, StreamId, <<"onPlayStatus">>, [{code, <<?NS_PLAY_COMPLETE>>}]),
+      rtmp_lib:play_complete(Socket, StreamId, []),
       NewStreams = setelement(StreamId, Streams, undefined),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}
   end;
