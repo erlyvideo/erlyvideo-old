@@ -206,14 +206,13 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
       ?MODULE:ready(State);
 
-    {seek, RequestTS} when RealMode == stream andalso RequestTS == 0 andalso MediaEntry =/= undefined ->
+    {seek, Timestamp} when RealMode == stream andalso Timestamp == 0 andalso MediaEntry =/= undefined ->
       ?D({"Return to live"}),
       flush_play(),
       gen_server:call(MediaEntry, {subscribe, self()}),
       ?MODULE:ready(State#ems_stream{mode = stream});
       
-    {seek, RequestTS} when is_number(BaseTS) andalso MediaEntry =/= undefined ->
-      Timestamp = BaseTS + RequestTS,
+    {seek, Timestamp} when MediaEntry =/= undefined ->
       case file_media:seek(MediaEntry, Timestamp) of
         {Pos, NewTimestamp} ->
           ?D({"Player real seek to", round(Timestamp), NewTimestamp, ClientBuffer}),
