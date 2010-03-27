@@ -271,9 +271,9 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
   Extension = 0,
   
 
-  % ?D({"Video", PTS, DTS, "--", PTS*90, DTS*90}),
   DTS1 = round(DTS*90),
   PTS1 = round(PTS*90),
+  % ?D({"Video", PTS, DTS, "--", DTS1, PTS1}),
   <<Pts1:3, Pts2:15, Pts3:15>> = <<PTS1:33>>,
   <<Dts1:3, Dts2:15, Dts3:15>> = <<DTS1:33>>,
 
@@ -305,8 +305,8 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 0,
-  % ?D({"Audio", Timestamp}),
   Pts = round(Timestamp * 90),
+  % ?D({"Audio", Timestamp, Pts}),
   <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
   AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
@@ -327,61 +327,46 @@ send_video_config(#streamer{video_config = Config} = Streamer, DTS) ->
   lists:foldl(F, Streamer, NALS).
   
 
-play(#streamer{player = Player, video_config = undefined} = Streamer) ->
+play(#streamer{player = Player} = Streamer) ->
   receive
+    Message -> handle_msg(Streamer, Message)
+  after
+    ?TIMEOUT ->
+      ?D("MPEG TS player stopping"),
+      Player ! stop,
+      ok
+  end.
+     
+handle_msg(#streamer{player = Player, length_size = LengthSize} = Streamer, Message) ->
+  case Message of  
     #video_frame{type = video, decoder_config = true, body = Config, dts = DTS} = Frame ->
       Streamer1 = send_pat(Streamer, DTS),
 
       Streamer2 = send_pmt(Streamer1#streamer{video_config = Config}, DTS),
-      {LengthSize, _} = h264:unpack_config(Config),
-      ?D({"Set length size", LengthSize}),
-      Streamer3 = send_video(Streamer2, Frame#video_frame{body = <<9, 16#E0>>}), %H264 NAL_DELIM
-      Streamer4 = send_video_config(Streamer3#streamer{length_size = LengthSize*8}, DTS),
-      ?MODULE:play(Streamer4)
-  after
-    ?TIMEOUT ->
-      ?D("No video decoder config received"),
-      Player ! stop,
-      ok
-  end;
-
-play(#streamer{audio_config = undefined} = Streamer) ->
-  receive
+      {NewLengthSize, _} = h264:unpack_config(Config),
+      ?D({"Set length size", NewLengthSize}),
+      % Streamer3 = send_video(Streamer2, Frame#video_frame{body = <<9, 16#F0>>}), %H264 NAL_DELIM
+      Streamer3 = Streamer2,
+      % Streamer4 = Streamer3#streamer{length_size = LengthSize*8},
+      Streamer4 = send_video_config(Streamer3#streamer{length_size = NewLengthSize*8}, DTS),
+      ?MODULE:play(Streamer4);
+    
+    #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary, Rest/binary>>, dts = _DTS} = Frame->
+      % Streamer1 = send_video_config(Streamer, _DTS),
+      % <<Length:LengthSize, NAL:Length/binary>> = Body,
+      Streamer1 = Streamer,
+      Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL, frame_type = frame}),
+      case size(Rest) of
+        0 -> ?MODULE:play(Streamer2);
+        _ -> handle_msg(Streamer2, Frame#video_frame{body = Rest})
+      end;
+    #video_frame{type = video, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame ->
+      Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
+      ?MODULE:play(Streamer1);
     #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
       Config = aac:decode_config(AudioConfig),
       ?D({"Audio config", Config}),
-      ?MODULE:play(Streamer#streamer{audio_config = Config})
-  after
-    ?TIMEOUT ->
-      ?D("No audio decoder config received"),
-      % Player ! stop,
-      % ok
-      ?MODULE:play(Streamer#streamer{audio_config = false})
-  end;
-  
-play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
-  receive
-    #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary>>, dts = _DTS} = Frame->
-      Streamer1 = send_video_config(Streamer, _DTS),
-      % <<Length:LengthSize, NAL:Length/binary>> = Body,
-      % Streamer1 = Streamer,
-      Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL, frame_type = frame}),
-      ?MODULE:play(Streamer2);
-    #video_frame{type = video, frame_type = keyframe, dts = _DTS} = Frame->
-      % Streamer1 = send_video_config(Streamer, DTS),
-      % <<Length:LengthSize, NAL:Length/binary>> = Body,
-      Streamer1 = Streamer,
-      Streamer2 = send_video(Streamer1, Frame#video_frame{frame_type = frame}),
-      ?MODULE:play(Streamer2);
-    #video_frame{type = video, body = Body} = Frame ->
-      <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
-      case size(Rest) of
-        0 -> ok;
-        _Remain -> 
-          self() ! Frame#video_frame{body = Rest}
-      end,
-      Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
-      ?MODULE:play(Streamer1);
+      ?MODULE:play(Streamer#streamer{audio_config = Config});
     #video_frame{type = audio} = Frame ->
       Streamer1 = send_audio(Streamer, Frame),
       ?MODULE:play(Streamer1);
@@ -394,11 +379,6 @@ play(#streamer{player = Player, length_size = LengthSize} = Streamer) ->
     Message -> 
       ?D({LengthSize, Message}),
       ?MODULE:play(Streamer)
-  after
-    ?TIMEOUT ->
-      ?D("MPEG TS player stopping"),
-      Player ! stop,
-      ok
   end.
   
   
