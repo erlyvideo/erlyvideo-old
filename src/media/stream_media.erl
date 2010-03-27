@@ -56,7 +56,7 @@ init([URL, Type, Options]) ->
   LifeTimeout = proplists:get_value(life_timeout, Options, ?FILE_CACHE_TIME),
   Filter = proplists:get_value(filter, Options),
   Timeshift = proplists:get_value(timeshift, Options),
-  TimeshiftModule = proplists:get_value(timeshift_module, Options, ets_timeshift),
+  TimeshiftModule = proplists:get_value(timeshift_module, Options, array_timeshift),
   Shift = case Timeshift of
     undefined -> undefined;
     Timeshift -> 
