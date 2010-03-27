@@ -358,25 +358,9 @@ send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decode
 send_frame(#ems_stream{mode=stream,synced = false} = Player, #video_frame{decoder_config = false, frame_type = keyframe} = VideoFrame) ->
   send_frame(Player#ems_stream{mode=stream,synced = true}, VideoFrame);
 
-send_frame(#ems_stream{mode=stream,base_dts = undefined} = Player, #video_frame{dts = Ts} = Frame) when is_number(Ts) andalso Ts > 0 ->
-  send_frame(Player#ems_stream{mode=stream,base_dts = Ts}, Frame);
-
-send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, base_dts = BaseTs} = Player, 
-           #video_frame{dts = DTS1, pts = PTS1, decoder_config = Decoder, type = Type} = Frame) ->
-  DTS2 = case BaseTs of
-    undefined -> 0;
-    _ when BaseTs < DTS1 -> DTS1 - BaseTs;
-    _ -> 0
-  end,
-  PTS2 = case {PTS1, BaseTs} of
-    {undefined, _} -> DTS2;
-    {_, undefined} -> 0;
-    _ when BaseTs < PTS1 -> PTS1 - BaseTs;
-    _ -> 0
-  end,
-  % ?D({Type, round(BaseTs), round(DTS1), round(DTS2)}),
-  % ?D({Type, round(DTS2)}),
-  Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS2, pts = PTS2},
+send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId} = Player, 
+           #video_frame{decoder_config = Decoder, type = Type} = Frame) ->
+  Consumer ! Frame#video_frame{stream_id = StreamId},
   % ?D({"Frame", Type, round(DTS2), round(PTS2 - DTS2)}),
   Player1 = case {Decoder, Type} of
     {true, audio} -> Player#ems_stream{sent_audio_config = true};

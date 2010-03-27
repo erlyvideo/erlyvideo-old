@@ -1,7 +1,7 @@
 {"src/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/crypt/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/apps/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/media/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+{"src/media/*", [hipe,{outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/auth/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/demos/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/formats/*", [{d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
