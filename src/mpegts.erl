@@ -290,10 +290,10 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
                 ESCR:1,ESRate:1,DSMTrick:1,CopyInfo:1,CRC:1,Extension:1,  % All these bits are usually zero
                 (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
-  NALHeader = <<1:32>>,
+  % NALHeader = <<1:32>>,
   % PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader) + 1):16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
   % no PES size should be provided for video
-  PES = <<1:24, ?MPEGTS_STREAMID_H264, 0:16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
+  PES = <<1:24, ?MPEGTS_STREAMID_H264, 0:16, PesHeader/binary, 1:32, Body/binary>>,
   
   Keyframe = case FrameType of
     keyframe -> 1;
@@ -320,21 +320,6 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
   mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
 
-
-send_video_config(#streamer{video_config = Config} = Streamer, DTS) ->
-  {LengthSize, NALS} = h264:unpack_config(Config),
-  F = fun(NAL, undefined) ->
-    NAL;
-  (NAL, S) ->
-    <<S/binary, 1:24, NAL/binary>>
-  end,
-  Body = lists:foldl(F, <<9, 16#F0>>, NALS),
-  ?D({"Send video config with size", LengthSize, Body}),
-  
-  send_video(Streamer, #video_frame{type = video, dts = DTS, pts = DTS, frame_type = keyframe, body = Body}),
-  Streamer#streamer{length_size = LengthSize*8}.
-  
-  
 
 play(#streamer{player = Player} = Streamer) ->
   receive
@@ -375,6 +360,7 @@ handle_msg(#streamer{player = Player, length_size = LengthSize, video_config = V
         <<S/binary, 1:24, NAL/binary>>
       end,
       Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
+      % Packed = lists:foldl(F, undefined, ConfigNALS ++ BodyNALS),
 
       Streamer3 = send_video(Streamer2, Frame#video_frame{body = Packed}),
       ?MODULE:play(Streamer3);

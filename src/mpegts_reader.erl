@@ -422,9 +422,12 @@ decode_avc(#stream{es_buffer = Data} = Stream) ->
       decode_avc(Stream1)
   end.
 
+handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
+  Stream;
+
 handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   % <<_:3, T:5, _/binary>> = NAL,
-  % ?D({nal, DTS, T, NAL}),
+  % ?D({nal, DTS, T}),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   case {h264:has_config(H264), h264:has_config(H264_1)} of
     {false, true} -> Consumer ! h264:video_config(H264_1);
