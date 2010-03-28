@@ -290,7 +290,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>>, #stream{es_buffer = Buffer, type = video} = Stream) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   % ?D({"Video", Stream1#stream.pcr, Stream1#stream.dts}),
-  ?D({"Video", Stream#stream.dts, <<Buffer/binary, Rest/binary>>}),
+  % ?D({"Video", Stream#stream.dts, <<Buffer/binary, Rest/binary>>}),
   decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
@@ -301,7 +301,7 @@ stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeader
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
   PTS = PTS1 / 90,
   DTS = DTS1 / 90,
-  ?D({"Have DTS & PTS", Stream#stream.pid, round(DTS), round(PTS)}),
+  % ?D({"Have DTS & PTS", Stream#stream.pid, round(DTS), round(PTS)}),
   normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
   
 
@@ -309,7 +309,7 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
   <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   PTS = PTS1/90,
-  ?D({"Have pts", Stream#stream.pid, round(PTS)}),
+  % ?D({"Have pts", Stream#stream.pid, round(PTS)}),
   normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
 
 % FIXME!!!
@@ -325,7 +325,7 @@ stream_timestamp(_, #stream{dts = DTS, pts = _PTS, pcr = PCR, start_dts = Start}
   Stream;
 
 stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
-  ?D({"Have no timestamps", DTS}),
+  % ?D({"Have no timestamps", DTS}),
   Stream#stream{dts = DTS + 40, pts = PTS + 40};
 
 stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
