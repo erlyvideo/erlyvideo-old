@@ -388,7 +388,7 @@ send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId} = 
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
-  ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.body}),
+  ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
