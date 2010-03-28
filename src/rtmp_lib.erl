@@ -147,6 +147,7 @@ pause_notify(RTMP, StreamId) ->
   
 
 seek_notify(RTMP, StreamId, Timestamp) ->
+  io:format("NetStream.Seek.Notify (~p): ~p~n", [StreamId, Timestamp]),
   % rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = control, body = 16#1F, stream_id = StreamId}),
