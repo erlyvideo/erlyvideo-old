@@ -35,7 +35,7 @@
 	frames = undefined,
 	owner = undefined,
 	clients = [],
-	base_timestamp = undefined, % Timestamp of first frame
+	ts_delta, % Last seen DTS - new TS on restarted stream
 	last_dts,
 	gop = []
 }).

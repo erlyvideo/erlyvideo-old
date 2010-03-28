@@ -270,9 +270,9 @@ handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Cou
   {noreply, State#media_info{byte_counter = Counter + size(Bin)}, ?TIMEOUT};
 
 handle_info({tcp_closed, _Socket}, #media_info{} = Media) ->
-  ?D({"Disconnected socket in mode",Media#media_info.type}),
+  ?D({"Disconnected socket in mode",Media#media_info.type, Media#media_info.last_dts}),
   Socket = connect_http(Media),
-  {noreply, Media#media_info{socket = Socket}, ?TIMEOUT};
+  {noreply, Media#media_info{socket = Socket, ts_delta = undefined}, ?TIMEOUT};
 
 
 handle_info(#video_frame{} = Frame, #media_info{} = Recorder) ->
@@ -324,8 +324,16 @@ handle_info(Message, State) ->
 %%%%%%%%%%%%%%%%%%        Frame handling         %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device, timeshift_module = Module} = Recorder) ->
-  {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS}),
+handle_frame(#video_frame{dts = DTS} = Frame, #media_info{last_dts = undefined} = Recorder) ->
+  handle_frame(Frame, Recorder#media_info{last_dts = DTS});
+
+handle_frame(#video_frame{dts = DTS} = Frame, #media_info{ts_delta = undefined, last_dts = LastDTS} = Recorder) ->
+  ?D({"New instance of stream", LastDTS, DTS}),
+  handle_frame(Frame, Recorder#media_info{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
+
+handle_frame(#video_frame{dts=DTS,pts=PTS} = Frame0, #media_info{device=Device, ts_delta = Delta} = Recorder) ->
+  Frame = Frame0#video_frame{dts = DTS + Delta, pts = PTS + Delta},
+  {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS + Delta}),
   % Frame1 = Frame,
   % Recorder0 = Recorder,
 
@@ -333,7 +341,8 @@ handle_frame(#video_frame{dts = DTS} = Frame, #media_info{device = Device, times
   Recorder1 = parse_metadata(Recorder0, Frame1),
   Recorder2 = copy_audio_config(Recorder1, Frame1),
   Recorder3 = copy_video_config(Recorder2, Frame1),
-  Recorder4 = Module:store(Recorder3, Frame1),
+  TimeshiftModule = Recorder#media_info.timeshift_module,
+  Recorder4 = TimeshiftModule:store(Recorder3, Frame1),
   % Recorder4 = store_last_gop(Recorder3, Frame),
   Recorder5 = Recorder4,
   (catch Device ! Frame1),
@@ -356,7 +365,7 @@ pass_through_filter(#video_frame{} = Frame, #media_info{filter = {Module, State}
   {Frame1, Recorder#media_info{filter = {Module, State1}}}.
 
 store_last_gop(MediaInfo, #video_frame{type = video, frame_type = keyframe} = Frame) ->
-  ?D({"New GOP", round((Frame#video_frame.dts - MediaInfo#media_info.base_timestamp)/1000)}),
+  ?D({"New GOP", round((Frame#video_frame.dts)/1000)}),
   MediaInfo#media_info{gop = [Frame]};
 
 store_last_gop(#media_info{gop = GOP} = MediaInfo, _) when length(GOP) == 5000 ->
