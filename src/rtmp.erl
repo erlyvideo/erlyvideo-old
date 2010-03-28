@@ -174,7 +174,7 @@ encode(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = St
       TS = case Timestamp of
         same -> 0;
         _ -> Timestamp
-      end rem 16#FFFFFF,
+      end rem 16#FFFFFFFF,
       % io:format("~p ~p~n",[Type, TS]),
       Channel = case Chan of
         undefined -> #channel{id = Id};
