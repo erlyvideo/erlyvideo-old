@@ -214,12 +214,16 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       
     {seek, Timestamp} when MediaEntry =/= undefined ->
       case file_media:seek(MediaEntry, Timestamp) of
+        {_, undefined} ->
+          ?D({"Seek beyong current borders", Timestamp}),
+          Consumer ! {ems_stream, StreamId, seek_failed},
+          ?MODULE:ready(State);
         {Pos, NewTimestamp} ->
           ?D({"Player real seek to", round(Timestamp), NewTimestamp, ClientBuffer}),
           gen_server:call(MediaEntry, {unsubscribe, self()}),
           self() ! play,
           flush_frames(),
-          Consumer ! {ems_stream, StreamId, seek_notify},
+          Consumer ! {ems_stream, StreamId, seek_notify, NewTimestamp},
           ?MODULE:ready(State#ems_stream{pos = Pos, mode = file,
                                          ts_prev = NewTimestamp, 
                                          playing_from = NewTimestamp,
@@ -388,7 +392,7 @@ send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId} = 
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
-  ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
+  % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->

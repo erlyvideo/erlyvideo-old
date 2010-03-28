@@ -404,9 +404,9 @@ handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_ses
   rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
   {next_state, StateName, State};
   
-handle_info({ems_stream, StreamId, seek_notify}, StateName, #rtmp_session{socket = Socket} = State) ->
+handle_info({ems_stream, StreamId, seek_notify, Timestamp}, StateName, #rtmp_session{socket = Socket} = State) ->
   ?D({"Send seek notify"}),
-  rtmp_lib:seek_notify(Socket, StreamId),
+  rtmp_lib:seek_notify(Socket, StreamId, Timestamp),
   {next_state, StateName, State};
 
 handle_info({ems_stream, StreamId, seek_failed}, StateName, #rtmp_session{socket = Socket} = State) ->
