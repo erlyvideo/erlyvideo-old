@@ -24,11 +24,11 @@ unload(ErlNifEnv* env, void* priv)
 
 static int
 find_nal(ErlNifBinary data, int i) {
-  if (i + 4 >= data.size) {
+  if (i + 3 >= data.size) {
     return -1;
   }
-  for(; i + 4 < data.size; i++) {
-    if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 0 && data.data[i+3] == 1) {
+  for(; i + 3 < data.size; i++) {
+    if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 1) {
       return i;
     }
   }
@@ -57,7 +57,7 @@ extract_nal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_atom(env, "undefined");
   }
   
-  start += 4;
+  start += 3;
   
   next = find_nal(data, start);
   if (next == -1) {

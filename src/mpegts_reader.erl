@@ -248,6 +248,7 @@ pes(#stream{synced = false, pid = Pid} = Stream) ->
       ?MODULE:pes(Stream);
     {ts_packet, #ts_header{payload_start = 1}, Packet} ->
       ?D({"Synced PES", Pid}),
+      stream_timestamp(Packet, Stream),
       Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
       ?MODULE:pes(Stream1);
     {ts_packet, #ts_header{}, _} ->
@@ -289,7 +290,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>>, #stream{es_buffer = Buffer, type = video} = Stream) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   % ?D({"Video", Stream1#stream.pcr, Stream1#stream.dts}),
-  % ?D({"Video", Stream1#stream.timestamp, _PESHeader}),
+  ?D({"Video", Stream#stream.dts, <<Buffer/binary, Rest/binary>>}),
   decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
@@ -298,9 +299,9 @@ stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeader
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
-  PTS = PTS1/90,
-  DTS = DTS1/90,
-  % ?D({"Have DTS & PTS", round(DTS), round(PTS)}),
+  PTS = PTS1 / 90,
+  DTS = DTS1 / 90,
+  ?D({"Have DTS & PTS", Stream#stream.pid, round(DTS), round(PTS)}),
   normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
   
 
@@ -308,7 +309,7 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
   <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   PTS = PTS1/90,
-  % ?D({"Have pts", Stream#stream.pid, round(PTS)}),
+  ?D({"Have pts", Stream#stream.pid, round(PTS)}),
   normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
 
 % FIXME!!!
@@ -332,6 +333,7 @@ stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
 stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
+  ?D({"Not timestamps at all"}),
   Stream.
 
 
@@ -419,8 +421,10 @@ decode_avc(#stream{es_buffer = Data} = Stream) ->
       Stream1 = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
       decode_avc(Stream1)
   end.
-      
+
 handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
+  % <<_:3, T:5, _/binary>> = NAL,
+  % ?D({nal, DTS, T, NAL}),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   case {h264:has_config(H264), h264:has_config(H264_1)} of
     {false, true} -> Consumer ! h264:video_config(H264_1);
@@ -441,7 +445,7 @@ extract_nal_erl(Data, Offset) ->
   case Data of
     <<_:Offset/binary>> ->
       undefined;
-    <<_:Offset/binary, 1:32, _Rest/binary>> ->
+    <<_:Offset/binary, 1:24, _Rest/binary>> ->
       extract_nal_erl(Data, Offset, 0);
     _ ->
       extract_nal_erl(Data, Offset+1)
@@ -450,12 +454,17 @@ extract_nal_erl(Data, Offset) ->
 
 extract_nal_erl(Data, Offset, Length) ->
   case Data of
-    <<_:Offset/binary, 1:32, NAL:Length/binary, 1:32, _/binary>> ->
-      <<_:Offset/binary, 1:32, NAL:Length/binary, Rest/binary>> = Data,
+    <<_:Offset/binary, 1:24, NAL:Length/binary, 1:32, _/binary>> ->
+      <<_:Offset/binary, 1:24, NAL:Length/binary, 0, Rest/binary>> = Data,
       {ok, NAL, Rest};
-    <<_:Offset/binary, 1:32, NAL:Length/binary>> ->
+    <<_:Offset/binary, 1:24, NAL:Length/binary, 1:24, _/binary>> ->
+      <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
+      {ok, NAL, Rest};
+    <<_:Offset/binary, 1:24, NAL:Length/binary, 0>> ->
       {ok, NAL, <<>>};
-    <<_:Offset/binary, 1:32, _/binary>> ->
+    <<_:Offset/binary, 1:24, NAL:Length/binary>> ->
+      {ok, NAL, <<>>};
+    <<_:Offset/binary, 1:24, _/binary>> ->
       extract_nal_erl(Data, Offset, Length+1)
   end.
       

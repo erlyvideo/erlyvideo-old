@@ -47,9 +47,9 @@
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
 -define(PMT_PID, 66).
--define(PCR_PID, 69).
--define(AUDIO_PID, 68).
--define(VIDEO_PID, 69).
+-define(AUDIO_PID, 258).
+-define(VIDEO_PID, 257).
+-define(PCR_PID, ?VIDEO_PID).
 -define(PAT_TABLEID, 0).
 -define(PMT_TABLEID, 2).
 
@@ -291,7 +291,9 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
                 (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Sending nal", Body}),
   NALHeader = <<1:32>>,
-  PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader)):16, PesHeader/binary, NALHeader/binary, Body/binary>>,
+  % PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader) + 1):16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
+  % no PES size should be provided for video
+  PES = <<1:24, ?MPEGTS_STREAMID_H264, 0:16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
   
   Keyframe = case FrameType of
     keyframe -> 1;
@@ -320,11 +322,18 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
 
 
 send_video_config(#streamer{video_config = Config} = Streamer, DTS) ->
-  F = fun(NAL, S) ->
-    send_video(S, #video_frame{type = video, dts = DTS, pts = DTS, frame_type = keyframe, decoder_config = true, body = NAL})
+  {LengthSize, NALS} = h264:unpack_config(Config),
+  F = fun(NAL, undefined) ->
+    NAL;
+  (NAL, S) ->
+    <<S/binary, 1:24, NAL/binary>>
   end,
-  {_LengthSize, NALS} = h264:unpack_config(Config),
-  lists:foldl(F, Streamer, NALS).
+  Body = lists:foldl(F, <<9, 16#F0>>, NALS),
+  ?D({"Send video config with size", LengthSize, Body}),
+  
+  send_video(Streamer, #video_frame{type = video, dts = DTS, pts = DTS, frame_type = keyframe, body = Body}),
+  Streamer#streamer{length_size = LengthSize*8}.
+  
   
 
 play(#streamer{player = Player} = Streamer) ->
@@ -336,32 +345,41 @@ play(#streamer{player = Player} = Streamer) ->
       Player ! stop,
       ok
   end.
-     
-handle_msg(#streamer{player = Player, length_size = LengthSize} = Streamer, Message) ->
-  case Message of  
-    #video_frame{type = video, decoder_config = true, body = Config, dts = DTS} = Frame ->
-      Streamer1 = send_pat(Streamer, DTS),
 
-      Streamer2 = send_pmt(Streamer1#streamer{video_config = Config}, DTS),
+
+unpack_nals(Body, LengthSize) ->
+  unpack_nals(Body, LengthSize, []).
+  
+unpack_nals(<<>>, _LengthSize, NALS) ->
+  lists:reverse(NALS);
+
+unpack_nals(Body, LengthSize, NALS) ->
+  <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
+  unpack_nals(Rest, LengthSize, [NAL|NALS]).
+     
+handle_msg(#streamer{player = Player, length_size = LengthSize, video_config = VideoConfig} = Streamer, Message) ->
+  case Message of  
+    #video_frame{type = video, decoder_config = true, body = Config} = _Frame ->
       {NewLengthSize, _} = h264:unpack_config(Config),
-      ?D({"Set length size", NewLengthSize}),
-      % Streamer3 = send_video(Streamer2, Frame#video_frame{body = <<9, 16#F0>>}), %H264 NAL_DELIM
-      Streamer3 = Streamer2,
-      % Streamer4 = Streamer3#streamer{length_size = LengthSize*8},
-      Streamer4 = send_video_config(Streamer3#streamer{length_size = NewLengthSize*8}, DTS),
-      ?MODULE:play(Streamer4);
+      ?MODULE:play(Streamer#streamer{video_config = Config, length_size = NewLengthSize*8});
     
-    #video_frame{type = video, frame_type = keyframe, body = <<Length:LengthSize, NAL:Length/binary, Rest/binary>>, dts = _DTS} = Frame->
-      % Streamer1 = send_video_config(Streamer, _DTS),
-      % <<Length:LengthSize, NAL:Length/binary>> = Body,
-      Streamer1 = Streamer,
-      Streamer2 = send_video(Streamer1, Frame#video_frame{body = NAL, frame_type = frame}),
-      case size(Rest) of
-        0 -> ?MODULE:play(Streamer2);
-        _ -> handle_msg(Streamer2, Frame#video_frame{body = Rest})
-      end;
+    #video_frame{type = video, frame_type = keyframe, body = Body, dts = DTS} = Frame when VideoConfig =/= undefined ->
+      Streamer1 = send_pat(Streamer, DTS),
+      Streamer2 = send_pmt(Streamer1, DTS),
+
+      BodyNALS = unpack_nals(Body, LengthSize),
+      {_, ConfigNALS} = h264:unpack_config(VideoConfig),
+      F = fun(NAL, undefined) ->
+        NAL;
+      (NAL, S) ->
+        <<S/binary, 1:24, NAL/binary>>
+      end,
+      Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
+
+      Streamer3 = send_video(Streamer2, Frame#video_frame{body = Packed}),
+      ?MODULE:play(Streamer3);
     #video_frame{type = video, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame ->
-      Streamer1 = send_video(Streamer, Frame#video_frame{body = NAL}),
+      Streamer1 = send_video(Streamer, Frame#video_frame{body = <<9, 16#F0, 1:24, NAL/binary>>}),
       ?MODULE:play(Streamer1);
     #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
       Config = aac:decode_config(AudioConfig),
