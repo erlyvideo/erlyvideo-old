@@ -177,7 +177,7 @@ pause(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{a
     case Pausing of
       true ->
         Player ! {pause, NewTs},
-        rtmp_socket:status(Socket, StreamId, ?NS_PAUSE_NOTIFY),
+        rtmp_lib:pause_notify(Socket, StreamId),
         State;
       false ->
         Player ! {resume, NewTs},
