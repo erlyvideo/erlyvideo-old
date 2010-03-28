@@ -96,6 +96,9 @@ encode(State, #rtmp_message{type = stream_end} = Message) ->
 encode(State, #rtmp_message{type = stream_recorded} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_RECORDED});
 
+encode(State, #rtmp_message{type = stream_maybe_seek} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_MAYBE_SEEK});
+
 encode(State, #rtmp_message{type = ping} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PING});
 
