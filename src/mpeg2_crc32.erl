@@ -46,7 +46,7 @@ start() ->
 load_nif(true) ->
   case erlang:load_nif("deps/mpegts/ebin/mpeg2_crc32", 0) of
     ok -> ok;
-    _ -> erlang:load_nif("/usr/lib/erlyvideo/ebin/mpeg2_crc32", 0)
+    _ -> erlang:load_nif("/usr/lib/erlyvideo/ebin/mpeg2_crc32", 0), ok
   end;
 
 load_nif(false) ->
