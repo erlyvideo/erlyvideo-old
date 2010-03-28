@@ -97,18 +97,21 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
   
 
 handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL} = RTSP) ->
-  gen_tcp:send(Socket, io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL])),
-  io:format("DESCRIBE ~s RTSP/1.0~n", [URL]),
+  Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL]),
+  gen_tcp:send(Socket, Call),
+  io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
 handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq} = RTSP) ->
-  gen_tcp:send(Socket, io_lib:format("SETUP ~s/trackID=1 RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Seq + 1])),
-  io:format("SETUP ~s/trackID=1 RTSP/1.0~n", [URL]),
+  Call = io_lib:format("SETUP ~s/trackID=1 RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Seq + 1]),
+  gen_tcp:send(Socket, Call),
+  io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session} = RTSP) ->
-  gen_tcp:send(Socket, io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session])),
-  io:format("PLAY ~s RTSP/1.0~n", [URL]),
+  Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session]),
+  gen_tcp:send(Socket, Call),
+  io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
 
 handle_call(Request, _From, #rtsp_socket{} = RTSP) ->
@@ -163,6 +166,7 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, Body} = _Response, Rest} ->
+      io:format("--------------------------~n[RTSP] ~p ~s~n~p~n", [_Code, _Message, Headers]),
       Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
       Socket2 = extract_session(Socket1, Headers),
       Socket3 = sync_rtp(Socket2, Headers),
