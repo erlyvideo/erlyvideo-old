@@ -166,12 +166,14 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   {ok, Re} = re:compile("^(.+).m3u8$"),
   {match, [_, Name]} = re:run(FullName, Re, [{capture, all, binary}]),
   
-  Duration = media_provider:length(Host, Name),
-  SegmentLength = trunc(?STREAM_TIME/1000),
+  Info = media_provider:info(Host, Name),
+  Duration = proplists:get_value(length, Info),
+  Start = trunc(proplists:get_value(start, Info) / ?STREAM_TIME),
+  SegmentLength = ?STREAM_TIME div 1000,
   Count = trunc(Duration/?STREAM_TIME)+1,
   SegmentList = lists:map(fun(N) ->
     io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
-  end, lists:seq(1, Count)),
+  end, lists:seq(Start, Count)),
   Playlist = [
     io_lib:format("#EXTM3U~n#EXT-X-MEDIA-SEQUENCE:0~n#EXT-X-TARGETDURATION:~p~n", [SegmentLength]),
     SegmentList,
@@ -185,7 +187,7 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   {ok, Re} = re:compile("^(.+)/(\\d+).ts$"),
   {match, [_, Name, SegmentId]} = re:run(string:join(StreamName, "/"), Re, [{capture, all, binary}]),
   
-  Segment = (list_to_integer(binary_to_list(SegmentId)) - 1) * ?STREAM_TIME,
+  Segment = (list_to_integer(binary_to_list(SegmentId))) * ?STREAM_TIME,
   Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
   case media_provider:play(Host, Name, [{stream_id, 1}, {seek, Segment}, {duration_before, ?STREAM_TIME}, {client_buffer, ?STREAM_TIME}]) of
     {ok, PlayerPid} ->
