@@ -201,7 +201,7 @@ receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [nul
 
 
 getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, Name | _]} = AMF) ->
-  Length = media_provider:length(Host, Name),
+  Length = proplists:get_value(length, media_provider:info(Host, Name)),
   ?D({"getStreamLength", Name, Length}),
   case Length of
     Length when is_number(Length) ->

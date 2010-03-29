@@ -9,7 +9,7 @@
 
 %% External API
 -export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, find_or_open/2, register/3]).
--export([length/1, length/2]). % just for getStreamLength
+-export([info/1, info/2]). % just for getStreamLength
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -66,18 +66,18 @@ entries(Host) ->
 remove(Host, Name) ->
   gen_server:cast(name(Host), {remove, Name}).
 
-length(Host, Name) ->
+info(Host, Name) ->
   case find_or_open(Host, Name) of
-    Media when is_pid(Media) -> media_provider:length(Media);
+    Media when is_pid(Media) -> media_provider:info(Media);
     _ -> 0
   end.
   
 
-length(undefined) ->
-  0;
+info(undefined) ->
+  [];
   
-length(MediaEntry) when is_pid(MediaEntry) ->
-  proplists:get_value(length, gen_server:call(MediaEntry, info)).
+info(MediaEntry) when is_pid(MediaEntry) ->
+  gen_server:call(MediaEntry, info).
   
 
 init_names() ->
