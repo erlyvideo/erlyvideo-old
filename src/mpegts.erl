@@ -354,9 +354,7 @@ handle_msg(#streamer{player = Player, length_size = LengthSize, video_config = V
 
       BodyNALS = unpack_nals(Body, LengthSize),
       {_, ConfigNALS} = h264:unpack_config(VideoConfig),
-      F = fun(NAL, undefined) ->
-        NAL;
-      (NAL, S) ->
+      F = fun(NAL, S) ->
         <<S/binary, 1:24, NAL/binary>>
       end,
       Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
@@ -364,8 +362,13 @@ handle_msg(#streamer{player = Player, length_size = LengthSize, video_config = V
 
       Streamer3 = send_video(Streamer2, Frame#video_frame{body = Packed}),
       ?MODULE:play(Streamer3);
-    #video_frame{type = video, body = <<Length:LengthSize, NAL:Length/binary>>} = Frame ->
-      Streamer1 = send_video(Streamer, Frame#video_frame{body = <<9, 16#F0, 1:24, NAL/binary>>}),
+    #video_frame{type = video, body = Body} = Frame ->
+      BodyNALS = unpack_nals(Body, LengthSize),
+      F = fun(NAL, S) ->
+        <<S/binary, 1:24, NAL/binary>>
+      end,
+      Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
+      Streamer1 = send_video(Streamer, Frame#video_frame{body = Packed}),
       ?MODULE:play(Streamer1);
     #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
       Config = aac:decode_config(AudioConfig),
