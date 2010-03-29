@@ -158,7 +158,7 @@ seek_notify(RTMP, StreamId, Timestamp) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId,
     body = [<<"|RtmpSampleAccess">>, true, true]}),
     
-  rtmp_socket:send(RTMP, #rtmp_message{type = audio, channel_id = channel_id(video, StreamId), timestamp = Timestamp, stream_id = StreamId, body = <<>>}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = audio, channel_id = channel_id(audio, StreamId), timestamp = Timestamp, stream_id = StreamId, body = <<>>}),
   rtmp_socket:notify(RTMP, StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]).
 
 seek_failed(RTMP, StreamId) ->

@@ -160,22 +160,26 @@ encode(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = St
   ChunkList = chunk(Data, ChunkSize, Id),
 
   case array:get(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS < Timestamp ->
+    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
-    	  _ -> {(Timestamp - PrevTS) rem 16#FFFFFF, Timestamp}
+    	  _ -> {(Timestamp - PrevTS) rem 16#FFFFFFFF, Timestamp}
     	end,
-      % io:format("d ~p ~p~n",[Type, Delta]),
+      % io:format("d ~p ~p ~p~n",[Id, Type, Delta]),
     	Channel1 = Channel#channel{timestamp = NewTS, delta = undefined},
-    	Bin = [<<BinId/binary,Delta:24,(size(Data)):24,Type:8>> | ChunkList],
+    	Header = case Delta < 16#FFFFFF of
+    	  true -> <<BinId/binary,Delta:24,(size(Data)):24,Type:8>>;
+    	  false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,Delta:32>>
+    	end,
+    	Bin = [Header | ChunkList],
       {State#rtmp_socket{out_channels = array:set(Id, Channel1, Channels)}, Bin};
     Chan ->
       TS = case Timestamp of
         same -> 0;
         _ -> Timestamp
-      end rem 16#FFFFFF,
-      % io:format("n ~p ~p~n",[Type, TS]),
+      end rem 16#FFFFFFFF,
+      % io:format("n ~p ~p ~p~n",[Id, Type, TS]),
       Channel = case Chan of
         undefined -> #channel{id = Id};
         _ -> Chan
