@@ -17,6 +17,9 @@
 %% process on a remote node that was not currently connected.
 %%
 %% All modifications are (C) 2009 LShift Ltd.
+%%
+%% 4) Specially for Erlyvideo timeshift changed printing of current state
+%% Max Lapshin <max@maxidoors.ru> 2010
 
 %% ``The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -695,7 +698,7 @@ print_event(Dev, Event, Name) ->
 terminate(Reason, Name, Msg, Mod, State, Debug) ->
     case catch Mod:terminate(Reason, State) of
 	{'EXIT', R} ->
-	    error_info(R, Name, Msg, State, Debug),
+	    error_info(R, Name, Msg, Mod, State, Debug),
 	    exit(R);
 	_ ->
 	    case Reason of
@@ -704,17 +707,17 @@ terminate(Reason, Name, Msg, Mod, State, Debug) ->
 		shutdown ->
 		    exit(shutdown);
 		_ ->
-		    error_info(Reason, Name, Msg, State, Debug),
+		    error_info(Reason, Name, Msg, Mod, State, Debug),
 		    exit(Reason)
 	    end
     end.
 
-error_info(_Reason, application_controller, _Msg, _State, _Debug) ->
+error_info(_Reason, application_controller, _Msg, _Mod, _State, _Debug) ->
     %% OTP-5811 Don't send an error report if it's the system process
     %% application_controller which is terminating - let init take care
     %% of it instead
     ok;
-error_info(Reason, Name, Msg, State, Debug) ->
+error_info(Reason, Name, Msg, Mod, State, Debug) ->
     Reason1 = 
 	case Reason of
 	    {undef,[{M,F,A}|MFAs]} ->
@@ -731,12 +734,16 @@ error_info(Reason, Name, Msg, State, Debug) ->
 		end;
 	    _ ->
 		Reason
-	end,    
+	end,
+	  StatePrint = case erlang:function_exported(Mod, print_state, 1) of
+	    true -> (catch Mod:print_state(State));
+	    false -> State
+	  end,
     format("** Generic server ~p terminating \n"
            "** Last message in was ~p~n"
            "** When Server state == ~p~n"
            "** Reason for termination == ~n** ~p~n",
-	   [Name, Msg, State, Reason1]),
+	   [Name, Msg, StatePrint, Reason1]),
     sys:print_log(Debug),
     ok.
 
