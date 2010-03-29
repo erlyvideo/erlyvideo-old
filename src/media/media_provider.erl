@@ -76,8 +76,8 @@ length(Host, Name) ->
 length(undefined) ->
   0;
   
-length(MediaEntry) ->
-  gen_server:call(MediaEntry, length).
+length(MediaEntry) when is_pid(MediaEntry) ->
+  proplists:get_value(length, gen_server:call(MediaEntry, info)).
   
 
 init_names() ->

@@ -1,3 +1,4 @@
+
 -module(array_timeshift).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlyvideo/include/media_info.hrl").
@@ -5,7 +6,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/debug.hrl").
 
--export([init/1, seek/2, read/2, clean/1, store/2]).
+-export([init/1, seek/2, read/2, clean/1, store/2, info/1]).
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -18,7 +19,19 @@ init(Options) ->
   {First, Last, array:new(Size)}.
 
 
-seek(#media_info{shift = {First, Last, Frames}}, Timestamp) when Timestamp =< 0 ->
+info(#media_info{shift = {First, Last, Frames}}) when First =/= Last ->
+  #video_frame{dts = FirstDTS} = array:get(First, Frames),
+  #video_frame{dts = LastDTS} = array:get((Last-1+array:size(Frames)) rem array:size(Frames), Frames),
+  [{start,FirstDTS},{length,LastDTS - FirstDTS}];
+  
+info(#media_info{shift = {_First, _Last, _Frames}}) ->
+  [{length,0}];
+  
+info(_) ->
+  [].
+
+
+seek(#media_info{shift = {First, _Last, Frames}}, Timestamp) when Timestamp =< 0 ->
   ?D({"going to seek", Timestamp}),
   case array:get(First, Frames) of
     undefined -> undefined;
@@ -55,9 +68,9 @@ read(#media_info{shift = {_First, _Last, Frames}}, Key) ->
   end.
 
 
-clean(#media_info{shift = {First, Last, Frames}, last_dts = DTS, name = _URL} = MediaInfo) ->
-  Bin = lists:foldl(fun({_, Bytes, _}, Sum) -> Bytes + Sum end, 0, element(2, erlang:process_info(self(), binary))),
-  {memory, Mem} = erlang:process_info(self(), memory),
+clean(#media_info{shift = {_First, _Last, _Frames}, last_dts = _DTS, name = _URL} = MediaInfo) ->
+  % _Bin = lists:foldl(fun({_, Bytes, _}, Sum) -> Bytes + Sum end, 0, element(2, erlang:process_info(self(), binary))),
+  % {memory, Mem} = erlang:process_info(self(), memory),
   % ?D({"Store", First, Last, array:size(Frames), Bin div 1024, DTS}),
   % ?D({"Store", Bin div 1024, Mem div 1024}),
   % _Count = 0,

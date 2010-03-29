@@ -127,8 +127,8 @@ init(#media_info{host = Host, type = Type, name = Name, options = Options} = Med
 %%-------------------------------------------------------------------------
 
 
-handle_call(length, _From, MediaInfo) ->
-  {reply, 0, MediaInfo, ?TIMEOUT};
+handle_call(info, _From, #media_info{timeshift = Timeshift, shift = Shift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0->
+  {reply, [{type,stream}|Module:info(MediaInfo)], MediaInfo, ?TIMEOUT};
 
 handle_call(mode, _From, MediaInfo) ->
   {reply, stream, MediaInfo, ?TIMEOUT};
