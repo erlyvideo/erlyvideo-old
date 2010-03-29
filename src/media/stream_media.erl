@@ -6,22 +6,22 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlyvideo/include/media_info.hrl").
 
--behaviour(gen_server).
+-behaviour(gen_server2).
 
 %% External API
 -export([start_link/3, codec_config/2, metadata/1, publish/2, set_owner/2, pass_socket/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
 
 
 start_link(Path, Type, Opts) ->
-   gen_server:start_link(?MODULE, [Path, Type, Opts], []).
+   gen_server2:start_link(?MODULE, [Path, Type, Opts], []).
    
 metadata(Server) ->
-  gen_server:call(Server, metadata).
+  gen_server2:call(Server, metadata).
 
-codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
+codec_config(MediaEntry, Type) -> gen_server2:call(MediaEntry, {codec_config, Type}).
 
 publish(undefined, _Frame) ->
   {error, no_stream};
@@ -30,14 +30,14 @@ publish(undefined, _Frame) ->
 publish(Server, #video_frame{} = Frame) ->
   % ?D({Type, Timestamp}),
   Server ! Frame.
-  % gen_server:call(Server, {publish, Frame}).
+  % gen_server2:call(Server, {publish, Frame}).
 
 set_owner(Server, Owner) ->
-  gen_server:call(Server, {set_owner, Owner}).
+  gen_server2:call(Server, {set_owner, Owner}).
 
 pass_socket(Media, Socket) ->
   ok = gen_tcp:controlling_process(Socket, Media),
-  gen_server:call(Media, {set_socket, Socket}).
+  gen_server2:call(Media, {set_socket, Socket}).
   
 
 connect_http(#media_info{name = URL}) ->
@@ -49,7 +49,6 @@ connect_http(#media_info{name = URL}) ->
   ok = inet:setopts(Socket, [{active, once}]),
   Socket.
   
-
 
 init([URL, Type, Options]) ->
   Host = proplists:get_value(host, Options),
@@ -111,6 +110,10 @@ init(#media_info{host = Host, type = Type, name = Name, options = Options} = Med
       Writer
   end,
 	Media#media_info{owner = Owner, device = Device}.
+
+
+print_state(#media_info{} = MediaInfo) ->
+  MediaInfo#media_info{shift = hidden_timeshift}.
 
 
 %%-------------------------------------------------------------------------
