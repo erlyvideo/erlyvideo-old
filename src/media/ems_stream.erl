@@ -411,7 +411,7 @@ send_frame(#ems_stream{mode=file} = Player, {#video_frame{body = undefined}, Nex
   ?MODULE:ready(Player#ems_stream{pos = Next});
   
 send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = StreamId} = Player, done) ->
-  Length = gen_server:call(Player#ems_stream.media_info, length),
+  Length = proplists:get_value(length, media_provider:info(Player#ems_stream.media_info)),
   ?D({"File is over", Name, Length}),
   % timer:send_after(round(Timeout), Consumer, {ems_stream, StreamId, play_complete, Length}),
   Consumer ! {ems_stream, StreamId, play_complete, Length},
