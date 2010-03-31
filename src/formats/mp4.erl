@@ -34,160 +34,44 @@
 
 -module(mp4).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
 -include("../../include/mp4.hrl").
+-include("../../include/debug.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
--include_lib("erlyvideo/include/media_info.hrl").
 
--export([init/1, read_frame/2, metadata/1, codec_config/2, seek/2, first/1]).
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
 
--export([mp4_desc_length/1, build_index_table/1]).
-
--behaviour(gen_format).
-
-codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
-  Config = decoder_config(video, MediaInfo),
-  % ?D({"Video config", Config}),
-  #video_frame{       
-   	type          = video,
-   	decoder_config = true,
-		dts           = 0,
-		pts           = 0,
-		body          = Config,
-		frame_type    = keyframe,
-		codec_id      = VideoCodec
-	};
-
-codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
-  Config = decoder_config(audio, MediaInfo),
-  % ?D({"Audio config", aac:decode_config(Config)}),
-  #video_frame{       
-   	type          = audio,
-   	decoder_config = true,
-		dts           = 0,
-		pts           = 0,
-		body          = Config,
-	  codec_id	= AudioCodec,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
-	}.
-
-
-first(#media_info{frames = Frames}) ->
-  ets:first(Frames).
-
-
-lookup_frame(video, #media_info{video_track = FrameTable}, Id) ->
-  [Frame] = ets:lookup(FrameTable, Id),
-  Frame;
-
-lookup_frame(audio, #media_info{audio_track = FrameTable}, Id) ->
-  [Frame] = ets:lookup(FrameTable, Id),
-  Frame.
-
-read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
-  [{Id, Type, FrameId}] = ets:lookup(Frames, Id),
-  Frame = lookup_frame(Type, MediaInfo, FrameId),
-  #mp4_frame{offset = Offset, size = Size} = Frame,
-  Next = case ets:next(Frames, Id) of
-    '$end_of_table' -> done;
-    NextID -> NextID
-  end,
-  
-	case read_data(MediaInfo, Offset, Size) of
-		{ok, Data, _} -> {video_frame(Type, Frame, Data), Next};
-    eof -> done;
-    {error, Reason} -> {error, Reason}
-  end.
-  
-
-read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
-  case file:pread(IoDev, Offset, Size) of
-    {ok, Data} ->
-      {ok, Data, MediaInfo};
-    Else -> Else
-  end.
-  
-seek(#media_info{video_track = FrameTable, frames = Frames}, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
-    {Id, FrameTimestamp}
-  end)),
-  case lists:reverse(Ids) of
-    [{VideoID, NewTimestamp} | _] ->
-      [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
-        {ID, NewTimestamp}
-      end)),
-      Item;
-    _ -> undefined
-  end.
-  
-
-video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS}, Data) ->
-  #video_frame{
-   	type          = video,
-		dts           = DTS,
-		pts           = PTS,
-		body          = Data,
-		frame_type    = case Keyframe of
-		  true ->	keyframe;
-		  _ -> frame
-	  end,
-		codec_id      = h264
-  };  
-
-video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
-  #video_frame{       
-   	type          = audio,
-		dts           = DTS,
-		pts           = DTS,
-  	body          = Data,
-	  codec_id	    = aac,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
-  }.
+-export([mp4_desc_length/1, read_header/1]).
 
 
 
-init(#media_info{header = undefined} = MediaInfo) -> 
-  Info1 = MediaInfo#media_info{header = #mp4_header{}},
-  % eprof:start(),
-  % eprof:start_profiling([self()]),
-  {Time, {ok, Info2}} = timer:tc(?MODULE, init, [Info1]),
-  {Time2, Info3} = timer:tc(?MODULE, build_index_table, [Info2]),
-  ?D({"Time to parse moov and build index", round(Time/1000), round(Time2/1000)}),
-  % eprof:total_analyse(),
-  % eprof:stop(),
-  {ok, Info3};
+read_header(Reader) ->
+  read_header(#mp4_media{}, Reader, 0).
 
-init(MediaInfo) -> 
-  init(MediaInfo, 0).
 
-init(#media_info{device = Device} = MediaInfo, Pos) -> 
-  case next_atom(MediaInfo, Pos) of
-    eof -> {ok, MediaInfo};
+read_header(Mp4Media, {Module, Device} = Reader, Pos) -> 
+  case read_atom_header(Reader, Pos) of
+    eof -> {ok, Mp4Media};
     {error, Reason} -> {error, Reason};
     {atom, mdat, Offset, Length} ->
-      init(MediaInfo, Offset + Length);
+      read_header(Mp4Media, Reader, Offset + Length);
     {atom, _AtomName, Offset, 0} -> 
-      init(MediaInfo, Offset);
+      read_header(Mp4Media, Reader, Offset);
     {atom, AtomName, Offset, Length} -> 
       ?D({"Root atom", AtomName, Length}),
-      {ok, AtomData} = file:pread(Device, Offset, Length),
-      NewInfo = case ems:respond_to(?MODULE, AtomName, 2) of
-        true -> ?MODULE:AtomName(AtomData, MediaInfo);
-        false -> ?D({"Unknown atom", AtomName}), MediaInfo
+      {ok, AtomData} = Module:pread(Device, Offset, Length),
+      NewMedia = case erlang:function_exported(mp4, AtomName, 2) of
+        true -> mp4:AtomName(AtomData, Mp4Media);
+        false -> ?D({"Unknown atom", AtomName}), Mp4Media
       end,
-      init(NewInfo, Offset + Length)
+      read_header(NewMedia, Reader, Offset + Length)
   end.
 
-next_atom(#media_info{device = Device}, Pos) ->
-  case file:pread(Device, Pos, 8) of
+
+read_atom_header({Module, Device}, Pos) ->
+  case Module:pread(Device, Pos, 8) of
     {ok, <<AtomLength:32, AtomName/binary>>} when AtomLength >= 8 ->
       % ?D({"Atom", binary_to_atom(AtomName, latin1), Pos, AtomLength}),
       {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8};
@@ -195,47 +79,6 @@ next_atom(#media_info{device = Device}, Pos) ->
   end.
 
 
-build_index_table(#media_info{video_track = Video, audio_track = Audio} = MediaInfo) ->
-  Index = ets:new(index, [ordered_set]),
-  build_index_table(Video, ets:first(Video), Audio, ets:first(Audio), Index, 0),
-  MediaInfo#media_info{frames = Index}.
-
-
-build_index_table(_Video, '$end_of_table', _Audio, '$end_of_table', Index, _ID) ->
-  Index;
-
-build_index_table(Video, '$end_of_table', Audio, AudioID, Index, ID) ->
-  [AFrame] = ets:lookup(Audio, AudioID),
-  ets:insert(Index, {ID, audio, AFrame#mp4_frame.id}),
-  build_index_table(Video, '$end_of_table', Audio, ets:next(Audio, AudioID), Index, ID+1);
-
-build_index_table(Video, VideoID, Audio, '$end_of_table', Index, ID) ->
-  [VFrame] = ets:lookup(Video, VideoID),
-  ets:insert(Index, {ID, video, VFrame#mp4_frame.id}),
-  build_index_table(Video, ets:next(Video, VideoID), Audio, '$end_of_table', Index, ID+1);
-  
-
-build_index_table(Video, VideoID, Audio, AudioID, Index, ID) ->
-  [VFrame] = ets:lookup(Video, VideoID),
-  [AFrame] = ets:lookup(Audio, AudioID),
-  case {VFrame#mp4_frame.dts, AFrame#mp4_frame.dts} of
-    {VDTS, ADTS} when VDTS =< ADTS ->
-      ets:insert(Index, {ID, video, VFrame#mp4_frame.id}),
-      build_index_table(Video, ets:next(Video, VideoID), Audio, AudioID, Index, ID+1);
-    _ ->
-      ets:insert(Index, {ID, audio, AFrame#mp4_frame.id}),
-      build_index_table(Video, VideoID, Audio, ets:next(Audio, AudioID), Index, ID+1)
-  end.
-      
-  
-metadata(#media_info{width = Width, height = Height, seconds = Duration}) -> 
-  [{width, Width}, 
-   {height, Height}, 
-   {duration, Duration/1000}].
-  
-  
-decoder_config(video, #media_info{video_config = DecoderConfig}) -> DecoderConfig;
-decoder_config(audio, #media_info{audio_config = DecoderConfig}) -> DecoderConfig.
 
 
 
@@ -250,7 +93,7 @@ parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Pa
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
   AtomName = binary_to_atom(BinaryAtomName, utf8),
-  NewMp4Parser = case ems:respond_to(?MODULE, AtomName, 2) of
+  NewMp4Parser = case erlang:function_exported(?MODULE, AtomName, 2) of
     true -> ?MODULE:AtomName(Atom, Mp4Parser);
     false -> ?D({"Unknown atom", AtomName}), Mp4Parser
   end,
@@ -283,14 +126,14 @@ moov(Atom, MediaInfo) ->
 
 % MVHD atom
 mvhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32, TimeScale:32,
-                    Duration:32, _Rest/binary>>, #media_info{} = MediaInfo) ->
-  MediaInfo#media_info{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
+                    Duration:32, _Rest/binary>>, #mp4_media{} = Media) ->
+  Media#mp4_media{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
 % Track box
 trak(<<>>, MediaInfo) ->
   MediaInfo;
   
-trak(Atom, #media_info{} = MediaInfo) ->
+trak(Atom, MediaInfo) ->
   Track = parse_atom(Atom, #mp4_track{}),
   fill_track_info(MediaInfo, Track).
   
@@ -527,12 +370,12 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 fill_track_info(MediaInfo, #mp4_track{data_format = h264, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
   {Frames, MaxDTS} = fill_track(Track),
-  _Seconds = case MediaInfo#media_info.seconds of
+  _Seconds = case MediaInfo#mp4_media.seconds of
     undefined -> MaxDTS;
     S when S < MaxDTS -> MaxDTS;
     S -> S
   end,
-  MediaInfo#media_info{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = MaxDTS};
+  MediaInfo#mp4_media{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = MaxDTS};
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = aac, decoder_config = DecoderConfig} = Track) ->
@@ -543,7 +386,7 @@ fill_track_info(MediaInfo, #mp4_track{data_format = aac, decoder_config = Decode
   %   S when S < MaxDTS -> MaxDTS;
   %   S -> S
   % end,
-  MediaInfo#media_info{audio_config = DecoderConfig, audio_track = Frames};
+  MediaInfo#mp4_media{audio_config = DecoderConfig, audio_track = Frames};
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),

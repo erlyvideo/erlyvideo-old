@@ -440,11 +440,11 @@ file_format(Name) ->
   case filename:extension(Name) of
       ".flv" -> flv_reader;
       ".FLV" -> flv_reader;
-      ".3gp" -> mp4;
-      ".mp4" -> mp4;
-      ".MP4" -> mp4;
-      ".mov" -> mp4;
-      ".m4v" -> mp4;
+      ".3gp" -> mp4_reader;
+      ".mp4" -> mp4_reader;
+      ".MP4" -> mp4_reader;
+      ".mov" -> mp4_reader;
+      ".m4v" -> mp4_reader;
       ".mkv" -> mkv;
       ".MKV" -> mkv;
       _ -> flv_reader

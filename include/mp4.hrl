@@ -1,4 +1,4 @@
--record(mp4_header, {
+-record(mp4_media, {
   file,
   file_type,
   timescale,
@@ -6,6 +6,12 @@
   seconds,
   file_types = [],
   tracks = [],
+  audio_config,
+  audio_track,
+  video_config,
+  video_track,
+  width,
+  height,
   frames
 }).
 
