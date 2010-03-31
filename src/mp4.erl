@@ -43,7 +43,7 @@
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
 
--export([mp4_desc_length/1, read_header/1]).
+-export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1]).
 
 
 
@@ -80,7 +80,14 @@ read_atom_header({Module, Device}, Pos) ->
 
 
 
+read_frame(Frames, Id) ->
+  case ets:lookup(Frames, Id) of
+    [Frame] -> Frame;
+    [] -> ?D({"No frame", Id}), undefined
+  end.
 
+frame_count(Frames) ->
+  proplists:get_value(size, ets:info(Frames)).
 
   
 parse_atom(<<>>, Mp4Parser) ->
