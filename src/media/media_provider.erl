@@ -41,9 +41,11 @@ find_provider(Host) ->
   
 resolve_global(Name, Pid1, Pid2) ->
   ?D({"Resolving global clash for", Name, Pid1, Pid2}),
+  Entries = gen_server:call(Pid2, entries),
   Host = gen_server:call(Pid2, host),
   supervisor:terminate_child(ems_sup, name(Host)),
   supervisor:delete_child(ems_sup, name(Host)),
+  gen_server:call(Pid1, {import, Entries}),
   Pid1.
 
 create(Host, Name, Type) ->
@@ -161,7 +163,6 @@ find_or_open(Host, Name) ->
   
 
 init([Host]) ->
-  process_flag(trap_exit, true),
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
   yes = global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
@@ -181,7 +182,13 @@ init([Host]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-
+handle_call({import, Entries}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+  ?D({"Importing", Entries}),
+  ets:insert(OpenedMedia, Entries),
+  lists:foreach(fun(#media_entry{handler = Pid}) ->
+    erlang:monitor(process, Pid)
+  end, Entries),
+  {reply, ok, MediaProvider};
 
 handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
@@ -262,7 +269,7 @@ open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvid
     undefined ->
       case ems_sup:start_media(URL, Type, Opts) of
         {ok, Pid} ->
-          link(Pid),
+          erlang:monitor(process, Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
           Pid;
         _ ->
@@ -386,7 +393,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'EXIT', Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
     [] -> 
       {noreply, MediaProvider};
