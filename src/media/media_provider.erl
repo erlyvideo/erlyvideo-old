@@ -14,7 +14,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([init_names/0, name/1]).
+-export([init_names/0, name/1, resolve_global/3]).
 
 -record(media_provider, {
   opened_media,
@@ -30,11 +30,21 @@
 name(Host) ->
   media_provider_names:name(Host).
 
+global_name(Host) ->
+  media_provider_names:global_name(Host).
+
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
 
 find_provider(Host) ->
-  name(Host).
+  {global, global_name(Host)}.
+  
+resolve_global(Name, Pid1, Pid2) ->
+  ?D({"Resolving global clash for", Name, Pid1, Pid2}),
+  Host = gen_server:call(Pid2, host),
+  supervisor:terminate_child(ems_sup, name(Host)),
+  supervisor:delete_child(ems_sup, name(Host)),
+  Pid1.
 
 create(Host, Name, Type) ->
   ?D({"Create", Name, Type}),
@@ -154,6 +164,7 @@ init([Host]) ->
   process_flag(trap_exit, true),
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
+  yes = global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
   {ok, #media_provider{opened_media = OpenedMedia, host = Host}}.
   
 
@@ -193,21 +204,24 @@ handle_call({register, Name, Pid}, _From, #media_provider{opened_media = OpenedM
       {reply, {error, {already_set, Name, OldPid}}, MediaProvider}
   end;
 
+handle_call(host, _From, #media_provider{host = Host} = MediaProvider) ->
+  {reply, Host, MediaProvider};
+
 handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Entries = lists:map(
-    fun([Name, Handler]) -> 
-      Clients = try gen_server:call(Handler, clients, 1000) of
-        C when is_list(C) -> C
-      catch
-        exit:{timeout, _} -> [];
-        Class:Else ->
-          ?D({"Media",Name,"error",Class,Else}),
-          []
-      end,
-      {Name, Clients}
-    end,
-  ets:match(OpenedMedia, {'_', '$1', '$2'})),
-  {reply, Entries, MediaProvider};
+  % Entries = lists:map(
+  %   fun([Name, Handler]) -> 
+  %     Clients = try gen_server:call(Handler, clients, 1000) of
+  %       C when is_list(C) -> C
+  %     catch
+  %       exit:{timeout, _} -> [];
+  %       Class:Else ->
+  %         ?D({"Media",Name,"error",Class,Else}),
+  %         []
+  %     end,
+  %     {Name, Clients}
+  %   end,
+  % ets:match(OpenedMedia, {'_', '$1', '$2'})),
+  {reply, ets:tab2list(OpenedMedia), MediaProvider};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
