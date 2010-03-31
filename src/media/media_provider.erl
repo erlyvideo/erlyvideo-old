@@ -33,6 +33,9 @@ name(Host) ->
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
 
+find_provider(Host) ->
+  name(Host).
+
 create(Host, Name, Type) ->
   ?D({"Create", Name, Type}),
   Pid = open(Host, Name, Type),
@@ -49,54 +52,65 @@ open(Host, Name, Opts) when is_list(Name)->
   open(Host, list_to_binary(Name), Opts);
 
 open(Host, Name, Opts) ->
-  gen_server:call(name(Host), {open, Name, Opts}, infinity).
+  gen_server:call(find_provider(Host), {open, Name, Opts}, infinity).
 
 find(Host, Name) when is_list(Name)->
   find(Host, list_to_binary(Name));
 
 find(Host, Name) ->
-  gen_server:call(name(Host), {find, Name}, infinity).
+  gen_server:call(find_provider(Host), {find, Name}, infinity).
 
 register(Host, Name, Pid) ->
-  gen_server:call(name(Host), {register, Name, Pid}).
+  gen_server:call(find_provider(Host), {register, Name, Pid}).
 
 entries(Host) ->
-  gen_server:call(name(Host), entries).
+  gen_server:call(find_provider(Host), entries).
   
 remove(Host, Name) ->
-  gen_server:cast(name(Host), {remove, Name}).
+  gen_server:cast(find_provider(Host), {remove, Name}).
 
 info(Host, Name) ->
   case find_or_open(Host, Name) of
     Media when is_pid(Media) -> media_provider:info(Media);
-    _ -> 0
+    _ -> []
   end.
   
 
 info(undefined) ->
   [];
   
-info(MediaEntry) when is_pid(MediaEntry) ->
+info(MediaEntry) ->
   gen_server:call(MediaEntry, info).
   
 
 init_names() ->
   Module = erl_syntax:attribute(erl_syntax:atom(module), 
                                 [erl_syntax:atom("media_provider_names")]),
-  Export = erl_syntax:attribute(erl_syntax:atom(export),
+  Export1 = erl_syntax:attribute(erl_syntax:atom(export),
                                      [erl_syntax:list(
                                       [erl_syntax:arity_qualifier(
                                        erl_syntax:atom(name),
                                        erl_syntax:integer(1))])]),
+  Export2 = erl_syntax:attribute(erl_syntax:atom(export),
+                                      [erl_syntax:list(
+                                       [erl_syntax:arity_qualifier(
+                                        erl_syntax:atom(global_name),
+                                        erl_syntax:integer(1))])]),
 
           
-  Clauses = lists:map(fun({Host, _}) ->
+  Clauses1 = lists:map(fun({Host, _}) ->
     Name = binary_to_atom(<<"media_provider_sup_", (atom_to_binary(Host, latin1))/binary>>, latin1),
     erl_syntax:clause([erl_syntax:atom(Host)], none, [erl_syntax:atom(Name)])
   end, ems:get_var(vhosts, [])),
-  Function = erl_syntax:function(erl_syntax:atom(name), Clauses),
+  Function1 = erl_syntax:function(erl_syntax:atom(name), Clauses1),
 
-  Forms = [erl_syntax:revert(AST) || AST <- [Module, Export, Function]],
+  Clauses2 = lists:map(fun({Host, _}) ->
+    Name = binary_to_atom(<<"media_provider_sup_global_", (atom_to_binary(Host, latin1))/binary>>, latin1),
+    erl_syntax:clause([erl_syntax:atom(Host)], none, [erl_syntax:atom(Name)])
+  end, ems:get_var(vhosts, [])),
+  Function2 = erl_syntax:function(erl_syntax:atom(global_name), Clauses2),
+
+  Forms = [erl_syntax:revert(AST) || AST <- [Module, Export1, Export2, Function1, Function2]],
 
   ModuleName = media_provider_names,
   code:purge(ModuleName),
