@@ -4,8 +4,8 @@
 -behaviour(gen_format).
 -include_lib("erlyvideo/include/media_info.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/mp4.hrl").
 -include("../../include/ems.hrl").
--include("../../include/mp4.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 
