@@ -143,7 +143,6 @@ read_header(#media_info{device = Device} = MediaInfo) ->
 build_index_table(#media_info{video_track = Video, audio_track = Audio} = MediaInfo) ->
   VideoCount = mp4:frame_count(Video),
   AudioCount = mp4:frame_count(Audio),
-  ?D({"Building table", VideoCount, AudioCount}),
   Index = ets:new(index_table, [ordered_set]),
   build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
   {ok, MediaInfo#media_info{frames = Index}}.
