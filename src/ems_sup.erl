@@ -42,7 +42,8 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
           start_ems_stream/1, start_shared_object/3,
-          start_mpegts_reader/1, start_shoutcast_reader/1]).
+          start_mpegts_reader/1, start_shoutcast_reader/1,
+          start_http_server/1]).
 
 
 %%--------------------------------------------------------------------
@@ -103,6 +104,17 @@ start_ems_stream(Options) -> supervisor:start_child(ems_stream_sup, [Options]).
 
 start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_object_sup, [Host, Name, Persistent]).
 
+
+start_http_server(Port) ->
+  % EMS HTTP
+  Listener = {   ems_http_sup,                         % Id       = internal id
+      {ems_http,start_link,[Port]},             % StartFun = {M, F, A}
+      permanent,                               % Restart  = permanent | transient | temporary
+      2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+      worker,                                  % Type     = worker | supervisor
+      [ems_http]                               % Modules  = [Module] | dynamic
+  },
+  supervisor:start_child(?MODULE, Listener).
 
 %%--------------------------------------------------------------------
 %% @spec (List::list()) -> any()
@@ -268,14 +280,6 @@ init([]) ->
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
-    },
-    % EMS HTTP
-    {   ems_http_sup,                         % Id       = internal id
-        {ems_http,start_link,[]},             % StartFun = {M, F, A}
-        permanent,                               % Restart  = permanent | transient | temporary
-        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [ems_http]                               % Modules  = [Module] | dynamic
     },
     {   ems_users_sup,                         % Id       = internal id
         {ems_users,start_link,[]},             % StartFun = {M, F, A}

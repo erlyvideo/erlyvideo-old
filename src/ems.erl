@@ -59,9 +59,19 @@ start() ->
   application:start(rtmp),
 	application:start(erlyvideo),
   ems_log:start(),
+  start_http(),
   start_rtmp(),
   start_rtsp(),
 	ems:start_modules().
+  
+
+start_http() ->
+  case ems:get_var(http_port, 8082) of
+    undefined -> 
+      ok;
+    HTTP when is_integer(HTTP) -> 
+      ems_sup:start_http_server(HTTP)
+  end.
   
 
 start_rtmp() ->

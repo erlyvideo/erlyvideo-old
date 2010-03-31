@@ -1,12 +1,11 @@
 -module(ems_http).
--export([start_link/0, stop/0, handle_http/1]).
+-export([start_link/1, stop/0, handle_http/1]).
 -include("../include/ems.hrl").
 
 -define(STREAM_TIME, 10000).
 
 % start misultin http server
-start_link() ->
-  Port = ems:get_var(http_port, 8082),
+start_link(Port) ->
 	misultin:start_link([{port, Port}, {loop, fun handle_http/1}]).
 
 % stop misultin
@@ -159,7 +158,7 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
   end;
 
 handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
-  Hostname = proplists:get_value('Host', Req:get(headers)),
+  _Hostname = proplists:get_value('Host', Req:get(headers)),
   
   ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
   FullName = string:join(StreamName, "/"),
