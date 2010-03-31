@@ -23,7 +23,7 @@
   timescale,
   seconds,
   audio_codec = aac,
-  video_codec = avc,
+  video_codec = h264,
   video_config,
   audio_config,
   video_decoder,

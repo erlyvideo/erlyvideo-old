@@ -433,10 +433,11 @@ set_metadata(MediaInfo, [{_Key, _Value} | Metadata]) ->
 
 set_metadata(MediaInfo, []) -> MediaInfo.
 
-video_codec(<<"avc1">>) -> avc;
+video_codec(<<"avc1">>) -> h264;
 video_codec(<<"VP62">>) -> vp6.
 
 
+audio_codec(<<"mp4a">>) -> aac;
 audio_codec(<<"nmos">>) -> nelly_moser;
 audio_codec(<<".mp3">>) -> mp3.
 

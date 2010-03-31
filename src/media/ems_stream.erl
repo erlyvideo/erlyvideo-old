@@ -381,12 +381,12 @@ send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, se
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_video_config = true} = Player, 
-           #video_frame{type = video, codec_id = avc} = Frame) ->
+           #video_frame{type = video, codec_id = h264} = Frame) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
   ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId} = Player, 
-           #video_frame{codec_id = Codec} = Frame) when Codec =/= aac andalso Codec =/= avc ->
+           #video_frame{codec_id = Codec} = Frame) when Codec =/= aac andalso Codec =/= h264 ->
   % ?D({Frame#video_frame.type, Frame#video_frame.dts, Frame#video_frame.codec_id}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
   ?MODULE:ready(Player);

@@ -137,7 +137,7 @@ video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS}, Data) 
 		  true ->	keyframe;
 		  _ -> frame
 	  end,
-		codec_id      = avc
+		codec_id      = h264
   };  
 
 video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
@@ -352,7 +352,7 @@ stsd({_EntryCount, <<_SampleDescriptionSize:32,
                                   _Unknown:8/binary, _ChannelsCount:32,
                                   _SampleSize:32, _SampleRate:32,
                                   Atom/binary>>}, Mp4Track) ->
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = mp4a});
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = aac});
 
 stsd({_EntryCount, <<_SampleDescriptionSize:32, 
                                   "avc1", _Reserved:6/binary, _RefIndex:16, 
@@ -364,7 +364,7 @@ stsd({_EntryCount, <<_SampleDescriptionSize:32,
                                   _Unknown:4/binary,
                                   Atom/binary>>}, Mp4Track) ->
   % ?D({"Video size:", Width, Height}),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = avc1, width = Width, height = Height});
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = h264, width = Width, height = Height});
 
 stsd({_EntryCount, <<_SampleDescriptionSize:32, 
                                   "s263", _Reserved:6/binary, _RefIndex:16, 
@@ -394,7 +394,7 @@ stsd({_EntryCount, <<SampleDescriptionSize:32, DataFormat:4/binary,
   NewTrack.
   
 % ESDS atom
-esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = mp4a} = Mp4Track) when Version == 0 ->
+esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = aac} = Mp4Track) when Version == 0 ->
   ?D({"Extracted audio config", DecoderConfig}),
   Mp4Track#mp4_track{decoder_config = config_from_esds_tag(DecoderConfig)}.
 
@@ -524,7 +524,7 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 
 
 
-fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
+fill_track_info(MediaInfo, #mp4_track{data_format = h264, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
   {Frames, MaxDTS} = fill_track(Track),
   _Seconds = case MediaInfo#media_info.seconds of
@@ -535,7 +535,7 @@ fill_track_info(MediaInfo, #mp4_track{data_format = avc1, decoder_config = Decod
   MediaInfo#media_info{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = MaxDTS};
 
 
-fill_track_info(MediaInfo, #mp4_track{data_format = mp4a, decoder_config = DecoderConfig} = Track) ->
+fill_track_info(MediaInfo, #mp4_track{data_format = aac, decoder_config = DecoderConfig} = Track) ->
   % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
   {Frames, _MaxDTS} = fill_track(Track),
   % Seconds = case MediaInfo#media_info.seconds of
