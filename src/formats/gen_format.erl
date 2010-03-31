@@ -64,5 +64,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 2}, {read_frame, 2}, {codec_config, 2}];
+behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 2}, {read_frame, 2}, {codec_config, 2}, {metadata, 1}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.

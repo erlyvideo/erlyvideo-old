@@ -104,8 +104,8 @@ handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
   {reply, Result, MediaInfo};
 
 
-handle_call(metadata, _From, #media_info{format = mp4} = MediaInfo) ->
-  {reply, {object, mp4:metadata(MediaInfo)}, MediaInfo};
+handle_call(metadata, _From, #media_info{format = Format} = MediaInfo) ->
+  {reply, {object, Format:metadata(MediaInfo)}, MediaInfo};
 
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
