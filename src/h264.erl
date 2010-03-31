@@ -42,7 +42,7 @@ video_config(H264) ->
     		pts           = 0,
     		body          = decoder_config(H264),
     		frame_type    = keyframe,
-    		codec_id      = avc
+    		codec_id      = h264
     	}
   end.
 
@@ -61,15 +61,15 @@ metadata(Config) ->
 %%
 unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 
                 SPSCount:5, Rest/binary>>) ->
-  {SPS, <<PPSCount, Rest1/binary>>} = parse_avc_config(Rest, SPSCount, []),
-  {PPS, <<>>} = parse_avc_config(Rest1, PPSCount, SPS),
+  {SPS, <<PPSCount, Rest1/binary>>} = parse_h264_config(Rest, SPSCount, []),
+  {PPS, <<>>} = parse_h264_config(Rest1, PPSCount, SPS),
   {LengthSize + 1, lists:reverse(PPS)}.
   
   
   
-parse_avc_config(Rest, 0, List) -> {List, Rest};
-parse_avc_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) -> 
-  parse_avc_config(Rest, Count - 1, [NAL|List]).
+parse_h264_config(Rest, 0, List) -> {List, Rest};
+parse_h264_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) -> 
+  parse_h264_config(Rest, Count - 1, [NAL|List]).
 
   
 has_config(#h264{sps = SPS, pps = PPS}) when length(SPS) > 0 andalso length(PPS) > 0 -> true;
@@ -99,7 +99,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_fil
    	type          = video,
 		body          = nal_with_size(Data),
 		frame_type    = frame,
-		codec_id      = avc
+		codec_id      = h264
   },
   {H264, [VideoFrame]};
 
@@ -127,7 +127,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file =
    	type          = video,
 		body          = nal_with_size(Data),
 		frame_type    = keyframe,
-		codec_id      = avc
+		codec_id      = h264
   },
   {H264, [VideoFrame]};
 
@@ -137,7 +137,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file =
    	type          = video,
 		body          = nal_with_size(Data),
 		frame_type    = frame,
-		codec_id      = avc
+		codec_id      = h264
   },
   
   {H264, []};
@@ -173,7 +173,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary
    	type          = video,
 		body          = nal_with_size(Delimiter),
 		frame_type    = frame,
-		codec_id      = avc
+		codec_id      = h264
   },
   % io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
   {H264, [VideoFrame]};

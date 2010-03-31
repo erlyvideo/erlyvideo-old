@@ -92,12 +92,12 @@ audio_rate(rate11) -> ?FLV_AUDIO_RATE_11;
 audio_rate(rate22) -> ?FLV_AUDIO_RATE_22;
 audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
 
-video_codec(avc) -> ?FLV_VIDEO_CODEC_AVC;
+video_codec(h264) -> ?FLV_VIDEO_CODEC_AVC;
 video_codec(sorensen) -> ?FLV_VIDEO_CODEC_SORENSEN;
 video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
 video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
 video_codec(?FLV_VIDEO_CODEC_SORENSEN) -> sorensen;
-video_codec(?FLV_VIDEO_CODEC_AVC) -> avc.
+video_codec(?FLV_VIDEO_CODEC_AVC) -> h264.
 
 frame_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
 frame_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
@@ -170,10 +170,10 @@ read_tag(Device, Offset) ->
 
 
 decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = avc, composition_time = CTime, body= Body};
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, composition_time = CTime, body= Body};
 
 decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = avc, decoder_config = true, composition_time = CTime, body= Body};
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, decoder_config = true, composition_time = CTime, body= Body};
 
 decode_video_tag(<<FrameType:4, CodecId:4, Body/binary>>) ->
   #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), composition_time = 0, body = Body}.
@@ -271,16 +271,16 @@ encode_audio_tag(#flv_audio_tag{codec = Codec,
 
 encode_video_tag(#flv_video_tag{frame_type = FrameType,
                    	decoder_config = true,
-                   	codec = avc,
+                   	codec = h264,
                    	composition_time = Time,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, (round(Time)):24, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(h264)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, (round(Time)):24, Body/binary>>;
 
 encode_video_tag(#flv_video_tag{frame_type = FrameType,
-                   	codec = avc,
+                   	codec = h264,
                    	composition_time = Time,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(avc)):4, ?FLV_VIDEO_AVC_NALU, (round(Time)):24, Body/binary>>;
+	<<(flv:frame_type(FrameType)):4, (flv:video_codec(h264)):4, ?FLV_VIDEO_AVC_NALU, (round(Time)):24, Body/binary>>;
 
 encode_video_tag(#flv_video_tag{frame_type = FrameType,
                    	codec = CodecId,
