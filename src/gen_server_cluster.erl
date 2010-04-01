@@ -41,7 +41,7 @@
 -behaviour(gen_server).
 
 -export([
-    start/4,
+    start_link/4,
     start_local_server/1,
     get_target_state/1,
     get_all_server_pids/1,
@@ -74,10 +74,10 @@
 %% the target gen_server is given by the target module.
 %% If some global server is already running, the server is started as a local
 %% server, otherwise as the new global server. 
-start(Name, TargetModule, TargetArgs, Options) ->
+start_link(Name, TargetModule, TargetArgs, Options) ->
     ArgsGlobalInit = {initGlobal, Name, TargetModule, TargetArgs},
     %% try starting as the global server:
-    case gen_server:start({global,Name}, ?MODULE, ArgsGlobalInit, Options) of
+    case gen_server:start_link({global,Name}, ?MODULE, ArgsGlobalInit, Options) of
     {ok,_GlobalServerPid}=Result ->
         io:format("~p started as global server.~n",[Name]), 
         Result;
@@ -94,7 +94,7 @@ start_local_server(Name) ->
         noGlobalServerRunning;
     true ->
         ArgsLocalInit = {initLocal, Name},
-        case gen_server:start({local,Name}, ?MODULE, ArgsLocalInit, []) of
+        case gen_server:start_link({local,Name}, ?MODULE, ArgsLocalInit, []) of
         {ok, _LocalPid}=Result ->
             io:format("~p started as local server.~n",[Name]),
             Result;
