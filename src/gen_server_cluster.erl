@@ -5,7 +5,7 @@
 %%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon
 %%% @doc        Framework for Clustering Generic Server Instances
-%%% @reference  See <a href="http://erlyvideo.googlecode.com" target="_top">http://erlyvideo.googlecode.com</a> for more information
+%%% @reference  See <a href="http://www.trapexit.org/A_Framework_for_Clustering_Generic_Server_Instances" target="_top">http://www.trapexit.org/A_Framework_for_Clustering_Generic_Server_Instances</a> for more information on first version.
 %%% @end
 %%%
 %%%
