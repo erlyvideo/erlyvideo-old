@@ -19,6 +19,7 @@
 -record(media_provider, {
   opened_media,
   host,
+  master_pid,
   counter = 1
 }).
 
@@ -42,10 +43,11 @@ find_provider(Host) ->
 resolve_global(Name, Pid1, Pid2) ->
   ?D({"Resolving global clash for", Name, Pid1, Pid2}),
   Entries = gen_server:call(Pid2, entries),
-  Host = gen_server:call(Pid2, host),
-  supervisor:terminate_child(ems_sup, name(Host)),
-  supervisor:delete_child(ems_sup, name(Host)),
+  % Host = gen_server:call(Pid2, host),
+  % supervisor:terminate_child(ems_sup, name(Host)),
+  % supervisor:delete_child(ems_sup, name(Host)),
   gen_server:call(Pid1, {import, Entries}),
+  Pid2 ! {wait_for, Pid1},
   Pid1.
 
 create(Host, Name, Type) ->
@@ -165,7 +167,7 @@ find_or_open(Host, Name) ->
 init([Host]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
-  yes = global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
+  global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
   {ok, #media_provider{opened_media = OpenedMedia, host = Host}}.
   
 
@@ -393,6 +395,11 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_info({'DOWN', _, process, MasterPid, _Reason}, #media_provider{master_pid = MasterPid, host = Host} = MediaProvider) ->
+  ?D({"Master pid is down, new elections", Host}),
+  global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
+  {noreply, MediaProvider#media_provider{master_pid = undefined}};
+
 handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
     [] -> 
@@ -401,6 +408,11 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{opened_media =
       ets:delete(OpenedMedia, Name),
       {noreply, MediaProvider}
   end;
+
+handle_info({wait_for, Pid}, MediaProvider) ->
+  ?D({"Selected as slave provider, wait for", Pid}),
+  erlang:monitor(process, Pid),
+  {noreply, MediaProvider#media_provider{master_pid = Pid}};
 
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),
@@ -415,7 +427,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ok.
+  ok.
 
 %%-------------------------------------------------------------------------
 %% @spec (OldVsn, State, Extra) -> {ok, NewState}
@@ -424,4 +436,4 @@ terminate(_Reason, _State) ->
 %% @private
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+  {ok, State}.
