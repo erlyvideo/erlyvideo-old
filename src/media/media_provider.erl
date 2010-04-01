@@ -32,7 +32,7 @@ name(Host) ->
   media_provider_names:name(Host).
 
 global_name(Host) ->
-  media_provider_names:global_name(Host).
+  media_provider_names:name(Host).
 
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
@@ -105,11 +105,6 @@ init_names() ->
                                       [erl_syntax:arity_qualifier(
                                        erl_syntax:atom(name),
                                        erl_syntax:integer(1))])]),
-  Export2 = erl_syntax:attribute(erl_syntax:atom(export),
-                                      [erl_syntax:list(
-                                       [erl_syntax:arity_qualifier(
-                                        erl_syntax:atom(global_name),
-                                        erl_syntax:integer(1))])]),
 
           
   Clauses1 = lists:map(fun({Host, _}) ->
@@ -118,13 +113,7 @@ init_names() ->
   end, ems:get_var(vhosts, [])),
   Function1 = erl_syntax:function(erl_syntax:atom(name), Clauses1),
 
-  Clauses2 = lists:map(fun({Host, _}) ->
-    Name = binary_to_atom(<<"media_provider_sup_global_", (atom_to_binary(Host, latin1))/binary>>, latin1),
-    erl_syntax:clause([erl_syntax:atom(Host)], none, [erl_syntax:atom(Name)])
-  end, ems:get_var(vhosts, [])),
-  Function2 = erl_syntax:function(erl_syntax:atom(global_name), Clauses2),
-
-  Forms = [erl_syntax:revert(AST) || AST <- [Module, Export1, Export2, Function1, Function2]],
+  Forms = [erl_syntax:revert(AST) || AST <- [Module, Export1, Function1]],
 
   ModuleName = media_provider_names,
   code:purge(ModuleName),
