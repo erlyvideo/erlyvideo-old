@@ -107,7 +107,7 @@ start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_obj
 
 start_http_server(Port) ->
   % EMS HTTP
-  Listener = {   ems_http_sup,                         % Id       = internal id
+  Listener = {ems_http_sup,                         % Id       = internal id
       {ems_http,start_link,[Port]},             % StartFun = {M, F, A}
       permanent,                               % Restart  = permanent | transient | temporary
       2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity

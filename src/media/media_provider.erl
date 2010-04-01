@@ -156,7 +156,7 @@ find_or_open(Host, Name) ->
 init([Host]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
-  global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
+  global:register_name(global_name(Host), self(), {?MODULE, resolve_global}),
   {ok, #media_provider{opened_media = OpenedMedia, host = Host}}.
   
 
