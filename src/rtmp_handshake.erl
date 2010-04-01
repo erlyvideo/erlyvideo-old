@@ -180,19 +180,29 @@ c2(_S2) ->
   ?HANDSHAKE.
 
 
-client_version(<<T:32, V1, V2, V3, V4, _/binary>>) ->
+flash_version(<<T:32, V1, V2, V3, V4, _/binary>>) ->
   {T, V1, V2, V3, V4}.
 
 % Flash from 10.0.32.18
-clientDigest(<<_:772/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1, version2) ->
+clientDigest(<<_:772/binary, P1, P2, P3, P4, _/binary>> = C1, version2) ->
 	Offset = (P1+P2+P3+P4) rem 728 + 776,
 	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
   {First, Seed, Last};
 
 
 % Flash before 10.0.32.18
-clientDigest(<<_:8/binary, P1/unsigned, P2/unsigned, P3/unsigned, P4/unsigned, _/binary>> = C1, version1) ->
+clientDigest(<<_:8/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
 	Offset = (P1+P2+P3+P4) rem 728 + 12,
+	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
+  {First, Seed, Last}.
+
+dhKey(<<_:1532/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
+	Offset = (P1+P2+P3+P4) rem 632 + 772,
+	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
+  {First, Seed, Last};
+
+dhKey(<<_:768/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
+	Offset = (P1+P2+P3+P4) rem 632 + 8,
 	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
   {First, Seed, Last}.
 
@@ -218,9 +228,10 @@ s2(<<0:64, _:1528/binary>> = C1) ->
 
 s2(C1) ->
   Version = validateClientScheme(C1),
-  io:format("Handshake version: ~p, ~p~n", [client_version(C1), Version]),
-  {_, ClientDigest, _} = clientDigest(C1, version2),
+  io:format("Handshake version: ~p, ~p~n", [flash_version(C1), Version]),
+  {_, ClientDigest, _} = clientDigest(C1, Version),
   ServerDigest = hmac256:digest(?GENUINE_FMS_KEY, ClientDigest),
   <<S2:1504/binary, _/binary>> = s1(),
+  % S2 = <<0:32, 1,2,3,4>>,
   ServerSign = hmac256:digest(ServerDigest, S2),
   [S2, ServerSign].
