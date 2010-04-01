@@ -168,7 +168,10 @@ send(Session, Message) ->
 %%-------------------------------------------------------------------------
 'WAIT_FOR_SOCKET'({socket_ready, RTMP}, State) when is_pid(RTMP) ->
   {address, {IP, Port}} = rtmp_socket:getopts(RTMP, address),
-  Addr = lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP))),
+  Addr = case IP of
+    undefined -> "0.0.0.0";
+    _ -> lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP)))
+  end,
   {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 
 
