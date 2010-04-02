@@ -154,8 +154,10 @@ encode(State, #rtmp_message{stream_id = StreamId} = Message) when is_float(Strea
   encode(State, Message#rtmp_message{stream_id = round(StreamId)});
 
 
+encode(#rtmp_socket{} = State, #rtmp_message{type = Type, body = Data} = Message) when is_binary(Data) and is_integer(Type)-> 
+  encode_bin(State, Message).
 
-encode(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
+encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type)-> 
   ChunkList = chunk(Data, ChunkSize, Id),
 
