@@ -147,9 +147,10 @@ send_ts(Header, Data, #streamer{req = Req} = Streamer, _Pid) when size(Data) + s
 
 send_ts(Header, Data, #streamer{req = Req} = Streamer, Pid) when size(Data) + size(Header) > 188  ->
   Length = 188 - size(Header),
+  Req:stream(Header),
   <<Packet:Length/binary, Rest/binary>> = Data,
   % ?D({"TS packet", Pid, size(<<Header/binary, Packet/binary>>), size(Rest)}),
-  Req:stream(<<Header/binary, Packet/binary>>),
+  Req:stream(Packet),
   mux_parts(Rest, Streamer, Pid, 0).
   
 
