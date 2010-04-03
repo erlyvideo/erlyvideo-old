@@ -65,14 +65,10 @@
 
 load_nif() ->
   load_nif(erlang:system_info(otp_release) >= "R13B04").
-  
+
 load_nif(true) ->
-  case erlang:load_nif("ebin/mpegts_reader", 0) of
-    ok -> ok;
-    _ -> 
-      erlang:load_nif("/usr/lib/erlyvideo/ebin/mpegts_reader", 0),
-      ok
-  end;
+  erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+  ok;
 
 load_nif(false) ->
   ok.
