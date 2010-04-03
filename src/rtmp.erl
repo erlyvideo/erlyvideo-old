@@ -43,6 +43,7 @@
 
 -export([encode/2, decode/2]).
 -export([encode_list/1, decode_list/1]).
+-export([element/2, setelement/3]).
 
 %%--------------------------------------------------------------------
 %% @spec (Socket::rtmp_socket(), Message::rtmp_message()) -> {NewSocket::rtmp_socket(), Packet::binary()}
@@ -157,11 +158,19 @@ encode(State, #rtmp_message{stream_id = StreamId} = Message) when is_float(Strea
 encode(#rtmp_socket{} = State, #rtmp_message{type = Type, body = Data} = Message) when is_binary(Data) and is_integer(Type)-> 
   encode_bin(State, Message).
 
+
+element(Id, Tuple) when Id > size(Tuple) -> undefined;
+element(Id, Tuple) -> erlang:element(Id, Tuple).
+
+setelement(Id, Tuple, Value) when Id > size(Tuple) -> rtmp:setelement(Id, erlang:append_element(Tuple, undefined), Value);
+setelement(Id, Tuple, Value) -> erlang:setelement(Id, Tuple, Value).
+
+
 encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
-       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type)-> 
+       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type) -> 
   ChunkList = chunk(Data, ChunkSize, Id),
 
-  case array:get(Id, Channels) of
+  case rtmp:element(Id, Channels) of
     #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
@@ -175,7 +184,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} 
     	  false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,Delta:32>>
     	end,
     	Bin = [Header | ChunkList],
-      {State#rtmp_socket{out_channels = array:set(Id, Channel1, Channels)}, Bin};
+      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1)}, Bin};
     Chan ->
       TS = case Timestamp of
         same -> 0;
@@ -193,7 +202,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} 
         false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,StreamId:32/little,TS:32>>
       end,
       Bin = [Header | ChunkList],
-      {State#rtmp_socket{out_channels = array:set(Id, Channel1, Channels)}, Bin}
+      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1)}, Bin}
   end.
 
 encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
@@ -296,7 +305,7 @@ decode_channel_id(<<Format:2, Id:6, Rest/binary>>, State) ->
 
 % Now extracting channel header
 decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
-  Channel = array:get(Id, State#rtmp_socket.channels),
+  Channel = rtmp:element(Id, State#rtmp_socket.channels),
   #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
   Channel1 = case {Delta, size(Msg)} of
     {undefined, _} -> Channel;
@@ -306,32 +315,32 @@ decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
   decode_channel(Rest,Channel1,State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:32, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  Channel = array:get(Id, State#rtmp_socket.channels),
+  Channel = rtmp:element(Id, State#rtmp_socket.channels),
   decode_channel(Rest,Channel#channel{timestamp = TimeStamp+16#ffffff, delta = undefined},State);
   
 decode_channel_header(<<Delta:24, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
-  Channel = array:get(Id, State#rtmp_socket.channels),
+  Channel = rtmp:element(Id, State#rtmp_socket.channels),
   #channel{timestamp = TimeStamp} = Channel,
   decode_channel(Rest, Channel#channel{timestamp = TimeStamp + Delta, delta = Delta},State);
   
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,TimeStamp:32,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  Channel = array:get(Id, State#rtmp_socket.channels),
+  Channel = rtmp:element(Id, State#rtmp_socket.channels),
 	decode_channel(Rest,Channel#channel{timestamp=TimeStamp+16#ffffff, delta = undefined, length=Length,type=Type},State);
 	
 decode_channel_header(<<Delta:24,Length:24,Type:8,Rest/binary>>, ?RTMP_HDR_SAME_SRC, Id, State) ->
-  Channel = array:get(Id, State#rtmp_socket.channels),
+  Channel = rtmp:element(Id, State#rtmp_socket.channels),
   #channel{timestamp = TimeStamp} = Channel,
 	decode_channel(Rest,Channel#channel{timestamp=TimeStamp + Delta, delta = Delta, length=Length,type=Type},State);
 
 decode_channel_header(<<16#ffffff:24,Length:24,Type:8,StreamId:32/little,TimeStamp:32,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  Channel = case array:get(Id, State#rtmp_socket.channels) of
+  Channel = case rtmp:element(Id, State#rtmp_socket.channels) of
     undefined -> #channel{};
     Chan -> Chan
   end,
 	decode_channel(Rest,Channel#channel{id=Id,timestamp=TimeStamp+16#ffffff,delta = undefined, length=Length,type=Type,stream_id=StreamId},State);
 	
 decode_channel_header(<<TimeStamp:24,Length:24,Type:8,StreamId:32/little,Rest/binary>>,?RTMP_HDR_NEW,Id, State) ->
-  case array:get(Id, State#rtmp_socket.channels) of
+  case rtmp:element(Id, State#rtmp_socket.channels) of
     #channel{} = Channel -> ok;
     _ -> Channel = #channel{}
   end,
@@ -368,13 +377,13 @@ push_channel_packet(Data, #channel{msg = Msg} = Channel, State, BytesRequired) -
 
 % When chunked packet hasn't arived, just accumulate it
 decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_socket{channels = Channels} = State) when size(Msg) < Length ->
-  NextChannelList = array:set(Channel#channel.id, Channel, Channels),
+  NextChannelList = rtmp:setelement(Channel#channel.id, Channels, Channel),
   rtmp:decode(State#rtmp_socket{channels=NextChannelList}, Rest);
 
 % Work with packet when it has accumulated and flush buffers
 decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_socket{channels = Channels} = State) when size(Msg) == Length ->
   {NewState, Message} = command(Channel, State), % Perform Commands here
-  NextChannelList = array:set(Channel#channel.id, Channel#channel{msg = <<>>}, Channels),
+  NextChannelList = rtmp:setelement(Channel#channel.id, Channels, Channel#channel{msg = <<>>}),
   {NewState#rtmp_socket{channels=NextChannelList}, Message, Rest}.
   
 extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) -> #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}.
@@ -620,6 +629,30 @@ encode_so_type(initial_data) -> ?SO_INITIAL_DATA.
 
 
 
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
+
+
+element1_test() ->
+  ?assertEqual(undefined, rtmp:element(5, {})).
+
+element2_test() ->
+  ?assertEqual(a, rtmp:element(1, {a,b})).
+
+element3_test() ->
+  ?assertEqual(b, rtmp:element(2, {a,b})).
+
+
+setelement1_test() ->
+  ?assertEqual({a,b}, rtmp:setelement(2, {a}, b)).
+
+setelement2_test() ->
+  ?assertEqual({undefined,b}, rtmp:setelement(2, {}, b)).
+
+setelement3_test() ->
+  ?assertEqual({undefined, undefined,b}, rtmp:setelement(3, {}, b)).
 
 
 

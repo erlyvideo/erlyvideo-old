@@ -213,11 +213,11 @@ invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
 %% @private  
 init([Consumer, accept]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = array:new(), out_channels = array:new(), active = false}, ?RTMP_TIMEOUT};
+  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT};
 
 init([Consumer, connect]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = array:new(), out_channels = array:new(), active = false}, ?RTMP_TIMEOUT}.
+  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT}.
 
 %% @private 
 
