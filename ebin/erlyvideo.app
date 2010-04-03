@@ -11,7 +11,7 @@
 	hmac256,
 	sha2,
 	uuid,
-		ems,
+	ems,
 	ems_app,
 	ems_encoding,
 	ems_flv,
@@ -37,8 +37,8 @@
 	ems_script
   ]},
   {registered,   []},
-  {applications, [kernel, stdlib]},
-  {mod, {ems_app, []}},
+  {applications, [kernel,stdlib,crypto]},
+  {mod, {erlyvideo, []}},
   {env, []}
  ]
 }.
