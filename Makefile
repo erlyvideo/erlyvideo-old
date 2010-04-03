@@ -56,16 +56,8 @@ run: erlang_version priv/erlyvideo.conf
 priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 	
-start: erlang_version ebin
-	ERL_LIBS=deps:lib:plugins $(ERL) -pa `pwd`/ebin \
-	-sasl sasl_error_logger '{file, "sasl.log"}' \
-  -kernel error_logger '{file, "erlang.log"}' \
-	-boot start_sasl \
-	-s $(APP_NAME) \
-	-mnesia dir "\"${MNESIA_DATA}\"" \
-	-name $(NODE_NAME) \
-	-mnesia dir "\"${MNESIA_DATA}\"" \
-	-detached
+start: erlang_version priv/erlyvideo.conf
+	contrib/erlyctl start
 
 install: compile
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies

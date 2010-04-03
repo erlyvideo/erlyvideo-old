@@ -14,13 +14,30 @@ handle(Node, stop, _Args) ->
   rpc:call(Node, init, stop, []);
   
 handle(Node, reload, _Args) ->
-  rpc:call(Node, ems, reload, []);
+  case validate_config() of
+    true -> rpc:call(Node, ems, reload, []);
+    false -> error
+  end;
 
 handle(Node, restart, _Args) ->
-  rpc:call(Node, ems, restart, []).
+  case validate_config() of
+    true -> rpc:call(Node, ems, restart, []);
+    false -> error
+  end.
   
   
-
+validate_config() ->
+  case file:path_consult(["priv", "/etc/erlyvideo"], "erlyvideo.conf") of
+    {ok, _Env, Path} ->
+      io:format("Loading config from valid file ~p~n", [Path]),
+      true;
+    {error, enoent} ->
+      io:format("No config found~n"),
+      false;
+    {error, Reason} ->
+      io:format("Couldn't parse file: ~p~n", [Reason]),
+      false
+  end.
 
 stop() ->
   ok.
