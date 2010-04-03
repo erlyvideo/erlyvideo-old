@@ -1,22 +1,82 @@
-#!/usr/bin/env escript
-%% -*- erlang -*-
-%%! -name configure
+#!/bin/sh
 
--define(TIMEOUT, 4000).
--define(COUNTER, 100).
--define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
-
-main(["reload", Node]) ->
-  rpc:call(list_to_atom(Node), ems, reconfigure, []);
-main(["restart", Node]) ->
-  rpc:call(list_to_atom(Node), ems, restart, []);
-main(["clients", Hostname, Node]) ->
-  Host = list_to_atom(Hostname),
-  Entries = rpc:call(list_to_atom(Node), media_provider, entries, [Host]),
-  io:format("~p~n", [Entries]);
-main(_) ->
-  io:format("Commands:~n  reload Node~n  restart Node~n  clients Hostname Node~n").
-
+# 
+# -define(TIMEOUT, 4000).
+# -define(COUNTER, 100).
+# -define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
+# 
+# main(["reload", Node]) ->
+#   rpc:call(list_to_atom(Node), ems, reconfigure, []);
+# main(["restart", Node]) ->
+#   rpc:call(list_to_atom(Node), ems, restart, []);
+# main(["clients", Hostname, Node]) ->
+#   Host = list_to_atom(Hostname),
+#   Entries = rpc:call(list_to_atom(Node), media_provider, entries, [Host]),
+#   io:format("~p~n", [Entries]);
+# main(_) ->
+#   io:format("Commands:~n  reload Node~n  restart Node~n  clients Hostname Node~n").
+# 
+#   
   
-  
 
+NODE=ems
+HOST=localhost
+MNESIA_DATA=mnesia-data
+
+# Define ejabberd environment
+ERL="erl +A 4 +K true"
+
+start()
+{
+	ERL_LIBS=deps:lib:plugins $ERL -pa `pwd`/ebin \
+	-sasl sasl_error_logger '{file, "sasl.log"}' \
+  -kernel error_logger '{file, "erlang.log"}' \
+	-boot start_sasl \
+  -pa ebin \
+	-s ems \
+	-sname $NODE@$HOST \
+	-mnesia dir "\"$MNESIA_DATA\"" \
+	-noinput -detached
+}
+
+run()
+{
+	ERL_LIBS=deps:lib:plugins $ERL -pa `pwd`/ebin \
+	-boot start_sasl \
+	-s ems \
+	-sname $NODE@$HOST
+	exit
+}
+
+debug()
+{
+    $ERL \
+      -sname debug$NODE@$HOST \
+      -pa ebin \
+      -hidden \
+      -remsh $NODE@$HOST
+}
+
+ctl()
+{
+    $ERL \
+      -sname ctl$NODE@$HOST \
+      -pa $EJABBERD_EBIN \
+      -noinput \
+      -hidden \
+      -s ejabberd_ctl -extra $NODE@$HOST $@
+}
+
+usage()
+{
+    run
+    exit
+}
+
+[ $# -lt 1 ] && run
+
+case $1 in
+    start) start;;
+    debug) debug;;
+    *) ctl $@;;
+esac
