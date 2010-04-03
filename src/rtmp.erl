@@ -166,12 +166,20 @@ setelement(Id, Tuple, Value) when Id > size(Tuple) -> rtmp:setelement(Id, erlang
 setelement(Id, Tuple, Value) -> erlang:setelement(Id, Tuple, Value).
 
 
+% encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
+%        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type) andalso element(Id, Channels) -> 
+%   ChunkList = chunk(Data, ChunkSize, Id),
+% 
+%   case rtmp:element(Id, Channels) of
+%     #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
+% 
+
 encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type) -> 
   ChunkList = chunk(Data, ChunkSize, Id),
 
   case rtmp:element(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
+    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
@@ -192,17 +200,16 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} 
       end rem 16#FFFFFFFF,
       % io:format("n ~p ~p ~p~n",[Id, Type, TS]),
       Channel = case Chan of
-        undefined -> #channel{id = Id};
-        _ -> Chan
+        undefined -> #channel{id = Id, timestamp = TS, delta = undefined, stream_id = StreamId};
+        _ -> Chan#channel{timestamp = TS, delta = undefined, stream_id = StreamId}
       end,
     	BinId = encode_id(?RTMP_HDR_NEW,Id),
-      Channel1 = Channel#channel{timestamp = TS, delta = undefined, stream_id = StreamId},
       Header = case TS < 16#FFFFFF of
         true -> <<BinId/binary,TS:24,(size(Data)):24,Type:8,StreamId:32/little>>;
         false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,StreamId:32/little,TS:32>>
       end,
       Bin = [Header | ChunkList],
-      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1)}, Bin}
+      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel)}, Bin}
   end.
 
 encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
@@ -221,12 +228,13 @@ encode_list(Message, [Arg | Args]) ->
   AMF = amf0:encode(Arg),
   encode_list(<<Message/binary, AMF/binary>>, Args).
 
-encode_id(Type, Id) when Id > 319 -> 
-	<<Type:2,?RTMP_HDR_LRG_ID:6, (Id - 64):16/big-integer>>;
-encode_id(Type, Id) when Id > 63 -> 
+
+encode_id(Type, Id) when Id =< 63 -> 
+  <<Type:2, Id:6>>;
+encode_id(Type, Id) when Id =< 319 -> 
 	<<Type:2,?RTMP_HDR_MED_ID:6, (Id - 64):8>>;
-encode_id(Type, Id) when Id >= 2 -> 
-  <<Type:2, Id:6>>.
+encode_id(Type, Id) when Id > 319 -> 
+	<<Type:2,?RTMP_HDR_LRG_ID:6, (Id - 64):16/big-integer>>.
 
 
 % chunk(Data) -> chunk(Data,?RTMP_DEF_CHUNK_SIZE).
