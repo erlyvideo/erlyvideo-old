@@ -1,11 +1,12 @@
-VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
-ERLDIR=`erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell`/lib/mpegts-$(VERSION)
+VERSION := `head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
+NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
+ERLDIR := `erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/mpegts-$(VERSION)
+NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-mpegts
 
 
-NIF_FLAGS = `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
 
 all: compile
@@ -14,10 +15,10 @@ compile: ebin/mpeg2_crc32.so ebin/mpegts_reader.so
 	erl -make
 	
 ebin/mpeg2_crc32.so: src/mpeg2_crc32.c
-	$(NIF_FLAGS)  -o $@ $< -I $(ERLDIR)/usr/include/ || touch $@
+	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
 
 ebin/mpegts_reader.so: src/mpegts_reader.c
-	$(NIF_FLAGS)  -o $@ $< -I $(ERLDIR)/usr/include/ || touch $@
+	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
 
 
 clean:
