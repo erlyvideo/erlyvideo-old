@@ -9,6 +9,6 @@ Homepage: http://erlyvideo.org/
 Package: erlyvideo
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.3.1), erlang-amf (>= 1.0.1), erlydtl (>= 0.5), log4erl (>= 0.8), erlang (>= 1:13), runit (>= 1.0), erlmedia (>= 1.1), erlang-rtsp (>= 1.1), erlang-mpegts (>= 1.1), erlang-shoutcast (>= 1.0)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.4), erlang-amf (>= 1.0.1), erlydtl (>= 0.5), log4erl (>= 0.8), erlang (>= 1:13), runit (>= 1.0), erlmedia (>= 1.2), erlang-rtsp (>= 1.2), erlang-mpegts (>= 2.0), erlang-shoutcast (>= 1.0)
 Description: Erlang video server
  Erlang server, capable to read many sources like files, RTSP or MPEG TS streams and deliver them to RTMP clients

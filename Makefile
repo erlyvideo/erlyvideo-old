@@ -2,7 +2,6 @@ VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlyvideo-$(VERSION)
-RTMPDIR=/usr/lib/erlyvideo
 VARDIR=/var/lib/erlyvideo
 ETCDIR=/etc/erlyvideo
 DEBIANREPO=/apps/erlyvideo/debian/public
