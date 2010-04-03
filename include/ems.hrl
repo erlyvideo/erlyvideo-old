@@ -9,7 +9,7 @@
 -define(TIMEOUT,     120000).
 -define(PREPUSH, 3000).
 -define(RTMP_WINDOW_SIZE, 2500000).
--define(RTMP_PREF_CHUNK_SIZE, (4*1024)).
+-define(RTMP_PREF_CHUNK_SIZE, (1024*1024)).
 
 -define(ERLYINFO, "Erlyvideo 1.5").
 -define(CONTENT_TYPE, "application/x-fcs").

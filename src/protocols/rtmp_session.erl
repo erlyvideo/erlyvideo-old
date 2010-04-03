@@ -394,6 +394,15 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   {next_state, StateName, State};
 
 handle_info({ems_stream, StreamId, start_play}, StateName, #rtmp_session{socket = Socket} = State) ->
+  Player = element(StreamId, State#rtmp_session.streams),
+  F = fun(Pid) ->
+    S = pid_to_list(Pid),
+    {ok, Re} = re:compile("<(\\d+)\\.(\\d+)\\.(\\d+)"),
+    {match, [_, A, B, C]} = re:run(S, Re, [{capture, all, list}]),
+    "pid("++A++","++B++","++C++")"
+  end,  
+  PidList = lists:map(F, [Socket, self(), Player]),
+  io:format("eprof:start_profiling([~s,~s,~s]).~n", PidList),
   rtmp_lib:play_start(Socket, StreamId),
   {next_state, StateName, State};
 
@@ -415,19 +424,8 @@ handle_info({ems_stream, StreamId, seek_failed}, StateName, #rtmp_session{socket
   rtmp_lib:seek_failed(Socket, StreamId),
   {next_state, StateName, State};
 
-handle_info(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, 'WAIT_FOR_DATA', #rtmp_session{stream_timers = Timers} = State) ->
-  % ?D({Type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, round(DTS)}),
-  
-  Timers1 = start_stream_timer(StreamId, DTS, Timers),
-  stream_jitter(StreamId, DTS, Timers1),
-  Message = #rtmp_message{
-    channel_id = channel_id(Type, StreamId), 
-    timestamp = DTS,
-    type = Type,
-    stream_id = StreamId,
-    body = flv_video_frame:encode(Frame)},
-	rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State#rtmp_session{stream_timers = Timers1}};
+handle_info(#video_frame{} = Frame, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
+  {next_state, 'WAIT_FOR_DATA', handle_frame(Frame, State)};
 
 handle_info(#rtmp_message{} = Message, StateName, State) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
@@ -438,6 +436,16 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
+handle_frame(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, #rtmp_session{socket = Socket} = State) ->
+  % ?D({Type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, round(DTS)}),
+  Message = #rtmp_message{
+    channel_id = channel_id(Type, StreamId), 
+    timestamp = DTS,
+    type = Type,
+    stream_id = StreamId,
+    body = flv_video_frame:encode(Frame)},
+	rtmp_socket:send(Socket, Message),
+  State.
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive
@@ -448,37 +456,6 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
       0 -> State
   end.
 
-
-start_stream_timer(_StreamId, undefined, Timers) ->
-  Timers;
-
-start_stream_timer(StreamId, DTS, Timers) when size(Timers) < StreamId orelse element(StreamId,Timers) == undefined ->
-  {Now, _} = erlang:statistics(wall_clock),
-  ems:setelement(StreamId, Timers, {Now, DTS, undefined});
-  
-start_stream_timer(_StreamId, _DTS, Timers) ->
-  Timers.
-
-stream_jitter(_StreamId, undefined, Timers) ->
-  Timers;
-
-stream_jitter(StreamId, DTS, Timers) ->
-  {StartTime, StartDTS, Lag} = element(StreamId, Timers),
-  {Now, _} = erlang:statistics(wall_clock),
-  % ?D({"Jitter", DTS, StartDTS, Now, StartTime}),
-  Delta = (DTS - StartDTS) - (Now - StartTime),
-  case Lag of
-    undefined ->
-      setelement(StreamId, Timers, {StartTime, StartDTS, Delta});
-    _ ->
-      case Delta of
-        Delta when Delta > Lag + 100 ->
-          ?D({"Lag", Delta}),
-          Timers;
-        _ ->
-          Timers
-      end
-  end.
 
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
