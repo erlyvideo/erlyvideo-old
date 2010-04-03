@@ -26,7 +26,8 @@ read_frame(MediaEntry, Key) ->
   MediaEntry ! {'$gen_call', {self(), Ref}, {read, Key}},
   erlang:yield(),
   receive
-    {Ref, Frame} -> Frame
+    {Ref, Frame} -> Frame;
+    {'DOWN', _Ref, process, MediaEntry, _Reason} -> erlang:error(mediaentry_died)
   after
     1000 -> erlang:error(timeout_read_frame)
   end.
