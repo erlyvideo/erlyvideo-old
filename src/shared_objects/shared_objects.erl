@@ -47,11 +47,11 @@ open(Host, Name, Persistent) ->
 %%----------------------------------------------------------------------
 init([]) ->
   process_flag(trap_exit, true),
-  case lists:member(shared_object, mnesia:system_info(tables)) of
-    true -> ok;
-    _ -> {atomic, ok} = mnesia:create_table(shared_object, [{attributes, record_info(fields, shared_object)}, {disc_copies, [node()]}])
-    % 
-  end,
+  % case lists:member(shared_object, mnesia:system_info(tables)) of
+  %   true -> ok;
+  %   _ -> {atomic, ok} = mnesia:create_table(shared_object, [{attributes, record_info(fields, shared_object)}, {disc_copies, [node()]}])
+  %   % 
+  % end,
   
   Objects = ets:new(shared_object_names, [set]),
   {ok, #shared_objects{objects = Objects}}.
