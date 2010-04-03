@@ -61,10 +61,10 @@ ctl()
 {
     $ERL \
       -sname ctl$NODE@$HOST \
-      -pa $EJABBERD_EBIN \
+      -pa ebin \
       -noinput \
       -hidden \
-      -s ejabberd_ctl -extra $NODE@$HOST $@
+      -s erlyvideo_ctl -extra $NODE@$HOST $@
 }
 
 usage()
