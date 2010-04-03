@@ -1,3 +1,9 @@
+erlang-mpegts (2.0) unstable; urgency=low
+
+  * iPhone streaming
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 03 Apr 2010 17:45:39 +0400
+
 erlang-mpegts (1.1) unstable; urgency=low
 
   * Minor fixes with sending h264 stream
