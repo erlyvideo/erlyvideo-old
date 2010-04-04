@@ -2,8 +2,6 @@ VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\
 REQUIRED_ERLANG=R13
 ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
 ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlyvideo-$(VERSION)
-VARDIR=/var/lib/erlyvideo
-ETCDIR=/etc/erlyvideo
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlyvideo
 ERL_LIBS=deps:lib:plugins
@@ -11,8 +9,6 @@ ERL_LIBS=deps:lib:plugins
 ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
-VSN=0.1
-MXMLC=mxmlc
 
 all: compile
 
@@ -46,8 +42,6 @@ clean-doc:
 	rm -fv doc/edoc-info
 	rm -fv doc/*.css
 
-player:
-	$(MXMLC) -default-background-color=#000000 -default-frame-rate=24 -default-size 960 550 -optimize=true -output=wwwroot/player/player.swf wwwroot/player/player.mxml
 
 run: erlang_version priv/erlyvideo.conf
 	contrib/erlyctl run
@@ -65,8 +59,7 @@ install: compile
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
 	cp contrib/erlyctl $(DESTROOT)/usr/bin/erlyctl
-	mkdir -p $(DESTROOT)/etc/sv/
-	cp -r contrib/runit/erlyvideo $(DESTROOT)/etc/sv/
+	ln -s $(DESTROOT)/usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 
