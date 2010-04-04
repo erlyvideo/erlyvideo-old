@@ -10,6 +10,8 @@
   host,
   name,
   version = 0,
+  file_path,
+  table_name,
   persistent,
   event_count,
   data = [],
@@ -19,8 +21,7 @@
 -export([start_link/3]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
          
 -export([message/2]).
 
@@ -52,14 +53,19 @@ message(Object, Message) ->
 %% @end
 %%----------------------------------------------------------------------
 init([Host, Name, Persistent]) ->
-  process_flag(trap_exit, true),
-  {Data, Version} = load(Host, Name, Persistent),
   % ?D({"Loaded", Host, Name, Data}),
-  case Persistent of
-    true -> timer:send_after(?SAVE_TIMEOUT, save);
-    _ -> ok
+  FilePath = file_path(Host, Name),
+  TableName = case Persistent of
+    true -> 
+      DETSName = table_name(Host, Name),
+      {ok, DETSName} = dets:open_file(DETSName, [{file,FilePath},{auto_save,1000},{keypos,#shared_object.key}]),
+      DETSName;
+    _ -> 
+      undefined
   end,
-  {ok, #so_state{host = Host, name = Name, persistent = Persistent, data = Data, version = Version, event_count = 1}}.
+  State = #so_state{host = Host, name = Name, persistent = Persistent, table_name = TableName, file_path = FilePath},
+  {Data, Version} = load(State),
+  {ok, State#so_state{data = Data, version = Version, event_count = 1}}.
   
 
 %%-------------------------------------------------------------------------
@@ -85,8 +91,8 @@ handle_call(Request, _From, State) ->
 handle_event([], _, State) ->
   State;
 
-handle_event([connect | Events], Client, #so_state{clients = Clients, data = _Data, host = Host} = State) ->
-  link(Client),
+handle_event([connect | Events], Client, #so_state{clients = Clients, data = _Data, host = _Host} = State) ->
+  erlang:monitor(process, Client),
   connect_notify(Client, State),
   handle_event(Events, Client, State#so_state{clients = [Client | Clients]});
 
@@ -100,6 +106,7 @@ handle_event([{set_attribute, {Key, Value}} | Events], Client, #so_state{name = 
   Message = #rtmp_message{type = shared_object, body = OtherReply},
   ClientList = lists:delete(Client, Clients),
   [rtmp_session:send(C, Message) || C <- ClientList],
+  save(NewState),
   handle_event(Events, Client, NewState);
 
 
@@ -113,6 +120,7 @@ handle_event([{delete_attribute, Key} | Events], Client, #so_state{name = Name, 
   Message = #rtmp_message{type = shared_object, body = OtherReply},
   ClientList = lists:delete(Client, Clients),
   [rtmp_session:send(C, Message) || C <- ClientList],
+  save(NewState),
   handle_event(Events, Client, NewState);
 
 
@@ -141,21 +149,16 @@ connect_notify(Client, #so_state{name = Name, version = Version, persistent = P,
   rtmp_session:send(Client, #rtmp_message{type = shared_object, body = Reply}).
 
 save(#so_state{persistent = false}) -> ok;
-save(#so_state{host = Host, name = Name, data = Data, version = Version}) -> 
+save(#so_state{host = Host, name = Name, data = Data, version = Version, table_name = Table}) -> 
   % ?D({"Saving", Host, Name, Data}),
-  mnesia:transaction(fun() ->
-    mnesia:write(#shared_object{key={Host, Name}, version=Version, data=Data})
-  end).
+  dets:insert(Table, #shared_object{key={Host, Name}, version=Version, data=Data}).
 
-load(_, _, _Persistent = false) -> {[], 0};
-load(Host, Name, _) ->
-  {atomic, ObjectData} = mnesia:transaction(fun() ->
-    case mnesia:read(shared_object, {Host, Name}) of
-      [#shared_object{data = Data, version = Version}] -> {Data, Version};
-      [] -> {[], 0}
-    end
-  end),
-  ObjectData.
+load(#so_state{persistent = false}) -> {[], 0};
+load(#so_state{name = Name, host = Host, persistent = true, table_name = Table}) ->
+  case dets:lookup(Table, {Host, Name}) of
+    [#shared_object{data = Data, version = Version}] -> {Data, Version};
+    _ -> {[], 0}
+  end.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -193,11 +196,11 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 % 
 
-handle_info(save, State) ->
-  save(State),
-  {noreply, State};
+file_path(Host, _Name) -> "shared_objects/"++atom_to_list(Host)++".db".
+table_name(Host, _Name) -> list_to_atom("shared_objects_"++atom_to_list(Host)).
 
-handle_info({'EXIT', Client, _Reason}, #so_state{name = Name, clients = Clients} = State) ->
+
+handle_info({'DOWN', _, process, Client, _Reason}, #so_state{name = Name, clients = Clients} = State) ->
   NewClients = lists:delete(Client, Clients),
   % ?D({"Client diconnected from", State#so_state.name, Client}),
   case length(NewClients) of

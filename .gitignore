@@ -20,3 +20,4 @@ build/
 *.mode2v3
 build-stamp
 configure-stamp
+shared_objects

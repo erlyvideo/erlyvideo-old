@@ -8,8 +8,7 @@
 -export([start_link/0]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
          
 -export([open/3]).
          
@@ -46,13 +45,6 @@ open(Host, Name, Persistent) ->
 %% @end
 %%----------------------------------------------------------------------
 init([]) ->
-  process_flag(trap_exit, true),
-  % case lists:member(shared_object, mnesia:system_info(tables)) of
-  %   true -> ok;
-  %   _ -> {atomic, ok} = mnesia:create_table(shared_object, [{attributes, record_info(fields, shared_object)}, {disc_copies, [node()]}])
-  %   % 
-  % end,
-  
   Objects = ets:new(shared_object_names, [set]),
   {ok, #shared_objects{objects = Objects}}.
   
@@ -75,7 +67,7 @@ handle_call({open, Host, Name, Persistent}, _From, #shared_objects{objects = Obj
     [{{Host, Name}, Object}] -> ok;
     _ -> 
       {ok, Object} = ems_sup:start_shared_object(Host, Name, Persistent),
-      link(Object),
+      erlang:monitor(process, Object),
       ets:insert(Objects, {{Host, Name}, Object})
   end,
   {reply, {ok, Object}, State};
@@ -107,7 +99,7 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 % 
 
-handle_info({'EXIT', Object, _Reason}, #shared_objects{objects = Objects} = State) ->
+handle_info({'DOWN', _, process, Object, _Reason}, #shared_objects{objects = Objects} = State) ->
   ets:match_delete(Objects, {'_', Object}),
   {noreply, State};
   
@@ -127,7 +119,7 @@ handle_info(_Info, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
- ok.
+  ok.
 
 %%-------------------------------------------------------------------------
 %% @spec (OldVsn, State, Extra) -> {ok, NewState}
@@ -136,7 +128,7 @@ terminate(_Reason, _State) ->
 %% @private
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-   {ok, State}.
+  {ok, State}.
 
 %%%------------------------------------------------------------------------
 %%% Internal functions
