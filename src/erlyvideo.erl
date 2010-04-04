@@ -10,10 +10,21 @@
 
 
 start(normal, []) ->
-  start().
+  {ok, Supervisor} = ems_sup:start_link(),
+  load_config(),
+  ems_log:start(),
+  ems_vhosts:start(),
+  media_provider:init_names(),
+  start_http(),
+  start_rtmp(),
+  start_rtsp(),
+	start_modules(),
+	io:format("Started Erlyvideo~n"),
+	{ok, Supervisor}.
 
 stop(_) ->
-  stop().
+  %stop().
+  ok.
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -23,18 +34,11 @@ stop(_) ->
   
 start() -> 
 	io:format("Starting Erlyvideo ...~n"),
-  % application:load(erlyvideo),
-  ems_sup:start_link(),
-  load_config(),
-  application:start(crypto),
-  application:start(rtsp),
-  application:start(rtmp),
-  ems_log:start(),
-  start_http(),
-  start_rtmp(),
-  start_rtsp(),
-	start_modules(),
-	io:format("Started Erlyvideo~n"),
+	application:start(log4erl),
+	application:start(crypto),
+	application:start(rtmp),
+	application:start(rtsp),
+	application:start(erlyvideo),
 	ok.
   
 start_http() ->
@@ -138,13 +142,12 @@ load_config() ->
       io:format("Loading config from file ~s~n", [Path]),
       [application:set_env(erlyvideo, Key, Value) || {Key, Value} <- Env],
       ok;
-    {error, enoent} -> ok;
+    {error, enoent} -> io:format("No config found~n");
     {error, Reason} ->
+      io:format("Couldn't load erlyvideo.conf: ~p~n", [Reason]),
       error_logger:error_msg("Couldn't load erlyvideo.conf: ~p~n", [Reason]),
       ok
-  end,
-  ems_vhosts:start(),
-  media_provider:init_names().
+  end.
 
 
 

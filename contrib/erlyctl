@@ -28,7 +28,7 @@ ERL="erl +A 4 +K true"
 
 start()
 {
-	ERL_LIBS=deps:lib:plugins:.. $ERL -noinput -detached \
+	ERL_LIBS=deps:lib:plugins:.. $ERL -noinput -detached -pa ebin \
 	-sasl sasl_error_logger 'false' \
   -kernel error_logger 'false' \
 	-sasl error_logger_mf_dir '"log/report"' \
@@ -42,10 +42,8 @@ start()
 
 run()
 {
-	ERL_LIBS=deps:lib:plugins:.. $ERL
-	-kernel error_logger 'false' \
-	-sasl sasl_error_logger 'tty' \
-	-sasl errlog_type 'error' \
+	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin \
+  -sasl errlog_type 'all' \
 	-boot start_sasl \
 	-s erlyvideo \
 	-sname $NODE@$HOST

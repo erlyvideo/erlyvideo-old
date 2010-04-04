@@ -37,7 +37,7 @@
 	ems_script
   ]},
   {registered,   []},
-  {applications, [kernel,stdlib,crypto]},
+  {applications, [kernel,stdlib,crypto,rtsp,rtmp,log4erl]},
   {mod, {erlyvideo, []}},
   {env, []}
  ]
