@@ -35,13 +35,9 @@ if [ -f /etc/erlyvideo/erlmedia.conf ] && ! [ -f /etc/erlyvideo/erlyvideo.conf ]
   mv /etc/erlyvideo/erlmedia.conf /etc/erlyvideo/erlyvideo.conf
 fi
 
-if ! test -e /etc/service/erlyvideo; then
-  ln -sf /etc/sv/erlyvideo /etc/service/erlyvideo
-fi
-
 case "$1" in
     configure)
-    /usr/bin/erlyctl reload ems@`hostname`
+    /usr/bin/erlyctl restart
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

@@ -27,7 +27,9 @@ ERL="erl +A 4 +K true"
 
 start()
 {
-	ERL_LIBS=deps:lib:plugins:.. $ERL -noinput -detached -pa ebin \
+  export ERL_LIBS=deps:lib:plugins:..
+  EBIN=`erl -eval 'io:format("~s", [code:lib_dir(erlyvideo,ebin)])' -s init stop -noshell`
+	$ERL -noinput -detached -pa ebin -pa "$EBIN" \
 	-sasl sasl_error_logger 'false' \
   -kernel error_logger 'false' \
 	-sasl error_logger_mf_dir '"log/report"' \
