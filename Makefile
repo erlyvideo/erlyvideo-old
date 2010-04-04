@@ -12,7 +12,6 @@ ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
 VSN=0.1
-MNESIA_DATA=mnesia-data
 MXMLC=mxmlc
 
 all: compile
@@ -71,11 +70,6 @@ install: compile
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 
-archive: ../erlyvideo-$(VERSION).tgz
-	
-
-../erlyvideo-$(VERSION).tgz:
-	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='*.log' --exclude=build --exclude=erlyvideo/debian --exclude=erlyvideo/log --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
 
 debian: all
 	dpkg-buildpackage

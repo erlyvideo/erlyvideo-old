@@ -21,7 +21,6 @@
 
 NODE=ems
 HOST=localhost
-MNESIA_DATA=mnesia-data
 
 # Define ejabberd environment
 ERL="erl +A 4 +K true"
