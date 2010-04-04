@@ -36,15 +36,16 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
-% -include("../include/ems.hrl").
--include_lib("erlyvideo/include/rtmp_session.hrl").
 
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([host/1]).
 
 -export([expand_tuple/2, tuple_find/2, element/2, setelement/3]).
 
+-export([rebuild/0, restart/0]).
 
+rebuild() -> erlyvideo:rebuild().
+restart() -> erlyvideo:restart().
 
  
       
@@ -168,7 +169,7 @@ check_app([Module | Applications], Command, Arity) ->
   end;
 
 
-check_app(#rtmp_session{host = Host}, Command, Arity) ->
+check_app(Host, Command, Arity) ->
   Modules = ems:get_var(modules, Host, [trusted_login]),
   check_app(Modules, Command, Arity).
 

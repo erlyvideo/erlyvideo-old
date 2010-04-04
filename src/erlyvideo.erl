@@ -10,16 +10,8 @@
 
 
 start(normal, []) ->
-  {ok, Supervisor} = ems_sup:start_link(),
-  load_config(),
-  ems_log:start(),
   ems_vhosts:start(),
-  media_provider:init_names(),
-  start_http(),
-  start_rtmp(),
-  start_rtsp(),
-	start_modules(),
-	io:format("Started Erlyvideo~n"),
+  {ok, Supervisor} = ems_sup:start_link(),
 	{ok, Supervisor}.
 
 stop(_) ->
@@ -38,7 +30,20 @@ start() ->
 	application:start(crypto),
 	application:start(rtmp),
 	application:start(rtsp),
+	
+	application:load(erlyvideo),
+	load_config(),
+  ems_log:start(),
+  media_provider:init_names(),
+  
 	application:start(erlyvideo),
+
+  start_http(),
+  start_rtmp(),
+  start_rtsp(),
+	start_modules(),
+	io:format("Started Erlyvideo~n"),
+  
 	ok.
   
 start_http() ->

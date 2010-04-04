@@ -232,7 +232,7 @@ send(Session, Message) ->
 handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #rtmp_funcall{command = CommandBin} = AMF,
   Command = binary_to_atom(CommandBin, utf8),
-  call_function(ems:check_app(State, Command, 2), State, AMF#rtmp_funcall{command = Command});
+  call_function(ems:check_app(State#rtmp_session.host, Command, 2), State, AMF#rtmp_funcall{command = Command});
   
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
@@ -303,7 +303,7 @@ call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args 
 
 	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion},
 
-  {Module, Function} = ems:check_app(NewState1, connect, 2),
+  {Module, Function} = ems:check_app(NewState1#rtmp_session.host, connect, 2),
 
 	Module:Function(NewState1, AMF);
 
@@ -464,7 +464,7 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_session{socket=Socket} = State) ->
-  ems:call_modules(logout, [State]),
+  erlyvideo:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
   ok.

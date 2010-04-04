@@ -38,7 +38,8 @@ start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
 
 find_provider(Host) ->
-  {global, global_name(Host)}.
+  % {global, global_name(Host)}.
+  name(Host).
   
 resolve_global(Name, Pid1, Pid2) ->
   ?D({"Resolving global clash for", Name, Pid1, Pid2}),
@@ -156,7 +157,7 @@ find_or_open(Host, Name) ->
 init([Host]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
-  global:register_name(global_name(Host), self(), {?MODULE, resolve_global}),
+  % global:register_name(global_name(Host), self(), {?MODULE, resolve_global}),
   {ok, #media_provider{opened_media = OpenedMedia, host = Host}}.
   
 
