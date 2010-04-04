@@ -2,13 +2,13 @@ Source: erlang-shoutcast
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Build-Depends: debhelper (>= 7)
-Standards-Version: 3.8.1
+Standards-Version: 3.8.3
 Section: libs
 Homepage: http://erlyvideo.org/shoutcast
 
 Package: erlang-shoutcast
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.2)
 Description: Erlang shoutcast library
  Erlang library that decodes shoutcast protocol
