@@ -1,22 +1,15 @@
 #!/bin/sh
-
-# 
-# -define(TIMEOUT, 4000).
-# -define(COUNTER, 100).
-# -define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
-# 
-# main(["reload", Node]) ->
-#   rpc:call(list_to_atom(Node), ems, reconfigure, []);
-# main(["restart", Node]) ->
-#   rpc:call(list_to_atom(Node), ems, restart, []);
-# main(["clients", Hostname, Node]) ->
-#   Host = list_to_atom(Hostname),
-#   Entries = rpc:call(list_to_atom(Node), media_provider, entries, [Host]),
-#   io:format("~p~n", [Entries]);
-# main(_) ->
-#   io:format("Commands:~n  reload Node~n  restart Node~n  clients Hostname Node~n").
-# 
-#   
+#
+### BEGIN INIT INFO
+# Provides:          erlyvideo
+# Required-Start:    $network
+# Required-Stop:     $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start erlyvideo at boot time and control it in runtime
+# Description:       Enable service provided by erlyvideo.
+### END INIT INFO
+  
   
 
 NODE=ems
@@ -100,11 +93,11 @@ restart()
 
 runas()
 {
-  if [ `id -u` == "0" ] ; then
+  if [ `id -u` != "0" ]; then
+    $@
+  else
     cd /var/lib/erlyvideo
     su - erlyvideo -s /bin/sh -c "/usr/bin/erlyctl $*"
-  else
-    $@
   fi
 }
 
