@@ -83,11 +83,21 @@ EOF
     exit
 }
 
+runas()
+{
+  if [ `id -u` == "0" ] ; then
+    cd /var/lib/erlyvideo
+    su erlyvideo -c "/usr/bin/erlyctl $@"
+  else
+    $@
+  fi
+}
+
 [ $# -lt 1 ] && usage
 
 case $1 in
-    start) start;;
-    run) run;;
-    shell) shell;;
+    start) runas start;;
+    run) runas run;;
+    shell) runas shell;;
     *) ctl $@;;
 esac
