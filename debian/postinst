@@ -37,7 +37,8 @@ fi
 
 case "$1" in
     configure)
-    /usr/bin/erlyctl restart
+    /usr/bin/erlyctl start
+    /usr/bin/erlyctl reload
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
