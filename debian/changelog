@@ -1,3 +1,9 @@
+erlyvideo (1.7) unstable; urgency=low
+
+  * New startup system
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 04 Apr 2010 13:27:05 +0400
+
 erlyvideo (1.6.3) unstable; urgency=low
 
   * Optimizations for speed

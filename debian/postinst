@@ -35,6 +35,9 @@ if [ -f /etc/erlyvideo/erlmedia.conf ] && ! [ -f /etc/erlyvideo/erlyvideo.conf ]
   mv /etc/erlyvideo/erlmedia.conf /etc/erlyvideo/erlyvideo.conf
 fi
 
+update-rc.d erlyvideo defaults 20
+
+
 case "$1" in
     configure)
     /usr/bin/erlyctl restart
