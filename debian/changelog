@@ -1,3 +1,9 @@
+erlang-rtmp (1.4.1) unstable; urgency=low
+
+  * Now with monitor, that tracks slow clients.
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 05 Apr 2010 11:01:41 +0400
+
 erlang-rtmp (1.4) unstable; urgency=low
 
   * Speed improvements
