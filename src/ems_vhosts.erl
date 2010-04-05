@@ -29,4 +29,4 @@ init_vhosts([{Name, Host} | Hosts]) ->
 
 
 stop() ->
-  ets:delete(vhosts).
+  (catch ets:delete(vhosts)).
