@@ -328,7 +328,7 @@ handle_info(Message, State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{last_dts = undefined} = Recorder) ->
-  handle_frame(Frame, Recorder#media_info{last_dts = DTS});
+  handle_frame(Frame, Recorder#media_info{last_dts = 1000}); % Just not to appear negative dts
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{ts_delta = undefined, last_dts = LastDTS} = Recorder) ->
   ?D({"New instance of stream", LastDTS, DTS}),
