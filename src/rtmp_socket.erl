@@ -275,7 +275,7 @@ loop(#rtmp_message{} = Message, _From, State) ->
 
 
 -type(rtmp_option() ::active|amf_version|chunk_size|window_size|client_buffer|address).
--type(rtmp_option_value() ::{rtmp_option(), any()}).
+% -type(rtmp_option_value() ::{rtmp_option(), any()}).
 -spec(get_options(State::rtmp_socket(), Key::rtmp_option()|[rtmp_option()]) -> term()).
 
 get_options(State, active) ->
