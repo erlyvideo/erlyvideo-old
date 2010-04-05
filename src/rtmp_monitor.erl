@@ -1,13 +1,13 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        RTMPT sessions watcher
+%%% @doc        RTMP socket monitor. Shutdown slow clients
 %%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information.
 %%% @end
 %%%
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2009 Max Lapshin
+%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -28,24 +28,21 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
-%% @private
--module(rtmpt_sessions).
+-module(rtmp_monitor).
 -author('Max Lapshin <max@maxidoors.ru>').
--version(1.1).
 
+-define(TIMEOUT, 1000).
 -behaviour(gen_server).
 
--export([start_link/0]).
+-export([start_link/0, start_link/1]).
+
+-record(rtmp_monitor, {
+  threshold,
+  timeout
+}).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
-         
--export([create/1, find/2]).
-         
--record(rtmpt_sessions, {
-  sessions
-}).
-
 
 %%--------------------------------------------------------------------
 %% @spec () -> {ok, Pid} | {error, Reason}
@@ -53,18 +50,8 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link()  ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-%%%------------------------------------------------------------------------
-%%% Callback functions from gen_server
-%%%------------------------------------------------------------------------
-
-find(SessionId, IP) ->
-  gen_server:call(?MODULE, {find, SessionId, IP}).
-
-create(IP) ->
-  gen_server:call(?MODULE, {create, IP}).
+start_link() -> start_link([]).
+start_link(Options) -> gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -76,12 +63,11 @@ create(IP) ->
 %%      Create listening socket.
 %% @end
 %%----------------------------------------------------------------------
-init([]) ->
-  process_flag(trap_exit, true),
-  random:seed(now()),
-  Sessions = ets:new(rtmpt_sessions, [set]),
-  {ok, #rtmpt_sessions{sessions = Sessions}}.
-  
+init(Options) ->
+  Timeout = proplists:get_value(timeout,Options,?TIMEOUT),
+  Threshold = proplists:get_value(threshold,Options,5000),
+  {ok, #rtmp_monitor{timeout = Timeout, threshold = Threshold}, Timeout}.
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -96,20 +82,6 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({create, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
-  SessionID = generate_session_id(),
-  {ok, RTMPT} = rtmp_sup:start_rtmpt(SessionID, IP),
-  link(RTMPT),
-  ets:insert(Sessions, {{SessionID, IP}, RTMPT}),
-  {reply, {ok, RTMPT, SessionID}, State};
-  
-
-handle_call({find, SessionID, IP}, _From, #rtmpt_sessions{sessions = Sessions} = State) ->
-  case ets:lookup(Sessions, {SessionID, IP}) of
-    [{_Key, RTMPT}] -> {reply, {ok, RTMPT}, State};
-    _ -> {reply, {error, notfound}, State}
-  end;
-
 handle_call(Request, _From, State) ->
  {stop, {unknown_call, Request}, State}.
 
@@ -123,7 +95,7 @@ handle_call(Request, _From, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-   {noreply, State}.
+  {stop, {unhandled_cast, _Msg}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -137,14 +109,23 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 % 
 
-handle_info({'EXIT', RTMPT, _Reason}, #rtmpt_sessions{sessions = Sessions} = State) ->
-  ets:match_delete(Sessions, {'_', RTMPT}),
-  {noreply, State};
-  
+handle_info(timeout, #rtmp_monitor{timeout = Timeout, threshold = Threshold} = State) ->
+  Sockets = [Pid || {undefined,Pid,worker,_} <- supervisor:which_children(rtmp_socket_sup)],
+  BrutalKill = [Pid || Pid <- Sockets, element(2,process_info(Pid, message_queue_len)) > Threshold],
+  report_brutal_kill(BrutalKill),
+  brutal_kill(BrutalKill),
+  {noreply, State, Timeout};
+
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
 
+
+report_brutal_kill([]) -> ok;
+report_brutal_kill(BrutalKill) -> error_logger:error_msg("[RTMP_MON] Brutal kill due to lag: ~p~n", [BrutalKill]).
+
+brutal_kill([]) -> ok;
+brutal_kill(BrutalKill) -> [erlang:exit(Pid,kill) || Pid <- BrutalKill].
 
 
 %%-------------------------------------------------------------------------
@@ -166,10 +147,4 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
-
-
-
-generate_session_id() ->
-  {T1, T2, T3} = now(),
-  lists:flatten(io_lib:format("~p:~p:~p", [T1, T2, T3])).
 
