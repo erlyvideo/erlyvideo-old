@@ -62,8 +62,19 @@ init([URL, Type, Options]) ->
       ?D({"Initializing timeshift", TimeshiftModule, Timeshift}),
       TimeshiftModule:init(Options)
   end,
+  Device = case Type of
+    record ->
+    	FileName = filename:join([ems_stream:file_dir(Host), binary_to_list(URL)]),
+    	(catch file:delete(FileName)),
+    	ok = filelib:ensure_dir(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName),
+      Writer;
+    _ -> 
+      undefined
+  end,
+  
   Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, filter = Filter, 
-                           timeshift = Timeshift, shift = Shift, timeshift_module = TimeshiftModule,
+                           timeshift = Timeshift, shift = Shift, timeshift_module = TimeshiftModule, device = Device,
                            options = Options}),
   {ok, Media, ?TIMEOUT};
 
@@ -93,23 +104,13 @@ init(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
   Media#media_info{demuxer = Reader};
   
 
-init(#media_info{host = Host, type = Type, name = Name, options = Options} = Media) ->
+init(#media_info{options = Options} = Media) ->
   Owner = proplists:get_value(owner, Options),
   case Owner of
     undefined -> ok;
     _ -> erlang:monitor(process, Owner)
   end,
-  Device = case Type of
-    live -> 
-      undefined;
-    record ->
-    	FileName = filename:join([ems_stream:file_dir(Host), binary_to_list(Name)]),
-    	(catch file:delete(FileName)),
-    	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:start_link(FileName),
-      Writer
-  end,
-	Media#media_info{owner = Owner, device = Device}.
+	Media#media_info{owner = Owner}.
 
 
 print_state(#media_info{} = MediaInfo) ->
@@ -130,7 +131,7 @@ print_state(#media_info{} = MediaInfo) ->
 %%-------------------------------------------------------------------------
 
 
-handle_call(info, _From, #media_info{timeshift = Timeshift, shift = Shift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0->
+handle_call(info, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0->
   {reply, [{type,stream}|Module:info(MediaInfo)], MediaInfo, ?TIMEOUT};
 
 handle_call(mode, _From, MediaInfo) ->
@@ -327,7 +328,7 @@ handle_info(Message, State) ->
 %%%%%%%%%%%%%%%%%%        Frame handling         %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_frame(#video_frame{dts = DTS} = Frame, #media_info{last_dts = undefined} = Recorder) ->
+handle_frame(#video_frame{} = Frame, #media_info{last_dts = undefined} = Recorder) ->
   handle_frame(Frame, Recorder#media_info{last_dts = 1000}); % Just not to appear negative dts
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{ts_delta = undefined, last_dts = LastDTS} = Recorder) ->
