@@ -7,7 +7,7 @@ Section: net
 Homepage: http://erlyvideo.org/rtmp
 
 Package: erlang-rtmp
-Section: libs
+Section: net
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, erlang (>= 1:13.b.4)
 Description: Erlang RTMP library
