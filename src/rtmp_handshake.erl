@@ -174,10 +174,10 @@ s1() ->
 	?HANDSHAKE.
 
 c1() ->
-  ?HANDSHAKE.
+  lists:duplicate(size(?HANDSHAKE), 0).
 
 c2(_S2) ->
-  ?HANDSHAKE.
+  c1().
 
 
 flash_version(<<T:32, V1, V2, V3, V4, _/binary>>) ->

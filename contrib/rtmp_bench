@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -pa ebin -pa ../amf/ebin
+%%! -pa ebin -pa ../amf/ebin -pz ../rtmp
 -mode(compile).
 
 main([]) ->
@@ -23,80 +23,7 @@ main([URL, CountS]) ->
 			Port = 1935
 	end,
   Count = list_to_integer(CountS),
-  start_spawner(Server, Port, list_to_binary(Path), Count, 0).
+  rtmp_bench:start_spawner(Server, Port, list_to_binary(Path), Count).
   
-start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
-  io:format("Starting client ~p~n", [Number]),
-  spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
-  timer:sleep(500),
-  start_spawner(Server, Port, Path, Count, Number + 1);
 
-start_spawner(Server, Port, Path, Count, Count) ->
-  receive
-    {'EXIT', _Pid, _Reason} ->
-      io:format("Dead client ~p~n", [_Reason]),
-      start_spawner(Server, Port, Path, Count, Count - 1);
-    Else ->
-      io:format("Spawner message: ~p~n", [Else]),
-      start_spawner(Server, Port, Path, Count, Count)
-  end.
-  
-init_rtmp_client(Server, Port, Path) ->
-  {ok, Socket} = gen_tcp:connect(Server, Port, [binary, {active, false}, {packet, raw}]),
-  io:format("Socket opened to ~s~n", [Server]),
-  {ok, RTMP} = rtmp_socket:connect(Socket),
-  io:format("Connected to ~s~n", [Server]),
-  rtmp_client(RTMP, Path).
-  
-rtmp_client(RTMP, Path) ->
-  receive 
-    {rtmp, RTMP, connected} ->
-      rtmp_socket:setopts(RTMP, [{active, true}]),
-      play(RTMP, Path);
-    Else ->
-      io:format("Client message: ~p (~p)~n", [Else, RTMP]),
-      rtmp_client(RTMP, Path)
-  after
-    10000 ->
-      io:format("Client timeout~n"),
-      ok
-  end.
-    
-
-play(RTMP, Path) ->
-  Connect = rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
-  Stream = rtmp_lib:createStream(RTMP),
-  rtmp_lib:play(RTMP, Stream, Path),
-  io:format("Playing ~s~n", [Path]),
-  read_frame(RTMP, Path, 1, 0).
-  
-read_frame(RTMP, Path, Count, BytesCount) ->
-  receive
-    {rtmp, RTMP, Message} when element(1, Message) == rtmp_message ->
-      case Count rem 100 of
-        1 -> 
-          BytesRead = BytesCount,
-          statistics(wall_clock);
-        0 -> 
-          {_, Time} = statistics(wall_clock),
-          {recv_oct, BytesRead} = rtmp_socket:getstat(RTMP, recv_oct),
-          case Time of
-            0 -> ok;
-            _ -> 
-              Speed = (catch round((BytesRead - BytesCount)/Time)),
-              io:format("~p bytes/sec~n", [Speed])
-          end;
-        _ -> 
-          BytesRead = BytesCount,
-          ok
-      end,
-      read_frame(RTMP, Path, Count+1, BytesRead);
-    {rtmp, RTMP, disconnect} -> ok;
-    Else -> 
-      io:format("Unknown message ~p~n", [Else])
-  after
-    10000 -> io:format("Timeout in reading~n")
-  end.
-        
-  
   
