@@ -21,6 +21,8 @@ install:
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
 debian:
+	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
+	dput erly ../erlang-rtsp_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../erlang-rtsp_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlang-rtsp_$(VERSION)*

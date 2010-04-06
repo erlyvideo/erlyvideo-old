@@ -9,6 +9,6 @@ Homepage: http://erlyvideo.org/
 Package: erlang-rtsp
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia, erlang-nox (>= 1:13)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia, erlang (>= 1:13)
 Description: Erlang media library
  Erlang library that handles some of common formats
