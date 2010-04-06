@@ -21,6 +21,8 @@ install:
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
 debian:
+	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
+	dput erly ../erlmedia_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../erlmedia_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlmedia_$(VERSION)*
