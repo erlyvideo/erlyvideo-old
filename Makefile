@@ -1,5 +1,5 @@
-VERSION=0.8.6
-RTMPDIR=`./root`/lib/log4erl-$(VERSION)
+VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.\-]+)\)/,1]'`
+ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/log4erl-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
 INCLUDEDIR=$(RTMPDIR)/include/
@@ -25,17 +25,20 @@ clean:
 #        cp -f ebin/* ../../www/ebin
 
 install:
-	mkdir -p $(DESTROOT)$(BEAMDIR)
-	mkdir -p $(DESTROOT)$(SRCDIR)
-	mkdir -p $(DESTROOT)$(INCLUDEDIR)
-	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 ebin/*.app $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 src/* $(DESTROOT)$(SRCDIR)
-	install -c -m 644 include/* $(DESTROOT)$(INCLUDEDIR)
+	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)$(ERLDIR)/src
+	mkdir -p $(DESTROOT)$(ERLDIR)/include
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin/
+	install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin/
+	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
+	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
 debian:
+	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
+	dput erly ../log4erl_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../log4erl_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	rm ../log4erl_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 
