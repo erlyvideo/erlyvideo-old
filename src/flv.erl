@@ -37,7 +37,7 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("erlmedia/include/flv.hrl").
+-include("../include/flv.hrl").
 -include("flv_constants.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).

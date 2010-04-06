@@ -35,7 +35,7 @@
 -module(mp4).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/mp4.hrl").
--include_lib("erlmedia/include/video_frame.hrl").
+-include("../include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).

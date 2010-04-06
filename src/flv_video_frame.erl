@@ -30,8 +30,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(flv_video_frame).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("erlmedia/include/flv.hrl").
--include_lib("erlmedia/include/video_frame.hrl").
+-include("../include/flv.hrl").
+-include("../include/video_frame.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
 -export([tag_to_video_frame/1]).

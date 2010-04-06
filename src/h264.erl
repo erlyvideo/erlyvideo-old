@@ -4,8 +4,8 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 % -include("../../include/ems.hrl").
--include_lib("erlmedia/include/h264.hrl").
--include_lib("erlmedia/include/video_frame.hrl").
+-include("../include/h264.hrl").
+-include("../include/video_frame.hrl").
 
 -export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
