@@ -1,14 +1,14 @@
 Source: erlmedia
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7)
-Standards-Version: 3.8.1
-Section: libs
+Standards-Version: 3.8.3
+Section: net
+Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), ruby
 Homepage: http://erlyvideo.org/
 
 Package: erlmedia
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-nox (>= 1:13)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang (>= 1:13.b.4)
 Description: Erlang media library
  Erlang library that handles some of common formats
