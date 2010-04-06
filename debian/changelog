@@ -1,3 +1,9 @@
+erlyvideo (1.7.1) unstable; urgency=low
+
+  * With updated rtmp, now it has monitor
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 05 Apr 2010 11:04:34 +0400
+
 erlyvideo (1.7) unstable; urgency=low
 
   * New startup system
