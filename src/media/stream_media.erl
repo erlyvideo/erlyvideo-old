@@ -88,6 +88,12 @@ init(#media_info{type = mpegts, options = Options} = Media) ->
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
   Media#media_info{socket = Sock, demuxer = Reader};
 
+init(#media_info{type = mpegts_file, name = Name, host = Host} = Media) ->
+  FileName = filename:join([ems_stream:file_dir(Host), Name]), 
+  {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
+  link(Reader),
+  Media#media_info{demuxer = Reader};
+
 
 init(#media_info{type = mpegts_passive} = Media) ->
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
