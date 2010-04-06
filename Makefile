@@ -35,6 +35,8 @@ install:
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
 
 debian:
+	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
+	dput erly ../erlang-mpegts_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../erlang-mpegts_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlang-mpegts_$(VERSION)*
