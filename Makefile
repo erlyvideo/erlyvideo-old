@@ -1,5 +1,5 @@
-VERSION=0.5.3
-RTMPDIR=`./root`/lib/erlydtl-$(VERSION)
+VERSION := `head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.\-]+)\)/,1]'`
+RTMPDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlydtl-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
 DEBIANREPO=/apps/erlyvideo/debian/public
@@ -47,6 +47,8 @@ install:
 	install -c -m 644 src/tests/* $(DESTROOT)$(SRCDIR)tests/
 
 debian:
+	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
+	dput erly ../erlydtl_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../erlydtl_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)

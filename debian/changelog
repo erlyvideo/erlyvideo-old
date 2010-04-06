@@ -1,3 +1,9 @@
+erlydtl (0.5.3-2) karmic; urgency=low
+
+  * Changed repository
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 06 Apr 2010 12:27:30 +0400
+
 erlydtl (0.5.3-1) unstable; urgency=low
 
   * Initial Release from original package.

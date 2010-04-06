@@ -1,6 +1,0 @@
-#!/usr/bin/env escript
-%% -*- erlang -*-
-
-main([]) ->
-  io:format(code:root_dir()).
-
