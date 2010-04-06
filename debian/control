@@ -1,14 +1,14 @@
 Source: erlang-rtsp
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7)
+Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), ruby
 Standards-Version: 3.8.3
-Section: libs
+Section: net
 Homepage: http://erlyvideo.org/
 
 Package: erlang-rtsp
-Section: libs
+Section: net
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia, erlang (>= 1:13)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.2.4), erlang (>= 1:13.b.4)
 Description: Erlang media library
  Erlang library that handles some of common formats
