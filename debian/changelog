@@ -1,3 +1,9 @@
+erlang-shoutcast (1.1.1) karmic; urgency=low
+
+  * Launchpad compiling
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 06 Apr 2010 22:31:36 +0400
+
 erlang-shoutcast (1.1) karmic; urgency=low
 
   * Changed repository to karmic
