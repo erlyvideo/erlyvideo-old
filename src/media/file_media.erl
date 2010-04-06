@@ -106,7 +106,12 @@ handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
 
 
 handle_call(metadata, _From, #media_info{format = Format} = MediaInfo) ->
-  {reply, {object, Format:metadata(MediaInfo)}, MediaInfo};
+  case Format:metadata(MediaInfo) of
+    undefined ->
+      {reply, undefined, MediaInfo};
+    Metadata ->   
+      {reply, {object, Metadata}, MediaInfo}
+  end;
 
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo};
