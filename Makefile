@@ -51,6 +51,7 @@ debian:
 	dput erly ../erlydtl_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../erlydtl_$(VERSION)*.deb $(DEBIANREPO)/binary/
+	rm ../erlydtl_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 
 
