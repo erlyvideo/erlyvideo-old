@@ -2,7 +2,7 @@ Source: erlang-rtsp
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Build-Depends: debhelper (>= 7)
-Standards-Version: 3.8.1
+Standards-Version: 3.8.3
 Section: libs
 Homepage: http://erlyvideo.org/
 
