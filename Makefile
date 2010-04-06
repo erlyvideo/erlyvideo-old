@@ -19,6 +19,8 @@ install:
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
 
 debian:
+	dpkg-buildpackage -rfakeroot -D -sa -i -S
+	dput erly ../erlang-shoutcast_$(VERSION)_source.changes
 	debuild -us -uc
 	cp ../erlang-shoutcast_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlang-shoutcast_$(VERSION)*
