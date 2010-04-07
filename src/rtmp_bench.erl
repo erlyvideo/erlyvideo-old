@@ -21,24 +21,38 @@ start_spawner(Server, Port, Path, Count) ->
   start_spawner(Server, Port, Path, Count, 0).
 
 start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
-  io:format("Starting client ~p~n", [Number]),
-  spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
-  timer:sleep(500),
-  start_spawner(Server, Port, Path, Count, Number + 1);
+  io:format("Starting client ~p~n", [Number+1]),
+  Pid = spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
+  receive
+    {'EXIT', _Pid, _Reason} ->
+      NewCount = flush_exits(Number),
+      start_spawner(Server, Port, Path, Count, NewCount)
+  after
+    500 ->
+      start_spawner(Server, Port, Path, Count, Number + 1)
+  end;
 
 start_spawner(Server, Port, Path, Count, Count) ->
   receive
     {'EXIT', _Pid, _Reason} ->
       io:format("Dead client ~p~n", [_Reason]),
-      start_spawner(Server, Port, Path, Count, Count - 1);
+      NewCount = flush_exits(Count - 1),
+      start_spawner(Server, Port, Path, Count, NewCount);
     Else ->
       io:format("Spawner message: ~p~n", [Else]),
       start_spawner(Server, Port, Path, Count, Count)
   end.
+
+flush_exits(Count) ->
+  receive
+    {'EXIT', _Pid, _Reason} -> flush_exits(Count - 1)
+  after
+    0 -> Count
+  end.
   
 init_rtmp_client(Server, Port, Path) ->
   {ok, Socket} = gen_tcp:connect(Server, Port, [binary, {active, false}, {packet, raw}]),
-  io:format("Socket opened to ~s~n", [Server]),
+  % io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   io:format("Connected to ~s~n", [Server]),
   rtmp_client(RTMP, Path).
@@ -58,7 +72,7 @@ rtmp_client(RTMP, Path) ->
   end.
 
 play(RTMP, Path) ->
-  Connect = rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
+  rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:play(RTMP, Stream, Path),
   io:format("Playing ~s~n", [Path]),
@@ -69,7 +83,7 @@ play(RTMP, Path) ->
 %   read_frame(Reader#reader{count = Count+1});
 % 
 read_frame(#reader{count = Count, delta = Delta, last_dts = DTS} = Reader) when Count rem 1000 == 0->
-  {Time, _} = erlang:statistics(wall_clock),
+  % {Time, _} = erlang:statistics(wall_clock),
   % io:format("start: ~p/~p, current: ~p/~p, lag: ~p/~p = ~p~n", [Reader#reader.time_start, Reader#reader.dts_start, Time, DTS, 
   %   Time - Reader#reader.time_start, DTS - Reader#reader.dts_start, Delta]),
   case Delta of
