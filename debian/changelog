@@ -1,3 +1,15 @@
+erlang-mpegts (2.0.3) karmic; urgency=low
+
+  * No, erlmedia is required to build mpegts
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 07 Apr 2010 12:26:28 +0400
+
+erlang-mpegts (2.0.2) karmic; urgency=low
+
+  * Maybe remove build dependency of erlmedia
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 06 Apr 2010 23:19:03 +0400
+
 erlang-mpegts (2.0.1) karmic; urgency=low
 
   * Launchpad compiling

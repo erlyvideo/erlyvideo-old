@@ -37,7 +37,7 @@ install:
 debian:
 	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
 	dput erly ../erlang-mpegts_$(VERSION)_source.changes
-	debuild -us -uc
+	(debuild -us -uc; true)
 	cp ../erlang-mpegts_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlang-mpegts_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
