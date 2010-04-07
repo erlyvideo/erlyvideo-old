@@ -22,7 +22,7 @@ start_spawner(Server, Port, Path, Count) ->
 
 start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
   io:format("Starting client ~p~n", [Number+1]),
-  Pid = spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
+  spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
   receive
     {'EXIT', _Pid, _Reason} ->
       NewCount = flush_exits(Number),
