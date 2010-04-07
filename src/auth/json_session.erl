@@ -1,7 +1,7 @@
 -module(json_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
--include_lib("erlyvideo/include/rtmp_session.hrl").
+-include("../../include/rtmp_session.hrl").
 -export([decode/2, encode/2, connect/2, binary_to_hexbin/1]).
 
 

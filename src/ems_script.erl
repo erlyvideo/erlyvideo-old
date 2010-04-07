@@ -42,7 +42,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -include("../include/ems.hrl").
--include_lib("erlyvideo/include/rtmp_session.hrl").
+-include("../include/rtmp_session.hrl").
 % -export([rtmp_method_missing/2]).
 
 start_link() ->

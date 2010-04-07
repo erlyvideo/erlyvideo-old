@@ -3,7 +3,7 @@
 -module(file_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
--include_lib("erlyvideo/include/media_info.hrl").
+-include("../../include/media_info.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -behaviour(gen_server).

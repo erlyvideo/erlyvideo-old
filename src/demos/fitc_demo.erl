@@ -1,7 +1,7 @@
 -module(fitc_demo).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--include_lib("erlyvideo/include/rtmp_session.hrl").
+-include("../../include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -export([connect/2]).
 

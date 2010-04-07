@@ -1,5 +1,5 @@
 -module(referer_check).
--include_lib("erlyvideo/include/rtmp_session.hrl").
+-include("../../include/rtmp_session.hrl").
 -export([connect/2]).
 
 connect(#rtmp_session{host = Host, player_info = PlayerInfo} = State, _Funcall) ->

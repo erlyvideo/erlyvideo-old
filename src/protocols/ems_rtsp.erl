@@ -2,7 +2,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("erlmedia/include/h264.hrl").
--include_lib("erlyvideo/include/rtmp_session.hrl").
+-include("../../include/rtmp_session.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/ems.hrl").
 -include_lib("ertsp/include/rtsp.hrl").

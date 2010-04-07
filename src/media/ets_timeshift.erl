@@ -1,6 +1,6 @@
 -module(ets_timeshift).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("erlyvideo/include/media_info.hrl").
+-include("../../include/media_info.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 

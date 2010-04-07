@@ -1,7 +1,7 @@
 -module(apps_push).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
--include_lib("erlyvideo/include/rtmp_session.hrl").
+-include("../../include/rtmp_session.hrl").
 
 -export(['WAIT_FOR_DATA'/2]).
 
