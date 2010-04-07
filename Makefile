@@ -25,8 +25,10 @@ clean-doc:
 
 install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)$(ERLDIR)/contrib
 	mkdir -p $(DESTROOT)$(ERLDIR)/src
 	mkdir -p $(DESTROOT)$(ERLDIR)/include
+	install -c -m 644 contrib/* $(DESTROOT)$(ERLDIR)/contrib
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin
 	install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src
