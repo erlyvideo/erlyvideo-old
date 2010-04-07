@@ -25,6 +25,7 @@ clean-doc:
 
 install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)$(ERLDIR)/contrib
 	mkdir -p $(DESTROOT)$(ERLDIR)/src
 	mkdir -p $(DESTROOT)$(ERLDIR)/include
 	install -c -m 755 contrib/* $(DESTROOT)$(ERLDIR)/contrib

@@ -1,8 +1,14 @@
-erlang-rtmp (1.4.4) karmic; urgency=low
+erlang-rtmp (1.4.5) karmic; urgency=low
 
   * Minor fixes in rtmp_monitor and others according to tests
 
  -- Max Lapshin <max@maxidoors.ru>  Tue, 06 Apr 2010 22:33:48 +0400
+
+erlang-rtmp (1.4.4) karmic; urgency=low
+
+  * Forgot contrib in debian package
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 07 Apr 2010 19:45:49 +0400
 
 erlang-rtmp (1.4.3) karmic; urgency=low
 
