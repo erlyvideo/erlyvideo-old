@@ -68,8 +68,7 @@ install: compile
 debian: all
 	dpkg-buildpackage -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog -S -sa
 	dput erly ../erlyvideo_$(VERSION)_source.changes
-	debuild -us -uc
-	cp ../erlyvideo_$(VERSION)*.deb  $(DEBIANREPO)/binary/
+	(debuild -us -uc; cp ../erlyvideo_$(VERSION)*.deb  $(DEBIANREPO)/binary/; true)
 	rm ../erlyvideo_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9 > binary/Packages.gz)
 
