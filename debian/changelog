@@ -1,3 +1,9 @@
+erlyvideo (1.7.5) karmic; urgency=low
+
+  * Fixed makefile for building
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 07 Apr 2010 18:40:36 +0400
+
 erlyvideo (1.7.4) karmic; urgency=low
 
   * Changed include_lib to include for building
