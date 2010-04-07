@@ -70,7 +70,7 @@ send(Message) ->
 port() ->
   gen_server:call(?MODULE, port).
 
-rtmp_method_missing(#rtmp_session{host = Host, player_info = PlayerInfo} = Session, #rtmp_funcall{args = [_ | Args], command = Command} = AMF) ->
+rtmp_method_missing(#rtmp_session{host = _Host, player_info = _PlayerInfo} = Session, #rtmp_funcall{args = [_ | Args], command = Command} = AMF) ->
   case gen_server:call(?MODULE, {call, application, Command, Args}) of
     {ok, {bert, nil}} -> 
       Session;

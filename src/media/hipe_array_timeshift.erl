@@ -18,7 +18,7 @@ init(Options) ->
   {First, Last, hipe_bifs:array(Size,undefined)}.
 
 
-seek(#media_info{shift = {First, Last, Frames}}, Timestamp) when Timestamp =< 0 ->
+seek(#media_info{shift = {First, _Last, Frames}}, Timestamp) when Timestamp =< 0 ->
   ?D({"going to seek", Timestamp}),
   case hipe_bifs:array_sub(Frames, First) of
     undefined -> undefined;
@@ -55,7 +55,7 @@ read(#media_info{shift = {_First, _Last, Frames}}, Key) ->
   end.
 
 
-clean(#media_info{shift = {First, Last, Frames}, last_dts = DTS, name = _URL} = MediaInfo) ->
+clean(#media_info{shift = {_First, _Last, Frames}, name = _URL} = MediaInfo) ->
   Bin = lists:foldl(fun({_, Bytes, _}, Sum) -> Bytes + Sum end, 0, element(2, erlang:process_info(self(), binary))),
   {memory, Mem} = erlang:process_info(self(), memory),
   % ?D({"Store", First, Last, hipe_bifs:array_length(Frames), Bin div 1024, DTS}),

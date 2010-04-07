@@ -167,7 +167,7 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
     {VDTS, ADTS} when VDTS =< ADTS ->
       ets:insert(Index, {ID, video, VideoID}),
       build_index_table(Video, VideoID + 1, VideoCount, Audio, AudioID, AudioCount, Index, ID+1);
-    {_VDTS, ADTS} ->
+    {_VDTS, _ADTS} ->
       ets:insert(Index, {ID, audio, AudioID}),
       build_index_table(Video, VideoID, VideoCount, Audio, AudioID + 1, AudioCount, Index, ID+1)
   end.
