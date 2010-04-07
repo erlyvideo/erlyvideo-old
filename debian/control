@@ -1,7 +1,7 @@
 Source: erlang-mpegts
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), erlmedia, ruby, build-essentials
+Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), erlmedia, ruby
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/
