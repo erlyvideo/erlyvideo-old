@@ -6,7 +6,7 @@
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
--include("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
