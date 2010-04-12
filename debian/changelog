@@ -1,3 +1,9 @@
+erlang-rtsp (1.2.5) karmic; urgency=low
+
+  * Forgot to specify erlmedia in build depends
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 12 Apr 2010 19:01:59 +0400
+
 erlang-rtsp (1.2.4) karmic; urgency=low
 
   * Again problems with compillation of packet
