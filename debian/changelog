@@ -1,3 +1,9 @@
+erlang-rtsp (1.2.7) karmic; urgency=low
+
+  * wrong path in include
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 12 Apr 2010 19:38:18 +0400
+
 erlang-rtsp (1.2.6) karmic; urgency=low
 
   * include_lib in rtsp_connection
