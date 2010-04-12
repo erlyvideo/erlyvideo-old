@@ -157,6 +157,46 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
       Req:stream(close)
   end;
 
+handle(Host, 'GET', ["flv" | Name], Req) ->
+  Query = Req:parse_qs(),
+  Seek = list_to_integer(proplists:get_value("start", Query, "0")),
+  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Seek}]) of
+    {ok, PlayerPid} ->
+      link(PlayerPid),
+      link(Req:socket_pid()),
+      case proplists:get_value("session_id", Query) of
+        undefined -> ok;
+        SessionId -> ems_flv_streams:register(SessionId, PlayerPid)
+      end,
+      PlayerPid ! start,
+      flv_writer:init([fun(Data) -> Req:stream(Data) end]),
+      PlayerPid ! stop,
+      Req:stream(close),
+      ok;
+    {notfound, Reason} ->
+      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
+      Req:stream(close);
+    Reason -> 
+      Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
+      Req:stream(close)
+  end;
+
+handle(_Host, 'GET', ["flvcontrol", SessionId, "pause"], Req) ->
+  case ems_flv_streams:stream(SessionId) of
+    {ok, Pid} -> Pid ! pause;
+    _ -> ok
+  end,
+  Req:ok([{'Content-Type', "text/plain"}], "ok");
+
+handle(_Host, 'GET', ["flvcontrol", SessionId, "resume"], Req) ->
+  case ems_flv_streams:stream(SessionId) of
+    {ok, Pid} -> Pid ! resume;
+    _ -> ok
+  end,
+  Req:ok([{'Content-Type', "text/plain"}], "ok");
+
+
 handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   _Hostname = proplists:get_value('Host', Req:get(headers)),
   

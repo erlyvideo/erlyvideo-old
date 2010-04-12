@@ -307,6 +307,13 @@ init([]) ->
         worker,                                  % Type     = worker | supervisor
         [ems_users]                               % Modules  = [Module] | dynamic
     },
+    {   ems_flv_streams_sup,                         % Id       = internal id
+        {ems_flv_streams,start_link,[]},             % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_flv_streams]                               % Modules  = [Module] | dynamic
+    },
     % Media entry supervisor
     {   file_media_sup,
         {supervisor,start_link,[{local, file_media_sup}, ?MODULE, [file_media]]},
