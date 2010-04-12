@@ -37,7 +37,7 @@
 }).
 
 %% External API
--export([start_link/0, register/2, stream/1]).
+-export([start_link/0, register/2, stream/1, command/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -55,6 +55,19 @@ start_link() ->
 %%----------------------------------------------------------------------
 stream(Name) ->
   gen_server:call(?MODULE, {stream, Name}).
+
+
+%%--------------------------------------------------------------------
+%% @spec () -> [Ip::tuple()]
+%%
+%% @doc Send command to stream if exists
+%% @end
+%%----------------------------------------------------------------------
+command(Name,Command) ->
+  case stream(Name) of
+    undefined -> undefined;
+    {ok, Pid} -> Pid ! Command
+  end.
 
 
 %%--------------------------------------------------------------------

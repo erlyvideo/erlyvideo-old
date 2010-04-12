@@ -167,7 +167,7 @@ handle(Host, 'GET', ["flv" | Name], Req) ->
       link(Req:socket_pid()),
       case proplists:get_value("session_id", Query) of
         undefined -> ok;
-        SessionId -> ems_flv_streams:register(SessionId, PlayerPid)
+        SessionId -> ems_flv_streams:register({Host,SessionId}, PlayerPid)
       end,
       PlayerPid ! start,
       flv_writer:init([fun(Data) -> Req:stream(Data) end]),
@@ -182,19 +182,23 @@ handle(Host, 'GET', ["flv" | Name], Req) ->
       Req:stream(close)
   end;
 
-handle(_Host, 'GET', ["flvcontrol", SessionId, "pause"], Req) ->
-  case ems_flv_streams:stream(SessionId) of
-    {ok, Pid} -> Pid ! pause;
-    _ -> ok
-  end,
-  Req:ok([{'Content-Type', "text/plain"}], "ok");
+handle(Host, 'GET', ["flvcontrol", SessionId, "pause"], Req) ->
+  case ems_flv_streams:command({Host,SessionId}, pause) of
+    undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
+    _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
+  end;
 
-handle(_Host, 'GET', ["flvcontrol", SessionId, "resume"], Req) ->
-  case ems_flv_streams:stream(SessionId) of
-    {ok, Pid} -> Pid ! resume;
-    _ -> ok
-  end,
-  Req:ok([{'Content-Type', "text/plain"}], "ok");
+handle(Host, 'GET', ["flvcontrol", SessionId, "resume"], Req) ->
+  case ems_flv_streams:command({Host,SessionId}, resume) of
+    undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
+    _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
+  end;
+
+handle(Host, 'GET', ["flvcontrol", SessionId, "seek", Timestamp], Req) ->
+  case ems_flv_streams:command({Host,SessionId}, {seek, list_to_integer(Timestamp)}) of
+    undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
+    _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
+  end;
 
 
 handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
