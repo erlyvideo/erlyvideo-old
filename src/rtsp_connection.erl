@@ -2,7 +2,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
--include_lib("ertsp/include/rtsp.hrl").
+-include("../ertsp/include/rtsp.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
 % -include("../include/rtsp.hrl").
