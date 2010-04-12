@@ -235,6 +235,11 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
           ?MODULE:ready(State)
       end;
 
+    pause ->
+      ?D("Player paused"),
+      flush_play(),
+      ?MODULE:ready(State#ems_stream{paused = true});
+
     {pause, NewTS} ->
       ?D("Player paused"),
       flush_play(),
@@ -268,6 +273,9 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
       ?D("Player resumed"),
       ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
 
+    resume ->
+      ?D("Player resumed"),
+      ?MODULE:ready(State#ems_stream{mode=stream,paused = false});
 
 
     #video_frame{} = Frame ->
@@ -305,6 +313,11 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
       ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false});
       
       
+    resume ->
+      ?D("Player resumed"),
+      self() ! play,
+      ?MODULE:ready(State#ems_stream{paused = false});
+
 
     {resume, NewTS} ->
       ?D({"Player resumed at", PauseTS, NewTS}),

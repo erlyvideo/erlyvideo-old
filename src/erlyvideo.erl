@@ -90,7 +90,8 @@ stop() ->
 	application:stop(rtsp),
 	application:unload(rtsp),
 	application:stop(rtmp),
-	application:unload(rtmp).
+	application:unload(rtmp),
+	ok.
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
