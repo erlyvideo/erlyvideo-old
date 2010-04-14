@@ -43,7 +43,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([play/3, play/1]).
+-export([play/3, play/1, handle_frame/2]).
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
 -define(PMT_PID, 66).
@@ -55,8 +55,6 @@
 
 
 -record(streamer, {
-  player,
-  req,
   pat_counter = 0,
   pmt_counter = 0,
   audio_counter = 0,
@@ -66,20 +64,57 @@
   video_config = undefined
 }).
 
+-record(http_player, {
+  player,
+  streamer,
+  req
+}).
+
 play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
   process_flag(trap_exit, true),
   link(Player),
   link(Req:socket_pid()),
   Player ! start,
-  Streamer = #streamer{player = Player, req = Req},
+  Streamer = #http_player{player = Player, req = Req, streamer = #streamer{}},
   ?MODULE:play(Streamer),
   Req:stream(close),
   ok.
 
+play(#http_player{player = Player} = Streamer) ->
+  receive
+    Message -> handle_msg(Streamer, Message)
+  after
+    ?TIMEOUT ->
+      ?D("MPEG TS player stopping"),
+      Player ! stop,
+      ok
+  end.
+
+handle_msg(#http_player{req = Req, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+  case handle_frame(Streamer, Frame) of
+    {Streamer1, none} -> 
+      ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
+    {Streamer1, Bin} ->
+      Req:stream(Bin),
+      ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1})
+  end;
+
+handle_msg(#http_player{player = Player}, {'EXIT', _, _}) ->
+  ?D({"MPEG TS reader disconnected"}),
+  Player ! stop,
+  ok;
+
+handle_msg(#http_player{} = Streamer, Message) ->
+  ?D(Message),
+  ?MODULE:play(Streamer).
+
+
+
+
 mux(Data, Streamer, Pid) ->
   Start = 1,
-  mux_parts(Data, Streamer, Pid, Start).
+  mux_parts(Data, Streamer, Pid, Start, <<>>).
   
 increment_counter(#streamer{pat_counter = C} = Streamer, ?PAT_PID) ->
   {C, Streamer#streamer{pat_counter = (C + 1) rem 16}};
@@ -124,7 +159,7 @@ adaptation_field({Timestamp, Keyframe, Data}) ->
   {1, <<(size(Field)), Field/binary>>}.
 
 
-mux_parts(Data, Streamer, Pid, Start) ->
+mux_parts(Data, Streamer, Pid, Start, Accumulator) ->
   {Adaptation, Field} = adaptation_field(Data),
   {Counter, Streamer1} = increment_counter(Streamer, Pid),
   HasPayload = 1,
@@ -138,20 +173,17 @@ mux_parts(Data, Streamer, Pid, Start) ->
     {_, Bin} -> Bin;
     _ -> Data
   end,
-  send_ts(Header, Payload, Streamer1, Pid).
+  send_ts(Header, Payload, Streamer1, Pid, Accumulator).
   
-send_ts(Header, Data, #streamer{req = Req} = Streamer, _Pid) when size(Data) + size(Header) == 188 ->
+send_ts(Header, Data, Streamer, _Pid, Accumulator) when size(Data) + size(Header) == 188 ->
   % ?D({"TS packet", _Pid, size(<<Header/binary, Data/binary>>)}),
-  Req:stream(<<Header/binary, Data/binary>>),
-  Streamer;
+  {Streamer, <<Accumulator/binary, Header/binary, Data/binary>>};
 
-send_ts(Header, Data, #streamer{req = Req} = Streamer, Pid) when size(Data) + size(Header) > 188  ->
+send_ts(Header, Data, Streamer, Pid, Accumulator) when size(Data) + size(Header) > 188  ->
   Length = 188 - size(Header),
-  Req:stream(Header),
   <<Packet:Length/binary, Rest/binary>> = Data,
   % ?D({"TS packet", Pid, size(<<Header/binary, Packet/binary>>), size(Rest)}),
-  Req:stream(Packet),
-  mux_parts(Rest, Streamer, Pid, 0).
+  mux_parts(Rest, Streamer, Pid, 0, <<Accumulator/binary, Header/binary, Packet/binary>>).
   
 
 padding(Padding, Size) when size(Padding) >= Size -> Padding;
@@ -187,7 +219,7 @@ send_pat(Streamer, _DTS) ->
   PAT = <<0, PAT1/binary, CRC32:32>>,
   PATBin = padding(PAT, ?TS_PACKET),
   % ?D({"Sending PAT", size(PAT), size(PATBin)}),
-  mux(PATBin, Streamer, 0).
+  mux(PATBin, Streamer, ?PAT_PID).
 
 send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   SectionSyntaxInd = 1,
@@ -322,16 +354,6 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
 
 
-play(#streamer{player = Player} = Streamer) ->
-  receive
-    Message -> handle_msg(Streamer, Message)
-  after
-    ?TIMEOUT ->
-      ?D("MPEG TS player stopping"),
-      Player ! stop,
-      ok
-  end.
-
 
 unpack_nals(Body, LengthSize) ->
   unpack_nals(Body, LengthSize, []).
@@ -342,52 +364,48 @@ unpack_nals(<<>>, _LengthSize, NALS) ->
 unpack_nals(Body, LengthSize, NALS) ->
   <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
   unpack_nals(Rest, LengthSize, [NAL|NALS]).
-     
-handle_msg(#streamer{player = Player, length_size = LengthSize, video_config = VideoConfig} = Streamer, Message) ->
-  case Message of  
-    #video_frame{type = video, decoder_config = true, body = Config} = _Frame ->
-      {NewLengthSize, _} = h264:unpack_config(Config),
-      ?MODULE:play(Streamer#streamer{video_config = Config, length_size = NewLengthSize*8});
-    
-    #video_frame{type = video, frame_type = keyframe, body = Body, dts = DTS} = Frame when VideoConfig =/= undefined ->
-      Streamer1 = send_pat(Streamer, DTS),
-      Streamer2 = send_pmt(Streamer1, DTS),
 
-      BodyNALS = unpack_nals(Body, LengthSize),
-      {_, ConfigNALS} = h264:unpack_config(VideoConfig),
-      F = fun(NAL, S) ->
-        <<S/binary, 1:24, NAL/binary>>
-      end,
-      Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
-      % Packed = lists:foldl(F, undefined, ConfigNALS ++ BodyNALS),
 
-      Streamer3 = send_video(Streamer2, Frame#video_frame{body = Packed}),
-      ?MODULE:play(Streamer3);
-    #video_frame{type = video, body = Body} = Frame ->
-      BodyNALS = unpack_nals(Body, LengthSize),
-      F = fun(NAL, S) ->
-        <<S/binary, 1:24, NAL/binary>>
-      end,
-      Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
-      Streamer1 = send_video(Streamer, Frame#video_frame{body = Packed}),
-      ?MODULE:play(Streamer1);
-    #video_frame{type = audio, decoder_config = true, body = AudioConfig} ->
-      Config = aac:decode_config(AudioConfig),
-      ?D({"Audio config", Config}),
-      ?MODULE:play(Streamer#streamer{audio_config = Config});
-    #video_frame{type = audio} = Frame ->
-      Streamer1 = send_audio(Streamer, Frame),
-      ?MODULE:play(Streamer1);
-    #video_frame{type = metadata} ->
-      ?MODULE:play(Streamer);
-    {'EXIT', _, _} ->
-      ?D({"MPEG TS reader disconnected"}),
-      Player ! stop,
-      ok;
-    Message -> 
-      ?D({LengthSize, Message}),
-      ?MODULE:play(Streamer)
-  end.
+
+handle_frame(#streamer{} = Streamer, #video_frame{type = video, decoder_config = true, body = Config}) ->
+  {NewLengthSize, _} = h264:unpack_config(Config),
+  {Streamer#streamer{video_config = Config, length_size = NewLengthSize*8}, none};
+
+handle_frame(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{type = video, frame_type = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
+  {Streamer1, PATBin} = send_pat(Streamer, DTS),
+  {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
+
+  BodyNALS = unpack_nals(Body, LengthSize),
+  {_, ConfigNALS} = h264:unpack_config(VideoConfig),
+  F = fun(NAL, S) ->
+    <<S/binary, 1:24, NAL/binary>>
+  end,
+  Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
+  % Packed = lists:foldl(F, undefined, ConfigNALS ++ BodyNALS),
+
+  {Streamer3, VideoBin} = send_video(Streamer2, Frame#video_frame{body = Packed}),
+  {Streamer3, <<PATBin/binary, PMTBin/binary, VideoBin/binary>>};
+
+handle_frame(#streamer{length_size = LengthSize} = Streamer, #video_frame{type = video, body = Body} = Frame) ->
+  BodyNALS = unpack_nals(Body, LengthSize),
+  F = fun(NAL, S) ->
+    <<S/binary, 1:24, NAL/binary>>
+  end,
+  Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
+  send_video(Streamer, Frame#video_frame{body = Packed});
+  
+handle_frame(#streamer{} = Streamer, #video_frame{type = audio, decoder_config = true, body = AudioConfig}) ->
+  Config = aac:decode_config(AudioConfig),
+  ?D({"Audio config", Config}),
+  {Streamer#streamer{audio_config = Config}, none};
+
+
+handle_frame(#streamer{} = Streamer, #video_frame{type = audio} = Frame) ->
+  send_audio(Streamer, Frame);
+
+handle_frame(#streamer{} = Streamer, #video_frame{type = metadata}) ->
+  {Streamer, none}.
+
   
   
 
