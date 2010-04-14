@@ -38,7 +38,7 @@
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, metadata/1, codec_config/2, seek/2, first/1]).
+-export([init/1, read_frame/2, metadata/1, codec_config/2, seek/3, first/1]).
 
 
 %%--------------------------------------------------------------------
@@ -115,13 +115,24 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   insert_keyframes(MediaInfo, Offsets, Times).
 
 
-seek(#media_info{frames = FrameTable}, Timestamp) ->
+seek(#media_info{frames = FrameTable}, before, Timestamp) ->
   TimestampInt = round(Timestamp),
   Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Offset, FrameTimestamp}
   end)),
 
   case lists:reverse(Ids) of
+    [Item | _] -> Item;
+    _ -> undefined
+  end;
+
+seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
+  TimestampInt = round(Timestamp),
+  Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp >= TimestampInt ->
+    {Offset, FrameTimestamp}
+  end)),
+
+  case Ids of
     [Item | _] -> Item;
     _ -> undefined
   end.

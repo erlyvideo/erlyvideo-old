@@ -145,7 +145,7 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
   Query = Req:parse_qs(),
   Seek = list_to_integer(proplists:get_value("start", Query, "0")),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Seek}]) of
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, {before, Seek}}]) of
     {ok, PlayerPid} ->
       mpegts:play(Name, PlayerPid, Req),
       ok;
@@ -161,7 +161,7 @@ handle(Host, 'GET', ["flv" | Name], Req) ->
   Query = Req:parse_qs(),
   Seek = list_to_integer(proplists:get_value("start", Query, "0")),
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, Seek}]) of
+  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, {before, Seek}}]) of
     {ok, PlayerPid} ->
       link(PlayerPid),
       link(Req:socket_pid()),
@@ -195,7 +195,7 @@ handle(Host, 'GET', ["flvcontrol", SessionId, "resume"], Req) ->
   end;
 
 handle(Host, 'GET', ["flvcontrol", SessionId, "seek", Timestamp], Req) ->
-  case ems_flv_streams:command({Host,SessionId}, {seek, list_to_integer(Timestamp)}) of
+  case ems_flv_streams:command({Host,SessionId}, {seek, before, list_to_integer(Timestamp)}) of
     undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
     _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
   end;
@@ -232,7 +232,7 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   
   Segment = (list_to_integer(binary_to_list(SegmentId))) * ?STREAM_TIME,
   Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
-  case media_provider:play(Host, Name, [{stream_id, 1}, {seek, Segment}, {duration_before, ?STREAM_TIME}, {client_buffer, ?STREAM_TIME}]) of
+  case media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'after', Segment}}, {duration, {'after', ?STREAM_TIME}}, {client_buffer, ?STREAM_TIME}]) of
     {ok, PlayerPid} ->
       mpegts:play(Name, PlayerPid, Req),
       ok;

@@ -17,8 +17,9 @@
 %%% read_frame(MediaInfo, Offset) -> {#video_frame{}, NextOffset}
 %%%  Client calls this method frame by frame, retrieving NextOffset
 %%%
-%%% seek(MediaInfo, Timestamp) -> {Offset, RealTimestamp} | undefined
-%%%  This function returns new Offset, which must be used in read_frame
+%%% seek(MediaInfo, BeforeAfter, Timestamp) -> {Offset, RealTimestamp} | undefined
+%%%  This function returns new Offset, which must be used in read_frame. 
+%%%  BeforeAfter means if we need to return keyframe before Timestamp or after
 %%%
 %%% codec_config(MediaInfo, audio|video) -> #video_frame{} | undefined
 %%%  Returns codec
@@ -64,5 +65,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 2}, {read_frame, 2}, {codec_config, 2}, {metadata, 1}];
+behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {codec_config, 2}, {metadata, 1}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.

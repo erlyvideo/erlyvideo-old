@@ -6,7 +6,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/debug.hrl").
 
--export([init/1, seek/2, read/2, clean/1, store/2, info/1]).
+-export([init/1, seek/3, read/2, clean/1, store/2, info/1]).
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -31,30 +31,32 @@ info(_) ->
   [].
 
 
-seek(#media_info{shift = {First, _Last, Frames}}, Timestamp) when Timestamp =< 0 ->
+seek(#media_info{shift = {First, _Last, Frames}}, _BeforeAfter, Timestamp) when Timestamp =< 0 ->
   ?D({"going to seek", Timestamp}),
   case array:get(First, Frames) of
     undefined -> undefined;
     #video_frame{dts = DTS} -> {(First + 1) rem array:size(Frames), DTS}
   end;
 
-seek(#media_info{shift = {First, Last, Frames}}, Timestamp) ->
+seek(#media_info{shift = {First, Last, Frames}}, BeforeAfter, Timestamp) ->
   ?D({"going to seek", Timestamp}),
-  S = seek_in_timeshift(First, Last, Frames, Timestamp, {undefined, undefined}),
+  S = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, {undefined, undefined}),
   ?D({"Seek in array", First, Last, Timestamp, S}),
   S.
   
-seek_in_timeshift(First, First, _Frames, _Timestamp, Key) ->
+seek_in_timeshift(First, First, _Frames, _BeforeAfter, _Timestamp, Key) ->
   Key;
 
-seek_in_timeshift(First, Last, Frames, Timestamp, Key) ->
+seek_in_timeshift(First, Last, Frames, before = BeforeAfter, Timestamp, Key) ->
   case array:get(First, Frames) of
-    #video_frame{dts = DTS} when DTS > Timestamp ->
+    #video_frame{dts = DTS} when BeforeAfter == before andalso DTS > Timestamp ->
       Key;
+    #video_frame{type = video, frame_type = keyframe, decoder_config = false, dts = DTS} when BeforeAfter == 'after' andalso DTS > Timestamp ->
+      {First, DTS};
     #video_frame{type = video, frame_type = keyframe, decoder_config = false, dts = DTS} ->
-      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, {First, DTS});
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, {First, DTS});
     #video_frame{} ->
-      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, Key)
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, Key)
   end.
 
 read(_, undefined) ->

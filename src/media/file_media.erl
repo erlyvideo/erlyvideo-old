@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/3, codec_config/2, read_frame/2, name/1, seek/2, metadata/1]).
+-export([start_link/3, codec_config/2, read_frame/2, name/1, seek/3, metadata/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -36,8 +36,8 @@ read_frame(MediaEntry, Key) ->
 name(Server) ->
   gen_server:call(Server, name).
 
-seek(Server, Timestamp) ->
-  gen_server:call(Server, {seek, Timestamp}).
+seek(Server, BeforeAfter, Timestamp) when BeforeAfter == before orelse BeforeAfter == 'after' ->
+  gen_server:call(Server, {seek, BeforeAfter, Timestamp}).
 
 metadata(Server) ->
   gen_server:call(Server, metadata).
@@ -90,8 +90,8 @@ handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = Medi
 handle_call(name, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};
   
-handle_call({seek, Timestamp}, _From, #media_info{format = Format} = MediaInfo) ->
-  {reply, Format:seek(MediaInfo, Timestamp), MediaInfo};
+handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{format = Format} = MediaInfo) ->
+  {reply, Format:seek(MediaInfo, BeforeAfter, Timestamp), MediaInfo};
 
 
 handle_call({read, done}, _From, MediaInfo) ->

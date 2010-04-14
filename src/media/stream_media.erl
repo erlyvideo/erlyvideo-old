@@ -172,8 +172,8 @@ handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = M
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
   
-handle_call({seek, Timestamp}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
-  Res = (catch Module:seek(MediaInfo, Timestamp)),
+handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
+  Res = (catch Module:seek(MediaInfo, BeforeAfter, Timestamp)),
   {reply, Res, MediaInfo, ?TIMEOUT};
 
 handle_call({read, DTS}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->

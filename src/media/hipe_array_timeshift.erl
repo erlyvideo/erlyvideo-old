@@ -5,7 +5,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/debug.hrl").
 
--export([init/1, seek/2, read/2, clean/1, store/2]).
+-export([init/1, seek/3, read/2, clean/1, store/2]).
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -18,14 +18,14 @@ init(Options) ->
   {First, Last, hipe_bifs:array(Size,undefined)}.
 
 
-seek(#media_info{shift = {First, _Last, Frames}}, Timestamp) when Timestamp =< 0 ->
+seek(#media_info{shift = {First, _Last, Frames}}, _BeforeAfter, Timestamp) when Timestamp =< 0 ->
   ?D({"going to seek", Timestamp}),
   case hipe_bifs:array_sub(Frames, First) of
     undefined -> undefined;
     #video_frame{dts = DTS} -> {(First + 1) rem hipe_bifs:array_length(Frames), DTS}
   end;
 
-seek(#media_info{shift = {First, Last, Frames}}, Timestamp) ->
+seek(#media_info{shift = {First, Last, Frames}}, _BeforeAfter, Timestamp) ->
   ?D({"going to seek", Timestamp}),
   S = seek_in_timeshift(First, Last, Frames, Timestamp, {undefined, undefined}),
   ?D({"Seek in array", First, Last, Timestamp, S}),

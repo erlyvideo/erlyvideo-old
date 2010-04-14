@@ -145,8 +145,8 @@ prepare(#ems_stream{mode = stream} = Stream, _Options) ->
 prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   {Seek, _BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
     undefined -> {undefined, 0, 0};
-    SeekTo ->
-      case file_media:seek(MediaEntry, SeekTo) of
+    {BeforeAfterSeek, SeekTo} ->
+      case file_media:seek(MediaEntry, BeforeAfterSeek, SeekTo) of
         {Pos, NewTimestamp} ->
           ?D({"Starting from", round(SeekTo), NewTimestamp}),
           {Pos, NewTimestamp, NewTimestamp};
@@ -156,10 +156,10 @@ prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
   end,
   
   
-  PlayEnd = case proplists:get_value(duration_before, Options) of
+  PlayEnd = case proplists:get_value(duration, Options) of
     undefined -> undefined;
-    Duration -> 
-      case file_media:seek(MediaEntry, PlayingFrom + Duration) of
+    {BeforeAfterEnd, Duration} -> 
+      case file_media:seek(MediaEntry, BeforeAfterEnd, PlayingFrom + Duration) of
         {_Pos, EndTimestamp} -> EndTimestamp;
         _ -> undefined
       end
@@ -206,14 +206,14 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
       ?MODULE:ready(State);
 
-    {seek, Timestamp} when RealMode == stream andalso Timestamp == 0 andalso MediaEntry =/= undefined ->
+    {seek, _BeforeAfter, Timestamp} when RealMode == stream andalso Timestamp == 0 andalso MediaEntry =/= undefined ->
       ?D({"Return to live"}),
       flush_play(),
       gen_server:call(MediaEntry, {subscribe, self()}),
       ?MODULE:ready(State#ems_stream{mode = stream});
       
-    {seek, Timestamp} when MediaEntry =/= undefined ->
-      case file_media:seek(MediaEntry, Timestamp) of
+    {seek, BeforeAfter, Timestamp} when MediaEntry =/= undefined ->
+      case file_media:seek(MediaEntry, BeforeAfter, Timestamp) of
         {_, undefined} ->
           ?D({"Seek beyong current borders", Timestamp}),
           Consumer ! {ems_stream, StreamId, seek_failed},
@@ -323,7 +323,7 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
       ?D({"Player resumed at", PauseTS, NewTS}),
       case PauseTS of
         NewTS -> self() ! play;
-        _ -> self() ! {seek, NewTS}
+        _ -> self() ! {seek, before, NewTS}
       end,
       ?MODULE:ready(State#ems_stream{paused = false});
       

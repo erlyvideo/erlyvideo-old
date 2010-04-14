@@ -11,7 +11,7 @@
 
 -export([build_index_table/1, read_header/1]).
 
--export([init/1, read_frame/2, metadata/1, codec_config/2, seek/2, first/1]).
+-export([init/1, read_frame/2, metadata/1, codec_config/2, seek/3, first/1]).
 
 
 codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
@@ -75,11 +75,24 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
     Else -> Else
   end.
   
-seek(#media_info{video_track = FrameTable, frames = Frames}, Timestamp) ->
+seek(#media_info{video_track = FrameTable, frames = Frames}, before, Timestamp) ->
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
     {Id, FrameTimestamp}
   end)),
   case lists:reverse(Ids) of
+    [{VideoID, NewTimestamp} | _] ->
+      [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
+        {ID, NewTimestamp}
+      end)),
+      Item;
+    _ -> undefined
+  end;
+
+seek(#media_info{video_track = FrameTable, frames = Frames}, 'after', Timestamp) ->
+  Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp >= Timestamp ->
+    {Id, FrameTimestamp}
+  end)),
+  case Ids of
     [{VideoID, NewTimestamp} | _] ->
       [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
         {ID, NewTimestamp}

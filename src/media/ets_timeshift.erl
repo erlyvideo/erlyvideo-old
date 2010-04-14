@@ -4,7 +4,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
--export([init/1, seek/2, read/2, clean/1, store/2]).
+-export([init/1, seek/3, read/2, clean/1, store/2]).
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -13,11 +13,20 @@ init(_Options) ->
   ets:new(timeshift, [ordered_set, {keypos, #video_frame.dts}]).
 
 
-seek(#media_info{shift = Shift}, Timestamp) ->
+seek(#media_info{shift = Shift}, before, Timestamp) ->
   Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS =< Timestamp ->
     TS
   end)),
   case lists:reverse(Frames) of
+    [Fr | _] -> {Fr, Fr};
+    _ -> undefined
+  end;
+
+seek(#media_info{shift = Shift}, 'after', Timestamp) ->
+  Frames = ets:select(Shift, ets:fun2ms(fun(#video_frame{dts = TS, frame_type = keyframe} = Frame) when TS >= Timestamp ->
+    TS
+  end)),
+  case Frames of
     [Fr | _] -> {Fr, Fr};
     _ -> undefined
   end.
