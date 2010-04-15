@@ -2,8 +2,6 @@
 -export([start_link/1, stop/0, handle_http/1]).
 -include("../include/ems.hrl").
 
--define(STREAM_TIME, 10000).
-
 % start misultin http server
 start_link(Port) ->
 	misultin:start_link([{port, Port}, {loop, fun handle_http/1}]).
@@ -209,11 +207,7 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   {ok, Re} = re:compile("^(.+).m3u8$"),
   {match, [_, Name]} = re:run(FullName, Re, [{capture, all, binary}]),
   
-  Info = media_provider:info(Host, Name),
-  Duration = proplists:get_value(length, Info),
-  Start = trunc(proplists:get_value(start, Info) / ?STREAM_TIME),
-  SegmentLength = ?STREAM_TIME div 1000,
-  Count = trunc(Duration/?STREAM_TIME)+1,
+  {Start,Count,SegmentLength} = iphone_streams:segments(Host, Name),
   SegmentList = lists:map(fun(N) ->
     io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
   end, lists:seq(Start, Count)),
@@ -230,9 +224,9 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   {ok, Re} = re:compile("^(.+)/(\\d+).ts$"),
   {match, [_, Name, SegmentId]} = re:run(string:join(StreamName, "/"), Re, [{capture, all, binary}]),
   
-  Segment = (list_to_integer(binary_to_list(SegmentId))) * ?STREAM_TIME,
+  Segment = list_to_integer(binary_to_list(SegmentId)),
   Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
-  case media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'after', Segment}}, {duration, {'after', ?STREAM_TIME}}, {client_buffer, ?STREAM_TIME}]) of
+  case iphone_streams:find(Host, Name, Segment) of
     {ok, PlayerPid} ->
       mpegts:play(Name, PlayerPid, Req),
       ok;
