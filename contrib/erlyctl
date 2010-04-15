@@ -97,6 +97,7 @@ runas()
     $@
   else
     cd /var/lib/erlyvideo
+    ulimit -n 65536
     su - erlyvideo -s /bin/sh -c "/usr/bin/erlyctl $*"
   fi
 }
