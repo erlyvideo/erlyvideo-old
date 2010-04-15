@@ -36,7 +36,7 @@ start()
 
 run()
 {
-	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin \
+	ERL_LIBS=deps:lib:plugins $ERL -pa ebin \
   -sasl errlog_type 'all' \
 	-boot start_sasl \
 	-s erlyvideo \
