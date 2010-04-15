@@ -43,7 +43,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([play/3, play/1, handle_frame/2]).
+-export([init/0, play/3, play/1, handle_frame/2]).
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
 -define(PMT_PID, 66).
@@ -70,13 +70,15 @@
   req
 }).
 
+init() -> #streamer{}.
+
 play(_Name, Player, Req) ->
   ?D({"Player starting", _Name, Player}),
   process_flag(trap_exit, true),
   link(Player),
   link(Req:socket_pid()),
   Player ! start,
-  Streamer = #http_player{player = Player, req = Req, streamer = #streamer{}},
+  Streamer = #http_player{player = Player, req = Req, streamer = init()},
   ?MODULE:play(Streamer),
   Req:stream(close),
   ok.
