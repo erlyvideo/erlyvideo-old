@@ -40,8 +40,10 @@ pass_socket(Media, Socket) ->
   gen_server2:call(Media, {set_socket, Socket}).
   
 
+connect_http(#media_info{type = mpegts_passive}) ->
+  undefined;
+
 connect_http(#media_info{name = URL}) ->
-  
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, line}, {active, false}], 4000),
   ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
@@ -224,14 +226,21 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 
 
-handle_info(graceful, #media_info{owner = undefined, name = Name, clients = Clients, life_timeout = LifeTimeout} = MediaInfo) when length(Clients) == 0 andalso LifeTimeout =/= false ->
-  ?D({self(), "No readers for stream", Name}),
+handle_info(graceful, #media_info{type = mpegts_passive, clients = []} = MediaInfo)  ->
+  ?D({self(), "No clients for pushed MPEG-TS, still living", MediaInfo#media_info.name}),
+  {noreply, MediaInfo, ?TIMEOUT};
+
+handle_info(graceful, #media_info{life_timeout = false} = MediaInfo) ->
+  ?D({self(), "No readers for stream, but ever life", MediaInfo#media_info.name}),
+  {stop, normal, MediaInfo};
+
+handle_info(graceful, #media_info{owner = undefined, clients = []} = MediaInfo) ->
+  ?D({self(), "No readers and owner for stream, stopping", MediaInfo#media_info.name}),
   {stop, normal, MediaInfo};
 
 handle_info(graceful, #media_info{owner = undefined} = MediaInfo) ->
-  ?D({self(), "Graceful no owner"}),
+  ?D({self(), "Graceful no owner, but have readers", length(MediaInfo#media_info.clients)}),
   {noreply, MediaInfo, ?TIMEOUT};
-
 
 handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
   ?D({self(), "Graceful", _Owner}),
@@ -306,7 +315,7 @@ handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
 handle_info(exit, State) ->
   {stop, normal, State};
 
-handle_info(timeout, #media_info{type = live, life_timeout = LifeTimeout} = State) when LifeTimeout =/= false ->
+handle_info(timeout, #media_info{type = Type, life_timeout = LifeTimeout} = State) when (Type == live orelse Type == mpegts_passive) andalso LifeTimeout =/= false ->
   {stop, normal, State};
 
 handle_info(pause, State) ->
