@@ -165,7 +165,7 @@ prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
         _ -> undefined
       end
   end,
-  ?D({"Seek:", Seek, PlayingFrom, PlayEnd}),
+  ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
   ready(Stream#ems_stream{pos = Seek,
                      playing_from = PlayingFrom,
                      play_end = PlayEnd,
