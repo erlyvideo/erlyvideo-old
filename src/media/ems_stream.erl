@@ -139,10 +139,10 @@ flush_play() ->
   end.
         
 
-prepare(#ems_stream{mode = stream} = Stream, _Options) ->
-  ready(Stream);
-
-prepare(#ems_stream{media_info = MediaEntry, mode = file} = Stream, Options) ->
+% prepare(#ems_stream{mode = stream} = Stream, _Options) ->
+%   ready(Stream);
+% 
+prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
   {Seek, _BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
     undefined -> {undefined, 0, 0};
     {BeforeAfterSeek, SeekTo} ->
@@ -409,7 +409,7 @@ send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts =
   % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
   ?MODULE:ready(Player);
 
-send_frame(#ems_stream{mode=file,play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
+send_frame(#ems_stream{play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
   ok;
 
 send_frame(#ems_stream{mode=file} = Player, undefined) ->

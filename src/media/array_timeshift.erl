@@ -47,7 +47,7 @@ seek(#media_info{shift = {First, Last, Frames}}, BeforeAfter, Timestamp) ->
 seek_in_timeshift(First, First, _Frames, _BeforeAfter, _Timestamp, Key) ->
   Key;
 
-seek_in_timeshift(First, Last, Frames, before = BeforeAfter, Timestamp, Key) ->
+seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, Key) ->
   case array:get(First, Frames) of
     #video_frame{dts = DTS} when BeforeAfter == before andalso DTS > Timestamp ->
       Key;
