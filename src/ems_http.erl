@@ -209,14 +209,17 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   
   {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
   SegmentList = lists:map(fun(N) ->
-    io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
+    io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n#EXT-X-DISCONTINUITY~n", [SegmentLength, Name, N])
   end, lists:seq(Start, Start + Count - 1)),
   EndList = case Type of
     stream -> "";
     file -> "#EXT-X-ENDLIST\n"
   end,
   Playlist = [
-    io_lib:format("#EXTM3U~n#EXT-X-MEDIA-SEQUENCE:0~n#EXT-X-TARGETDURATION:~p~n", [SegmentLength]),
+    "#EXTM3U\n",
+    io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength*1.5)]),
+    "#EXT-X-ALLOW-CACHE:YES\n",
+    % EXT-X-DISCONTINUITY
     SegmentList,
     EndList
   ],
