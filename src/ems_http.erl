@@ -207,14 +207,18 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   {ok, Re} = re:compile("^(.+).m3u8$"),
   {match, [_, Name]} = re:run(FullName, Re, [{capture, all, binary}]),
   
-  {Start,Count,SegmentLength} = iphone_streams:segments(Host, Name),
+  {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
   SegmentList = lists:map(fun(N) ->
     io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
   end, lists:seq(Start, Start + Count - 1)),
+  EndList = case Type of
+    stream -> "";
+    file -> "#EXT-X-ENDLIST\n"
+  end,
   Playlist = [
     io_lib:format("#EXTM3U~n#EXT-X-MEDIA-SEQUENCE:0~n#EXT-X-TARGETDURATION:~p~n", [SegmentLength]),
     SegmentList,
-    "#EXT-X-ENDLIST\n"
+    EndList
   ],
   Req:respond(200, [{"Content-Type", "application/vnd.apple.mpegurl"}], Playlist);
   

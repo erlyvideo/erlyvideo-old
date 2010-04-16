@@ -67,10 +67,11 @@ find_(Host, Name, Number) ->
 segments(Host, Name) ->
   Info = media_provider:info(Host, Name),
   Duration = proplists:get_value(length, Info),
+  Type = proplists:get_value(type, Info),
   Start = trunc(proplists:get_value(start, Info) / ?STREAM_TIME),
   SegmentLength = ?STREAM_TIME div 1000,
   Count = round(Duration/?STREAM_TIME),
-  {Start,Count,SegmentLength}.
+  {Start,Count,SegmentLength,Type}.
   
 
 
