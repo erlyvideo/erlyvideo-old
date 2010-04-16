@@ -3,7 +3,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(application).
 
--export([start/2, stop/1, config_change/3]).
+-export([start/2, stop/1, config_change/3, test/0]).
 
 
 
@@ -34,3 +34,8 @@ stop(_S) ->
 %%--------------------------------------------------------------------
 config_change(_Changed, _New, _Remove) ->
   ok.
+
+
+test() ->
+  rtsp:test(),
+  rtsp_socket:test().

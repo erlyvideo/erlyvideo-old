@@ -103,7 +103,7 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL} 
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
 handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq} = RTSP) ->
-  Call = io_lib:format("SETUP ~s/trackID=1 RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [URL, Seq + 1]),
+  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [append_trackid(URL,1), Seq + 1]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
@@ -344,11 +344,24 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 
+append_trackid(URL, TrackID) ->
+  Track = "/trackID="++integer_to_list(TrackID),
+  case string:tokens(URL, "?") of
+    [URL1, URL2] -> URL1 ++ Track ++ "?" ++ URL2;
+    [URL] -> URL ++ Track
+  end.
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
 
 
+append_trackid1_test() ->
+  ?assertEqual("rtsp://cam1:554/h264.sdp/trackID=1", append_trackid("rtsp://cam1:554/h264.sdp", 1)).
 
-
-
+append_trackid2_test() ->
+  ?assertEqual("rtsp://cam1:554/h264.sdp/trackID=1?res=half&x0=0", append_trackid("rtsp://cam1:554/h264.sdp?res=half&x0=0", 1)).
 
 
 

@@ -111,6 +111,9 @@ decode_headers(Data, Headers, BodyLength) ->
       more
   end.
 
+%%
+%% Tests
+%%
 -include_lib("eunit/include/eunit.hrl").
 
 parse_rtp_test() ->
