@@ -18,8 +18,8 @@ So, media_provider has a map of name -> instance of media entries.
 
 Media entry.
 
-All media entries are immutable across clients, i.e. they don't know what point
-of video user is watching now. Client adapters know this. Also, file entries
+All media entries are immutable across clients, i.e. they don't know where on video timeline
+user is now. Client adapters know this. Also, file entries
 are immutable in time: client adapter must track timer and send data to client.
 
 In any case, client code may just ask media_provider to subscribe him to media stream.
