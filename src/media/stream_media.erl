@@ -81,6 +81,11 @@ init([URL, Type, Options]) ->
   ems_event:stream_started(Host, URL, self()),
   {ok, Media, ?TIMEOUT};
 
+init(#media_info{type = rtmp, name = URL} = Media) ->
+  {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
+  {ok, RTMP} = rtmp_socket:connect(Socket),
+  Media#media_info{socket = Socket, demuxer = RTMP};
 
 init(#media_info{type = mpegts, options = Options} = Media) ->
   % ?D({"Stream media", proplists:get_value(make_request, Options, true)}),
@@ -335,6 +340,27 @@ handle_info(clean_timeshift, #media_info{timeshift = Timeshift, timeshift_module
   
 handle_info(clean_timeshift, MediaInfo) ->
   {noreply, MediaInfo, ?TIMEOUT};
+
+handle_info({rtmp, RTMP, connected}, #media_info{name = URL} = State) ->
+  ?D({"Connected to RTMP source", URL}),
+  {rtmp, _UserInfo, _Host, _Port, FullPath, _Query} = http_uri2:parse(URL),
+  [App|PathParts] = string:tokens(FullPath, "/"),
+  Path = list_to_binary(string:join(PathParts, "/")),
+  rtmp_socket:setopts(RTMP, [{active, true}]),
+  rtmp_lib:connect(RTMP, [{app, list_to_binary(App)}, {tcUrl, list_to_binary(URL)}]),
+  Stream = rtmp_lib:createStream(RTMP),
+  rtmp_lib:play(RTMP, Stream, Path),
+  ?D({"Playing", Path}),
+  {noreply, State, ?TIMEOUT};
+
+handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body} = Message}, Recorder) when Type == audio orelse Type == video ->
+  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
+  ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
+  {noreply, handle_frame(Frame, Recorder), ?TIMEOUT};
+
+handle_info({rtmp, _RTMP, #rtmp_message{} = Message}, State) ->
+  ?D({"RTMP message", Message}),
+  {noreply, State, ?TIMEOUT};
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
