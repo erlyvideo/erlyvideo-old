@@ -72,7 +72,7 @@ create_client(Socket) ->
   {ok, Pid}.
 
 
-accept_connection(#rtmp_session{socket = Socket, amf_ver = AMFVersion} = Session) ->
+accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion} = Session) ->
   Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
   % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
@@ -87,6 +87,7 @@ accept_connection(#rtmp_session{socket = Socket, amf_ver = AMFVersion} = Session
                {objectEncoding, AMFVersion}],
   reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
+  erly_event:user_connected(Host, self()),
   Session;
   
 accept_connection(Session) when is_pid(Session) ->
