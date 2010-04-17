@@ -34,7 +34,7 @@
 
 
 %% External API
--export([start_link/0]).
+-export([start_link/0, notify/1, add_handler/2, remove_handler/1]).
 
 -export([user_connected/2, user_disconnected/2, stream_started/2]).
 
@@ -47,6 +47,15 @@ start_link() ->
   gen_event:add_handler(?MODULE, ?MODULE, []),
   {ok, Pid}.
 
+
+notify(Event) ->
+  gen_event:notify(?MODULE, Event).
+  
+add_handler(Handler, Args) ->
+  gen_event:add_handler(?MODULE, Handler, Args).
+  
+remove_handler(Handler) ->
+  gen_event:remove_handler(?MODULE, Handler).
 
 %%--------------------------------------------------------------------
 %% @spec (Channel::integer(), Message::text) -> {ok}
