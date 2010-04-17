@@ -1,6 +1,6 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        Basic event handler
+%%% @doc        Central point of erlyvideo events
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
@@ -28,7 +28,7 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(erly_event).
+-module(ems_event).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_event).
 
@@ -48,12 +48,31 @@ start_link() ->
   {ok, Pid}.
 
 
+%%--------------------------------------------------------------------
+%% @spec (Event::any()) -> ok
+%%
+%% @doc Send event to ems_event subscribers
+%% @end
+%%----------------------------------------------------------------------
 notify(Event) ->
   gen_event:notify(?MODULE, Event).
+
   
+%%--------------------------------------------------------------------
+%% @spec (Handler::any(), Args::[any()]) -> ok
+%%
+%% @doc Subscribe to ems_event
+%% @end
+%%----------------------------------------------------------------------
 add_handler(Handler, Args) ->
   gen_event:add_handler(?MODULE, Handler, Args).
   
+%%--------------------------------------------------------------------
+%% @spec (Handler::any()) -> ok
+%%
+%% @doc Unsubscribe from ems_event
+%% @end
+%%----------------------------------------------------------------------
 remove_handler(Handler) ->
   gen_event:remove_handler(?MODULE, Handler).
 

@@ -301,12 +301,12 @@ init([]) ->
         worker,                                  % Type     = worker | supervisor
         [ems_users]                               % Modules  = [Module] | dynamic
     },
-    {   erly_event_sup,                         % Id       = internal id
-        {erly_event,start_link,[]},             % StartFun = {M, F, A}
+    {   ems_event_sup,                         % Id       = internal id
+        {ems_event,start_link,[]},             % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
         worker,                                  % Type     = worker | supervisor
-        [erly_event]                               % Modules  = [Module] | dynamic
+        [ems_event]                               % Modules  = [Module] | dynamic
     },
     {   ems_flv_streams_sup,                         % Id       = internal id
         {ems_flv_streams,start_link,[]},             % StartFun = {M, F, A}
