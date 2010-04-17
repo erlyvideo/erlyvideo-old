@@ -1,16 +1,13 @@
-%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
-%%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
-%%% @doc        Helper module for easy application start, stop, reloading , etc.
+%%% @copyright  2009 Max Lapshin
+%%% @doc        Helper module for some generic things.
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
+%%% Copyright (c) 2009 Max Lapshin
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -32,9 +29,6 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).

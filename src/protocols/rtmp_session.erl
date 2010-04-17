@@ -1,10 +1,7 @@
 %%%---------------------------------------------------------------------------------------
-%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
-%%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
-%%% @doc        RTMP finite state behavior module
+%%% @copyright  2009 Max Lapshin
+%%% @doc        RTMP session
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
@@ -33,9 +30,6 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_session).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
