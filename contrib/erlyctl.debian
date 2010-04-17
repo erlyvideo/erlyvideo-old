@@ -91,8 +91,18 @@ restart()
   ctl restart
 }
 
+runas()
+{
+  if [ `id -u` != "0" ]; then
+    $@
+  else
+    cd /var/lib/erlyvideo
+    ulimit -n 65536
+    su - erlyvideo -s /bin/sh -c "/usr/bin/erlyctl $*"
+  fi
+}
 
 [ $# -lt 1 ] && usage
 
-$@
+runas $@
 
