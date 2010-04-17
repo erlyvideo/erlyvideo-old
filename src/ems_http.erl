@@ -141,9 +141,13 @@ handle(Host, 'GET', ["stats.json"], Req) ->
   
 handle(Host, 'GET', ["stream" | Name], Req) ->
   Query = Req:parse_qs(),
-  Seek = list_to_integer(proplists:get_value("start", Query, "0")),
+  Options1 = [{stream_id,1}],
+  Options2 = case proplists:get_value("start", Query) of
+    undefined -> Options1;
+    Seek -> [{seek,{before,list_to_integer(Seek)}}|Options1]
+  end,
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, {before, Seek}}]) of
+  case media_provider:play(Host, string:join(Name, "/"), Options2) of
     {ok, PlayerPid} ->
       mpegts:play(Name, PlayerPid, Req),
       ok;
