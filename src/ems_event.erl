@@ -36,7 +36,8 @@
 %% External API
 -export([start_link/0, notify/1, add_handler/2, remove_handler/1]).
 
--export([user_connected/2, user_disconnected/2, stream_started/2]).
+-export([user_connected/2, user_disconnected/2, user_play/4]).
+-export([stream_started/3, stream_source_lost/3, stream_stopped/3]).
 
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
@@ -79,17 +80,56 @@ remove_handler(Handler) ->
 %%--------------------------------------------------------------------
 %% @spec (Channel::integer(), Message::text) -> {ok}
 %%
-%% @doc Call some function
+%% @doc send event that user has connected
 %% @end
 %%----------------------------------------------------------------------
 user_connected(Host, Session) ->
   gen_event:notify(?MODULE, {user_connected, Host, Session}).
 
+%%--------------------------------------------------------------------
+%% @spec (Channel::integer(), Message::text) -> {ok}
+%%
+%% @doc send event that user has disconnected
+%% @end
+%%----------------------------------------------------------------------
 user_disconnected(Host, Session) ->
   gen_event:notify(?MODULE, {user_disconnected, Host, Session}).
 
-stream_started(Host, Name) ->
-  gen_event:notify(?MODULE, {stream_started, Host, Name}).
+%%--------------------------------------------------------------------
+%% @spec (Channel::integer(), Message::text) -> {ok}
+%%
+%% @doc send event that user has disconnected
+%% @end
+%%----------------------------------------------------------------------
+user_play(Host, User, Name, Media) ->
+  gen_event:notify(?MODULE, {user_play, Host, User, Name, Media}).
+
+%%--------------------------------------------------------------------
+%% @spec (Channel::integer(), Message::text) -> {ok}
+%%
+%% @doc send event that stream has started
+%% @end
+%%----------------------------------------------------------------------
+stream_started(Host, Name, Stream) ->
+  gen_event:notify(?MODULE, {stream_started, Host, Name, Stream}).
+
+%%--------------------------------------------------------------------
+%% @spec (Channel::integer(), Message::text) -> {ok}
+%%
+%% @doc send event that stream source was temporarily lost
+%% @end
+%%----------------------------------------------------------------------
+stream_source_lost(Host, Name, Stream) ->
+  gen_event:notify(?MODULE, {stream_source_lost, Host, Name, Stream}).
+
+%%--------------------------------------------------------------------
+%% @spec (Channel::integer(), Message::text) -> {ok}
+%%
+%% @doc send event that stream was completely stopped
+%% @end
+%%----------------------------------------------------------------------
+stream_stopped(Host, Name, Stream) ->
+  gen_event:notify(?MODULE, {stream_stopped, Host, Name, Stream}).
 
 
 
@@ -138,7 +178,7 @@ handle_call(Request, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_event(_Msg, State) ->
-  % io:format("Nice event ~p~n", [_Msg]),
+  io:format("Nice event ~p~n", [_Msg]),
   {ok, State}.
 
 %%-------------------------------------------------------------------------

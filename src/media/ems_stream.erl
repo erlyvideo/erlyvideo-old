@@ -111,6 +111,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       Consumer ! {ems_stream, StreamId, start_play},
       {ok, Mode} = gen_server:call(MediaEntry, {subscribe, self()}),
       self() ! start,
+      ems_event:user_play(Host, Consumer, Name, MediaEntry),
       prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, real_mode = Mode, name = Name,
                                 sent_audio_config = false, sent_video_config = false,
                                 timer_start = element(1, erlang:statistics(wall_clock))}, Options)

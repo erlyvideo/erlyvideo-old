@@ -81,7 +81,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
                {objectEncoding, AMFVersion}],
   reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
-  erly_event:user_connected(Host, self()),
+  ems_event:user_connected(Host, self()),
   Session;
   
 accept_connection(Session) when is_pid(Session) ->
@@ -462,6 +462,7 @@ terminate(_Reason, _StateName, #rtmp_session{socket=Socket} = State) ->
   erlyvideo:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
+  ems_event:user_disconnected(State#rtmp_session.host, self()),
   ok.
 
 

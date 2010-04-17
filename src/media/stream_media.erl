@@ -78,6 +78,7 @@ init([URL, Type, Options]) ->
   Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, filter = Filter, 
                            timeshift = Timeshift, shift = Shift, timeshift_module = TimeshiftModule, device = Device,
                            options = Options}),
+  ems_event:stream_started(Host, URL, self()),
   {ok, Media, ?TIMEOUT};
 
 
@@ -247,6 +248,7 @@ handle_info(graceful, #media_info{owner = _Owner} = MediaInfo) ->
   {noreply, MediaInfo, ?TIMEOUT};
   
 handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, life_timeout = LifeTimeout} = MediaInfo) ->
+  ems_event:stream_source_lost(MediaInfo#media_info.host, MediaInfo#media_info.name, self()),
   case LifeTimeout of
     false ->
       ?D({MediaInfo#media_info.name, "Owner exits, we don't"}),
@@ -289,6 +291,7 @@ handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Cou
   {noreply, State#media_info{byte_counter = Counter + size(Bin)}, ?TIMEOUT};
 
 handle_info({tcp_closed, _Socket}, #media_info{} = Media) ->
+  ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
   ?D({"Disconnected socket in mode",Media#media_info.type, Media#media_info.last_dts}),
   Socket = connect_http(Media),
   {noreply, Media#media_info{socket = Socket, ts_delta = undefined}, ?TIMEOUT};
@@ -465,8 +468,9 @@ audio_codec(<<".mp3">>) -> mp3.
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
+terminate(_Reason, #media_info{device = Device, host = Host, name = URL} = _MediaInfo) ->
   (catch file:close(Device)),
+  ems_event:stream_stopped(Host, URL, self()),
   ok.
 
 %%-------------------------------------------------------------------------
