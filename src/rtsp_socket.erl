@@ -16,6 +16,7 @@
 -record(rtsp_socket, {
   buffer = <<>>,
   url,
+  auth = "",
   socket,
   sdp_config = [],
   options,
@@ -88,28 +89,31 @@ handle_call({accept, Socket, Acceptor}, _From, State) ->
 handle_call({connect, URL, Options}, _From, RTSP) ->
   Consumer = proplists:get_value(consumer, Options),
   erlang:monitor(process, Consumer),
-  {ok, Re} = re:compile("rtsp://([^/:]*):(\\d+)(.*)"),
-  {match, [_, Host, Port, _Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {rtsp, UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   ?D({"Connecting to", Host, Port}),
-  {ok, Socket} = gen_tcp:connect(Host, list_to_integer(Port), [binary, {packet, raw}, {active, once}], 1000),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}], 1000),
   ?D({"Connect", URL}),
-  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket}};
+  Auth = case UserInfo of
+    [] -> "";
+    _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
+  end,
+  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket, auth = Auth}};
   
 
-handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL} = RTSP) ->
-  Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n\r\n", [URL]),
+handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth} = RTSP) ->
+  Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n"++Auth++"\r\n", [URL]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
-handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq} = RTSP) ->
-  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n\r\n", [append_trackid(URL,1), Seq + 1]),
+handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, auth = Auth} = RTSP) ->
+  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL,1), Seq + 1]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
 
-handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session} = RTSP) ->
-  Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n\r\n", [URL, Seq + 1, Session]),
+handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth} = RTSP) ->
+  Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
@@ -281,13 +285,14 @@ extract_session(Socket, Headers) ->
     undefined -> 
       Socket;
     FullSession ->
-      ?D({"Session", FullSession}),
+      % ?D({"Session", FullSession}),
       Socket#rtsp_socket{session = hd(string:tokens(binary_to_list(FullSession), ";"))}
   end.
   
 sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
   case proplists:get_value(<<"Rtp-Info">>, Headers) of
     undefined -> 
+      ?D({"No Rtp-Info on play command"}),
       Socket;
     Info ->
       {ok, Re} = re:compile("([^=]+)=(.*)"),
