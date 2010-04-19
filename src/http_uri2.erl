@@ -102,7 +102,7 @@ default_port(https) ->
 default_port(rtmp) ->
     1935;
 default_port(rtsp) ->
-    543.
+    554.
 
 int_port(Port) when is_integer(Port) ->
     Port;
