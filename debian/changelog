@@ -1,3 +1,9 @@
+erlyvideo (1.7.7) karmic; urgency=low
+
+  * RTSP translation stopped when last client disconnected
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 13 Apr 2010 21:57:55 +0400
+
 erlyvideo (1.7.6) karmic; urgency=low
 
   * Again Makefile fix
