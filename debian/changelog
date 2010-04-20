@@ -1,3 +1,9 @@
+erlyvideo (1.7.8) karmic; urgency=low
+
+  * Working with FMLE 3.1
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 20 Apr 2010 19:06:25 +0400
+
 erlyvideo (1.7.7) karmic; urgency=low
 
   * RTSP translation stopped when last client disconnected
