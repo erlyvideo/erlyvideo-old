@@ -186,8 +186,8 @@ handle_call(Request, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_event(_Msg, State) ->
-  io:format("Nice event ~p~n", [_Msg]),
+handle_event(Event, State) ->
+  error_logger:info_msg("ems_event: ~p~n", [Event]),
   {ok, State}.
 
 %%-------------------------------------------------------------------------
