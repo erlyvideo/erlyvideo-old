@@ -48,6 +48,7 @@ init([Name, file, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LiveTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   {ok, Info} = open_file(Name, Host),
+  ems_event:stream_started(Host, Name, self()),
   {ok, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LiveTimeout}}.
 
 
@@ -185,8 +186,9 @@ handle_info(_Info, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #media_info{device = Device} = _MediaInfo) ->
+terminate(_Reason, #media_info{device = Device, host = Host, name = URL} = _MediaInfo) ->
   (catch file:close(Device)),
+  ems_event:stream_stopped(Host, URL, self()),
   ok.
 
 %%-------------------------------------------------------------------------
