@@ -223,7 +223,7 @@ validateClientScheme(C1, Version) ->
   ClientDigest == GuessDigest.
 
 % Special case for VLC
-s2(<<0:64, _:1528/binary>> = C1) ->
+s2(<<_:32, 0:32, _:1528/binary>> = C1) ->
   C1;
 
 s2(C1) ->
