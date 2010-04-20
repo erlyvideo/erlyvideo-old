@@ -48,7 +48,6 @@ init([Name, file, Opts]) ->
   Host = proplists:get_value(host, Opts),
   LiveTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   {ok, Info} = open_file(Name, Host),
-  ems_event:stream_started(Host, Name, self()),
   {ok, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LiveTimeout}}.
 
 

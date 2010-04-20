@@ -78,7 +78,6 @@ init([URL, Type, Options]) ->
   Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, filter = Filter, 
                            timeshift = Timeshift, shift = Shift, timeshift_module = TimeshiftModule, device = Device,
                            options = Options}),
-  ems_event:stream_started(Host, URL, self()),
   {ok, Media, ?TIMEOUT};
 
 init(#media_info{type = rtmp, name = URL} = Media) ->

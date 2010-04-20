@@ -254,7 +254,7 @@ internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
   end.
 
 
-open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvider, Opts) ->
+open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider, Opts) ->
   Type = proplists:get_value(type, Opts),
   URL = proplists:get_value(url, Opts, Name),
   case find_in_cache(Name, MediaProvider) of
@@ -263,6 +263,7 @@ open_media_entry(Name, #media_provider{opened_media = OpenedMedia} = MediaProvid
         {ok, Pid} ->
           erlang:monitor(process, Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+          ems_event:stream_started(Host, Name, Pid),
           Pid;
         _ ->
           ?D({"Error opening", Type, Name}),
