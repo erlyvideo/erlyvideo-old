@@ -249,8 +249,11 @@ decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NT
   {setelement(#base_rtp.timecode, State4, Timecode), []};
   % State3.
   
-decode(_, State, _Bin) when element(#base_rtp.base_timecode, State) == undefined ->
-  {State, []};
+decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
+  ?D({"Autosync"}),
+  {{Type,State1}} = rtp_server:presync({{Type,State}}, [[{"seq",integer_to_list(Sequence)},{"rtptime",integer_to_list(Timecode)}]]),
+  ?MODULE:Type(State1, {data, Data, Sequence, Timecode});
+  % {State, []};
 
 decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
   % ?D({Type, Sequence, Timecode, element(#base_rtp.base_timecode, State)}),
