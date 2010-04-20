@@ -58,7 +58,7 @@ install: compile
 	cp -r ebin src include lib Emakefile $(DESTROOT)$(ERLDIR)/
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
-	cp contrib/erlyctl $(DESTROOT)/usr/bin/erlyctl
+	cp contrib/erlyctl.debian $(DESTROOT)/usr/bin/erlyctl
 	mkdir -p $(DESTROOT)/etc/init.d/
 	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
