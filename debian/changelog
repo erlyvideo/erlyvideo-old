@@ -1,3 +1,9 @@
+erlang-rtmp (1.4.6) karmic; urgency=low
+
+  * FMLE 3.1 support
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 20 Apr 2010 19:01:12 +0400
+
 erlang-rtmp (1.4.5) karmic; urgency=low
 
   * Minor fixes in rtmp_monitor and others according to tests
