@@ -34,7 +34,7 @@
 
 
 %% External API
--export([start_link/0, notify/1, add_handler/2, remove_handler/1]).
+-export([start_link/0, notify/1, add_handler/2, add_sup_handler/2, remove_handler/1]).
 
 -export([user_connected/2, user_disconnected/2, user_play/4]).
 -export([stream_started/3, stream_source_lost/3, stream_stopped/3]).
@@ -67,6 +67,15 @@ notify(Event) ->
 %%----------------------------------------------------------------------
 add_handler(Handler, Args) ->
   gen_event:add_handler(?MODULE, Handler, Args).
+
+%%--------------------------------------------------------------------
+%% @spec (Handler::any(), Args::[any()]) -> ok
+%%
+%% @doc Subscribe to ems_event
+%% @end
+%%----------------------------------------------------------------------
+add_sup_handler(Handler, Args) ->
+  gen_event:add_sup_handler(?MODULE, Handler, Args).
   
 %%--------------------------------------------------------------------
 %% @spec (Handler::any()) -> ok
