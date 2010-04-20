@@ -59,11 +59,11 @@ metadata(Config) ->
       
 %% Look at vlc/modules/demux/mp4/libmp4.c:1022
 %%
-unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, 2#111111:6, LengthSize:2, 2#111:3, 
-                SPSCount:5, Rest/binary>>) ->
+unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, _Skip1:6, LengthSize:2, _Skip2:3, SPSCount:5, Rest/binary>>) ->
   {SPS, <<PPSCount, Rest1/binary>>} = parse_h264_config(Rest, SPSCount, []),
   {PPS, <<>>} = parse_h264_config(Rest1, PPSCount, SPS),
   {LengthSize + 1, lists:reverse(PPS)}.
+  
   
   
   
@@ -368,6 +368,11 @@ unpack_config_3_test() ->
   Config = <<1,66,224,11,255,225,0,19,39,66,224,11,169,24,96,157,128,53,6,1,6,182,194,181,239,124,4,1,0,4,40,222,9,136>>,
   ?assertEqual({4,[<<39,66,224,11,169,24,96,157,128,53,6,1,6,182,194,181,239,124,4>>, <<40,222,9,136>>]}, unpack_config(Config)).
 
+unpack_config_4_test() ->
+  Config = <<1,77,0,21,3,1,0,35,103,77,64,21,150,82,130,131,246,2,161,0,0,3,3,232,0,0,156,64,224,96,3,13,64,
+             0,73,62,127,24,224,237,10,20,139,1,0,5,104,233,9,53,32>>,
+  ?assertEqual({4,[<<103,77,64,21,150,82,130,131,246,2,161,0,0,3,3,232,0,0,156,64,224,96,3,13,64,
+                0,73,62,127,24,224,237,10,20,139>>,<<104,233,9,53,32>>]},unpack_config(Config)).
 
 
 
