@@ -189,11 +189,13 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       handle_play(Play, State);
 
     {'DOWN', _Ref, process, Consumer, _Reason} ->
+      notify_stats(State),
       ok;
 
     {'DOWN', _Ref, process, MediaEntry, _Reason} ->
       ?D("Died media info"),
       Consumer ! {ems_stream, StreamId, play_complete, 0},
+      notify_stats(State),
       ?MODULE:ready(State#ems_stream{media_info = undefined});
 
 
@@ -249,6 +251,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
       ?MODULE:ready(State#ems_stream{paused = true, pause_ts = NewTS});
 
     exit ->
+      notify_stats(State),
       ok;
 
     undefined ->
@@ -291,7 +294,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
     stop -> 
       ?D({"stream play stop", self()}),
       gen_server:call(MediaEntry, {unsubscribe, self()}),
-      State#ems_stream.consumer ! {ems_stream, State#ems_stream.stream_id, play_stats, {State#ems_stream.name, State#ems_stream.bytes_sent}},
+      notify_stats(State),
       ?MODULE:ready(State#ems_stream{media_info = undefined});
 
 
@@ -333,7 +336,7 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
       
     stop ->
       flush_play(),
-      Consumer ! {ems_stream, StreamId, play_stats, {State#ems_stream.name, State#ems_stream.bytes_sent}},
+      notify_stats(State),
       ?MODULE:ready(State);
   
     play ->
@@ -347,6 +350,10 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
   	  ?MODULE:ready(State)
   end.
 
+
+notify_stats(#ems_stream{host = Host, consumer = User, name = Name, bytes_sent = Sent}) ->
+  ems_event:user_stop(Host, User, Name, Sent).
+  
 
 play(#ems_stream{stopped = true} = State) ->
   ?MODULE:ready(State);
@@ -413,7 +420,8 @@ send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts =
   % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
   ?MODULE:ready(Player);
 
-send_frame(#ems_stream{play_end = PlayEnd}, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
+send_frame(#ems_stream{play_end = PlayEnd} = State, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
+  notify_stats(State),
   ok;
 
 send_frame(#ems_stream{mode=file} = Player, undefined) ->
@@ -436,10 +444,10 @@ send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = 
   flush_play(),
   ?MODULE:ready(Player#ems_stream{});
 
-send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId} = Player, {#video_frame{} = Frame, Next}) ->
+send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, {#video_frame{} = Frame, Next}) ->
   % ?D({Frame#video_frame.type, Frame1#video_frame.dts}),
   Consumer ! Frame#video_frame{stream_id = StreamId},    
-  timeout_play(Frame, Player#ems_stream{pos = Next}).
+  timeout_play(Frame, Player#ems_stream{pos = Next, bytes_sent = Sent + iolist_size(Frame#video_frame.body)}).
   
 
 
