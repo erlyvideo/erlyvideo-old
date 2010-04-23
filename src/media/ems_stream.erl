@@ -56,6 +56,7 @@
 	real_mode,
 	host,
 	name,
+	bytes_sent = 0,
 	
 	synced = false,
   client_buffer,
@@ -113,7 +114,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       self() ! start,
       ems_event:user_play(Host, Consumer, Name, MediaEntry),
       prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, real_mode = Mode, name = Name,
-                                sent_audio_config = false, sent_video_config = false,
+                                sent_audio_config = false, sent_video_config = false, bytes_sent = 0,
                                 timer_start = element(1, erlang:statistics(wall_clock))}, Options)
   end.
 
@@ -290,6 +291,7 @@ handle_stream(Message, #ems_stream{media_info = MediaEntry} = State) ->
     stop -> 
       ?D({"stream play stop", self()}),
       gen_server:call(MediaEntry, {unsubscribe, self()}),
+      State#ems_stream.consumer ! {ems_stream, State#ems_stream.stream_id, play_stats, {State#ems_stream.name, State#ems_stream.bytes_sent}},
       ?MODULE:ready(State#ems_stream{media_info = undefined});
 
 
@@ -331,6 +333,7 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
       
     stop ->
       flush_play(),
+      Consumer ! {ems_stream, StreamId, play_stats, {State#ems_stream.name, State#ems_stream.bytes_sent}},
       ?MODULE:ready(State);
   
     play ->
@@ -372,39 +375,39 @@ send_frame(#ems_stream{mode=stream} = Player, #video_frame{decoder_config = true
   ?MODULE:ready(Player#ems_stream{audio_config = F});
 
 
-send_frame(#ems_stream{mode = stream, consumer = Consumer, stream_id = StreamId} = Player, #video_frame{type = metadata} = F) ->
+send_frame(#ems_stream{mode = stream, consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, #video_frame{type = metadata} = F) ->
   Consumer ! F#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player);
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(F#video_frame.body)});
 
-send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, audio_config = A, sent_audio_config = false} = Player, 
+send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, audio_config = A, sent_audio_config = false, bytes_sent = Sent} = Player, 
            #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
   Consumer ! A#video_frame{stream_id = StreamId, dts = DTS},
   ?D({"Send audio config", DTS}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{sent_audio_config = true});
+  ?MODULE:ready(Player#ems_stream{sent_audio_config = true, bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
 
-send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, video_config = V, sent_video_config = false} = Player, 
+send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, video_config = V, sent_video_config = false, bytes_sent = Sent} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
   Consumer ! V#video_frame{stream_id = StreamId, dts = DTS},
   ?D({"Send video config", DTS}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{sent_video_config = true});
+  ?MODULE:ready(Player#ems_stream{sent_video_config = true, bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
 
-send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_audio_config = true} = Player, 
+send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_audio_config = true, bytes_sent = Sent} = Player, 
            #video_frame{type = audio, codec_id = aac} = Frame) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player);
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
 
-send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_video_config = true} = Player, 
+send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_video_config = true, bytes_sent = Sent} = Player, 
            #video_frame{type = video, codec_id = h264} = Frame) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player);
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
 
-send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId} = Player, 
+send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, 
            #video_frame{codec_id = Codec} = Frame) when Codec =/= aac andalso Codec =/= h264 ->
   % ?D({Frame#video_frame.type, Frame#video_frame.dts, Frame#video_frame.codec_id}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player);
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
 
 send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
   % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
