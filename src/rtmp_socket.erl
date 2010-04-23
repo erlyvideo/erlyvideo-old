@@ -14,7 +14,7 @@
 %%% end
 %%% loop(RTMP) ->
 %%%   receive
-%%%     {rtmp, RTMP, disconnect} -> 
+%%%     {rtmp, RTMP, disconnect, Statistics} -> 
 %%%       ok;
 %%%     {rtmp, RTMP, #rtmp_message{} = Message} ->
 %%%       io:format("Message: ~p~n", [Message]),
@@ -57,7 +57,7 @@
 -include("rtmp_private.hrl").
 -version(1.1).
 
--export([accept/1, connect/1, start_link/2, getopts/2, setopts/2, getstat/2, send/2]).
+-export([accept/1, connect/1, start_link/2, getopts/2, setopts/2, getstat/2, getstat/1, send/2]).
 -export([status/3, status/4, invoke/2, invoke/4, notify/4]).
 
 -export([start_socket/3]).
@@ -151,9 +151,25 @@ setopts(RTMP, Options) ->
 getopts(RTMP, Options) ->
   gen_fsm:sync_send_all_state_event(RTMP, {getopts, Options}, ?RTMP_TIMEOUT).
 
+%% @spec (RTMP::pid(), Stats::[Key]) -> Values::[{Key,Value}]
+%% @doc Just the same as {@link inet:getstats/2. inet:getstats/2} this function gets statistics of 
+%% rtmp socket.<br/>
+%%  Available options:
+%%  <ul>
+%%  <li><code>recv_oct</code> - number of bytes received to the socket.</li>
+%%  <li><code>send_oct</code> - number of bytes sent from the socket</li>
+%% </ul>
+%% @end
 -spec(getstat(RTMP::rtmp_socket_pid(), Options::[Key::atom()]) -> ok).
 getstat(RTMP, Options) ->
   gen_fsm:sync_send_all_state_event(RTMP, {getstat, Options}, ?RTMP_TIMEOUT).
+
+%% @spec (RTMP::pid()) -> Values::[{Key,Value}]
+%% @doc Just the same as {@link inet:getstats/1. inet:getstats/1} this function gets statistics of 
+%% rtmp socket.<br/>
+-spec(getstat(RTMP::rtmp_socket_pid()) -> ok).
+getstat(RTMP) ->
+  gen_fsm:sync_send_all_state_event(RTMP, getstat, ?RTMP_TIMEOUT).
 
   
 %% @spec (RTMP::pid(), Message::rtmp_message()) -> ok
@@ -295,12 +311,24 @@ get_options(State, client_buffer) ->
 
 get_options(State, address) ->
   {address, {State#rtmp_socket.address, State#rtmp_socket.port}};
+
+get_options(_State, []) ->
+  [];
   
 get_options(State, [Key | Options]) ->
   [get_options(State, Key) | get_options(State, Options)].
 
+get_stat(State) ->
+  get_stat(State, [recv_oct, send_oct]).
+
 get_stat(State, recv_oct) ->
   {recv_oct, State#rtmp_socket.bytes_read};
+
+get_stat(State, send_oct) ->
+  {send_oct, State#rtmp_socket.bytes_sent};
+
+get_stat(_State, []) ->
+  [];
 
 get_stat(State, [Key | Options]) ->
   [get_stat(State, Key) | get_stat(State, Options)].
@@ -365,6 +393,9 @@ handle_sync_event({getopts, Options}, _From, StateName, State) ->
 handle_sync_event({getstat, Options}, _From, StateName, State) ->
   {reply, get_stat(State, Options), StateName, State};
 
+handle_sync_event(getstat, _From, StateName, State) ->
+  {reply, get_stat(State), StateName, State};
+
 handle_sync_event(Event, _From, StateName, StateData) ->
   {stop, {StateName, undefined_event, Event}, StateData}.
 
@@ -420,7 +451,7 @@ handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buff
   {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
-  Consumer ! {rtmp, self(), disconnect},
+  Consumer ! {rtmp, self(), disconnect, get_stat(StateData)},
   {stop, normal, StateData};
 
 handle_info(#rtmp_message{} = Message, loop, State) ->
@@ -460,13 +491,13 @@ send_data(State, #rtmp_message{} = Message) ->
   {NewState, Data} = rtmp:encode(State, Message),
   send_data(NewState, Data);
   
-send_data(#rtmp_socket{socket = Socket} = State, Data) when is_port(Socket) ->
+send_data(#rtmp_socket{socket = Socket, bytes_sent = Sent} = State, Data) when is_port(Socket) ->
   gen_tcp:send(Socket, Data),
-  State;
+  State#rtmp_socket{bytes_sent = Sent + iolist_size(Data)};
 
-send_data(#rtmp_socket{socket = Socket} = State, Data) when is_pid(Socket) ->
+send_data(#rtmp_socket{socket = Socket, bytes_sent = Sent} = State, Data) when is_pid(Socket) ->
   rtmpt:write(Socket, Data),
-  State.
+  State#rtmp_socket{bytes_sent = Sent + iolist_size(Data)}.
 
 
 handle_rtmp_data(State, Data) ->

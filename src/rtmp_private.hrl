@@ -84,6 +84,7 @@
 	port              ::integer(),
 	buffer = <<>>     ::binary(),
 	bytes_read = 0    ::integer(),
+	bytes_sent = 0    ::integer(),
 	client_buffer = ?MIN_CLIENT_BUFFER       ::integer(),
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
