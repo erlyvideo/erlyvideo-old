@@ -9,5 +9,8 @@
 	user_id     = undefined,
 	player_info = [],
 	streams      = {},
+	bytes_recv   = 0,
+	bytes_sent   = 0,
+	play_stats   = [],
 	cached_shared_objects = []
 	}).

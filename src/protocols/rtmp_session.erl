@@ -349,9 +349,10 @@ handle_sync_event(Event, _From, StateName, StateData) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({rtmp, _Socket, disconnect}, _StateName, #rtmp_session{host = Host, addr=Addr, user_id = UserId} = StateData) ->
-  ems_log:access(Host, "DISCONNECT ~p ~p", [Addr, UserId]),
-  {stop, normal, StateData};
+handle_info({rtmp, _Socket, disconnect, Stats}, _StateName, #rtmp_session{} = StateData) ->
+  BytesSent = proplists:get_value(send_oct, Stats, 0),
+  BytesRecv = proplists:get_value(recv_oct, Stats, 0),
+  {stop, normal, StateData#rtmp_session{bytes_sent = BytesSent, bytes_recv = BytesRecv}};
 
 handle_info({rtmp, Socket, #rtmp_message{} = Message}, StateName, State) ->
   State1 = handle_rtmp_message(State, Message),
@@ -401,6 +402,9 @@ handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_sessio
   rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
   {next_state, StateName, State};
   
+handle_info({ems_stream, _StreamId, play_stats, PlayStat}, StateName, #rtmp_session{play_stats = Stats} = State) ->
+  ?D({"Play", PlayStat}),
+  {next_state, StateName, State#rtmp_session{play_stats = [PlayStat | Stats]}};
 
 handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
   rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
@@ -448,17 +452,22 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
   end.
 
 
+collect_statistics(#rtmp_session{socket = Socket}) ->
+  Stats = rtmp_socket:getstat(Socket),
+  Stats.
+
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
 %% Purpose: Shutdown the fsm
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_session{socket=Socket} = State) ->
+terminate(_Reason, _StateName, #rtmp_session{socket=Socket,
+  addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId} = State) ->
   erlyvideo:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
-  ems_event:user_disconnected(State#rtmp_session.host, self()),
+  ems_event:user_disconnected(State#rtmp_session.host, [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId}|PlayStats]),
   ok.
 
 
