@@ -177,7 +177,7 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   AFrame = mp4:read_frame(Audio, AudioID),
   VFrame = mp4:read_frame(Video, VideoID),
   case {VFrame#mp4_frame.dts, AFrame#mp4_frame.dts} of
-    {VDTS, ADTS} when VDTS =< ADTS ->
+    {VDTS, ADTS} when VDTS < ADTS ->
       ets:insert(Index, {ID, video, VideoID}),
       build_index_table(Video, VideoID + 1, VideoCount, Audio, AudioID, AudioCount, Index, ID+1);
     {_VDTS, _ADTS} ->
