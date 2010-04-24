@@ -38,12 +38,11 @@
 
 -module(mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
--define(TIMEOUT, 4000).
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([init/0, play/3, play/1, handle_frame/2]).
+-export([init/0, encode/2, pad_continuity_counters/1]).
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
 -define(PMT_PID, 66).
@@ -64,54 +63,8 @@
   video_config = undefined
 }).
 
--record(http_player, {
-  player,
-  streamer,
-  req
-}).
-
 init() -> #streamer{}.
 
-play(_Name, Player, Req) ->
-  ?D({"Player starting", _Name, Player}),
-  process_flag(trap_exit, true),
-  link(Player),
-  link(Req:socket_pid()),
-  Player ! start,
-  Streamer = #http_player{player = Player, req = Req, streamer = init()},
-  ?MODULE:play(Streamer),
-  Req:stream(close),
-  ok.
-
-play(#http_player{player = Player} = Streamer) ->
-  receive
-    Message -> handle_msg(Streamer, Message)
-  after
-    ?TIMEOUT ->
-      ?D("MPEG TS player stopping"),
-      Player ! stop,
-      ok
-  end.
-
-handle_msg(#http_player{req = Req, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
-  case handle_frame(Streamer, Frame) of
-    {Streamer1, none} -> 
-      ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
-    {Streamer1, Bin} ->
-      Req:stream(Bin),
-      ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1})
-  end;
-
-handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'EXIT', _, _}) ->
-  ?D({"MPEG TS reader disconnected", Streamer}),
-  {_Streamer1, Bin} = pad_continuity_counters(Streamer),
-  Req:stream(Bin),
-  Player ! stop,
-  ok;
-
-handle_msg(#http_player{} = Streamer, Message) ->
-  ?D(Message),
-  ?MODULE:play(Streamer).
 
 
 
@@ -381,11 +334,11 @@ unpack_nals(Body, LengthSize, NALS) ->
 
 
 
-handle_frame(#streamer{} = Streamer, #video_frame{type = video, decoder_config = true, body = Config}) ->
+encode(#streamer{} = Streamer, #video_frame{type = video, decoder_config = true, body = Config}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
   {Streamer#streamer{video_config = Config, length_size = NewLengthSize*8}, none};
 
-handle_frame(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{type = video, frame_type = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
+encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{type = video, frame_type = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
   {Streamer1, PATBin} = send_pat(Streamer, DTS),
   {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
 
@@ -400,7 +353,7 @@ handle_frame(#streamer{length_size = LengthSize, video_config = VideoConfig} = S
   {Streamer3, VideoBin} = send_video(Streamer2, Frame#video_frame{body = Packed}),
   {Streamer3, <<PATBin/binary, PMTBin/binary, VideoBin/binary>>};
 
-handle_frame(#streamer{length_size = LengthSize} = Streamer, #video_frame{type = video, body = Body} = Frame) ->
+encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{type = video, body = Body} = Frame) ->
   BodyNALS = unpack_nals(Body, LengthSize),
   F = fun(NAL, S) ->
     <<S/binary, 1:24, NAL/binary>>
@@ -408,16 +361,16 @@ handle_frame(#streamer{length_size = LengthSize} = Streamer, #video_frame{type =
   Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
   send_video(Streamer, Frame#video_frame{body = Packed});
   
-handle_frame(#streamer{} = Streamer, #video_frame{type = audio, decoder_config = true, body = AudioConfig}) ->
+encode(#streamer{} = Streamer, #video_frame{type = audio, decoder_config = true, body = AudioConfig}) ->
   Config = aac:decode_config(AudioConfig),
   ?D({"Audio config", Config}),
   {Streamer#streamer{audio_config = Config}, none};
 
 
-handle_frame(#streamer{} = Streamer, #video_frame{type = audio} = Frame) ->
+encode(#streamer{} = Streamer, #video_frame{type = audio} = Frame) ->
   send_audio(Streamer, Frame);
 
-handle_frame(#streamer{} = Streamer, #video_frame{type = metadata}) ->
+encode(#streamer{} = Streamer, #video_frame{type = metadata}) ->
   {Streamer, none}.
 
 
