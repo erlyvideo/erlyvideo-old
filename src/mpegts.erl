@@ -227,7 +227,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   %             0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig/binary>>,
   VideoES = <<>>,
   VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 2#1111:4, (size(VideoES)):12, VideoES/binary>>,
-  Streams = iolist_to_binary([AudioStream, VideoStream]),
+  Streams = iolist_to_binary([VideoStream, AudioStream]),
   Program = <<ProgramNum:16, 
            2#11:2, Version:5, CurrentNext:1, 
            _SectionNumber,

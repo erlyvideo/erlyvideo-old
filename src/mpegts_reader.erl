@@ -67,7 +67,8 @@ load_nif() ->
   load_nif(erlang:system_info(otp_release) >= "R13B04").
 
 load_nif(true) ->
-  erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+  io:format("Load mpegts_reader: ~p~n", [Load]),
   ok;
 
 load_nif(false) ->
