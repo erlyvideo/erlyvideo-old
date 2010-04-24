@@ -149,7 +149,7 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Options2) of
     {ok, PlayerPid} ->
-      mpegts:play(Name, PlayerPid, Req),
+      mpegts_lib:play(Name, PlayerPid, Req),
       ok;
     {notfound, Reason} ->
       Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
@@ -239,7 +239,7 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
   case iphone_streams:find(Host, Name, Segment) of
     {ok, PlayerPid} ->
-      mpegts:play(Name, PlayerPid, Req),
+      mpegts_lib:play(Name, PlayerPid, Req),
       ok;
     {notfound, Reason} ->
       Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
