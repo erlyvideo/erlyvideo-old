@@ -221,7 +221,7 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   end,
   Playlist = [
     "#EXTM3U\n",
-    io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength*1.5)]),
+    io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength)]),
     "#EXT-X-ALLOW-CACHE:YES\n",
     % EXT-X-DISCONTINUITY
     SegmentList,
