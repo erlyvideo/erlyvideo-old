@@ -141,7 +141,7 @@ handle(Host, 'GET', ["stats.json"], Req) ->
   
 handle(Host, 'GET', ["stream" | Name], Req) ->
   Query = Req:parse_qs(),
-  Options1 = [{stream_id,1}],
+  Options1 = [{stream_id,1},{client_buffer,30000}],
   Options2 = case proplists:get_value("start", Query) of
     undefined -> Options1;
     Seek -> [{seek,{before,list_to_integer(Seek)}}|Options1]
