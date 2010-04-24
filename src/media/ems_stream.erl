@@ -160,11 +160,17 @@ prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
   
   PlayEnd = case proplists:get_value(duration, Options) of
     undefined -> undefined;
-    {BeforeAfterEnd, Duration} -> 
+    {BeforeAfterEnd, Duration} ->
+      Length = proplists:get_value(length, media_provider:info(MediaEntry)),
       {_, DurationFrom} = proplists:get_value(seek, Options),
-      case file_media:seek(MediaEntry, BeforeAfterEnd, DurationFrom + Duration) of
-        {_Pos, EndTimestamp} -> EndTimestamp;
-        _ -> undefined
+      TotalDuration = DurationFrom + Duration,
+      case TotalDuration of
+        TotalDuration when TotalDuration > Length -> undefined;
+        _ ->
+          case file_media:seek(MediaEntry, BeforeAfterEnd, DurationFrom + Duration) of
+            {_Pos, EndTimestamp} -> EndTimestamp;
+            _ -> undefined
+          end
       end
   end,
   ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
