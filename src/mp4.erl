@@ -377,23 +377,23 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
 fill_track_info(MediaInfo, #mp4_track{data_format = h264, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
   % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
   {Frames, MaxDTS} = fill_track(Track),
-  _Seconds = case MediaInfo#mp4_media.seconds of
+  Seconds = case MediaInfo#mp4_media.seconds of
     undefined -> MaxDTS;
     S when S < MaxDTS -> MaxDTS;
     S -> S
   end,
-  MediaInfo#mp4_media{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = MaxDTS};
+  MediaInfo#mp4_media{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = Seconds};
 
 
 fill_track_info(MediaInfo, #mp4_track{data_format = aac, decoder_config = DecoderConfig} = Track) ->
   % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
-  {Frames, _MaxDTS} = fill_track(Track),
-  % Seconds = case MediaInfo#media_info.seconds of
-  %   undefined -> MaxDTS;
-  %   S when S < MaxDTS -> MaxDTS;
-  %   S -> S
-  % end,
-  MediaInfo#mp4_media{audio_config = DecoderConfig, audio_track = Frames};
+  {Frames, MaxDTS} = fill_track(Track),
+  Seconds = case MediaInfo#mp4_media.seconds of
+    undefined -> MaxDTS;
+    S when S < MaxDTS -> MaxDTS;
+    S -> S
+  end,
+  MediaInfo#mp4_media{audio_config = DecoderConfig, audio_track = Frames, seconds = Seconds};
   
 fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
   ?D({"Uknown data format", Unknown}),
@@ -482,6 +482,7 @@ fill_track(Mp4Track) ->
     timescale = Timescale
   } = Track,
   MaxDTS = fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, 0, 0),
+  ?D({max_dts, MaxDTS*1000/Timescale}),
   {Frames, MaxDTS*1000/Timescale}.
 
 fill_track([], [], [], [], [], _, _Frames, _, DTS) ->
