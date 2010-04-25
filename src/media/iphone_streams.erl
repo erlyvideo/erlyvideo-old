@@ -36,7 +36,7 @@
 -define(STREAM_TIME, 10000).
 
 %% External API
--export([start_link/1, find/3, segments/2]).
+-export([start_link/1, find/3, segments/2, segment_info/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -59,10 +59,27 @@ start_link(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
-  media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}, {client_buffer, ?STREAM_TIME*2}]).
+  {_, Count, _, _} = segments(Host, Name),
+  Buffer = case Count of
+    Number -> 0;
+    _ -> ?STREAM_TIME*2
+  end,
+  media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}, {client_buffer, Buffer}]).
 
 find_(Host, Name, Number) ->
   gen_server:call(?MODULE, {find, Host, Name, Number}).
+
+
+segment_info(MediaEntry, Name, Number) ->
+  {Seek, PlayingFrom, PlayEnd} = ems_stream:segment(MediaEntry, [{seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}]),
+  case {PlayingFrom, PlayEnd} of
+    {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
+      SegmentLength = round((PlayEnd - PlayingFrom)/1000),
+      io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, Number]);
+    _Else -> 
+      undefined
+  end.
+  
 
 segments(Host, Name) ->
   Info = media_provider:info(Host, Name),

@@ -212,9 +212,12 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   {match, [_, Name]} = re:run(FullName, Re, [{capture, all, binary}]),
   
   {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
-  SegmentList = lists:map(fun(N) ->
-    io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, N])
+  MediaEntry = media_provider:open(Host, Name),
+  SegmentListDirty = lists:map(fun(N) ->
+    iphone_streams:segment_info(MediaEntry, Name,N)
   end, lists:seq(Start, Start + Count - 1)),
+  SegmentList = lists:filter(fun(undefined) -> false;
+                                (_) -> true end, SegmentListDirty),
   EndList = case Type of
     stream -> "";
     file -> "#EXT-X-ENDLIST\n"

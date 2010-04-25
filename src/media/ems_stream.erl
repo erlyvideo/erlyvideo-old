@@ -36,6 +36,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -export([file_dir/1, file_format/1, start_link/1, client/1, init/1, ready/1, play/1]).
+-export([segment/2]).
 
 
 
@@ -110,8 +111,15 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
     MediaEntry ->
       erlang:monitor(process, MediaEntry),
       Consumer ! {ems_stream, StreamId, start_play},
-      {ok, Mode} = gen_server:call(MediaEntry, {subscribe, self()}),
+      Mode = case proplists:get_value(seek, Options) of
+        undefined -> 
+          {ok, MediaMode} = gen_server:call(MediaEntry, {subscribe, self()}),
+          MediaMode;
+        _ -> 
+          file
+      end,  
       self() ! start,
+      ?D({"Start", Host, Name, Mode}),
       ems_event:user_play(Host, Consumer, Name, MediaEntry),
       prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, real_mode = Mode, name = Name,
                                 sent_audio_config = false, sent_video_config = false, bytes_sent = 0,
@@ -139,12 +147,10 @@ flush_play() ->
   after 
     0 -> ok
   end.
-        
 
-% prepare(#ems_stream{mode = stream} = Stream, _Options) ->
-%   ready(Stream);
-% 
-prepare(#ems_stream{media_info = MediaEntry, mode = CurrentMode} = Stream, Options) ->
+
+
+segment(MediaEntry, Options) ->
   {Seek, _BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
     undefined -> {undefined, 0, 0};
     {BeforeAfterSeek, SeekTo} ->
@@ -156,8 +162,7 @@ prepare(#ems_stream{media_info = MediaEntry, mode = CurrentMode} = Stream, Optio
           {undefined, 0, 0}
       end
   end,
-  
-  
+
   PlayEnd = case proplists:get_value(duration, Options) of
     undefined -> undefined;
     {BeforeAfterEnd, Duration} ->
@@ -173,15 +178,16 @@ prepare(#ems_stream{media_info = MediaEntry, mode = CurrentMode} = Stream, Optio
           end
       end
   end,
+  {Seek, PlayingFrom, PlayEnd}.
+
+% prepare(#ems_stream{mode = stream} = Stream, _Options) ->
+%   ready(Stream);
+% 
+prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
+  {Seek, PlayingFrom, PlayEnd} = segment(MediaEntry, Options),
+  
   ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
-  Mode = case Seek of
-    undefined -> CurrentMode;
-    _ -> 
-      gen_server:call(MediaEntry, {unsubscribe, self()}),
-      flush_play(),
-      file
-  end,  
-  ready(Stream#ems_stream{pos = Seek, mode = Mode,
+  ready(Stream#ems_stream{pos = Seek,
                      playing_from = PlayingFrom,
                      play_end = PlayEnd,
                      client_buffer = proplists:get_value(client_buffer, Options, 10000)}).
