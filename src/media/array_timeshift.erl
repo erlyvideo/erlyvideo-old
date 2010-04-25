@@ -32,16 +32,16 @@ info(_) ->
 
 
 seek(#media_info{shift = {First, _Last, Frames}}, _BeforeAfter, Timestamp) when Timestamp =< 0 ->
-  ?D({"going to seek", Timestamp}),
+  % ?D({"going to seek", Timestamp}),
   case array:get(First, Frames) of
     undefined -> undefined;
     #video_frame{dts = DTS} -> {(First + 1) rem array:size(Frames), DTS}
   end;
 
 seek(#media_info{shift = {First, Last, Frames}}, BeforeAfter, Timestamp) ->
-  ?D({"going to seek", Timestamp}),
+  % ?D({"going to seek", Timestamp}),
   S = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, {undefined, undefined}),
-  ?D({"Seek in array", First, Last, Timestamp, S}),
+  % ?D({"Seek in array", First, Last, Timestamp, S}),
   S.
   
 seek_in_timeshift(First, First, _Frames, _BeforeAfter, _Timestamp, Key) ->
