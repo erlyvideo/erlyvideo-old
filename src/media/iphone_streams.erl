@@ -69,6 +69,7 @@ segments(Host, Name) ->
   Duration = proplists:get_value(length, Info),
   Type = proplists:get_value(type, Info),
   Start = trunc(proplists:get_value(start, Info) / ?STREAM_TIME),
+  io:format("Segments: ~p, ~p, ~p~n", [Duration, Type, Start]),
   SegmentLength = ?STREAM_TIME div 1000,
   Count = round(Duration/?STREAM_TIME),
   {Start,Count,SegmentLength,Type}.

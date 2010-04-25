@@ -144,7 +144,7 @@ flush_play() ->
 % prepare(#ems_stream{mode = stream} = Stream, _Options) ->
 %   ready(Stream);
 % 
-prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
+prepare(#ems_stream{media_info = MediaEntry, mode = CurrentMode} = Stream, Options) ->
   {Seek, _BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
     undefined -> {undefined, 0, 0};
     {BeforeAfterSeek, SeekTo} ->
@@ -165,7 +165,7 @@ prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
       {_, DurationFrom} = proplists:get_value(seek, Options),
       TotalDuration = DurationFrom + Duration,
       case TotalDuration of
-        TotalDuration when TotalDuration > Length -> undefined;
+        TotalDuration when TotalDuration > Length -> TotalDuration;
         _ ->
           case file_media:seek(MediaEntry, BeforeAfterEnd, DurationFrom + Duration) of
             {_Pos, EndTimestamp} -> EndTimestamp;
@@ -174,7 +174,14 @@ prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
       end
   end,
   ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
-  ready(Stream#ems_stream{pos = Seek,
+  Mode = case Seek of
+    undefined -> CurrentMode;
+    _ -> 
+      gen_server:call(MediaEntry, {unsubscribe, self()}),
+      flush_play(),
+      file
+  end,  
+  ready(Stream#ems_stream{pos = Seek, mode = Mode,
                      playing_from = PlayingFrom,
                      play_end = PlayEnd,
                      client_buffer = proplists:get_value(client_buffer, Options, 10000)}).
@@ -381,6 +388,12 @@ play(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
   Reply = file_media:read_frame(MediaInfo, Key),
   send_frame(Player, Reply).
   
+send_frame(#ems_stream{play_end = PlayEnd, stream_id = _StreamId} = State, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
+  % Consumer ! {ems_stream, StreamId, play_complete, Length},
+  ?D({"Finished due to playend"}),
+  notify_stats(State),
+  ok;
+
 send_frame(#ems_stream{mode=stream} = Player, #video_frame{decoder_config = true, type = video} = F) ->
   ?MODULE:ready(Player#ems_stream{video_config = F});
 
@@ -426,10 +439,6 @@ send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts =
   % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
   ?MODULE:ready(Player);
 
-send_frame(#ems_stream{play_end = PlayEnd} = State, {#video_frame{dts = Timestamp}, _}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
-  notify_stats(State),
-  ok;
-
 send_frame(#ems_stream{mode=file} = Player, undefined) ->
   self() ! play,
   ?MODULE:ready(Player);
@@ -448,7 +457,10 @@ send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = 
   % timer:send_after(round(Timeout), Consumer, {ems_stream, StreamId, play_complete, Length}),
   Consumer ! {ems_stream, StreamId, play_complete, Length},
   flush_play(),
-  ?MODULE:ready(Player#ems_stream{});
+  case Player#ems_stream.play_end of
+    undefined -> ?MODULE:ready(Player#ems_stream{});
+    _ -> ok
+  end;
 
 send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, {#video_frame{} = Frame, Next}) ->
   % ?D({Frame#video_frame.type, Frame1#video_frame.dts}),
