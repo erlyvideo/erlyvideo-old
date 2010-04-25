@@ -92,7 +92,10 @@ segments(Host, Name) ->
   io:format("Segments: ~p, ~p, ~p~n", [Duration, Type, Start]),
   SegmentLength = ?STREAM_TIME div 1000,
   Count = round(Duration/?STREAM_TIME),
-  {Start,Count,SegmentLength,Type}.
+  case Type of
+    file -> {Start,Count,SegmentLength,Type};
+    stream -> {Start+1,Count-1,SegmentLength,Type}
+  end.
   
 
 play(Host, Name, Number, Req) ->
