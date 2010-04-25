@@ -255,7 +255,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   % 
   
   
-send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type = FrameType}) ->
+send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type = FrameType} = _F) ->
   Marker = 2#10,
   Scrambling = 0,
   Priority = 0,
@@ -274,6 +274,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
   DTS1 = round(DTS*90),
   PTS1 = round(PTS*90),
   % ?D({"Video", PTS, DTS, "--", DTS1, PTS1}),
+  % ?D({video, round(DTS), round(PTS), FrameType}),
   <<Pts1:3, Pts2:15, Pts3:15>> = <<PTS1:33>>,
   <<Dts1:3, Dts2:15, Dts3:15>> = <<DTS1:33>>,
 
@@ -308,7 +309,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   Scrambling = 0,
   Alignment = 0,
   Pts = round(Timestamp * 90),
-  % ?D({"Audio", Timestamp, Pts}),
+  % ?D({audio, round(Timestamp*90)}),
   <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
   AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
@@ -379,13 +380,13 @@ encode(#streamer{} = Streamer, #video_frame{type = metadata}) ->
 pad_continuity_counters(Streamer) ->
   pad_continuity_counters(Streamer, <<>>).
 
-pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-  % ?D({pad, audio, Streamer#streamer.audio_counter}),
-  {Streamer1, Bin} = mux_parts(<<0>>, Streamer, ?AUDIO_PID, 0, <<>>),
-  pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+% pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+%   ?D({pad, audio, Streamer#streamer.audio_counter}),
+%   {Streamer1, Bin} = mux_parts(<<0>>, Streamer, ?AUDIO_PID, 0, <<>>),
+%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
 pad_continuity_counters(#streamer{video_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-  % ?D({pad, video, Streamer#streamer.video_counter}),
+  ?D({pad, video, Streamer#streamer.video_counter}),
   {Streamer1, Bin} = mux_parts(<<0,0,0,1>>, Streamer, ?VIDEO_PID, 0, <<>>),
   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
