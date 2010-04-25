@@ -240,17 +240,7 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   
   Segment = list_to_integer(binary_to_list(SegmentId)),
   Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
-  case iphone_streams:find(Host, Name, Segment) of
-    {ok, PlayerPid} ->
-      mpegts_lib:play(Name, PlayerPid, Req),
-      ok;
-    {notfound, Reason} ->
-      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
-      Req:stream(close);
-    Reason -> 
-      Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
-      Req:stream(close)
-  end;
+  iphone_streams:play(Host, Name, Segment, Req);
   
 handle(Host, 'GET', Path, Req) ->
   FileName = filename:absname(filename:join([wwwroot(Host) | Path])),
