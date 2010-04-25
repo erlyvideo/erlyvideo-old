@@ -90,6 +90,9 @@ get_int(Key, Meta, Coeff) ->
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
   Meta1 = lists:keydelete(<<"keyframes">>, 1, Meta),
   Meta2 = lists:keydelete(<<"times">>, 1, Meta1),
+  Meta3 = lists:map(fun({Key,Value}) ->
+    {erlang:binary_to_atom(Key, utf8), Value}
+  end, Meta2),
   % ?D({"Metadata", get_int(<<"duration">>, Meta, 1000), Meta2}),
   MediaInfo1 = MediaInfo#media_info{
     width = round(get_int(<<"width">>, Meta, 1)),
@@ -97,7 +100,7 @@ parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
     duration = get_int(<<"duration">>, Meta, 1000),
     audio_codec = get_int(<<"audiocodecid">>, Meta, {flv, audio_codec}),
     video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec}),
-    metadata = Meta2
+    metadata = Meta3
   },
   case proplists:get_value(<<"keyframes">>, Meta) of
     {object, Keyframes} ->
