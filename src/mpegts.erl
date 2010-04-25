@@ -41,7 +41,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([init/0, encode/2, pad_continuity_counters/1]).
+-export([init/0, init/1, encode/2, pad_continuity_counters/1, continuity_counters/1]).
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
@@ -65,7 +65,7 @@
 
 init() -> #streamer{}.
 
-
+init({Video, Audio, PMT, PAT}) -> #streamer{video_counter = Video, audio_counter = Audio, pmt_counter = PMT, pat_counter = PAT}.
 
 
 
@@ -376,6 +376,9 @@ encode(#streamer{} = Streamer, #video_frame{type = metadata}) ->
 
 
 -define(END_COUNTER, 15).
+
+continuity_counters(#streamer{video_counter = Video, audio_counter = Audio, pmt_counter = PMT, pat_counter = PAT}) ->
+  {Video, Audio, PMT, PAT}.
 
 pad_continuity_counters(Streamer) ->
   pad_continuity_counters(Streamer, <<>>).

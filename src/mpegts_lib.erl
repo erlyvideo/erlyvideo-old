@@ -6,7 +6,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 
--export([play/3, play/1]).
+-export([play/3, play/4, play/1]).
 
 -record(http_player, {
   player,
@@ -15,17 +15,19 @@
 }).
 
 
+play(Name, Player, Req) ->
+  play(Name, Player, Req, {0,0,0,0}).
 
-play(_Name, Player, Req) ->
+play(_Name, Player, Req, Counters) ->
   ?D({"Player starting", _Name, Player}),
   process_flag(trap_exit, true),
   link(Player),
   link(Req:socket_pid()),
   Player ! start,
-  Streamer = #http_player{player = Player, req = Req, streamer = mpegts:init()},
-  ?MODULE:play(Streamer),
+  Streamer = #http_player{player = Player, req = Req, streamer = mpegts:init(Counters)},
+  NextCounters = ?MODULE:play(Streamer),
   Req:stream(close),
-  ok.
+  NextCounters.
 
 play(#http_player{player = Player} = Streamer) ->
   receive
@@ -47,11 +49,12 @@ handle_msg(#http_player{req = Req, streamer = Streamer} = HTTPPlayer, #video_fra
   end;
 
 handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'EXIT', _, _}) ->
-  ?D({"MPEG TS reader disconnected", Streamer}),
-  {_Streamer1, Bin} = mpegts:pad_continuity_counters(Streamer),
-  Req:stream(Bin),
+  Counters = mpegts:continuity_counters(Streamer),
+  ?D({"MPEG TS reader disconnected", Streamer, Counters}),
+  % {_Streamer1, Bin} = mpegts:pad_continuity_counters(Streamer),
+  % Req:stream(Bin),
   Player ! stop,
-  ok;
+  Counters;
 
 handle_msg(#http_player{} = Streamer, Message) ->
   ?D(Message),
