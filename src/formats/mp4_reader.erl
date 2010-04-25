@@ -136,7 +136,7 @@ init(#media_info{header = undefined} = MediaInfo) ->
   % eprof:start_profiling([self()]),
   {Time, {ok, Info2}} = timer:tc(?MODULE, read_header, [Info1]),
   {Time2, {ok, Info3}} = timer:tc(?MODULE, build_index_table, [Info2]),
-  ?D({"Time to parse moov and build index", round(Time/1000), round(Time2/1000), Info2#media_info.seconds}),
+  ?D({"Time to parse moov and build index", round(Time/1000), round(Time2/1000), Info2#media_info.duration}),
   % eprof:total_analyse(),
   % eprof:stop(),
   {ok, Info3}.
@@ -148,7 +148,7 @@ read_header(#media_info{device = Device} = MediaInfo) ->
              audio_track = AT, video_track = VT, seconds = Seconds} = Mp4Media,
   Info1 = MediaInfo#media_info{header = Mp4Media, width = Width, height = Height,            
                        audio_config = AC, video_config = VC, 
-                       audio_track = AT, video_track = VT, seconds = Seconds},
+                       audio_track = AT, video_track = VT, duration = Seconds},
   {ok, Info1}.
 
 
@@ -186,7 +186,7 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   end.
 
 
-metadata(#media_info{width = Width, height = Height, seconds = Duration}) -> 
+metadata(#media_info{width = Width, height = Height, duration = Duration}) -> 
   [{width, Width}, 
    {height, Height}, 
    {duration, Duration/1000}].

@@ -156,7 +156,7 @@ segment(MediaEntry, Options) ->
     {BeforeAfterSeek, SeekTo} ->
       case file_media:seek(MediaEntry, BeforeAfterSeek, SeekTo) of
         {Pos, NewTimestamp} ->
-          ?D({"Starting from", round(SeekTo), NewTimestamp}),
+          % ?D({"Starting from", round(SeekTo), NewTimestamp}),
           {Pos, NewTimestamp, NewTimestamp};
         _ ->
           {undefined, 0, 0}
@@ -407,39 +407,39 @@ send_frame(#ems_stream{mode=stream} = Player, #video_frame{decoder_config = true
   ?MODULE:ready(Player#ems_stream{audio_config = F});
 
 
-send_frame(#ems_stream{mode = stream, consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, #video_frame{type = metadata} = F) ->
+send_frame(#ems_stream{mode = stream, consumer = Consumer, stream_id = StreamId} = Player, #video_frame{type = metadata} = F) ->
   Consumer ! F#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(F#video_frame.body)});
+  ?MODULE:ready(Player);
 
 send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, audio_config = A, sent_audio_config = false, bytes_sent = Sent} = Player, 
            #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
   Consumer ! A#video_frame{stream_id = StreamId, dts = DTS},
   ?D({"Send audio config", DTS}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{sent_audio_config = true, bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
+  ?MODULE:ready(Player#ems_stream{sent_audio_config = true, bytes_sent = Sent + bin_size(Frame)});
 
 send_frame(#ems_stream{mode=stream, consumer = Consumer, stream_id = StreamId, video_config = V, sent_video_config = false, bytes_sent = Sent} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
   Consumer ! V#video_frame{stream_id = StreamId, dts = DTS},
   ?D({"Send video config", DTS}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{sent_video_config = true, bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
+  ?MODULE:ready(Player#ems_stream{sent_video_config = true, bytes_sent = Sent + bin_size(Frame)});
 
 send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_audio_config = true, bytes_sent = Sent} = Player, 
            #video_frame{type = audio, codec_id = aac} = Frame) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + bin_size(Frame)});
 
 send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, sent_video_config = true, bytes_sent = Sent} = Player, 
            #video_frame{type = video, codec_id = h264} = Frame) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + bin_size(Frame)});
 
 send_frame(#ems_stream{mode=stream,consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, 
            #video_frame{codec_id = Codec} = Frame) when Codec =/= aac andalso Codec =/= h264 ->
   % ?D({Frame#video_frame.type, Frame#video_frame.dts, Frame#video_frame.codec_id}),
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + iolist_size(Frame#video_frame.body)});
+  ?MODULE:ready(Player#ems_stream{bytes_sent = Sent + bin_size(Frame)});
 
 send_frame(#ems_stream{mode = stream} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
   % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
@@ -470,9 +470,15 @@ send_frame(#ems_stream{mode=file, name = Name, consumer = Consumer, stream_id = 
 
 send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Player, {#video_frame{} = Frame, Next}) ->
   % ?D({Frame#video_frame.type, Frame1#video_frame.dts}),
-  Consumer ! Frame#video_frame{stream_id = StreamId},    
-  timeout_play(Frame, Player#ems_stream{pos = Next, bytes_sent = Sent + iolist_size(Frame#video_frame.body)}).
-  
+  Consumer ! Frame#video_frame{stream_id = StreamId},
+  timeout_play(Frame, Player#ems_stream{pos = Next, bytes_sent = Sent + bin_size(Frame)}).
+
+bin_size(#video_frame{body = Body} = Frame) ->
+  try iolist_size(Body) of
+    BinSize -> BinSize
+  catch
+    _:_ -> 0
+  end.
 
 
 

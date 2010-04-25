@@ -61,7 +61,7 @@ first(_) ->
   flv:data_offset().
 
 
-metadata(_) -> undefined.
+metadata(#media_info{metadata = Meta}) -> Meta.
 
 read_frame_list(#media_info{device = Device} = MediaInfo, Offset) ->
   % We need to bypass PreviousTagSize and read header.
@@ -83,17 +83,21 @@ codec_config(_, _) -> undefined.
 get_int(Key, Meta, Coeff) ->
   case {proplists:get_value(Key, Meta), Coeff} of
     {undefined, _} -> undefined;
-    {Value, Coeff} when is_number(Coeff) andalso is_number(Value) -> round(Value*Coeff);
+    {Value, Coeff} when is_number(Coeff) andalso is_number(Value) -> Value*Coeff;
     {Value, {M, F}} -> M:F(round(Value))
   end.
 
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
+  Meta1 = lists:keydelete(<<"keyframes">>, 1, Meta),
+  Meta2 = lists:keydelete(<<"times">>, 1, Meta1),
+  % ?D({"Metadata", get_int(<<"duration">>, Meta, 1000), Meta2}),
   MediaInfo1 = MediaInfo#media_info{
-    width = get_int(<<"width">>, Meta, 1),
-    height = get_int(<<"height">>, Meta, 1),
+    width = round(get_int(<<"width">>, Meta, 1)),
+    height = round(get_int(<<"height">>, Meta, 1)),
     duration = get_int(<<"duration">>, Meta, 1000),
     audio_codec = get_int(<<"audiocodecid">>, Meta, {flv, audio_codec}),
-    video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec})
+    video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec}),
+    metadata = Meta2
   },
   case proplists:get_value(<<"keyframes">>, Meta) of
     {object, Keyframes} ->
