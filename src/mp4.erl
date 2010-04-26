@@ -86,8 +86,8 @@ read_frame(Frames, Id) ->
     [] -> ?D({"No frame", Id}), undefined
   end.
 
-frame_count(Frames) ->
-  proplists:get_value(size, ets:info(Frames)).
+frame_count(undefined) -> 0;
+frame_count(Frames) -> proplists:get_value(size, ets:info(Frames)).
 
   
 parse_atom(<<>>, Mp4Parser) ->
