@@ -111,19 +111,26 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
     MediaEntry ->
       erlang:monitor(process, MediaEntry),
       Consumer ! {ems_stream, StreamId, start_play},
-      Mode = case proplists:get_value(seek, Options) of
-        undefined -> 
+      {Seek, PlayingFrom, PlayEnd} = segment(MediaEntry, Options),
+      
+      ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
+
+      Stream1 = case (catch PlayEnd - PlayingFrom) of
+        SegmentLength when is_number(SegmentLength) -> 
+          Stream#ems_stream{mode = file, real_mode = file};
+        _ ->
           {ok, MediaMode} = gen_server:call(MediaEntry, {subscribe, self()}),
-          MediaMode;
-        _ -> 
-          file
+          Stream#ems_stream{mode = MediaMode,pos = Seek, real_mode = MediaMode,
+                             playing_from = PlayingFrom,
+                             play_end = PlayEnd,
+                             client_buffer = proplists:get_value(client_buffer, Options, 10000)}
       end,  
       self() ! start,
-      ?D({"Start", Host, Name, Mode}),
+      ?D({"Start", Host, Name, Stream1#ems_stream.mode}),
       ems_event:user_play(Host, Consumer, Name, MediaEntry),
-      prepare(Stream#ems_stream{media_info = MediaEntry, mode = Mode, real_mode = Mode, name = Name,
+      ?MODULE:ready(Stream1#ems_stream{media_info = MediaEntry, name = Name,
                                 sent_audio_config = false, sent_video_config = false, bytes_sent = 0,
-                                timer_start = element(1, erlang:statistics(wall_clock))}, Options)
+                                timer_start = element(1, erlang:statistics(wall_clock))})
   end.
 
 
@@ -179,19 +186,6 @@ segment(MediaEntry, Options) ->
       end
   end,
   {Seek, PlayingFrom, PlayEnd}.
-
-% prepare(#ems_stream{mode = stream} = Stream, _Options) ->
-%   ready(Stream);
-% 
-prepare(#ems_stream{media_info = MediaEntry} = Stream, Options) ->
-  {Seek, PlayingFrom, PlayEnd} = segment(MediaEntry, Options),
-  
-  ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
-  ready(Stream#ems_stream{pos = Seek,
-                     playing_from = PlayingFrom,
-                     play_end = PlayEnd,
-                     client_buffer = proplists:get_value(client_buffer, Options, 10000)}).
-  
 
 
 ready(State) ->
@@ -473,7 +467,7 @@ send_frame(#ems_stream{mode=file,consumer = Consumer, stream_id = StreamId, byte
   Consumer ! Frame#video_frame{stream_id = StreamId},
   timeout_play(Frame, Player#ems_stream{pos = Next, bytes_sent = Sent + bin_size(Frame)}).
 
-bin_size(#video_frame{body = Body} = Frame) ->
+bin_size(#video_frame{body = Body} = _Frame) ->
   try iolist_size(Body) of
     BinSize -> BinSize
   catch

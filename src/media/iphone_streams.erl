@@ -63,38 +63,42 @@ start_link(Options) ->
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
   {_, Count, _, _} = segments(Host, Name),
-  Buffer = case Count of
-    Number -> 0;
-    _ -> ?STREAM_TIME*2
+  Options = case Count of
+    Number -> [{client_buffer,0}];
+    _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
-  media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}, {client_buffer, Buffer}]).
+  media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}|Options]).
 
 find_(Host, Name, Number) ->
   gen_server:call(?MODULE, {find, Host, Name, Number}).
 
 
 segment_info(MediaEntry, Name, Number) ->
-  {_Seek, PlayingFrom, PlayEnd} = ems_stream:segment(MediaEntry, [{seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}]),
-  case {PlayingFrom, PlayEnd} of
-    {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
-      SegmentLength = round((PlayEnd - PlayingFrom)/1000),
-      io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, Number]);
-    _Else -> 
-      undefined
-  end.
+  % {_Seek, PlayingFrom, PlayEnd} = ems_stream:segment(MediaEntry, [{seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}]),
+  % case {PlayingFrom, PlayEnd} of
+  %   {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
+  %     SegmentLength = round((PlayEnd - PlayingFrom)/1000),
+  %     io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, Number]);
+  %   _Else -> 
+  %     undefined
+  % end.
+  io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [?STREAM_TIME div 1000, Name, Number]).
   
 
 segments(Host, Name) ->
   Info = media_provider:info(Host, Name),
-  Duration = proplists:get_value(length, Info),
+  Duration = proplists:get_value(length, Info, 0),
   Type = proplists:get_value(type, Info),
-  Start = trunc(proplists:get_value(start, Info) / ?STREAM_TIME),
+  Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
   io:format("Segments: ~p, ~p, ~p~n", [Duration, Type, Start]),
   SegmentLength = ?STREAM_TIME div 1000,
-  Count = round(Duration/?STREAM_TIME),
+  Count = if 
+    Duration > 2*?STREAM_TIME -> round(Duration/?STREAM_TIME);
+    true -> 1
+  end,
   case Type of
     file -> {Start,Count,SegmentLength,Type};
-    stream -> {Start+1,Count-1,SegmentLength,Type}
+    stream -> {Start,Count,SegmentLength,Type}
   end.
   
 

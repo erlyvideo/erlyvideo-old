@@ -144,8 +144,11 @@ print_state(#media_info{} = MediaInfo) ->
 %%-------------------------------------------------------------------------
 
 
-handle_call(info, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0->
+handle_call(info, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
   {reply, [{type,stream}|Module:info(MediaInfo)], MediaInfo, ?TIMEOUT};
+
+handle_call(info, _From, #media_info{} = MediaInfo) ->
+  {reply, [{type,stream}], MediaInfo, ?TIMEOUT};
 
 handle_call(mode, _From, MediaInfo) ->
   {reply, stream, MediaInfo, ?TIMEOUT};
@@ -178,10 +181,13 @@ handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = M
 
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
-  
-handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
-  Res = (catch Module:seek(MediaInfo, BeforeAfter, Timestamp)),
+
+handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
+  Res = Module:seek(MediaInfo, BeforeAfter, Timestamp),
   {reply, Res, MediaInfo, ?TIMEOUT};
+
+handle_call({seek, _BeforeAfter, _Timestamp}, _From, MediaInfo) ->
+  {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({read, DTS}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
   {reply, Module:read(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
