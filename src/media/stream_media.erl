@@ -106,9 +106,13 @@ init(#media_info{type = mpegts_passive} = Media) ->
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
   Media#media_info{demuxer = Reader};
 
-init(#media_info{type = shoutcast} = Media) ->
+init(#media_info{type = shoutcast, options = Options} = Media) ->
+  Sock = case proplists:get_value(make_request, Options, true) of
+    true -> connect_http(Media);
+    _ -> undefined
+  end,
   {ok, Reader} = ems_sup:start_shoutcast_reader(self()),
-  Media#media_info{demuxer = Reader};
+  Media#media_info{socket = Sock, demuxer = Reader};
   
 
 init(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
