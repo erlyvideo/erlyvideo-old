@@ -9,6 +9,7 @@
 	sound_type	   = undefined,
 	sound_size	   = undefined,
 	sound_rate	   = undefined,
-	body           = <<>>
+	body           = <<>>,
+	next_id        = undefined
 	}).
 	
