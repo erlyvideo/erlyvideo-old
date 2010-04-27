@@ -152,7 +152,8 @@ seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
 read_frame(#media_info{device = Device}, Offset) ->
 	case flv:read_tag(Device, Offset) of
 		#flv_tag{next_tag_offset = NextOffset} = Tag ->
-		  {video_frame(Tag), NextOffset};
+		  VideoFrame = video_frame(Tag),
+		  VideoFrame#video_frame{next_id = NextOffset};
     eof -> done;
     {error, Reason} -> {error, Reason}
   end.

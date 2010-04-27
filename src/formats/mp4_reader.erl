@@ -62,7 +62,9 @@ read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
   end,
   
 	case read_data(MediaInfo, Offset, Size) of
-		{ok, Data, _} -> {video_frame(Type, Frame, Data), Next};
+		{ok, Data, _} -> 
+		  VideoFrame = video_frame(Type, Frame, Data),
+		  VideoFrame#video_frame{next_id = Next};
     eof -> done;
     {error, Reason} -> {error, Reason}
   end.

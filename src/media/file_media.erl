@@ -101,8 +101,7 @@ handle_call({read, undefined}, From, #media_info{format = Format} = MediaInfo) -
   handle_call({read, Format:first(MediaInfo)}, From, MediaInfo);
 
 handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
-  Result = FileFormat:read_frame(MediaInfo, Key),
-  {reply, Result, MediaInfo};
+  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
 
 
 handle_call(metadata, _From, #media_info{format = Format} = MediaInfo) ->
