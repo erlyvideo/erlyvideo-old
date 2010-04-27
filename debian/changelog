@@ -1,3 +1,9 @@
+erlang-rtmp (1.4.7) karmic; urgency=low
+
+  * Statistics support
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 27 Apr 2010 13:01:34 +0400
+
 erlang-rtmp (1.4.6) karmic; urgency=low
 
   * FMLE 3.1 support
