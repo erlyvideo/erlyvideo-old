@@ -30,7 +30,6 @@
 %%%---------------------------------------------------------------------------------------
 -module(iphone_streams).
 -author('Max Lapshin <max@maxidoors.ru>').
--behaviour(gen_server).
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -define(STREAM_TIME, 10000).
@@ -41,18 +40,12 @@
 
 -export([save_counters/4, get_counters/3]).
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-
--record(iphone_streams, {
-  cache = []
-}).
 
 
 
 start_link(Options) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []).
+  gen_cache:start_link([{local, ?MODULE}|Options]).
 
 
 %%--------------------------------------------------------------------
@@ -69,11 +62,8 @@ find(Host, Name, Number) ->
   end,
   media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}|Options]).
 
-find_(Host, Name, Number) ->
-  gen_server:call(?MODULE, {find, Host, Name, Number}).
 
-
-segment_info(MediaEntry, Name, Number) ->
+segment_info(_MediaEntry, Name, Number) ->
   % {_Seek, PlayingFrom, PlayEnd} = ems_stream:segment(MediaEntry, [{seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}]),
   % case {PlayingFrom, PlayEnd} of
   %   {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
@@ -121,123 +111,8 @@ play(Host, Name, Number, Req) ->
   
   
 save_counters(Host, Name, Number, Counters) ->
-  gen_server:call(?MODULE, {save, Host, Name, Number, Counters}).
+  gen_cache:set(?MODULE, {Host, Name, Number}, Counters).
 
 get_counters(Host, Name, Number) ->
-  {ok, Counters} = gen_server:call(?MODULE, {get, Host, Name, Number}),
-  Counters.
+  gen_cache:get(?MODULE, {Host, Name, Number}, {0,0,0,0}).
 
-
-%%%------------------------------------------------------------------------
-%%% Callback functions from gen_server
-%%%------------------------------------------------------------------------
-
-%%----------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, State}           |
-%%                            {ok, State, Timeout}  |
-%%                            ignore                |
-%%                            {stop, Reason}
-%%
-%% @doc Called by gen_server framework at process startup.
-%%      Create listening socket.
-%% @end
-%%----------------------------------------------------------------------
-
-
-init([_Options]) ->
-  {ok, #iphone_streams{}}.
-
-%%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-% handle_call({play, Host, Name, Number}, _From, #iphone_streams{streams = Streams} = State) ->
-%   case lists:keytake({Host,Name,Number}, 1, Streams) of
-%     {value, {Key,Player}, Streams1} ->
-%       Key1 = {Host,Name,Number+1},
-%       {reply, {ok, Player}, State#iphone_streams{streams = lists:keystore(Key,1,Streams,{Key1,Player})}};
-%     false ->
-%       {reply, {ok, Player}, }
-%   {reply, ok, State#iphone_stream{consumer = Consumer, buffer = []}, 2*Time};
-
-handle_call({save, Host, Name, Number, Counters}, _From, #iphone_streams{cache = Cache} = State) ->
-  {Now, _} = erlang:statistics(wall_clock),
-  Key = {Host, Name, Number},
-  Cache1 = lists:keystore(Key, 1, Cache, {Key, Counters, Now}),
-  {reply, ok, State#iphone_streams{cache = Cache1}, ?TIMEOUT};
-
-handle_call({get, Host, Name, Number}, _From, #iphone_streams{cache = Cache} = State) ->
-  Key = {Host, Name, Number},
-  Counters = case lists:keyfind(Key, 1, Cache) of
-    false -> {0,0,0,0};
-    {_, Count, _} -> Count
-  end,
-  {reply, {ok, Counters}, State, ?TIMEOUT};
-  
-handle_call(Request, _From, State) ->
-  {stop, {unknown_call, Request}, State}.
-
-
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-  {stop, {unknown_cast, _Msg}, State}.
-
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for messages sent directly to server's mailbox.
-%%      If `{stop, ...}' tuple is returned, the server is stopped and
-%%      `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_info(timeout, #iphone_streams{cache = Cache} = Server) ->
-  {Now, _} = erlang:statistics(wall_clock),
-  Limit = Now - ?TIMEOUT,
-  Cache1 = lists:filter(fun({_,_,Time}) when Time < Limit -> false;
-                           (_) -> true end, Cache),
-  {noreply, Server#iphone_streams{cache = Cache1}};
-
-
-handle_info(_Info, #iphone_streams{} = State) ->
-  io:format("Unknown message: ~p~n", [_Info]),
-  {noreply, State}.
-
-
-
-%%-------------------------------------------------------------------------
-%% @spec (Reason, State) -> any
-%% @doc  Callback executed on server shutdown. It is only invoked if
-%%       `process_flag(trap_exit, true)' is set by the server process.
-%%       The return value is ignored.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
-  ok.
-
-%%-------------------------------------------------------------------------
-%% @spec (OldVsn, State, Extra) -> {ok, NewState}
-%% @doc  Convert process state when code is changed.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.

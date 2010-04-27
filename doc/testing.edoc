@@ -59,6 +59,13 @@
 * follow setup instructions
 * start broadcast
 * check video in flash player
+* check stream in safari on http://localhost:8082/iphone.html
+* start FMLE with H.264 output and repeat steps
+* repeat for FMLE with VP6 encoding
+
+=== iPhone output
+* open http://localhost:8082/iphone.html
+* play some file
 
 === Shoutcast ===
 * Play http://91.121.132.237:8052/ in player
