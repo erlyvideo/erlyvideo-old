@@ -1,10 +1,10 @@
-VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
-REQUIRED_ERLANG=R13
-ERLANG_VERSION=`erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell`
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlyvideo-$(VERSION)
-DEBIANREPO=/apps/erlyvideo/debian/public
-DESTROOT=$(CURDIR)/debian/erlyvideo
-ERL_LIBS=deps:lib:plugins
+VERSION:=$(shell head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]')
+REQUIRED_ERLANG:=R13
+ERLANG_VERSION:=$(shell erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell)
+ERLDIR:=$(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/erlyvideo-$(VERSION)
+DEBIANREPO:=/apps/erlyvideo/debian/public
+DESTROOT:=$(CURDIR)/debian/erlyvideo
+ERL_LIBS:=deps:lib:plugins
 
 ERL=erl +A 4 +K true
 APP_NAME=ems
@@ -21,6 +21,14 @@ compile:
 
 erlang_version:
 	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
+
+
+archive: ../erlyvideo-$(VERSION).tgz
+
+
+../erlyvideo-$(VERSION).tgz:
+	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
+
 
 ebin:
 	mkdir ebin
