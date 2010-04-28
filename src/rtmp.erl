@@ -179,7 +179,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} 
   ChunkList = chunk(Data, ChunkSize, Id),
 
   case rtmp:element(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
+    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =< Timestamp ->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
