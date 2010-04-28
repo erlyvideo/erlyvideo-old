@@ -3,6 +3,18 @@ ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/li
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtmp
 
+# Assume Linux-style dynamic library flags
+DYNAMIC_LIB_CFLAGS = -fpic -shared
+ifeq ($(shell uname),Darwin)
+    DYNAMIC_LIB_CFLAGS = -fPIC -bundle -flat_namespace -undefined suppress
+endif
+ifeq ($(shell uname),SunOs)
+    DYNAMIC_LIB_CFLAGS = -KPIC -G -z text
+endif
+ERL_INCLUDE_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,include)])' -s init stop -noshell)
+ERL_LIB_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,lib)])' -s init stop -noshell)
+ERLDIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+
 all: 
 	erl -make
 	
@@ -13,6 +25,16 @@ doc:
 	erl -pa `pwd`/ebin \
 	-noshell \
 	-run edoc_run application   "'rtmp'" '"."' '[{def,{vsn,"$(VERSION)"}}]'
+
+ebin/rtmp_codec_drv.so: src/rtmp_codec_drv.c
+	gcc -g -O2 -Wall -arch x86_64  \
+	src/rtmp_codec_drv.c \
+	-I$(ERL_INCLUDE_DIR) -I$(ERLDIR)/usr/include \
+	-L$(ERL_LIB_DIR) -lerl_interface -lei \
+	-o ebin/rtmp_codec_drv.so \
+	$(DYNAMIC_LIB_CFLAGS)
+	
+
 
 clean:
 	rm -fv ebin/*.beam
