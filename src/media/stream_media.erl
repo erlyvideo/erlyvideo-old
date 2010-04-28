@@ -159,6 +159,7 @@ handle_call(mode, _From, MediaInfo) ->
   
 handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
   Ref = erlang:monitor(process, Client),
+  ?D({subscribe,MediaInfo#media_info.name,Client,config,Audio,Video}),
   Client ! Audio,
   Client ! Video,
   {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}, ?TIMEOUT};
@@ -385,7 +386,7 @@ handle_frame(#video_frame{} = Frame, #media_info{last_dts = undefined} = Recorde
   handle_frame(Frame, Recorder#media_info{last_dts = 10000}); % Just not to appear negative dts
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{ts_delta = undefined, last_dts = LastDTS} = Recorder) ->
-  ?D({"New instance of stream", LastDTS, DTS}),
+  ?D({"New instance of stream", LastDTS - DTS}),
   handle_frame(Frame, Recorder#media_info{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
 
 handle_frame(#video_frame{dts=DTS,pts=PTS} = Frame0, #media_info{device=Device, ts_delta = Delta} = Recorder) ->
@@ -438,14 +439,14 @@ store_last_gop(MediaInfo, _) ->
 
 
 copy_audio_config(MediaInfo, #video_frame{decoder_config = true, type = audio} = Frame) ->
-  MediaInfo#media_info{audio_config = Frame};
+  MediaInfo#media_info{audio_config = Frame#video_frame{dts = 0, pts = 0}};
 
 copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
   % ?D({"Video config", Frame}),
   send_frame(h264:metadata(Frame#video_frame.body), MediaInfo),
-  MediaInfo#media_info{video_config = Frame};
+  MediaInfo#media_info{video_config = Frame#video_frame{dts = 0, pts = 0}};
 
 copy_video_config(MediaInfo, _) -> MediaInfo.
 
