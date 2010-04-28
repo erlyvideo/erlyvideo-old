@@ -44,11 +44,23 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 
 
 first(_) ->
-  0.
+  audio_config.
 
 
 lookup_frame(video, #media_info{video_track = FrameTable}) -> FrameTable;
 lookup_frame(audio, #media_info{audio_track = FrameTable}) -> FrameTable.
+
+
+read_frame(MediaInfo, audio_config) ->
+  Frame = codec_config(audio, MediaInfo),
+  Frame#video_frame{next_id = video_config};
+
+read_frame(MediaInfo, video_config) ->
+  Frame = codec_config(video, MediaInfo),
+  Frame#video_frame{next_id = 0};
+
+read_frame(_, eof) ->
+  eof;
 
 read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
   [{Id, Type, FrameId}] = ets:lookup(Frames, Id),
@@ -57,7 +69,7 @@ read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
   Frame = mp4:read_frame(FrameTable, FrameId),
   #mp4_frame{offset = Offset, size = Size} = Frame,
   Next = case ets:next(Frames, Id) of
-    '$end_of_table' -> done;
+    '$end_of_table' -> eof;
     NextId -> NextId
   end,
   
@@ -65,7 +77,7 @@ read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
 		{ok, Data, _} -> 
 		  VideoFrame = video_frame(Type, Frame, Data),
 		  VideoFrame#video_frame{next_id = Next};
-    eof -> done;
+    eof -> eof;
     {error, Reason} -> {error, Reason}
   end.
   
