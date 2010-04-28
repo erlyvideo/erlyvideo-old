@@ -59,6 +59,9 @@
 	name,
 	bytes_sent = 0,
 	
+	playlist_module,
+	playlist,
+	
 	synced = false,
   client_buffer,
   prepush = 0,
@@ -106,6 +109,12 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       Consumer ! {ems_stream, StreamId, {notfound, Reason}},
       ?D({"Not found", Name, Options}),
       ?MODULE:ready(Stream);
+    {playlist, Name, PlaylistOptions} ->
+      PlaylistModule = proplists:get_value(url, PlaylistOptions),
+      Playlist = PlaylistModule:init(Host, PlaylistOptions),
+      ?D({"Opened playlist", PlaylistModule, Playlist}),
+      self() ! start,
+      ?MODULE:ready(Stream#ems_stream{playlist_module = PlaylistModule, playlist = Playlist});
     MediaEntry when is_pid(MediaEntry) ->
       erlang:monitor(process, MediaEntry),
       Consumer ! {ems_stream, StreamId, start_play},
@@ -194,21 +203,39 @@ ready(State) ->
     Message -> handle_info(Message, State)
   end.
   
+
+
   
-handle_eof(#ems_stream{consumer = Consumer, stream_id = StreamId} = Stream) ->
+  
+  
+handle_eof(#ems_stream{consumer = Consumer, stream_id = StreamId, playlist_module = undefined} = Stream) ->
   Length = proplists:get_value(length, media_provider:info(Stream#ems_stream.media_info), 0),
   ?D({"File is over", Stream#ems_stream.name, Length}),
   Consumer ! {ems_stream, StreamId, play_complete, Length},
-  ?MODULE:ready(stop(Stream)).
+  ?MODULE:ready(stop(Stream));
+  
+handle_eof(#ems_stream{playlist_module = PlaylistModule, playlist = Playlist} = Stream) ->
+  case PlaylistModule:next(Playlist) of
+    eof ->
+      PlaylistModule:close(Playlist),
+      handle_eof(Stream#ems_stream{playlist_module = undefined, playlist = undefined});
+    {Playlist1, Name, Options} ->
+      ?D({"Playlist item", Name, Options}),
+      handle_play({play,Name,Options}, Stream#ems_stream{playlist = Playlist1})
+  end.
+
   
   
-handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = StreamId, media_info = MediaEntry, consumer = Consumer, client_buffer = ClientBuffer} = State) ->
+handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = StreamId, media_info = MediaEntry, consumer = Consumer, client_buffer = ClientBuffer, playlist_module = PlaylistModule} = State) ->
   case Message of
     {client_buffer, NewClientBuffer} -> 
       ?MODULE:ready(State#ems_stream{client_buffer = NewClientBuffer});
       
     {play, _Name, _Options} = Play ->
       handle_play(Play, State);
+    
+    start when PlaylistModule =/= undefined andalso Mode == undefined ->
+      handle_eof(State);
 
     {'DOWN', _Ref, process, Consumer, _Reason} ->
       notify_stats(State),

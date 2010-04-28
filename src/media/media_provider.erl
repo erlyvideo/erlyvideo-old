@@ -249,6 +249,8 @@ internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
       {notfound, <<"No file ", Name/binary>>};
     undefined ->
       {notfound, <<"Error ", Name/binary>>};
+    playlist ->
+      {playlist, Name, Opts2};
     _ ->
       open_media_entry(Name, MediaProvider, Opts2)
   end.
