@@ -35,7 +35,7 @@ handle(Host, 'GET', [], Req) ->
   Secret = ems:get_var(secret_key, Host, undefined),
   {ok, Index} = index_template:render([
     {files, FileList},
-    {hostname, ems:get_var(host, Host, "rtmp://localhost")},
+    {hostname, <<"rtmp://", (Req:host())/binary>>},
     {autostart, Autostart},
     {live_id, uuid:to_string(uuid:v4())},
     {url, File},

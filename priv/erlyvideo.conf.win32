@@ -9,7 +9,6 @@
     {secret_key, "123"},
     {access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
     {error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
-    {host, "rtmp://localhost"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},
     {rewrite, [

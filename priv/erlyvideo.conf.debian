@@ -9,7 +9,6 @@
     {secret_key, "123"},
     {access_log, {"/var/log/erlyvideo/", "access", {size, 1000000}, 10, "log", info}},
     {error_log, {"/var/log/erlyvideo/", "error", {size, 1000000}, 10, "log", info}},
-    {host, "rtmp://localhost"},
     {file_dir, "/var/lib/erlyvideo/movies"},
     {wwwroot, "/var/lib/erlyvideo/wwwroot"},
     {rewrite, [
@@ -22,7 +21,6 @@
     {access_log, {"log", "production-access", {size, 1000000}, 10, "log", info}},
     {error_log, {"log", "production-error", {size, 1000000}, 10, "log", info}},
     {secret_key, "fddbb018f51cb867a2e6d10b9eea7bd5eaec2d9ee1b814856251776f08e8acdef49154b0317b432ff6dfbd7c7e0e74d5db53287cc991e8cf46da8d6a27fc5ae8"},
-    {host, "rtmp://localhost"},
     {file_dir, "/tmp"}
   ]}
 ]}.
