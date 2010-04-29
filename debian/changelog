@@ -1,3 +1,9 @@
+erlmedia (1.2.9) karmic; urgency=low
+
+  * Changed video_frame format
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 21:46:13 +0400
+
 erlmedia (1.2.8) karmic; urgency=low
 
   * Better support for video-only files
