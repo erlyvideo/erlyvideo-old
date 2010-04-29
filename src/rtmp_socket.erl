@@ -501,7 +501,11 @@ send_data(State, #rtmp_message{} = Message) ->
   send_data(NewState, Data);
   
 send_data(#rtmp_socket{socket = Socket, bytes_sent = Sent} = State, Data) when is_port(Socket) ->
-  gen_tcp:send(Socket, Data),
+  erlang:port_command(Socket, Data, []),
+  receive
+	  {inet_reply,Socket,Status} -> Status
+	end,
+  % gen_tcp:send(Socket, Data),
   State#rtmp_socket{bytes_sent = Sent + iolist_size(Data)};
 
 send_data(#rtmp_socket{socket = Socket, bytes_sent = Sent} = State, Data) when is_pid(Socket) ->
