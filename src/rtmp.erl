@@ -316,7 +316,7 @@ decode(#rtmp_socket{codec = Codec} = State, Data) when Codec =/= undefined ->
       {NewState, Message} = command(Channel, State),
       {NewState, Message, Rest};
     <<?MORE>> ->
-  	  {State, <<>>};
+  	  {State, Data};
   	<<?CONTINUE, Rest/binary>> ->
       decode(State, Rest)
   end;

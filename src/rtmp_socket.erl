@@ -269,17 +269,22 @@ wait_for_socket_on_server(State) ->
 %% @private  
 -spec(wait_for_socket_on_client(Socket::rtmp_socket()) -> no_return()|ok).
 
-wait_for_socket_on_client(#rtmp_socket{} = State) ->
+wait_for_socket_on_client(#rtmp_socket{consumer = C, socket = S} = State) when C == undefined orelse S == undefined ->
   receive
     {socket, Socket} when is_port(Socket) ->
       inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
       {ok, {IP, Port}} = inet:peername(Socket),
       State1 = State#rtmp_socket{socket = Socket, address = IP, port = Port},
       send_data(State1, [?HS_HEADER, rtmp_handshake:c1()]),
-      ?MODULE:handshake_s1(State1)
+      ?MODULE:wait_for_socket_on_client(State1);
+    {setopts, Options} ->
+      ?MODULE:wait_for_socket_on_client(set_options(State,Options))
   after
     ?RTMP_TIMEOUT -> ok
-  end.
+  end;
+  
+wait_for_socket_on_client(State) ->
+  ?MODULE:handshake_s1(State).
 
 %% @private  
 handshake_c1(#rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
