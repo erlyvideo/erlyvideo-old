@@ -1,3 +1,9 @@
+erlang-mpegts (2.1.1) karmic; urgency=low
+
+  * Update for video_Frame
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 23:07:34 +0400
+
 erlang-mpegts (2.1.0) karmic; urgency=low
 
   * iPhone streaming with continious stream
