@@ -322,7 +322,11 @@ static char *encode(state_data *state, char *buf, int buflen, int *rlen)
   while (prev_chunk) {
     /* Here goes a stupid machinery of chunks assembling.
        Adobe, burn in hell! */
-    int timestamp_delta = timestamp - prev_chunk->timestamp;
+    int timestamp_delta; 
+    if (timestamp == -1) {
+      timestamp = prev_chunk->timestamp;
+    }
+    timestamp_delta = timestamp - prev_chunk->timestamp;
     if (prev_chunk->stream != stream || timestamp_delta < 0) break;
     new_chunk->timestamp_delta = timestamp_delta;
     if (type != prev_chunk->type ||
