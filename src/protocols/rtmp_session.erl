@@ -366,8 +366,8 @@ handle_info({rtmp, Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
   rtmp_socket:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_DATA', State};
 
-handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
+handle_info({rtmp, _Socket, timeout, Stats}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
+  ems_log:error(Host, "TIMEOUT ~p ~p ~p ~p", [_Socket, UserId, IP, Stats]),
   {stop, normal, State};
   
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
