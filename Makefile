@@ -6,7 +6,7 @@ DESTROOT=$(CURDIR)/debian/erlang-rtmp
 # Assume Linux-style dynamic library flags
 DYNAMIC_LIB_CFLAGS = -fpic -shared
 ifeq ($(shell uname),Darwin)
-    DYNAMIC_LIB_CFLAGS = -fPIC -bundle -flat_namespace -undefined suppress
+    DYNAMIC_LIB_CFLAGS = -arch x86_64 -fPIC -bundle -flat_namespace -undefined suppress
 endif
 ifeq ($(shell uname),SunOs)
     DYNAMIC_LIB_CFLAGS = -KPIC -G -z text
@@ -27,7 +27,7 @@ doc:
 	-run edoc_run application   "'rtmp'" '"."' '[{def,{vsn,"$(VERSION)"}}]'
 
 ebin/rtmp_codec_drv.so: src/rtmp_codec_drv.c
-	gcc -g -O2 -Wall -arch x86_64  \
+	gcc -g -O2 -Wall  \
 	src/rtmp_codec_drv.c \
 	-I$(ERL_INCLUDE_DIR) -I$(ERLDIR)/usr/include \
 	-L$(ERL_LIB_DIR) -lerl_interface -lei \
