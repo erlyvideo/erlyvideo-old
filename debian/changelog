@@ -1,3 +1,10 @@
+erlang-rtmp (1.5.0) karmic; urgency=low
+
+  * Embedded OMS linked-in driver for RTMP support
+  * refused from gen_fsm in rtmp_socket
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 21:51:09 +0400
+
 erlang-rtmp (1.4.7) karmic; urgency=low
 
   * Statistics support
