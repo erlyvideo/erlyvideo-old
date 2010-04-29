@@ -1,3 +1,21 @@
+erlang-rtmp (1.5.3) karmic; urgency=low
+
+  * trying to build linkedin
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 22:55:11 +0400
+
+erlang-rtmp (1.5.2) karmic; urgency=low
+
+  * Again broken deb
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 22:40:25 +0400
+
+erlang-rtmp (1.5.1) karmic; urgency=low
+
+  * Broken installation of 1.5.0
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 22:38:50 +0400
+
 erlang-rtmp (1.5.0) karmic; urgency=low
 
   * Embedded OMS linked-in driver for RTMP support

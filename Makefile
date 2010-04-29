@@ -1,5 +1,4 @@
-VERSION=`head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/rtmp-$(VERSION)
+VERSION := $(shell head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]')
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtmp
 
@@ -13,7 +12,7 @@ ifeq ($(shell uname),SunOs)
 endif
 ERL_INCLUDE_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,include)])' -s init stop -noshell)
 ERL_LIB_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,lib)])' -s init stop -noshell)
-ERLDIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/rtmp-$(VERSION)
 
 all: ebin/rtmp_codec_drv.so
 	erl -make
@@ -47,6 +46,7 @@ clean-doc:
 
 install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)/usr/bin
 	mkdir -p $(DESTROOT)$(ERLDIR)/contrib
 	mkdir -p $(DESTROOT)$(ERLDIR)/src
 	mkdir -p $(DESTROOT)$(ERLDIR)/include
@@ -54,7 +54,10 @@ install:
 	install -c -m 755 contrib/rtmp_bench $(DESTROOT)/usr/bin/rtmp_bench
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin
 	install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin
+	install -c -m 644 ebin/*.so $(DESTROOT)$(ERLDIR)/ebin
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src
+	install -c -m 644 Makefile $(DESTROOT)$(ERLDIR)/Makefile
+	install -c -m 644 Emakefile $(DESTROOT)$(ERLDIR)/Emakefile
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include
 
 debian:
