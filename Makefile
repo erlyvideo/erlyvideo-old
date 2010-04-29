@@ -71,6 +71,7 @@ install: compile
 	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
+	cp priv/production.config $(DESTROOT)/etc/erlyvideo/production.config
 
 
 debian: all
