@@ -496,21 +496,21 @@ activate_socket(Socket) when is_pid(Socket) ->
   ok.
 
 % FIXME: make here proper handling of flushing message queue
-send_data(State, #rtmp_message{} = Message) ->
-  {NewState, Data} = rtmp:encode(State, Message),
-  send_data(NewState, Data);
-  
-send_data(#rtmp_socket{socket = Socket, bytes_sent = Sent} = State, Data) when is_port(Socket) ->
-  erlang:port_command(Socket, Data, []),
-  receive
-	  {inet_reply,Socket,Status} -> Status
-	end,
-  % gen_tcp:send(Socket, Data),
-  State#rtmp_socket{bytes_sent = Sent + iolist_size(Data)};
-
-send_data(#rtmp_socket{socket = Socket, bytes_sent = Sent} = State, Data) when is_pid(Socket) ->
-  rtmpt:write(Socket, Data),
-  State#rtmp_socket{bytes_sent = Sent + iolist_size(Data)}.
+send_data(#rtmp_socket{socket = Socket} = State, Message) ->
+  {NewState, Data} = case Message of
+    #rtmp_message{} -> rtmp:encode(State, Message);
+    _ -> {State, Message}
+  end,
+  if
+    is_port(Socket) ->
+      erlang:port_command(Socket, Data, []),
+      receive
+    	  {inet_reply,Socket,Status} -> Status
+    	end;
+    is_pid(Socket) ->
+      rtmpt:write(Socket, Data)
+  end,
+  NewState.    
 
 
 handle_rtmp_data(State, Data) ->

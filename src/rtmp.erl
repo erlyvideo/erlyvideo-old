@@ -187,7 +187,7 @@ encode_bin(#rtmp_socket{codec = Codec} = State,
   Packet = <<Type:32, StreamId:32, TS:32, Id:32, Data/binary>>,
   {State, port_control(Codec, ?ENCODE, Packet)};
 
-encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} = State, 
+encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, bytes_sent = BytesSent} = State, 
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type) -> 
   ChunkList = chunk(Data, ChunkSize, Id),
 
@@ -205,7 +205,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} 
     	  false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,Delta:32>>
     	end,
     	Bin = [Header | ChunkList],
-      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1)}, Bin};
+      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin};
     Chan ->
       TS = case Timestamp of
         same -> 0;
@@ -222,7 +222,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels} 
         false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,StreamId:32/little,TS:32>>
       end,
       Bin = [Header | ChunkList],
-      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel)}, Bin}
+      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel), bytes_sent = BytesSent + iolist_size(Bin)}, Bin}
   end.
 
 encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 

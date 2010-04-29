@@ -27,6 +27,8 @@ struct hash_table {
 };
 
 typedef struct {
+  uint64_t bytes_sent;
+  uint64_t bytes_received;
   uint32_t chunk_size_in;
   uint32_t chunk_size_out;
   uint16_t next_free_csid;
@@ -529,6 +531,8 @@ static ErlDrvData driver_start(ErlDrvPort port, char *buf)
   state_data *state = (state_data *) driver_alloc(sizeof(state_data));
   state->chunk_size_in = DEFAULT_CHUNK_SIZE;
   state->chunk_size_out = DEFAULT_CHUNK_SIZE;
+  state->bytes_received = 0;
+  state->bytes_sent = 0;
   state->next_free_csid = 3;
   state->chunk_buf_in = init_hash_table();
   state->chunk_buf_out = init_hash_table();
