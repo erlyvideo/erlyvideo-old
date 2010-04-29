@@ -15,7 +15,7 @@ ERL_INCLUDE_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interfac
 ERL_LIB_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,lib)])' -s init stop -noshell)
 ERLDIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 
-all: 
+all: ebin/rtmp_codec_drv.so
 	erl -make
 	
 analyze:

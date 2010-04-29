@@ -55,6 +55,17 @@
 -define(RTMP_CONTROL_STREAM_MAYBE_SEEK, 32).
 
 
+-define(ENCODE, 1).
+-define(DECODE, 2).
+-define(OK, 3).
+-define(MORE, 4).
+-define(CONTINUE, 5).
+-define(SET_CHUNK_SIZE_IN, 6).
+-define(SET_CHUNK_SIZE_OUT, 7).
+-define(GET_CHUNK_SIZE_IN, 8).
+-define(GET_CHUNK_SIZE_OUT, 9).
+-define(CHUNK_ABORT, 10).
+-define(ALLOC_CSID, 11).
 
 
 -record(channel,{
@@ -77,6 +88,7 @@
   active = false    ::true|false|once,
   consumer          ::pid(),
   socket            ::port()|pid(),
+  codec = undefined ::port()|undefined,
   amf_version = 0   ::integer(),
 	channels          ::array(),
 	out_channels      ::array(),

@@ -225,15 +225,24 @@ invoke(RTMP, StreamId, Command, Args) ->
 
 invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
+
+init_codec() ->
+  case erl_ddll:load(code:lib_dir(rtmp,ebin), "rtmp_codec_drv") of
+    ok -> 
+      open_port({spawn, rtmp_codec_drv}, [binary]);
+    {error, Error} ->
+      error_logger:error_msg("Error loading ~p: ~p", [rtmp_codec_drv, erl_ddll:format_error(Error)]),
+      undefined
+  end.
   
 %% @private  
 init([Consumer, accept]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT};
+  {ok, wait_for_socket_on_server, #rtmp_socket{consumer = Consumer, codec = init_codec(), channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT};
 
 init([Consumer, connect]) ->
   (catch link(Consumer)),
-  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT}.
+  {ok, wait_for_socket_on_client, #rtmp_socket{consumer = Consumer, codec = init_codec(), channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT}.
 
 %% @private 
 
