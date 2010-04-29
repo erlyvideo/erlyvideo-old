@@ -142,11 +142,11 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
   ok ->
     %% New client connected - spawn a new process using the simple_one_for_one
     %% supervisor.
-    {ok, RTMP} = rtmp_sup:start_rtmp_socket(undefined, accept),
+    {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
     gen_tcp:controlling_process(CliSocket, RTMP),
     {ok, Pid} = Callback:create_client(RTMP),
     rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
-    gen_fsm:send_event(RTMP, {socket, CliSocket}),
+    rtmp_socket:set_socket(RTMP, CliSocket),
     %% Signal the network driver that we are ready to accept another connection
     {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
     {noreply, State#rtmp_listener{acceptor=NewRef}};

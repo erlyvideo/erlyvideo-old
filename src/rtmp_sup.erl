@@ -35,7 +35,7 @@
 
 -behaviour(supervisor).
 
--export([init/1,start_link/0, start_rtmpt/2, start_rtmp_socket/2, start_rtmp_listener/3]).
+-export([init/1,start_link/0, start_rtmpt/2, start_rtmp_socket/1, start_rtmp_listener/3]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -47,7 +47,7 @@ start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_rtmpt(SessionID, IP) -> supervisor:start_child(rtmpt_session_sup, [SessionID, IP]).
-start_rtmp_socket(Consumer, Type) -> supervisor:start_child(rtmp_socket_sup, [Consumer, Type]).
+start_rtmp_socket(Type) -> supervisor:start_child(rtmp_socket_sup, [Type]).
 
 
 start_rtmp_listener(Port, Name, Callback) ->
