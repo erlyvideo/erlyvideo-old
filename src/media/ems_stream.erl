@@ -127,23 +127,26 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
           Stream#ems_stream{mode = file, real_mode = file};
         _ ->
           {ok, MediaMode} = gen_server:call(MediaEntry, {subscribe, self()}),
-          Stream#ems_stream{mode = MediaMode,pos = Seek, real_mode = MediaMode,
-                             playing_from = PlayingFrom,
-                             play_end = PlayEnd}
+          Stream#ems_stream{mode = MediaMode, real_mode = MediaMode}
       end,  
       self() ! start,
       ?D({"Start", Host, Name, Stream1#ems_stream.mode}),
       ems_event:user_play(Host, Consumer, Name, MediaEntry),
-      ?MODULE:ready(Stream1#ems_stream{media_info = MediaEntry, name = Name,
+      ?MODULE:ready(Stream1#ems_stream{media_info = MediaEntry, name = Name,pos = Seek,
+                                playing_from = PlayingFrom,play_end = PlayEnd,
                                 stopped = false, paused = false,
                                 client_buffer = proplists:get_value(client_buffer, Options, 10000),
                                 sent_audio_config = false, sent_video_config = false, bytes_sent = 0,
                                 timer_start = element(1, erlang:statistics(wall_clock))})
   end.
 
+stop(#ems_stream{media_info = undefined} = Stream) ->
+  ?D({"Already stopped", self()}),
+  Stream;
+
 
 stop(#ems_stream{media_info = MediaEntry} = Stream) ->
-  ?D({"Stopping", MediaEntry}),
+  ?D({"Stopping", self(), MediaEntry}),
   notify_stats(Stream),
   gen_server:call(MediaEntry, {unsubscribe, self()}),
   flush_tick(),
@@ -396,12 +399,13 @@ tick(#ems_stream{paused = true} = State) ->
 
 
 tick(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
+  % ?D({tick,self(),MediaInfo,Key,Player#ems_stream.play_end}),
   send_frame(Player, file_media:read_frame(MediaInfo, Key)).
 
 
 %% Here goes plenty, plenty of cases
   
-send_frame(#ems_stream{play_end = PlayEnd, stream_id = _StreamId} = State, #video_frame{dts = Timestamp}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
+send_frame(#ems_stream{play_end = PlayEnd} = State, #video_frame{dts = Timestamp}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
   % Consumer ! {ems_stream, StreamId, play_complete, Length},
   ?D({"Finished due to playend"}),
   handle_eof(State);
