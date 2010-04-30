@@ -120,7 +120,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       Consumer ! {ems_stream, StreamId, start_play},
       {Seek, PlayingFrom, PlayEnd} = segment(MediaEntry, Options),
       
-      ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
+      ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom), Options}),
 
       Stream1 = case (catch PlayEnd - PlayingFrom) of
         SegmentLength when is_number(SegmentLength) -> 
@@ -129,14 +129,14 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
           {ok, MediaMode} = gen_server:call(MediaEntry, {subscribe, self()}),
           Stream#ems_stream{mode = MediaMode,pos = Seek, real_mode = MediaMode,
                              playing_from = PlayingFrom,
-                             play_end = PlayEnd,
-                             client_buffer = proplists:get_value(client_buffer, Options, 10000)}
+                             play_end = PlayEnd}
       end,  
       self() ! start,
       ?D({"Start", Host, Name, Stream1#ems_stream.mode}),
       ems_event:user_play(Host, Consumer, Name, MediaEntry),
       ?MODULE:ready(Stream1#ems_stream{media_info = MediaEntry, name = Name,
                                 stopped = false, paused = false,
+                                client_buffer = proplists:get_value(client_buffer, Options, 10000),
                                 sent_audio_config = false, sent_video_config = false, bytes_sent = 0,
                                 timer_start = element(1, erlang:statistics(wall_clock))})
   end.
