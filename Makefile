@@ -15,7 +15,9 @@ ERL_LIB_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,li
 ERLDIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/rtmp-$(VERSION)
 ERLANG_DIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 
-all: ebin/rtmp_codec_drv.so
+OBJS := $(patsubst src/%c,ebin/%so,$(wildcard src/*.c))
+
+all: $(OBJS)
 	erl -make
 	
 analyze:
