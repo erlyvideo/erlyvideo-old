@@ -71,7 +71,7 @@
 	timer_start,
 	playing_from = 0,
 	ts_prev = 0,
-	pos = 0,
+	pos = undefined,
 	stopped = false
 }).
 
@@ -120,7 +120,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
       Consumer ! {ems_stream, StreamId, start_play},
       {Seek, PlayingFrom, PlayEnd} = segment(MediaEntry, Options),
       
-      ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom), Options}),
+      ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
 
       Stream1 = case (catch PlayEnd - PlayingFrom) of
         SegmentLength when is_number(SegmentLength) -> 
@@ -173,7 +173,7 @@ segment(MediaEntry, Options) ->
     {BeforeAfterSeek, SeekTo} ->
       case file_media:seek(MediaEntry, BeforeAfterSeek, SeekTo) of
         {Pos, NewTimestamp} ->
-          % ?D({"Starting from", round(SeekTo), NewTimestamp}),
+          ?D({"Starting from", Pos,round(SeekTo), NewTimestamp}),
           {Pos, NewTimestamp, NewTimestamp};
         _ ->
           {undefined, 0, 0}
