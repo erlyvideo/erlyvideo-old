@@ -331,7 +331,7 @@ handle_stream(Message, #ems_stream{} = State) ->
 
 
     #video_frame{} = Frame ->
-      ?MODULE:ready(send_frame(State, Frame));
+      send_frame(State, Frame);
 
     eof ->
       ?D("MPEG TS finished"),
