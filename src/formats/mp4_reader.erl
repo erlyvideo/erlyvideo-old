@@ -44,20 +44,22 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 
 
 first(_) ->
-  audio_config.
+  {audio_config, 0}.
 
 
 lookup_frame(video, #media_info{video_track = FrameTable}) -> FrameTable;
 lookup_frame(audio, #media_info{audio_track = FrameTable}) -> FrameTable.
 
 
-read_frame(MediaInfo, audio_config) ->
+read_frame(MediaInfo, {audio_config, Pos}) ->
+  ?D({"Send audio config", Pos}),
   Frame = codec_config(audio, MediaInfo),
-  Frame#video_frame{next_id = video_config};
+  Frame#video_frame{next_id = {video_config,Pos}};
 
-read_frame(MediaInfo, video_config) ->
+read_frame(MediaInfo, {video_config,Pos}) ->
+  ?D({"Send video config", Pos}),
   Frame = codec_config(video, MediaInfo),
-  Frame#video_frame{next_id = 0};
+  Frame#video_frame{next_id = Pos};
 
 read_frame(_, eof) ->
   eof;
@@ -88,6 +90,9 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
       {ok, Data, MediaInfo};
     Else -> Else
   end.
+
+seek(#media_info{}, before, Timestamp) when Timestamp == 0 ->
+  {{audio_config,0}, 0};
   
 seek(#media_info{video_track = FrameTable, frames = Frames}, before, Timestamp) ->
   Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
@@ -96,7 +101,7 @@ seek(#media_info{video_track = FrameTable, frames = Frames}, before, Timestamp) 
   case lists:reverse(Ids) of
     [{VideoID, NewTimestamp} | _] ->
       [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
-        {ID, NewTimestamp}
+        {{audio_config,ID}, NewTimestamp}
       end)),
       Item;
     _ -> undefined
@@ -109,7 +114,7 @@ seek(#media_info{video_track = FrameTable, frames = Frames}, 'after', Timestamp)
   case Ids of
     [{VideoID, NewTimestamp} | _] ->
       [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
-        {ID, NewTimestamp}
+        {{audio_config,ID}, NewTimestamp}
       end)),
       Item;
     _ -> undefined
