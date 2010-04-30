@@ -1,3 +1,11 @@
+erlyvideo (1.8.1) karmic; urgency=low
+
+  * Minor fixes in rtmp_session
+  * Refactored ems_stream
+  * Has server playlists!
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 29 Apr 2010 21:53:27 +0400
+
 erlyvideo (1.8.0) karmic; urgency=low
 
   * Continious iPhone streaming
