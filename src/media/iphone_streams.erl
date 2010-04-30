@@ -55,9 +55,9 @@ start_link(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
-  {_, Count, _, _} = segments(Host, Name),
-  Options = case Count of
-    Number -> [{client_buffer,0}];
+  {_, Count, _, Type} = segments(Host, Name),
+  Options = case {Count,Type} of
+    {Number,stream} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
   media_provider:play(Host, Name, [{stream_id, 1}, {seek, {'before', Number * ?STREAM_TIME}}|Options]).
