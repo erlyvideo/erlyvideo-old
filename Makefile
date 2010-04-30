@@ -13,6 +13,7 @@ endif
 ERL_INCLUDE_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,include)])' -s init stop -noshell)
 ERL_LIB_DIR := $(shell erl -eval 'io:format("~s", [code:lib_dir(erl_interface,lib)])' -s init stop -noshell)
 ERLDIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/rtmp-$(VERSION)
+ERLANG_DIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 
 all: ebin/rtmp_codec_drv.so
 	erl -make
@@ -28,7 +29,7 @@ doc:
 ebin/rtmp_codec_drv.so: src/rtmp_codec_drv.c
 	gcc -g -O2 -Wall  \
 	src/rtmp_codec_drv.c \
-	-I$(ERL_INCLUDE_DIR) -I$(ERLDIR)/usr/include \
+	-I$(ERL_INCLUDE_DIR) -I$(ERLANG_DIR)/usr/include \
 	-L$(ERL_LIB_DIR) -lerl_interface -lei \
 	-o ebin/rtmp_codec_drv.so \
 	$(DYNAMIC_LIB_CFLAGS)
