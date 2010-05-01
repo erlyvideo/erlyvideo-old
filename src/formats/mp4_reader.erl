@@ -13,6 +13,7 @@
 
 -export([init/1, read_frame/2, metadata/1, codec_config/2, seek/3, first/1]).
 
+-define(FRAMESIZE, 8).
 
 codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
@@ -64,16 +65,27 @@ read_frame(MediaInfo, {video_config,Pos}) ->
 read_frame(_, eof) ->
   eof;
 
-read_frame(#media_info{frames = Frames} = MediaInfo, Id) ->
-  [{Id, Type, FrameId}] = ets:lookup(Frames, Id),
+read_frame(#media_info{frames = Frames} = MediaInfo, Id) when Id*?FRAMESIZE < size(Frames)->
+  % [{Id, Type, FrameId}] = ets:lookup(Frames, Id),
+  FrameOffset = Id*?FRAMESIZE,
+  <<_:FrameOffset/binary, Id:32, BinType:1, FrameId:31, _/binary>> = Frames,
+  Type = case BinType of
+    1 -> video;
+    0 -> audio
+  end,
 
   FrameTable = lookup_frame(Type, MediaInfo),
   Frame = mp4:read_frame(FrameTable, FrameId),
   #mp4_frame{offset = Offset, size = Size} = Frame,
-  Next = case ets:next(Frames, Id) of
-    '$end_of_table' -> eof;
-    NextId -> NextId
+  % Next = case ets:next(Frames, Id) of
+  %   '$end_of_table' -> eof;
+  %   NextId -> NextId
+  % end,
+  Next = if
+    (Id+1)*?FRAMESIZE == size(Frames) -> eof;
+    true -> Id + 1
   end,
+    
   
 	case read_data(MediaInfo, Offset, Size) of
 		{ok, Data, _} -> 
@@ -90,35 +102,32 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
       {ok, Data, MediaInfo};
     Else -> Else
   end.
+  
 
 seek(#media_info{}, before, Timestamp) when Timestamp == 0 ->
   {{audio_config,0}, 0};
   
-seek(#media_info{video_track = FrameTable, frames = Frames}, before, Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp =< Timestamp ->
-    {Id, FrameTimestamp}
-  end)),
-  case lists:reverse(Ids) of
-    [{VideoID, NewTimestamp} | _] ->
-      [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
-        {{audio_config,ID}, NewTimestamp}
-      end)),
-      Item;
-    _ -> undefined
-  end;
-
-seek(#media_info{video_track = FrameTable, frames = Frames}, 'after', Timestamp) ->
-  Ids = ets:select(FrameTable, ets:fun2ms(fun(#mp4_frame{id = Id, dts = FrameTimestamp, keyframe = true} = _Frame) when FrameTimestamp >= Timestamp ->
-    {Id, FrameTimestamp}
-  end)),
-  case Ids of
-    [{VideoID, NewTimestamp} | _] ->
-      [Item] = ets:select(Frames, ets:fun2ms(fun({ID, video, VideoFrameID}) when VideoID == VideoFrameID -> 
-        {{audio_config,ID}, NewTimestamp}
-      end)),
-      Item;
-    _ -> undefined
+seek(#media_info{video_track = FrameTable, frames = Frames}, Direction, Timestamp) ->
+  case mp4:seek(FrameTable, Direction, Timestamp) of
+    {VideoID, NewTimestamp} ->
+      ID = find_by_frameid(Frames, video, VideoID),
+      {{audio_config,ID},NewTimestamp};
+    undefined ->
+      undefined
   end.
+
+
+find_by_frameid(Frames, video, VideoID) ->
+  find_by_frameid(Frames, 1, VideoID);
+  
+find_by_frameid(Frames, Type, FrameID) ->
+  case Frames of
+    <<ID:32, Type:1, FrameID:31, _/binary>> -> ID;
+    <<_:64, Rest/binary>> -> find_by_frameid(Rest, Type, FrameID);
+    <<>> -> undefined
+  end.
+
+  
   
 
 video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS}, Data) ->
@@ -175,21 +184,22 @@ read_header(#media_info{device = Device} = MediaInfo) ->
 build_index_table(#media_info{video_track = Video, audio_track = Audio} = MediaInfo) ->
   VideoCount = mp4:frame_count(Video),
   AudioCount = mp4:frame_count(Audio),
-  Index = ets:new(index_table, [ordered_set]),
-  build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
-  {ok, MediaInfo#media_info{frames = Index}}.
+  % Index = ets:new(index_table, [ordered_set]),
+  Index = <<>>,
+  BuiltIndex = build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
+  {ok, MediaInfo#media_info{frames = BuiltIndex}}.
 
 
 build_index_table(_Video, VC, VC, _Audio, AC, AC, Index, _ID) ->
   Index;
 
 build_index_table(Video, VC, VC, Audio, AudioID, AudioCount, Index, ID) ->
-  ets:insert(Index, {ID, audio, AudioID}),
-  build_index_table(Video, VC, VC, Audio, AudioID+1, AudioCount, Index, ID+1);
+  % ets:insert(Index, {ID, audio, AudioID}),
+  build_index_table(Video, VC, VC, Audio, AudioID+1, AudioCount, <<Index/binary, ID:32, 0:1, AudioID:31>>, ID+1);
 
 build_index_table(Video, VideoID, VideoCount, Audio, AC, AC, Index, ID) ->
-  ets:insert(Index, {ID, video, VideoID}),
-  build_index_table(Video, VideoID + 1, VideoCount, Audio, AC, AC, Index, ID+1);
+  % ets:insert(Index, {ID, video, VideoID}),
+  build_index_table(Video, VideoID + 1, VideoCount, Audio, AC, AC, <<Index/binary, ID:32, 1:1, VideoID:31>>, ID+1);
 
 
 build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index, ID) ->
@@ -197,11 +207,11 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   VFrame = mp4:read_frame(Video, VideoID),
   case {VFrame#mp4_frame.dts, AFrame#mp4_frame.dts} of
     {VDTS, ADTS} when VDTS < ADTS ->
-      ets:insert(Index, {ID, video, VideoID}),
-      build_index_table(Video, VideoID + 1, VideoCount, Audio, AudioID, AudioCount, Index, ID+1);
+      % ets:insert(Index, {ID, video, VideoID}),
+      build_index_table(Video, VideoID + 1, VideoCount, Audio, AudioID, AudioCount, <<Index/binary, ID:32, 1:1, VideoID:31>>, ID+1);
     {_VDTS, _ADTS} ->
-      ets:insert(Index, {ID, audio, AudioID}),
-      build_index_table(Video, VideoID, VideoCount, Audio, AudioID + 1, AudioCount, Index, ID+1)
+      % ets:insert(Index, {ID, audio, AudioID}),
+      build_index_table(Video, VideoID, VideoCount, Audio, AudioID + 1, AudioCount, <<Index/binary, ID:32, 0:1, AudioID:31>>, ID+1)
   end.
 
 
