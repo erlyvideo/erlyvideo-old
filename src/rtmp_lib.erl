@@ -166,7 +166,10 @@ seek_failed(RTMP, StreamId) ->
   
 
 play_complete(RTMP, StreamId, Options) ->
-  Duration = proplists:get_value(duration, Options, 0),
+  Duration = case proplists:get_value(duration, Options) of
+    undefined -> 0;
+    Else -> Else
+  end,
 
   PlayComplete1Arg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}, {duration, Duration/1000},{bytes,0}]},
   PlayComplete1 = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
