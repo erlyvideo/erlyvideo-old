@@ -35,13 +35,12 @@ init([FileName]) ->
 	
 writer(#flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
   receive
+    #video_frame{dts = DTS} = Frame when BaseDTS == undefined ->
+    	Writer(flv_video_frame:to_tag(Frame#video_frame{dts = 0})),
+    	?MODULE:writer(FlvWriter#flv_file_writer{base_dts = DTS});
     #video_frame{dts = DTS} = Frame ->
-      {DTS1, BaseDTS1} = case BaseDTS of
-        undefined -> {0, DTS};
-        _ -> {DTS - BaseDTS, BaseDTS}
-      end,
-    	Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS1})),
-    	?MODULE:writer(FlvWriter#flv_file_writer{base_dts = BaseDTS1});
+    	Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS})),
+    	?MODULE:writer(FlvWriter);
     stop ->
       ok;
     Else ->

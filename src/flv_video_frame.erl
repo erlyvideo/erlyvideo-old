@@ -122,12 +122,7 @@ to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS1} = Frame)
   StreamId = 0, % by spec
   Body = encode(Frame),
 	BodyLength = size(Body),
-	{TimeStampExt, TimeStamp} = case <<DTS:32>> of
-		<<TimeStampExt1:8,TimeStamp1:24>> -> 
-			{TimeStampExt1, TimeStamp1};
-		_ ->
-			{0, DTS}
-	end,
+	<<TimeStampExt:8,TimeStamp:24>> = <<DTS:32>>,
 	PrevTagSize = BodyLength + 11,
 	<<(flv:frame_format(Type)):8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Body/binary,PrevTagSize:32>>.
 
