@@ -109,7 +109,9 @@ reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   RTSP = ems:get_var(rtsp_port, undefined),
   HTTP = ems:get_var(http_port, undefined),
+  ems_vhosts:stop(),
   load_config(),
+  ems_vhosts:start(),
   ems_log:stop(),
   ems_log:start(),
   % ems_http:stop(),
@@ -145,12 +147,12 @@ load_config() ->
 
   case file:path_consult(["priv", "/etc/erlyvideo"], "erlyvideo.conf") of
     {ok, Env, Path} -> 
-      io:format("Loading config from file ~s~n", [Path]),
+      error_logger:info_report("Erlyvideo is loading config from file ~s~n", [Path]),
       [application:set_env(erlyvideo, Key, Value) || {Key, Value} <- Env],
       ok;
-    {error, enoent} -> io:format("No config found~n");
+    {error, enoent} ->
+      error_logger:error_msg("No erlyvideo.conf found");
     {error, Reason} ->
-      io:format("Couldn't load erlyvideo.conf: ~p~n", [Reason]),
       error_logger:error_msg("Couldn't load erlyvideo.conf: ~p~n", [Reason]),
       ok
   end.
