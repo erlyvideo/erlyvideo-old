@@ -10,6 +10,7 @@
 
 %% External API
 -export([start_link/3, codec_config/2, metadata/1, publish/2, set_owner/2, pass_socket/2]).
+-export([subscribe/1,unsubscribe/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
@@ -39,6 +40,12 @@ pass_socket(Media, Socket) ->
   ok = gen_tcp:controlling_process(Socket, Media),
   gen_server2:call(Media, {set_socket, Socket}).
   
+  
+subscribe(Stream) ->
+  gen_server:call(Stream, {subscribe,self()}).
+
+unsubscribe(Stream) ->
+  gen_server:call(Stream, {unsubscribe,self()}).
 
 connect_http(#media_info{type = mpegts_passive}) ->
   undefined;

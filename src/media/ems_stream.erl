@@ -126,7 +126,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, consumer = Consumer,
         SegmentLength when is_number(SegmentLength) -> 
           Stream#ems_stream{mode = file, real_mode = file};
         _ ->
-          {ok, MediaMode} = gen_server:call(MediaEntry, {subscribe, self()}),
+          {ok, MediaMode} = stream_media:subscribe(MediaEntry),
           Stream#ems_stream{mode = MediaMode, real_mode = MediaMode}
       end,  
       self() ! start,
@@ -148,7 +148,7 @@ stop(#ems_stream{media_info = undefined} = Stream) ->
 stop(#ems_stream{media_info = MediaEntry} = Stream) ->
   ?D({"Stopping", self(), MediaEntry}),
   notify_stats(Stream),
-  gen_server:call(MediaEntry, {unsubscribe, self()}),
+  stream_media:unsubscribe(MediaEntry),
   flush_tick(),
   flush_frames(),
   Stream#ems_stream{media_info = undefined, stopped = true}.
@@ -263,7 +263,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
     {seek, _BeforeAfter, Timestamp} when RealMode == stream andalso Timestamp == 0 andalso MediaEntry =/= undefined ->
       ?D({"Return to live"}),
       flush_tick(),
-      gen_server:call(MediaEntry, {subscribe, self()}),
+      stream_media:subscribe(MediaEntry),
       ?MODULE:ready(State#ems_stream{mode = stream});
       
     {seek, BeforeAfter, Timestamp} when MediaEntry =/= undefined ->
@@ -274,7 +274,7 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
           ?MODULE:ready(State);
         {Pos, NewTimestamp} ->
           ?D({"Player real seek to", round(Timestamp), NewTimestamp, ClientBuffer}),
-          gen_server:call(MediaEntry, {unsubscribe, self()}),
+          stream_media:unsubscribe(MediaEntry),
           self() ! tick,
           flush_frames(),
           Consumer ! {ems_stream, StreamId, seek_notify, NewTimestamp},
