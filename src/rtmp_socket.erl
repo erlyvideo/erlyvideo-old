@@ -231,11 +231,17 @@ invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
 
 init_codec() ->
-  case erl_ddll:load(code:lib_dir(rtmp,ebin), "rtmp_codec_drv") of
-    ok -> 
-      open_port({spawn, rtmp_codec_drv}, [binary]);
-    {error, Error} ->
-      error_logger:error_msg("Error loading ~p: ~p", [rtmp_codec_drv, erl_ddll:format_error(Error)]),
+  Path = code:lib_dir(rtmp,ebin) ++ "/rtmp_codec_drv.so",
+  case filelib:is_file(Path) of
+    true ->
+      case erl_ddll:load(code:lib_dir(rtmp,ebin), "rtmp_codec_drv") of
+        ok -> 
+          open_port({spawn, rtmp_codec_drv}, [binary]);
+        {error, Error} ->
+          error_logger:error_msg("Error loading ~p: ~p", [rtmp_codec_drv, erl_ddll:format_error(Error)]),
+          undefined
+      end;
+    false ->
       undefined
   end.
   
