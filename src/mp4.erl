@@ -46,6 +46,7 @@ btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 -export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1]).
 
 
+-define(FRAMESIZE, 26).
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
@@ -80,14 +81,19 @@ read_atom_header({Module, Device}, Pos) ->
 
 
 
-read_frame(Frames, Id) ->
-  case ets:lookup(Frames, Id) of
-    [Frame] -> Frame;
-    [] -> ?D({"No frame", Id}), undefined
-  end.
+read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
+  FrameOffset = Id*?FRAMESIZE,
+  % ?D({read_frame,Id, size(Frames) div ?FRAMESIZE}),
+  <<_:FrameOffset/binary, FKeyframe:1, Size:15, Offset:64, DTS:64/float, PTS:64/float, _/binary>> = Frames,
+  Keyframe = case FKeyframe of
+    1 -> true;
+    0 -> false
+  end,
+  #mp4_frame{id = Id, dts = DTS, pts = PTS, size = Size, offset = Offset, keyframe = Keyframe}.
+  
 
 frame_count(undefined) -> 0;
-frame_count(Frames) -> proplists:get_value(size, ets:info(Frames)).
+frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
   
 parse_atom(<<>>, Mp4Parser) ->
@@ -471,7 +477,8 @@ unpack_track(#mp4_track{} = Mp4Track) ->
   
 fill_track(Mp4Track) ->
   Track = unpack_track(Mp4Track),
-  Frames = ets:new(frames, [ordered_set, {keypos, #mp4_frame.id}]),
+  % Frames = ets:new(frames, [ordered_set, {keypos, #mp4_frame.id}]),
+  Frames = <<>>,
   
   #mp4_track{
     sample_sizes = SampleSizes,
@@ -481,17 +488,24 @@ fill_track(Mp4Track) ->
     keyframes = Keyframes,
     timescale = Timescale
   } = Track,
-  MaxDTS = fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, 0, 0),
-  ?D({max_dts, MaxDTS*1000/Timescale}),
-  {Frames, MaxDTS*1000/Timescale}.
+  {Filled, MaxDTS} = fill_track(Frames, SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, 0, 0),
+  ?D({max_dts, MaxDTS, size(Filled) div ?FRAMESIZE}),
+  {Filled, MaxDTS}.
 
-fill_track([], [], [], [], [], _, _Frames, _, DTS) ->
-  DTS;
+fill_track(Frames, [], [], [], [], [], _, _, DTS) ->
+  {Frames, DTS};
 
-fill_track([Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [PTS|Compositions], Timescale, Frames, Id, _) ->
-  Frame = #mp4_frame{id = Id, dts = DTS*1000/Timescale, pts = (DTS+PTS)*1000/Timescale, size = Size, offset = Offset, keyframe = Keyframe},
-  ets:insert(Frames, Frame),
-  fill_track(SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Frames, Id+1, DTS).
+fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [PTS|Compositions], Timescale, Id, _) ->
+  % Frame = #mp4_frame{id = Id, dts = DTS*1000/Timescale, pts = (DTS+PTS)*1000/Timescale, size = Size, offset = Offset, keyframe = Keyframe},
+  FDTS = DTS*1000/Timescale,
+  FPTS = (DTS+PTS)*1000/Timescale,
+  FKeyframe = case Keyframe of
+    true -> 1;
+    _ -> 0
+  end,
+  % ets:insert(Frames, Frame),
+  fill_track(<<Frames/binary, FKeyframe:1, Size:15, Offset:64, FDTS:64/float, FPTS:64/float>>,
+             SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Id+1, FDTS).
 
 mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
   {Rest, Rest2};
