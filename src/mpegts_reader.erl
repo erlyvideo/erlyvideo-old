@@ -32,6 +32,7 @@
 -record(stream, {
   pid,
   program_num,
+  demuxer,
   handler,
   consumer,
   type,
@@ -88,6 +89,9 @@ synchronizer(#ts_lander{consumer = Consumer, buffer = Buffer} = TSLander) ->
     {'DOWN', _Ref, process, Consumer, _Reason} ->
       ?D({"MPEG TS reader lost consumer"}),
       ok;
+    {'DOWN', _Ref, process, Pid, _Reason} ->
+      ?D({"MPEG TS reader lost pid handler"}),
+      ok;
     % {data, Bin} when size(Buffer) == 0 ->
     %   ?D({"Rece"})
     %   synchronizer(Bin, TSLander),
@@ -127,9 +131,18 @@ demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid
       % ?D({Handler, Packet}),
       ?MODULE:Handler(ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, Header);
     #stream_out{handler = Handler} ->
+      % ?D("ZZZ"),
       Handler ! {ts_packet, Header, ts_payload(Packet)},
+      receive
+        {ok, Pid} -> ok
+      after
+        1000 -> 
+          error_logger:error_msg("Pid ~p failed to reply", [Pid]),
+          erlang:exit({pid_timeout,Pid})
+      end,
       TSLander;
     false ->
+      % ?D({none,Pid,Pids}),
       TSLander
   end.
   
@@ -208,7 +221,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = spawn_link(?MODULE, pes, [Stream#stream{program_num = ProgramNum, consumer = Consumer, h264 = #h264{}}]),
+        Handler = spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, consumer = Consumer, h264 = #h264{}}]),
         ?D({"Starting PID", Pid, Handler}),
         erlang:monitor(process, Handler),
         #stream_out{pid = Pid, handler = Handler};
@@ -238,36 +251,41 @@ stream_type(?TYPE_AUDIO_AAC) -> audio;
 stream_type(?TYPE_AUDIO_AAC2) -> audio;
 stream_type(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
-pes(#stream{synced = false, pid = Pid} = Stream) ->
+pes(#stream{demuxer = Demuxer, synced = false, pid = Pid} = Stream) ->
   receive
     {ts_packet, #ts_header{payload_start = 0}, _} ->
       ?D({"Not synced pes", Pid}),
+      Demuxer ! {ok, Pid},
       ?MODULE:pes(Stream);
     {ts_packet, #ts_header{payload_start = 1}, Packet} ->
       ?D({"Synced PES", Pid}),
       stream_timestamp(Packet, Stream),
       Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
+      Demuxer ! {ok, Pid},
       ?MODULE:pes(Stream1);
     {ts_packet, #ts_header{}, _} ->
       % ?D({"Not synced pes", Pid}),
+      Demuxer ! {ok, Pid},
       ?MODULE:pes(Stream);
     Other ->
-      ?D({"Undefined message to pid", Pid, Other})
+      ?D({"Undefined message to unsynced pid", Pid, Other})
   end;
   
-pes(#stream{synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
+pes(#stream{demuxer = Demuxer, synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
   receive
     {ts_packet, #ts_header{payload_start = 0} = Header, Packet} ->
       Stream1 = copy_pcr(Header, Stream#stream{synced = true, ts_buffer = [Packet | Buf]}),
+      Demuxer ! {ok, Pid},
       ?MODULE:pes(Stream1);
     {ts_packet, #ts_header{payload_start = 1} = Header, Packet} ->
       PES = iolist_to_binary(lists:reverse(Buf)),
       Stream1 = stream_timestamp(Packet, copy_pcr(Header, Stream)),
       % ?D({Stream1#stream.type, Stream1#stream.pcr, Stream1#stream.dts}),
       Stream2 = pes_packet(PES, Stream1),
+      Demuxer ! {ok, Pid},
       ?MODULE:pes(Stream2#stream{ts_buffer = [Packet]});
     Other ->
-      ?D({"Undefined message to pid", Pid, Other})
+      ?D({"Undefined message to synced pid", Pid, Other})
   end.
 
 copy_pcr(#ts_header{pcr = undefined}, Stream) -> Stream;
@@ -298,6 +316,10 @@ stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeader
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
   PTS = PTS1 / 90,
   DTS = DTS1 / 90,
+  % case PTS of
+  %   DTS -> ?D({dup_pts, PTS});
+  %   _ -> ?D({bframe, DTS, PTS-DTS})
+  % end,
   % ?D({"Have DTS & PTS", Stream#stream.pid, round(DTS), round(PTS)}),
   normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
   
@@ -310,7 +332,7 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
   normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
 
 % FIXME!!!
-% Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only OPCR, once a second,
+% Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only PCR, once a second,
 % thus I increment timestamp counter on each NAL, assuming, that there is 25 FPS.
 % This is very, very wrong, but I really don't know how to calculate it in other way.
 % stream_timestamp(_, #stream{pcr = PCR} = Stream, _) when is_number(PCR) ->
@@ -424,7 +446,12 @@ handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
 
 handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   % <<_:3, T:5, _/binary>> = NAL,
-  % ?D({nal, DTS, T}),
+  % case get(prev_dts) of
+  %   undefined -> ok;
+  %   P -> 
+  %     ?D({nal, round(DTS) - P, round(PTS) - round(DTS), T})
+  % end,
+  % put(prev_dts, round(DTS)),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   case {h264:has_config(H264), h264:has_config(H264_1)} of
     {false, true} -> Consumer ! h264:video_config(H264_1);
