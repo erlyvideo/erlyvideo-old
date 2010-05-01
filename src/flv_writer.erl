@@ -42,6 +42,8 @@ writer(#flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
       end,
     	Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS1})),
     	?MODULE:writer(FlvWriter#flv_file_writer{base_dts = BaseDTS1});
+    stop ->
+      ok;
     Else ->
       ?D({"flv_writer", Else}),
     	?MODULE:writer(FlvWriter)
