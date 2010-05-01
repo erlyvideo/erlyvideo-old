@@ -53,8 +53,12 @@ handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'EXIT
   ?D({"MPEG TS reader disconnected", Streamer, Counters}),
   % {_Streamer1, Bin} = mpegts:pad_continuity_counters(Streamer),
   % Req:stream(Bin),
-  Player ! stop,
+  Player ! exit,
   Counters;
+
+handle_msg(#http_player{player = Player, streamer = Streamer}, {ems_stream, _,play_complete,_}) ->
+  Player ! exit,
+  mpegts:continuity_counters(Streamer);
 
 handle_msg(#http_player{} = Streamer, Message) ->
   ?D(Message),
