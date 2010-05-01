@@ -356,7 +356,7 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, consumer = Consumer, st
     start ->
       case file_media:metadata(MediaInfo) of
         undefined -> ok;
-        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData]}
+        MetaData -> Consumer ! #video_frame{type = metadata, stream_id = StreamId, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData], dts = 0, pts = 0}
       end,
     	self() ! tick,
       ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false});
