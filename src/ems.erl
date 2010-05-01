@@ -38,11 +38,28 @@
 
 -export([rebuild/0, restart/0]).
 
+-export([list_by/1, top_info/1, top_info/2]).
+
 rebuild() -> erlyvideo:rebuild().
 restart() -> erlyvideo:restart().
 
  
-      
+
+list_by(What) ->
+  Processes = [{Pid,erlang:element(2,erlang:process_info(Pid,What))} || Pid <- erlang:processes()],
+  lists:sort(fun({_Pid1,Info1}, {_Pid2,Info2}) ->
+    Info1 > Info2
+  end, Processes).
+  
+  
+top_info(What) -> top_info(What, 10).
+
+top_info(What, Count) ->
+  Top = lists:sublist(list_by(What), Count),
+  [process_info(Pid,[memory,status,messages,links,
+   reductions,total_heap_size,
+   stack_size,suspending,dictionary,priority,initial_call,
+   current_function,message_queue_len,garbage_collection]) || {Pid,_} <- Top].
 
 
 expand_tuple(Tuple, 0) -> Tuple;
