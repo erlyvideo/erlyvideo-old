@@ -43,7 +43,7 @@
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
 
--export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1]).
+-export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3]).
 
 
 -define(FRAMESIZE, 26).
@@ -80,6 +80,21 @@ read_atom_header({Module, Device}, Pos) ->
   end.
 
 
+seek(Frames, before, Timestamp) ->
+  seek(Frames, before, Timestamp, 0, undefined).
+
+seek(<<1:1, _Size:15, _Offset:64, DTS:64/float, _PTS:64/float, _/binary>>, before, Timestamp, _, {FoundId,FoundDTS}) when DTS > Timestamp ->
+  {FoundId,FoundDTS};
+
+seek(<<1:1, _Size:15, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, before, Timestamp, Id, _)  ->
+  seek(Frames, before, Timestamp, Id+1, {Id, DTS});
+
+seek(<<_:?FRAMESIZE/binary, Frames/binary>>, Direction, Timestamp, Id, Found) ->
+  seek(Frames, Direction, Timestamp, Id+1, Found);
+  
+seek(<<>>, _, _, _, Found) ->
+  Found.
+  
 
 read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
