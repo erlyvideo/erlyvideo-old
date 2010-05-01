@@ -265,7 +265,7 @@ open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} 
         {ok, Pid} ->
           erlang:monitor(process, Pid),
           ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
-          ems_event:stream_started(Host, Name, Pid),
+          ems_event:stream_started(Host, Name, Pid, [{type,Type}|Opts]),
           Pid;
         _ ->
           ?D({"Error opening", Type, Name}),

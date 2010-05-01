@@ -37,7 +37,7 @@
 -export([start_link/0, notify/1, add_handler/2, add_sup_handler/2, remove_handler/1]).
 
 -export([user_connected/2, user_disconnected/2, user_play/4, user_stop/4]).
--export([stream_started/3, stream_source_lost/3, stream_stopped/3]).
+-export([stream_started/4, stream_source_lost/3, stream_stopped/3]).
 
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
@@ -128,8 +128,8 @@ user_stop(Host, User, Name, Stats) ->
 %% @doc send event that stream has started
 %% @end
 %%----------------------------------------------------------------------
-stream_started(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, {stream_started, Host, Name, Stream}).
+stream_started(Host, Name, Stream, Options) ->
+  gen_event:notify(?MODULE, {stream_started, Host, Name, Stream, Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Channel::integer(), Message::text) -> {ok}
