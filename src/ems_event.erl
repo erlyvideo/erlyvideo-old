@@ -36,7 +36,7 @@
 %% External API
 -export([start_link/0, notify/1, add_handler/2, add_sup_handler/2, remove_handler/1]).
 
--export([user_connected/2, user_disconnected/2, user_play/4, user_stop/4]).
+-export([user_connected/2, user_disconnected/2, user_play/3, user_stop/4]).
 -export([stream_started/4, stream_source_lost/3, stream_stopped/3]).
 
 %% gen_event callbacks
@@ -110,8 +110,8 @@ user_disconnected(Host, Session) ->
 %% @doc send event that user has started playing
 %% @end
 %%----------------------------------------------------------------------
-user_play(Host, User, Name, Media) ->
-  gen_event:notify(?MODULE, {user_play, Host, User, Name, Media}).
+user_play(Host, User, Name) ->
+  gen_event:notify(?MODULE, {user_play, Host, User, Name}).
 
 %%--------------------------------------------------------------------
 %% @spec (Channel::integer(), Message::text) -> {ok}

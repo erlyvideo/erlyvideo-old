@@ -10,6 +10,7 @@
 
 %% External API
 -export([start_link/3, codec_config/2, read_frame/2, name/1, seek/3, metadata/1]).
+-export([file_dir/1, file_format/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -202,9 +203,9 @@ open_file(Name, Host) when is_binary(Name) ->
   open_file(binary_to_list(Name), Host);
   
 open_file(Name, Host) ->
-  FileName = filename:join([ems_stream:file_dir(Host), Name]), 
+  FileName = filename:join([file_media:file_dir(Host), Name]), 
 	{ok, Device} = file:open(FileName, [read, binary, {read_ahead, 100000}, raw]),
-	FileFormat = ems_stream:file_format(FileName),
+	FileFormat = file_media:file_format(FileName),
 	MediaInfo = #media_info{
 	  device = Device,
 	  name = FileName,
@@ -217,4 +218,31 @@ open_file(Name, Host) ->
 		  ?D(_HdrError),
 		  {error, _HdrError}
 	end.
+
+
+
+
+%%-------------------------------------------------------------------------
+%% @spec () -> FileName::string()
+%% @doc retrieves FLV video file folder from application environment
+%% @end
+%%-------------------------------------------------------------------------	
+file_dir(Host) ->
+  ems:get_var(file_dir, Host, undefined).
+
+
+
+file_format(Name) ->
+  case filename:extension(Name) of
+      ".flv" -> flv_reader;
+      ".FLV" -> flv_reader;
+      ".3gp" -> mp4_reader;
+      ".mp4" -> mp4_reader;
+      ".MP4" -> mp4_reader;
+      ".mov" -> mp4_reader;
+      ".m4v" -> mp4_reader;
+      ".mkv" -> mkv;
+      ".MKV" -> mkv;
+      _ -> flv_reader
+  end.
 
