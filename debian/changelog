@@ -1,3 +1,9 @@
+erlmedia (1.2.10) karmic; urgency=low
+
+  * mp4 now doesnt use ets
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 02 May 2010 13:54:33 +0400
+
 erlmedia (1.2.9) karmic; urgency=low
 
   * Changed video_frame format
