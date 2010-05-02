@@ -92,7 +92,7 @@
 createStream(#rtmp_session{host = Host} = State, AMF) -> 
   {State1, StreamId} = next_stream(State),
   #rtmp_session{streams = Streams} = State1,
-  {ok, Stream} = ems_sup:start_ems_stream([{consumer, self()}, {stream_id, StreamId}, {host, Host}]),
+  {ok, Stream} = ems_sup:start_rtmp_stream([{consumer, self()}, {stream_id, StreamId}, {host, Host}]),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   State1#rtmp_session{streams = setelement(StreamId, Streams, Stream)}.
 
