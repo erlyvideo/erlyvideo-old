@@ -510,15 +510,15 @@ fill_track(Mp4Track) ->
 fill_track(Frames, [], [], [], [], [], _, _, DTS) ->
   {Frames, DTS};
 
-fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [PTS|Compositions], Timescale, Id, _) ->
+fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [CTime|Compositions], Timescale, Id, _) ->
   % Frame = #mp4_frame{id = Id, dts = DTS*1000/Timescale, pts = (DTS+PTS)*1000/Timescale, size = Size, offset = Offset, keyframe = Keyframe},
+  % ets:insert(Frames, Frame),
   FDTS = DTS*1000/Timescale,
-  FPTS = (DTS+PTS)*1000/Timescale,
+  FPTS = (DTS+CTime)*1000/Timescale,
   FKeyframe = case Keyframe of
     true -> 1;
-    _ -> 0
+    false -> 0
   end,
-  % ets:insert(Frames, Frame),
   fill_track(<<Frames/binary, FKeyframe:1, Size:15, Offset:64, FDTS:64/float, FPTS:64/float>>,
              SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Id+1, FDTS).
 
