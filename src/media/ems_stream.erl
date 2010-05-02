@@ -70,9 +70,11 @@
 	buffer,
 	timer_start,
 	playing_from = 0,
-	ts_prev = 0,
 	pos = undefined,
-	stopped = false
+	stopped = false,
+	
+	last_dts,
+	ts_delta
 }).
 
 
@@ -279,7 +281,6 @@ handle_info(Message, #ems_stream{mode = Mode, real_mode = RealMode, stream_id = 
           flush_frames(),
           Consumer ! {ems_stream, StreamId, seek_notify, NewTimestamp},
           ?MODULE:ready(State#ems_stream{pos = Pos, mode = file,
-                                         ts_prev = NewTimestamp, 
                                          playing_from = NewTimestamp,
                                          timer_start = element(1, erlang:statistics(wall_clock)),
                                          prepush = ClientBuffer});
@@ -334,7 +335,7 @@ handle_stream(Message, #ems_stream{} = State) ->
 
 
     #video_frame{} = Frame ->
-      send_frame(State, Frame);
+      handle_frame(State, Frame);
 
     eof ->
       ?D("MPEG TS finished"),
@@ -400,10 +401,33 @@ tick(#ems_stream{paused = true} = State) ->
 
 tick(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
   % ?D({tick,self(),MediaInfo,Key,Player#ems_stream.play_end}),
-  send_frame(Player, file_media:read_frame(MediaInfo, Key)).
+  handle_frame(Player, file_media:read_frame(MediaInfo, Key)).
 
 
 %% Here goes plenty, plenty of cases
+
+
+%% We must do the following algorithm, the same as in stream_media.
+%% Wait for first non-decoder config frame and set it as a start time of new portion of stream
+%% The whole ems_stream should start from 40, because seek(0) will lead to "return to live"
+%% After first content frame arrives, we calculate delta between last dts from previous portion of 
+%% frames and new. This protects us from situation, when stream_media sends us frames with huge timestamps
+handle_frame(#ems_stream{last_dts = undefined} = State, Frame) ->
+  handle_frame(State#ems_stream{last_dts = 40}, Frame);
+
+handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{decoder_config = true} = Frame) ->
+  send_frame(Stream, Frame);
+
+handle_frame(#ems_stream{ts_delta = undefined, last_dts = LastDTS} = Stream, #video_frame{decoder_config = false, dts = DTS} = Frame) ->
+  ?D({"New instance of ems_stream", LastDTS - DTS, Frame#video_frame.type}),
+  handle_frame(Stream#ems_stream{ts_delta = LastDTS - DTS}, Frame); %% Lets glue new instance of stream to old one
+
+handle_frame(#ems_stream{ts_delta = Delta} = Stream, #video_frame{dts = DTS, pts = PTS} = Frame) ->
+  send_frame(Stream, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta});
+  
+handle_frame(#ems_stream{} = Stream, eof) ->
+  send_frame(Stream, eof).
+  
   
 send_frame(#ems_stream{play_end = PlayEnd} = State, #video_frame{dts = Timestamp}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
   % Consumer ! {ems_stream, StreamId, play_complete, Length},
