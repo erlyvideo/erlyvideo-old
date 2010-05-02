@@ -129,7 +129,7 @@ handle_control({notfound, _Name, _Reason}, Stream) ->
 
 handle_control({start_play, Name}, #iphone_stream{host = Host, seek = Seek, duration = Duration} = Stream) ->
   Media = media_provider:find(Host, Name),
-  {SeekPos, PlayingFrom, PlayEnd} = iphone_stream:segment(Media, Seek, Duration),
+  {_SeekPos, PlayingFrom, PlayEnd} = iphone_stream:segment(Media, Seek, Duration),
   
   ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
 
@@ -138,7 +138,8 @@ handle_control({start_play, Name}, #iphone_stream{host = Host, seek = Seek, dura
 
   {nostart, Stream#iphone_stream{name = Name, play_end = PlayEnd}};
 
-handle_control({play_complete, _Length}, Stream) ->
+handle_control({play_complete, _Length}, #iphone_stream{consumer = Consumer} = Stream) ->
+  Consumer ! {ems_stream, 0,play_complete,0},
   {noreply, Stream};
 
 handle_control(stop, Stream) ->
