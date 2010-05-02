@@ -57,7 +57,17 @@ connect_http(#media_info{name = URL}) ->
   gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   Socket.
-  
+
+
+connect_rtsp(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  case rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]) of
+    {ok, Reader} ->
+      Media#media_info{demuxer = Reader};
+    Else ->
+      error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
+      Media
+  end.
 
 init([URL, Type, Options]) ->
   Host = proplists:get_value(host, Options),
@@ -122,10 +132,8 @@ init(#media_info{type = shoutcast, options = Options} = Media) ->
   Media#media_info{socket = Sock, demuxer = Reader};
   
 
-init(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
-  {ok, Reader} = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]),
-  Media#media_info{demuxer = Reader};
+init(#media_info{type = rtsp} = Media) ->
+  connect_rtsp(Media);
   
 
 init(#media_info{options = Options} = Media) ->
@@ -339,6 +347,9 @@ handle_info(stop, #media_info{host = Host, name = Name} = MediaInfo) ->
 
 handle_info(exit, State) ->
   {stop, normal, State};
+
+handle_info(timeout, #media_info{type = rtsp, life_timeout = false} = Media) ->
+  {noreply, connect_rtsp(Media)};
 
 handle_info(timeout, #media_info{type = Type, life_timeout = LifeTimeout} = State) when (Type == live orelse Type == mpegts_passive) andalso LifeTimeout =/= false ->
   {stop, normal, State};
