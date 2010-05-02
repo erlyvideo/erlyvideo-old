@@ -76,7 +76,7 @@ handle_frame(Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, byte
   Consumer ! Frame#video_frame{stream_id = StreamId},
   {noreply, Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}}.
 
-handle_control({notfound, Name, Reason}, #rtmp_stream{consumer = Consumer, stream_id = StreamId} = Stream) ->
+handle_control({notfound, _Name, Reason}, #rtmp_stream{consumer = Consumer, stream_id = StreamId} = Stream) ->
   Consumer ! {ems_stream, StreamId, {notfound, Reason}},
   {noreply, Stream};
 
