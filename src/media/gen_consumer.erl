@@ -47,8 +47,10 @@
   
 	sent_video_config = false,
 	sent_audio_config = false,
+	sent_metadata = false,
 	video_config,
 	audio_config,
+	metadata,
 	paused = false,
 	pause_ts = undefined,
 	send_audio = true,
@@ -341,23 +343,21 @@ handle_stream(Message, #ems_stream{module = M, state = S} = State) ->
   	  case M:handle_info(Message, S) of
   	    {noreply, S1} -> ?MODULE:ready(State#ems_stream{state = S1});
   	    {stop, _Reason} -> ok;
-  	    Else -> erlang:error(Else)
+  	    Else -> ?D(Else),erlang:error(Else)
   	  end
   end.
 
 
   
-handle_file(Message, #ems_stream{module = M, state = S, client_buffer = ClientBuffer, pause_ts = PauseTS} = State) ->
+handle_file(Message, #ems_stream{media_info = MediaInfo, module = M, state = S, client_buffer = ClientBuffer, pause_ts = PauseTS} = State) ->
   case Message of
     start ->
-      % S1 = case file_media:metadata(MediaInfo) of
-      %   undefined -> S;
-      %   MetaData -> 
-      %     {noreply, S1} = M:handle_frame(#video_frame{type = metadata, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData], dts = 0, pts = 0})
-      %     Consumer ! 
-      % end,
+      Meta = case file_media:metadata(MediaInfo) of
+        undefined -> undefiend;
+        MetaData -> #video_frame{type = metadata, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData], dts = 0, pts = 0}
+      end,
     	self() ! tick,
-      ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false});
+      ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false, metadata = Meta, sent_metadata = false});
       
     resume ->
       ?D("Player resumed"),
@@ -384,7 +384,7 @@ handle_file(Message, #ems_stream{module = M, state = S, client_buffer = ClientBu
   	  case M:handle_info(Message, S) of
   	    {noreply, S1} -> ?MODULE:ready(State#ems_stream{state = S1});
   	    {stop, _Reason} -> ok;
-  	    Else -> erlang:error(Else)
+  	    Else -> ?D(Else),erlang:error(Else)
   	  end
   end.
 
@@ -434,6 +434,13 @@ send_frame(#ems_stream{play_end = PlayEnd} = State, #video_frame{dts = Timestamp
   handle_eof(State);
 
 
+send_frame(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = false} = Player, 
+           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when Meta =/= undefined ->
+  ?D({"Sent metadata", Meta}),
+  {noreply, S1} = M:handle_frame(Meta#video_frame{dts = DTS, pts = DTS}, S),
+  send_frame(Player#ems_stream{sent_metadata = true, state = S1}, Frame);
+
+
 send_frame(#ems_stream{mode = file, module = M, state = S} = Player, 
            #video_frame{next_id = Next} = Frame) ->
   {noreply, S1} = M:handle_frame(Frame, S),
@@ -446,10 +453,9 @@ send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = vi
 send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
   ?MODULE:ready(Player#ems_stream{audio_config = F});
 
-
-send_frame(#ems_stream{module = M, state = S} = Player, #video_frame{type = metadata} = F) ->
-  {noreply, S1} = M:handle_frame(F, S),
-  ?MODULE:ready(Player#ems_stream{state = S1});
+send_frame(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
+  ?D({"Replacing metadata", F}),
+  ?MODULE:ready(Player#ems_stream{metadata = F, sent_metadata = false});
 
 
 
@@ -458,14 +464,14 @@ send_frame(#ems_stream{} = Player, eof) ->
 
 send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
            #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
-  {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS}, S),
+  {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
   ?D({"Send audio config", DTS}),
   {noreply, S2} = M:handle_frame(Frame, S1),
   ?MODULE:ready(Player#ems_stream{sent_audio_config = true, state = S2});
 
 send_frame(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
-   {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS}, S),
+   {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
    ?D({"Send audio config", DTS}),
    {noreply, S2} = M:handle_frame(Frame, S1),
    ?MODULE:ready(Player#ems_stream{sent_video_config = true, state = S2});

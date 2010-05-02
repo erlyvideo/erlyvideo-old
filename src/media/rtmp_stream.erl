@@ -52,11 +52,10 @@
 start_link(Options) ->
   gen_consumer:start_link(?MODULE, Options, []).
 
-bin_size(#video_frame{body = undefined} = _Frame) ->
-  0;
-
-bin_size(#video_frame{body = Body} = _Frame) when is_list(Body) orelse is_binary(Body) ->
-  iolist_size(Body).
+bin_size(#video_frame{type = Type, body = Body} = _Frame) when (Type == audio orelse Type == video) andalso (is_list(Body) orelse is_binary(Body)) ->
+  iolist_size(Body);
+  
+bin_size(_) -> 0.
   
 
 init(Options, []) ->
