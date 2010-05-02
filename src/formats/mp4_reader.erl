@@ -44,8 +44,17 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 	}.
 
 
-first(_) ->
-  {audio_config, 0}.
+first(Media) ->
+  first(Media, 0).
+
+first(#media_info{audio_config = A}, Id) when A =/= undefined ->
+  {audio_config, Id};
+
+first(#media_info{video_config = V}, Id) when V =/= undefined ->
+  {video_config, Id};
+
+first(_, Id) ->
+  Id.
 
 
 lookup_frame(video, #media_info{video_track = FrameTable}) -> FrameTable;
@@ -104,14 +113,14 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
   end.
   
 
-seek(#media_info{}, before, Timestamp) when Timestamp == 0 ->
-  {{audio_config,0}, 0};
+seek(#media_info{} = Media, before, Timestamp) when Timestamp == 0 ->
+  {first(Media), 0};
   
-seek(#media_info{video_track = FrameTable, frames = Frames}, Direction, Timestamp) ->
+seek(#media_info{video_track = FrameTable, frames = Frames} = Media, Direction, Timestamp) ->
   case mp4:seek(FrameTable, Direction, Timestamp) of
     {VideoID, NewTimestamp} ->
       ID = find_by_frameid(Frames, video, VideoID),
-      {{audio_config,ID},NewTimestamp};
+      {first(Media, ID),NewTimestamp};
     undefined ->
       undefined
   end.
