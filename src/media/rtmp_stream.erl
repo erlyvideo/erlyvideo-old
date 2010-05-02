@@ -31,6 +31,7 @@
 
 -module(rtmp_stream).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
 % gen_consumer behaviour
@@ -68,6 +69,7 @@ init(Options, []) ->
 
 
 handle_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{base_dts = undefined} = Stream) ->
+  ?D({"Shifted rtmp_stream by", DTS}),
   handle_frame(Frame#video_frame{dts = 0, pts = PTS-DTS}, Stream#rtmp_stream{base_dts = DTS});
   
 handle_frame(Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Stream) ->
