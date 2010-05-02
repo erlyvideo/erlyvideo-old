@@ -34,6 +34,7 @@
 -include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
+-behaviour(gen_consumer).
 % gen_consumer behaviour
 -export([handle_frame/2, handle_control/2, handle_info/2, init/2, terminate/1]).
 
@@ -109,7 +110,11 @@ handle_info({client, Pid, Ref}, #rtmp_stream{consumer = Consumer} = Stream) ->
 handle_info({'DOWN', _Ref, process, Consumer, _Reason}, #rtmp_stream{consumer = Consumer} = Stream)
  ->
   notify_stats(Stream),
-  ok.
+  stop;
+
+handle_info(Else, Stream) ->
+  ?D({"Unknown message", Else}),
+  {noreply, Stream}.
   
   
 terminate(#rtmp_stream{} = Stream) ->

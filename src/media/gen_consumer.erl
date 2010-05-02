@@ -38,7 +38,7 @@
 -export([start_link/3, client/1, init/3, ready/1, tick/1, handle_info/2]).
 -export([segment/2]).
 
-
+-export([behaviour_info/1]).
 
 -record(ems_stream, {
   media_info = undefined,
@@ -79,6 +79,8 @@
 	stopped = false
 }).
 
+behaviour_info(callbacks) -> [{init,2}, {handle_frame,2}, {handle_control,2}, {handle_info,2}, {terminate,1}];
+behaviour_info(_Other) -> undefined.
 
 
 start_link(Module, Options, Args) ->
@@ -342,7 +344,7 @@ handle_stream(Message, #ems_stream{module = M, state = S} = State) ->
   	Message ->
   	  case M:handle_info(Message, S) of
   	    {noreply, S1} -> ?MODULE:ready(State#ems_stream{state = S1});
-  	    {stop, _Reason} -> ok;
+  	    stop -> ok;
   	    Else -> ?D(Else),erlang:error(Else)
   	  end
   end.
@@ -383,7 +385,7 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, module = M, state = S, 
   	Message ->
   	  case M:handle_info(Message, S) of
   	    {noreply, S1} -> ?MODULE:ready(State#ems_stream{state = S1});
-  	    {stop, _Reason} -> ok;
+  	    stop -> ok;
   	    Else -> ?D(Else),erlang:error(Else)
   	  end
   end.
@@ -436,7 +438,7 @@ send_frame(#ems_stream{play_end = PlayEnd} = State, #video_frame{dts = Timestamp
 
 send_frame(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = false} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when Meta =/= undefined ->
-  ?D({"Sent metadata", Meta}),
+  % ?D({"Sent metadata", Meta}),
   {noreply, S1} = M:handle_frame(Meta#video_frame{dts = DTS, pts = DTS}, S),
   send_frame(Player#ems_stream{sent_metadata = true, state = S1}, Frame);
 
@@ -454,7 +456,7 @@ send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = au
   ?MODULE:ready(Player#ems_stream{audio_config = F});
 
 send_frame(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
-  ?D({"Replacing metadata", F}),
+  % ?D({"Replacing metadata", F}),
   ?MODULE:ready(Player#ems_stream{metadata = F, sent_metadata = false});
 
 
