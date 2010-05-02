@@ -289,6 +289,9 @@ handle_info({'DOWN', _Ref, process, Owner, _Reason}, #media_info{owner = Owner, 
       {noreply, MediaInfo#media_info{owner = undefined}, ?TIMEOUT}
   end;
 
+handle_info({'DOWN', _Ref, process, Demuxer, _Reason}, #media_info{type = rtsp, demuxer = Demuxer} = Media) ->
+  {noreply, connect_rtsp(Media), ?TIMEOUT};
+
 
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
   Clients1 = lists:keydelete(Client, 1, Clients),
