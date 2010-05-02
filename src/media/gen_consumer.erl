@@ -36,7 +36,6 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -export([start_link/3, client/1, init/3, ready/1, tick/1, handle_info/2]).
--export([segment/2]).
 
 -export([behaviour_info/1]).
 
@@ -112,7 +111,7 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, module = M, state = 
   ?D({"Playing new file", Name, Options}),
   case media_provider:find_or_open(Host, Name) of
     {notfound, Reason} ->
-      {noreply, S1} = M:handle_control({notfound, Reason}, S),
+      {noreply, S1} = M:handle_control({notfound, Name, Reason}, S),
       ?D({"Not found", Name, Options}),
       ?MODULE:ready(Stream#ems_stream{state = S1});
     {playlist, Name, PlaylistOptions} ->
