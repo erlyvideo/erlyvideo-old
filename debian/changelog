@@ -1,3 +1,10 @@
+erlyvideo (1.8.2) karmic; urgency=low
+
+  * mp4_reader without ets
+  * fixes in ems_stream for faster start of stream
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 02 May 2010 14:23:06 +0400
+
 erlyvideo (1.8.1) karmic; urgency=low
 
   * Minor fixes in rtmp_session
