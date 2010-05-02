@@ -46,7 +46,7 @@ btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 -export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3]).
 
 
--define(FRAMESIZE, 26).
+-define(FRAMESIZE, 32).
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
@@ -83,10 +83,10 @@ read_atom_header({Module, Device}, Pos) ->
 seek(Frames, before, Timestamp) ->
   seek(Frames, before, Timestamp, 0, undefined).
 
-seek(<<1:1, _Size:15, _Offset:64, DTS:64/float, _PTS:64/float, _/binary>>, before, Timestamp, _, {FoundId,FoundDTS}) when DTS > Timestamp ->
+seek(<<1:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, _/binary>>, before, Timestamp, _, {FoundId,FoundDTS}) when DTS > Timestamp ->
   {FoundId,FoundDTS};
 
-seek(<<1:1, _Size:15, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, before, Timestamp, Id, _)  ->
+seek(<<1:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, before, Timestamp, Id, _)  ->
   seek(Frames, before, Timestamp, Id+1, {Id, DTS});
 
 seek(<<_:?FRAMESIZE/binary, Frames/binary>>, Direction, Timestamp, Id, Found) ->
@@ -99,7 +99,7 @@ seek(<<>>, _, _, _, Found) ->
 read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
   % ?D({read_frame,Id, size(Frames) div ?FRAMESIZE}),
-  <<_:FrameOffset/binary, FKeyframe:1, Size:15, Offset:64, DTS:64/float, PTS:64/float, _/binary>> = Frames,
+  <<_:FrameOffset/binary, FKeyframe:1, Size:63, Offset:64, DTS:64/float, PTS:64/float, _/binary>> = Frames,
   Keyframe = case FKeyframe of
     1 -> true;
     0 -> false
@@ -519,7 +519,7 @@ fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [
     true -> 1;
     false -> 0
   end,
-  fill_track(<<Frames/binary, FKeyframe:1, Size:15, Offset:64, FDTS:64/float, FPTS:64/float>>,
+  fill_track(<<Frames/binary, FKeyframe:1, Size:63, Offset:64, FDTS:64/float, FPTS:64/float>>,
              SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Id+1, FDTS).
 
 mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
