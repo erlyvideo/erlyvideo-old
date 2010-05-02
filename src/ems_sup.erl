@@ -38,7 +38,7 @@
           start_ems_stream/1, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
           start_http_server/1]).
-
+-export([static_streams/0,start_static_streams/0]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -380,7 +380,7 @@ init([]) ->
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     }
-  | MediaProviders],
+  ] ++ MediaProviders,
   
   Supervisors2 = case ems:get_var(scripting, false) of
     true -> [{   ems_script_sup,
@@ -401,5 +401,21 @@ init([]) ->
 %% Internal functions
 %%----------------------------------------------------------------------
 
+start_static_streams() ->
+  [supervisor:start_child(?MODULE, Sup) || Sup <- static_streams()].
 
+static_streams() ->
+  Hosts = proplists:get_keys(ems:get_var(vhosts,[])),
+  Nested = lists:map(fun(Host) ->
+    lists:map(fun(Stream) ->
+      {   media_provider:static_stream_name(Host,Stream), % Id       = internal id
+          {media_provider,start_static_stream,[Host,Stream]},      % StartFun = {M, F, A}
+          permanent,                               % Restart  = permanent | transient | temporary
+          2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+          worker,                                  % Type     = worker | supervisor
+          [media_provider]                         % Modules  = [Module] | dynamic
+      }
+    end, ems:get_var(static, Host, []))
+  end, Hosts),
+  lists:flatten(Nested).
 

@@ -25,7 +25,7 @@ stop(_) ->
 %%--------------------------------------------------------------------
   
 start() -> 
-	io:format("Starting Erlyvideo ...~n"),
+	error_logger:info_report("Starting Erlyvideo ..."),
 	application:start(log4erl),
 	application:start(crypto),
 	application:start(rtmp),
@@ -42,7 +42,8 @@ start() ->
   start_rtmp(),
   start_rtsp(),
 	start_modules(),
-	io:format("Started Erlyvideo~n"),
+  media_provider:start_static_streams(),
+	error_logger:info_report("Started Erlyvideo"),
   
 	ok.
   

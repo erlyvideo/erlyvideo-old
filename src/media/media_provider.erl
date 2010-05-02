@@ -16,6 +16,8 @@
 
 -export([init_names/0, name/1, resolve_global/3]).
 
+-export([static_stream_name/2, start_static_stream/2, start_static_streams/0]).
+
 -record(media_provider, {
   opened_media,
   host,
@@ -27,6 +29,17 @@
   name,
   handler
 }).
+
+
+static_stream_name(Host, Name) ->
+  list_to_atom(atom_to_list(Host) ++ "_" ++ Name).
+  
+start_static_stream(Host, Name) ->
+  Pid = find_or_open(Host, Name),
+  {ok, Pid}.
+
+start_static_streams() ->
+  ems_sup:start_static_streams().
 
 name(Host) ->
   media_provider_names:name(Host).
