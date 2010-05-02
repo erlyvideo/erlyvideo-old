@@ -370,7 +370,7 @@ check_path(Host, Name) when is_binary(Name) ->
   check_path(Host, binary_to_list(Name));
 
 check_path(Host, Name) ->
-  case ems_stream:file_dir(Host) of
+  case file_media:file_dir(Host) of
     undefined -> false;
     Dir -> filelib:is_regular(filename:join([Dir, Name]))
   end.

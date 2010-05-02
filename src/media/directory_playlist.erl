@@ -12,7 +12,7 @@
 
 init(Host, Options) ->
   Path = proplists:get_value(path, Options),
-  AbsPath = filename:join([ems_stream:file_dir(Host), Path]),
+  AbsPath = filename:join([file_media:file_dir(Host), Path]),
   Wildcard = proplists:get_value(wildcard, Options),
   Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
   #directory_playlist{path = AbsPath, files = Files, host = Host}.

@@ -83,7 +83,7 @@ init([URL, Type, Options]) ->
   end,
   Device = case Type of
     record ->
-    	FileName = filename:join([ems_stream:file_dir(Host), binary_to_list(URL)]),
+    	FileName = filename:join([file_media:file_dir(Host), binary_to_list(URL)]),
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
       {ok, Writer} = flv_writer:start_link(FileName),
@@ -113,7 +113,7 @@ init(#media_info{type = mpegts, options = Options} = Media) ->
   Media#media_info{socket = Sock, demuxer = Reader};
 
 init(#media_info{type = mpegts_file, name = Name, host = Host} = Media) ->
-  FileName = filename:join([ems_stream:file_dir(Host), Name]), 
+  FileName = filename:join([file_media:file_dir(Host), Name]), 
   {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
   link(Reader),
   Media#media_info{demuxer = Reader};
