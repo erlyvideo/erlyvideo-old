@@ -66,7 +66,6 @@
 	synced = false,
   client_buffer,
   prepush = 0,
-  play_end = undefined,
   seek = undefined,
 	buffer,
 	timer_start,
@@ -122,23 +121,20 @@ handle_play({play, Name, Options}, #ems_stream{host = Host, module = M, state = 
       ?MODULE:ready(Stream#ems_stream{playlist_module = PlaylistModule, playlist = Playlist});
     MediaEntry when is_pid(MediaEntry) ->
       erlang:monitor(process, MediaEntry),
-      {noreply, S1} = M:handle_control({start_play,Name}, S),
-      {Seek, PlayingFrom, PlayEnd} = segment(MediaEntry, Options),
-      
-      ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
-
-      Stream1 = case (catch PlayEnd - PlayingFrom) of
-        SegmentLength when is_number(SegmentLength) -> 
-          Stream#ems_stream{mode = file, real_mode = file};
-        _ ->
+      case M:handle_control({start_play,Name}, S) of
+        {noreply, S1} ->
           {ok, MediaMode} = stream_media:subscribe(MediaEntry),
-          Stream#ems_stream{mode = MediaMode, real_mode = MediaMode}
-      end,  
-      self() ! start,
-      ?D({"Start", Host, Name, Stream1#ems_stream.mode}),
-      ?MODULE:ready(Stream1#ems_stream{media_info = MediaEntry, name = Name,pos = Seek, state = S1,
-                                playing_from = PlayingFrom,play_end = PlayEnd,
-                                stopped = false, paused = false,
+          Stream1 = Stream#ems_stream{mode = MediaMode, real_mode = MediaMode},
+          self() ! start,
+          ?D({"Start", Host, Name, Stream1#ems_stream.mode}),
+          Stopped = false;
+        {nostart, S1} ->
+          Stream1 = Stream#ems_stream{mode = file, real_mode = file},
+          Stopped = true,
+          ?D({"Delayed start"})
+      end,    
+      ?MODULE:ready(Stream1#ems_stream{media_info = MediaEntry,name = Name,state = S1,
+                                stopped = Stopped, paused = Stopped,
                                 client_buffer = proplists:get_value(client_buffer, Options, 10000),
                                 sent_audio_config = false, sent_video_config = false,
                                 timer_start = element(1, erlang:statistics(wall_clock))})
@@ -172,36 +168,6 @@ flush_tick() ->
   end.
 
 
-
-segment(MediaEntry, Options) ->
-  {Seek, _BaseTS, PlayingFrom} = case proplists:get_value(seek, Options) of
-    undefined -> {undefined, 0, 0};
-    {BeforeAfterSeek, SeekTo} ->
-      case file_media:seek(MediaEntry, BeforeAfterSeek, SeekTo) of
-        {Pos, NewTimestamp} ->
-          ?D({"Starting from", Pos,round(SeekTo), NewTimestamp}),
-          {Pos, NewTimestamp, NewTimestamp};
-        _ ->
-          {undefined, 0, 0}
-      end
-  end,
-
-  PlayEnd = case proplists:get_value(duration, Options) of
-    undefined -> undefined;
-    {BeforeAfterEnd, Duration} ->
-      Length = proplists:get_value(length, media_provider:info(MediaEntry)),
-      {_, DurationFrom} = proplists:get_value(seek, Options),
-      TotalDuration = DurationFrom + Duration,
-      case TotalDuration of
-        TotalDuration when TotalDuration > Length -> TotalDuration;
-        _ ->
-          case file_media:seek(MediaEntry, BeforeAfterEnd, DurationFrom + Duration) of
-            {_Pos, EndTimestamp} -> EndTimestamp;
-            _ -> undefined
-          end
-      end
-  end,
-  {Seek, PlayingFrom, PlayEnd}.
 
 
 ready(State) ->
@@ -317,7 +283,7 @@ handle_stream(Message, #ems_stream{module = M, state = S} = State) ->
   case Message of
     start ->
       erlang:yield(),
-      ?MODULE:ready(State);
+      ?MODULE:ready(State#ems_stream{stopped = false, paused = false});
 
     {resume, _NewTS} ->
       ?D("Player resumed"),
@@ -429,11 +395,6 @@ handle_frame(#ems_stream{} = Stream, eof) ->
 
 %% Here goes plenty, plenty of cases
   
-send_frame(#ems_stream{play_end = PlayEnd} = State, #video_frame{dts = Timestamp}) when is_number(PlayEnd) andalso PlayEnd =< Timestamp ->
-  % Consumer ! {ems_stream, StreamId, play_complete, Length},
-  ?D({"Finished due to playend"}),
-  handle_eof(State);
-
 
 send_frame(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = false} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when Meta =/= undefined ->
@@ -444,8 +405,10 @@ send_frame(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = f
 
 send_frame(#ems_stream{mode = file, module = M, state = S} = Player, 
            #video_frame{next_id = Next} = Frame) ->
-  {noreply, S1} = M:handle_frame(Frame, S),
-  tick_timeout(Frame, Player#ems_stream{pos = Next, state = S1});
+  case M:handle_frame(Frame, S) of           
+    {noreply, S1} -> tick_timeout(Frame, Player#ems_stream{pos = Next, state = S1});
+    stop -> handle_eof(Player)
+  end;
 
 
 send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->

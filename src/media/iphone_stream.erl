@@ -30,41 +30,63 @@
 %%%---------------------------------------------------------------------------------------
 -module(iphone_stream).
 -author('Max Lapshin <max@maxidoors.ru>').
--behaviour(gen_server).
+-behaviour(gen_consumer).
+-include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
 
 %% External API
--export([start_link/3, consume/1]).
+-export([start_link/3, segment/3]).
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+% gen_consumer behaviour
+-export([handle_frame/2, handle_control/2, handle_info/2, init/2, terminate/1]).
 
 
 -record(iphone_stream, {
-  time = 10000,
-  player,
-  paused = false,
+  play_end = undefined,
   mpegts,
-  next_dts,
+  name,
   consumer,
+  host,
+  seek,
+  duration,
   buffer = []
 }).
 
 
 start_link(Host, Name, Options) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Host, Name, Options], []).
+  gen_consumer:start_link(?MODULE, [{host,Host}|Options], Name).
 
 
-%%--------------------------------------------------------------------
-%% @spec (Channel::integer(), Message::text) -> {ok}
-%%
-%% @doc Called by client, that wants to receive {mpegts, Bin} packets for Time
-%% @end
-%%----------------------------------------------------------------------
-consume(Consumer) ->
-  gen_server:call(?MODULE, {consume, Consumer}).
+segment(MediaEntry, SeekTarget, DurationTarget) ->
+  {Seek, _BaseTS, PlayingFrom} = case SeekTarget of
+    undefined -> {undefined, 0, 0};
+    {BeforeAfterSeek, SeekTo} ->
+      case file_media:seek(MediaEntry, BeforeAfterSeek, SeekTo) of
+        {Pos, NewTimestamp} ->
+          ?D({"Starting from", Pos,round(SeekTo), NewTimestamp}),
+          {Pos, NewTimestamp, NewTimestamp};
+        _ ->
+          {undefined, 0, 0}
+      end
+  end,
 
+  PlayEnd = case DurationTarget of
+    undefined -> undefined;
+    {BeforeAfterEnd, Duration} ->
+      Length = proplists:get_value(length, media_provider:info(MediaEntry)),
+      {_, DurationFrom} = SeekTarget,
+      TotalDuration = DurationFrom + Duration,
+      case TotalDuration of
+        TotalDuration when TotalDuration > Length -> TotalDuration;
+        _ ->
+          case file_media:seek(MediaEntry, BeforeAfterEnd, DurationFrom + Duration) of
+            {_Pos, EndTimestamp} -> EndTimestamp;
+            _ -> undefined
+          end
+      end
+  end,
+  {Seek, PlayingFrom, PlayEnd}.
 
 
 %%%------------------------------------------------------------------------
@@ -83,108 +105,59 @@ consume(Consumer) ->
 %%----------------------------------------------------------------------
 
 
-init([Host, Name, Options]) ->
-  Time = proplists:get_value(time, Options, 10000),
-  case media_provider:play(Host, Name, [{stream_id, 1}]) of
-    {ok, PlayerPid} ->
-      link(PlayerPid),
-      erlang:monitor(PlayerPid),
-      {ok, #iphone_stream{mpegts = mpegts:init(), time = Time, player = PlayerPid, next_dts = Time}, Time*2};
-    Reason ->
-      {stop, Reason}
-  end.
-
-%%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_call({consume, Consumer}, _From, #iphone_stream{time = Time, buffer = Buffer, player = Player} = State) ->
-  erlang:monitor(process, Consumer),
-  lists:foreach(fun(Frame) ->
-    Consumer ! Frame
-  end, Buffer),
-  Player ! resume,
-  {reply, ok, State#iphone_stream{consumer = Consumer, buffer = []}, 2*Time};
-  
-handle_call(Request, _From, State) ->
-  {stop, {unknown_call, Request}, State}.
+init(Options, Name) ->
+  Host = proplists:get_value(host, Options),
+  Seek = proplists:get_value(seek, Options),
+  Duration = proplists:get_value(duration, Options),
+  Consumer = proplists:get_value(consumer, Options),
+  self() ! {play, Name, Options},
+  {ok, #iphone_stream{mpegts = mpegts:init(), host = Host, seek = Seek, duration = Duration, consumer = Consumer}}.
 
 
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-  {stop, {unknown_cast, _Msg}, State}.
+handle_frame(#video_frame{dts = DTS} = _Frame, #iphone_stream{play_end = PlayEnd} = _Stream) when DTS > PlayEnd ->
+  stop;
 
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for messages sent directly to server's mailbox.
-%%      If `{stop, ...}' tuple is returned, the server is stopped and
-%%      `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_info({'DOWN', process, _Client, _Reason}, #iphone_stream{time = Time} = Server) ->
-  {noreply, Server, 2*Time};
-
-handle_info(#video_frame{} = Frame, #iphone_stream{paused = true, buffer = Buffer, time = Time} = Stream) ->
-  {noreply, Stream#iphone_stream{buffer = Buffer ++ [Frame]}, 2*Time};
-
-handle_info(#video_frame{} = Frame, #iphone_stream{consumer = undefined, buffer = Buffer, time = Time} = Stream) ->
-  {noreply, Stream#iphone_stream{buffer = Buffer ++ [Frame]}, 2*Time};
-
-handle_info(#video_frame{} = Frame, #iphone_stream{paused = false, time = Time} = Stream) ->
-  Stream1 = handle_frame(Frame, Stream),
-  {noreply, Stream1, 2*Time};
-
-handle_info(_Info, #iphone_stream{time = Time} = State) ->
-  io:format("Unknown message: ~p~n", [_Info]),
-  {noreply, State, 2*Time}.
-
-
-handle_frame(#video_frame{dts = DTS, type = video, frame_type = keyframe} = Frame, 
-             #iphone_stream{player = Player, next_dts = NextDTS, time = Time} = Stream) when DTS >= NextDTS ->
-  Player ! pause,
-  Stream#iphone_stream{buffer = [Frame], next_dts = DTS + Time};
-  
 handle_frame(#video_frame{} = Frame, #iphone_stream{consumer = Consumer} = Stream) ->
+  % ?D({Frame#video_frame.type, round(Frame#video_frame.dts)}),
   Consumer ! Frame,
-  Stream.
+  {noreply, Stream}.
+
+
+%% Handles specific control messages from gen_consumer
+handle_control({notfound, _Name, _Reason}, Stream) ->
+  {noreply, Stream};
+
+handle_control({start_play, Name}, #iphone_stream{host = Host, seek = Seek, duration = Duration} = Stream) ->
+  Media = media_provider:find(Host, Name),
+  {SeekPos, PlayingFrom, PlayEnd} = iphone_stream:segment(Media, Seek, Duration),
   
+  ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
+
+  {BeforeAfterSeek, SeekTime} = Seek,
+  self() ! {seek, BeforeAfterSeek, SeekTime},
+
+  {nostart, Stream#iphone_stream{name = Name, play_end = PlayEnd}};
+
+handle_control({play_complete, _Length}, Stream) ->
+  {noreply, Stream};
+
+handle_control(stop, Stream) ->
+  {noreply, Stream};
+
+handle_control({seek_failed, _Timestamp}, Stream) ->
+  {noreply, Stream};
+
+handle_control({seek_notify, _Timestamp}, Stream) ->
+  {noreply, Stream}.
 
 
-%%-------------------------------------------------------------------------
-%% @spec (Reason, State) -> any
-%% @doc  Callback executed on server shutdown. It is only invoked if
-%%       `process_flag(trap_exit, true)' is set by the server process.
-%%       The return value is ignored.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
+%% Handles inbox messages
+handle_info(stop, _Stream) ->
+  stop;
+
+handle_info(_Message, Stream) ->
+  {noreply, Stream}.
+
+
+terminate(_Stream) ->
   ok.
-
-%%-------------------------------------------------------------------------
-%% @spec (OldVsn, State, Extra) -> {ok, NewState}
-%% @doc  Convert process state when code is changed.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
