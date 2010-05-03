@@ -412,14 +412,15 @@ send_frame(#ems_stream{mode = file, module = M, state = S} = Player,
 
 
 send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->
-  ?MODULE:ready(Player#ems_stream{video_config = F});
+  ?MODULE:ready(Player#ems_stream{video_config = F, sent_video_config = false});
 
 send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
-  ?MODULE:ready(Player#ems_stream{audio_config = F});
+  ?MODULE:ready(Player#ems_stream{audio_config = F, sent_audio_config = false});
 
 send_frame(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
   % ?D({"Replacing metadata", F}),
   ?MODULE:ready(Player#ems_stream{metadata = F, sent_metadata = false});
+
 
 
 
