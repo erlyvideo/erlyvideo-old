@@ -47,7 +47,9 @@
   stream_id,
   base_dts,
   name,
-  bytes_sent = 0
+  bytes_sent = 0,
+  sent_video_config = false,
+  sent_audio_config = false
 }).
 
 start_link(Options) ->
@@ -71,10 +73,27 @@ init(Options, []) ->
 handle_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{base_dts = undefined} = Stream) ->
   ?D({"Shifted rtmp_stream by", DTS}),
   handle_frame(Frame#video_frame{dts = 0, pts = PTS-DTS}, Stream#rtmp_stream{base_dts = DTS});
+
+handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{sent_audio_config = false} = Stream) ->
+  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_audio_config = false}};
+
+handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
+  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_video_config = false}};
+
+handle_frame(#video_frame{decoder_config = true} = Frame, Stream) ->
+  ?D(skip_dup_decoder_config),
+  {noreply, Stream};
   
-handle_frame(Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Stream) ->
+handle_frame(Frame, Stream) ->
+  {noreply, send_frame(Frame, Stream)}.
+  
+send_frame(Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Stream) ->
   Consumer ! Frame#video_frame{stream_id = StreamId},
-  {noreply, Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}}.
+  Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}.
+
+
+
+
 
 handle_control({notfound, _Name, Reason}, #rtmp_stream{consumer = Consumer, stream_id = StreamId} = Stream) ->
   Consumer ! {ems_stream, StreamId, {notfound, Reason}},
