@@ -1,0 +1,26 @@
+require 'test_helper'
+
+class ErlmediaTest < Test::Unit::TestCase
+  
+  def run_test(name)
+    output = `ERL_LIBS=#{File.dirname(__FILE__)+"/../../deps"} #{File.dirname(__FILE__)}/erlmedia_test.erl #{name} 2>&1`
+    assert output =~ /All (\d+) tests passed/, "erlmedia test #{name} should pass: #{output}"
+  end
+  
+  def test_aac
+    run_test("aac")
+  end
+
+  def test_h264
+    run_test("h264")
+  end
+
+  def test_flv_video_frame
+    run_test("flv_video_frame")
+  end
+
+  def test_mp4
+    run_test("mp4")
+  end
+end
+
