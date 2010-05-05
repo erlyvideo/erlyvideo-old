@@ -4,7 +4,7 @@ class ErlmediaTest < Test::Unit::TestCase
   
   def run_test(name)
     output = `ERL_LIBS=#{File.dirname(__FILE__)+"/../../deps"} #{File.dirname(__FILE__)}/erlmedia_test.erl #{name} 2>&1`
-    assert output =~ /All (\d+) tests passed/, "erlmedia test #{name} should pass: #{output}"
+    assert output =~ /(tests|Test) passed/, "erlmedia test #{name} should pass: #{output}"
   end
   
   def test_aac
