@@ -381,11 +381,11 @@ handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{decoder_co
 handle_frame(#ems_stream{last_dts = undefined} = State, #video_frame{dts = DTS} = Frame) ->
   handle_frame(State#ems_stream{last_dts = DTS}, Frame);
 
-handle_frame(#ems_stream{ts_delta = undefined, last_dts = LastDTS} = Stream, #video_frame{decoder_config = false, dts = DTS} = Frame) ->
-  ?D({"New instance of gen_consumer", LastDTS - DTS, Frame#video_frame.type}),
+handle_frame(#ems_stream{ts_delta = undefined, last_dts = LastDTS} = Stream, #video_frame{decoder_config = false, dts = DTS, body = Body} = Frame) when is_binary(Body) andalso size(Body) > 0 andalso is_number(DTS) ->
+  ?D({"New instance of gen_consumer", DTS, (catch LastDTS - DTS), Frame#video_frame.type}),
   handle_frame(Stream#ems_stream{ts_delta = LastDTS - DTS}, Frame); %% Lets glue new instance of stream to old one
 
-handle_frame(#ems_stream{ts_delta = Delta} = Stream, #video_frame{dts = DTS, pts = PTS} = Frame) ->
+handle_frame(#ems_stream{ts_delta = Delta} = Stream, #video_frame{dts = DTS, pts = PTS} = Frame) when is_number(Delta) ->
   send_frame(Stream, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta});
 
 handle_frame(#ems_stream{} = Stream, eof) ->
@@ -437,7 +437,7 @@ send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_confi
 send_frame(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
    {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
-   ?D({"Send audio config", DTS}),
+   ?D({"Send video config", DTS}),
    {noreply, S2} = M:handle_frame(Frame, S1),
    ?MODULE:ready(Player#ems_stream{sent_video_config = true, state = S2});
 
