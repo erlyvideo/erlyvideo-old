@@ -128,6 +128,7 @@ handle_info({client, Pid, Ref}, #rtmp_stream{consumer = Consumer} = Stream) ->
 
 handle_info({'DOWN', _Ref, process, Consumer, _Reason}, #rtmp_stream{consumer = Consumer} = Stream)
  ->
+  ?D({"Down consumer", Consumer}),
   notify_stats(Stream),
   stop;
 
