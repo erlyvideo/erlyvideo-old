@@ -20,9 +20,10 @@ play(Name, Player, Req) ->
 
 play(_Name, Player, Req, Counters) ->
   ?D({"Player starting", _Name, Player}),
-  process_flag(trap_exit, true),
   link(Player),
   link(Req:socket_pid()),
+  erlang:monitor(process,Player),
+  erlang:monitor(process,Req:socket_pid()),
   Player ! start,
   Streamer = #http_player{player = Player, req = Req, streamer = mpegts:init(Counters)},
   NextCounters = ?MODULE:play(Streamer),
@@ -48,9 +49,9 @@ handle_msg(#http_player{req = Req, streamer = Streamer} = HTTPPlayer, #video_fra
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1})
   end;
 
-handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'EXIT', _, _}) ->
+handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'DOWN', _, process, Pid, _}) ->
   Counters = mpegts:continuity_counters(Streamer),
-  ?D({"MPEG TS reader disconnected", Streamer, Counters}),
+  ?D({"MPEG TS reader disconnected", Pid, Streamer, Counters}),
   % {_Streamer1, Bin} = mpegts:pad_continuity_counters(Streamer),
   % Req:stream(Bin),
   Player ! exit,
