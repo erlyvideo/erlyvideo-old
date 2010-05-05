@@ -10,7 +10,7 @@ class RtmpFileTest < Test::Unit::TestCase
   end
   
   def test_read_file
-    `rtmpdump -r rtmp://localhost/vod/mp4:video --stop 5 -o /tmp/test.flv`
+    `rtmpdump -r rtmp://localhost/vod/mp4:video --stop 5 -o /tmp/test.flv 2>&1`
     duration = media_duration("/tmp/test.flv")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
     assert duration > 4, "Duration should be positive: #{duration}"
