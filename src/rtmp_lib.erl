@@ -153,13 +153,19 @@ seek_notify(RTMP, StreamId, Timestamp) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = control, body = 16#1F, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_maybe_seek, stream_id = StreamId}),
-  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Seek.Notify">>),
+  SeekStatus = rtmp_socket:prepare_status(StreamId, <<"NetStream.Seek.Notify">>),
+  rtmp_socket:send(RTMP, SeekStatus#rtmp_message{timestamp = Timestamp, channel_id = channel_id(audio, StreamId)}),
   
-  rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId,
-    body = [<<"|RtmpSampleAccess">>, true, true]}),
+  PlayStartStatus = rtmp_socket:prepare_status(StreamId, <<"NetStream.Play.Start">>),
+  rtmp_socket:send(RTMP, PlayStartStatus#rtmp_message{timestamp = same, channel_id = channel_id(audio, StreamId)}),
+  
+  % rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(audio, StreamId), stream_id = StreamId,
+  %   timestamp = same, body = [<<"|RtmpSampleAccess">>, true, true]}),
     
-  rtmp_socket:send(RTMP, #rtmp_message{type = audio, channel_id = channel_id(audio, StreamId), timestamp = Timestamp, stream_id = StreamId, body = <<>>}),
-  rtmp_socket:notify(RTMP, StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]).
+  % rtmp_socket:send(RTMP, #rtmp_message{type = audio, channel_id = channel_id(audio, StreamId), timestamp = Timestamp, stream_id = StreamId, body = <<>>}),
+  DataNotify = rtmp_socket:prepare_notify(StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]),
+  rtmp_socket:send(RTMP, DataNotify#rtmp_message{timestamp = same, channel_id = channel_id(audio, StreamId)}),
+  ok. 
 
 seek_failed(RTMP, StreamId) ->
   rtmp_socket:status(RTMP, StreamId, <<"NetStream.Seek.InvalidTime">>).

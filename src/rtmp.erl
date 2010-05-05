@@ -192,7 +192,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
   ChunkList = chunk(Data, ChunkSize, Id),
 
   case rtmp:element(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =< Timestamp ->
+    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =< Timestamp andalso Timestamp - PrevTS < 1000->
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
@@ -211,7 +211,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
         same -> 0;
         _ -> Timestamp
       end rem 16#FFFFFFFF,
-      % io:format("n ~p ~p ~p~n",[Id, Type, TS]),
+      io:format("n ~p ~p ~p~n",[Id, Type, TS]),
       Channel = case Chan of
         undefined -> #channel{id = Id, timestamp = TS, delta = undefined, stream_id = StreamId};
         _ -> Chan#channel{timestamp = TS, delta = undefined, stream_id = StreamId}

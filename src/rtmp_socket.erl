@@ -58,7 +58,7 @@
 -version(1.1).
 
 -export([accept/1, connect/1, start_link/1, getopts/2, setopts/2, getstat/2, getstat/1, send/2]).
--export([status/3, status/4, invoke/2, invoke/4, notify/4]).
+-export([status/3, status/4, prepare_status/2, prepare_status/3, invoke/2, invoke/4, prepare_invoke/3, notify/4, prepare_notify/3]).
 
 -export([start_socket/2, start_server/3, set_socket/2]).
   
@@ -197,8 +197,11 @@ channel_id(audio, StreamId) -> 5 + StreamId.
 
 
 notify(RTMP, StreamId, Name, Args) ->
+  send(RTMP, prepare_notify(StreamId, Name, Args)).
+
+prepare_notify(StreamId, Name, Args) ->
   Arg = {object, lists:ukeymerge(1, [{level, <<"status">>}], lists:keysort(1, Args))},
-  send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}).
+  #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}.
 
 
 -spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::any_string()) -> ok).
@@ -208,24 +211,37 @@ status(RTMP, StreamId, Code) when is_list(Code) ->
 status(RTMP, StreamId, Code) when is_binary(Code) ->
   status(RTMP, StreamId, Code, <<"-">>).
 
+prepare_status(StreamId, Code) when is_list(Code) ->
+  prepare_status(StreamId, list_to_binary(Code), <<"-">>);
+
+prepare_status(StreamId, Code) when is_binary(Code) ->
+  prepare_status(StreamId, Code, <<"-">>).
+
 
 -spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::any_string(), Description::any_string()) -> ok).
-status(RTMP, StreamId, Code, Description) ->
+prepare_status(StreamId, Code, Description) ->
   Arg = {object, [
     {code, Code}, 
     {level, <<"status">>}, 
     {description, Description}
   ]},
-  invoke(RTMP, StreamId, onStatus, [Arg]).
+  prepare_invoke(StreamId, onStatus, [Arg]).
   
-invoke(RTMP, StreamId, Command, Args) ->
+prepare_invoke(StreamId, Command, Args) ->
   AMF = #rtmp_funcall{
       command = Command,
         type = invoke,
         id = 0,
         stream_id = StreamId,
         args = [null | Args ]},
-  send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
+  #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}.
+
+
+invoke(RTMP, StreamId, Command, Args) ->
+  send(RTMP, prepare_invoke(StreamId, Command, Args)).
+
+status(RTMP, StreamId, Code, Description) ->
+  send(RTMP, prepare_status(StreamId, Code, Description)).
 
 invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
