@@ -1,6 +1,10 @@
 require 'test_helper'
 
 class MpegtsWriterTest < Test::Unit::TestCase
+  def setup
+    restart_erlyvideo
+  end
+  
   def test_read_video_mp4
     lines = `ffmpeg -fs 100000 -i http://localhost:8082/stream/video.mp4 2>&1`
     md = /Duration: ([^\ ,]+),/.match(lines)
