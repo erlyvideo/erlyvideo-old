@@ -34,10 +34,11 @@
 -behaviour(supervisor).
 
 -export ([init/1,start_link/0]).
--export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, 
-          start_rtmp_stream/1, start_shared_object/3,
+-export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
-          start_http_server/1]).
+          start_http_server/1,
+          start_rtmp_stream/1, start_iphone_stream/1]).
+      
 -export([static_streams/0,start_static_streams/0]).
 
 %%--------------------------------------------------------------------
@@ -93,6 +94,7 @@ start_media(Name, http,                  Opts) -> http_media:start_link(Name, Op
 
 
 start_rtmp_stream(Options) -> supervisor:start_child(rtmp_stream_sup, [Options]).
+start_iphone_stream(Options) -> supervisor:start_child(iphone_stream_sup, [Options]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -256,6 +258,21 @@ init([rtmp_stream]) ->
             ]
         }
     };
+init([iphone_stream]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {iphone_stream,start_link,[]},             % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [iphone_stream]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
 init([shared_object]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -361,6 +378,13 @@ init([]) ->
     },
     {   rtmp_stream_sup,
         {supervisor,start_link,[{local, rtmp_stream_sup}, ?MODULE, [rtmp_stream]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   iphone_stream_sup,
+        {supervisor,start_link,[{local, iphone_stream_sup}, ?MODULE, [iphone_stream]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

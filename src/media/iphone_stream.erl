@@ -36,7 +36,7 @@
 
 
 %% External API
--export([start_link/3, segment/3]).
+-export([start_link/1, start_link/3, segment/3]).
 
 % gen_consumer behaviour
 -export([handle_frame/2, handle_control/2, handle_info/2, init/2, terminate/1]).
@@ -53,6 +53,9 @@
   buffer = []
 }).
 
+
+start_link(Options) ->
+  gen_consumer:start_link(?MODULE, Options, proplists:get_value(name,Options)).
 
 start_link(Host, Name, Options) ->
   gen_consumer:start_link(?MODULE, [{host,Host}|Options], Name).

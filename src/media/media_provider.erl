@@ -152,7 +152,7 @@ play(Host, Name, Options) ->
   case find_or_open(Host, Name) of
     {notfound, Reason} -> {notfound, Reason};
     _MediaEntry ->
-      Opts = lists:ukeymerge(1, Options, [{consumer, self()},{host,Host},{stream_id,1}]),
+      Opts = lists:ukeymerge(1, Options, [{consumer, self()},{host,Host},{stream_id,1},{name,Name}]),
       {ok, Stream} = ems_sup:start_rtmp_stream(Opts),
       Stream ! {play, Name, Opts},
       {ok, Stream}
