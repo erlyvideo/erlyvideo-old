@@ -1,9 +1,17 @@
+erlyvideo (1.8.3) karmic; urgency=low
+
+  * Now ems_stream works for Flash and for iPhone
+  * separated ems_stream into gen_consumer, rtmp_stream and iphone_stream
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 04 May 2010 14:06:36 +0400
+
 erlyvideo (1.8.2) karmic; urgency=low
 
   * mp4_reader without ets
   * fixes in ems_stream for faster start of stream
+  * 0i
 
- -- Max Lapshin <max@maxidoors.ru>  Sun, 02 May 2010 14:23:06 +0400
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 04 May 2010 14:06:33 +0400
 
 erlyvideo (1.8.1) karmic; urgency=low
 
