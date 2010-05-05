@@ -117,7 +117,8 @@ init(Options, Name) ->
   {ok, #iphone_stream{mpegts = mpegts:init(), host = Host, seek = Seek, duration = Duration, consumer = Consumer}}.
 
 
-handle_frame(#video_frame{dts = DTS} = _Frame, #iphone_stream{play_end = PlayEnd} = _Stream) when DTS > PlayEnd ->
+handle_frame(#video_frame{dts = DTS} = _Frame, #iphone_stream{play_end = PlayEnd} = _Stream) when DTS > PlayEnd andalso is_number(PlayEnd) ->
+  ?D({"Stop due to playend", DTS, PlayEnd}),
   stop;
 
 handle_frame(#video_frame{} = Frame, #iphone_stream{consumer = Consumer} = Stream) ->
@@ -136,9 +137,10 @@ handle_control({start_play, Name}, #iphone_stream{host = Host, seek = Seek, dura
   
   ?D({"Seek:", PlayingFrom, PlayEnd, (catch PlayEnd - PlayingFrom)}),
 
-  {BeforeAfterSeek, SeekTime} = Seek,
-  self() ! {seek, BeforeAfterSeek, SeekTime},
-
+  case Seek of
+    {BeforeAfterSeek, SeekTime} -> self() ! {seek, BeforeAfterSeek, SeekTime};
+    _ -> ok
+  end,
   {nostart, Stream#iphone_stream{name = Name, play_end = PlayEnd}};
 
 handle_control({play_complete, _Length}, #iphone_stream{consumer = Consumer} = Stream) ->
