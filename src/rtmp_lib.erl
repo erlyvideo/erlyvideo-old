@@ -148,23 +148,23 @@ pause_notify(RTMP, StreamId) ->
 
 seek_notify(RTMP, StreamId, Timestamp) ->
   io:format("NetStream.Seek.Notify (~p): ~p~n", [StreamId, Timestamp]),
-  % rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = control, body = 16#1F, stream_id = StreamId}),
+  % rtmp_socket:send(RTMP, #rtmp_message{type = control, body = 16#1F, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_maybe_seek, stream_id = StreamId}),
+  % rtmp_socket:send(RTMP, #rtmp_message{type = stream_maybe_seek, stream_id = StreamId}),
   SeekStatus = rtmp_socket:prepare_status(StreamId, <<"NetStream.Seek.Notify">>),
-  rtmp_socket:send(RTMP, SeekStatus#rtmp_message{timestamp = Timestamp, channel_id = channel_id(audio, StreamId)}),
+  rtmp_socket:send(RTMP, SeekStatus#rtmp_message{timestamp = Timestamp, channel_id = channel_id(audio, StreamId), ts_type = absolute}),
   
   PlayStartStatus = rtmp_socket:prepare_status(StreamId, <<"NetStream.Play.Start">>),
-  rtmp_socket:send(RTMP, PlayStartStatus#rtmp_message{timestamp = same, channel_id = channel_id(audio, StreamId)}),
+  rtmp_socket:send(RTMP, PlayStartStatus#rtmp_message{timestamp = same, channel_id = channel_id(audio, StreamId), ts_type = relative}),
   
   % rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(audio, StreamId), stream_id = StreamId,
   %   timestamp = same, body = [<<"|RtmpSampleAccess">>, true, true]}),
     
   % rtmp_socket:send(RTMP, #rtmp_message{type = audio, channel_id = channel_id(audio, StreamId), timestamp = Timestamp, stream_id = StreamId, body = <<>>}),
   DataNotify = rtmp_socket:prepare_notify(StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]),
-  rtmp_socket:send(RTMP, DataNotify#rtmp_message{timestamp = same, channel_id = channel_id(audio, StreamId)}),
+  rtmp_socket:send(RTMP, DataNotify#rtmp_message{timestamp = same, channel_id = channel_id(audio, StreamId), ts_type = relative}),
   ok. 
 
 seek_failed(RTMP, StreamId) ->

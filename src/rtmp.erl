@@ -188,17 +188,22 @@ encode_bin(#rtmp_socket{codec = Codec} = State,
   {State, port_control(Codec, ?ENCODE, Packet)};
 
 encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, bytes_sent = BytesSent} = State, 
-       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) and is_integer(Type) -> 
+       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data} = Msg) when is_binary(Data) and is_integer(Type) -> 
   ChunkList = chunk(Data, ChunkSize, Id),
+  Channel = rtmp:element(Id, Channels),
 
-  case rtmp:element(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =< Timestamp andalso Timestamp - PrevTS < 1000->
+  case timestamp_type(State, Msg) of
+    relative ->
+      #channel{timestamp = PrevTS} = Channel,
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
     	  _ -> {(Timestamp - PrevTS) rem 16#FFFFFFFF, Timestamp}
     	end,
-      % io:format("d ~p ~p ~p~n",[Id, Type, Delta]),
+      % if
+      %   Type == 8 orelse Type == 9 -> ok;
+      %   true -> io:format("d ~p ~p ~p~n",[Id, Type, Delta])
+      % end,
     	Channel1 = Channel#channel{timestamp = NewTS, delta = undefined},
     	Header = case Delta < 16#FFFFFF of
     	  true -> <<BinId/binary,Delta:24,(size(Data)):24,Type:8>>;
@@ -206,15 +211,15 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
     	end,
     	Bin = [Header | ChunkList],
       {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin};
-    Chan ->
+    absolute ->
       TS = case Timestamp of
         same -> 0;
         _ -> Timestamp
       end rem 16#FFFFFFFF,
-      io:format("n ~p ~p ~p~n",[Id, Type, TS]),
-      Channel = case Chan of
+      % io:format("n ~p ~p ~p~n",[Id, Type, TS]),
+      Channel1 = case Channel of
         undefined -> #channel{id = Id, timestamp = TS, delta = undefined, stream_id = StreamId};
-        _ -> Chan#channel{timestamp = TS, delta = undefined, stream_id = StreamId}
+        _ -> Channel#channel{timestamp = TS, delta = undefined, stream_id = StreamId}
       end,
     	BinId = encode_id(?RTMP_HDR_NEW,Id),
       Header = case TS < 16#FFFFFF of
@@ -222,8 +227,17 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
         false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,StreamId:32/little,TS:32>>
       end,
       Bin = [Header | ChunkList],
-      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel), bytes_sent = BytesSent + iolist_size(Bin)}, Bin}
+      {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin}
   end.
+
+timestamp_type(_State, #rtmp_message{ts_type = absolute}) -> absolute;
+timestamp_type(_State, #rtmp_message{ts_type = relative}) -> relative;
+timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}) -> 
+  case rtmp:element(Id, Channels) of
+    #channel{timestamp = PrevTS, stream_id = StreamId} when PrevTS =< Timestamp -> relative;
+    _ -> absolute
+  end.
+
 
 encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
   <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 

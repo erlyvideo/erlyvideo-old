@@ -41,8 +41,11 @@
 
 -type(so_message() ::#so_message{}).
 
+-type(timestamp_type() ::absolute|relative|undefined).
+
 -record(rtmp_message, {
   channel_id ::non_neg_integer(),
+  ts_type    ::timestamp_type(),
   timestamp  ::non_neg_integer()|float(),
   type       ::rtmp_message_type()|integer(),
   stream_id  ::non_neg_integer()|float(),
