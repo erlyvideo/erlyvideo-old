@@ -175,8 +175,14 @@ handle_call(mode, _From, MediaInfo) ->
 handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
   Ref = erlang:monitor(process, Client),
   ?D({subscribe,MediaInfo#media_info.name,Client,config,Audio,Video}),
-  Client ! Audio,
-  Client ! Video,
+  case Audio of
+    undefined -> ok;
+    _ -> Client ! Audio
+  end,
+  case Video of
+    undefined -> ok;
+    _ -> Client ! Video
+  end,
   {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}, ?TIMEOUT};
 
 handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
@@ -404,7 +410,7 @@ handle_info(Message, State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 handle_frame(#video_frame{} = Frame, #media_info{last_dts = undefined} = Recorder) ->
-  handle_frame(Frame, Recorder#media_info{last_dts = 40}); % Just not to appear negative dts
+  handle_frame(Frame, Recorder#media_info{last_dts = 0}); % Just not to appear negative dts
 
 handle_frame(#video_frame{dts = DTS} = Frame, #media_info{ts_delta = undefined, last_dts = LastDTS} = Recorder) ->
   ?D({"New instance of stream", LastDTS - DTS}),

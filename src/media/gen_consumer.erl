@@ -378,6 +378,9 @@ tick(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
 handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{decoder_config = true} = Frame) ->
   send_frame(Stream, Frame);
 
+handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{type = metadata} = Frame) ->
+  send_frame(Stream, Frame);
+
 handle_frame(#ems_stream{last_dts = undefined} = State, #video_frame{dts = DTS} = Frame) ->
   handle_frame(State#ems_stream{last_dts = DTS}, Frame);
 
