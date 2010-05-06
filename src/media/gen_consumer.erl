@@ -382,10 +382,11 @@ handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{type = met
   send_frame(Stream, Frame);
 
 handle_frame(#ems_stream{last_dts = undefined} = State, #video_frame{dts = DTS} = Frame) ->
+  ?D({"Initializing gen_consumer with last_dts", DTS, Frame#video_frame.type}),
   handle_frame(State#ems_stream{last_dts = DTS}, Frame);
 
 handle_frame(#ems_stream{ts_delta = undefined, last_dts = LastDTS} = Stream, #video_frame{decoder_config = false, dts = DTS, body = Body} = Frame) when is_binary(Body) andalso size(Body) > 0 andalso is_number(DTS) ->
-  ?D({"New instance of gen_consumer", DTS, (catch LastDTS - DTS), Frame#video_frame.type}),
+  ?D({"Syncronizing gen_consumer on new base dts", DTS, Frame#video_frame.type}),
   handle_frame(Stream#ems_stream{ts_delta = LastDTS - DTS}, Frame); %% Lets glue new instance of stream to old one
 
 handle_frame(#ems_stream{ts_delta = Delta} = Stream, #video_frame{dts = DTS, pts = PTS} = Frame) when is_number(Delta) ->
@@ -429,6 +430,7 @@ send_frame(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
 
 send_frame(#ems_stream{} = Player, eof) ->
   handle_eof(Player);
+
 
 send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
            #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->

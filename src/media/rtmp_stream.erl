@@ -49,7 +49,8 @@
   name,
   bytes_sent = 0,
   sent_video_config = false,
-  sent_audio_config = false
+  sent_audio_config = false,
+  audio_config
 }).
 
 start_link(Options) ->
@@ -70,25 +71,45 @@ init(Options, []) ->
   {ok, #rtmp_stream{consumer = Consumer, stream_id = StreamId, host = Host}}.
 
 
-handle_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{base_dts = undefined} = Stream) ->
-  ?D({"Shifted rtmp_stream by", DTS}),
-  handle_frame(Frame#video_frame{dts = 0, pts = PTS-DTS}, Stream#rtmp_stream{base_dts = DTS});
+handle_frame(#video_frame{type = video, decoder_config = true, dts = DTS} = Frame, #rtmp_stream{base_dts = undefined} = Stream) ->
+  ?D({"Shifting rtmp_stream by", DTS}),
+  handle_frame(Frame, Stream#rtmp_stream{base_dts = DTS});
 
-handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{sent_audio_config = false} = Stream) ->
+handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{sent_audio_config = false, sent_video_config = true} = Stream) ->
   {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_audio_config = true}};
 
-handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
-  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_video_config = true}};
+handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{sent_audio_config = false, sent_video_config = false} = Stream) ->
+  {noreply, Stream#rtmp_stream{audio_config = Frame}};
+
+handle_frame(#video_frame{type = video, decoder_config = true, dts = DTS} = Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
+  Stream1 = (send_frame(Frame, Stream))#rtmp_stream{sent_video_config = true},
+  Stream2 = case Stream1#rtmp_stream.audio_config of
+    undefined -> Stream1;
+    Audio -> (send_frame(Audio#video_frame{dts = DTS, pts = DTS}, Stream1))#rtmp_stream{sent_audio_config = true}
+  end,
+  {noreply, Stream2};
 
 handle_frame(#video_frame{decoder_config = true} = _Frame, Stream) ->
   ?D(skip_dup_decoder_config),
+  {noreply, Stream};
+
+handle_frame(_Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
+  % ?D(drop_nonconfig_frame),
   {noreply, Stream};
   
 handle_frame(Frame, Stream) ->
   {noreply, send_frame(Frame, Stream)}.
   
-send_frame(Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Stream) ->
-  Consumer ! Frame#video_frame{stream_id = StreamId},
+send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) ->
+  case Frame#video_frame.decoder_config of
+    true -> ?D(Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base});
+    _ -> ok
+  end,
+  case DTS - Base of
+    D when D < 0 -> ?D({Base,Frame});
+    _ -> ok
+  end,
+  Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
   Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}.
 
 
