@@ -7,8 +7,12 @@ class Test::Unit::TestCase
     `#{File.dirname(__FILE__)}/../contrib/erlyctl restart`
   end
   
+  def media_info(url, options = nil)
+    `ffmpeg -timelimit 8 #{options} -i #{url} 2>&1`
+  end
+  
   def media_duration(url, options = nil)
-    lines = `ffmpeg -timelimit 8 #{options} -i #{url} 2>&1`
+    lines = media_info(url, options)
     md = /Duration: ([^\ ,]+),/.match(lines)
     if md && md.captures.first =~ /(\d+):(\d+):([\d\.]+)/
       $1.to_i*3600 + $2.to_i*60 + $3.to_f
@@ -18,7 +22,7 @@ class Test::Unit::TestCase
   end
 
   def media_start(url, options = nil)
-    lines = `ffmpeg -timelimit 8 #{options} -i #{url} 2>&1`
+    lines = media_info(url, options)
     if lines =~ /start: ([\d\.]+)/
       $1.to_f
     else
