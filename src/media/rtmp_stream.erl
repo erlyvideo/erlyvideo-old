@@ -49,7 +49,11 @@
   name,
   bytes_sent = 0,
   sent_video_config = false,
-  sent_audio_config = false
+  sent_audio_config = false,
+  video_config,
+  audio_config,
+  metadata,
+  synced = false
 }).
 
 start_link(Options) ->
@@ -70,25 +74,39 @@ init(Options, []) ->
   {ok, #rtmp_stream{consumer = Consumer, stream_id = StreamId, host = Host}}.
 
 
-handle_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{base_dts = undefined} = Stream) ->
+handle_frame(#video_frame{dts = DTS} = Frame, #rtmp_stream{base_dts = undefined} = Stream) ->
   ?D({"Shifted rtmp_stream by", DTS}),
-  handle_frame(Frame#video_frame{dts = 0, pts = PTS-DTS}, Stream#rtmp_stream{base_dts = DTS});
+  handle_frame(Frame, Stream#rtmp_stream{base_dts = DTS});
 
-handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{sent_audio_config = false} = Stream) ->
-  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_audio_config = true}};
+handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{} = Stream) ->
+  {noreply, Stream#rtmp_stream{audio_config = Frame}};
 
-handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
-  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_video_config = true}};
+handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{} = Stream) ->
+  {noreply, Stream#rtmp_stream{video_config = Frame}};
+
+handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{} = Stream) ->
+  {noreply, Stream#rtmp_stream{metadata = Frame}};
 
 handle_frame(#video_frame{decoder_config = true} = _Frame, Stream) ->
   ?D(skip_dup_decoder_config),
   {noreply, Stream};
+
+handle_frame(#video_frame{frame_type = keyframe} = Frame, #rtmp_stream{
+  audio_config = A, video_config = V, metadata = M, synced = false, consumer = Consumer, stream_id = StreamId} = Stream) ->
+  ?D({"Sync rtmp_stream"}),
+  catch Consumer ! A#video_frame{stream_id = StreamId, dts = 0, pts = 0},
+  catch Consumer ! V#video_frame{stream_id = StreamId, dts = 0, pts = 0},
+  catch Consumer ! M#video_frame{stream_id = StreamId, dts = 0, pts = 0},
+  {noreply, send_frame(Frame, Stream#rtmp_stream{synced = true})};
   
-handle_frame(Frame, Stream) ->
-  {noreply, send_frame(Frame, Stream)}.
+handle_frame(Frame, #rtmp_stream{synced = true} = Stream) ->
+  {noreply, send_frame(Frame, Stream)};
+
+handle_frame(_Frame, #rtmp_stream{synced = false} = Stream) ->
+  {noreply, Stream}.
   
-send_frame(Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent} = Stream) ->
-  Consumer ! Frame#video_frame{stream_id = StreamId},
+send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) ->
+  Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
   Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}.
 
 

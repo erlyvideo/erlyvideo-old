@@ -382,10 +382,11 @@ handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{type = met
   send_frame(Stream, Frame);
 
 handle_frame(#ems_stream{last_dts = undefined} = State, #video_frame{dts = DTS} = Frame) ->
+  ?D({"Initializing gen_consumer with last_dts", DTS, Frame#video_frame.type}),
   handle_frame(State#ems_stream{last_dts = DTS}, Frame);
 
 handle_frame(#ems_stream{ts_delta = undefined, last_dts = LastDTS} = Stream, #video_frame{decoder_config = false, dts = DTS, body = Body} = Frame) when is_binary(Body) andalso size(Body) > 0 andalso is_number(DTS) ->
-  ?D({"New instance of gen_consumer", DTS, (catch LastDTS - DTS), Frame#video_frame.type}),
+  ?D({"Syncronizing gen_consumer on new base dts", DTS, Frame#video_frame.type}),
   handle_frame(Stream#ems_stream{ts_delta = LastDTS - DTS}, Frame); %% Lets glue new instance of stream to old one
 
 handle_frame(#ems_stream{ts_delta = Delta} = Stream, #video_frame{dts = DTS, pts = PTS} = Frame) when is_number(Delta) ->
@@ -430,19 +431,18 @@ send_frame(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
 send_frame(#ems_stream{} = Player, eof) ->
   handle_eof(Player);
 
+
 send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
-           #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
+           #video_frame{dts = DTS} = Frame) when A =/= undefined ->
   {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
   ?D({"Send audio config", DTS}),
-  {noreply, S2} = M:handle_frame(Frame, S1),
-  ?MODULE:ready(Player#ems_stream{sent_audio_config = true, state = S2});
+  send_frame(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
 
 send_frame(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
-           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
+           #video_frame{dts = DTS} = Frame) when V =/= undefined ->
    {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
    ?D({"Send video config", DTS}),
-   {noreply, S2} = M:handle_frame(Frame, S1),
-   ?MODULE:ready(Player#ems_stream{sent_video_config = true, state = S2});
+   send_frame(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
 
 send_frame(#ems_stream{module = M, state = S, sent_audio_config = true} = Player, 
            #video_frame{type = audio, codec_id = aac} = Frame) ->

@@ -172,7 +172,7 @@ handle_call(info, _From, #media_info{} = MediaInfo) ->
 handle_call(mode, _From, MediaInfo) ->
   {reply, stream, MediaInfo, ?TIMEOUT};
   
-handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video} = MediaInfo) ->
+handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video, metadata = Metadata} = MediaInfo) ->
   Ref = erlang:monitor(process, Client),
   ?D({subscribe,MediaInfo#media_info.name,Client,config,Audio,Video}),
   case Audio of
@@ -182,6 +182,10 @@ handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_con
   case Video of
     undefined -> ok;
     _ -> Client ! Video
+  end,
+  case Metadata of
+    undefined -> ok;
+    _ -> Client ! Metadata
   end,
   {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}, ?TIMEOUT};
 
@@ -472,8 +476,9 @@ copy_audio_config(MediaInfo, _) -> MediaInfo.
 
 copy_video_config(MediaInfo, #video_frame{decoder_config = true, type = video} = Frame) ->
   % ?D({"Video config", Frame}),
-  send_frame(h264:metadata(Frame#video_frame.body), MediaInfo),
-  MediaInfo#media_info{video_config = Frame#video_frame{dts = 0, pts = 0}};
+  Metadata = h264:metadata(Frame#video_frame.body),
+  send_frame(Metadata, MediaInfo),
+  MediaInfo#media_info{video_config = Frame#video_frame{dts = 0, pts = 0}, metadata = Metadata};
 
 copy_video_config(MediaInfo, _) -> MediaInfo.
 
