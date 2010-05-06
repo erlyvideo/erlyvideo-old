@@ -75,12 +75,12 @@ handle_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{base_dts =
   handle_frame(Frame#video_frame{dts = 0, pts = PTS-DTS}, Stream#rtmp_stream{base_dts = DTS});
 
 handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_stream{sent_audio_config = false} = Stream) ->
-  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_audio_config = false}};
+  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_audio_config = true}};
 
 handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
-  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_video_config = false}};
+  {noreply, (send_frame(Frame, Stream))#rtmp_stream{sent_video_config = true}};
 
-handle_frame(#video_frame{decoder_config = true} = Frame, Stream) ->
+handle_frame(#video_frame{decoder_config = true} = _Frame, Stream) ->
   ?D(skip_dup_decoder_config),
   {noreply, Stream};
   
