@@ -6,8 +6,8 @@ class MpegtsWriterTest < Test::Unit::TestCase
   end
   
   def test_read_video_mp4
-    info = media_info("http://localhost:8082/stream/video.mp4", "-fs 100000")
-    assert info =~ /Video: h264/, "Video stream should be found"
-    assert info =~ /Audio: aac/, "Audio stream should be found"
+    duration = media_duration("http://localhost:8082/stream/video.mp4", "-fs 100000")
+    assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
+    assert(duration > 0, "Duration should be positive: #{duration.inspect}")
   end
 end

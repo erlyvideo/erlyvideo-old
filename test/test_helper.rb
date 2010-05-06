@@ -8,7 +8,10 @@ class Test::Unit::TestCase
   end
   
   def media_info(url, options = nil)
-    `ffmpeg -timelimit 8 #{options} -i #{url} 2>&1`
+    `curl --connect-timeout 1 -m 10 -s -S -o /tmp/test "#{url}" 2>&1`
+    `ffmpeg -timelimit 8 #{options} -i /tmp/test 2>&1`
+  rescue
+    File.unlink("/tmp/test")
   end
   
   def media_duration(url, options = nil)
