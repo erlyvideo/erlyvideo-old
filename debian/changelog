@@ -1,3 +1,9 @@
+erlmedia (1.2.11) karmic; urgency=low
+
+  * Fixed test for common erlyvideo testing infrastructure
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 06 May 2010 16:27:04 +0400
+
 erlmedia (1.2.10) karmic; urgency=low
 
   * mp4 now doesnt use ets
