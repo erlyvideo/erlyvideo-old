@@ -433,18 +433,16 @@ send_frame(#ems_stream{} = Player, eof) ->
 
 
 send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
-           #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
+           #video_frame{dts = DTS} = Frame) when A =/= undefined ->
   {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
   ?D({"Send audio config", DTS}),
-  {noreply, S2} = M:handle_frame(Frame, S1),
-  ?MODULE:ready(Player#ems_stream{sent_audio_config = true, state = S2});
+  send_frame(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
 
 send_frame(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
-           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
+           #video_frame{dts = DTS} = Frame) when V =/= undefined ->
    {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
    ?D({"Send video config", DTS}),
-   {noreply, S2} = M:handle_frame(Frame, S1),
-   ?MODULE:ready(Player#ems_stream{sent_video_config = true, state = S2});
+   send_frame(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
 
 send_frame(#ems_stream{module = M, state = S, sent_audio_config = true} = Player, 
            #video_frame{type = audio, codec_id = aac} = Frame) ->
