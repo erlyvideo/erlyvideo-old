@@ -50,7 +50,8 @@
   bytes_sent = 0,
   sent_video_config = false,
   sent_audio_config = false,
-  audio_config
+  audio_config,
+  synced = false
 }).
 
 start_link(Options) ->
@@ -97,10 +98,16 @@ handle_frame(_Frame, #rtmp_stream{sent_video_config = false} = Stream) ->
   % ?D(drop_nonconfig_frame),
   {noreply, Stream};
   
+handle_frame(#video_frame{frame_type = keyframe} = Frame, #rtmp_stream{synced = false} = Stream) ->
+  handle_frame(Frame, Stream#rtmp_stream{synced = true});
+
+handle_frame(_Frame, #rtmp_stream{synced = false} = Stream) ->
+  {noreply, Stream};
+  
 handle_frame(Frame, Stream) ->
   {noreply, send_frame(Frame, Stream)}.
   
-send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) ->
+send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) when DTS >= Base ->
   case Frame#video_frame.decoder_config of
     true -> ?D(Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base});
     _ -> ok
@@ -110,7 +117,11 @@ send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = C
     _ -> ok
   end,
   Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
-  Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}.
+  Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)};
+  
+send_frame(_Frame, Stream) ->
+  ?D({"Drop late frame"}),
+  Stream.
 
 
 
