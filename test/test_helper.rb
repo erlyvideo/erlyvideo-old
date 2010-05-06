@@ -15,7 +15,6 @@ class Test::Unit::TestCase
           `curl --connect-timeout 1 -s -S -o /tmp/test "#{url}" 2>&1`
         end
       rescue ::Timeout::Error
-        puts "timeout"
       end
       File.exists?("/tmp/test") ? `ffmpeg -timelimit 8 #{options} -i /tmp/test 2>&1` : raise("Couldn't download #{url}")
     else
@@ -25,7 +24,6 @@ class Test::Unit::TestCase
   
   def media_duration(url, options = nil)
     lines = media_info(url, options)
-    puts lines
     md = /Duration: ([^\ ,]+),/.match(lines)
     if md && md.captures.first =~ /(\d+):(\d+):([\d\.]+)/
       $1.to_i*3600 + $2.to_i*60 + $3.to_f

@@ -24,7 +24,7 @@ class IphoneSegmentTest < Test::Unit::TestCase
     assert validation =~ /Video codec: avc1/
     assert validation =~ /Audio codec: aac/
     assert validation =~ /Average segment duration: /
-    assert !(validation =~ /ERROR: /)
+    assert !(validation =~ /ERROR: /), "Stream should be valid: #{validation}"
     
   end
 end

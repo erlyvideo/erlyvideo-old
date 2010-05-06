@@ -18,7 +18,7 @@ class RtmpFileTest < Test::Unit::TestCase
 
   def test_read_stream
     File.unlink("/tmp/test.flv") if File.exists?("/tmp/test.flv")
-    result = Timeout::timeout(7) {`rtmpdump -r rtmp://localhost/vod/video.ts --stop 5 -o /tmp/test.flv 2>&1`}
+    result = Timeout::timeout(7) {`rtmpdump -r rtmp://localhost/vod/video.ts --stop 5 -o /tmp/test.flv 2>&1`} rescue true
     assert(File.size("/tmp/test.flv") > 0, "Should download file: #{result}")
     duration = media_duration("/tmp/test.flv")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
