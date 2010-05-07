@@ -170,19 +170,19 @@ read_tag(Device, Offset) ->
 
 
 decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, composition_time = CTime, body= Body};
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, decoder_config = false, composition_time = CTime, body= Body};
 
 decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
   #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, decoder_config = true, composition_time = CTime, body= Body};
 
 decode_video_tag(<<FrameType:4, CodecId:4, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), composition_time = 0, body = Body}.
+  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), decoder_config = false, composition_time = 0, body = Body}.
 
 
 
 decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
   #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
-                 rate	= flv:audio_rate(Rate), body= Body};
+                 decoder_config = false, rate	= flv:audio_rate(Rate), body= Body};
 
 decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
   #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
@@ -190,7 +190,7 @@ decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_
 
 decode_audio_tag(<<CodecId:4, Rate:2, Bitsize:1, Channels:1, Body/binary>>) ->
   #flv_audio_tag{codec = flv:audio_codec(CodecId), channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
-                 rate	= flv:audio_rate(Rate), body= Body}.
+                 decoder_config = false, rate	= flv:audio_rate(Rate), body= Body}.
 
 
 decode_meta_tag(Metadata) when is_binary(Metadata) ->
