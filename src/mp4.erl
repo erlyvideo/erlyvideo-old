@@ -95,6 +95,8 @@ seek(<<_:?FRAMESIZE/binary, Frames/binary>>, Direction, Timestamp, Id, Found) ->
 seek(<<>>, _, _, _, Found) ->
   Found.
   
+read_frame(#mp4_track{frames = Frames}, Id) when Id*?FRAMESIZE < size(Frames) ->
+  read_frame(Frames, Id);
 
 read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
@@ -108,6 +110,7 @@ read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
   
 
 frame_count(undefined) -> 0;
+frame_count(#mp4_track{frames = Frames}) -> size(Frames) div ?FRAMESIZE;
 frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
   
@@ -275,6 +278,7 @@ avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
 btrt(<<_BufferSize:32, _MaxBitRate:32, _AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
+  ?D({_BufferSize, _MaxBitRate, _AvgBitRate}),
   Mp4Track.
 
 
@@ -394,31 +398,25 @@ extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
 
 
+clean_track(#mp4_track{} = Track) ->
+  Track#mp4_track{sample_sizes = [], sample_dts = [], sample_offsets = [], sample_composition = [],
+                  keyframes = [], chunk_offsets = [], chunk_sizes = []}.
 
-fill_track_info(MediaInfo, #mp4_track{data_format = h264, decoder_config = DecoderConfig, width = Width, height = Height} = Track) ->
-  % copy_track_info(MediaInfo#media_info{video_decoder_config = DecoderConfig, width = Width, height = Height, video}, Track);
+append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, #mp4_track{data_format = h264, width = Width, height = Height} = Track) ->
+  MediaInfo#mp4_media{width = Width, height = Height, video_tracks = [clean_track(Track)|Tracks]};
+
+append_track(#mp4_media{audio_tracks = Tracks} = MediaInfo, #mp4_track{data_format = aac} = Track) ->
+  MediaInfo#mp4_media{audio_tracks = [clean_track(Track)|Tracks]}.
+
+fill_track_info(#mp4_media{} = MediaInfo, #mp4_track{} = Track) ->
   {Frames, MaxDTS} = fill_track(Track),
-  Seconds = case MediaInfo#mp4_media.seconds of
-    undefined -> MaxDTS;
-    S when S < MaxDTS -> MaxDTS;
-    S -> S
-  end,
-  MediaInfo#mp4_media{video_config = DecoderConfig, width = Width, height = Height, video_track = Frames, seconds = Seconds};
-
-
-fill_track_info(MediaInfo, #mp4_track{data_format = aac, decoder_config = DecoderConfig} = Track) ->
-  % copy_track_info(MediaInfo#media_info{audio_decoder_config = DecoderConfig}, Track);
-  {Frames, MaxDTS} = fill_track(Track),
-  Seconds = case MediaInfo#mp4_media.seconds of
-    undefined -> MaxDTS;
-    S when S < MaxDTS -> MaxDTS;
-    S -> S
-  end,
-  MediaInfo#mp4_media{audio_config = DecoderConfig, audio_track = Frames, seconds = Seconds};
+  Seconds = max_duration(MediaInfo, MaxDTS),
+  Media1 = append_track(MediaInfo, Track#mp4_track{frames = Frames}),
+  Media1#mp4_media{seconds = Seconds}.
   
-fill_track_info(MediaInfo, #mp4_track{data_format = Unknown}) ->
-  ?D({"Uknown data format", Unknown}),
-  MediaInfo.
+max_duration(#mp4_media{seconds = undefined}, Seconds2) -> Seconds2;
+max_duration(#mp4_media{seconds = Seconds1}, Seconds2) when Seconds2 > Seconds1 -> Seconds2;
+max_duration(#mp4_media{seconds = Seconds1}, _) -> Seconds1.
 
 
 unpack_samples_in_chunk(#mp4_track{chunk_offsets = Offsets, chunk_sizes = ChunkSizes} = Mp4Track) ->

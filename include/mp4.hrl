@@ -6,10 +6,8 @@
   seconds,
   file_types = [],
   tracks = [],
-  audio_config,
-  audio_track,
-  video_config,
-  video_track,
+  audio_tracks = [],
+  video_tracks = [],
   width,
   height,
   frames
