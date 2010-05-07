@@ -181,8 +181,11 @@ init(#media_info{header = undefined} = MediaInfo) ->
 read_header(#media_info{device = Device} = MediaInfo) -> 
   Reader = {file, Device},
   {ok, Mp4Media} = mp4:read_header(Reader),
-  #mp4_media{width = Width, height = Height, audio_config = AC, video_config = VC, 
-             audio_track = AT, video_track = VT, seconds = Seconds} = Mp4Media,
+  #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, seconds = Seconds} = Mp4Media,
+  AT = hd(ATs),
+  VT = hd(VTs),
+  #mp4_track{decoder_config = AC} = AT,
+  #mp4_track{decoder_config = VC} = VT,
   Info1 = MediaInfo#media_info{header = Mp4Media, width = Width, height = Height,            
                        audio_config = AC, video_config = VC, 
                        audio_track = AT, video_track = VT, duration = Seconds},
