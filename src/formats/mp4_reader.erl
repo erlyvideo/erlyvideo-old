@@ -182,6 +182,7 @@ read_header(#media_info{device = Device} = MediaInfo) ->
   Reader = {file, Device},
   {ok, Mp4Media} = mp4:read_header(Reader),
   #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, seconds = Seconds} = Mp4Media,
+  ?D({"Opened mp4 file with following video tracks:", [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs], "and audio tracks", [Language || #mp4_track{language = Language} <- ATs]}),
   AT = hd(ATs),
   VT = hd(VTs),
   #mp4_track{decoder_config = AC} = AT,
