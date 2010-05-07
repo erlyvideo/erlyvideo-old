@@ -1,3 +1,9 @@
+erlang-shoutcast (1.1.2) karmic; urgency=low
+
+  * New video_frame format
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 07 May 2010 16:10:37 +0400
+
 erlang-shoutcast (1.1.1) karmic; urgency=low
 
   * Launchpad compiling
