@@ -183,18 +183,20 @@ mdia(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 % Media header
-mdhd(<<0:8, _Flags:24, _Ctime:32, 
-                  _Mtime:32, TimeScale:32, Duration:32,
-                  _Language:2/binary, _Quality:16>>, #mp4_track{} = Mp4Track) ->
+mdhd(<<0:8, _Flags:24, _Ctime:32, _Mtime:32, TimeScale:32, Duration:32,
+       _:1, Language:15/bitstring, _Quality:16>>, #mp4_track{} = Mp4Track) ->
   % ?D({"Timescale:", Duration, extract_language(_Language)}),
-  _DecodedLanguate = extract_language(_Language),
-  Mp4Track#mp4_track{timescale = TimeScale, duration = Duration};
+  Mp4Track#mp4_track{timescale = TimeScale, duration = Duration, language = extract_language(Language)};
 
-mdhd(<<1:8, _Flags:24, _Ctime:64, 
-                     _Mtime:64, TimeScale:32, Duration:64, 
-                     _Language:2/binary, _Quality:16>>, Mp4Track) ->
+mdhd(<<1:8, _Flags:24, _Ctime:64, _Mtime:64, TimeScale:32, Duration:64, 
+       _:1, Language:15/bitstring, _Quality:16>>, Mp4Track) ->
   % ?D({"Timescale:", Duration, extract_language(_Language)}),
-  Mp4Track#mp4_track{timescale = TimeScale, duration = Duration}.
+  Mp4Track#mp4_track{timescale = TimeScale, duration = Duration, language = extract_language(Language)}.
+  
+extract_language(<<L1:5, L2:5, L3:5>>) ->
+  [L1+16#60, L2+16#60, L3+16#60].
+
+  
   
 % SMHD atom
 smhd(<<0:8, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
@@ -277,9 +279,8 @@ avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
   ?D({"Extracted video config", DecoderConfig, h264:unpack_config(DecoderConfig)}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
-btrt(<<_BufferSize:32, _MaxBitRate:32, _AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
-  ?D({_BufferSize, _MaxBitRate, _AvgBitRate}),
-  Mp4Track.
+btrt(<<_BufferSize:32, MaxBitRate:32, AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
+  Mp4Track#mp4_track{max_bitrate = MaxBitRate, bitrate = AvgBitRate}.
 
 
 %%%%%%%%%%%%%%%%%%    STSZ  %%%%%%%%%%%%%%%%
@@ -393,9 +394,6 @@ read_stco(<<Offset:32, Rest/binary>>, OffsetCount, #mp4_track{chunk_offsets = Ch
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-extract_language(<<L1:5, L2:5, L3:5, _:1>>) ->
-  [L1+16#60, L2+16#60, L3+16#60].
 
 
 clean_track(#mp4_track{} = Track) ->
