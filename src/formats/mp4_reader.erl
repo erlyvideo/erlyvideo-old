@@ -57,8 +57,8 @@ first(_, Id) ->
   Id.
 
 
-lookup_frame(video, #media_info{video_track = FrameTable}) -> FrameTable;
-lookup_frame(audio, #media_info{audio_track = FrameTable}) -> FrameTable.
+lookup_frame(video, #media_info{video_track = VTs}) -> element(1,VTs);
+lookup_frame(audio, #media_info{audio_track = ATs}) -> element(1,ATs).
 
 
 read_frame(MediaInfo, {audio_config, Pos}) ->
@@ -116,7 +116,8 @@ read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
 seek(#media_info{} = Media, before, Timestamp) when Timestamp == 0 ->
   {first(Media), 0};
   
-seek(#media_info{video_track = FrameTable, frames = Frames} = Media, Direction, Timestamp) ->
+seek(#media_info{video_track = VTs, frames = Frames} = Media, Direction, Timestamp) ->
+  FrameTable = element(1,VTs),
   case mp4:seek(FrameTable, Direction, Timestamp) of
     {VideoID, NewTimestamp} ->
       ID = find_by_frameid(Frames, video, VideoID),
@@ -189,12 +190,14 @@ read_header(#media_info{device = Device} = MediaInfo) ->
   #mp4_track{decoder_config = VC} = VT,
   Info1 = MediaInfo#media_info{header = Mp4Media, width = Width, height = Height,            
                        audio_config = AC, video_config = VC, 
-                       audio_track = AT, video_track = VT, duration = Seconds},
+                       audio_track = list_to_tuple(ATs), video_track = list_to_tuple(VTs), duration = Seconds},
   {ok, Info1}.
 
 
 
-build_index_table(#media_info{video_track = Video, audio_track = Audio} = MediaInfo) ->
+build_index_table(#media_info{video_track = VTs, audio_track = ATs} = MediaInfo) ->
+  Video = element(1, VTs),
+  Audio = element(1, ATs),
   VideoCount = mp4:frame_count(Video),
   AudioCount = mp4:frame_count(Audio),
   % Index = ets:new(index_table, [ordered_set]),
@@ -228,10 +231,14 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   end.
 
 
-metadata(#media_info{width = Width, height = Height, duration = Duration}) -> 
+metadata(#media_info{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
+  Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- tuple_to_list(VTs)],
+  Languages = [Language || #mp4_track{language = Language} <- tuple_to_list(ATs)],
   [{width, Width}, 
    {height, Height}, 
-   {duration, Duration/1000}].
+   {duration, Duration/1000},
+   {bitrates, Bitrates},
+   {languages, Languages}].
 
 
 decoder_config(video, #media_info{video_config = DecoderConfig}) -> DecoderConfig;
