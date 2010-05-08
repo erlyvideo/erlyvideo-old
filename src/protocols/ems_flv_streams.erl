@@ -48,9 +48,9 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
-%% @spec () -> [Ip::tuple()]
+%% @spec (Name) -> undefined | {ok,Pid::pid()}
 %%
-%% @doc Return stream by name
+%% @doc Find stream by name
 %% @end
 %%----------------------------------------------------------------------
 stream(Name) ->
@@ -58,7 +58,7 @@ stream(Name) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec () -> [Ip::tuple()]
+%% @spec (Name,Command) -> undefined|Command
 %%
 %% @doc Send command to stream if exists
 %% @end
@@ -71,9 +71,9 @@ command(Name,Command) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec () -> [Ip::tuple()]
+%% @spec (Name,Pid) -> ok
 %%
-%% @doc register stream
+%% @doc register stream under Name
 %% @end
 %%----------------------------------------------------------------------
 register(Name, Pid) ->

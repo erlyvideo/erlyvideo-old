@@ -1,5 +1,36 @@
-% Server, that handle links to all opened files and streams. You should
-% go here to open file. If file is already opened, you will get cached copy. 
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009 Max Lapshin
+%%% @doc        Mediaprovider
+%%% Server, that handle links to all opened files and streams. You should
+%%% go here to open file. If file is already opened, you will get cached copy. 
+%%% There is one media_provider instance per virtual host, so they never mix
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 
 -module(media_provider).
 -author('Max Lapshin <max@maxidoors.ru>').
@@ -30,30 +61,45 @@
   handler
 }).
 
-
+%% @hidden
 static_stream_name(Host, Name) ->
   list_to_atom(atom_to_list(Host) ++ "_" ++ Name).
-  
+
+%% @hidden  
 start_static_stream(Host, Name) ->
   Pid = find_or_open(Host, Name),
   {ok, Pid}.
 
+%%-------------------------------------------------------------------------
+%% @spec start_static_stream(Host, Name) -> {ok, Pid}
+%% @doc Starts all preconfigured static stream.
+%% Erlyvideo has concept of static streams: they are opened right after all erlyvideo was initialized
+%% and monitored via supervisor.
+%% This is suitable for example for reading video stream from survielance cameras.
+%%-------------------------------------------------------------------------
 start_static_streams() ->
   ems_sup:start_static_streams().
 
+%%-------------------------------------------------------------------------
+%% @doc Returns registered name for media provider on host Host
+%%-------------------------------------------------------------------------
 name(Host) ->
   media_provider_names:name(Host).
 
+%% @hidden
 global_name(Host) ->
   media_provider_names:name(Host).
 
+%% @hidden
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
 
+%% @hidden
 find_provider(Host) ->
   % {global, global_name(Host)}.
   name(Host).
-  
+
+%% @hidden  
 resolve_global(Name, Pid1, Pid2) ->
   ?D({"Resolving global clash for", Name, Pid1, Pid2}),
   Entries = gen_server:call(Pid2, entries),
@@ -64,6 +110,11 @@ resolve_global(Name, Pid1, Pid2) ->
   Pid2 ! {wait_for, Pid1},
   Pid1.
 
+%%-------------------------------------------------------------------------
+%% @spec create(Host, Name, Type) -> Pid::pid()
+%% @doc Create usually stream. Must be called by process, that wants to send 
+%% video frames to this stream.
+%%-------------------------------------------------------------------------
 create(Host, Name, Type) ->
   ?D({"Create", Name, Type}),
   Pid = open(Host, Name, Type),

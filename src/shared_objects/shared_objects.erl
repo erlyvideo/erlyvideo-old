@@ -1,3 +1,33 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009 Max Lapshin
+%%% @doc        Shared objects tracker
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(shared_objects).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
@@ -18,9 +48,9 @@
 
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
-%%
-%% @doc Called by a supervisor to start the listening process.
+%% @spec () -> {ok, Pid} | {error, Reason}
+%% @doc Start shared objects server
+%% @private
 %% @end
 %%----------------------------------------------------------------------
 start_link()  ->
@@ -30,12 +60,17 @@ start_link()  ->
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
 
+%%--------------------------------------------------------------------
+%% @spec open(Host,Name,Persisten::boolean()) -> Pid::pid()
+%% @doc Opens new or existing shared object
+%% @end
+%%----------------------------------------------------------------------
 open(Host, Name, Persistent) ->
   {ok, Object} = gen_server:call(?MODULE, {open, Host, Name, Persistent}),
   Object.
 
 %%----------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, State}           |
+%% @spec ([]) -> {ok, State}           |
 %%                            {ok, State, Timeout}  |
 %%                            ignore                |
 %%                            {stop, Reason}

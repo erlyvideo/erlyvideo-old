@@ -26,9 +26,10 @@
 -export([message/2]).
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
+%% @spec (Host, Name, Persistent::boolean()) -> {ok, Pid} | {error, Reason}
 %%
-%% @doc Called by a supervisor to start the listening process.
+%% @doc Starts new shared object.
+%% @private
 %% @end
 %%----------------------------------------------------------------------
 start_link(Host, Name, Persistent)  ->
@@ -38,7 +39,12 @@ start_link(Host, Name, Persistent)  ->
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
 
-
+%%--------------------------------------------------------------------
+%% @spec message(Object::pid(), Message::any()) -> ok
+%%
+%% @doc Send message to shared object
+%% @end
+%%----------------------------------------------------------------------
 message(Object, Message) ->
   gen_server:cast(Object, {message, Message, self()}).
 
