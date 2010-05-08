@@ -2,4 +2,26 @@
 @copyright 2009-2010 Max Lapshin
 @title Erlyvideo
 @doc
+
+Erlyvideo is a multiprotocol videostreaming server.
+
+== Features == 
+<ol>
+<li>{@link rtmp_session. RTMP streaming}</li>
+<li>Read {@link flv_reader. FLV}, {@link mp4_reader. MP4} and MPEG-TS files</li>
+<li>{@link mpegts_stream. MPEG-TS} and {@link iphone_stream. iPhone} streaming</li>
+<li>Read shoutcast streams</li>
+<li>Read RTSP sources</li>
+</ol>
+
+== Structure ==
+
+Erlyvideo starts as erlang application with main supervisor ems_sup. It requires for working several additional applications, such as rtmp and rtsp.
+
+After starting erlyvideo and rtmp, started rtmp_listener with {@link rtmp_session. rtmp_session callback module}. It will call {@link rtmp_session:create_client/1. create_client(Socket)} function on each connecting client. It is important to understand, that rtmp client doesn't need to decode RTMP protocol, everything will do rtmp_socket module.
+
+After connection is established, rtmp_session starts listening for ``{rtmp, Socket, Message}'' messages. Some of these messages are function invocations, they are handled in chained way. rtmp_session looks through the vhosts.HOSTNAME.modules list of modules and tries to call specified function with two arguments: State and Arguments. State is current rtmp_session state, it is opened to functions, Arguments is a complicated rtmp_funcall record.
+
+First function invocation if usually ``connect''. This is place to define your own authorization routine. You can take a look at several examples:
+{@link trusted_login. password-less login}, {@link json_session. crypted login with HMAC signing}, {@link referer_check. login with checking referer}.
 @end
