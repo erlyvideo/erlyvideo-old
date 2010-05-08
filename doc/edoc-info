@@ -1,5 +1,11 @@
-{application,erlmedia}.
-{packages,[]}.
-{modules,[ems,ems_amf,ems_app,ems_cluster,ems_demo,ems_flv,
-          ems_fsm,ems_proxy,rtmp,rtmp_listener,ems_test,gen_rtmp,
-          gen_server_cluster]}.
+{application,erlyvideo}.
+{packages,[apps,auth,core,crypt,demos,formats,media,protocols,shared_objects]}.
+{modules,[apps_push,apps_recording,apps_shared_objects,apps_streaming,
+          array_timeshift,directory_playlist,ems,ems_encoding,ems_event,
+          ems_flv_streams,ems_http,ems_log,ems_rtsp,ems_script,ems_users,
+          ems_vhosts,erlyvideo,erlyvideo_ctl,ets_timeshift,file_media,
+          fitc_demo,flv_reader,gen_cache,gen_consumer,gen_format,gen_server2,
+          gen_server_cluster,hipe_array_timeshift,http_media,iphone_stream,
+          iphone_streams,json_session,media_provider,mkv,mochijson2,
+          mp4_reader,mpegts_stream,referer_check,rtmp_session,rtmp_stream,
+          sha2,shared_object,shared_objects,stream_media,trusted_login,uuid]}.
