@@ -76,12 +76,14 @@ start_static_stream(Host, Name) ->
 %% Erlyvideo has concept of static streams: they are opened right after all erlyvideo was initialized
 %% and monitored via supervisor.
 %% This is suitable for example for reading video stream from survielance cameras.
+%% @end
 %%-------------------------------------------------------------------------
 start_static_streams() ->
   ems_sup:start_static_streams().
 
 %%-------------------------------------------------------------------------
 %% @doc Returns registered name for media provider on host Host
+%% @end
 %%-------------------------------------------------------------------------
 name(Host) ->
   media_provider_names:name(Host).
@@ -114,6 +116,7 @@ resolve_global(Name, Pid1, Pid2) ->
 %% @spec create(Host, Name, Type) -> Pid::pid()
 %% @doc Create usually stream. Must be called by process, that wants to send 
 %% video frames to this stream.
+%% @end
 %%-------------------------------------------------------------------------
 create(Host, Name, Type) ->
   ?D({"Create", Name, Type}),

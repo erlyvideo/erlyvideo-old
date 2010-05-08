@@ -21,7 +21,7 @@ stop(_) ->
   ok.
 
 run_edoc() ->
-  edoc:application(erlyvideo,".",[{packages,false}]).
+  edoc:application(erlyvideo,".",[{packages,false},{dir,"doc/html"}]).
 
 
 %%--------------------------------------------------------------------

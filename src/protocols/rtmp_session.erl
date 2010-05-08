@@ -60,7 +60,12 @@
 
 -export([reply/2, fail/2]).
 
-%%% 
+%%-------------------------------------------------------------------------
+%% @spec create_client(Socket)  -> {ok, Pid}
+%% @doc Very important function. rtmp_listener calls it to
+%% create new process, that will accept socket.
+%% @end
+%%-------------------------------------------------------------------------
 create_client(Socket) ->
   {ok, Pid} = ems_sup:start_rtmp_session(Socket),
   {ok, Pid}.
