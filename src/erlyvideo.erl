@@ -8,6 +8,8 @@
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 
+-export([run_edoc/0]).
+
 
 start(normal, []) ->
   ems_vhosts:start(),
@@ -17,6 +19,10 @@ start(normal, []) ->
 stop(_) ->
   %stop().
   ok.
+
+run_edoc() ->
+  edoc:application(erlyvideo,".",[{packages,false}]).
+
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
