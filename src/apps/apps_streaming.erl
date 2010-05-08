@@ -84,11 +84,7 @@
 'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
 
 
-%%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a createStream command and responds
-%% @end
-%%-------------------------------------------------------------------------
+%% @private
 createStream(#rtmp_session{host = Host} = State, AMF) -> 
   {State1, StreamId} = next_stream(State),
   #rtmp_session{streams = Streams} = State1,
@@ -111,9 +107,7 @@ next_stream(State, StreamId) ->
 
 
 %%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a deleteStream command and responds
-%% @end
+%% @private
 %%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case ems:element(StreamId, Streams) of
@@ -125,9 +119,7 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 
 
 %%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a play command and responds
-%% @end
+%% @private
 %%-------------------------------------------------------------------------
 
 'FCSubscribe'(State, AMF) -> play(State, AMF).
@@ -222,9 +214,7 @@ seek(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [_, Timestam
   
 
 %%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a stop command and responds
-%% @end
+%% @private
 %%-------------------------------------------------------------------------
 stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rtmp_funcall{stream_id = StreamId}) -> 
   % ?D({"Stop on", self(), StreamId}),
@@ -239,9 +229,7 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
   end.
 
 %%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a closeStream command and responds
-%% @end
+%% @private
 %%-------------------------------------------------------------------------
 
 closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 

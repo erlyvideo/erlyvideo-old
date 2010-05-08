@@ -223,8 +223,8 @@ open_file(Name, Host) ->
 
 
 %%-------------------------------------------------------------------------
-%% @spec () -> FileName::string()
-%% @doc retrieves FLV video file folder from application environment
+%% @spec (Host) -> FileName::string()
+%% @doc retrieves video file folder from application environment
 %% @end
 %%-------------------------------------------------------------------------	
 file_dir(Host) ->

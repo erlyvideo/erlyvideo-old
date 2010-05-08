@@ -49,9 +49,9 @@ start_link(Options) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec (Channel::integer(), Message::text) -> {ok}
+%% @spec (Host, Name, Number) -> {ok,Pid}
 %%
-%% @doc Called by client, that wants to receive {mpegts, Bin} packets for Time
+%% @doc Starting new iphone segment
 %% @end
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->

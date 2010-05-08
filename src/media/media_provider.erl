@@ -71,7 +71,7 @@ start_static_stream(Host, Name) ->
   {ok, Pid}.
 
 %%-------------------------------------------------------------------------
-%% @spec start_static_stream(Host, Name) -> {ok, Pid}
+%% @spec start_static_streams() -> {ok, Pid}
 %% @doc Starts all preconfigured static stream.
 %% Erlyvideo has concept of static streams: they are opened right after all erlyvideo was initialized
 %% and monitored via supervisor.

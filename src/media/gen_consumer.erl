@@ -468,12 +468,7 @@ send_frame(#ems_stream{} = Player, #video_frame{type = _Type, dts = _DTS} = _Fra
 
   
 
-%%-------------------------------------------------------------------------
-%% @spec (AbsTime::integer(), TimerStart::integer(), ClientBuffer::integer()) -> [TimeOut::integer() | 0]
-%% @doc calculates timeout to playback of next FLV Tag 
-%% @end
-%%-------------------------------------------------------------------------	
-
+%% @hidden
 tick_timeout(#video_frame{dts = AbsTime}, #ems_stream{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
   SeekTime = AbsTime - PlayingFrom,
   % Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),

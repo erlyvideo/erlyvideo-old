@@ -1,5 +1,6 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
+%%% @private
 %%% @doc        Supervisor module
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
@@ -41,22 +42,11 @@
       
 -export([static_streams/0,start_static_streams/0]).
 
-%%--------------------------------------------------------------------
-%% @spec () -> any()
-%% @doc A startup function for whole supervisor. Started by application
-%% @end 
-%%--------------------------------------------------------------------
 -spec(start_link() -> {error,_} | {ok,pid()}).
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
-%%--------------------------------------------------------------------
-%% @spec () -> any()
-%% @doc A startup function for spawning new client connection handling FSM.
-%% To be called by the TCP listener process.
-%% @end 
-%%--------------------------------------------------------------------
 -spec start_rtmp_session(RTMPSocket::pid()) -> {'error',_} | {'ok',pid()}.
 start_rtmp_session(RTMPSocket) -> 
   {ok, Pid} = supervisor:start_child(rtmp_session_sup, []),
@@ -75,12 +65,6 @@ start_mpegts_file_reader(Path, Options) ->
 start_shoutcast_reader(Consumer) ->
   supervisor:start_child(shoutcast_reader_sup, [Consumer]).
 
-%%--------------------------------------------------------------------
-%% @spec () -> any()
-%% @doc A startup function for spawning new media entry
-%% To be called by the media provider.
-%% @end 
-%%--------------------------------------------------------------------
 start_media(Name, file           = Type, Opts) -> supervisor:start_child(file_media_sup, [Name, Type, Opts]);
 start_media(Name, mpegts         = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, mpegts_file    = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
@@ -97,13 +81,6 @@ start_rtmp_stream(Options) -> supervisor:start_child(rtmp_stream_sup, [Options])
 start_iphone_stream(Options) -> supervisor:start_child(iphone_stream_sup, [Options]).
 start_mpegts_stream(Options) -> supervisor:start_child(mpegts_stream_sup, [Options]).
 
-%%--------------------------------------------------------------------
-%% @spec () -> any()
-%% @doc A startup function for spawning new media entry
-%% To be called by the media provider.
-%% @end 
-%%--------------------------------------------------------------------
-
 start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_object_sup, [Host, Name, Persistent]).
 
 
@@ -118,12 +95,7 @@ start_http_server(Port) ->
   },
   supervisor:start_child(?MODULE, Listener).
 
-%%--------------------------------------------------------------------
-%% @spec (List::list()) -> any()
-%% @doc Initialize application
-%% @end 
-%%--------------------------------------------------------------------
--spec init([]) -> any().
+-spec(init([]) -> any()).
 init([rtmp_session]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},

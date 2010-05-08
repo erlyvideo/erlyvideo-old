@@ -40,9 +40,7 @@
 
 
 %%-------------------------------------------------------------------------
-%% @spec (From::pid(),AMF::tuple(),Channel::tuple) -> any()
-%% @doc  Processes a publish command and responds
-%% @end
+%% @private
 %%-------------------------------------------------------------------------
 
 'FCPublish'(State, #rtmp_funcall{args = [null, Name]} = _AMF) -> 

@@ -70,9 +70,9 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
-%% @spec () -> [Ip::tuple()]
+%% @spec (Host) -> [Clients]
 %%
-%% @doc Show list of clients
+%% @doc Show list of clients of one hose
 %% @end
 %%----------------------------------------------------------------------
 clients(Host) ->
@@ -80,7 +80,7 @@ clients(Host) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec (UserId::integer(), Channels::[integer()]) -> {ok, SessionId::Integer()}
+%% @spec (Host, UserId::integer(), Channels::list()) -> {ok, SessionId::integer()}
 %%
 %% @doc Register logged user in server tables
 %% @end
@@ -101,7 +101,7 @@ logout() ->
  gen_server:call(?MODULE, logout).
 
 %%--------------------------------------------------------------------
-%% @spec (UserId::integer(), Message::text) -> {ok}
+%% @spec (Host, UserId::integer(), Message::text) -> {ok}
 %%
 %% @doc Send message to all logged instances of userId
 %% @end
@@ -110,7 +110,7 @@ send_to_user(Host, UserId, Message) ->
  gen_server:cast(?MODULE, {send_to_user, Host, UserId, Message}).
 
 %%--------------------------------------------------------------------
-%% @spec (Channel::integer(), Message::text) -> {ok}
+%% @spec (Host, Channel::integer(), Message::text) -> {ok}
 %%
 %% @doc Send message to all, subscribed on channel
 %% @end

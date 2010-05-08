@@ -97,7 +97,7 @@ segment(MediaEntry, SeekTarget, DurationTarget) ->
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, State}           |
+%% @spec (Options,Name) -> {ok, State}           |
 %%                            {ok, State, Timeout}  |
 %%                            ignore                |
 %%                            {stop, Reason}
