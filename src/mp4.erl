@@ -80,6 +80,9 @@ read_atom_header({Module, Device}, Pos) ->
   end.
 
 
+seek(#mp4_track{frames = Frames}, BeforeAfter, Timestamp) ->
+  seek(Frames, BeforeAfter, Timestamp);
+
 seek(Frames, before, Timestamp) ->
   seek(Frames, before, Timestamp, 0, undefined).
 
@@ -404,7 +407,11 @@ append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, #mp4_track{data_form
   MediaInfo#mp4_media{width = Width, height = Height, video_tracks = [clean_track(Track)|Tracks]};
 
 append_track(#mp4_media{audio_tracks = Tracks} = MediaInfo, #mp4_track{data_format = aac} = Track) ->
-  MediaInfo#mp4_media{audio_tracks = [clean_track(Track)|Tracks]}.
+  MediaInfo#mp4_media{audio_tracks = [clean_track(Track)|Tracks]};
+  
+append_track(MediaInfo, #mp4_track{data_format = Format}) ->
+  ?D({"Unknown format", Format}),
+  MediaInfo.
 
 fill_track_info(#mp4_media{} = MediaInfo, #mp4_track{} = Track) ->
   {Frames, MaxDTS} = fill_track(Track),
