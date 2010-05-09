@@ -1,3 +1,4 @@
+% @hidden
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
 %%% @doc        Supervisor module

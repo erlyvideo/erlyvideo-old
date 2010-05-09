@@ -4,24 +4,24 @@
 %%% 
 %%% Required functions: 
 %%%
-%%% init(#media_info{device = File} = MediaInfo) -> {ok, MediaInfo} | {error, Reason}
+%%% ```init(#media_info{device = File} = MediaInfo) -> {ok, MediaInfo} | {error, Reason}'''
 %%%  This function receives already opened file.
 %%%  You may fill fields in media_info:  
 %%%    frames, video_track, audio_track, header, width, height, duration, framerate, timescale, audio_config, video_config
 %%%    
 %%%
-%%% first(MediaInfo) -> FirstOffset
+%%% ```first(MediaInfo) -> FirstOffset'''
 %%%  This function must return offset of first frame in file. Offset is internal number
 %%%  for format. It may be offset in file, or anything else.
 %%%
-%%% read_frame(MediaInfo, Offset) -> {#video_frame{}, NextOffset}
+%%% ```read_frame(MediaInfo, Offset) -> {#video_frame{}, NextOffset}'''
 %%%  Client calls this method frame by frame, retrieving NextOffset
 %%%
-%%% seek(MediaInfo, BeforeAfter, Timestamp) -> {Offset, RealTimestamp} | undefined
+%%% ```seek(MediaInfo, BeforeAfter, Timestamp) -> {Offset, RealTimestamp} | undefined'''
 %%%  This function returns new Offset, which must be used in read_frame. 
 %%%  BeforeAfter means if we need to return keyframe before Timestamp or after
 %%%
-%%% codec_config(MediaInfo, audio|video) -> #video_frame{} | undefined
+%%% ```codec_config(MediaInfo, audio|video) -> #video_frame{} | undefined'''
 %%%  Returns codec
 %%%
 %%% @end

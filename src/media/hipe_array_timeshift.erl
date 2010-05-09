@@ -1,3 +1,4 @@
+% @hidden
 -module(hipe_array_timeshift).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/media_info.hrl").

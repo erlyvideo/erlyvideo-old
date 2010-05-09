@@ -65,7 +65,7 @@
          code_change/3]).
 
 
-
+% @hidden
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -133,6 +133,7 @@ send_to_channel(Host, Channel, Message) ->
 %% @doc Called by gen_server framework at process startup.
 %%      Create listening socket.
 %% @end
+%% @hidden
 %%----------------------------------------------------------------------
 
 

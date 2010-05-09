@@ -1,3 +1,4 @@
+% @hidden
 -module(ems_http).
 -export([start_link/1, stop/0, handle_http/1]).
 -include("../include/ems.hrl").

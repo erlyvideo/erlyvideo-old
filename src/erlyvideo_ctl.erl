@@ -1,3 +1,4 @@
+% @hidden
 -module(erlyvideo_ctl).
 -author('Max Lapshin <max@maxidoors.ru>').
 

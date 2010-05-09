@@ -1,3 +1,4 @@
+% @hidden
 %%%---------------------------------------------------------------------------------------
 %%% @author     Christoph Dornheim [http://www.trapexit.org/A_Framework_for_Clustering_Generic_Server_Instances]
 %%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]

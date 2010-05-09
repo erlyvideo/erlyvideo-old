@@ -11,7 +11,7 @@ Erlyvideo is a multiprotocol videostreaming server.
 <li>Read {@link flv_reader. FLV}, {@link mp4_reader. MP4} and MPEG-TS files</li>
 <li>{@link mpegts_stream. MPEG-TS} and {@link iphone_stream. iPhone} streaming</li>
 <li>Read shoutcast streams</li>
-<li>Read RTSP sources</li>
+<li>Read {@link ems_rtsp. RTSP sources}</li>
 </ol>
 
 == Structure ==

@@ -233,7 +233,7 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
 
 metadata(#media_info{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- tuple_to_list(VTs)],
-  Languages = [Language || #mp4_track{language = Language} <- tuple_to_list(ATs)],
+  Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- tuple_to_list(ATs)],
   [{width, Width}, 
    {height, Height}, 
    {duration, Duration/1000},

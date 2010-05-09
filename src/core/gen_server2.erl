@@ -1,3 +1,4 @@
+% @hidden
 %% This file is a copy of gen_server.erl from the R11B-5 Erlang/OTP
 %% distribution, with the following modifications:
 %%

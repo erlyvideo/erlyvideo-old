@@ -86,6 +86,7 @@ handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_st
   {noreply, Stream#rtmp_stream{video_config = Frame}};
 
 handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{} = Stream) ->
+  ?D({metadata,Frame}),
   {noreply, send_frame(Frame, Stream#rtmp_stream{metadata = Frame})};
 
 handle_frame(#video_frame{decoder_config = true} = _Frame, Stream) ->
