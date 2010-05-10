@@ -1,3 +1,9 @@
+erlang-mpegts (2.2.3) karmic; urgency=low
+
+  * Update for new video_frame format
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 10 May 2010 23:30:18 +0400
+
 erlang-mpegts (2.2) karmic; urgency=low
 
   * Fixed bug in MPEG-TS, that lead to desync in audio and video
