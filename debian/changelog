@@ -1,3 +1,9 @@
+erlang-rtsp (1.2.10) karmic; urgency=low
+
+  * Added supervisor for RTSP socket
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 10 May 2010 23:25:34 +0400
+
 erlang-rtsp (1.2.9) karmic; urgency=low
 
   * Update for new video_frame format
