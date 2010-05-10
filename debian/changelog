@@ -1,3 +1,9 @@
+erlyvideo (1.8.5) karmic; urgency=low
+
+  * Adding documentation
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 10 May 2010 23:37:22 +0400
+
 erlyvideo (1.8.4) karmic; urgency=low
 
   * Added unit tests
