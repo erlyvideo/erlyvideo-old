@@ -21,8 +21,9 @@
 %%%  This function returns new Offset, which must be used in read_frame. 
 %%%  BeforeAfter means if we need to return keyframe before Timestamp or after
 %%%
-%%% ```codec_config(MediaInfo, audio|video) -> #video_frame{} | undefined'''
-%%%  Returns codec
+%%% ```metadata(MediaInfo) -> Proplist | undefined'''
+%%%  This function returns metadata in usual erlang proplist format.
+%%%  file_media will use it to send to client.
 %%%
 %%% @end
 %%%
@@ -65,5 +66,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {codec_config, 2}, {metadata, 1}];
+behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {metadata, 1}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.
