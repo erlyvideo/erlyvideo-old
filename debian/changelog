@@ -1,3 +1,9 @@
+erlang-rtmp (1.5.8) karmic; urgency=low
+
+  * sha2 now in rtmp
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 10 May 2010 23:33:57 +0400
+
 erlang-rtmp (1.5.7) karmic; urgency=low
 
   * Fixed seek in 10.1rc2
