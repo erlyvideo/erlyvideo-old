@@ -31,6 +31,18 @@ class Test::Unit::TestCase
       md && md.captures.first
     end
   end
+  
+  def flvtool2_duration(file)
+    flvtool = `flvtool2 -D #{file} 2>&1`
+    assert(flvtool.split(/\n/).last =~ /timestamp (\d+),/, "FLVTool should dump file")
+    $1.to_i / 1000
+  end
+
+  def flvtool2_start(file)
+    flvtool = `flvtool2 -D #{file} 2>&1`
+    assert(flvtool.split(/\n/).grep(/#1 /).first =~ /timestamp (\d+),/, "FLVTool should dump file")
+    $1.to_i / 1000
+  end
 
   def media_start(url, options = nil)
     lines = media_info(url, options)
