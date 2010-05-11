@@ -11,7 +11,7 @@
 
 -export([build_index_table/1, read_header/1]).
 
--export([init/1, read_frame/2, metadata/1, codec_config/2, seek/3, first/1]).
+-export([init/1, read_frame/2, metadata/1, seek/3, first/1]).
 
 -define(FRAMESIZE, 8).
 

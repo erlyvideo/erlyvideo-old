@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/3, codec_config/2, read_frame/2, name/1, seek/3, metadata/1]).
+-export([start_link/3, read_frame/2, name/1, seek/3, metadata/1]).
 -export([file_dir/1, file_format/1]).
 
 %% gen_server callbacks
@@ -20,8 +20,6 @@ start_link(Path, Type, Opts) ->
    gen_server:start_link(?MODULE, [Path, Type, Opts], []).
 
 
-codec_config(MediaEntry, Type) -> gen_server:call(MediaEntry, {codec_config, Type}).
-   
 read_frame(MediaEntry, Key) ->
   Ref = erlang:make_ref(),
   MediaEntry ! {'$gen_call', {self(), Ref}, {read, Key}},
@@ -84,9 +82,6 @@ handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
     end,
   ets:match(Clients, {'$1'})),
   {reply, Entries, MediaInfo};
-
-handle_call({codec_config, Type}, _From, #media_info{format = FileFormat} = MediaInfo) ->
-  {reply, FileFormat:codec_config(Type, MediaInfo), MediaInfo};
 
 handle_call(name, _From, #media_info{name = FileName} = MediaInfo) ->
   {reply, FileName, MediaInfo};

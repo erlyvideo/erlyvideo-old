@@ -9,7 +9,7 @@
 -behaviour(gen_server2).
 
 %% External API
--export([start_link/3, codec_config/2, metadata/1, publish/2, set_owner/2, pass_socket/2]).
+-export([start_link/3, metadata/1, publish/2, set_owner/2, pass_socket/2]).
 -export([subscribe/1,unsubscribe/1]).
 
 %% gen_server callbacks
@@ -21,8 +21,6 @@ start_link(Path, Type, Opts) ->
    
 metadata(Server) ->
   gen_server2:call(Server, metadata).
-
-codec_config(MediaEntry, Type) -> gen_server2:call(MediaEntry, {codec_config, Type}).
 
 publish(undefined, _Frame) ->
   {error, no_stream};
@@ -202,12 +200,6 @@ handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = Media
 handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
   % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
   {reply, Clients, MediaInfo, ?TIMEOUT};
-
-handle_call({codec_config, video}, _From, #media_info{video_config = Config} = MediaInfo) ->
-  {reply, Config, MediaInfo, ?TIMEOUT};
-
-handle_call({codec_config, audio}, _From, #media_info{audio_config = Config} = MediaInfo) ->
-  {reply, Config, MediaInfo, ?TIMEOUT};
 
 handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};

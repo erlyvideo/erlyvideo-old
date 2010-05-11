@@ -38,7 +38,7 @@
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, metadata/1, codec_config/2, seek/3, first/1]).
+-export([init/1, read_frame/2, metadata/1, seek/3, first/1]).
 
 
 %%--------------------------------------------------------------------
@@ -77,8 +77,6 @@ read_frame_list(#media_info{device = Device} = MediaInfo, Offset) ->
     {error, Reason} -> 
       {error, Reason}
   end.
-
-codec_config(_, _) -> undefined.
 
 get_int(Key, Meta, Coeff) ->
   case {proplists:get_value(Key, Meta), Coeff} of
