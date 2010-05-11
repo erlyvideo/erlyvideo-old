@@ -7,13 +7,18 @@ class Test::Unit::TestCase
     `#{File.dirname(__FILE__)}/../contrib/erlyctl restart`
   end
   
-  def limited_run(command, timeout)
+  def start_command(command, output)
     if !(pid = Process.fork)
-      writeme = File.open("/tmp/output.txt", "w+")
+      writeme = File.open(output, "w+")
       STDERR.reopen(writeme)
       STDOUT.reopen(writeme)
       exec(command)
     end
+    pid
+  end  
+  
+  def limited_run(command, timeout)
+    pid = start_command(command, "/tmp/output.txt")
     
     sleep(timeout)
     Process.kill("KILL", pid)
