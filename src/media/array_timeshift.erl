@@ -40,7 +40,7 @@ seek(#media_info{shift = {First, _Last, Frames}}, _BeforeAfter, Timestamp) when 
 
 seek(#media_info{shift = {First, Last, Frames}}, BeforeAfter, Timestamp) ->
   % ?D({"going to seek", Timestamp}),
-  S = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, {undefined, undefined}),
+  S = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, undefined),
   % ?D({"Seek in array", First, Last, Timestamp, S}),
   S.
   
@@ -60,13 +60,13 @@ seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, Key) ->
   end.
 
 read(_, undefined) ->
-  {undefined, undefined};
+  undefined;
 
 read(#media_info{shift = {_First, _Last, Frames}}, Key) ->
   % ?D({"Read", Key}),
   case array:get(Key, Frames) of
     undefined -> undefined;
-    Frame -> {Frame, (Key + 1) rem array:size(Frames)}
+    Frame -> Frame#video_frame{next_id = (Key + 1) rem array:size(Frames)}
   end.
 
 

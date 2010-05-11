@@ -379,9 +379,12 @@ handle_info({rtmp, RTMP, connected}, #media_info{name = URL} = State) ->
   {rtmp, _UserInfo, _Host, _Port, FullPath, _Query} = http_uri2:parse(URL),
   [App|PathParts] = string:tokens(FullPath, "/"),
   Path = list_to_binary(string:join(PathParts, "/")),
+  ?D({"App,path", App, Path}),
   rtmp_socket:setopts(RTMP, [{active, true}]),
   rtmp_lib:connect(RTMP, [{app, list_to_binary(App)}, {tcUrl, list_to_binary(URL)}]),
+  ?D("Connected"),
   Stream = rtmp_lib:createStream(RTMP),
+  ?D({"Stream",Stream}),
   rtmp_lib:play(RTMP, Stream, Path),
   ?D({"Playing", Path}),
   {noreply, State, ?TIMEOUT};

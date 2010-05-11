@@ -151,7 +151,7 @@ handle_control(stop, Stream) ->
   {noreply, Stream};
 
 handle_control({seek_failed, _Timestamp}, Stream) ->
-  {noreply, Stream};
+  {stop, normal};
 
 handle_control({seek_notify, _Timestamp}, Stream) ->
   {noreply, Stream}.
