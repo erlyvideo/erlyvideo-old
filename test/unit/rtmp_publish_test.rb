@@ -3,15 +3,9 @@ require 'test_helper'
 class RtmpFileTest < Test::Unit::TestCase
   def setup
     restart_erlyvideo
-    if !(@publisher = Process.fork)
-      puts "Starting publisher"
-      exec("contrib/rtmp_publish #{File.dirname(__FILE__)+"/../fixtures/livestream.flv"} rtmp://localhost/livestream")
-    end
-    sleep(3)
   end
   
   def teardown
-    Process.kill("KILL", @publisher)
     # File.unlink("/tmp/test.flv") if File.exists?("/tmp/test.flv")
   end
   

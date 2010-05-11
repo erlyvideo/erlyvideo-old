@@ -229,10 +229,6 @@ handle_info(Message, #ems_stream{module = M, state = S, mode = Mode, real_mode =
       
     {seek, BeforeAfter, Timestamp} when MediaEntry =/= undefined ->
       case file_media:seek(MediaEntry, BeforeAfter, Timestamp) of
-        {_, undefined} ->
-          ?D({"Seek beyong current borders", Timestamp}),
-          {noreply, S1} = M:handle_control({seek_failed, Timestamp}, S),
-          ?MODULE:ready(State#ems_stream{state = S1});
         {Pos, NewTimestamp} ->
           ?D({"Player real seek to", round(Timestamp), NewTimestamp, ClientBuffer}),
           stream_media:unsubscribe(MediaEntry),
@@ -246,8 +242,11 @@ handle_info(Message, #ems_stream{module = M, state = S, mode = Mode, real_mode =
                                          prepush = ClientBuffer});
         undefined ->
           ?D({"Seek beyong current borders", Timestamp}),
-          {noreply, S1} = M:handle_control({seek_failed, Timestamp}, S),
-          ?MODULE:ready(State#ems_stream{state = S1})
+          case M:handle_control({seek_failed, Timestamp}, S) of
+            {noreply, S1} -> ?MODULE:ready(State#ems_stream{state = S1});
+            {stop, normal} -> ok;
+            {stop, Reason} -> {Reason, State}
+          end
       end;
 
     pause ->
@@ -320,7 +319,7 @@ handle_file(Message, #ems_stream{media_info = MediaInfo, module = M, state = S, 
   case Message of
     start ->
       Meta = case file_media:metadata(MediaInfo) of
-        undefined -> undefiend;
+        undefined -> undefined;
         MetaData -> #video_frame{type = metadata, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData], dts = 0, pts = 0}
       end,
     	self() ! tick,
@@ -376,10 +375,10 @@ tick(#ems_stream{media_info = MediaInfo, pos = Key} = Player) ->
 %% After first content frame arrives, we calculate delta between last dts from previous portion of 
 %% frames and new. This protects us from situation, when stream_media sends us frames with huge timestamps
 handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{decoder_config = true} = Frame) ->
-  send_frame(Stream, Frame);
+  prepare_frame(Stream, Frame);
 
 handle_frame(#ems_stream{ts_delta = undefined} = Stream, #video_frame{type = metadata} = Frame) ->
-  send_frame(Stream, Frame);
+  prepare_frame(Stream, Frame);
 
 handle_frame(#ems_stream{last_dts = undefined} = State, #video_frame{dts = DTS} = Frame) ->
   ?D({"Initializing gen_consumer with last_dts", DTS, Frame#video_frame.type}),
@@ -390,56 +389,74 @@ handle_frame(#ems_stream{ts_delta = undefined, last_dts = LastDTS} = Stream, #vi
   handle_frame(Stream#ems_stream{ts_delta = LastDTS - DTS}, Frame); %% Lets glue new instance of stream to old one
 
 handle_frame(#ems_stream{ts_delta = Delta} = Stream, #video_frame{dts = DTS, pts = PTS} = Frame) when is_number(Delta) ->
-  send_frame(Stream, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta});
+  prepare_frame(Stream, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta});
 
 handle_frame(#ems_stream{} = Stream, eof) ->
-  send_frame(Stream, eof).
+  handle_eof(Stream);
+  
+handle_frame(ElseStream, ElseMsg) ->
+  ?D("Function clause"),
+  ?D(ElseStream),
+  ?D(ElseMsg),
+  erlang:exit(function_clause).
 
 
+
+prepare_frame(#ems_stream{last_dts = Last} = Stream, #video_frame{dts = DTS} = Frame) ->
+  save_config(Stream, Frame).
+
+
+%% Clauses for old config, that just repeats
+save_config(#ems_stream{video_config = #video_frame{body = Cfg}} = Player, #video_frame{decoder_config = true, type = video, body = Cfg}) ->
+  ?MODULE:ready(Player);
+
+save_config(#ems_stream{audio_config = #video_frame{body = Cfg}} = Player, #video_frame{decoder_config = true, type = audio, body = Cfg}) ->
+  ?MODULE:ready(Player);
+
+save_config(#ems_stream{metadata = #video_frame{body = M}} = Player, #video_frame{type = metadata, body = M}) ->
+  ?MODULE:ready(Player);
+
+%% Now replacing config with new one
+save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->
+  ?MODULE:ready(Player#ems_stream{video_config = F, sent_video_config = false});
+
+save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
+  ?MODULE:ready(Player#ems_stream{audio_config = F, sent_audio_config = false});
+
+save_config(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
+  ?MODULE:ready(Player#ems_stream{metadata = F, sent_metadata = false});
+
+%% And just case for all other frames
+save_config(#ems_stream{} = Player, #video_frame{} = Frame) ->
+  send_frame(Player, Frame).
 
 %% Here goes plenty, plenty of cases
-  
+
+
+%% This function tries to send decoder config if it is time to
 
 send_frame(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = false} = Player, 
-           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when Meta =/= undefined ->
+            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when is_record(Meta, video_frame) ->
   % ?D({"Sent metadata", Meta}),
   {noreply, S1} = M:handle_frame(Meta#video_frame{dts = DTS, pts = DTS}, S),
   send_frame(Player#ems_stream{sent_metadata = true, state = S1}, Frame);
 
 
-send_frame(#ems_stream{mode = file, module = M, state = S} = Player, 
-           #video_frame{next_id = Next} = Frame) ->
-  case M:handle_frame(Frame, S) of           
+send_frame(#ems_stream{mode = file, module = M, state = S} = Player, #video_frame{next_id = Next} = Frame) ->
+  case M:handle_frame(Frame, S) of
     {noreply, S1} -> tick_timeout(Frame, Player#ems_stream{pos = Next, state = S1});
     stop -> handle_eof(Player)
   end;
 
 
-send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->
-  ?MODULE:ready(Player#ems_stream{video_config = F, sent_video_config = false});
-
-send_frame(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
-  ?MODULE:ready(Player#ems_stream{audio_config = F, sent_audio_config = false});
-
-send_frame(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
-  % ?D({"Replacing metadata", F}),
-  ?MODULE:ready(Player#ems_stream{metadata = F, sent_metadata = false});
-
-
-
-
-send_frame(#ems_stream{} = Player, eof) ->
-  handle_eof(Player);
-
-
 send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
-           #video_frame{dts = DTS} = Frame) when A =/= undefined ->
+           #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
   {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
   ?D({"Send audio config", DTS}),
   send_frame(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
 
 send_frame(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
-           #video_frame{dts = DTS} = Frame) when V =/= undefined ->
+           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
    {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
    ?D({"Send video config", DTS}),
    send_frame(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
