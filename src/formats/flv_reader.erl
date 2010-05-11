@@ -149,9 +149,8 @@ seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
 % @return a valid video_frame record type
 read_frame(#media_info{device = Device}, Offset) ->
 	case flv:read_tag(Device, Offset) of
-		#flv_tag{next_tag_offset = NextOffset, timestamp = Timestamp, body = AVTag} = Tag ->
-		  VideoFrame = flv_video_frame:tag_to_video_frame(AVTag, Timestamp),
-		  VideoFrame#video_frame{next_id = NextOffset};
+		#flv_tag{} = Tag ->
+		  flv_video_frame:tag_to_video_frame(Tag);
     eof -> eof;
     {error, Reason} -> {error, Reason}
   end.
