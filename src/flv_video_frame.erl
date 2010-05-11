@@ -34,7 +34,7 @@
 -include("../include/video_frame.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
--export([tag_to_video_frame/1]).
+-export([tag_to_video_frame/1, tag_to_video_frame/2]).
 
 
 
@@ -98,6 +98,12 @@ tag_to_video_frame(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig,
 tag_to_video_frame(Metadata) ->
   #video_frame{type = metadata, body = Metadata, dts = 0, pts = 0}.
 
+
+tag_to_video_frame(Tag, Timestamp) ->
+  Frame = tag_to_video_frame(Tag),
+  CTime = Frame#video_frame.pts,
+  Frame#video_frame{dts = Timestamp, pts = Timestamp+CTime}.
+  
 
 decode(#video_frame{type = video, dts = DTS} = Frame, Data) ->
   #flv_video_tag{codec = Codec, frame_type = FrameType, composition_time = CTime, decoder_config = Cfg, body = Body} = flv:decode_video_tag(Data),
