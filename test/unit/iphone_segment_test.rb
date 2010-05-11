@@ -20,7 +20,7 @@ class IphoneSegmentTest < Test::Unit::TestCase
   end
   
   def test_validator
-    validation = `mediastreamvalidator validate http://localhost:8082/iphone/playlists/apple.mp4.m3u8 2>&1`
+    validation = limited_run("mediastreamvalidator validate http://localhost:8082/iphone/playlists/apple.mp4.m3u8", 20)
     assert validation =~ /Video codec: avc1/
     assert validation =~ /Audio codec: aac/
     assert validation =~ /Average segment duration: /

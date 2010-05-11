@@ -11,11 +11,8 @@ class RtmpFileTest < Test::Unit::TestCase
   
   def test_published_stream_is_shifted
     File.unlink("/tmp/test.flv") if File.exists?("/tmp/test.flv")
-    result = begin
-      Timeout::timeout(7) {`rtmpdump -r rtmp://localhost/live/livestream --stop 5 -o /tmp/test.flv 2>&1`} 
-    rescue Timeout::Error
-      :timeout
-    end
+    limited_run("rtmpdump -r rtmp://localhost/live/livestream --stop 5 -o /tmp/test.flv")
+
     assert(File.size("/tmp/test.flv") > 0, "Should download file: #{result}")
     
     duration = flvtool2_duration("/tmp/test.flv")
@@ -30,7 +27,7 @@ class RtmpFileTest < Test::Unit::TestCase
   end
   
   def test_iphone_of_live_stream
-    result = Timeout::timeout(7) {`curl -s http://localhost:8082/iphone/playlists/livestream.m3u8`}
+    limited_run("curl -s http://localhost:8082/iphone/playlists/livestream.m3u8")
     assert_equal <<-EOF, result
 #EXTM3U
 #EXT-X-MEDIA-SEQUENCE:0
@@ -40,7 +37,7 @@ class RtmpFileTest < Test::Unit::TestCase
 /iphone/segments/livestream/0.ts
     EOF
 
-    result = Timeout::timeout(7) {`curl -s http://localhost:8082/iphone/segments/livestream/0.ts`}
+    result = limited_run("curl -s http://localhost:8082/iphone/segments/livestream/0.ts", 5)
     assert result.size > 10000, "Should download large content: size is #{result.size}"
   end
 end

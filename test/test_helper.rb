@@ -7,15 +7,23 @@ class Test::Unit::TestCase
     `#{File.dirname(__FILE__)}/../contrib/erlyctl restart`
   end
   
+  def limited_run(command, timeout)
+    if !(pid = Process.fork)
+      writeme = File.open("/tmp/output.txt", "w+")
+      STDERR.reopen(writeme)
+      STDOUT.reopen(writeme)
+      exec(command)
+    end
+    
+    sleep(timeout)
+    Process.kill("KILL", pid)
+    File.read("/tmp/output.txt")
+  end
+  
   def media_info(url, options = nil)
     if url =~ /http:\/\//
-      begin
-        File.unlink("/tmp/test") if File.exists?("/tmp/test")
-        Timeout::timeout(12) do
-          `curl --connect-timeout 1 -s -S -o /tmp/test "#{url}" 2>&1`
-        end
-      rescue ::Timeout::Error
-      end
+      File.unlink("/tmp/test") if File.exists?("/tmp/test")
+      limited_run("curl --connect-timeout 1 -s -S -o /tmp/test \"#{url}\"", 5)
       File.exists?("/tmp/test") ? `ffmpeg -timelimit 8 #{options} -i /tmp/test 2>&1` : raise("Couldn't download #{url}")
     else
       `ffmpeg -i #{url} 2>&1`
