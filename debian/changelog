@@ -1,3 +1,9 @@
+erlmedia (1.2.14) karmic; urgency=low
+
+  * Enhancements in flv_video_frame
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 11 May 2010 12:22:50 +0400
+
 erlmedia (1.2.13) karmic; urgency=low
 
   * Moved mkv to erlmedia
