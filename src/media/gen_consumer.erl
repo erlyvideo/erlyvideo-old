@@ -407,29 +407,39 @@ prepare_frame(#ems_stream{last_dts = Last} = Stream, #video_frame{dts = DTS} = F
 
 
 %% Clauses for old config, that just repeats
-save_config(#ems_stream{video_config = #video_frame{body = Cfg}} = Player, #video_frame{decoder_config = true, type = video, body = Cfg}) ->
-  ?MODULE:ready(Player);
+save_config(#ems_stream{video_config = #video_frame{body = Config}} = Player, 
+            #video_frame{decoder_config = true, type = video, body = Config} = F) ->
+  config_saved(Player, F);
 
-save_config(#ems_stream{audio_config = #video_frame{body = Cfg}} = Player, #video_frame{decoder_config = true, type = audio, body = Cfg}) ->
-  ?MODULE:ready(Player);
+save_config(#ems_stream{audio_config = #video_frame{body = Config}} = Player, 
+           #video_frame{decoder_config = true, type = audio, body = Config} = F) ->
+  config_saved(Player, F);
 
-save_config(#ems_stream{metadata = #video_frame{body = M}} = Player, #video_frame{type = metadata, body = M}) ->
-  ?MODULE:ready(Player);
+save_config(#ems_stream{metadata = #video_frame{body = M}} = Player, #video_frame{type = metadata, body = M} = F) ->
+  config_saved(Player, F);
 
 %% Now replacing config with new one
 save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->
-  ?MODULE:ready(Player#ems_stream{video_config = F, sent_video_config = false});
+  config_saved(Player#ems_stream{video_config = F, sent_video_config = false}, F);
 
 save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
-  ?MODULE:ready(Player#ems_stream{audio_config = F, sent_audio_config = false});
+  config_saved(Player#ems_stream{audio_config = F, sent_audio_config = false}, F);
 
 save_config(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
-  ?MODULE:ready(Player#ems_stream{metadata = F, sent_metadata = false});
+  config_saved(Player#ems_stream{metadata = F, sent_metadata = false}, F);
 
 %% And just case for all other frames
 save_config(#ems_stream{} = Player, #video_frame{} = Frame) ->
   send_frame(Player, Frame).
 
+
+config_saved(#ems_stream{mode = file} = Player, #video_frame{next_id = Next}) ->
+  self() ! tick,
+  ?MODULE:ready(Player#ems_stream{pos = Next});
+  
+config_saved(Player, _) ->
+  ?MODULE:ready(Player).
+  
 %% Here goes plenty, plenty of cases
 
 

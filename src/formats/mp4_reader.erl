@@ -62,12 +62,12 @@ lookup_frame(audio, #media_info{audio_track = ATs}) -> element(1,ATs).
 
 
 read_frame(MediaInfo, {audio_config, Pos}) ->
-  ?D({"Send audio config", Pos}),
+  % ?D({"Send audio config", Pos}),
   Frame = codec_config(audio, MediaInfo),
   Frame#video_frame{next_id = {video_config,Pos}};
 
 read_frame(MediaInfo, {video_config,Pos}) ->
-  ?D({"Send video config", Pos}),
+  % ?D({"Send video config", Pos}),
   Frame = codec_config(video, MediaInfo),
   Frame#video_frame{next_id = Pos};
 
