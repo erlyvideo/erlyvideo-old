@@ -85,9 +85,9 @@ handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_st
 handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{} = Stream) ->
   {noreply, Stream#rtmp_stream{video_config = Frame}};
 
-handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{} = Stream) ->
+handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{base_dts = Base} = Stream) ->
   ?D({metadata,Frame}),
-  {noreply, send_frame(Frame#video_frame{dts = 0, pts = 0}, Stream#rtmp_stream{metadata = Frame})};
+  {noreply, send_frame(Frame#video_frame{dts = Base, pts = Base}, Stream#rtmp_stream{metadata = Frame})};
 
 handle_frame(#video_frame{decoder_config = true} = _Frame, Stream) ->
   ?D(skip_dup_decoder_config),
