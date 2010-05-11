@@ -420,11 +420,11 @@ save_config(#ems_stream{metadata = #video_frame{body = M}} = Player, #video_fram
 
 %% Now replacing config with new one
 save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->
-  % ?D(save_video),
+  ?D(save_video),
   config_saved(Player#ems_stream{video_config = F, sent_video_config = false}, F);
 
 save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
-  % ?D(save_audio),
+  ?D(save_audio),
   config_saved(Player#ems_stream{audio_config = F, sent_audio_config = false}, F);
 
 save_config(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
@@ -437,6 +437,7 @@ save_config(#ems_stream{} = Player, #video_frame{} = Frame) ->
 
 config_saved(#ems_stream{mode = file} = Player, #video_frame{next_id = Next}) ->
   self() ! tick,
+  ?D(config_saved),
   ?MODULE:ready(Player#ems_stream{pos = Next});
   
 config_saved(Player, _) ->
@@ -457,53 +458,52 @@ send_config(#ems_stream{module = M, state = S, audio_config = A, sent_audio_conf
            #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
   {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
   ?D({"Send audio config", DTS}),
-  send_frame(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
+  send_config(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
 
 send_config(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
            #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
-   {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
-   ?D({"Send video config", DTS}),
-   send_frame(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
+  {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
+  ?D({"Send video config", DTS}),
+  send_config(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
    
 send_config(#ems_stream{} = Player, #video_frame{} = Frame) ->
-  % ?D({Frame#video_frame.type, Player#ems_stream.video_config, Player#ems_stream.sent_video_config}),
-  send_frame(Player, Frame).
+  % ?D({Frame#video_frame.type, Player#ems_stream.audio_config, Player#ems_stream.sent_audio_config, Player#ems_stream.video_config, Player#ems_stream.sent_video_config}),
+  try_send_frame(Player, Frame).
 
 
 
 %% Now just sending frame at least
 
-send_frame(#ems_stream{mode = file, module = M, state = S} = Player, #video_frame{next_id = Next} = Frame) ->
-  % ?D({send, Frame#video_frame.type, Player#ems_stream.sent_video_config, Player#ems_stream.video_config}),
-  case M:handle_frame(Frame, S) of
-    {noreply, S1} -> tick_timeout(Frame, Player#ems_stream{pos = Next, state = S1});
-    stop -> handle_eof(Player)
-  end;
-
-
-
-send_frame(#ems_stream{module = M, state = S, sent_audio_config = true} = Player, 
+try_send_frame(#ems_stream{module = M, state = S, sent_audio_config = true} = Player, 
            #video_frame{type = audio, codec_id = aac} = Frame) ->
-  {noreply, S1} = M:handle_frame(Frame, S),
-  ?MODULE:ready(Player#ems_stream{state = S1});
+  send_frame(Player, Frame);
 
-send_frame(#ems_stream{module = M, state = S, sent_video_config = true} = Player, 
+try_send_frame(#ems_stream{module = M, state = S, sent_video_config = true} = Player, 
            #video_frame{type = video, codec_id = h264} = Frame) ->
-  {noreply, S1} = M:handle_frame(Frame, S),
-  ?MODULE:ready(Player#ems_stream{state = S1});
+  send_frame(Player, Frame);
 
-send_frame(#ems_stream{module = M, state = S} = Player, 
+try_send_frame(#ems_stream{module = M, state = S} = Player, 
            #video_frame{codec_id = Codec} = Frame) when Codec =/= aac andalso Codec =/= h264 ->
   % ?D({Frame#video_frame.type, Frame#video_frame.dts, Frame#video_frame.codec_id}),
-  {noreply, S1} = M:handle_frame(Frame, S),
-  ?MODULE:ready(Player#ems_stream{state = S1});
+  send_frame(Player, Frame);
 
-send_frame(#ems_stream{} = Player, #video_frame{type = _Type, dts = _DTS} = _Frame) ->
+try_send_frame(#ems_stream{} = Player, #video_frame{type = _Type, dts = _DTS} = Frame) ->
   % ?D({"Refuse to sent unsynced frame", _Type, _DTS, _Frame#video_frame.frame_type}),
+  frame_sent(Player, Frame).
+
+
+send_frame(#ems_stream{module = M, state = S} = Player, #video_frame{next_id = Next} = Frame) ->
+  % ?D({send, Frame#video_frame.type, Player#ems_stream.sent_video_config, Player#ems_stream.video_config}),
+  case M:handle_frame(Frame, S) of
+    {noreply, S1} -> frame_sent(Player#ems_stream{pos = Next, state = S1}, Frame);
+    stop -> handle_eof(Player)
+  end.
+
+frame_sent(#ems_stream{mode = file} = Player, Frame) ->
+  tick_timeout(Frame, Player);
+  
+frame_sent(Player, _) ->
   ?MODULE:ready(Player).
-
-
-
   
 
 %% @hidden
@@ -529,7 +529,7 @@ wait4tick(Player, _Prepush, Timeout) when Timeout > 0 ->
       handle_info(Message, Player)
   after
     Timeout ->
-      handle_info(tick, Player)
+      ?MODULE:handle_info(tick, Player)
   end;
 
 wait4tick(Player, _, _) ->

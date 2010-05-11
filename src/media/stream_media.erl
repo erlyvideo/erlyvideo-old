@@ -205,11 +205,19 @@ handle_call(metadata, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
-  Res = Module:seek(MediaInfo, BeforeAfter, Timestamp),
-  {reply, Res, MediaInfo, ?TIMEOUT};
+  case Module:seek(MediaInfo, BeforeAfter, Timestamp) of
+    {Pos, Time} -> {reply, {{audio_config, Pos}, Time}, MediaInfo, ?TIMEOUT};
+    undefined -> {reply, undefined, MediaInfo, ?TIMEOUT}
+  end;
 
 handle_call({seek, _BeforeAfter, _Timestamp}, _From, MediaInfo) ->
   {reply, undefined, MediaInfo, ?TIMEOUT};
+
+handle_call({read, {audio_config, DTS}}, _From, #media_info{audio_config = Audio} = MediaInfo) ->
+  {reply, Audio#video_frame{next_id = {video_config,DTS}}, MediaInfo, ?TIMEOUT};
+
+handle_call({read, {video_config, DTS}}, _From, #media_info{video_config = Video} = MediaInfo) ->
+  {reply, Video#video_frame{next_id = DTS}, MediaInfo, ?TIMEOUT};
 
 handle_call({read, DTS}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
   {reply, Module:read(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
