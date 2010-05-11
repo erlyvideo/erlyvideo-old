@@ -113,6 +113,7 @@ init(Options, Name) ->
   Seek = proplists:get_value(seek, Options),
   Duration = proplists:get_value(duration, Options),
   Consumer = proplists:get_value(consumer, Options),
+  erlang:monitor(process,Consumer),
   self() ! {play, Name, Options},
   {ok, #iphone_stream{mpegts = mpegts:init(), host = Host, seek = Seek, duration = Duration, consumer = Consumer}}.
 
@@ -162,6 +163,7 @@ handle_info(stop, _Stream) ->
   stop;
 
 handle_info(_Message, Stream) ->
+  ?D(_Message),
   {noreply, Stream}.
 
 

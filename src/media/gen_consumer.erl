@@ -420,9 +420,11 @@ save_config(#ems_stream{metadata = #video_frame{body = M}} = Player, #video_fram
 
 %% Now replacing config with new one
 save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = video} = F) ->
+  % ?D(save_video),
   config_saved(Player#ems_stream{video_config = F, sent_video_config = false}, F);
 
 save_config(#ems_stream{} = Player, #video_frame{decoder_config = true, type = audio} = F) ->
+  % ?D(save_audio),
   config_saved(Player#ems_stream{audio_config = F, sent_audio_config = false}, F);
 
 save_config(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
@@ -430,7 +432,7 @@ save_config(#ems_stream{} = Player, #video_frame{type = metadata} = F) ->
 
 %% And just case for all other frames
 save_config(#ems_stream{} = Player, #video_frame{} = Frame) ->
-  send_frame(Player, Frame).
+  send_config(Player, Frame).
 
 
 config_saved(#ems_stream{mode = file} = Player, #video_frame{next_id = Next}) ->
@@ -445,31 +447,40 @@ config_saved(Player, _) ->
 
 %% This function tries to send decoder config if it is time to
 
-send_frame(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = false} = Player, 
+send_config(#ems_stream{module = M, state = S, metadata = Meta, sent_metadata = false} = Player, 
             #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when is_record(Meta, video_frame) ->
   % ?D({"Sent metadata", Meta}),
   {noreply, S1} = M:handle_frame(Meta#video_frame{dts = DTS, pts = DTS}, S),
-  send_frame(Player#ems_stream{sent_metadata = true, state = S1}, Frame);
+  send_config(Player#ems_stream{sent_metadata = true, state = S1}, Frame);
 
+send_config(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
+           #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
+  {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
+  ?D({"Send audio config", DTS}),
+  send_frame(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
+
+send_config(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
+           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
+   {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
+   ?D({"Send video config", DTS}),
+   send_frame(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
+   
+send_config(#ems_stream{} = Player, #video_frame{} = Frame) ->
+  % ?D({Frame#video_frame.type, Player#ems_stream.video_config, Player#ems_stream.sent_video_config}),
+  send_frame(Player, Frame).
+
+
+
+%% Now just sending frame at least
 
 send_frame(#ems_stream{mode = file, module = M, state = S} = Player, #video_frame{next_id = Next} = Frame) ->
+  % ?D({send, Frame#video_frame.type, Player#ems_stream.sent_video_config, Player#ems_stream.video_config}),
   case M:handle_frame(Frame, S) of
     {noreply, S1} -> tick_timeout(Frame, Player#ems_stream{pos = Next, state = S1});
     stop -> handle_eof(Player)
   end;
 
 
-send_frame(#ems_stream{module = M, state = S, audio_config = A, sent_audio_config = false} = Player, 
-           #video_frame{type = audio, dts = DTS} = Frame) when A =/= undefined ->
-  {noreply, S1} = M:handle_frame(A#video_frame{dts = DTS, pts = DTS}, S),
-  ?D({"Send audio config", DTS}),
-  send_frame(Player#ems_stream{sent_audio_config = true, state = S1}, Frame);
-
-send_frame(#ems_stream{module = M, state = S, video_config = V, sent_video_config = false} = Player, 
-           #video_frame{type = video, frame_type = keyframe, dts = DTS} = Frame) when V =/= undefined ->
-   {noreply, S1} = M:handle_frame(V#video_frame{dts = DTS, pts = DTS}, S),
-   ?D({"Send video config", DTS}),
-   send_frame(Player#ems_stream{sent_video_config = true, state = S1}, Frame);
 
 send_frame(#ems_stream{module = M, state = S, sent_audio_config = true} = Player, 
            #video_frame{type = audio, codec_id = aac} = Frame) ->
