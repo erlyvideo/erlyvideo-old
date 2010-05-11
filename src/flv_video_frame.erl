@@ -34,7 +34,7 @@
 -include("../include/video_frame.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
--export([tag_to_video_frame/1, tag_to_video_frame/2]).
+-export([tag_to_video_frame/1]).
 
 
 
@@ -73,6 +73,11 @@ video_frame_to_tag(#video_frame{type = video,
 video_frame_to_tag(#video_frame{type = metadata, body = Metadata}) ->
   Metadata.
 
+tag_to_video_frame(#flv_tag{next_tag_offset = NextOffset, timestamp = Timestamp, body = AVTag}) ->
+	VideoFrame = tag_to_video_frame(AVTag, Timestamp),
+	VideoFrame#video_frame{next_id = NextOffset};
+
+
 tag_to_video_frame(#flv_audio_tag{codec = Codec, rate = Rate, bitsize = Size, channels = SoundType, body = Body, decoder_config = DecoderConfig}) ->
   #video_frame{type = audio,
                decoder_config = DecoderConfig,
@@ -97,6 +102,8 @@ tag_to_video_frame(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig,
 
 tag_to_video_frame(Metadata) ->
   #video_frame{type = metadata, body = Metadata, dts = 0, pts = 0}.
+  
+  
 
 
 tag_to_video_frame(Tag, Timestamp) ->
