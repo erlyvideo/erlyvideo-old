@@ -120,8 +120,8 @@ handle_frame(_Frame, #rtmp_stream{} = Stream) ->
   {noreply, Stream}.
   
 send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) ->
-  Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
-  % Consumer ! Frame#video_frame{stream_id = StreamId},
+  % Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
+  Consumer ! Frame#video_frame{stream_id = StreamId},
   Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}.
 
 
