@@ -34,7 +34,7 @@
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
--export([connect/1, connect/2, createStream/1, play/3]).
+-export([connect/1, connect/2, createStream/1, play/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
 -export([play_complete/3, seek_notify/3, seek_failed/2, play_start/2, pause_notify/2]).
 
@@ -97,12 +97,42 @@ createStream(RTMP) ->
   [null, StreamId] = wait_for_reply(RTMP, InvokeId),
   round(StreamId).
 
+
+play(RTMP, Stream, Path) when is_list(Path) ->
+  play(RTMP, Stream, list_to_binary(Path));
+  
 play(RTMP, Stream, Path) ->
   AMF = #rtmp_funcall{
     command = play,
     type = invoke,
     stream_id = Stream,
     args = [null, Path]
+  },
+  rtmp_socket:invoke(RTMP, AMF),
+  receive
+    {rtmp, RTMP, #rtmp_message{type = stream_begin}} -> ok
+  after
+    30000 -> erlang:error(timeout)
+  end.
+
+publish(RTMP, Stream, [Path, live]) ->
+  publish(RTMP, Stream, Path, live);
+
+publish(RTMP, Stream, [Path, record]) ->
+  publish(RTMP, Stream, Path, record);
+
+publish(RTMP, Stream, Path) ->
+  publish(RTMP, Stream, Path, live).
+
+publish(RTMP, Stream, Path, Type) when is_list(Path) ->
+  publish(RTMP, Stream, list_to_binary(Path), Type);
+
+publish(RTMP, Stream, Path, Type) ->
+  AMF = #rtmp_funcall{
+    command = publish,
+    type = invoke,
+    stream_id = Stream,
+    args = [null, Path, atom_to_binary(Type, latin1)]
   },
   rtmp_socket:invoke(RTMP, AMF),
   receive
