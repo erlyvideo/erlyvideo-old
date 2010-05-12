@@ -1,3 +1,9 @@
+erlyvideo (1.8.7) karmic; urgency=low
+
+  * Huge fixes in livestream
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 12 May 2010 21:02:47 +0400
+
 erlyvideo (1.8.6) karmic; urgency=low
 
   * Added test for livestream publishing
