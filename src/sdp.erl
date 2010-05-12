@@ -22,7 +22,7 @@ decode_body([], List, _Re) ->
   lists:reverse(List);
 
 decode_body([Message | Body], List, Re) ->
-  % ?D({"SDP", Message}),
+  ?D({"SDP", Message}),
   {match, [_, Key, Value]} = re:run(Message, Re, [{capture, all, binary}]),
   decode_body(Body, [{Key, Value} | List], Re).
 
@@ -34,7 +34,7 @@ split_body(Body, List) ->
     {ok, Line, More} ->
       split_body(More, [Line | List]);
     {more, undefined} ->
-      lists:reverse([Body | List])
+      lists:reverse([<<Body/binary, "\r\n">> | List])
   end.
 
 
@@ -108,6 +108,9 @@ parse_announce([{<<"a">>, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_
   parse_announce(Announce, Streams, parse_fmtp(Stream, Opts ));
 
 parse_announce([{<<"a">>, _Info} | Announce], Streams, Stream) ->
+  parse_announce(Announce, Streams, Stream);
+
+parse_announce([{<<"i">>, _Info} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream).
 
 
