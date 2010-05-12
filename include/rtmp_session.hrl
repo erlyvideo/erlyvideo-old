@@ -6,6 +6,7 @@
 	port,
 	session_id,
 	amf_ver = 0,
+	plugin_data,
 	user_id     = undefined,
 	player_info = [],
 	streams      = {},
