@@ -1,3 +1,9 @@
+erlang-mpegts (2.2.4) karmic; urgency=low
+
+  * Typo in mpegts_reader
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 12 May 2010 21:00:58 +0400
+
 erlang-mpegts (2.2.3) karmic; urgency=low
 
   * Update for new video_frame format
