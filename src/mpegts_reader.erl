@@ -293,7 +293,7 @@ copy_pcr(#ts_header{pcr = PCR}, Stream) -> Stream#stream{pcr = PCR}.
       
 pes_packet(_, #stream{type = unhandled} = Stream) -> Stream#stream{ts_buffer = []};
 
-pes_packet(_, #stream{dts = undefiend} = Stream) ->
+pes_packet(_, #stream{dts = undefined} = Stream) ->
   ?D({"No PCR or DTS yes"}),
   Stream#stream{ts_buffer = []};
 
