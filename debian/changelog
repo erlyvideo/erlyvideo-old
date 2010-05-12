@@ -1,3 +1,10 @@
+erlang-rtmp (1.5.9) karmic; urgency=low
+
+  * Added publish
+  * Fixed gen_fsm
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 12 May 2010 20:56:49 +0400
+
 erlang-rtmp (1.5.8) karmic; urgency=low
 
   * sha2 now in rtmp
