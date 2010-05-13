@@ -69,7 +69,7 @@ EOF
       
       while !lines.empty?
         first_line = lines.shift
-        raise "Invalid changelog: #{first_line}" unless first_line =~ /(\w+) \(([^\)]+)\) ([^;]+); urgency=(\w+)/
+        raise "Invalid changelog: #{first_line}" unless first_line =~ /(.+) \(([^\)]+)\) ([^;]+); urgency=(\w+)/
         name, version, repository, urgency  = $1, $2, $3, $4
         lines.shift
         log = []
@@ -103,7 +103,7 @@ EOF
   
   def commit_debian
     version, log = last_version
-    `(cd #{path}; git add debian; git commit -m 'debian #{version}'; git push)`
+    `(cd #{path}; git checkout master; git pull; git add debian; git commit -m 'debian #{version}'; git push)`
   end
   
   def make_debian
@@ -114,7 +114,6 @@ EOF
   end
 end
 
-repo = Repository.new(ARGV[1])
-repo.send(ARGV[2].to_sym)
-
+repo = Repository.new(ARGV[0])
+repo.send(ARGV[1].to_sym)
 
