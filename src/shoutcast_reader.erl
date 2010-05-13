@@ -165,6 +165,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
            	type          = audio,
            	decoder_config = true,
         		dts           = 0,
+        		pts           = 0,
         		body          = aac:config(Second),
         	  codec_id	    = aac,
         	  sound_type	  = stereo,
@@ -196,6 +197,7 @@ decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timesta
       Frame = #video_frame{       
         type          = audio,
         dts           = Timestamp,
+        pts           = Timestamp,
         body          = Packet,
     	  codec_id      = aac,
     	  sound_type	  = stereo,
@@ -220,6 +222,7 @@ decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timesta
       Frame = #video_frame{       
         type          = audio,
         dts           = Timestamp,
+        pts           = Timestamp,
         body          = Packet,
     	  codec_id	    = mp3,
     	  sound_type	  = stereo,
