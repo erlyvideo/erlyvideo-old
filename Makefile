@@ -1,4 +1,4 @@
-VERSION := `head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]'`
+VERSION := `head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
 NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
 ERLDIR := `erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/mpegts-$(VERSION)
 NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
