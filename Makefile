@@ -1,4 +1,4 @@
-VERSION := $(shell head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]')
+VERSION := $(shell head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/')
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtmp
 
