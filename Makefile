@@ -1,4 +1,4 @@
-VERSION := `head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.\-]+)\)/,1]'`
+VERSION := `head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
 RTMPDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlydtl-$(VERSION)
 BEAMDIR=$(RTMPDIR)/ebin/
 SRCDIR=$(RTMPDIR)/src/
