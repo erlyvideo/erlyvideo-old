@@ -1,3 +1,9 @@
+erlang-shoutcast (1.1.3) karmic; urgency=low
+
+  Fixed pts in shoutcast frames
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 14 May 2010 00:43:29 +0400
+
 erlang-shoutcast (1.1.2) karmic; urgency=low
 
   * New video_frame format
