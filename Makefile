@@ -1,4 +1,4 @@
-VERSION:=$(shell head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]')
+VERSION:=$(shell head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/')
 REQUIRED_ERLANG:=R13
 ERLANG_VERSION:=$(shell erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell)
 ERLDIR:=$(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/erlyvideo-$(VERSION)
@@ -10,14 +10,15 @@ ERL=erl +A 4 +K true
 APP_NAME=ems
 NODE_NAME=$(APP_NAME)@`hostname`
 
-all: compile
+all: compile doc
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	[ -d deps/rtmp ] && for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && make -f Makefile) ; done; true
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
-
+doc:
+	erl -pa ebin -s erlyvideo run_edoc -s init stop -noinput -noshell
 
 erlang_version:
 	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
@@ -32,11 +33,6 @@ archive: ../erlyvideo-$(VERSION).tgz
 
 ebin:
 	mkdir ebin
-
-doc:	
-	$(ERL) -pa `pwd`/ebin \
-	-noshell \
-	-run edoc_run application  "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
 
 clean:
 	rm -fv ebin/*.beam
