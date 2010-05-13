@@ -535,10 +535,7 @@ send_data(#rtmp_socket{socket = Socket} = State, Message) ->
   end,
   if
     is_port(Socket) ->
-      erlang:port_command(Socket, Data, []),
-      receive
-    	  {inet_reply,Socket,Status} -> Status
-    	end;
+      gen_tcp:send(Socket, Data);
     is_pid(Socket) ->
       rtmpt:write(Socket, Data)
   end,
