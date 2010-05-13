@@ -116,7 +116,7 @@ handle_frame(#video_frame{type = video} = Frame, #rtmp_stream{sync_video = true}
   {noreply, send_frame(Frame, Stream)};
 
 handle_frame(_Frame, #rtmp_stream{} = Stream) ->
-  ?D(z),
+  % ?D(z),
   {noreply, Stream}.
   
 send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) ->
