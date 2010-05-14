@@ -1,3 +1,9 @@
+erlyvideo (1.8.10) karmic; urgency=low
+
+  Again fix for protected_play
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 14 May 2010 18:21:59 +0400
+
 erlyvideo (1.8.9) karmic; urgency=low
 
   Fix in protected_play
