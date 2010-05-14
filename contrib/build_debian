@@ -11,7 +11,7 @@ class Repository
   end
   
   def last_version
-    tag = `(cd #{path}; git tag -n10 -l | tail -1)`.strip
+    tag = `(cd #{path}; git tag -n1 -l| sort -V | tail -1)`.strip
     tag =~ /v([^\ ]+) [\ ]*(\w.*)/
     [$1, $2]
   end
