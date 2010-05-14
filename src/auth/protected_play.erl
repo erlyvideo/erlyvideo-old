@@ -1,7 +1,7 @@
 -module(protected_play).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
--include("erlyvideo/include/rtmp_session.hrl").
+-include_lib("erlyvideo/include/rtmp_session.hrl").
 
 
 -export([connect/2, play/2]).
