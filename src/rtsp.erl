@@ -1,3 +1,78 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009 Max Lapshin
+%%% @doc        Main RTSP support module
+%%%
+%%% <h2>Decoder config</h2> 
+%%% RTSP is used for sending SDP via PLAY or RECORD command, where is configured video and audio.
+%%% Sometimes {@link sdp. sdp} is with H.264 decoder config, sometimes without, so stream should be
+%%% able to configure H.264 from stream. Look at gstreamer for such situation.
+%%%
+%%% It is important to understand, that Erlyvideo is very opinionated about way of sending video and audio:
+%%% TCP SHOULD be used for it. Best way is ``interleaved'' field in RTSP transport setup so that
+%%% RTP packets will flow on the same session.
+%%%
+%%% <h2>Time synchronization</h2>
+%%% Next great problem is time synchronization in video and audio.
+%%% Each stream delivers timestamps in each own clockmap, shifted by own base timecode.
+%%% To synchronize two streams you need to receive:
+%%% <ol>
+%%% <li>``NTP'' time (64 bits of nanoseconds)</li>
+%%% <li>``BaseTimecode'' at which this ``NTP'' has occured</li>
+%%% </ol>
+%%%
+%%% Then to get DTS of timestamp, you should use following formula:
+%%% ```DTS = WallClock + (FrameTimecode - BaseTimecode)/ClockMap'''
+%%%
+%%% Good servers send header Rtp-Info, where is synchro information about audio and video
+%%% and you can accept exactly first packet.
+%%%
+%%% Bad servers send RTCP SR frames, so that you will be able to synchronize later.
+%%%
+%%% Very bad servers dont send anything at all. It seems, that it is better to wait some time and then
+%%% sync according to erlang:now()
+%%%
+%%% <h2>Frame reordering</h2>
+%%% RTSP servers doesn't care about reliabilty of TCP and reorder frames in A/V streams. It is required to
+%%% keep buffer and sort frames by timestamps
+%%%
+%%% @end
+%%% @reference  See <a href="http://erlyvideo.org/rtsp" target="_top">http://erlyvideo.org</a> for common information.
+%%% 
+%%% RFC to mention:
+%%% <ul>
+%%% <li><a href="http://www.faqs.org/rfcs/rfc1889.html">1889 RTP</a></li>
+%%% <li><a href="http://www.rfc-editor.org/rfc/rfc3550.txt">3550 RTP</a></li>
+%%% <li><a href="http://www.rfc-editor.org/rfc/rfc5761.txt">5761 Multiplexing RTP on single port</a></li>
+%%% <li><a href="http://www.rfc-editor.org/rfc/rfc3984.txt">3984 RTP payload for H.264</a></li>
+%%% <li><a href="http://www.ietf.org/rfc/rfc2326.txt">2326 RTSP</a></li>
+%%% </ul>
+%%% 
+%%% @end
+%%%
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2009 Max Lapshin
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(rtsp).
 -author('Max Lapshin <max@maxidoors.ru>').
 
