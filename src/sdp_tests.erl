@@ -1,3 +1,4 @@
+%% @hidden
 -module(sdp_tests).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("eunit/include/eunit.hrl").

@@ -1,52 +1,8 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        Main RTSP support module
-%%%
-%%% <h2>Decoder config</h2> 
-%%% RTSP is used for sending SDP via PLAY or RECORD command, where is configured video and audio.
-%%% Sometimes {@link sdp. sdp} is with H.264 decoder config, sometimes without, so stream should be
-%%% able to configure H.264 from stream. Look at gstreamer for such situation.
-%%%
-%%% It is important to understand, that Erlyvideo is very opinionated about way of sending video and audio:
-%%% TCP SHOULD be used for it. Best way is ``interleaved'' field in RTSP transport setup so that
-%%% RTP packets will flow on the same session.
-%%%
-%%% <h2>Time synchronization</h2>
-%%% Next great problem is time synchronization in video and audio.
-%%% Each stream delivers timestamps in each own clockmap, shifted by own base timecode.
-%%% To synchronize two streams you need to receive:
-%%% <ol>
-%%% <li>``NTP'' time (64 bits of nanoseconds)</li>
-%%% <li>``BaseTimecode'' at which this ``NTP'' has occured</li>
-%%% </ol>
-%%%
-%%% Then to get DTS of timestamp, you should use following formula:
-%%% ```DTS = WallClock + (FrameTimecode - BaseTimecode)/ClockMap'''
-%%%
-%%% Good servers send header Rtp-Info, where is synchro information about audio and video
-%%% and you can accept exactly first packet.
-%%%
-%%% Bad servers send RTCP SR frames, so that you will be able to synchronize later.
-%%%
-%%% Very bad servers dont send anything at all. It seems, that it is better to wait some time and then
-%%% sync according to erlang:now()
-%%%
-%%% <h2>Frame reordering</h2>
-%%% RTSP servers doesn't care about reliabilty of TCP and reorder frames in A/V streams. It is required to
-%%% keep buffer and sort frames by timestamps
-%%%
+%%% @doc        RTSP decoder module
 %%% @end
 %%% @reference  See <a href="http://erlyvideo.org/rtsp" target="_top">http://erlyvideo.org</a> for common information.
-%%% 
-%%% RFC to mention:
-%%% <ul>
-%%% <li><a href="http://www.faqs.org/rfcs/rfc1889.html">1889 RTP</a></li>
-%%% <li><a href="http://www.rfc-editor.org/rfc/rfc3550.txt">3550 RTP</a></li>
-%%% <li><a href="http://www.rfc-editor.org/rfc/rfc5761.txt">5761 Multiplexing RTP on single port</a></li>
-%%% <li><a href="http://www.rfc-editor.org/rfc/rfc3984.txt">3984 RTP payload for H.264</a></li>
-%%% <li><a href="http://www.ietf.org/rfc/rfc2326.txt">2326 RTSP</a></li>
-%%% </ul>
-%%% 
 %%% @end
 %%%
 %%%
@@ -81,6 +37,15 @@
 -export([start_server/3]).
 
 -export([parse/2, decode/1]).
+
+-export([edoc/1, edoc/0]).
+
+
+edoc() ->
+  edoc([{dir,"doc/html"}]).
+  
+edoc(Options) ->
+  edoc:application(?MODULE,".",[{packages,false} | Options]).
 
 start_server(Port, Name, Callback) ->
   rtsp_sup:start_rtsp_listener(Port, Name, Callback).
@@ -133,6 +98,16 @@ parse(State, Data) ->
   {error, State, Data}.
 
 
+%%----------------------------------------------------------------------
+%% @spec (Data::binary()) -> {more, Data::binary()} |
+%%                           {ok, {request, Method::atom, URL::binary(), Headers::list(), Body::binary()}, Rest::binary()} |
+%%                           {ok, {rtp, Channel::integer(), Packet::binary()}, Rest::binary()} |
+%%                           {ok, {response, Code::integer(), Status::binary(), Headers::list(), Body::binary}, Rest::binary()}
+%%
+%% @doc Called by {@link rtsp_socket. to decode incoming TCP data}
+%%  Can parse RTSP or interleaved RTP
+%% @end
+%%----------------------------------------------------------------------
 decode(Data) ->
   case parse(ready, Data) of
     {more, ready, Data} ->

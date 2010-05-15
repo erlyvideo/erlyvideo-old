@@ -19,7 +19,7 @@
 
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
+%% @spec (Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid} | {error, Reason}
 %%
 %% @doc Called by a supervisor to start the listening process.
 %% @end

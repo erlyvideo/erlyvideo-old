@@ -66,7 +66,7 @@
 -export([configure/2, configure/3, presync/2]).
 
 %%--------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, Pid} | {error, Reason}
+%% @spec (Media::any(), Stream::rtsp_stream()) -> {ok, Pid} | {error, Reason}
 %%
 %% @doc Called by a supervisor to start the listening process.
 %% @end

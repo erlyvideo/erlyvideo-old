@@ -23,6 +23,7 @@
   rtp_streams = {undefined,undefined,undefined,undefined},
   nal_size = 32,
   consumer,
+  consumer_ref,
   acceptor,
   state,
   pending,
@@ -81,14 +82,14 @@ init([]) ->
 %%-------------------------------------------------------------------------
 
 handle_call({accept, Socket, Acceptor}, _From, State) ->
-  erlang:monitor(process, Acceptor),
+  Ref = erlang:monitor(process, Acceptor),
   inet:setopts(Socket, [{active, once}, binary]),
-  {reply, ok, State#rtsp_socket{socket = Socket, acceptor = Acceptor, consumer = Acceptor}};
+  {reply, ok, State#rtsp_socket{socket = Socket, acceptor = Acceptor, consumer = Acceptor, consumer_ref = Ref}};
 
 
 handle_call({connect, URL, Options}, _From, RTSP) ->
   Consumer = proplists:get_value(consumer, Options),
-  erlang:monitor(process, Consumer),
+  Ref = erlang:monitor(process, Consumer),
   {rtsp, UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   ?D({"Connecting to", Host, Port}),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}], 1000),
@@ -97,7 +98,13 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
     [] -> "";
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
   end,
-  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, socket = Socket, auth = Auth}};
+  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, consumer_ref = Ref, socket = Socket, auth = Auth}};
+  
+  
+handle_call({consume, Consumer}, _From, #rtsp_socket{consumer_ref = OldRef} = RTSP) ->
+  (catch erlang:demonitor(OldRef)),
+  Ref = erlang:monitor(process, Consumer),
+  {reply, ok, RTSP#rtsp_socket{consumer = Consumer, consumer_ref = Ref}};
   
 
 handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth} = RTSP) ->

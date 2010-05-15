@@ -1,3 +1,4 @@
+%% @hidden
 -module(rtsp_connection).
 -author('Max Lapshin <max@maxidoors.ru>').
 
@@ -46,6 +47,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 %%-------------------------------------------------------------------------
 init([Callback]) ->
   random:seed(now()),
+  ?D("ZZZZ"),
   {ok, #rtsp_connection{callback = Callback}}.
 
 

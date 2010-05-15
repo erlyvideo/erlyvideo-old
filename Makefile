@@ -4,7 +4,9 @@ ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/li
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtsp
 
-all:
+all: compile doc
+
+compile: src/*.erl
 	erl -make
 
 clean:
@@ -21,6 +23,10 @@ install:
 	install -c -m 644 Emakefile $(DESTROOT)$(ERLDIR)/Emakefile
 	install -c -m 644 Makefile $(DESTROOT)$(ERLDIR)/Makefile
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
+
+
+doc: src/*.erl
+	erl -pa ebin -s rtsp edoc -s init stop -noinput -noshell
 
 debian:
 	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
