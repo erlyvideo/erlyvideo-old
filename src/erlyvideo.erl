@@ -8,7 +8,7 @@
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 
--export([run_edoc/0]).
+-export([edoc/0, edoc/1]).
 
 
 start(normal, []) ->
@@ -20,8 +20,11 @@ stop(_) ->
   %stop().
   ok.
 
-run_edoc() ->
-  edoc:application(erlyvideo,".",[{packages,false},{dir,"doc/html"}]).
+edoc() ->
+  edoc([{dir,"doc/html"}]).
+  
+edoc(Options) ->
+  edoc:application(?MODULE,".",[{packages,false} | Options]).
 
 
 %%--------------------------------------------------------------------

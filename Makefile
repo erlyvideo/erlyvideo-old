@@ -18,7 +18,7 @@ compile:
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
 doc:
-	erl -pa ebin -s erlyvideo run_edoc -s init stop -noinput -noshell
+	erl -pa ebin -s erlyvideo edoc -s init stop -noinput -noshell
 
 erlang_version:
 	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true

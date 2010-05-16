@@ -24,13 +24,9 @@ currently in development:
 
   
 future plans:
-  * MPEG TS restreaming of files
-  * Apple HTTP LiveStreaming
   * Source authorization (RTSP, MPEG TS, etc.)
-  * Shared Objects
   * try to change quality on fly (smooth streaming)
   * capture mpeg4 IP cameras
-  * raw RTP capture from sdp file
 
 
 What you can do right now?
@@ -53,7 +49,7 @@ How to launch:
   * cd erlyvideo
   * git submodule init
   * git submodule update
-  * cp priv/erlmedia.conf.sample priv/erlmedia.conf
+  * cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
   * $EDITOR ebin/erlmedia.conf
   * change /tmp to /Users/username/Movies
   * make
