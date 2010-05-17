@@ -27,7 +27,7 @@ decode(_) ->
   {error, unknown}.
 
 % 2.5 and 2 have the same bitrate table
-bitrate({{2,5, Sub},Bitrate}) ->
+bitrate({{2,5}, Sub},Bitrate) ->
   bitrate({2, Sub}, Bitrate);
 % Layer 2 and 3 on version 2 and 2.5 have the same bitrate table
 bitrate({2,2}, Bitrate) ->
