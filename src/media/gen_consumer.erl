@@ -318,12 +318,15 @@ handle_stream(Message, #ems_stream{module = M, state = S} = State) ->
 handle_file(Message, #ems_stream{media_info = MediaInfo, module = M, state = S, client_buffer = ClientBuffer, pause_ts = PauseTS} = State) ->
   case Message of
     start ->
-      Meta = case file_media:metadata(MediaInfo) of
-        undefined -> undefined;
-        MetaData -> #video_frame{type = metadata, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData], dts = 0, pts = 0}
-      end,
-    	self() ! tick,
-      ?MODULE:ready(State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false, metadata = Meta, sent_metadata = false});
+      State1 = State#ems_stream{prepush = ClientBuffer, stopped = false, paused = false},
+      case file_media:metadata(MediaInfo) of
+        undefined ->
+          self() ! tick,
+          ?MODULE:ready(State1);
+        MetaData ->
+          Meta = #video_frame{type = metadata, body = [<<?AMF_COMMAND_ONMETADATA>>, MetaData], dts = 0, pts = 0},
+          handle_frame(State1, Meta)
+      end;
       
     resume ->
       ?D("Player resumed"),
