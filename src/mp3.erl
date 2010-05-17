@@ -26,14 +26,24 @@ decode(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2,
 decode(_) ->
   {error, unknown}.
 
+% 2.5 and 2 have the same bitrate table
+bitrate({{2,5, Sub},Bitrate}) ->
+  bitrate({2, Sub}, Bitrate);
+% Layer 2 and 3 on version 2 and 2.5 have the same bitrate table
+bitrate({2,2}, Bitrate) ->
+  bitrate({2,3}, Bitrate);
 bitrate({1,1},Bitrate) ->
   element(Bitrate+1, {free, 32000, 64000, 96000, 128000, 160000, 192000, 224000, 256000,
                       288000, 320000, 352000, 384000, 416000, 448000, badbitrate});
+bitrate({1,2},Bitrate) ->
+  element(Bitrate+1, {free, 32000, 48000, 56000, 64000, 80000, 96000, 112000, 128000,
+                      160000, 192000, 224000, 256000, 320000, 384000, badbitrate});
 bitrate({1,3},Bitrate) ->
   element(Bitrate+1, {free, 32000, 40000, 48000, 56000, 64000, 80000, 96000, 112000,
                       128000, 160000, 192000, 224000, 256000, 320000, badbitrate});
-bitrate({{2,5},3}, Bitrate) ->
-  bitrate({2,3}, Bitrate);
+bitrate({2,2}, Bitrate) ->
+  element(Bitrate+1, {free, 32000, 48000, 56000, 64000, 80000, 96000, 112000, 128000,
+                      144000, 160000, 176000, 192000, 224000, 256000, badbitrate});
 bitrate({2,3}, Bitrate) when Bitrate < 16 ->
   element(Bitrate+1, {free, 8000, 16000, 24000, 32000, 40000, 48000, 56000, 64000,
                       80000, 96000, 112000, 128000, 144000, 160000, badbitrate}).
