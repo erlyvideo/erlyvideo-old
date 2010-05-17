@@ -194,16 +194,15 @@ file_dir(Host) ->
 
 
 file_format(Name) ->
-  case filename:extension(Name) of
-      ".flv" -> flv_reader;
-      ".FLV" -> flv_reader;
-      ".3gp" -> mp4_reader;
-      ".mp4" -> mp4_reader;
-      ".MP4" -> mp4_reader;
-      ".mov" -> mp4_reader;
-      ".m4v" -> mp4_reader;
-      ".mkv" -> mkv;
-      ".MKV" -> mkv;
-      _ -> flv_reader
+  Readers = ems:get_var(file_formats, [mp4_reader, flv_reader]),
+  file_format(Name, Readers).
+
+file_format(Name, []) ->
+  undefined;
+  
+file_format(Name, [Reader|Readers]) ->
+  case Reader:can_open_file(Name) of
+    true -> Reader;
+    false -> file_format(Name, Readers)
   end.
 

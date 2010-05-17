@@ -25,6 +25,9 @@
 %%%  This function returns metadata in usual erlang proplist format.
 %%%  file_media will use it to send to client.
 %%%
+%%% ```can_open_file(Name) -> boolean'''
+%%%  Can this reader open file Name? Should check, basing on extension.
+%%%  Mention, that Name is string()
 %%% @end
 %%%
 %%%
@@ -66,5 +69,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {properties, 1}];
+behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {properties, 1}, {can_open_file, 1}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.

@@ -11,9 +11,16 @@
 
 -export([build_index_table/1, read_header/1]).
 
--export([init/1, read_frame/2, properties/1, seek/3, first/1]).
+-export([init/1, read_frame/2, properties/1, seek/3, first/1, can_open_file/1]).
 
 -define(FRAMESIZE, 8).
+
+can_open_file(Name) when is_binary(Name) ->
+  can_open_file(binary_to_list(Name));
+
+can_open_file(Name) ->
+  filename:extension(Name) == ".mp4".
+
 
 codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),

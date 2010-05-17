@@ -38,7 +38,14 @@
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, properties/1, seek/3, first/1]).
+-export([init/1, read_frame/2, properties/1, seek/3, first/1, can_open_file/1]).
+
+
+can_open_file(Name) when is_binary(Name) ->
+  can_open_file(binary_to_list(Name));
+
+can_open_file(Name) ->
+  filename:extension(Name) == ".flv".
 
 
 %%--------------------------------------------------------------------
