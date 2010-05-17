@@ -45,9 +45,10 @@ metadata(Server) ->
 init([Name, file, Opts]) ->
   Clients = ets:new(clients, [set, private]),
   Host = proplists:get_value(host, Opts),
-  LiveTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
+  LifeTimeout = proplists:get_value(life_timeout, Opts, ?FILE_CACHE_TIME),
   {ok, Info} = open_file(Name, Host),
-  {ok, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LiveTimeout}}.
+  ?D({"Opened file", Name}),
+  {ok, Info#media_info{clients = Clients, type = file, host = Host, life_timeout = LifeTimeout}, LifeTimeout}.
 
 
 
@@ -65,52 +66,42 @@ init([Name, file, Opts]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call(info, _From, #media_info{duration = Duration, width = W, height = H} = MediaInfo) ->
-  {reply, [{length,Duration},{type,file},{start,0},{width,W},{height,H}], MediaInfo};
+handle_call(info, _From, #media_info{duration = Duration, width = W, height = H, life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, [{length,Duration},{type,file},{start,0},{width,W},{height,H}], MediaInfo, LifeTimeout};
   
-handle_call({unsubscribe, _Client}, _From, MediaInfo) ->
-  {reply, ok, MediaInfo};
+handle_call({unsubscribe, _Client}, _From, #media_info{life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, ok, MediaInfo, LifeTimeout};
   
-handle_call({subscribe, _Client}, _From, MediaInfo) ->
-  {reply, {ok, file}, MediaInfo};
+handle_call({subscribe, _Client}, _From, #media_info{life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, {ok, file}, MediaInfo, LifeTimeout};
 
-handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
-  Entries = lists:map(
-    fun([Pid]) -> 
-      Pid
-      % ems_stream:client(Pid)
-    end,
-  ets:match(Clients, {'$1'})),
-  {reply, Entries, MediaInfo};
+handle_call(clients, _From, #media_info{life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, [], MediaInfo, LifeTimeout};
 
-handle_call(name, _From, #media_info{name = FileName} = MediaInfo) ->
-  {reply, FileName, MediaInfo};
+handle_call(name, _From, #media_info{name = FileName, life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, FileName, MediaInfo, LifeTimeout};
   
-handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{format = Format} = MediaInfo) ->
-  {reply, Format:seek(MediaInfo, BeforeAfter, Timestamp), MediaInfo};
+handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{format = Format, life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, Format:seek(MediaInfo, BeforeAfter, Timestamp), MediaInfo, LifeTimeout};
 
 
-handle_call({read, done}, _From, MediaInfo) ->
-  {reply, done, MediaInfo};
+handle_call({read, done}, _From, #media_info{life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, done, MediaInfo, LifeTimeout};
 
 handle_call({read, undefined}, From, #media_info{format = Format} = MediaInfo) ->
   handle_call({read, Format:first(MediaInfo)}, From, MediaInfo);
 
-handle_call({read, Key}, _From, #media_info{format = FileFormat} = MediaInfo) ->
-  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo};
+handle_call({read, Key}, _From, #media_info{format = FileFormat, life_timeout = LifeTimeout} = MediaInfo) ->
+  {reply, FileFormat:read_frame(MediaInfo, Key), MediaInfo, LifeTimeout};
 
 
-handle_call(metadata, _From, #media_info{format = Format} = MediaInfo) ->
+handle_call(metadata, _From, #media_info{format = Format, life_timeout = LifeTimeout} = MediaInfo) ->
   case Format:metadata(MediaInfo) of
     undefined ->
-      {reply, undefined, MediaInfo};
+      {reply, undefined, MediaInfo, LifeTimeout};
     Metadata ->   
-      {reply, {object, Metadata}, MediaInfo}
+      {reply, {object, Metadata}, MediaInfo, LifeTimeout}
   end;
-
-handle_call(metadata, _From, MediaInfo) ->
-  {reply, undefined, MediaInfo};
-
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
@@ -125,9 +116,9 @@ handle_call(Request, _From, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
+handle_cast(_Msg, #media_info{life_timeout = LifeTimeout} = State) ->
   ?D({"Undefined cast", _Msg}),
-  {noreply, State}.
+  {noreply, State, LifeTimeout}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -140,37 +131,12 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info(graceful, #media_info{clients = Clients} = MediaInfo) ->
-  case ets:info(Clients, size) of
-    0 -> ?D({"No readers for file", MediaInfo#media_info.name}),
-         {stop, normal, MediaInfo};
-    _ -> {noreply, MediaInfo}
-  end;
+handle_info(timeout, State) ->
+  {stop, normal, State};
 
-
-handle_info(graceful, MediaInfo) ->
-  {noreply, MediaInfo};
-  
-  
-handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, name = FileName, life_timeout = LifeTimeout} = MediaInfo) ->
-  ets:delete(Clients, Client),
-  ?D({self(), "Removing client of", FileName, Client, "left", ets:info(Clients, size), LifeTimeout}),
-  case {ets:info(Clients, size), LifeTimeout} of
-    {0, false} ->
-      {stop, normal, MediaInfo};
-    {0, 0} ->
-      {stop, normal, MediaInfo};
-    {0, _} -> 
-      {ok, TRef} = timer:send_after(LifeTimeout, graceful),
-      {noreply, MediaInfo#media_info{life_timer = TRef}};
-    {_, _} ->
-      {noreply, MediaInfo}
-  end;
-
-  
-handle_info(_Info, State) ->
+handle_info(_Info, #media_info{life_timeout = LifeTimeout} = State) ->
   ?D({"Undefined info", _Info}),
-  {noreply, State}.
+  {noreply, State, LifeTimeout}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
