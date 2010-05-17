@@ -58,7 +58,9 @@ framelength(Bitrate, Samplerate, Padding, _) ->
 samplerate({1,_}, Samplerate) ->
   element(Samplerate+1, {44100, 48000, 32000, reserved});
 samplerate({2,_}, Samplerate) when is_integer(Samplerate) andalso Samplerate < 4 ->
-  element(Samplerate+1, {22050, 24000, 16000, reserved}).
+  element(Samplerate+1, {22050, 24000, 16000, reserved});
+samplerate({{2,5},_}) ->
+  element(Samplerate+1, {32000, 16000, 8000, reverved}).
 
 layer(0) -> reserved;
 layer(1) -> 3;
