@@ -19,8 +19,8 @@ decode(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2,
       end
   catch
     Error ->
-      io:format("~p~n", [[{version, Version},{layer, Layer},{bitrate, BitRate},{samplerate, SampleRate},{padding,Padding},{channels,Channels}]]),
-      erlang:throw(Error)
+      io:format("~p~n", [[{error, Error},{version, Version},{layer, Layer},{bitrate, BitRate},{samplerate, SampleRate},{padding,Padding},{channels,Channels}]]),
+      {error, unknown}
   end;
 
 decode(_) ->
