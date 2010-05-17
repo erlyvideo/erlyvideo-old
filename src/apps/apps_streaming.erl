@@ -122,12 +122,18 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 %% @private
 %%-------------------------------------------------------------------------
 
-'FCSubscribe'(State, AMF) -> play(State, AMF).
+'FCSubscribe'(State, AMF) -> 
+  State.
 
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
+play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, RawName | Args], stream_id = StreamId}) ->
+  Length = size(RawName) - 1,
+  Name = case RawName of
+    <<N:Length/binary, 0>> -> N;
+    _ -> RawName
+  end,
   Stream = ems:element(StreamId, Streams),
   
   Options = extract_play_args(Args),
