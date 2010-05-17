@@ -41,7 +41,7 @@ bitrate({1,2},Bitrate) ->
 bitrate({1,3},Bitrate) ->
   element(Bitrate+1, {free, 32000, 40000, 48000, 56000, 64000, 80000, 96000, 112000,
                       128000, 160000, 192000, 224000, 256000, 320000, badbitrate});
-bitrate({2,2}, Bitrate) ->
+bitrate({2,1}, Bitrate) ->
   element(Bitrate+1, {free, 32000, 48000, 56000, 64000, 80000, 96000, 112000, 128000,
                       144000, 160000, 176000, 192000, 224000, 256000, badbitrate});
 bitrate({2,3}, Bitrate) when Bitrate < 16 ->
