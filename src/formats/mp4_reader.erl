@@ -11,7 +11,7 @@
 
 -export([build_index_table/1, read_header/1]).
 
--export([init/1, read_frame/2, metadata/1, seek/3, first/1]).
+-export([init/1, read_frame/2, properties/1, seek/3, first/1]).
 
 -define(FRAMESIZE, 8).
 
@@ -231,7 +231,7 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   end.
 
 
-metadata(#media_info{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
+properties(#media_info{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- tuple_to_list(VTs)],
   Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- tuple_to_list(ATs)],
   [{width, Width}, 

@@ -38,7 +38,7 @@
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, metadata/1, seek/3, first/1]).
+-export([init/1, read_frame/2, properties/1, seek/3, first/1]).
 
 
 %%--------------------------------------------------------------------
@@ -61,7 +61,7 @@ first(_) ->
   flv:data_offset().
 
 
-metadata(#media_info{metadata = Meta}) -> Meta.
+properties(#media_info{metadata = Meta}) -> Meta.
 
 read_frame_list(#media_info{device = Device} = MediaInfo, Offset) ->
   % We need to bypass PreviousTagSize and read header.

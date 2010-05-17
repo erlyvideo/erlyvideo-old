@@ -96,7 +96,7 @@ handle_call({read, Key}, _From, #media_info{format = FileFormat, life_timeout = 
 
 
 handle_call(metadata, _From, #media_info{format = Format, life_timeout = LifeTimeout} = MediaInfo) ->
-  case Format:metadata(MediaInfo) of
+  case Format:properties(MediaInfo) of
     undefined ->
       {reply, undefined, MediaInfo, LifeTimeout};
     Metadata ->   
