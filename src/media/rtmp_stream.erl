@@ -163,9 +163,9 @@ handle_info({client, Pid, Ref}, #rtmp_stream{consumer = Consumer} = Stream) ->
   Pid ! {gen_fsm:sync_send_event(Consumer, info), Ref},
   {noreply, Stream};
 
-handle_info({'DOWN', _Ref, process, Consumer, _Reason}, #rtmp_stream{consumer = Consumer} = Stream)
+handle_info({'DOWN', _Ref, process, Process, _Reason}, #rtmp_stream{} = Stream)
  ->
-  ?D({"Down consumer", Consumer}),
+  ?D({"Down linked", Process}),
   notify_stats(Stream),
   stop;
 
