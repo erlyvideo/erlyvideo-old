@@ -85,11 +85,11 @@ handle_frame(#video_frame{type = audio, decoder_config = true} = Frame, #rtmp_st
 handle_frame(#video_frame{type = video, decoder_config = true} = Frame, #rtmp_stream{} = Stream) ->
   {noreply, Stream#rtmp_stream{video_config = Frame}};
 
-% handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{base_dts = Base} = Stream) ->
-%   {noreply, send_frame(Frame#video_frame{dts = Base, pts = Base}, Stream#rtmp_stream{metadata = Frame})};
+handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{base_dts = Base} = Stream) ->
+  {noreply, send_frame(Frame#video_frame{dts = Base, pts = Base}, Stream#rtmp_stream{metadata = Frame})};
 
-handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{} = Stream) ->
-  {noreply, send_frame(Frame, Stream#rtmp_stream{metadata = Frame})};
+% handle_frame(#video_frame{type = metadata} = Frame, #rtmp_stream{} = Stream) ->
+%   {noreply, send_frame(Frame, Stream#rtmp_stream{metadata = Frame})};
 
 handle_frame(#video_frame{decoder_config = true} = _Frame, Stream) ->
   ?D(skip_dup_decoder_config),
@@ -120,12 +120,12 @@ handle_frame(_Frame, #rtmp_stream{} = Stream) ->
   {noreply, Stream}.
   
 send_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #rtmp_stream{consumer = Consumer, stream_id = StreamId, bytes_sent = Sent, base_dts = Base} = Stream) ->
-  % Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
-  case Frame#video_frame.type of
-    metadata -> ?D(Frame);
-    _ -> ok
-  end,
-  Consumer ! Frame#video_frame{stream_id = StreamId},
+  Consumer ! Frame#video_frame{stream_id = StreamId, dts = DTS - Base, pts = PTS - Base},
+  % case Frame#video_frame.type of
+  %   metadata -> ?D(Frame);
+  %   _ -> ok
+  % end,
+  % Consumer ! Frame#video_frame{stream_id = StreamId},
   Stream#rtmp_stream{bytes_sent = Sent + bin_size(Frame)}.
 
 
