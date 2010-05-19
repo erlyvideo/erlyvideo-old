@@ -74,8 +74,9 @@ start_link(Module, Options) ->
 %%----------------------------------------------------------------------
 
 play(Media, StreamId) ->
-  subscribe(Media, StreamId),
-  resume(Media).
+  {ok, Stream} = subscribe(Media, StreamId),
+  gen_server:call(Stream, {start, self()}),
+  {ok, Stream}.
 
 stop(Media) ->
   unsubscribe(Media).
@@ -140,15 +141,24 @@ init([Module, Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({subscribe, Client, StreamId}, _From, #ems_media{passive = Subscribers} = Media) ->
-  Ref = erlang:monitor(process,Client),
-  {reply, ok, Media#ems_media{passive = [{Client,StreamId,Ref}|Subscribers]}};
+handle_call({subscribe, Client, StreamId}, _From, #ems_media{module = M, state = S, passive = Subscribers} = Media) ->
+  case M:handle_control({subscribe, Client, StreamId}, S) of
+    {ok, Stream} ->
+      Ref = erlang:monitor(process,Client),
+      {reply, {ok, Stream}, Media#ems_media{passive = [{Client,StreamId,Ref}|Subscribers]}};
+    {error, Reason} ->
+      {reply, {error, Reason}, Media}
+  end;
   
 handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, starting = Starting, active = Active} = Media) ->
   Passive1 = unsubscribe_client(Passive, Client),
   Active1 = unsubscribe_client(Active, Client),
   Starting1 = unsubscribe_client(Starting, Client),
   {reply, ok, Media#ems_media{passive = Passive1, starting = Starting1, active = Active1}};
+
+
+handle_call({start, Client}, From, Media) ->
+  handle_call({resume, Client}, From, Media);
   
 handle_call({resume, Client}, _From, #ems_media{passive = Passive, starting = Starting} = Media) ->
   case lists:keytake(Client,1,Passive) of

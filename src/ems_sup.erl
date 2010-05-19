@@ -37,7 +37,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
-          start_http_server/1, start_ticker/1,
+          start_http_server/1, start_ticker/3,
           start_rtmp_stream/1, start_iphone_stream/1, start_mpegts_stream/1]).
       
 -export([static_streams/0,start_static_streams/0]).
@@ -65,7 +65,7 @@ start_mpegts_file_reader(Path, Options) ->
 start_shoutcast_reader(Consumer) ->
   supervisor:start_child(shoutcast_reader_sup, [Consumer]).
 
-start_media(Name, file           = Type, Opts) -> supervisor:start_child(file_media_sup, [Name, Type, Opts]);
+start_media(Name, file           = Type, Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
 start_media(Name, mpegts         = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, mpegts_file    = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, mpegts_passive = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
@@ -78,7 +78,7 @@ start_media(Name, rtmp           = Type, Opts) -> supervisor:start_child(stream_
 start_media(Name, http,                  Opts) -> http_media:start_link(Name, Opts).
 
 
-start_ticker(Media) -> supervisor:start_child(media_ticker_sup, [Media]).
+start_ticker(Media, Consumer, Options) -> supervisor:start_child(media_ticker_sup, [Media, Consumer, Options]).
 
 start_rtmp_stream(Options) -> supervisor:start_child(rtmp_stream_sup, [Options]).
 start_iphone_stream(Options) -> supervisor:start_child(iphone_stream_sup, [Options]).

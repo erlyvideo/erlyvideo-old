@@ -7,6 +7,21 @@
 -include("../../include/ems.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
+-record(mp4_reader, {
+  width,
+  height,
+  duration,
+  audio_track,
+  video_track,
+  video_codec,
+  audio_codec,
+  audio_config,
+  video_config,
+  frames,
+  reader,
+  header
+}).
+
 
 -export([build_index_table/1, read_header/1]).
 
@@ -20,11 +35,11 @@ can_open_file(Name) when is_binary(Name) ->
 can_open_file(Name) ->
   filename:extension(Name) == ".mp4".
 
-write_frame(Device, Frame) -> 
+write_frame(_Device, _Frame) -> 
   erlang:error(unsupported).
 
 
-codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
+codec_config(video, #mp4_reader{video_codec = VideoCodec} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
   % ?D({"Video config", Config}),
   #video_frame{       
@@ -37,7 +52,7 @@ codec_config(video, #media_info{video_codec = VideoCodec} = MediaInfo) ->
 		codec_id      = VideoCodec
 	};
 
-codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
+codec_config(audio, #mp4_reader{audio_codec = AudioCodec} = MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
   % ?D({"Audio config", aac:decode_config(Config)}),
   #video_frame{       
@@ -56,18 +71,18 @@ codec_config(audio, #media_info{audio_codec = AudioCodec} = MediaInfo) ->
 first(Media) ->
   first(Media, 0).
 
-first(#media_info{audio_config = A}, Id) when A =/= undefined ->
+first(#mp4_reader{audio_config = A}, Id) when A =/= undefined ->
   {audio_config, Id};
 
-first(#media_info{video_config = V}, Id) when V =/= undefined ->
+first(#mp4_reader{video_config = V}, Id) when V =/= undefined ->
   {video_config, Id};
 
 first(_, Id) ->
   Id.
 
 
-lookup_frame(video, #media_info{video_track = VTs}) -> element(1,VTs);
-lookup_frame(audio, #media_info{audio_track = ATs}) -> element(1,ATs).
+lookup_frame(video, #mp4_reader{video_track = VTs}) -> element(1,VTs);
+lookup_frame(audio, #mp4_reader{audio_track = ATs}) -> element(1,ATs).
 
 
 read_frame(MediaInfo, {audio_config, Pos}) ->
@@ -83,7 +98,7 @@ read_frame(MediaInfo, {video_config,Pos}) ->
 read_frame(_, eof) ->
   eof;
 
-read_frame(#media_info{frames = Frames} = MediaInfo, Id) when Id*?FRAMESIZE < size(Frames)->
+read_frame(#mp4_reader{frames = Frames} = MediaInfo, Id) when Id*?FRAMESIZE < size(Frames)->
   % [{Id, Type, FrameId}] = ets:lookup(Frames, Id),
   FrameOffset = Id*?FRAMESIZE,
   <<_:FrameOffset/binary, Id:32, BinType:1, FrameId:31, _/binary>> = Frames,
@@ -114,18 +129,18 @@ read_frame(#media_info{frames = Frames} = MediaInfo, Id) when Id*?FRAMESIZE < si
   end.
   
 
-read_data(#media_info{device = IoDev} = MediaInfo, Offset, Size) ->
-  case file:pread(IoDev, Offset, Size) of
+read_data(#mp4_reader{reader = {M, Dev}} = MediaInfo, Offset, Size) ->
+  case M:pread(Dev, Offset, Size) of
     {ok, Data} ->
       {ok, Data, MediaInfo};
     Else -> Else
   end.
   
 
-seek(#media_info{} = Media, before, Timestamp) when Timestamp == 0 ->
+seek(#mp4_reader{} = Media, before, Timestamp) when Timestamp == 0 ->
   {first(Media), 0};
   
-seek(#media_info{video_track = VTs, frames = Frames} = Media, Direction, Timestamp) ->
+seek(#mp4_reader{video_track = VTs, frames = Frames} = Media, Direction, Timestamp) ->
   FrameTable = element(1,VTs),
   case mp4:seek(FrameTable, Direction, Timestamp) of
     {VideoID, NewTimestamp} ->
@@ -176,20 +191,19 @@ video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
 
 
 
-init(#media_info{header = undefined} = MediaInfo) -> 
-  Info1 = MediaInfo,
+init(Reader) -> 
+  Info1 = #mp4_reader{reader = Reader},
   ?D("Going to read header"),
   % eprof:start(),
   % eprof:start_profiling([self()]),
   {Time, {ok, Info2}} = timer:tc(?MODULE, read_header, [Info1]),
   {Time2, {ok, Info3}} = timer:tc(?MODULE, build_index_table, [Info2]),
-  ?D({"Time to parse moov and build index", round(Time/1000), round(Time2/1000), Info2#media_info.duration}),
+  ?D({"Time to parse moov and build index", round(Time/1000), round(Time2/1000), Info2#mp4_reader.duration}),
   % eprof:total_analyse(),
   % eprof:stop(),
   {ok, Info3}.
 
-read_header(#media_info{device = Device} = MediaInfo) -> 
-  Reader = {file, Device},
+read_header(#mp4_reader{reader = Reader} = MediaInfo) -> 
   {ok, Mp4Media} = mp4:read_header(Reader),
   #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, seconds = Seconds} = Mp4Media,
   ?D({"Opened mp4 file with following video tracks:", [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs], "and audio tracks", [Language || #mp4_track{language = Language} <- ATs]}),
@@ -197,14 +211,14 @@ read_header(#media_info{device = Device} = MediaInfo) ->
   VT = hd(VTs),
   #mp4_track{decoder_config = AC} = AT,
   #mp4_track{decoder_config = VC} = VT,
-  Info1 = MediaInfo#media_info{header = Mp4Media, width = Width, height = Height,            
+  Info1 = MediaInfo#mp4_reader{header = Mp4Media, width = Width, height = Height,            
                        audio_config = AC, video_config = VC, 
                        audio_track = list_to_tuple(ATs), video_track = list_to_tuple(VTs), duration = Seconds},
   {ok, Info1}.
 
 
 
-build_index_table(#media_info{video_track = VTs, audio_track = ATs} = MediaInfo) ->
+build_index_table(#mp4_reader{video_track = VTs, audio_track = ATs} = MediaInfo) ->
   Video = element(1, VTs),
   Audio = element(1, ATs),
   VideoCount = mp4:frame_count(Video),
@@ -212,7 +226,7 @@ build_index_table(#media_info{video_track = VTs, audio_track = ATs} = MediaInfo)
   % Index = ets:new(index_table, [ordered_set]),
   Index = <<>>,
   BuiltIndex = build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
-  {ok, MediaInfo#media_info{frames = BuiltIndex}}.
+  {ok, MediaInfo#mp4_reader{frames = BuiltIndex}}.
 
 
 build_index_table(_Video, VC, VC, _Audio, AC, AC, Index, _ID) ->
@@ -240,7 +254,7 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   end.
 
 
-properties(#media_info{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
+properties(#mp4_reader{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- tuple_to_list(VTs)],
   Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- tuple_to_list(ATs)],
   [{width, Width}, 
@@ -250,5 +264,5 @@ properties(#media_info{width = Width, height = Height, duration = Duration, audi
    {languages, Languages}].
 
 
-decoder_config(video, #media_info{video_config = DecoderConfig}) -> DecoderConfig;
-decoder_config(audio, #media_info{audio_config = DecoderConfig}) -> DecoderConfig.
+decoder_config(video, #mp4_reader{video_config = DecoderConfig}) -> DecoderConfig;
+decoder_config(audio, #mp4_reader{audio_config = DecoderConfig}) -> DecoderConfig.

@@ -13,13 +13,14 @@
 }).
 
 
-start_link(Media, Consumer, StreamId) ->
-  proc_lib:start_link(?MODULE, init, [Media, Consumer, StreamId]).
+start_link(Media, Consumer, Options) ->
+  proc_lib:start_link(?MODULE, init, [Media, Consumer, Options]).
   
-init(Media, Consumer, StreamId) ->
+init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack(Media, {ok, self()}),
+  StreamId = proplists:get_value(stream_id, Options),
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId}).
   
 loop(Ticker) ->
