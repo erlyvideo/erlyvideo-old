@@ -137,8 +137,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
       State;
     Media when is_pid(Media) ->
       self() ! {ems_stream, StreamId, start_play},
-      ems_media:subscribe(Media, StreamId),
-      ems_media:resume(Media),
+      ems_media:play(Media, StreamId),
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       State#rtmp_session{streams = setelement(StreamId, Streams, Media)}
   end.
@@ -171,11 +170,11 @@ pause(#rtmp_session{streams = Streams, socket = Socket} = State, #rtmp_funcall{a
     Player = ems:element(StreamId, Streams),
     case Pausing of
       true ->
-        Player ! {pause, NewTs},
+        ems_media:pause(Player),
         rtmp_lib:pause_notify(Socket, StreamId),
         State;
       false ->
-        Player ! {resume, NewTs},
+        ems_media:resume(Player),
         rtmp_socket:status(Socket, StreamId, ?NS_UNPAUSE_NOTIFY),
         State
     end.

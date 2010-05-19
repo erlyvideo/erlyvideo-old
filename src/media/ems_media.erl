@@ -36,7 +36,8 @@
 
 %% External API
 -export([start_link/2]).
--export([subscribe/2, unsubscribe/1, resume/1, pause/1, set_source/2]).
+-export([play/2, stop/1, resume/1, pause/1]).
+-export([subscribe/2, unsubscribe/1, set_source/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -55,6 +56,7 @@ start_link(Module, Options) ->
   audio_config,
   metadata,
   active = [],
+  starting = [],
   passive = [],
   source,
   source_ref
@@ -67,6 +69,14 @@ start_link(Module, Options) ->
 %% @doc Call some function
 %% @end
 %%----------------------------------------------------------------------
+
+play(Media, StreamId) ->
+  subscribe(Media, StreamId),
+  resume(Media).
+
+stop(Media) ->
+  unsubscribe(Media).
+
 subscribe(Media, StreamId) ->
   gen_server:call(Media, {subscribe, self(), StreamId}).
 
@@ -122,15 +132,16 @@ handle_call({subscribe, Client, StreamId}, _From, #ems_media{passive = Subscribe
   Ref = erlang:monitor(process,Client),
   {reply, ok, Media#ems_media{passive = [{Client,StreamId,Ref}|Subscribers]}};
   
-handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, active = Active} = Media) ->
+handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, starting = Starting, active = Active} = Media) ->
   Passive1 = unsubscribe_client(Passive, Client),
   Active1 = unsubscribe_client(Active, Client),
-  {reply, ok, Media#ems_media{passive = Passive1, active = Active1}};
+  Starting1 = unsubscribe_client(Starting, Client),
+  {reply, ok, Media#ems_media{passive = Passive1, starting = Starting1, active = Active1}};
   
-handle_call({resume, Client}, _From, #ems_media{passive = Passive, active = Active} = Media) ->
+handle_call({resume, Client}, _From, #ems_media{passive = Passive, starting = Starting} = Media) ->
   case lists:keytake(Client,1,Passive) of
     {value,Subscribe,Passive1} ->
-      {reply, ok, Media#ems_media{passive = Passive1, active = [Subscribe|Active]}};
+      {reply, ok, Media#ems_media{passive = Passive1, starting = [Subscribe|Starting]}};
     false ->
       {reply, {error, no_client}, Media}
   end;      
@@ -197,19 +208,35 @@ handle_info({'DOWN', _Ref, process, Client, _Reason}, #ems_media{active = Active
   Active1 = unsubscribe_client(Active, Client),
   {noreply, Media#ems_media{passive = Passive1, active = Active1}};
 
-handle_info(#video_frame{} = Frame, #ems_media{active = Active, module = M, state = S} = Media) ->
+handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S} = Media) ->
+  Media1 = start_on_keyframe(Frame, Media),
+  #ems_media{active = Active, starting = Starting} = Media1,
   case M:handle_frame(Frame, S) of
     {ok, F, S1} ->
-      [Pid ! F#video_frame{stream_id = StreamId} || {Pid,StreamId,_} <- Active],
-      {noreply, Media#ems_media{state = S1}};
+      case Type of
+        audio -> send_frame(F, Starting);
+        _ -> ok
+      end,
+      send_frame(F, Active),
+      {noreply, Media1#ems_media{state = S1}};
     {noreply, S1} ->
-      {noreply, Media#ems_media{state = S1}};
+      {noreply, Media1#ems_media{state = S1}};
     {stop, Reason, S1} ->
-      {stop, Reason, Media#ems_media{state = S1}}
+      {stop, Reason, Media1#ems_media{state = S1}}
   end;    
 
 handle_info(Info, State) ->
   {stop, {unhandled, Info, State}}.
+
+
+start_on_keyframe(#video_frame{type = video, frame_type = keyframe}, #ems_media{starting = Starting, active = Active} = M) ->
+  M#ems_media{starting = [], active = Active ++ Starting};
+
+start_on_keyframe(_, Media) ->
+  Media.
+
+send_frame(Frame, List) ->
+  [Pid ! Frame#video_frame{stream_id = StreamId} || {Pid,StreamId,_} <- List].
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
