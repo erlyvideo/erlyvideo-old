@@ -69,5 +69,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {properties, 1}, {can_open_file, 1}];
+behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {properties, 1}, {can_open_file, 1}, {write_frame, 2}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.
