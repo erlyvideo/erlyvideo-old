@@ -2,7 +2,6 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -behaviour(gen_format).
--include("../../include/media_info.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/mp4.hrl").
 -include("../../include/ems.hrl").

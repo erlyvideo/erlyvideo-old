@@ -37,7 +37,7 @@
 %% External API
 -export([start_link/2]).
 -export([play/2, stop/1, resume/1, pause/1]).
--export([subscribe/2, unsubscribe/1, set_source/2]).
+-export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -45,12 +45,13 @@
 
 
 start_link(Module, Options) ->
-  gen_server:start_link(?MODULE, [Module, Options], []).
+  gen_server2:start_link(?MODULE, [Module, Options], []).
 
 
 -record(ems_media, {
   module,
   state,
+  type,
   options,
   video_config,
   audio_config,
@@ -59,7 +60,9 @@ start_link(Module, Options) ->
   starting = [],
   passive = [],
   source,
-  source_ref
+  source_ref,
+  storage,
+  format
 }).
 
 
@@ -91,6 +94,13 @@ pause(Media) ->
 
 set_source(Media, Source) ->
   gen_server:call(Media, {set_source, Source}).
+  
+read_frame(Media, Key) ->
+  gen_server2:call(Media, {read_frame, Key}).
+
+seek(Media, BeforeAfter, DTS) ->
+  gen_server2:call(Media, {seek, BeforeAfter, DTS}).
+  
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -112,6 +122,8 @@ init([Module, Options]) ->
   case Module:init(Options) of
     {ok, State} ->
       {ok, #ems_media{options = Options, module = Module, state = State}};
+    {ok, State, {Format, Storage}} ->
+      {ok, #ems_media{options = Options, module = Module, state = State, format = Format, storage = Storage}};
     {stop, Reason} ->
       {stop, Reason}
   end.
@@ -161,6 +173,12 @@ handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef} = Media
   end,
   Ref = erlang:monitor(process,Source),
   {reply, ok, Media#ems_media{source = Source, source_ref = Ref}};
+
+handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
+  {reply, Format:read_frame(Storage, Key), Media};
+
+handle_call({seek, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
+  {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.

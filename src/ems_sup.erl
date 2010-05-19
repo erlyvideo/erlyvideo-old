@@ -37,7 +37,7 @@
 -export ([init/1,start_link/0]).
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
-          start_http_server/1,
+          start_http_server/1, start_ticker/1,
           start_rtmp_stream/1, start_iphone_stream/1, start_mpegts_stream/1]).
       
 -export([static_streams/0,start_static_streams/0]).
@@ -77,6 +77,8 @@ start_media(Name, rtsp           = Type, Opts) -> supervisor:start_child(stream_
 start_media(Name, rtmp           = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, http,                  Opts) -> http_media:start_link(Name, Opts).
 
+
+start_ticker(Media) -> supervisor:start_child(media_ticker_sup, [Media]).
 
 start_rtmp_stream(Options) -> supervisor:start_child(rtmp_stream_sup, [Options]).
 start_iphone_stream(Options) -> supervisor:start_child(iphone_stream_sup, [Options]).
@@ -198,6 +200,21 @@ init([ems_media]) ->
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
                   [ems_media]                            % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([media_ticker]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % MediaEntry
+              {   undefined,                               % Id       = internal id
+                  {media_ticker,start_link,[]},             % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [media_ticker]                            % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -361,6 +378,13 @@ init([]) ->
     },
     {   ems_media_sup,
         {supervisor,start_link,[{local, ems_media_sup}, ?MODULE, [ems_media]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   media_ticker_sup,
+        {supervisor,start_link,[{local, media_ticker_sup}, ?MODULE, [media_ticker]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
