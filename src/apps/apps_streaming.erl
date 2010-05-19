@@ -129,8 +129,6 @@ play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
 play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
-  Stream = ems:element(StreamId, Streams),
-  
   Options = extract_play_args(Args),
   case media_provider:find_or_open(Host, Name) of
     {notfound, Reason} -> 
@@ -139,7 +137,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
       self() ! {ems_stream, StreamId, start_play},
       ems_media:play(Media, StreamId),
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
-      State#rtmp_session{streams = setelement(StreamId, Streams, Media)}
+      State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
   
@@ -215,9 +213,9 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %% @end
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
-  ?D({"seek", round(Timestamp)}),
   Player = ems:element(StreamId, Streams),
-  Player ! {seek, before, Timestamp},
+  ?D({"seek", round(Timestamp), Player}),
+  ems_media:seek(Player, before, Timestamp),
   State.
   
 
@@ -228,7 +226,7 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
   % ?D({"Stop on", self(), StreamId}),
   case ems:element(StreamId, Streams) of
     Player when is_pid(Player) ->
-      Player ! stop,
+      ems_media:stop(Player),
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
       % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),

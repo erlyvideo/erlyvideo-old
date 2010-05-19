@@ -1,4 +1,5 @@
 -module(file_media).
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -export([init/1, handle_frame/2, handle_control/2]).
 -export([file_dir/1, file_format/1]).
@@ -35,6 +36,7 @@ handle_frame(Frame, State) ->
   {ok, Frame, State}.
 
 handle_control({subscribe, Consumer, StreamId}, _State) ->
+  ?D({subscribe,Consumer,StreamId}),
   ems_sup:start_ticker(self(), Consumer, [{stream_id, StreamId}]).
 
 %%-------------------------------------------------------------------------

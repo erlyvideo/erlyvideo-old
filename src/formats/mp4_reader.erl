@@ -25,7 +25,7 @@
 
 -export([build_index_table/1, read_header/1]).
 
--export([init/1, read_frame/2, properties/1, seek/3, first/1, can_open_file/1, write_frame/2]).
+-export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -define(FRAMESIZE, 8).
 
@@ -84,6 +84,9 @@ first(_, Id) ->
 lookup_frame(video, #mp4_reader{video_track = VTs}) -> element(1,VTs);
 lookup_frame(audio, #mp4_reader{audio_track = ATs}) -> element(1,ATs).
 
+
+read_frame(MediaInfo, undefined) ->
+  read_frame(MediaInfo, first(MediaInfo));
 
 read_frame(MediaInfo, {audio_config, Pos}) ->
   % ?D({"Send audio config", Pos}),
@@ -192,7 +195,7 @@ video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
 
 
 init(Reader) -> 
-  Info1 = #mp4_reader{reader = Reader},
+  Info1 = #mp4_reader{reader = Reader, audio_codec = aac, video_codec = h264},
   ?D("Going to read header"),
   % eprof:start(),
   % eprof:start_profiling([self()]),

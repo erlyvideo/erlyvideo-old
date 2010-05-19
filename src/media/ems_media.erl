@@ -36,12 +36,14 @@
 
 %% External API
 -export([start_link/2]).
--export([play/2, stop/1, resume/1, pause/1]).
+-export([play/2, stop/1, resume/1, pause/1, seek/3]).
+-export([metadata/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 
 start_link(Module, Options) ->
@@ -75,6 +77,7 @@ start_link(Module, Options) ->
 
 play(Media, StreamId) ->
   {ok, Stream} = subscribe(Media, StreamId),
+  ?D({play,Media,StreamId}),
   gen_server:call(Stream, {start, self()}),
   {ok, Stream}.
 
@@ -100,8 +103,12 @@ read_frame(Media, Key) ->
   gen_server2:call(Media, {read_frame, Key}).
 
 seek(Media, BeforeAfter, DTS) ->
+  ?D({"Call seek on", Media}),
   gen_server2:call(Media, {seek, BeforeAfter, DTS}).
   
+  
+metadata(Media) ->
+  gen_server2:call(Media, metadata).  
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -120,10 +127,12 @@ seek(Media, BeforeAfter, DTS) ->
 
 
 init([Module, Options]) ->
+  ?D({init,Module,Options}),
   case Module:init(Options) of
     {ok, State} ->
       {ok, #ems_media{options = Options, module = Module, state = State}};
     {ok, State, {Format, Storage}} ->
+      ?D({inited_with_storage,Format}),
       {ok, #ems_media{options = Options, module = Module, state = State, format = Format, storage = Storage}};
     {stop, Reason} ->
       {stop, Reason}
@@ -190,6 +199,9 @@ handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Stor
 handle_call({seek, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
   {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
+handle_call(metadata, _From, #ems_media{format = Format, storage = Storage} = Media) ->
+  {reply, {object, Format:properties(Storage)}, Media};
+
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
@@ -254,7 +266,7 @@ handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S}
   end;    
 
 handle_info(Info, State) ->
-  {stop, {unhandled, Info, State}}.
+  {stop, {unhandled, Info}}.
 
 
 start_on_keyframe(#video_frame{type = video, frame_type = keyframe}, #ems_media{starting = Starting, active = Active} = M) ->
