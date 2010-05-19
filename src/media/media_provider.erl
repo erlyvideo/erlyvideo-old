@@ -113,15 +113,15 @@ resolve_global(Name, Pid1, Pid2) ->
   Pid1.
 
 %%-------------------------------------------------------------------------
-%% @spec create(Host, Name, Type) -> Pid::pid()
+%% @spec create(Host, Name, Options) -> Pid::pid()
 %% @doc Create usually stream. Must be called by process, that wants to send 
 %% video frames to this stream.
 %% @end
 %%-------------------------------------------------------------------------
-create(Host, Name, Type) ->
-  ?D({"Create", Name, Type}),
-  Pid = open(Host, Name, Type),
-  stream_media:set_owner(Pid, self()),
+create(Host, Name, Options) ->
+  ?D({"Create", Name, Options}),
+  Pid = open(Host, Name, Options),
+  ems_media:set_source(Pid, self()),
   Pid.
 
 open(Host, Name) when is_list(Name)->

@@ -87,10 +87,11 @@
 %% @private
 createStream(#rtmp_session{host = Host} = State, AMF) -> 
   {State1, StreamId} = next_stream(State),
-  #rtmp_session{streams = Streams} = State1,
-  {ok, Stream} = ems_sup:start_rtmp_stream([{consumer, self()}, {stream_id, StreamId}, {host, Host}]),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
-  State1#rtmp_session{streams = setelement(StreamId, Streams, Stream)}.
+  %#rtmp_session{streams = Streams} = State1,
+  % {ok, Stream} = ems_sup:start_rtmp_stream([{consumer, self()}, {stream_id, StreamId}, {host, Host}]),
+  % State1#rtmp_session{streams = setelement(StreamId, Streams, Stream)}.
+  State1.
 
 releaseStream(State, _AMF) -> 
   % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
@@ -131,10 +132,18 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   Stream = ems:element(StreamId, Streams),
   
   Options = extract_play_args(Args),
-  Stream ! {play, Name, Options},
-  ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),  
+  case media_provider:find_or_open(Host, Name) of
+    {notfound, Reason} -> 
+      State;
+    Media when is_pid(Media) ->
+      self() ! {ems_stream, StreamId, start_play},
+      ems_media:subscribe(Media, StreamId),
+      ems_media:resume(Media),
+      ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
+      State#rtmp_session{streams = setelement(StreamId, Streams, Media)}
+  end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
-  State.
+  
 
 
 % Part of RTMP specification.

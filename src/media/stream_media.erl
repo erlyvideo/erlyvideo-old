@@ -9,7 +9,7 @@
 -behaviour(gen_server2).
 
 %% External API
--export([start_link/3, metadata/1, publish/2, set_owner/2, pass_socket/2]).
+-export([start_link/3, metadata/1, publish/2, pass_socket/2]).
 -export([subscribe/1,unsubscribe/1]).
 
 %% gen_server callbacks
@@ -30,9 +30,6 @@ publish(Server, #video_frame{} = Frame) ->
   % ?D({Type, Timestamp}),
   Server ! Frame.
   % gen_server2:call(Server, {publish, Frame}).
-
-set_owner(Server, Owner) ->
-  gen_server2:call(Server, {set_owner, Owner}).
 
 pass_socket(Media, Socket) ->
   ok = gen_tcp:controlling_process(Socket, Media),
@@ -196,13 +193,6 @@ handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = Media
       Clients
   end,
   {reply, {ok, stream}, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
-
-handle_call(clients, _From, #media_info{clients = Clients} = MediaInfo) ->
-  % Entries = lists:map(fun(Pid) -> gen_fsm:sync_send_event(Pid, info) end, Clients),
-  {reply, Clients, MediaInfo, ?TIMEOUT};
-
-handle_call(metadata, _From, MediaInfo) ->
-  {reply, undefined, MediaInfo, ?TIMEOUT};
 
 handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
   case Module:seek(MediaInfo, BeforeAfter, Timestamp) of

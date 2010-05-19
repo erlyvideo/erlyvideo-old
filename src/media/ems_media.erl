@@ -35,7 +35,7 @@
 
 
 %% External API
--export([start_link/3]).
+-export([start_link/2]).
 -export([subscribe/2, unsubscribe/1, resume/1, pause/1, set_source/2]).
 
 %% gen_server callbacks
@@ -43,20 +43,21 @@
 
 
 
-start_link(Name, Module, Options) ->
-  gen_server:start_link(?MODULE, [Name, Module, Options], []).
+start_link(Module, Options) ->
+  gen_server:start_link(?MODULE, [Module, Options], []).
 
 
 -record(ems_media, {
   module,
   state,
-  name,
   options,
   video_config,
   audio_config,
   metadata,
   active = [],
-  passive = []
+  passive = [],
+  source,
+  source_ref
 }).
 
 
@@ -97,10 +98,10 @@ set_source(Media, Source) ->
 %%----------------------------------------------------------------------
 
 
-init([Name, Module, Options]) ->
-  case Module:init(Name, Options) of
+init([Module, Options]) ->
+  case Module:init(Options) of
     {ok, State} ->
-      {ok, #ems_media{name = Name, options = Options, module = Module, state = State}};
+      {ok, #ems_media{options = Options, module = Module, state = State}};
     {stop, Reason} ->
       {stop, Reason}
   end.
@@ -142,6 +143,14 @@ handle_call({pause, Client}, _From, #ems_media{passive = Passive, active = Activ
       {reply, {error, no_client}, Media}
   end;      
 
+handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef} = Media) ->
+  case OldRef of
+    undefined -> ok;
+    _ -> erlang:demonitor(OldRef, [flush])
+  end,
+  Ref = erlang:monitor(process,Source),
+  {reply, ok, Media#ems_media{source = Source, source_ref = Ref}};
+
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
@@ -178,6 +187,11 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source} = Media) ->
+  % FIXME: should wait for timeout
+  {stop, normal, Media};
+  
 handle_info({'DOWN', _Ref, process, Client, _Reason}, #ems_media{active = Active, passive = Passive} = Media) ->
   Passive1 = unsubscribe_client(Passive, Client),
   Active1 = unsubscribe_client(Active, Client),
@@ -194,8 +208,8 @@ handle_info(#video_frame{} = Frame, #ems_media{active = Active, module = M, stat
       {stop, Reason, Media#ems_media{state = S1}}
   end;    
 
-handle_info(_Info, State) ->
-  {noreply, State}.
+handle_info(Info, State) ->
+  {stop, {unhandled, Info, State}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any

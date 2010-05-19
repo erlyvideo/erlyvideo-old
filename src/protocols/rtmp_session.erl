@@ -441,12 +441,7 @@ handle_info(_Info, StateName, StateData) ->
 
 
 handle_frame(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, #rtmp_session{socket = Socket} = State) ->
-  % case Type of
-  %   audio -> ok;
-  %   _ ->
-  %     ?D({Type, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, round(DTS), (catch  size(Frame#video_frame.body))}),
-  %     ok
-  % end,
+  % ?D({Type,Frame#video_frame.frame_type,DTS}),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp = DTS,

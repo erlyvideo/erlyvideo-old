@@ -1,8 +1,9 @@
 -module(live_media).
 
--export([init/2, handle_frame/2]).
+-export([init/1, handle_frame/2]).
 
-init(Name, Options) ->
+init(Options) ->
+  io:format("Starting live media ~p~n", [Options]),
   {ok, state}.
   
 handle_frame(Frame, State) ->
