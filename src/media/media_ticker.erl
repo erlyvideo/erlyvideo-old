@@ -11,7 +11,11 @@
   stream_id,
   pos,
   dts,
-  frame
+  frame,
+  client_buffer,
+  timer_start,
+  playing_from,
+  prepush
 }).
 
 
@@ -26,7 +30,8 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
   StreamId = proplists:get_value(stream_id, Options),
-  ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId}).
+  ClientBuffer = proplists:get_value(client_buffer, Options, 10000),
+  ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer}).
   
 loop(Ticker) ->
   receive
@@ -67,7 +72,7 @@ handle_message({seek, Pos, DTS}, #ticker{} = Ticker) ->
   self() ! tick,
   ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, frame = undefined});
 
-handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
+handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer} = Ticker) ->
   Frame = ems_media:read_frame(Media, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
   ?D({preread_frame, NewPos,NewDTS}),
@@ -75,9 +80,14 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   Meta = #video_frame{type = metadata, body = [<<"onMetaData">>, Metadata], dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   Consumer ! Meta,
   self() ! tick,
-  ?MODULE:loop(Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame});
   
-handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId} = Ticker) ->
+  TimerStart = element(1, erlang:statistics(wall_clock)),
+  
+  ?MODULE:loop(Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame,
+               timer_start = TimerStart, prepush = ClientBuffer, playing_from = NewDTS});
+  
+handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId,
+                             playing_from = PlayingFrom, timer_start = TimerStart, prepush = Prepush} = Ticker) ->
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
   % ?D({tick,Pos}),
   case ems_media:read_frame(Media, Pos) of
@@ -86,8 +96,9 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
       ok;
       
     #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
-      Ticker1 = Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame},
-      Timeout = round(NewDTS - DTS),
+      {Timeout, NewPrepush} = tick_timeout(NewDTS, PlayingFrom, TimerStart, Prepush),
+      % ?D({prepush,NewDTS,Timeout,NewPrepush}),
+      Ticker1 = Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame, prepush = NewPrepush},
       receive
         Message ->
           ?MODULE:handle_message(Message, Ticker1)
@@ -99,3 +110,13 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   end.
 
 
+tick_timeout(DTS, PlayingFrom, TimerStart, Prepush) ->
+  SeekTime = DTS - PlayingFrom,
+  RealTime = element(1, erlang:statistics(wall_clock)) - TimerStart,
+  Sleep = SeekTime - RealTime,
+  if
+    Sleep < 0 -> {0, Prepush};
+    Prepush =< 0 -> {round(Sleep), 0};        %% No prepush left
+    Sleep =< Prepush -> {0, Prepush - Sleep}; %% Sleep if lesser than prepush, send and lower prepush
+    true -> {round(Sleep), 0}       %% Prepush is still positive, but sleep is bigger. Annulate prepush
+  end.
