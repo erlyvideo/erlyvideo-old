@@ -36,7 +36,7 @@
 -export([wait_for_reply/2]).
 -export([connect/1, connect/2, createStream/1, play/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
--export([play_complete/3, seek_notify/3, seek_failed/2, play_start/2, pause_notify/2]).
+-export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/2, pause_notify/2]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -226,6 +226,29 @@ play_complete(RTMP, StreamId, Options) ->
   
 
   PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Stop">>},{description,"file end"}]},
+  PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(video, StreamId), timestamp = 0, stream_id = StreamId, 
+                body = #rtmp_funcall{command = onStatus, id = 0, stream_id = StreamId, args = [null, PlayStopArg]}},
+  rtmp_socket:send(RTMP, PlayStop).
+  % rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Stop">>).
+
+
+play_failed(RTMP, StreamId) ->
+  PlayComplete1Arg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Failed">>}]},
+  PlayComplete1 = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
+                body = [<<"onPlayStatus">>, PlayComplete1Arg], timestamp = same},
+  rtmp_socket:send(RTMP, PlayComplete1),
+
+
+
+  PlayCompleteArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Failed">>}]},
+  PlayComplete = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
+                body = [<<"onMetaData">>, PlayCompleteArg], timestamp = same},
+  rtmp_socket:send(RTMP, PlayComplete),
+
+
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0}),
+
+  PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Failed">>},{description,"file end"}]},
   PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(video, StreamId), timestamp = 0, stream_id = StreamId, 
                 body = #rtmp_funcall{command = onStatus, id = 0, stream_id = StreamId, args = [null, PlayStopArg]}},
   rtmp_socket:send(RTMP, PlayStop).
