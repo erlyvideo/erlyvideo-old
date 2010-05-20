@@ -2,7 +2,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -export([start_link/3, init/3, loop/1, handle_message/2]).
--export([seek/3, stop/1]).
+-export([start/1, pause/1, resume/1, seek/3, stop/1]).
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -record(ticker, {
@@ -18,12 +18,20 @@
   prepush
 }).
 
+start(Ticker) ->
+  Ticker ! start.
 
 seek(Ticker, Pos, DTS) ->
   Ticker ! {seek, Pos, DTS}.
 
 stop(Ticker) ->
   Ticker ! stop.
+
+pause(Ticker) ->
+  Ticker ! pause.
+
+resume(Ticker) ->
+  Ticker ! resume.
 
 start_link(Media, Consumer, Options) ->
   proc_lib:start_link(?MODULE, init, [Media, Consumer, Options]).
