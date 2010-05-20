@@ -454,7 +454,9 @@ handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Str
   % put(prev_dts, round(DTS)),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   case {h264:has_config(H264), h264:has_config(H264_1)} of
-    {false, true} -> Consumer ! h264:video_config(H264_1);
+    {false, true} -> 
+      Config = h264:video_config(H264_1),
+      Consumer ! Config#video_frame{dts = DTS, pts = DTS};
     _ -> ok
   end,
   lists:foreach(fun(Frame) ->
