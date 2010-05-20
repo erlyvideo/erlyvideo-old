@@ -320,7 +320,7 @@ handle_info({'DOWN', _Ref, process, Pid, _Reason}, #ems_media{clients = Clients}
     [#client{}] -> 
       ets:delete(Clients, Pid);
     [] -> 
-      case ets:select(Clients, ets:fun2ms(fun(#client{ticker = Ticker}) when Ticker == Pid -> true end)) of
+      case ets:select(Clients, ets:fun2ms(fun(#client{ticker = Ticker} = Entry) when Ticker == Pid -> Entry end)) of
         [] -> ?D({"Unknown pid died!", Pid});
         [#client{consumer = Client, stream_id = StreamId, ref = Ref}] ->
           erlang:demonitor(Ref, [flush]),
