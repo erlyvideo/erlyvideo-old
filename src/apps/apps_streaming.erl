@@ -85,7 +85,7 @@
 
 
 %% @private
-createStream(#rtmp_session{host = Host} = State, AMF) -> 
+createStream(#rtmp_session{} = State, AMF) -> 
   {State1, StreamId} = next_stream(State),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   %#rtmp_session{streams = Streams} = State1,
@@ -112,7 +112,7 @@ next_stream(State, StreamId) ->
 %%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case ems:element(StreamId, Streams) of
-    Player when is_pid(Player) -> Player ! stop;
+    Player when is_pid(Player) -> ems_media:stop(Player);
     _ -> ok
   end,
   % ?D({"Delete stream", self(), StreamId}),
@@ -131,11 +131,11 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
   Options = extract_play_args(Args),
   case media_provider:find_or_open(Host, Name) of
-    {notfound, Reason} -> 
+    {notfound, _Reason} -> 
       State;
     Media when is_pid(Media) ->
       self() ! {ems_stream, StreamId, start_play},
-      ems_media:play(Media, StreamId),
+      ems_media:play(Media, [{stream_id,StreamId}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
   end.
@@ -144,14 +144,16 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
 
 
 % Part of RTMP specification.
-extract_play_args([]) -> [];
+extract_play_args([]) -> [{wait,infinity}];
 extract_play_args([Start]) when Start > 0 -> [{start, Start}];
+extract_play_args([Start]) when Start == -2 -> [{wait, infinity}];
 extract_play_args([_Start]) -> [];
 extract_play_args([Start, Duration]) when Start > 0 andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
 extract_play_args([Start, _Duration]) when Start > 0 -> [{start, Start}];
-extract_play_args([_Start, _Duration]) -> [];
-extract_play_args([Start, Duration, Reset]) when Start > 0 andalso Duration > 0 -> [{start, Start}, {duration, Duration}, {reset, Reset}];
-extract_play_args([Start, _Duration, Reset]) when Start > 0 -> [{start, Start}, {reset, Reset}];
+extract_play_args([Start, Duration]) when Start == -1 -> [{wait,Duration}];
+extract_play_args([_Start, _Duration]) -> [{wait,infinity}];
+extract_play_args([Start, Duration, Reset]) when Start > 0 andalso Duration > 0 andalso Reset == 0 -> [{start, Start}, {duration, Duration}, {reset, false}];
+extract_play_args([Start, _Duration, Reset]) when Start > 0 andalso Reset == 0 -> [{start, Start}, {reset, false}];
 extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].
 
 
@@ -249,7 +251,7 @@ closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = 
     null ->
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, undefined)};
     Player when is_pid(Player) ->
-      (catch Player ! exit),
+      ems_media:stop(Player),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, undefined)}
   end.
 

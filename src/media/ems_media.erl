@@ -84,17 +84,17 @@ start_link(Module, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 
-play(Media, StreamId) ->
-  ok = subscribe(Media, StreamId),
-  ?D({play,Media,StreamId}),
+play(Media, Options) ->
+  ok = subscribe(Media, Options),
+  ?D({play,Media,Options}),
   gen_server:call(Media, {start, self()}),
   ok.
 
 stop(Media) ->
   unsubscribe(Media).
 
-subscribe(Media, StreamId) ->
-  gen_server:call(Media, {subscribe, self(), StreamId}).
+subscribe(Media, Options) ->
+  gen_server:call(Media, {subscribe, self(), Options}).
 
 unsubscribe(Media) ->
   gen_server:call(Media, {unsubscribe, self()}).
@@ -159,14 +159,15 @@ init([Module, Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({subscribe, Client, StreamId}, _From, #ems_media{module = M, state = S, passive = Subscribers} = Media) ->
-  case M:handle_control({subscribe, Client, StreamId}, S) of
+handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = S, passive = Subscribers} = Media) ->
+  StreamId = proplists:get_value(stream_id, Options),
+  case M:handle_control({subscribe, Client, Options}, S) of
     {ok, S1} ->
       Ref = erlang:monitor(process,Client),
       {reply, ok, Media#ems_media{starting = [#client{consumer = Client, stream_id = StreamId, ref = Ref}|Subscribers], state = S1}};
     {ok, S1, tick} ->
       Ref = erlang:monitor(process,Client),
-      {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
+      {ok, Ticker} = ems_sup:start_ticker(self(), Client, Options),
       TickerRef = erlang:monitor(process,Ticker),
       Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef},
       {reply, ok, Media#ems_media{passive = [Entry|Subscribers], state = S1}};
@@ -174,11 +175,19 @@ handle_call({subscribe, Client, StreamId}, _From, #ems_media{module = M, state =
       {reply, {error, Reason}, Media}
   end;
   
-handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, starting = Starting, active = Active} = Media) ->
-  Passive1 = unsubscribe_client(Passive, Client),
-  Active1 = unsubscribe_client(Active, Client),
-  Starting1 = unsubscribe_client(Starting, Client),
-  {reply, ok, Media#ems_media{passive = Passive1, starting = Starting1, active = Active1}};
+handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, paused = Paused, starting = Starting, active = Active} = Media) ->
+  case lists:keytake(Client, #client.consumer, Passive) of
+    {value, #client{ref = Ref, ticker = Ticker, ticker_ref = TickerRef}, Passive1} ->
+      erlang:demonitor(TickerRef, [flush]),
+      (catch media_ticker:stop(Ticker)),
+      erlang:demonitor(Ref, [flush]),
+      {reply, ok, Media#ems_media{passive = Passive1}};
+    false ->
+      Paused1 = unsubscribe_client(Paused, Client),
+      Active1 = unsubscribe_client(Active, Client),
+      Starting1 = unsubscribe_client(Starting, Client),
+      {reply, ok, Media#ems_media{paused = Paused1, starting = Starting1, active = Active1}}
+  end;
 
 
 handle_call({start, Client}, From, Media) ->
