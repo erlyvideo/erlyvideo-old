@@ -252,7 +252,7 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
 
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case ems:element(StreamId, Streams) of
-    Player when is_pid(Player) -> Player ! {client_buffer, BufferSize};
+    Player when is_pid(Player) -> ems_media:setopts(Player, [{client_buffer, BufferSize}]);
     _ -> ok
   end,
   State;
