@@ -32,16 +32,16 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 -include_lib("erlmedia/include/video_frame.hrl").
-
+-include_lib("stdlib/include/ms_transform.hrl").
 
 %% External API
 -export([start_link/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1]).
+-export([metadata/1, setopts/2]).
 -export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
@@ -58,10 +58,8 @@ start_link(Module, Options) ->
   video_config,
   audio_config,
   metadata,
-  active = [],
-  starting = [],
+  active,
   passive = [],
-  paused = [],
   source,
   source_ref,
   storage,
@@ -74,7 +72,8 @@ start_link(Module, Options) ->
   ref,
   stream_id,
   ticker,
-  ticker_ref
+  ticker_ref,
+  state = paused
 }).
 
 %%--------------------------------------------------------------------
@@ -119,9 +118,17 @@ seek(Media, BeforeAfter, DTS) ->
 metadata(Media) ->
   gen_server2:call(Media, metadata).  
 
+setopts(Media, Options) ->
+  %TODO add options
+  ok.
+  
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
+
+print_state(#ems_media{} = Media) ->
+  Media#ems_media{storage = storage}.
+
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -137,12 +144,13 @@ metadata(Media) ->
 
 init([Module, Options]) ->
   ?D({init,Module,Options}),
+  Media = #ems_media{options = Options, module = Module, active = ets:new(active, [set,  {keypos,#client.consumer}])},
   case Module:init(Options) of
     {ok, State} ->
-      {ok, #ems_media{options = Options, module = Module, state = State}};
+      {ok, Media#ems_media{state = State}};
     {ok, State, {Format, Storage}} ->
       ?D({inited_with_storage,Format}),
-      {ok, #ems_media{options = Options, module = Module, state = State, format = Format, storage = Storage}};
+      {ok, Media#ems_media{state = State, format = Format, storage = Storage}};
     {stop, Reason} ->
       {stop, Reason}
   end.
@@ -159,67 +167,71 @@ init([Module, Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = S, passive = Subscribers} = Media) ->
+handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = S, passive = Passive, active = Active} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
+  
   case M:handle_control({subscribe, Client, Options}, S) of
     {ok, S1} ->
       Ref = erlang:monitor(process,Client),
-      {reply, ok, Media#ems_media{starting = [#client{consumer = Client, stream_id = StreamId, ref = Ref}|Subscribers], state = S1}};
+      ets:insert(Active, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting}),
+      {reply, ok, Media#ems_media{state = S1}};
     {ok, S1, tick} ->
       Ref = erlang:monitor(process,Client),
       {ok, Ticker} = ems_sup:start_ticker(self(), Client, Options),
       TickerRef = erlang:monitor(process,Ticker),
       Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef},
-      {reply, ok, Media#ems_media{passive = [Entry|Subscribers], state = S1}};
+      {reply, ok, Media#ems_media{passive = [Entry|Passive], state = S1}};
     {error, Reason} ->
       {reply, {error, Reason}, Media}
   end;
   
-handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, paused = Paused, starting = Starting, active = Active} = Media) ->
+handle_call({unsubscribe,Client}, _From, #ems_media{passive = Passive, active = Active} = Media) ->
   case lists:keytake(Client, #client.consumer, Passive) of
+    
     {value, #client{ref = Ref, ticker = Ticker, ticker_ref = TickerRef}, Passive1} ->
       erlang:demonitor(TickerRef, [flush]),
       (catch media_ticker:stop(Ticker)),
       erlang:demonitor(Ref, [flush]),
       {reply, ok, Media#ems_media{passive = Passive1}};
+      
     false ->
-      Paused1 = unsubscribe_client(Paused, Client),
-      Active1 = unsubscribe_client(Active, Client),
-      Starting1 = unsubscribe_client(Starting, Client),
-      {reply, ok, Media#ems_media{paused = Paused1, starting = Starting1, active = Active1}}
+      case ets:lookup(Active, Client) of
+        [#client{ref = Ref}] ->
+          erlang:demonitor(Ref, [flush]),
+          ets:delete(Active, Client),
+          {reply, ok, Media};
+        [] ->
+          {reply, {error, no_client}, Media}
+      end
   end;
 
 
 handle_call({start, Client}, From, Media) ->
   handle_call({resume, Client}, From, Media);
   
-handle_call({resume, Client}, _From, #ems_media{paused = Paused, passive = Passive, starting = Starting} = Media) ->
-  case lists:keytake(Client, #client.consumer, Paused) of
-    {value,Subscribe,Paused1} ->
-      {reply, ok, Media#ems_media{paused = Paused1, starting = [Subscribe|Starting]}};
+handle_call({resume, Client}, _From, #ems_media{passive = Passive, active = Active} = Media) ->
+  case lists:keyfind(Client, #client.consumer, Passive) of
+    #client{ticker = Ticker} ->
+      Ticker ! start,
+      {reply, ok, Media};
     false ->
-      case lists:keyfind(Client, #client.consumer, Passive) of
-        #client{ticker = Ticker} ->
-          Ticker ! start,
-          {reply, ok, Media};
-        false ->
-          {reply, {error, no_client}, Media}
+      case ets:update_element(Active, Client, {#client.state, starting}) of
+        true -> {reply, ok, Media};
+        false -> {reply, {error, no_client}, Media}
       end
-  end;      
+  end;
 
-handle_call({pause, Client}, _From, #ems_media{paused = Paused, passive = Passive, active = Active} = Media) ->
-  case lists:keytake(Client, #client.consumer, Active) of
-    {value,Subscribe,Active1} ->
-      {reply, ok, Media#ems_media{paused = [Subscribe|Paused], active = Active1}};
-    false ->
-      case lists:keyfind(Client, #client.consumer, Passive) of
-        #client{ticker = Ticker} ->
-          Ticker ! pause,
-          {reply, ok, Media};
-        false ->  
-          {reply, {error, no_client}, Media}
+handle_call({pause, Client}, _From, #ems_media{passive = Passive, active = Active} = Media) ->
+  case lists:keyfind(Client, #client.consumer, Passive) of
+    #client{ticker = Ticker} ->
+      Ticker ! pause,
+      {reply, ok, Media};
+    false ->  
+      case ets:update_element(Active, Client, {#client.state, paused}) of
+        true -> {reply, ok, Media};
+        false -> {reply, {error, no_client}, Media}
       end
-  end;      
+  end;
 
 handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{passive = Passive, format = Format, storage = Storage} = Media) ->
   ?D({seek,Client,BeforeAfter,DTS}),
@@ -258,16 +270,6 @@ handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
 
-unsubscribe_client(Clients, Client) ->
-  case lists:keytake(Client, 1, Clients) of
-    {value, {Client, _, Ref}, NewClients} ->
-      erlang:demonitor(Ref),
-      NewClients;
-    false ->
-      Clients
-  end.
-  
-
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
 %%                      {noreply, State, Timeout} |
@@ -293,42 +295,82 @@ handle_cast(_Msg, State) ->
 
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source} = Media) ->
   % FIXME: should wait for timeout
+  % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
   {stop, normal, Media};
   
-handle_info({'DOWN', _Ref, process, Client, _Reason}, #ems_media{active = Active, passive = Passive} = Media) ->
-  Passive1 = unsubscribe_client(Passive, Client),
-  Active1 = unsubscribe_client(Active, Client),
-  {noreply, Media#ems_media{passive = Passive1, active = Active1}};
+handle_info({'DOWN', _Ref, process, Pid, _Reason}, #ems_media{active = Active, passive = Passive} = Media) ->
+  case lists:keytake(Pid, #client.consumer, Passive) of
+    
+    {value, #client{ticker = Ticker, ticker_ref = TickerRef}, Passive1} ->
+      erlang:demonitor(TickerRef, [flush]),
+      (catch ems_media:stop(Ticker));
+    false ->
+      
+      case lists:keytake(Pid, #client.ticker, Passive) of
+        {value, #client{ref = Ref, consumer = Client, stream_id = StreamId}, Passive1} ->
+          Client ! {ems_stream, StreamId, play_failed},
+          erlang:demonitor(Ref, [flush]);
+        false ->
+          case ets:lookup(Active, Pid) of
+            [#client{}] -> ets:delete(Active, Pid);
+            [] -> ?D({"Unknown pid died!", Pid})
+          end,
+          Passive1 = Passive
+      end
+  end,
+  Media1 = Media#ems_media{passive = Passive1},
+  case client_count(Media1) of
+    0 -> timer:send_after(10000, graceful);
+    _ -> ok
+  end,
+  {noreply, Media1};
+  
 
-handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S} = Media) ->
-  Media1 = start_on_keyframe(Frame, Media),
-  #ems_media{active = Active, starting = Starting} = Media1,
+handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, active = Active} = Media) ->
+  start_on_keyframe(Frame, Media),
   case M:handle_frame(Frame, S) of
     {ok, F, S1} ->
       case Type of
-        audio -> send_frame(F, Starting);
+        audio -> send_frame(F, Active, starting);
         _ -> ok
       end,
-      send_frame(F, Active),
-      {noreply, Media1#ems_media{state = S1}};
+      send_frame(F, Active, active),
+      {noreply, Media#ems_media{state = S1}};
     {noreply, S1} ->
-      {noreply, Media1#ems_media{state = S1}};
+      {noreply, Media#ems_media{state = S1}};
     {stop, Reason, S1} ->
-      {stop, Reason, Media1#ems_media{state = S1}}
-  end;    
+      {stop, Reason, Media#ems_media{state = S1}}
+  end;
+
+handle_info(graceful, #ems_media{source = undefined} = Media) ->
+  case client_count(Media) of
+    0 -> ?D("No clients and source"), {stop, normal, Media};
+    _ -> {noreply, Media}
+  end;
+  
+handle_info(graceful, #ems_media{} = Media) ->
+  {noreply, Media};
 
 handle_info(Info, _State) ->
   {stop, {unhandled, Info}}.
 
 
-start_on_keyframe(#video_frame{type = video, frame_type = keyframe}, #ems_media{starting = Starting, active = Active} = M) ->
-  M#ems_media{starting = [], active = Active ++ Starting};
+client_count(#ems_media{passive = Passive, active = Active}) ->
+  length(Passive) + ets:info(Active, size).
+
+start_on_keyframe(#video_frame{type = video, frame_type = keyframe}, #ems_media{active = Active} = M) ->
+  MS = ets:fun2ms(fun(#client{state = starting, consumer = Client}) -> Client end),
+  Starting = ets:select(Active, MS),
+  [ets:update_element(Active, Client, {#client.state, active}) || Client <- Starting],
+  M;
 
 start_on_keyframe(_, Media) ->
   Media.
 
-send_frame(Frame, List) ->
-  [Pid ! Frame#video_frame{stream_id = StreamId} || {Pid,StreamId,_} <- List].
+send_frame(Frame, Active, State) ->
+  MS = ets:fun2ms(fun(#client{state = S, consumer = Client, stream_id = StreamId}) when S == State -> {Client, StreamId} end),
+  List = ets:select(Active, MS),
+  [Pid ! Frame#video_frame{stream_id = StreamId} || {Pid,StreamId} <- List].
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
