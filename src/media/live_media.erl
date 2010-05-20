@@ -1,4 +1,6 @@
 -module(live_media).
+-author('Max Lapshin <max@maxidoors.ru>').
+-behaviour(ems_media).
 
 -export([init/1, handle_frame/2, handle_control/2]).
 

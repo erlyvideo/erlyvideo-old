@@ -1,4 +1,8 @@
 -module(file_media).
+-author('Max Lapshin <max@maxidoors.ru>').
+-behaviour(ems_media).
+
+
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -export([init/1, handle_frame/2, handle_control/2]).

@@ -42,17 +42,6 @@ subscribe(Stream) ->
 unsubscribe(Stream) ->
   gen_server:call(Stream, {unsubscribe,self()}).
 
-connect_http(#media_info{type = mpegts_passive}) ->
-  undefined;
-
-connect_http(#media_info{name = URL}) ->
-  {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, line}, {active, false}], 4000),
-  ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
-  gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
-  ok = inet:setopts(Socket, [{active, once}]),
-  Socket.
-
 
 connect_rtsp(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
@@ -97,15 +86,6 @@ init(#media_info{type = rtmp, name = URL} = Media) ->
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   Media#media_info{socket = Socket, demuxer = RTMP};
-
-init(#media_info{type = mpegts, options = Options} = Media) ->
-  % ?D({"Stream media", proplists:get_value(make_request, Options, true)}),
-  Sock = case proplists:get_value(make_request, Options, true) of
-    true -> connect_http(Media);
-    _ -> undefined
-  end,
-  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
-  Media#media_info{socket = Sock, demuxer = Reader};
 
 init(#media_info{type = mpegts_file, name = Name, host = Host} = Media) ->
   FileName = filename:join([file_media:file_dir(Host), Name]), 
@@ -158,73 +138,10 @@ print_state(#media_info{} = MediaInfo) ->
 %%-------------------------------------------------------------------------
 
 
-handle_call(info, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
-  {reply, [{type,stream}|Module:info(MediaInfo)], MediaInfo, ?TIMEOUT};
-
-handle_call(info, _From, #media_info{} = MediaInfo) ->
-  {reply, [{type,stream}], MediaInfo, ?TIMEOUT};
-
-handle_call(mode, _From, MediaInfo) ->
-  {reply, stream, MediaInfo, ?TIMEOUT};
-  
-handle_call({subscribe, Client}, _From, #media_info{clients = Clients, audio_config = Audio, video_config = Video, metadata = Metadata} = MediaInfo) ->
-  Ref = erlang:monitor(process, Client),
-  ?D({subscribe,MediaInfo#media_info.name,Client,config,Audio,Video}),
-  case Audio of
-    undefined -> ok;
-    _ -> Client ! Audio
-  end,
-  case Video of
-    undefined -> ok;
-    _ -> Client ! Video
-  end,
-  case Metadata of
-    undefined -> ok;
-    _ -> Client ! Metadata
-  end,
-  {reply, {ok, stream}, MediaInfo#media_info{clients = [{Client, Ref}|Clients]}, ?TIMEOUT};
-
-handle_call({unsubscribe, Client}, _From, #media_info{clients = Clients} = MediaInfo) ->
-  Clients1 = case lists:keytake(Client, 1, Clients) of
-    {value, {Client, Ref}, NewClients} ->
-      erlang:demonitor(Ref),
-      NewClients;
-    false ->
-      Clients
-  end,
-  {reply, {ok, stream}, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
-
-handle_call({seek, BeforeAfter, Timestamp}, _From, #media_info{timeshift = Timeshift, timeshift_module = Module} = MediaInfo) when is_number(Timeshift) andalso Timeshift > 0 ->
-  case Module:seek(MediaInfo, BeforeAfter, Timestamp) of
-    {Pos, Time} -> {reply, {{audio_config, Pos}, Time}, MediaInfo, ?TIMEOUT};
-    undefined -> {reply, undefined, MediaInfo, ?TIMEOUT}
-  end;
-
-handle_call({seek, _BeforeAfter, _Timestamp}, _From, MediaInfo) ->
-  {reply, undefined, MediaInfo, ?TIMEOUT};
-
-handle_call({read, {audio_config, DTS}}, _From, #media_info{audio_config = Audio} = MediaInfo) ->
-  {reply, Audio#video_frame{next_id = {video_config,DTS}}, MediaInfo, ?TIMEOUT};
-
-handle_call({read, {video_config, DTS}}, _From, #media_info{video_config = Video} = MediaInfo) ->
-  {reply, Video#video_frame{next_id = DTS}, MediaInfo, ?TIMEOUT};
-
-handle_call({read, DTS}, _From, #media_info{timeshift_module = Module} = MediaInfo) ->
-  {reply, Module:read(MediaInfo, DTS), MediaInfo, ?TIMEOUT};
-
-
 handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
   ?D({"Stream received socket in mode", Mode}),
   {reply, ok, State#media_info{socket = Socket}, ?TIMEOUT};
-
-handle_call({set_owner, Owner}, _From, #media_info{owner = undefined} = MediaInfo) ->
-  ?D({"Owner of", MediaInfo#media_info.name, Owner}),
-  erlang:monitor(process, Owner),
-  {reply, ok, MediaInfo#media_info{owner = Owner}, ?TIMEOUT};
-
-handle_call({set_owner, _Owner}, _From, #media_info{owner = Owner} = MediaInfo) ->
-  {reply, {error, {owner_exists, Owner}}, MediaInfo, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From, State}),
@@ -293,41 +210,6 @@ handle_info({'DOWN', _Ref, process, Demuxer, _Reason}, #media_info{type = rtsp, 
   {noreply, connect_rtsp(Media), ?TIMEOUT};
 
 
-handle_info({'DOWN', _Ref, process, Client, _Reason}, #media_info{clients = Clients, life_timeout = LifeTimeout} = MediaInfo) ->
-  Clients1 = lists:keydelete(Client, 1, Clients),
-  ?D({MediaInfo#media_info.name, "Removing client", Client, "left", length(Clients1), LifeTimeout}),
-  case {length(Clients1), LifeTimeout} of
-    {0, 0} -> self() ! graceful;
-    {0, _} when is_number(LifeTimeout) andalso LifeTimeout > 0 -> timer:send_after(LifeTimeout, graceful);
-    _ -> ok
-  end,
-  {noreply, MediaInfo#media_info{clients = Clients1}, ?TIMEOUT};
-
-
-handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, State) ->
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, State, ?TIMEOUT};
-
-handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, State, ?TIMEOUT};
-
-
-handle_info({http, Socket, http_eoh}, TSLander) ->
-  inet:setopts(Socket, [{active, once}, {packet, raw}]),
-  {noreply, TSLander, ?TIMEOUT};
-
-
-handle_info({tcp, Socket, Bin}, #media_info{demuxer = Reader, byte_counter = Counter} = State) when Reader =/= undefined ->
-  inet:setopts(Socket, [{active, once}]),
-  Reader ! {data, Bin},
-  {noreply, State#media_info{byte_counter = Counter + size(Bin)}, ?TIMEOUT};
-
-handle_info({tcp_closed, _Socket}, #media_info{} = Media) ->
-  ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
-  ?D({"Disconnected socket in mode",Media#media_info.type, Media#media_info.last_dts}),
-  Socket = connect_http(Media),
-  {noreply, Media#media_info{socket = Socket, ts_delta = undefined}, ?TIMEOUT};
 
 
 handle_info(#video_frame{} = Frame, #media_info{} = Recorder) ->

@@ -46,6 +46,18 @@
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 
+-export([behaviour_info/1]).
+
+%%-------------------------------------------------------------------------
+%% @spec (Callbacks::atom()) -> CallBackList::list()
+%% @doc  List of require functions in a video file reader
+%% @hidden
+%% @end
+%%-------------------------------------------------------------------------
+behaviour_info(callbacks) -> [{init, 1}, {handle_frame,2}, {handle_control,2}, {handle_info,2}];
+behaviour_info(_Other) -> undefined.
+
+
 start_link(Module, Options) ->
   gen_server2:start_link(?MODULE, [Module, Options], []).
 
@@ -110,7 +122,6 @@ read_frame(Media, Key) ->
   gen_server2:call(Media, {read_frame, Key}).
 
 seek(Media, BeforeAfter, DTS) ->
-  ?D({"Call seek on", Media}),
   gen_server2:call(Media, {seek, self(), BeforeAfter, DTS}).
   
   
@@ -239,10 +250,8 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
   end;
       
 handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Clients, format = Format, storage = Storage} = Media) when Format =/= undefined ->
-  ?D({seek,Client,BeforeAfter,DTS}),
   case Format:seek(Storage, BeforeAfter, DTS) of
     {NewPos, NewDTS} ->
-      ?D({seek_ticker,NewPos,NewDTS}),
       case ets:lookup(Clients, Client) of
         [#client{ticker = Ticker, state = passive}] ->
           media_ticker:seek(Ticker, NewPos, NewDTS),
@@ -317,31 +326,40 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
   {stop, normal, Media};
   
-handle_info({'DOWN', _Ref, process, Pid, Reason}, #ems_media{clients = Clients} = Media) ->
+handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M, state = S} = Media) ->
+  Count = client_count(Media),
+  if
+    Count < 2 -> timer:send_after(10000, graceful);
+    true -> ok
+  end,
   case ets:lookup(Clients, Pid) of
     [#client{ticker = Ticker, ticker_ref = TickerRef}] when Ticker =/= undefined -> 
       erlang:demonitor(TickerRef, [flush]),
       (catch ems_media:stop(Ticker)),
-      ets:delete(Clients, Pid);
+      ets:delete(Clients, Pid),
+      {noreply, Media};
     [#client{}] -> 
-      ets:delete(Clients, Pid);
+      ets:delete(Clients, Pid),
+      {noreply, Media};
     [] -> 
       case ets:select(Clients, ets:fun2ms(fun(#client{ticker = Ticker} = Entry) when Ticker == Pid -> Entry end)) of
-        [] -> ?D({"Unknown pid died!", Pid});
         [#client{consumer = Client, stream_id = StreamId, ref = Ref}] ->
           erlang:demonitor(Ref, [flush]),
           case Reason of 
             normal -> ok;
             _ -> Client ! {ems_stream, StreamId, play_failed}
           end,
-          ets:delete(Clients, Client)
+          ets:delete(Clients, Client),
+          {noreply, Media};
+        [] -> 
+          case M:handle_info(Msg, S) of
+            {noreply, S1} -> 
+              {noreply, Media#ems_media{state = S1}};
+            {stop, Reason, S1} ->
+              {stop, Reason, Media#ems_media{state = S1}}
+          end
       end
-  end,
-  case client_count(Media) of
-    0 -> timer:send_after(10000, graceful);
-    _ -> ok
-  end,
-  {noreply, Media};
+  end;
   
 
 handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, clients = Clients} = Media) ->
@@ -369,8 +387,13 @@ handle_info(graceful, #ems_media{source = undefined} = Media) ->
 handle_info(graceful, #ems_media{} = Media) ->
   {noreply, Media};
 
-handle_info(Info, _State) ->
-  {stop, {unhandled, Info}}.
+handle_info(Message, #ems_media{module = M, state = S} = Media) ->
+  case M:handle_info(Message, S) of
+    {noreply, S1} ->
+      {noreply, Media#ems_media{state = S1}};
+    {stop, Reason} ->
+      {stop, Reason}
+  end.
 
 
 client_count(#ems_media{clients = Clients}) ->
