@@ -204,7 +204,7 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, Length]});
     _ ->
       ?D({"getStreamLength", Name, undefined}),
-      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, 0]}),
       ok
   end,
   State.

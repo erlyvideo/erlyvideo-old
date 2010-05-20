@@ -96,7 +96,6 @@ start_link(Module, Options) ->
 
 play(Media, Options) ->
   ok = subscribe(Media, Options),
-  ?D({play,Media,Options}),
   gen_server:call(Media, {start, self()}),
   ok.
 
@@ -302,8 +301,8 @@ handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Stor
 handle_call({seek, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
   {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
-handle_call(metadata, _From, #ems_media{format = Format, storage = Storage} = Media) when Format =/= undefined->
-  {reply, {object, Format:properties(Storage)}, Media};
+handle_call(metadata, _From, #ems_media{} = Media) ->
+  {reply, metadata_frame(Media), Media};
 
 handle_call(info, _From, #ems_media{format = Format, storage = Storage} = Media) when Format =/= undefined ->
   {reply, Format:properties(Storage), Media};
@@ -376,22 +375,11 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
   end;
   
 
-handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, clients = Clients, format = Format, storage = Storage} = Media) ->
+handle_info(#video_frame{} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
   start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
-  case M:handle_frame(Frame, S) of
-    {ok, F, S1} ->
-      case Type of
-        audio -> send_frame(F, Clients, starting);
-        _ -> ok
-      end,
-      send_frame(F, Clients, active),
-      {noreply, Media#ems_media{state = S1, storage = Storage1}};
-    {noreply, S1} ->
-      {noreply, Media#ems_media{state = S1, storage = Storage1}};
-    {stop, Reason, S1} ->
-      {stop, Reason, Media#ems_media{state = S1, storage = Storage1}}
-  end;
+  
+  handle_config(Frame, Media#ems_media{storage = Storage1});
 
 handle_info(graceful, #ems_media{source = undefined} = Media) ->
   case client_count(Media) of
@@ -414,6 +402,36 @@ handle_info(Message, #ems_media{module = M, state = S} = Media) ->
 client_count(#ems_media{clients = Clients}) ->
   ets:info(Clients, size).
 
+handle_config(#video_frame{type = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
+  {noreply, Media};
+
+handle_config(#video_frame{type = audio, body = Config}, #ems_media{audio_config = #video_frame{body = Config}} = Media) -> 
+  {noreply, Media};
+
+handle_config(#video_frame{type = video, decoder_config = true} = Config, #ems_media{} = Media) -> 
+  handle_frame(Config, Media#ems_media{video_config = Config});
+
+handle_config(#video_frame{type = audio, decoder_config = true} = Config, #ems_media{} = Media) -> 
+  handle_frame(Config, Media#ems_media{audio_config = Config});
+  
+handle_config(Frame, Media) ->
+  handle_frame(Frame, Media).
+
+handle_frame(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, clients = Clients} = Media) ->
+  case M:handle_frame(Frame, S) of
+    {ok, F, S1} ->
+      case Type of
+        audio -> send_frame(F, Clients, starting);
+        _ -> ok
+      end,
+      send_frame(F, Clients, active),
+      {noreply, Media#ems_media{state = S1}};
+    {noreply, S1} ->
+      {noreply, Media#ems_media{state = S1}};
+    {stop, Reason, S1} ->
+      {stop, Reason, Media#ems_media{state = S1}}
+  end.
+
 
 save_frame(undefined, Storage, _) ->
   Storage;
@@ -424,14 +442,33 @@ save_frame(Format, Storage, Frame) ->
     _ -> Storage
   end.
 
-start_on_keyframe(#video_frame{type = video, frame_type = keyframe}, #ems_media{clients = Clients} = M) ->
-  MS = ets:fun2ms(fun(#client{state = starting, consumer = Client}) -> Client end),
+start_on_keyframe(#video_frame{type = video, frame_type = keyframe, dts = DTS}, #ems_media{clients = Clients, video_config = Video, audio_config = Audio} = M) ->
+  MS = ets:fun2ms(fun(#client{state = starting, consumer = Client, stream_id = StreamId}) -> {Client,StreamId} end),
   Starting = ets:select(Clients, MS),
-  [ets:update_element(Clients, Client, {#client.state, active}) || Client <- Starting],
+  [ets:update_element(Clients, Client, {#client.state, active}) || {Client,_} <- Starting],
+  case Video of
+    undefined -> ok;
+    _ -> [Client ! Video#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
+  end,
+  case Audio of
+    undefined -> ok;
+    _ -> [Client ! Audio#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
+  end,
+  case metadata_frame(M) of
+    undefined -> ok;
+    Meta -> [Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
+  end,
   M;
 
 start_on_keyframe(_, Media) ->
   Media.
+
+metadata_frame(#ems_media{format = undefined}) ->
+  undefined;
+  
+metadata_frame(#ems_media{format = Format, storage = Storage}) ->
+   #video_frame{type = metadata, body = [<<"onMetaData">>, {object, Format:properties(Storage)}]}.
+  
 
 send_frame(Frame, Clients, State) ->
   MS = ets:fun2ms(fun(#client{state = S, consumer = Client, stream_id = StreamId}) when S == State -> {Client, StreamId} end),

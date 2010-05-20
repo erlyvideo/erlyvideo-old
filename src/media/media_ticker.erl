@@ -84,8 +84,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   Frame = ems_media:read_frame(Media, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
   Metadata = ems_media:metadata(Media),
-  Meta = #video_frame{type = metadata, body = [<<"onMetaData">>, Metadata], dts = NewDTS, pts = NewDTS, stream_id = StreamId},
-  Consumer ! Meta,
+  Consumer ! Metadata#video_frame{dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   self() ! tick,
   
   TimerStart = element(1, erlang:statistics(wall_clock)),
