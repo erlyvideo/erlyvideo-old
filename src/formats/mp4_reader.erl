@@ -261,7 +261,8 @@ properties(#mp4_reader{width = Width, height = Height, duration = Duration, audi
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- tuple_to_list(VTs)],
   Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- tuple_to_list(ATs)],
   [{width, Width}, 
-   {height, Height}, 
+   {height, Height},
+   {type, file},
    {duration, Duration/1000},
    {bitrates, Bitrates},
    {languages, Languages}].

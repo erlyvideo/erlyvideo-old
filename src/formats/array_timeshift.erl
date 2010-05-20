@@ -1,44 +1,52 @@
 
 -module(array_timeshift).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/media_info.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/debug.hrl").
 
--export([init/1, seek/3, read/2, clean/1, store/2, info/1]).
+-behaviour(gen_format).
+
+-export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+
+-record(shift, {
+  first = 0,
+  last = 0,
+  frames,
+  size
+}).
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 init(Options) ->
   Shift = proplists:get_value(timeshift, Options),
   Size = Shift*80 div 1000, % About 80 fps for video and audio
-  First = 0,
-  Last = 0,
-  timer:send_interval(5000, clean_timeshift),
-  {First, Last, array:new(Size)}.
+  {ok, #shift{frames = array:new(Size), size = Size}}.
 
 
-info(#media_info{shift = {First, Last, Frames}}) when First =/= Last ->
+can_open_file(_) ->
+  false.
+
+properties(#shift{first = First, last = Last, frames = Frames}) when First =/= Last ->
   #video_frame{dts = FirstDTS} = array:get(First, Frames),
   #video_frame{dts = LastDTS} = array:get((Last-1+array:size(Frames)) rem array:size(Frames), Frames),
-  [{start,FirstDTS},{length,LastDTS - FirstDTS}];
+  [{start,FirstDTS},{duration,(LastDTS - FirstDTS)/1000},{type,stream}];
   
-info(#media_info{shift = {_First, _Last, _Frames}}) ->
-  [{length,0}];
+properties(#shift{size = Size}) ->
+  [{duration,0},{timeshift_size,Size},{type,stream}];
   
-info(_) ->
+properties(_) ->
   [].
 
 
-seek(#media_info{shift = {First, _Last, Frames}}, _BeforeAfter, Timestamp) when Timestamp =< 0 ->
+seek(#shift{first = First, frames = Frames}, _BeforeAfter, Timestamp) when Timestamp =< 0 ->
   % ?D({"going to seek", Timestamp}),
   case array:get(First, Frames) of
     undefined -> undefined;
     #video_frame{dts = DTS} -> {(First + 1) rem array:size(Frames), DTS}
   end;
 
-seek(#media_info{shift = {First, Last, Frames}}, BeforeAfter, Timestamp) ->
+seek(#shift{first = First, last = Last, frames = Frames}, BeforeAfter, Timestamp) ->
   % ?D({"going to seek", Timestamp}),
   S = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, undefined),
   % ?D({"Seek in array", First, Last, Timestamp, S}),
@@ -59,37 +67,27 @@ seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, Key) ->
       seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, Key)
   end.
 
-read(_, undefined) ->
-  undefined;
+read_frame(#shift{first = First} = Shift, undefined) ->
+  read_frame(Shift, First);
 
-read(#media_info{shift = {_First, _Last, Frames}}, Key) ->
+read_frame(#shift{frames = Frames}, Key) ->
   % ?D({"Read", Key}),
   case array:get(Key, Frames) of
-    undefined -> undefined;
+    undefined -> eof;
     Frame -> Frame#video_frame{next_id = (Key + 1) rem array:size(Frames)}
   end.
 
 
-clean(#media_info{shift = {_First, _Last, _Frames}, last_dts = _DTS, name = _URL} = MediaInfo) ->
-  % _Bin = lists:foldl(fun({_, Bytes, _}, Sum) -> Bytes + Sum end, 0, element(2, erlang:process_info(self(), binary))),
-  % {memory, Mem} = erlang:process_info(self(), memory),
-  % ?D({"Store", First, Last, array:size(Frames), Bin div 1024, DTS}),
-  % ?D({"Store", Bin div 1024, Mem div 1024}),
-  % _Count = 0,
-  % io:format("~s timeshift is ~p/~p bytes/frames in time ~p-~p, clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), round(ets:first(Frames)), round(DTS), _Count]),
-  % io:format("~s timeshift is ~p/~p clean: ~p~n", [_URL, ets:info(Frames, memory), ets:info(Frames, size), _Count]),
-  MediaInfo.
+write_frame(#video_frame{decoder_config = true}, MediaInfo) ->
+  {ok, MediaInfo};
 
-store(MediaInfo, #video_frame{decoder_config = true}) ->
-  MediaInfo;
-
-store(#media_info{shift = {First, Last, Frames}} = MediaInfo, #video_frame{} = Frame) when Frame =/= undefined->
+write_frame(#video_frame{} = Frame, #shift{first = First, last = Last, frames = Frames} = Shift) ->
   Last1 = (Last + 1) rem array:size(Frames),
   First1 = case Last1 of
     First -> (First + 1) rem array:size(Frames);
     _ -> First
   end,
-  MediaInfo#media_info{shift = {First1, Last1, array:set(Last, Frame, Frames)}};
+  {ok, Shift#shift{first = First1, last = Last1, frames = array:set(Last, Frame, Frames)}}.
 
-store(MediaInfo, _Frame) ->
-  MediaInfo.
+
+  

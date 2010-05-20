@@ -157,7 +157,19 @@ init([Module, Options]) ->
   Media = #ems_media{options = Options, module = Module, clients = ets:new(clients, [set,  {keypos,#client.consumer}])},
   case Module:init(Options) of
     {ok, State} ->
-      {ok, Media#ems_media{state = State}};
+      {Format,Storage} = case proplists:get_value(timeshift, Options) of
+        undefined -> 
+          {undefined, undefined};
+        Timeshift when is_number(Timeshift) andalso Timeshift > 0 ->
+          case array_timeshift:init(Options) of
+            {ok, TSModule} ->
+              {array_timeshift, TSModule};
+            _ ->
+              {undefined, undefined}
+          end
+      end,
+      ?D({timeshift_init,Format}),
+      {ok, Media#ems_media{state = State, format = Format, storage = Storage}};
     {ok, State, {Format, Storage}} ->
       ?D({inited_with_storage,Format}),
       {ok, Media#ems_media{state = State, format = Format, storage = Storage}};
@@ -254,6 +266,7 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
     {NewPos, NewDTS} ->
       case ets:lookup(Clients, Client) of
         [#client{ticker = Ticker, state = passive}] ->
+          ?D({seek_passive,NewPos, NewDTS}),
           media_ticker:seek(Ticker, NewPos, NewDTS),
           {reply, {seek_success, NewDTS}, Media};
         
@@ -261,6 +274,7 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
           {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
           TickerRef = erlang:monitor(process,Ticker),
           media_ticker:seek(Ticker, NewPos, NewDTS),
+          ?D({seek_active,NewPos, NewDTS}),
           ets:insert(Clients, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
           {reply, {seek_success, NewDTS}, Media};
         
@@ -362,8 +376,9 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
   end;
   
 
-handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, clients = Clients} = Media) ->
+handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, clients = Clients, format = Format, storage = Storage} = Media) ->
   start_on_keyframe(Frame, Media),
+  Storage1 = save_frame(Format, Storage, Frame),
   case M:handle_frame(Frame, S) of
     {ok, F, S1} ->
       case Type of
@@ -371,11 +386,11 @@ handle_info(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S,
         _ -> ok
       end,
       send_frame(F, Clients, active),
-      {noreply, Media#ems_media{state = S1}};
+      {noreply, Media#ems_media{state = S1, storage = Storage1}};
     {noreply, S1} ->
-      {noreply, Media#ems_media{state = S1}};
+      {noreply, Media#ems_media{state = S1, storage = Storage1}};
     {stop, Reason, S1} ->
-      {stop, Reason, Media#ems_media{state = S1}}
+      {stop, Reason, Media#ems_media{state = S1, storage = Storage1}}
   end;
 
 handle_info(graceful, #ems_media{source = undefined} = Media) ->
@@ -398,6 +413,16 @@ handle_info(Message, #ems_media{module = M, state = S} = Media) ->
 
 client_count(#ems_media{clients = Clients}) ->
   ets:info(Clients, size).
+
+
+save_frame(undefined, Storage, _) ->
+  Storage;
+
+save_frame(Format, Storage, Frame) ->
+  case Format:write_frame(Frame, Storage) of
+    {ok, Storage1} -> Storage1;
+    _ -> Storage
+  end.
 
 start_on_keyframe(#video_frame{type = video, frame_type = keyframe}, #ems_media{clients = Clients} = M) ->
   MS = ets:fun2ms(fun(#client{state = starting, consumer = Client}) -> Client end),

@@ -31,14 +31,25 @@
 -module(flv_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/flv.hrl").
--include("../../include/media_info.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, properties/1, seek/3, first/1, can_open_file/1, write_frame/2]).
+-export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+
+-record(media_info, {
+  device,
+  frames,
+  header,
+  metadata,
+  duration,
+  height,
+  width,
+  audio_codec,
+  video_codec
+}).
 
 
 can_open_file(Name) when is_binary(Name) ->
@@ -50,6 +61,8 @@ can_open_file(Name) ->
 
 write_frame(Device, Frame) -> 
   erlang:error(unsupported).
+
+
 
 %%--------------------------------------------------------------------
 %% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}
@@ -157,6 +170,10 @@ seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
+
+read_frame(Media, undefined) ->
+  read_frame(Media, first(Media));
+
 read_frame(#media_info{device = Device}, Offset) ->
 	case flv:read_tag(Device, Offset) of
 		#flv_tag{} = Tag ->
