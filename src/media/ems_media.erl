@@ -74,7 +74,10 @@ start_link(Module, Options) ->
   source,
   source_ref,
   storage,
-  format
+  format,
+  
+  last_dts,
+  ts_delta
 }).
 
 
@@ -265,7 +268,6 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
     {NewPos, NewDTS} ->
       case ets:lookup(Clients, Client) of
         [#client{ticker = Ticker, state = passive}] ->
-          ?D({seek_passive,NewPos, NewDTS}),
           media_ticker:seek(Ticker, NewPos, NewDTS),
           {reply, {seek_success, NewDTS}, Media};
         
@@ -273,7 +275,6 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
           {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
           TickerRef = erlang:monitor(process,Ticker),
           media_ticker:seek(Ticker, NewPos, NewDTS),
-          ?D({seek_active,NewPos, NewDTS}),
           ets:insert(Clients, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
           {reply, {seek_success, NewDTS}, Media};
         
@@ -375,11 +376,8 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
   end;
   
 
-handle_info(#video_frame{} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
-  start_on_keyframe(Frame, Media),
-  Storage1 = save_frame(Format, Storage, Frame),
-  
-  handle_config(Frame, Media#ems_media{storage = Storage1});
+handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
+  shift_dts(Frame, Media);
 
 handle_info(graceful, #ems_media{source = undefined} = Media) ->
   case client_count(Media) of
@@ -401,6 +399,24 @@ handle_info(Message, #ems_media{module = M, state = S} = Media) ->
 
 client_count(#ems_media{clients = Clients}) ->
   ets:info(Clients, size).
+
+
+shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
+  shift_dts(Frame, Media#ems_media{last_dts = 0});
+
+shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, last_dts = LastDTS} = Media) ->
+  ?D({"New instance of stream", LastDTS - DTS}),
+  shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
+
+shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
+  % ?D({Frame#video_frame.type, Frame#video_frame.dts, Delta}),
+  handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+
+handle_shifted_frame(#video_frame{} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
+  % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, Frame#video_frame.dts}),
+  start_on_keyframe(Frame, Media),
+  Storage1 = save_frame(Format, Storage, Frame),
+  handle_config(Frame, Media#ems_media{storage = Storage1}).
 
 handle_config(#video_frame{type = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
   {noreply, Media};
