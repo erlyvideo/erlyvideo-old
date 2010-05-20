@@ -253,7 +253,10 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
           TickerRef = erlang:monitor(process,Ticker),
           media_ticker:seek(Ticker, NewPos, NewDTS),
           ets:insert(Clients, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
-          {reply, {seek_success, NewDTS}, Media}
+          {reply, {seek_success, NewDTS}, Media};
+        
+        [] ->
+          {reply, seek_failed, Media}
       end;    
     undefined ->
       {reply, seek_failed, Media}
@@ -276,8 +279,11 @@ handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Stor
 handle_call({seek, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
   {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
-handle_call(metadata, _From, #ems_media{format = Format, storage = Storage} = Media) ->
+handle_call(metadata, _From, #ems_media{format = Format, storage = Storage} = Media) when Format =/= undefined->
   {reply, {object, Format:properties(Storage)}, Media};
+
+handle_call(info, _From, #ems_media{format = Format, storage = Storage} = Media) when Format =/= undefined ->
+  {reply, Format:properties(Storage), Media};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -311,7 +317,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
   {stop, normal, Media};
   
-handle_info({'DOWN', _Ref, process, Pid, _Reason}, #ems_media{clients = Clients} = Media) ->
+handle_info({'DOWN', _Ref, process, Pid, Reason}, #ems_media{clients = Clients} = Media) ->
   case ets:lookup(Clients, Pid) of
     [#client{ticker = Ticker, ticker_ref = TickerRef}] when Ticker =/= undefined -> 
       erlang:demonitor(TickerRef, [flush]),
@@ -324,7 +330,10 @@ handle_info({'DOWN', _Ref, process, Pid, _Reason}, #ems_media{clients = Clients}
         [] -> ?D({"Unknown pid died!", Pid});
         [#client{consumer = Client, stream_id = StreamId, ref = Ref}] ->
           erlang:demonitor(Ref, [flush]),
-          Client ! {ems_stream, StreamId, play_failed},
+          case Reason of 
+            normal -> ok;
+            _ -> Client ! {ems_stream, StreamId, play_failed}
+          end,
           ets:delete(Clients, Client)
       end
   end,

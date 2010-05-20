@@ -418,6 +418,10 @@ handle_info({ems_stream, _StreamId, play_stats, PlayStat}, StateName, #rtmp_sess
 handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
   rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
   {next_state, StateName, State};
+
+handle_info({ems_stream, StreamId, play_failed}, StateName, #rtmp_session{socket = Socket} = State) ->
+  rtmp_lib:play_failed(Socket, StreamId),
+  {next_state, StateName, State};
   
 handle_info({ems_stream, StreamId, seek_notify, Timestamp}, StateName, #rtmp_session{socket = Socket} = State) ->
   rtmp_lib:seek_notify(Socket, StreamId, Timestamp),
