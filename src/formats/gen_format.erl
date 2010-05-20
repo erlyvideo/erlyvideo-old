@@ -10,12 +10,9 @@
 %%%    frames, video_track, audio_track, header, width, height, duration, framerate, timescale, audio_config, video_config
 %%%    
 %%%
-%%% ```first(MediaInfo) -> FirstOffset'''
-%%%  This function must return offset of first frame in file. Offset is internal number
-%%%  for format. It may be offset in file, or anything else.
-%%%
 %%% ```read_frame(MediaInfo, Offset) -> {#video_frame{}, NextOffset}'''
 %%%  Client calls this method frame by frame, retrieving NextOffset
+%%%  First frame is called with Offset = undefined. 
 %%%
 %%% ```seek(MediaInfo, BeforeAfter, Timestamp) -> {Offset, RealTimestamp} | undefined'''
 %%%  This function returns new Offset, which must be used in read_frame. 
@@ -69,5 +66,5 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {first, 1}, {seek, 3}, {read_frame, 2}, {properties, 1}, {can_open_file, 1}, {write_frame, 2}];
+behaviour_info(callbacks) -> [{init, 1}, {seek, 3}, {read_frame, 2}, {properties, 1}, {can_open_file, 1}, {write_frame, 2}];
 behaviour_info(_Other) -> ?D({"Behaviour", _Other}), undefined.

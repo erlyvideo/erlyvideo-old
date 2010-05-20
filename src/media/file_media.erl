@@ -35,9 +35,9 @@ open_file(Name, Host) ->
 handle_frame(Frame, State) ->
   {ok, Frame, State}.
 
-handle_control({subscribe, Consumer, StreamId}, _State) ->
+handle_control({subscribe, Consumer, StreamId}, State) ->
   ?D({subscribe,Consumer,StreamId}),
-  ems_sup:start_ticker(self(), Consumer, [{stream_id, StreamId}]).
+  {ok, State, tick}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Host) -> FileName::string()

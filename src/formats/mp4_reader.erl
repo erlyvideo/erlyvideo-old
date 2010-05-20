@@ -69,15 +69,15 @@ codec_config(audio, #mp4_reader{audio_codec = AudioCodec} = MediaInfo) ->
 
 
 first(Media) ->
-  first(Media, 0).
+  first(Media, 0, 0).
 
-first(#mp4_reader{audio_config = A}, Id) when A =/= undefined ->
-  {audio_config, Id};
+first(#mp4_reader{audio_config = A}, Id, DTS) when A =/= undefined ->
+  {audio_config, Id, DTS};
 
-first(#mp4_reader{video_config = V}, Id) when V =/= undefined ->
-  {video_config, Id};
+first(#mp4_reader{video_config = V}, Id, DTS) when V =/= undefined ->
+  {video_config, Id, DTS};
 
-first(_, Id) ->
+first(_, Id, _DTS) ->
   Id.
 
 
@@ -88,15 +88,15 @@ lookup_frame(audio, #mp4_reader{audio_track = ATs}) -> element(1,ATs).
 read_frame(MediaInfo, undefined) ->
   read_frame(MediaInfo, first(MediaInfo));
 
-read_frame(MediaInfo, {audio_config, Pos}) ->
+read_frame(MediaInfo, {audio_config, Pos, DTS}) ->
   % ?D({"Send audio config", Pos}),
   Frame = codec_config(audio, MediaInfo),
-  Frame#video_frame{next_id = {video_config,Pos}};
+  Frame#video_frame{next_id = {video_config,Pos, DTS}, dts = DTS, pts = DTS};
 
-read_frame(MediaInfo, {video_config,Pos}) ->
+read_frame(MediaInfo, {video_config,Pos, DTS}) ->
   % ?D({"Send video config", Pos}),
   Frame = codec_config(video, MediaInfo),
-  Frame#video_frame{next_id = Pos};
+  Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
 
 read_frame(_, eof) ->
   eof;
@@ -148,7 +148,7 @@ seek(#mp4_reader{video_track = VTs, frames = Frames} = Media, Direction, Timesta
   case mp4:seek(FrameTable, Direction, Timestamp) of
     {VideoID, NewTimestamp} ->
       ID = find_by_frameid(Frames, video, VideoID),
-      {first(Media, ID),NewTimestamp};
+      {first(Media, ID, NewTimestamp),NewTimestamp};
     undefined ->
       undefined
   end.

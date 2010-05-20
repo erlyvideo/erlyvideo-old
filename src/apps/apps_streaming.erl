@@ -215,7 +215,12 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 seek(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
   Player = ems:element(StreamId, Streams),
   ?D({"seek", round(Timestamp), Player}),
-  ems_media:seek(Player, before, Timestamp),
+  case ems_media:seek(Player, before, Timestamp) of
+    {seek_success, NewTimestamp} ->
+      self() ! {ems_stream, StreamId, seek_notify, NewTimestamp};
+    seek_failed ->
+      self() ! {ems_stream, StreamId, seek_failed}
+  end,
   State.
   
 

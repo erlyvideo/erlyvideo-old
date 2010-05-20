@@ -2,6 +2,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -export([start_link/3, init/3, loop/1, handle_message/2, handle_call/3]).
+-export([seek/3]).
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -record(ticker, {
@@ -13,6 +14,9 @@
   frame
 }).
 
+
+seek(Ticker, Pos, DTS) ->
+  Ticker ! {seek, Pos, DTS}.
 
 start_link(Media, Consumer, Options) ->
   proc_lib:start_link(?MODULE, init, [Media, Consumer, Options]).
@@ -57,17 +61,25 @@ handle_message(stop, _Ticker) ->
 handle_message(start, Ticker) ->
   self() ! tick,
   ?MODULE:loop(Ticker);
+  
+handle_message({seek, Pos, DTS}, #ticker{} = Ticker) ->
+  ?D({seeked, Pos,DTS}),
+  self() ! tick,
+  ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, frame = undefined});
 
-handle_message(tick, #ticker{media = Media, pos = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
-  Frame = ems_media:read_frame(Media, undefined),
+handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
+  Frame = ems_media:read_frame(Media, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
+  ?D({preread_frame, NewPos,NewDTS}),
   Metadata = ems_media:metadata(Media),
   Meta = #video_frame{type = metadata, body = [<<"onMetaData">>, Metadata], dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   Consumer ! Meta,
-  handle_message(tick, Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame});
+  self() ! tick,
+  ?MODULE:loop(Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame});
   
 handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId} = Ticker) ->
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
+  % ?D({tick,Pos}),
   case ems_media:read_frame(Media, Pos) of
     eof ->
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
