@@ -149,8 +149,8 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
   end,
   Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Options2) of
-    {ok, PlayerPid} ->
-      mpegts_lib:play(Name, PlayerPid, Req),
+    {ok, Stream} ->
+      mpegts_play:play(Name, Stream, Req),
       ok;
     {notfound, Reason} ->
       Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),

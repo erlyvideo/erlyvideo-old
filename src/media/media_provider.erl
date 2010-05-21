@@ -202,13 +202,11 @@ init_names() ->
 %   client_buffer: client buffer size
 %
 play(Host, Name, Options) ->
-  
   case find_or_open(Host, Name) of
-    {notfound, Reason} -> {notfound, Reason};
-    _MediaEntry ->
-      Opts = lists:ukeymerge(1, Options, [{consumer, self()},{host,Host},{stream_id,1},{name,Name}]),
-      {ok, Stream} = ems_sup:start_mpegts_stream(Opts),
-      Stream ! {play, Name, Opts},
+    {notfound, Reason} -> 
+      {notfound, Reason};
+    Stream when is_pid(Stream) ->
+      ems_media:play(Stream, [{stream_id,1}|Options]),
       {ok, Stream}
   end.
   
