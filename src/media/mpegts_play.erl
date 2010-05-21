@@ -45,7 +45,7 @@ play(#http_player{} = Streamer) ->
   after
     ?TIMEOUT ->
       ?D("MPEG TS player stopping"),
-      ok
+      {mpegts:continuity_counters(Streamer), Streamer}
   end.
 
 handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->

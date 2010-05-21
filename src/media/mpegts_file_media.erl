@@ -29,6 +29,7 @@ init(Options) ->
   Name = proplists:get_value(name, Options),
   FileName = filename:join([file_media:file_dir(Host), binary_to_list(Name)]), 
   {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
+  erlang:monitor(process, Reader),
   link(Reader),
   {ok, #state{reader = Reader}}.
 
@@ -65,8 +66,9 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(_Message, State) ->
-  {noreply, State}.
+handle_info({'DOWN', _Ref, process, Player, _Reason}, #state{reader = Player} = Media) ->
+  ?D({"file player over"}),
+  {stop, normal, Media}.
 
 
 
