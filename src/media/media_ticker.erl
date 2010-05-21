@@ -15,6 +15,7 @@
   client_buffer,
   timer_start,
   playing_from,
+  playing_till,
   prepush
 }).
 
@@ -48,7 +49,27 @@ init(Media, Consumer, Options) ->
     {BeforeAfter, Start} -> ems_media:seek_info(Media, BeforeAfter, Start);
     Start -> ems_media:seek(Media, before, Start)
   end,
-  ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer, pos = Pos, dts = DTS}).
+  
+  PlayingTill = case proplists:get_value(duration, Options) of
+    undefined -> undefined;
+    {BeforeAfterEnd, Duration} ->
+      Length = proplists:get_value(duration, media_provider:info(Media)),
+      TotalDuration = case DTS of 
+        undefined -> Duration;
+        _ -> DTS + Duration
+      end,
+      case TotalDuration of
+        TotalDuration when TotalDuration > Length*1000 -> TotalDuration;
+        _ ->
+          case ems_media:seek_info(Media, BeforeAfterEnd, TotalDuration) of
+            {_Pos, EndTimestamp} -> EndTimestamp;
+            _ -> undefined
+          end
+      end
+  end,
+  ?D({media_ticker,{Pos,DTS}, PlayingTill}),
+  ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
+                       pos = Pos, dts = DTS, playing_till = PlayingTill}).
   
 loop(Ticker) ->
   receive
@@ -95,12 +116,17 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
                timer_start = TimerStart, prepush = ClientBuffer, playing_from = NewDTS});
   
 handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId,
-                             playing_from = PlayingFrom, timer_start = TimerStart, prepush = Prepush} = Ticker) ->
+                             playing_from = PlayingFrom, timer_start = TimerStart, prepush = Prepush, playing_till = PlayingTill} = Ticker) ->
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
   case ems_media:read_frame(Media, Pos) of
     eof ->
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       ok;
+    
+    #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
+      Consumer ! {ems_stream, StreamId, play_complete, DTS},
+      ok;
+      
       
     #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
       {Timeout, NewPrepush} = tick_timeout(NewDTS, PlayingFrom, TimerStart, Prepush),
