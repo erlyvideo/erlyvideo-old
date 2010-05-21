@@ -60,7 +60,7 @@ find(Host, Name, Number) ->
     {Number,stream} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
-  {ok, Pid} = iphone_stream:start_link(Host, Name, [{consumer,self()},{seek, {'before', Number * ?STREAM_TIME}}|Options]).
+  {ok, _Pid} = media_provider:play(Host, Name, [{stream_id,1},{consumer,self()},{seek, {'before', Number * ?STREAM_TIME}}|Options]).
 
 
 segment_info(_MediaEntry, Name, Number) ->
@@ -86,10 +86,7 @@ segments(Host, Name) ->
     Duration > 2*?STREAM_TIME -> round(Duration/?STREAM_TIME);
     true -> 1
   end,
-  case Type of
-    file -> {Start,Count,SegmentLength,Type};
-    stream -> {Start,Count,SegmentLength,Type}
-  end.
+  {Start,Count,SegmentLength,Type}.
   
 
 play(Host, Name, Number, Req) ->
@@ -97,7 +94,7 @@ play(Host, Name, Number, Req) ->
     {ok, PlayerPid} ->
       Counters = iphone_streams:get_counters(Host, Name, Number),
       io:format("Get counters for ~p:~p#~p: ~p~n", [Host, Name, Number, Counters]),
-      NextCounters = mpegts_lib:play(Name, PlayerPid, Req, Counters),
+      NextCounters = mpegts_play:play(Name, PlayerPid, Req, Counters),
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
       ok;
     {notfound, Reason} ->

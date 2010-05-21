@@ -1,6 +1,7 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        Example of gen_server
+%%% @doc        Special module, that can publish FLV file to erlyvideo. 
+%%% Required only for console tool ``contrib/rtmp_publish''
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%% @hidden
