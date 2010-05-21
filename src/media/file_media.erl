@@ -5,11 +5,10 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2]).
+-export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
 -export([file_dir/1, file_format/1]).
 
 init(Options) ->
-  io:format("Starting file media ~p~n", [Options]),
   Name = proplists:get_value(name, Options),
   Host = proplists:get_value(host, Options),
   case open_file(Name,Host) of
@@ -42,6 +41,9 @@ handle_frame(Frame, State) ->
 handle_control({subscribe, Consumer, StreamId}, State) ->
   ?D({subscribe,Consumer,StreamId}),
   {ok, State, tick}.
+
+handle_info(_Message, State) ->
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Host) -> FileName::string()

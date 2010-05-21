@@ -64,9 +64,9 @@ start_mpegts_file_reader(Path, Options) ->
 start_shoutcast_reader(Consumer) ->
   supervisor:start_child(shoutcast_reader_sup, [Consumer]).
 
-start_media(_Name, file           = _Type, Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
-start_media(_Name, mpegts         = _Type, Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
-start_media(Name, mpegts_file    = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
+start_media(_Name, file,          Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
+start_media(_Name, mpegts,        Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
+start_media(Name, mpegts_file,    Opts) -> supervisor:start_child(ems_media_sup, [mpegts_file_media, Opts]);
 start_media(Name, mpegts_passive = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, record         = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 % start_media(Name, live           = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
