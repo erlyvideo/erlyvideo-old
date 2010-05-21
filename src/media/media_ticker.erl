@@ -15,8 +15,7 @@
   client_buffer,
   timer_start,
   playing_from,
-  playing_till,
-  prepush
+  playing_till
 }).
 
 start(Ticker) ->
@@ -67,7 +66,7 @@ init(Media, Consumer, Options) ->
           end
       end
   end,
-  ?D({media_ticker,{Pos,DTS}, PlayingTill}),
+  ?D({media_ticker,{Pos,DTS}, PlayingTill, ClientBuffer}),
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill}).
   
@@ -113,10 +112,11 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   TimerStart = element(1, erlang:statistics(wall_clock)),
   
   ?MODULE:loop(Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame,
-               timer_start = TimerStart, prepush = ClientBuffer, playing_from = NewDTS});
+               timer_start = TimerStart, playing_from = NewDTS});
   
 handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId,
-                             playing_from = PlayingFrom, timer_start = TimerStart, prepush = Prepush, playing_till = PlayingTill} = Ticker) ->
+                             playing_from = PlayingFrom, timer_start = TimerStart, 
+                             playing_till = PlayingTill, client_buffer = ClientBuffer} = Ticker) ->
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
   case ems_media:read_frame(Media, Pos) of
     eof ->
@@ -127,10 +127,9 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       ok;
       
-      
     #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
-      {Timeout, NewPrepush} = tick_timeout(NewDTS, PlayingFrom, TimerStart, Prepush),
-      Ticker1 = Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame, prepush = NewPrepush},
+      Timeout = tick_timeout(NewDTS, PlayingFrom, TimerStart, ClientBuffer),
+      Ticker1 = Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame},
       receive
         Message ->
           ?MODULE:handle_message(Message, Ticker1)
@@ -142,13 +141,12 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   end.
 
 
-tick_timeout(DTS, PlayingFrom, TimerStart, Prepush) ->
-  SeekTime = DTS - PlayingFrom,
-  RealTime = element(1, erlang:statistics(wall_clock)) - TimerStart,
-  Sleep = SeekTime - RealTime,
+tick_timeout(DTS, PlayingFrom, TimerStart, ClientBuffer) ->
+  NextTime = DTS - PlayingFrom,   %% Time from PlayingFrom in video timeline in which next frame should be seen
+  RealTime = element(1, erlang:statistics(wall_clock)) - TimerStart, %% Wall clock from PlayingFrom
+  Sleep = NextTime - RealTime,    %% Delta between next show time and current wall clock delta
   if
-    Sleep < 0 -> {0, Prepush};
-    Prepush =< 0 -> {round(Sleep), 0};        %% No prepush left
-    Sleep =< Prepush -> {0, Prepush - Sleep}; %% Sleep if lesser than prepush, send and lower prepush
-    true -> {round(Sleep), 0}       %% Prepush is still positive, but sleep is bigger. Annulate prepush
+    Sleep < 0 -> 0;                %% This case means, that frame was too late. show it immediately
+    ClientBuffer >= NextTime -> 0; %% We have seen less than buffer size from stream begin
+    true -> round(Sleep)           %% Regular situation: we are far from stream begin, feed with frames
   end.

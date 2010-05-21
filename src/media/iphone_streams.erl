@@ -32,6 +32,8 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
 
+-define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+
 -define(STREAM_TIME, 10000).
 -define(TIMEOUT, 10000).
 
@@ -80,7 +82,7 @@ segments(Host, Name) ->
   Duration = proplists:get_value(length, Info, 0),
   Type = proplists:get_value(type, Info),
   Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
-  io:format("Segments: ~p, ~p, ~p~n", [Duration, Type, Start]),
+  ?D({"Segments: ~p, ~p, ~p~n", [Duration, Type, Start]}),
   SegmentLength = ?STREAM_TIME div 1000,
   Count = if 
     Duration > 2*?STREAM_TIME -> round(Duration/?STREAM_TIME);

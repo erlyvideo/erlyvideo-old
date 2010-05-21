@@ -220,8 +220,8 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   SegmentList = lists:filter(fun(undefined) -> false;
                                 (_) -> true end, SegmentListDirty),
   EndList = case Type of
-    stream -> "";
-    file -> "#EXT-X-ENDLIST\n"
+    <<"stream">> -> "";
+    <<"file">> -> "#EXT-X-ENDLIST\n"
   end,
   Playlist = [
     "#EXTM3U\n",

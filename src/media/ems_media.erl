@@ -315,8 +315,8 @@ handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Stor
 handle_call(metadata, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media), Media};
 
-handle_call(info, _From, #ems_media{format = Format, storage = Storage} = Media) when Format =/= undefined ->
-  {reply, Format:properties(Storage), Media};
+handle_call(info, _From, #ems_media{} = Media) ->
+  {reply, storage_properties(Media), Media};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -489,11 +489,22 @@ start_on_keyframe(#video_frame{type = video, frame_type = keyframe, dts = DTS}, 
 start_on_keyframe(_, Media) ->
   Media.
 
+storage_properties(#ems_media{format = undefined}) ->
+  [];
+
+storage_properties(#ems_media{format = Format, storage = Storage}) ->
+  Props = Format:properties(Storage),
+  case proplists:get_value(duration, Props) of
+    undefined -> Props;
+    Duration -> [{length,Duration*1000}|Props]
+  end.
+
+
 metadata_frame(#ems_media{format = undefined}) ->
   undefined;
   
-metadata_frame(#ems_media{format = Format, storage = Storage}) ->
-   #video_frame{type = metadata, body = [<<"onMetaData">>, {object, Format:properties(Storage)}]}.
+metadata_frame(#ems_media{} = Media) ->
+   #video_frame{type = metadata, body = [<<"onMetaData">>, {object, storage_properties(Media)}]}.
   
 
 send_frame(Frame, Clients, State) ->

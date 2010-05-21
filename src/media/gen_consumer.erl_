@@ -512,11 +512,13 @@ frame_sent(Player, _) ->
   
 
 %% @hidden
-tick_timeout(#video_frame{dts = AbsTime}, #ems_stream{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
-  SeekTime = AbsTime - PlayingFrom,
+tick_timeout(#video_frame{dts = DTS}, #ems_stream{timer_start = TimerStart, client_buffer = ClientBuffer, playing_from = PlayingFrom, prepush = Prepush} = Player) ->
+  SeekTime = DTS - PlayingFrom,
   % Timeout = SeekTime - ClientBuffer - trunc(timer:now_diff(now(), TimerStart) / 1000),
   
-  Timeout = SeekTime - ClientBuffer - (element(1, erlang:statistics(wall_clock)) - TimerStart),
+  RealTime = element(1, erlang:statistics(wall_clock)) - TimerStart
+  
+  Timeout = SeekTime - ClientBuffer - RealTime,
 
   % ?D({"Timeout", Timeout, AbsTime, PlayingFrom, ClientBuffer, Prepush - SeekTime, 
   %  (element(1, erlang:statistics(wall_clock)) - TimerStart)}),
