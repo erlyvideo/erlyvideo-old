@@ -37,7 +37,7 @@
 %% External API
 -export([start_link/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1, setopts/2]).
+-export([metadata/1, setopts/2, seek_info/3]).
 -export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2]).
 
 %% gen_server callbacks
@@ -125,6 +125,9 @@ read_frame(Media, Key) ->
 
 seek(Media, BeforeAfter, DTS) ->
   gen_server2:call(Media, {seek, self(), BeforeAfter, DTS}).
+
+seek_info(Media, BeforeAfter, DTS) ->
+  gen_server2:call(Media, {seek_info, BeforeAfter, DTS}).
   
   
 metadata(Media) ->
@@ -195,19 +198,24 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = 
   StreamId = proplists:get_value(stream_id, Options),
   
   case M:handle_control({subscribe, Client, Options}, S) of
-    {ok, S1} ->
-      Ref = erlang:monitor(process,Client),
-      ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting}),
-      {reply, ok, Media#ems_media{state = S1}};
-    {ok, S1, tick} ->
-      Ref = erlang:monitor(process,Client),
-      {ok, Ticker} = ems_sup:start_ticker(self(), Client, Options),
-      TickerRef = erlang:monitor(process,Ticker),
-      Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
-      ets:insert(Clients, Entry),
-      {reply, ok, Media#ems_media{state = S1}};
     {error, Reason} ->
-      {reply, {error, Reason}, Media}
+      {reply, {error, Reason}, Media};
+    Else ->
+      Ref = erlang:monitor(process,Client),
+      {RequireTicker, S1} = case Else of
+        {ok, S2, tick} -> {true, S2};
+        {ok, S2} -> {proplists:get_value(start, Options) =/= undefined, S2}
+      end,
+      case RequireTicker of
+        true ->
+          {ok, Ticker} = ems_sup:start_ticker(self(), Client, Options),
+          TickerRef = erlang:monitor(process,Ticker),
+          Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
+          ets:insert(Clients, Entry);
+        false ->
+          ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
+      end,
+      {reply, ok, Media#ems_media{state = S1}}
   end;
   
 handle_call({unsubscribe,Client}, _From, #ems_media{clients = Clients} = Media) ->
@@ -288,6 +296,11 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
 handle_call({seek, _Client, _BeforeAfter, _DTS}, _From, #ems_media{format = undefined} = Media) ->
   {reply, seek_failed, Media};
 
+%% It is information seek, required for outside needs.
+handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
+  {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
+
+
 handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef} = Media) ->
   case OldRef of
     undefined -> ok;
@@ -298,9 +311,6 @@ handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef} = Media
 
 handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
   {reply, Format:read_frame(Storage, Key), Media};
-
-handle_call({seek, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
-  {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
 handle_call(metadata, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media), Media};

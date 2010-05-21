@@ -60,7 +60,7 @@ find(Host, Name, Number) ->
     {Number,stream} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
-  {ok, _Pid} = media_provider:play(Host, Name, [{stream_id,1},{consumer,self()},{seek, {'before', Number * ?STREAM_TIME}}|Options]).
+  {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, {'before', Number * ?STREAM_TIME}}|Options]).
 
 
 segment_info(_MediaEntry, Name, Number) ->
