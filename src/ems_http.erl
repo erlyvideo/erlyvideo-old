@@ -240,7 +240,6 @@ handle(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   {match, [_, Name, SegmentId]} = re:run(string:join(StreamName, "/"), Re, [{capture, all, binary}]),
   
   Segment = list_to_integer(binary_to_list(SegmentId)),
-  Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
   iphone_streams:play(Host, Name, Segment, Req);
   
 handle(Host, 'GET', Path, Req) ->

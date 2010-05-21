@@ -11,7 +11,8 @@
 -record(http_player, {
   player,
   streamer,
-  req
+  req,
+  buffer = []
 }).
 
 
@@ -24,12 +25,21 @@ play(_Name, Player, Req, Counters) ->
   link(Req:socket_pid()),
   erlang:monitor(process,Player),
   erlang:monitor(process,Req:socket_pid()),
-  Streamer = #http_player{player = Player, req = Req, streamer = mpegts:init(Counters)},
-  NextCounters = ?MODULE:play(Streamer),
+  Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
+  case true of
+    true -> 
+      {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
+      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
+      Req:stream(lists:reverse(Buffer));
+    false ->
+      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
+      {NextCounters, _} = ?MODULE:play(Streamer#http_player{req = Req})
+  end,      
+  
   Req:stream(close),
   NextCounters.
 
-play(#http_player{player = Player} = Streamer) ->
+play(#http_player{} = Streamer) ->
   receive
     Message -> handle_msg(Streamer, Message)
   after
@@ -38,24 +48,24 @@ play(#http_player{player = Player} = Streamer) ->
       ok
   end.
 
-handle_msg(#http_player{req = Req, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
   case mpegts:encode(Streamer, Frame) of
     {Streamer1, none} -> 
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
+    {Streamer1, Bin} when Req == undefined ->
+      ?MODULE:play(HTTPPlayer#http_player{buffer = [Bin|Buffer], streamer = Streamer1});
     {Streamer1, Bin} ->
       Req:stream(Bin),
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1})
   end;
 
-handle_msg(#http_player{player = Player, req = Req, streamer = Streamer}, {'DOWN', _, process, Pid, _}) ->
+handle_msg(#http_player{streamer = Streamer} = State, {'DOWN', _, process, Pid, _}) ->
   Counters = mpegts:continuity_counters(Streamer),
   ?D({"MPEG TS reader disconnected", Pid, Streamer, Counters}),
-  % {_Streamer1, Bin} = mpegts:pad_continuity_counters(Streamer),
-  % Req:stream(Bin),
-  Counters;
+  {Counters, State};
 
-handle_msg(#http_player{player = Player, streamer = Streamer}, {ems_stream, _,play_complete,_}) ->
-  mpegts:continuity_counters(Streamer);
+handle_msg(#http_player{streamer = Streamer} = State, {ems_stream, _,play_complete,_}) ->
+  {mpegts:continuity_counters(Streamer), State};
 
 handle_msg(#http_player{} = Streamer, Message) ->
   ?D(Message),
