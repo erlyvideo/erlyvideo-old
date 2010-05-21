@@ -294,30 +294,6 @@ handle_info(Message, State) ->
 %%%%%%%%%%%%%%%%%%        Frame handling         %%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_frame(#video_frame{} = Frame, #media_info{last_dts = undefined} = Recorder) ->
-  handle_frame(Frame, Recorder#media_info{last_dts = 0}); % Just not to appear negative dts
-
-handle_frame(#video_frame{dts = DTS} = Frame, #media_info{ts_delta = undefined, last_dts = LastDTS} = Recorder) ->
-  ?D({"New instance of stream", LastDTS - DTS}),
-  handle_frame(Frame, Recorder#media_info{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
-
-handle_frame(#video_frame{dts=DTS,pts=PTS} = Frame0, #media_info{device=Device, ts_delta = Delta} = Recorder) ->
-  Frame = Frame0#video_frame{dts = DTS + Delta, pts = PTS + Delta},
-  {Frame1, Recorder0} = pass_through_filter(Frame#video_frame{stream_id = 1}, Recorder#media_info{last_dts = DTS + Delta}),
-  % Frame1 = Frame,
-  % Recorder0 = Recorder,
-
-  send_frame(Frame1, Recorder),
-  Recorder1 = parse_metadata(Recorder0, Frame1),
-  Recorder2 = copy_audio_config(Recorder1, Frame1),
-  Recorder3 = copy_video_config(Recorder2, Frame1),
-  TimeshiftModule = Recorder#media_info.timeshift_module,
-  Recorder4 = TimeshiftModule:store(Recorder3, Frame1),
-  % Recorder4 = store_last_gop(Recorder3, Frame),
-  Recorder5 = Recorder4,
-  (catch Device ! Frame1),
-  Recorder5.
-
 
 send_client_frame({Client, _}, Frame) ->
   Client ! Frame.
