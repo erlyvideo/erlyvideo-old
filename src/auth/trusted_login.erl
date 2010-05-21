@@ -35,8 +35,21 @@
 -include("../../include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 
--export([connect/2]).
+-export([connect/2, auth/3]).
 
+auth(_Host, http, undefined) ->
+  [];
+  
+auth(_Host, http, Header) ->
+  [Method, Token] = string:tokens(Header, " "),
+  case Method of
+    "Basic" ->
+      [UserId, Password] = string:tokens(binary_to_list(base64:decode(Token)), ":"),
+      [{user_id, UserId}, {password, Password}]
+  end;    
+
+auth(_Host, _Protocol, _Session) ->
+  [].
 
 %%-------------------------------------------------------------------------
 %% @spec connect(Session::rtmp_session(), Funcall::rtmp_funcall()) -> NewState::rtmp_session()

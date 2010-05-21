@@ -2,9 +2,13 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
--export([decode/2, encode/2, connect/2, binary_to_hexbin/1]).
+-export([decode/2, encode/2, connect/2, binary_to_hexbin/1, auth/3]).
 
 
+auth(Host, _Method, LoginInfo) ->
+  Secret = ems:get_var(secret_key, Host, undefined),
+  decode(LoginInfo, Secret).
+  
 
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
   try perform_login(State, AMF) of
@@ -19,8 +23,7 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
   end.
 
 perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, Cookie | _]}) ->
-  Secret = ems:get_var(secret_key, Host, undefined),
-  Session = decode(Cookie, Secret),
+  Session = auth(Host, rtmp, Cookie),
   UserId = proplists:get_value(user_id, Session),
   Channels = proplists:get_value(channels, Session, []),
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),
