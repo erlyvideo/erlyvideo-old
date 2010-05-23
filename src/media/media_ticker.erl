@@ -40,7 +40,7 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
-  ?D({media_ticker,Options}),
+  % ?D({media_ticker,Options}),
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 10000),
   {Pos, DTS} = case proplists:get_value(start, Options) of
@@ -52,14 +52,15 @@ init(Media, Consumer, Options) ->
   PlayingTill = case proplists:get_value(duration, Options) of
     undefined -> undefined;
     {BeforeAfterEnd, Duration} ->
-      Length = proplists:get_value(duration, media_provider:info(Media)),
+      Length = proplists:get_value(length, media_provider:info(Media)),
       TotalDuration = case DTS of 
         undefined -> Duration;
         _ -> DTS + Duration
       end,
-      case TotalDuration of
-        TotalDuration when TotalDuration > Length*1000 -> TotalDuration;
-        _ ->
+      if
+        TotalDuration > Length -> TotalDuration;
+        % TotalDuration + 1000 > Length -> undefined;
+        true ->
           case ems_media:seek_info(Media, BeforeAfterEnd, TotalDuration) of
             {_Pos, EndTimestamp} -> EndTimestamp;
             _ -> undefined
@@ -102,7 +103,7 @@ handle_message({seek, Pos, DTS}, #ticker{} = Ticker) ->
   self() ! tick,
   ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, frame = undefined});
 
-handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer} = Ticker) ->
+handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
   Frame = ems_media:read_frame(Media, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
   Metadata = ems_media:metadata(Media),
