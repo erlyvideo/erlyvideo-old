@@ -33,7 +33,7 @@
 -behaviour(gen_server).
 
 -define(STREAM_TIME, 10000).
--define(TIMEOUT, 10000).
+-define(TIMEOUT, 60000).
 
 %% External API
 -export([start_link/0, start_link/1]).
