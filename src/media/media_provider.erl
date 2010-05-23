@@ -458,12 +458,13 @@ handle_info({'DOWN', _, process, MasterPid, _Reason}, #media_provider{master_pid
   global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
   {noreply, MediaProvider#media_provider{master_pid = undefined}};
 
-handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
     [] -> 
       {noreply, MediaProvider};
     [[Name]] ->
       ets:delete(OpenedMedia, Name),
+      ems_event:stream_stopped(Host, Name, Media),
       {noreply, MediaProvider}
   end;
 
