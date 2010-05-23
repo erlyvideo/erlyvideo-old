@@ -39,8 +39,8 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, find_or_open/2, register/3]).
--export([info/1, info/2, detect_type/2]). % just for getStreamLength
+-export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, find_or_open/2, find_or_open/3, register/3]).
+-export([info/1, info/2, detect_type/3]). % just for getStreamLength
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -202,17 +202,20 @@ init_names() ->
 %   client_buffer: client buffer size
 %
 play(Host, Name, Options) ->
-  case find_or_open(Host, Name) of
+  case find_or_open(Host, Name, Options) of
     {notfound, Reason} -> 
       {notfound, Reason};
     Stream when is_pid(Stream) ->
-      ems_media:play(Stream, [{stream_id,1}|Options]),
+      ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
       {ok, Stream}
   end.
-  
+
 find_or_open(Host, Name) ->
+  find_or_open(Host, Name, []).
+  
+find_or_open(Host, Name, Options) ->
   case find(Host, Name) of
-    undefined -> open(Host, Name);
+    undefined -> open(Host, Name, Options);
     MediaEntry -> MediaEntry
   end.
 
@@ -302,8 +305,8 @@ internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
   Opts0 = lists:ukeysort(1, Opts),
   Opts1 = case proplists:get_value(type, Opts0) of
     undefined ->
-      DetectedOpts = detect_type(Host, Name),
-      ?D({"Detecting type", Host, Name, DetectedOpts}),
+      DetectedOpts = detect_type(Host, Name, Opts0),
+      ?D({"Detecting type", Host, Name, Opts0, DetectedOpts}),
       lists:ukeymerge(1, DetectedOpts, Opts0);
     _ ->
       Opts0
@@ -340,54 +343,54 @@ open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} 
       MediaEntry
   end.
   
-detect_type(Host, Name) ->
-  detect_rewrite(Host, Name).
+detect_type(Host, Name, Opts) ->
+  detect_rewrite(Host, Name, Opts).
 
 
-detect_rewrite(Host, Name) ->
+detect_rewrite(Host, Name, Opts) ->
   Rewrite = ems:get_var(rewrite, Host, []),
   case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
-    false -> detect_mpegts(Host, Name);
+    false -> detect_mpegts(Host, Name, Opts);
     {_NameS, Type, URL} -> [{type, Type}, {url, URL}];
     {_NameS, Type, URL, Options} -> [{type, Type}, {url, URL} | Options]
   end.
   
-detect_mpegts(Host, Name) ->
+detect_mpegts(Host, Name, Opts) ->
   Urls = ems:get_var(mpegts, Host, []),
   case proplists:get_value(binary_to_list(Name), Urls) of
-    undefined -> detect_rtsp(Host, Name);
+    undefined -> detect_rtsp(Host, Name, Opts);
     URL -> 
       ems_log:error(Host, "Stop using {mpegts, []} style in config, switch to {rewrite, []}"),
       [{type, http}, {url, URL}]
   end.
   
-detect_rtsp(Host, Name) ->
+detect_rtsp(Host, Name, Opts) ->
   Urls = ems:get_var(rtsp, Host, []),
   case proplists:get_value(binary_to_list(Name), Urls) of
-    undefined -> detect_http(Host, Name);
+    undefined -> detect_http(Host, Name, Opts);
     URL -> 
       ems_log:error(Host, "Stop using {rtsp, []} style in config, switch to {rewrite, []}"),
       [{type, rtsp}, {url, URL}]
   end.
 
-detect_http(Host, Name) ->
+detect_http(Host, Name, Opts) ->
   {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
     {match, _Captured} -> [{type, http}];
-    _ -> detect_file(Host, Name)
+    _ -> detect_file(Host, Name, Opts)
   end.
 
-detect_file(Host, Name) ->
+detect_file(Host, Name, Opts) ->
   case check_path(Host, Name) of
     true -> [{type, file}, {url, Name}];
     _ ->
       case check_path(Host, <<Name/binary, ".flv">>) of
         true -> [{type, file}, {url, <<Name/binary, ".flv">>}];
-        _ -> detect_prefixed_file(Host, Name)
+        _ -> detect_prefixed_file(Host, Name, Opts)
       end
   end.
 
-detect_prefixed_file(Host, <<"flv:", Name/binary>>) ->
+detect_prefixed_file(Host, <<"flv:", Name/binary>>, _Opts) ->
   case check_path(Host, Name) of
     true -> [{type, file}, {url, Name}];
     _ -> 
@@ -399,7 +402,7 @@ detect_prefixed_file(Host, <<"flv:", Name/binary>>) ->
       end
   end;
 
-detect_prefixed_file(Host, <<"mp4:", Name/binary>>) ->
+detect_prefixed_file(Host, <<"mp4:", Name/binary>>, _Opts) ->
   case check_path(Host, Name) of
     true -> 
       ?D({"File found", Name}),
@@ -413,8 +416,16 @@ detect_prefixed_file(Host, <<"mp4:", Name/binary>>) ->
       end
   end;
   
-detect_prefixed_file(_Host, _Name) ->
-  [{type, notfound}].
+detect_prefixed_file(Host, Name, Opts) ->
+  detect_livestream(Host, Name, Opts).
+  
+detect_livestream(_Host, Name, Opts) ->
+  case proplists:get_value(wait, Opts) of
+    undefined ->
+      [{type, notfound}];
+    _ ->
+      [{type, live}, {url, Name}]
+  end.
 
 
 

@@ -240,7 +240,7 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State,
   Recorder = ems:element(StreamId, Streams),
   
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
-  stream_media:publish(Recorder, Frame),
+  ems_media:publish(Recorder, Frame),
   State;
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
@@ -372,11 +372,11 @@ handle_info({rtmp, Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
   rtmp_socket:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_DATA', State};
 
-handle_info({rtmp, _Socket, timeout, Stats}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p ~p ~p", [_Socket, UserId, IP, Stats]),
+handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
+  ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
   {stop, normal, State};
 
-handle_info({'DOWN', _Ref, process, Socket, _Reason}, StateName, #rtmp_session{socket = Socket} = State) ->
+handle_info({'DOWN', _Ref, process, Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
   {stop,normal,State};
   
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->

@@ -38,7 +38,7 @@
 -export([start_link/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
 -export([metadata/1, setopts/2, seek_info/3]).
--export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2]).
+-export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2, publish/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
@@ -137,6 +137,10 @@ setopts(Media, Options) ->
   %TODO add options
   ok.
   
+publish(Media, #video_frame{} = Frame) ->
+  Media ! Frame.
+
+  
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
@@ -173,7 +177,6 @@ init([Module, Options]) ->
               {undefined, undefined}
           end
       end,
-      ?D({timeshift_init,Format}),
       {ok, Media#ems_media{state = State, format = Format, storage = Storage}};
     {ok, State, {Format, Storage}} ->
       ?D({inited_with_storage,Format}),
@@ -301,13 +304,18 @@ handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, st
   {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
 
-handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef} = Media) ->
+handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef, module = M, state = S1} = Media) ->
   case OldRef of
     undefined -> ok;
     _ -> erlang:demonitor(OldRef, [flush])
   end,
-  Ref = erlang:monitor(process,Source),
-  {reply, ok, Media#ems_media{source = Source, source_ref = Ref}};
+  case M:handle_control({set_source, Source}, S1) of
+    {reply, Reply, S2} ->
+      Ref = erlang:monitor(process,Source),
+      {reply, Reply, Media#ems_media{source = Source, source_ref = Ref, state = S2}};
+    {stop, Reason, S2} ->
+      {stop, Reason, Media#ems_media{state = S2}}
+  end;
 
 handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
   {reply, Format:read_frame(Storage, Key), Media};

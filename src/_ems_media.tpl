@@ -65,7 +65,17 @@ init(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_control({subscribe, _Client, _Options}, State) ->
+  %% Subscribe returns:
+  %% {ok, State} -> client is subscribed as active receiver
+  %% {ok, State, tick} -> client requires ticker (file reader)
+  %% {error, Reason} -> client receives {error, Reason}
   {ok, State};
+
+handle_control({set_source, _Source}, State) ->
+  %% Set source returns:
+  %% {reply, Reply, State}
+  %% {stop, Reason}
+  {reply, ok, State};
 
 handle_control(_Control, State) ->
   {ok, State}.

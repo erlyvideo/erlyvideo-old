@@ -130,12 +130,11 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
 play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
   Options = extract_play_args(Args),
-  case media_provider:find_or_open(Host, Name) of
+  case media_provider:play(Host, Name, [{stream_id,StreamId}|Options]) of
     {notfound, _Reason} -> 
       State;
-    Media when is_pid(Media) ->
+    {ok, Media} ->
       self() ! {ems_stream, StreamId, start_play},
-      ems_media:play(Media, [{stream_id,StreamId}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
   end.
