@@ -58,8 +58,9 @@ start_link(Options) ->
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
   {_, Count, _, Type} = segments(Host, Name),
-  Options = case {Count,Type} of
-    {Number,stream} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
+  Options = case {Count - 1,Type} of
+    {Number,<<"stream">>} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
+    {Number,<<"file">>} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment doesn't require any end limit
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
   {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, {'before', Number * ?STREAM_TIME}}|Options]).
@@ -82,7 +83,6 @@ segments(Host, Name) ->
   Duration = proplists:get_value(length, Info, 0),
   Type = proplists:get_value(type, Info),
   Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
-  ?D({"Segments: ~p, ~p, ~p~n", [Duration, Type, Start]}),
   SegmentLength = ?STREAM_TIME div 1000,
   Count = if 
     Duration > 2*?STREAM_TIME -> round(Duration/?STREAM_TIME);
@@ -95,7 +95,7 @@ play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
       Counters = iphone_streams:get_counters(Host, Name, Number),
-      io:format("Get counters for ~p:~p#~p: ~p~n", [Host, Name, Number, Counters]),
+      ?D({"Get counters for", Host, Name, Number, Counters}),
       NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}], Counters),
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
       ok;
