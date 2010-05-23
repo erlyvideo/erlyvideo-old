@@ -6,7 +6,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 
--export([play/3, play/4, play/1]).
+-export([play/3, play/4, play/5, play/1]).
 
 -record(http_player, {
   player,
@@ -15,37 +15,39 @@
   buffer = []
 }).
 
-
 play(Name, Player, Req) ->
-  play(Name, Player, Req, {0,0,0,0}).
+  play(Name, Player, Req, []).
 
-play(_Name, Player, Req, Counters) ->
+play(Name, Player, Req, Options) ->
+  play(Name, Player, Req, Options, {0,0,0,0}).
+
+play(_Name, Player, Req, Options, Counters) ->
   ?D({"Player starting", _Name, Player}),
   link(Player),
   link(Req:socket_pid()),
   erlang:monitor(process,Player),
   erlang:monitor(process,Req:socket_pid()),
   Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
-  case true of
+  case proplists:get_value(buffered, Options) of
     true -> 
       {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       Req:stream(lists:reverse(Buffer));
-    false ->
-      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}]),
+    _ ->
+      Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
       {NextCounters, _} = ?MODULE:play(Streamer#http_player{req = Req})
   end,      
   
   Req:stream(close),
   NextCounters.
 
-play(#http_player{} = Streamer) ->
+play(#http_player{streamer = Streamer} = Player) ->
   receive
-    Message -> handle_msg(Streamer, Message)
+    Message -> handle_msg(Player, Message)
   after
     ?TIMEOUT ->
       ?D("MPEG TS player stopping"),
-      {mpegts:continuity_counters(Streamer), Streamer}
+      {mpegts:continuity_counters(Streamer), Player}
   end.
 
 handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->

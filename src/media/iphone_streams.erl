@@ -96,7 +96,7 @@ play(Host, Name, Number, Req) ->
     {ok, PlayerPid} ->
       Counters = iphone_streams:get_counters(Host, Name, Number),
       io:format("Get counters for ~p:~p#~p: ~p~n", [Host, Name, Number, Counters]),
-      NextCounters = mpegts_play:play(Name, PlayerPid, Req, Counters),
+      NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}], Counters),
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
       ok;
     {notfound, Reason} ->

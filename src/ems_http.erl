@@ -147,7 +147,6 @@ handle(Host, 'GET', ["stream" | Name], Req) ->
     undefined -> Options1;
     Seek -> [{seek,{before,list_to_integer(Seek)}}|Options1]
   end,
-  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Options2) of
     {ok, Stream} ->
       mpegts_play:play(Name, Stream, Req),
