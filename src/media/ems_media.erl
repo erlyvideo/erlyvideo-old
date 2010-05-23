@@ -45,6 +45,7 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
+-define(LIFE_TIMEOUT, 60000).
 
 -export([behaviour_info/1]).
 
@@ -77,7 +78,10 @@ start_link(Module, Options) ->
   format,
   
   last_dts,
-  ts_delta
+  ts_delta,
+  
+  life_timeout,
+  timeout_ref
 }).
 
 
@@ -163,7 +167,9 @@ print_state(#ems_media{} = Media) ->
 
 init([Module, Options]) ->
   ?D({init,Module,Options}),
-  Media = #ems_media{options = Options, module = Module, clients = ets:new(clients, [set,  {keypos,#client.consumer}])},
+  Media = #ems_media{options = Options, module = Module, 
+                     clients = ets:new(clients, [set,  {keypos,#client.consumer}]),
+                     life_timeout = proplists:get_value(life_timeout, Options, ?LIFE_TIMEOUT)},
   case Module:init(Options) of
     {ok, State} ->
       {Format,Storage} = case proplists:get_value(timeshift, Options) of
@@ -197,6 +203,11 @@ init([Module, Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_call({subscribe, Client, Options}, From, #ems_media{timeout_ref = Ref} = Media) when Ref =/= undefined ->
+  timer:cancel(Ref),
+  handle_call({subscribe, Client, Options}, From, Media#ems_media{timeout_ref = undefined});
+
+
 handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = S, clients = Clients} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
   
@@ -358,21 +369,22 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
   {stop, normal, Media};
   
-handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M, state = S} = Media) ->
+handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M, state = S, life_timeout = LifeTimeout} = Media) ->
   Count = client_count(Media),
-  if
-    Count < 2 -> timer:send_after(10000, graceful);
-    true -> ok
+  {ok, TimeoutRef} = if
+    Count < 2 -> timer:send_after(LifeTimeout, graceful);
+    true -> {ok, undefined}
   end,
+  Media1 = Media#ems_media{timeout_ref = TimeoutRef},
   case ets:lookup(Clients, Pid) of
     [#client{ticker = Ticker, ticker_ref = TickerRef}] when Ticker =/= undefined -> 
       erlang:demonitor(TickerRef, [flush]),
       (catch ems_media:stop(Ticker)),
       ets:delete(Clients, Pid),
-      {noreply, Media};
+      {noreply, Media1};
     [#client{}] -> 
       ets:delete(Clients, Pid),
-      {noreply, Media};
+      {noreply, Media1};
     [] -> 
       case ets:select(Clients, ets:fun2ms(fun(#client{ticker = Ticker} = Entry) when Ticker == Pid -> Entry end)) of
         [#client{consumer = Client, stream_id = StreamId, ref = Ref}] ->
@@ -382,13 +394,13 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
             _ -> Client ! {ems_stream, StreamId, play_failed}
           end,
           ets:delete(Clients, Client),
-          {noreply, Media};
+          {noreply, Media1};
         [] -> 
           case M:handle_info(Msg, S) of
             {noreply, S1} -> 
-              {noreply, Media#ems_media{state = S1}};
+              {noreply, Media1#ems_media{state = S1}};
             {stop, Reason, S1} ->
-              {stop, Reason, Media#ems_media{state = S1}}
+              {stop, Reason, Media1#ems_media{state = S1}}
           end
       end
   end;
