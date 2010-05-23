@@ -379,7 +379,7 @@ detect_http(Host, Name) ->
 
 detect_file(Host, Name) ->
   case check_path(Host, Name) of
-    true -> [{type, file}];
+    true -> [{type, file}, {url, Name}];
     _ ->
       case check_path(Host, <<Name/binary, ".flv">>) of
         true -> [{type, file}, {url, <<Name/binary, ".flv">>}];
