@@ -9,7 +9,7 @@
 -export([file_dir/1, file_format/1]).
 
 init(Options) ->
-  Name = proplists:get_value(name, Options),
+  Name = proplists:get_value(url, Options),
   Host = proplists:get_value(host, Options),
   case open_file(Name,Host) of
     {error, Reason} ->

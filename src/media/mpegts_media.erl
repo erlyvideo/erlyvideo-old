@@ -5,13 +5,17 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
+-define(MAX_RESTART, 10).
+-define(TIMEOUT_RESTART, 1000).
+
 -export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(mpegts, {
   socket,
   options,
   url,
-  demuxer
+  demuxer,
+  restart_count
 }).
 
 init(Options) ->
@@ -41,7 +45,7 @@ handle_frame(Frame, State) ->
 
 handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, State) ->
   inet:setopts(Socket, [{active, once}]),
-  {noreply, State};
+  {noreply, State#mpegts{restart_count = undefined}};
 
 handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
   inet:setopts(Socket, [{active, once}]),
@@ -57,13 +61,22 @@ handle_info({tcp, Socket, Bin}, #mpegts{demuxer = Reader} = State) when Reader =
   Reader ! {data, Bin},
   {noreply, State};
 
-handle_info({tcp_closed, _Socket}, #mpegts{url = URL} = State) ->
-  % FIXME
-  % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
-  ?D("Disconnected MPEG-TS socket in mode"),
-  Socket = connect_http(URL),
-  {noreply, State#mpegts{socket = Socket}};
+handle_info({tcp_closed, Socket}, #mpegts{restart_count = undefined} = State) ->
+  handle_info({tcp_closed, Socket}, State#mpegts{restart_count = 0});
 
-handle_info(Msg, _State) ->
-  {stop, {unhandled, Msg}}.
+handle_info({tcp_closed, _Socket}, #mpegts{url = URL, restart_count = Count} = State) ->
+  if
+    Count > ?MAX_RESTART ->
+      {stop, normal, State};
+    true ->  
+      % FIXME
+      % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
+      ?D({"Disconnected MPEG-TS socket in mode", Count}),
+      timer:sleep(100),
+      Socket = connect_http(URL),
+      {noreply, State#mpegts{socket = Socket, restart_count = Count + 1}}
+  end;
+
+handle_info(Msg, State) ->
+  {stop, {unhandled, Msg}, State}.
 

@@ -402,8 +402,8 @@ handle_info(Message, #ems_media{module = M, state = S} = Media) ->
   case M:handle_info(Message, S) of
     {noreply, S1} ->
       {noreply, Media#ems_media{state = S1}};
-    {stop, Reason} ->
-      {stop, Reason}
+    {stop, Reason, S1} ->
+      {stop, Reason, Media#ems_media{state = S1}}
   end.
 
 
