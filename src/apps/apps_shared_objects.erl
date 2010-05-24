@@ -1,7 +1,7 @@
 %%%---------------------------------------------------------------------------------------
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        Generalized RTMP application behavior module
+%%% @doc        Shared objects for RTMP
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
