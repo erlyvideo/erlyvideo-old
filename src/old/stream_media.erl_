@@ -43,15 +43,6 @@ unsubscribe(Stream) ->
   gen_server:call(Stream, {unsubscribe,self()}).
 
 
-connect_rtsp(#media_info{type = rtsp, name = URL, options = Options} = Media) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
-  case rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]) of
-    {ok, Reader} ->
-      Media#media_info{demuxer = Reader};
-    Else ->
-      error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
-      Media
-  end.
 
 init([URL, Type, Options]) ->
   Host = proplists:get_value(host, Options),

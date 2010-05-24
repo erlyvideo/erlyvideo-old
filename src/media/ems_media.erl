@@ -110,7 +110,7 @@ stop(Media) ->
   unsubscribe(Media).
 
 subscribe(Media, Options) ->
-  gen_server:call(Media, {subscribe, self(), Options}).
+  gen_server2:call(Media, {subscribe, self(), Options}).
 
 unsubscribe(Media) ->
   gen_server:call(Media, {unsubscribe, self()}).
@@ -122,7 +122,7 @@ pause(Media) ->
   gen_server:call(Media, {pause, self()}).
 
 set_source(Media, Source) ->
-  gen_server:call(Media, {set_source, Source}).
+  gen_server:cast(Media, {set_source, Source}).
   
 read_frame(Media, Key) ->
   gen_server2:call(Media, {read_frame, Key}).
@@ -315,19 +315,6 @@ handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, st
   {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
 
 
-handle_call({set_source, Source}, _From, #ems_media{source_ref = OldRef, module = M, state = S1} = Media) ->
-  case OldRef of
-    undefined -> ok;
-    _ -> erlang:demonitor(OldRef, [flush])
-  end,
-  case M:handle_control({set_source, Source}, S1) of
-    {reply, Reply, S2} ->
-      Ref = erlang:monitor(process,Source),
-      {reply, Reply, Media#ems_media{source = Source, source_ref = Ref, state = S2}};
-    {stop, Reason, S2} ->
-      {stop, Reason, Media#ems_media{state = S2}}
-  end;
-
 handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
   {reply, Format:read_frame(Storage, Key), Media};
 
@@ -350,6 +337,19 @@ handle_call(Request, _From, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M, state = S1} = Media) ->
+  case OldRef of
+    undefined -> ok;
+    _ -> erlang:demonitor(OldRef, [flush])
+  end,
+  case M:handle_control({set_source, Source}, S1) of
+    {reply, _Reply, S2} ->
+      Ref = erlang:monitor(process,Source),
+      {noreply, Media#ems_media{source = Source, source_ref = Ref, state = S2}};
+    {stop, Reason, S2} ->
+      {stop, Reason, Media#ems_media{state = S2}}
+  end;
+
 handle_cast(_Msg, State) ->
   {stop, {unknown_cast, _Msg}, State}.
 
@@ -364,10 +364,15 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source} = Media) ->
-  % FIXME: should wait for timeout
+handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, state = S1, source = Source} = Media) ->
+  case M:handle_control({source_lost, Source}, S1) of
+    {stop, Reason, S2} ->
+      {stop, Reason, Media#ems_media{state = S2}};
+    {ok, NewSource, S2} ->
+      {noreply, Media#ems_media{source = NewSource, state = S2}}
+  end;
+  % FIXME: should send notification
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
-  {stop, normal, Media};
   
 handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M, state = S, life_timeout = LifeTimeout} = Media) ->
   Count = client_count(Media),

@@ -28,7 +28,7 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(_ems_media_tpl).
+-module(rtsp_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
 
@@ -37,8 +37,15 @@
 
 -export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
 
--record(state, {
+-record(rtsp, {
+  url,
+  timeout
 }).
+
+connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
+  rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]).
+
+
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -54,7 +61,16 @@
 %%----------------------------------------------------------------------
 
 init(Options) ->
-  {ok, #state{}}.
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  State = #rtsp{timeout = Timeout, url = proplists:get_value(url, Options)},
+  case connect_rtsp(State) of
+    {ok, Reader} ->
+      ems_media:set_source(self(), Reader),
+      {ok, State};
+    Else ->
+      error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
+      {stop, no_source}
+  end.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
@@ -71,16 +87,21 @@ handle_control({subscribe, _Client, _Options}, State) ->
   %% {error, Reason} -> client receives {error, Reason}
   {ok, State};
 
-handle_control({source_lost, Source}, State) ->
+handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {stop, source_lost, State};
+  case connect_rtsp(State) of
+    {ok, Reader} ->
+      {ok, State, Reader};
+    Else ->
+      {stop, Else, State}
+  end;
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
-  %% {stop, Reason, State}
+  %% {stop, Reason}
   {reply, ok, State};
 
 handle_control(_Control, State) ->
