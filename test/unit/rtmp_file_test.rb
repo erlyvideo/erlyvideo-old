@@ -11,7 +11,7 @@ class RtmpFileTest < Test::Unit::TestCase
   
   def test_read_file
     limited_run("rtmpdump -r rtmp://localhost/vod/mp4:video --stop 5 -o /tmp/test.flv", 5)
-    duration = media_duration("/tmp/test.flv")
+    duration = flvtool2_duration("/tmp/test.flv")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
     assert duration > 4, "Duration should be positive: #{duration}"
   end
