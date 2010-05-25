@@ -100,8 +100,9 @@
 	client_buffer = ?MIN_CLIENT_BUFFER       ::integer(),
 	client_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
 	server_chunk_size = ?RTMP_DEF_CHUNK_SIZE ::integer(),
-	window_size               ::integer(),
+	window_size = 2500000     ::non_neg_integer(),
 	previous_ack = undefined  ::time()|undefined,
+	bytes_unack = 0           ::non_neg_integer(),
 	current_speed = 0         ::non_neg_integer(),
 	pinged = false            ::boolean()
 }).

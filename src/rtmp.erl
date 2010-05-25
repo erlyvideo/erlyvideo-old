@@ -86,8 +86,8 @@ encode(State, #rtmp_message{type = chunk_size, body = ChunkSize} = Message) ->
   end,
   encode(State#rtmp_socket{server_chunk_size = ChunkSize}, Message#rtmp_message{type = ?RTMP_TYPE_CHUNK_SIZE, body = <<ChunkSize:32>>});
 
-encode(#rtmp_socket{bytes_read = BytesRead} = State, #rtmp_message{type = ack_read} = Message) ->
-  encode(State#rtmp_socket{bytes_read = 0}, Message#rtmp_message{type = ?RTMP_TYPE_ACK_READ, body = <<BytesRead:32>>});
+encode(#rtmp_socket{bytes_unack = Bytes} = State, #rtmp_message{type = ack_read} = Message) ->
+  encode(State#rtmp_socket{bytes_unack = 0}, Message#rtmp_message{type = ?RTMP_TYPE_ACK_READ, body = <<Bytes:32>>});
 
 encode(State, #rtmp_message{type = stream_begin} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_BEGIN});
@@ -111,7 +111,7 @@ encode(State, #rtmp_message{type = control, body = EventType, stream_id = Stream
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, StreamId:32>>});
 
 encode(State, #rtmp_message{type = window_size, body = WindowAckSize} = Message) ->
-  encode(State#rtmp_socket{previous_ack = erlang:now()}, Message#rtmp_message{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, body = <<WindowAckSize:32>>});
+  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, body = <<WindowAckSize:32>>});
 
 encode(State, #rtmp_message{type = bw_peer, body = WindowAckSize} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_BW_PEER, body = <<WindowAckSize:32, 16#02>>});

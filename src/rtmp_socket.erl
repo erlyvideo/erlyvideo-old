@@ -322,8 +322,6 @@ loop(timeout, #rtmp_socket{consumer = Consumer} = State) ->
   Consumer ! {rtmp, self(), timeout},
   {stop, normal, State}.
 
-% , previous_ack = erlang:now()
-
 
 %% @private
 loop(#rtmp_message{} = Message, _From, State) ->
@@ -487,9 +485,9 @@ handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consu
 
 
 
-handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
+handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead, bytes_unack = BytesUnack} = State) ->
   State1 = flush_send(State),
-  {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
+  {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
   Consumer ! {rtmp, self(), disconnect, get_stat(StateData)},
@@ -542,8 +540,16 @@ send_data(#rtmp_socket{socket = Socket} = State, Message) ->
   NewState.    
 
 
+handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State, Data) when Bytes >= Window ->
+  State1 = send_data(State, #rtmp_message{type = ack_read}),
+  handle_rtmp_data(State1#rtmp_socket{}, Data);
+
 handle_rtmp_data(State, Data) ->
   handle_rtmp_message(rtmp:decode(State, Data)).
+
+handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, #rtmp_message{type = window_size, body = Size} = Message, Rest}) ->
+  Consumer ! {rtmp, self(), Message},
+  rtmp_message_sent(State#rtmp_socket{window_size = Size, buffer = Rest});
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer, pinged = true} = State, #rtmp_message{type = pong} = Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
