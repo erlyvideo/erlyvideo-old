@@ -288,7 +288,8 @@ handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaP
   %     {Name, Clients}
   %   end,
   % ets:match(OpenedMedia, {'_', '$1', '$2'})),
-  {reply, ets:tab2list(OpenedMedia), MediaProvider};
+  Info = [{Name, Pid, ems_media:status(Pid)} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
+  {reply, Info, MediaProvider};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.

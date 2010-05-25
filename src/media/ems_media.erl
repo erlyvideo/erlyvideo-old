@@ -37,7 +37,7 @@
 %% External API
 -export([start_link/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1, setopts/2, seek_info/3]).
+-export([metadata/1, setopts/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
 
 %% gen_server callbacks
@@ -136,6 +136,9 @@ seek(Media, BeforeAfter, DTS) ->
 
 seek_info(Media, BeforeAfter, DTS) ->
   gen_server2:call(Media, {seek_info, BeforeAfter, DTS}).
+
+status(Media) ->
+  gen_server2:call(Media, status).
   
   
 metadata(Media) ->
@@ -330,6 +333,9 @@ handle_call(metadata, _From, #ems_media{} = Media) ->
 handle_call(info, _From, #ems_media{} = Media) ->
   {reply, storage_properties(Media), Media};
 
+handle_call(status, _From, #ems_media{} = Media) ->
+  {reply, [{client_count, client_count(Media)}], Media};
+
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
@@ -429,9 +435,9 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
 handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
   shift_dts(Frame, Media);
 
-handle_info(graceful, #ems_media{source = undefined} = Media) ->
+handle_info(graceful, #ems_media{source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
   case client_count(Media) of
-    0 -> ?D("No clients and source"), {stop, normal, Media};
+    0 -> {stop, normal, Media};
     _ -> {noreply, Media}
   end;
   
@@ -560,6 +566,10 @@ send_frame(Frame, Clients, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
+  erlang:exit(Source, shutdown),
+  ok;
+
 terminate(_Reason, _State) ->
   ok.
 

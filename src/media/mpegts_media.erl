@@ -31,6 +31,7 @@
 -module(mpegts_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
+-include_lib("erlmedia/include/video_frame.hrl").
 
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
