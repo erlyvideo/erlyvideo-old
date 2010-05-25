@@ -25,7 +25,7 @@ start_link(URL, Opts) ->
       {ok, Pid} = ems_sup:start_media(URL, mpegts, [{make_request,false}|Opts]),
       Pid ! {http, Socket, {http_response, 0, 200, 0}}
   end,
-  stream_media:pass_socket(Pid, Socket),
+  ems_media:set_socket(Pid, Socket),
   {ok, Pid}.
 
 % {ok, Socket} = gen_tcp:connect("ya.ru", 80, [binary, {packet, line}, {active, false}], 4000),
