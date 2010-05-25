@@ -14,7 +14,7 @@ record(URL) ->
   % ?D({"RECORD", Host, Path}),
   ems_log:access(Host, "RTSP RECORD ~s ~s", [Host, Path]),
   Media = media_provider:open(Host, Path, [{type, live}]),
-  stream_media:set_owner(Media, self()),
+  ems_media:set_source(Media, self()),
   {ok, Media}.
 
 

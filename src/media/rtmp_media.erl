@@ -31,13 +31,18 @@
 -module(rtmp_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
+-include_lib("rtmp/include/rtmp.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
 
--record(state, {
+-record(rtmp, {
+  socket,
+  demuxer,
+  url
 }).
 
 %%%------------------------------------------------------------------------
@@ -54,7 +59,13 @@
 %%----------------------------------------------------------------------
 
 init(Options) ->
-  {ok, #state{}}.
+  URL = proplists:get_value(url, Options),
+  {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
+  {ok, RTMP} = rtmp_socket:connect(Socket),
+  ems_media:set_source(self(), RTMP),
+  {ok, #rtmp{socket = Socket, demuxer = RTMP, url = URL}}.
+
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
@@ -111,6 +122,37 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info({rtmp, RTMP, connected}, #rtmp{url = URL} = State) ->
+  ?D({"Connected to RTMP source", URL}),
+  {rtmp, _UserInfo, _Host, _Port, FullPath, _Query} = http_uri2:parse(URL),
+  [App|PathParts] = string:tokens(FullPath, "/"),
+  Path = list_to_binary(string:join(PathParts, "/")),
+  ?D({"App,path", App, Path}),
+  rtmp_socket:setopts(RTMP, [{active, true}]),
+  rtmp_lib:connect(RTMP, [{app, list_to_binary(App)}, {tcUrl, list_to_binary(URL)}]),
+  Stream = rtmp_lib:createStream(RTMP),
+  ?D({"Stream",Stream}),
+  rtmp_lib:play(RTMP, Stream, Path),
+  ?D({"Playing", Path}),
+  {noreply, State};
+
+handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body} = Message}, Recorder) when Type == audio orelse Type == video ->
+  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
+  % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
+  self() ! Frame,
+  {noreply, Recorder};
+
+handle_info({rtmp, _RTMP, #rtmp_message{type = metadata, timestamp = Timestamp, body = [<<"onMetaData">>, {object, Meta}]}}, Recorder)  ->
+  ?D(Meta),
+  % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
+  Frame = #video_frame{type = metadata, dts = Timestamp, pts = Timestamp, body = Meta},
+  self() ! Frame,
+  {noreply, Recorder};
+
+handle_info({rtmp, _RTMP, #rtmp_message{} = Message}, State) ->
+  ?D({"RTMP message", Message}),
+  {noreply, State};
+
 handle_info(_Message, State) ->
   {noreply, State}.
 
