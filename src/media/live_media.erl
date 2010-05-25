@@ -14,13 +14,26 @@
 }).
 
 init(Options) ->
-  case proplists:get_value(wait, Options, ?SOURCE_TIMEOUT) of
+  State = case proplists:get_value(wait, Options, ?SOURCE_TIMEOUT) of
     Timeout when is_number(Timeout) ->
       {ok, Ref} = timer:send_after(Timeout, source_timeout),
-      {ok, #live{timeout = Timeout, ref = Ref}};
+      #live{timeout = Timeout, ref = Ref};
     infinity ->
-      {ok, #live{}}
+      #live{}
+  end,
+  case proplists:get_value(type, Options) of
+    live -> 
+      {ok, State};
+    record ->
+      URL = proplists:get_value(url, Options),
+      Host = proplists:get_value(host, Options),
+    	FileName = filename:join([file_media:file_dir(Host), binary_to_list(URL)]),
+    	(catch file:delete(FileName)),
+    	ok = filelib:ensure_dir(FileName),
+      {ok, Writer} = flv_writer:init(FileName),
+      {ok, State, {flw_writer, Writer}}
   end.
+      
   
 handle_frame(Frame, State) ->
   {ok, Frame, State}.

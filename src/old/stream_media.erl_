@@ -1,48 +1,3 @@
-% Media entry is instance of some resource
-
--module(stream_media).
--author('Max Lapshin <max@maxidoors.ru>').
--include("../include/ems.hrl").
--include_lib("erlmedia/include/video_frame.hrl").
--include("../../include/media_info.hrl").
-
--behaviour(gen_server2).
-
-%% External API
--export([start_link/3, metadata/1, publish/2, pass_socket/2]).
--export([subscribe/1,unsubscribe/1]).
-
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
-
-
-start_link(Path, Type, Opts) ->
-   gen_server2:start_link(?MODULE, [Path, Type, Opts], []).
-   
-metadata(Server) ->
-  gen_server2:call(Server, metadata).
-
-publish(undefined, _Frame) ->
-  {error, no_stream};
-  
-
-publish(Server, #video_frame{} = Frame) ->
-  % ?D({Type, Timestamp}),
-  Server ! Frame.
-  % gen_server2:call(Server, {publish, Frame}).
-
-pass_socket(Media, Socket) ->
-  ok = gen_tcp:controlling_process(Socket, Media),
-  gen_server2:call(Media, {set_socket, Socket}).
-  
-  
-subscribe(Stream) ->
-  gen_server:call(Stream, {subscribe,self()}).
-
-unsubscribe(Stream) ->
-  gen_server:call(Stream, {unsubscribe,self()}).
-
-
 
 init([URL, Type, Options]) ->
   Host = proplists:get_value(host, Options),
@@ -58,11 +13,6 @@ init([URL, Type, Options]) ->
   end,
   Device = case Type of
     record ->
-    	FileName = filename:join([file_media:file_dir(Host), binary_to_list(URL)]),
-    	(catch file:delete(FileName)),
-    	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:start_link(FileName),
-      Writer;
     _ -> 
       undefined
   end,
