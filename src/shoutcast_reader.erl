@@ -20,8 +20,7 @@
 }).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 % AAC+ example
 % {ok, Pid1} = ems_sup:start_shoutcast_media("http://91.121.132.237:8052/").
@@ -261,6 +260,9 @@ send_frame(Frame, #shoutcast{consumer = Consumer} = State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+terminate(normal, _State) ->
+  ok;
+  
 terminate(_Reason, _State) ->
   ?D({"Shoutcast client terminating", _Reason}),
   ok.
