@@ -231,7 +231,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = 
         false ->
           ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
       end,
-      {reply, Reply, Media#ems_media{state = S1}}
+      {reply, ok, Media#ems_media{state = S1}}
   end;
   
 handle_call({unsubscribe,Client}, _From, #ems_media{clients = Clients} = Media) ->

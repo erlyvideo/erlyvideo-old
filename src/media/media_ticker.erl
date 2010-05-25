@@ -67,7 +67,7 @@ init(Media, Consumer, Options) ->
           end
       end
   end,
-  ?D({media_ticker,{Pos,DTS}, PlayingTill, ClientBuffer}),
+  % ?D({media_ticker,{Pos,DTS}, PlayingTill, ClientBuffer}),
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill}).
   

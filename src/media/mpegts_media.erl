@@ -120,7 +120,7 @@ handle_control(_Control, State) ->
   {reply, ok, State}.
 
 %%----------------------------------------------------------------------
-%% @spec (Frame::video_frame(), State) -> {ok, Frame, State} |
+%% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |
 %%                                        {noreply, State}   |
 %%                                        {stop, Reason, State}
 %%
@@ -128,7 +128,7 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
-  {ok, Frame, State}.
+  {reply, Frame, State}.
 
 
 %%----------------------------------------------------------------------
