@@ -16,12 +16,54 @@ Erlyvideo is a multiprotocol videostreaming server.
 
 == Structure ==
 
-Erlyvideo starts as erlang application with main supervisor ems_sup. It requires for working several additional applications, such as rtmp and rtsp.
+Erlyvideo starts as erlang application with main supervisor ems_sup. It requires several additional applications, such as rtmp and rtsp.
+
+It starts all erlyvideo subsystems:
+
+<ul>
+<li>{@link media_provider. media subsystem} that serves {@link ems_media. media streams}</li>
+<li>{@link rtmp_session. rtmp subsystem}</li>
+<li>{@link ems_http. http subsystem}</li>
+<li>{@link mpegts. mpegts subsystem}</li>
+<li>{@link ems_rtsp. rtsp subsystem}</li>
+</ul>
+
+
+== RTMP functionality ==
+
+RTMP protocol has ability to call functions on remote end. Erlyvideo has support for it and
+you can read documentation on {@link rtmp_session.} to understand, how to create your own functions,
+exported to flash.
+
+We have already provided several very important modules, which can serve flash function calls:
+<ul>
+<li>{@link apps_streaming. Streaming video}</li>
+<li>{@link apps_recording. Publishing video on server}</li>
+<li>{@link apps_shared_objects. Shared objects support}</li>
+<li>{@link apps_push. Simple pushing of messages to client}</li>
+</ul>
+
+Also, very important function call is ``connect'', which is called first by flash player.
+All authentication schemas are build as implementation of this method.
+
+We have written several authentication modules, which may be useful for you:
+
+<ul>
+<li>{@link trusted_login. everyone can login}</li>
+<li>{@link json_session. login with crypto-signed session}</li>
+<li>{@link protected_play. allow user to watch only one stream}</li>
+<li>{@link referer_check. check flash referer url}</li>
+</ul>
+
+
+== Plugins ==
+
+Here will be described, how to create plugins in erlyvideo.
+
+== Launch procedure ==
 
 After starting erlyvideo and rtmp, started rtmp_listener with {@link rtmp_session. rtmp_session callback module}. It will call {@link rtmp_session:create_client/1. create_client(Socket)} function on each connecting client. It is important to understand, that rtmp client doesn't need to decode RTMP protocol, everything will do rtmp_socket module.
 
 After connection is established, rtmp_session starts listening for ``{rtmp, Socket, Message}'' messages. Some of these messages are function invocations, they are handled in chained way. rtmp_session looks through the vhosts.HOSTNAME.modules list of modules and tries to call specified function with two arguments: State and Arguments. State is current rtmp_session state, it is opened to functions, Arguments is a complicated rtmp_funcall record.
 
-First function invocation if usually ``connect''. This is place to define your own authorization routine. You can take a look at several examples:
-{@link trusted_login. password-less login}, {@link json_session. crypted login with HMAC signing}, {@link referer_check. login with checking referer}.
 @end

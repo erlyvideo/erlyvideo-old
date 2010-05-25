@@ -18,6 +18,8 @@ compile:
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps make -C $$plugin; done
 
 doc:
+	mkdir -p doc/html
+	cp -f doc/*.png doc/html/
 	erl -pa ebin -s erlyvideo edoc -s init stop -noinput -noshell
 
 erlang_version:

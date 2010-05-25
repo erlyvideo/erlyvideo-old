@@ -1,9 +1,15 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
 %%% @doc        Mediaprovider
-%%% Server, that handle links to all opened files and streams. You should
-%%% go here to open file. If file is already opened, you will get cached copy. 
-%%% There is one media_provider instance per virtual host, so they never mix
+%%% Server, that handle links to all opened files and streams, called medias. You should
+%%% go here to open file or stream. If media is already opened, you will get cached copy. 
+%%% There is one media_provider instance per virtual host, so they never mix.
+%%%
+%%% Most often usage of media_provider is: 
+%%% ```media_provider:play(Host, Name, [{stream_id,StreamId},{client_buffer,Buffer}])'''
+%%%
+%%% Read more about {@link ems_media.} to understand how to create plugins, that work with video streams.
+%%%
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
@@ -114,8 +120,9 @@ resolve_global(Name, Pid1, Pid2) ->
 
 %%-------------------------------------------------------------------------
 %% @spec create(Host, Name, Options) -> Pid::pid()
-%% @doc Create usually stream. Must be called by process, that wants to send 
+%% @doc Create stream. Must be called by process, that wants to send 
 %% video frames to this stream.
+%% Usually called as ``media_provider:create(Host, Name, [{type,live}])''
 %% @end
 %%-------------------------------------------------------------------------
 create(Host, Name, Options) ->
@@ -130,6 +137,11 @@ open(Host, Name) when is_list(Name)->
 open(Host, Name) ->
   open(Host, Name, []).
 
+%%-------------------------------------------------------------------------
+%% @spec open(Host, Name, Options) -> Pid::pid()
+%% @doc Open or start stream.
+%% @end
+%%-------------------------------------------------------------------------
 open(Host, Name, Opts) when is_list(Name)->
   open(Host, list_to_binary(Name), Opts);
 

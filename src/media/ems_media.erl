@@ -1,6 +1,23 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
 %%% @doc        Erlyvideo media
+%%% EMS media is a process, that works both as a splitter of ``#video_frame'' flow between
+%%% active clients and as a source of frames, used by passive clients.
+%%%
+%%% It is important to understand, that media is immutable across clients. It doesn't remember,
+%%% what point in file or timeshift, client is watching now. However, any media, that is started
+%%% with storage, respond to {@link ems_media:read_frame/2} method.
+%%%
+%%% Look first at schema of media serving:<br/>
+%%% <img src="media-structure.png" />
+%%% 
+%%%
+%%% You can create your own process, that will call ``media_provider:play(Host, Name, Options)'' on streams
+%%% and pass this process to other created streams, using {@link set_source/2.}
+%%%
+%%% If you look at the source, you will see, that ems_media requires module for starting. ems_media is 
+%%% an infrastructure for specific functionality.
+%%%
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
@@ -95,59 +112,161 @@ start_link(Module, Options) ->
 }).
 
 %%--------------------------------------------------------------------
-%% @spec (Channel::integer(), Message::text) -> {ok}
+%% @spec (Media::pid(), Options::list()) -> ok
 %%
-%% @doc Call some function
+%% @doc Subscribe caller to stream and starts playing. Look {@link subscribe/2.} for options.
 %% @end
 %%----------------------------------------------------------------------
-
 play(Media, Options) ->
   ok = subscribe(Media, Options),
   gen_server:call(Media, {start, self()}),
   ok.
 
+%%--------------------------------------------------------------------
+%% @spec (Media::pid()) -> ok
+%%
+%% @doc The same as {@link unsubscribe/2.}
+%% @end
+%%----------------------------------------------------------------------
 stop(Media) ->
   unsubscribe(Media).
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::list()) -> ok
+%%
+%% @doc Subscribe caller to stream with options. Options are:
+%% <dl>
+%% <dt>``{stream_id,StreamId}''</dt>
+%% <dd>Each ``#video_frame'' has stream_id field. All frames to caller will have provided StreamId.
+%% It is usefull to connect from one process to many streams</dd>
+%% <dt>``{client_buffer, ClientBuffer}''</dt>
+%% <dd>If you are reading file, than first ClientBuffer milliseconds will be sent to you without timeout.
+%% Very important for fast seeks and playstarts</dd>
+%% </dl>
+%% @end
+%%----------------------------------------------------------------------
 subscribe(Media, Options) ->
   gen_server2:call(Media, {subscribe, self(), Options}).
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> ok
+%%
+%% @doc Unsubscribe caller from stream
+%% @end
+%%----------------------------------------------------------------------
 unsubscribe(Media) ->
   gen_server:call(Media, {unsubscribe, self()}).
   
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> ok
+%%
+%% @doc Resume stream for calling client
+%% @end
+%%----------------------------------------------------------------------
 resume(Media) ->
   gen_server:call(Media, {resume, self()}).
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> ok
+%%
+%% @doc Pauses stream for calling client
+%% @end
+%%----------------------------------------------------------------------
 pause(Media) ->
   gen_server:call(Media, {pause, self()}).
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Source::pid()) -> ok
+%%
+%% @doc Sets new source of frames for media. Media can work only with one source
+%% @end
+%%----------------------------------------------------------------------
 set_source(Media, Source) ->
   gen_server:cast(Media, {set_source, Source}).
-  
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Socket::port()) -> ok
+%%
+%% @doc Passes socket to media. Generic ems_media doesn't know anything about 
+%% such sockets, but it will call ``Module:handle_control({set_socket, Socket}, State)'' on
+%% submodule. For example, PUT mpegts requires it.
+%% @end
+%%----------------------------------------------------------------------
 set_socket(Media, Socket) ->
   gen_tcp:controlling_process(Socket, Media),
   gen_server:cast(Media, {set_socket, Socket}).
   
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Key::any()) -> Frame::video_frame() |
+%%                                     eof
+%%
+%% @doc Read frame from media. Call with Key = undefined to read first frame. Next keys
+%% will be in ``#video_frame.next_id'' field.
+%% Caller is responsible to wait for proper timeout between frames
+%% @end
+%%----------------------------------------------------------------------
 read_frame(Media, Key) ->
   gen_server2:call(Media, {read_frame, Key}).
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> ok |
+%%                                                                   {error, Reason}
+%%
+%% @doc Seek in storage. Looks either keyframe before DTS or keyframe after DTS.
+%% Seeks private caller stream and starts sending frames from NewDTS.
+%% @end
+%%----------------------------------------------------------------------
 seek(Media, BeforeAfter, DTS) ->
   gen_server2:call(Media, {seek, self(), BeforeAfter, DTS}).
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> {Key::any(), NewDTS::number()} |
+%%                                                                   undefined
+%%
+%% @doc Seek in storage. Looks either keyframe before DTS or keyframe after DTS.
+%% Returns Key for this keyframe and its NewDTS.
+%% @end
+%%----------------------------------------------------------------------
 seek_info(Media, BeforeAfter, DTS) ->
   gen_server2:call(Media, {seek_info, BeforeAfter, DTS}).
 
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Status::list()
+%%  
+%%
+%% @doc Returns miscelaneous info about media, such as client_count
+%% @end
+%%----------------------------------------------------------------------
 status(Media) ->
   gen_server2:call(Media, status).
   
-  
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Metadata::list()
+%%
+%% @doc Returns property list, suitable for returning into flash
+%% @end
+%%----------------------------------------------------------------------
 metadata(Media) ->
   gen_server2:call(Media, metadata).  
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::list()) -> ok
+%%
+%% @doc One day will set same options as in {@link subscribe/2.} dynamically
+%% @end
+%%----------------------------------------------------------------------
 setopts(Media, Options) ->
   %TODO add options
   ok.
   
+  
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Frame::video_frame()) -> any()
+%%
+%% @doc Publishes frame to media
+%% @end
+%%----------------------------------------------------------------------
 publish(Media, #video_frame{} = Frame) ->
   Media ! Frame.
 
@@ -156,6 +275,7 @@ publish(Media, #video_frame{} = Frame) ->
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
 
+%% @hidden
 print_state(#ems_media{} = Media) ->
   Media#ems_media{storage = storage}.
 
@@ -166,6 +286,7 @@ print_state(#ems_media{} = Media) ->
 %%                            ignore                |
 %%                            {stop, Reason}
 %%
+%% @private
 %% @doc Called by gen_server framework at process startup.
 %%      Create listening socket.
 %% @end
