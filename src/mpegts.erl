@@ -302,7 +302,6 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
   end,
   mux({DTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
-
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
   PtsDts = 2#10,
   Marker = 2#10,
@@ -367,6 +366,8 @@ encode(#streamer{} = Streamer, #video_frame{type = audio, decoder_config = true,
   ?D({"Audio config", Config}),
   {Streamer#streamer{audio_config = Config}, none};
 
+encode(#streamer{audio_config = undefined} = Streamer, #video_frame{type = audio}) ->
+  {Streamer, none};
 
 encode(#streamer{} = Streamer, #video_frame{type = audio} = Frame) ->
   send_audio(Streamer, Frame);
