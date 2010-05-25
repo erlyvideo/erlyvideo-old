@@ -43,6 +43,7 @@
 }).
 
 connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
+  ?D({"Connecting to RTSP", URL}),
   rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]).
 
 
