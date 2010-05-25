@@ -494,8 +494,11 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M, st
   end,
   case M:handle_control({set_source, Source}, S1) of
     {reply, _Reply, S2} ->
-      Ref = erlang:monitor(process,Source),
-      {noreply, Media#ems_media{source = Source, source_ref = Ref, state = S2}};
+      Ref = case Source of
+        undefined -> undefined;
+        _ -> erlang:monitor(process, Source)
+      end,
+      {noreply, Media#ems_media{source = Source, source_ref = Ref, state = S2, ts_delta = undefined}};
     {stop, Reason, S2} ->
       {stop, Reason, Media#ems_media{state = S2}}
   end;

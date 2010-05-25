@@ -74,7 +74,7 @@ start_media(_Name, live,          Opts) -> supervisor:start_child(ems_media_sup,
 start_media(_Name, rtsp,          Opts) -> supervisor:start_child(ems_media_sup, [rtsp_media, Opts]);
 start_media(_Name, rtmp,          Opts) -> supervisor:start_child(ems_media_sup, [rtmp_media, Opts]);
 start_media(Name, http,           Opts) -> http_media:start_link(Name, Opts);
-start_media(Module, custom,       Opts) -> supervisor:start_child(custom_media_sup, [Module, Opts]).
+start_media(Module, custom,       Opts) -> supervisor:start_child(ems_media_sup, [Module, Opts]).
 
 
 
@@ -185,21 +185,6 @@ init([ems_media]) ->
             ]
         }
     };
-init([custom_media]) ->
-    {ok,
-        {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % MediaEntry
-              {   undefined,                               % Id       = internal id
-                  {ems_media,start_custom,[]},             % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [ems_media]                            % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
 init([media_ticker]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -299,13 +284,6 @@ init([]) ->
     },
     {   ems_media_sup,
         {supervisor,start_link,[{local, ems_media_sup}, ?MODULE, [ems_media]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   custom_media_sup,
-        {supervisor,start_link,[{local, custom_media_sup}, ?MODULE, [custom_media]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

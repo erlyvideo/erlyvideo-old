@@ -1,13 +1,13 @@
-%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @copyright  2009 Max Lapshin
-%%% @doc        Example of gen_server
+%%% @doc        ems_media handler template
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2009 Max Lapshin
+%%% Copyright (c) 2010 Max Lapshin
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -30,16 +30,12 @@
 %%%---------------------------------------------------------------------------------------
 -module(directory_playlist).
 -author('Max Lapshin <max@maxidoors.ru>').
--behaviour(gen_server).
+-behaviour(ems_media).
+
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
-
-%% External API
--export([start_link/1]).
-
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(playlist, {
   path,
@@ -47,105 +43,99 @@
   files = []
 }).
 
-
-
-start_link(Options) ->
-  gen_server:start_link(?MODULE, [Options], []).
-
-
-
 %%%------------------------------------------------------------------------
-%%% Callback functions from gen_server
+%%% Callback functions from ems_media
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Port::list()) -> {ok, State}           |
-%%                            {ok, State, Timeout}  |
-%%                            ignore                |
+%% @spec (Options::list()) -> {ok, State}                   |
+%%                            {ok, State, {Format,Storage}} |
 %%                            {stop, Reason}
 %%
-%% @doc Called by gen_server framework at process startup.
-%%      Create listening socket.
+%% @doc Called by ems_media to initialize specific data for current media type
 %% @end
 %%----------------------------------------------------------------------
 
-
-init([Options]) ->
+init(Options) ->
   Path = proplists:get_value(path, Options),
   Host = proplists:get_value(host, Options),
   AbsPath = filename:join([file_media:file_dir(Host), Path]),
   Wildcard = proplists:get_value(wildcard, Options),
   Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
-  ?D({"Hi!"}),
   
-  % next(#directory_playlist{files = [File|Files]} = Playlist) ->
-  %   %[{type,file},{url,File},{name,File},{host,Host}]
-  %   {Playlist#directory_playlist{files = Files}, File, []}.
-
-
+  self() ! start_playing,
   {ok, #playlist{path = AbsPath, files = Files, host = Host}}.
 
-
-%%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
+%%----------------------------------------------------------------------
+%% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
+%%                                        {stop, Reason, State} |
+%%                                        {error, Reason}
+%%
+%% @doc Called by ems_media to handle specific events
 %% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_call(Request, _From, State) ->
-  {stop, {unknown_call, Request}, State}.
+%%----------------------------------------------------------------------
+handle_control({subscribe, _Client, _Options}, State) ->
+  %% Subscribe returns:
+  %% {reply, tick, State} -> client requires ticker (file reader)
+  %% {reply, Reply, State} -> client is subscribed as active receiver
+  %% {reply, {error, Reason}, State} -> client receives {error, Reason}
+  {reply, ok, State};
 
+handle_control({source_lost, _Source}, State) ->
+  %% Source lost returns:
+  %% {reply, Source, State} -> new source is created
+  %% {stop, Reason, State} -> stop with Reason
+  {stop, source_lost, State};
 
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
+handle_control({set_source, _Source}, State) ->
+  %% Set source returns:
+  %% {reply, Reply, State}
+  %% {stop, Reason, State}
+  {reply, ok, State};
+
+handle_control({set_socket, _Socket}, State) ->
+  %% Set socket returns:
+  %% {reply, Reply, State}
+  %% {stop, Reason, State}
+  {reply, ok, State};
+
+handle_control(_Control, State) ->
+  {reply, ok, State}.
+
+%%----------------------------------------------------------------------
+%% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |
+%%                                        {noreply, State}   |
+%%                                        {stop, Reason, State}
+%%
+%% @doc Called by ems_media to parse frame.
 %% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-  {stop, {unknown_cast, _Msg}, State}.
+%%----------------------------------------------------------------------
+handle_frame(Frame, State) ->
+  {reply, Frame, State}.
 
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for messages sent directly to server's mailbox.
-%%      If `{stop, ...}' tuple is returned, the server is stopped and
-%%      `terminate/2' is called.
+
+%%----------------------------------------------------------------------
+%% @spec (Message::any(), State) ->  {noreply, State}   |
+%%                                   {stop, Reason, State}
+%%
+%% @doc Called by ems_media to parse incoming message.
 %% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_info({'DOWN', process, Client, _Reason}, Server) ->
-  {noreply, Server};
+%%----------------------------------------------------------------------
+handle_info(start_playing, #playlist{host = Host, files = [Name|Files]} = State) ->
+  {ok, Media} = media_provider:play(Host, Name, [{stream_id,1}]),
+  ?D({"Playing",Name,Media}),
+  {noreply, State#playlist{files = Files}};
 
-handle_info(_Info, State) ->
+handle_info({ems_stream, _StreamId, play_complete, _DTS}, #playlist{host = Host, files = [Name|Files]} = State) ->
+  {ok, Media} = media_provider:play(Host, Name, [{stream_id,1}]),
+  ems_media:set_source(self(), undefined),
+  ?D({"Playing",Name,Media}),
+  {noreply, State#playlist{files = Files}};
+
+handle_info(_Message, State) ->
+  ?D({message, _Message}),
   {noreply, State}.
 
-%%-------------------------------------------------------------------------
-%% @spec (Reason, State) -> any
-%% @doc  Callback executed on server shutdown. It is only invoked if
-%%       `process_flag(trap_exit, true)' is set by the server process.
-%%       The return value is ignored.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
-  ok.
 
-%%-------------------------------------------------------------------------
-%% @spec (OldVsn, State, Extra) -> {ok, NewState}
-%% @doc  Convert process state when code is changed.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
+
+
