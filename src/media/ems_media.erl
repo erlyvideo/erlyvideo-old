@@ -444,7 +444,7 @@ shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, last
   shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
 
 shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  % ?D({Frame#video_frame.type, Frame#video_frame.dts, Delta}),
+  % ?D({Frame#video_frame.type, Frame#video_frame.dts, Delta, DTS + Delta}),
   handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
 
 handle_shifted_frame(#video_frame{} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
@@ -493,7 +493,7 @@ save_frame(Format, Storage, Frame) ->
     _ -> Storage
   end.
 
-start_on_keyframe(#video_frame{type = video, frame_type = keyframe, dts = DTS}, #ems_media{clients = Clients, video_config = Video, audio_config = Audio} = M) ->
+start_on_keyframe(#video_frame{type = video, frame_type = keyframe, dts = DTS, decoder_config = false} = _F, #ems_media{clients = Clients, video_config = Video, audio_config = Audio} = M) ->
   MS = ets:fun2ms(fun(#client{state = starting, consumer = Client, stream_id = StreamId}) -> {Client,StreamId} end),
   Starting = ets:select(Clients, MS),
   [ets:update_element(Clients, Client, {#client.state, active}) || {Client,_} <- Starting],
