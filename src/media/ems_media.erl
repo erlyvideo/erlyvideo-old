@@ -16,7 +16,18 @@
 %%% and pass this process to other created streams, using {@link set_source/2.}
 %%%
 %%% If you look at the source, you will see, that ems_media requires module for starting. ems_media is 
-%%% an infrastructure for specific functionality.
+%%% an infrastructure for specific functionality. Specific functionality is how to start ems_media,
+%%% what to do when source is lost, how to subscribe clients.
+%%% 
+%%% Currently there are:
+%%% <ul>
+%%%  <li>{@link file_media. file reading for ems_media}</li>
+%%%  <li>{@link live_media. live published streams}</li>
+%%%  <li>{@link mpegts_file_media. stream mpegts files}</li>
+%%%  <li>{@link mpegts_media. stream mpegts or accept PUT mpegts}</li>
+%%%  <li>{@link rtmp_media. go to remote rtmp servers for video}</li>
+%%%  <li>{@link rtsp_media. grab video from RTSP cameras}</li>
+%%% </ul>
 %%%
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
