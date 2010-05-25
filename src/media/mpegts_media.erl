@@ -65,8 +65,8 @@
 
 init(Options) ->
   URL = proplists:get_value(url, Options),
-  MakeRequest = 
-  case {proplists:get_value(type, Options),proplists:get_value(make_request, Options, true)} of
+  Type = proplists:get_value(type, Options),
+  MakeRequest = case {Type, proplists:get_value(make_request, Options, true)} of
     {mpegts_passive, _} -> false;
     {_, true} -> true;
     _ -> false
@@ -75,7 +75,10 @@ init(Options) ->
     true -> connect_http(URL);
     false -> undefined
   end,
-  {ok, Reader} = ems_sup:start_mpegts_reader(self()),
+  {ok, Reader} = case Type of
+    shoutcast -> ems_sup:start_shoutcast_reader(self());
+    _ -> ems_sup:start_mpegts_reader(self())
+  end,
   ems_media:set_source(self(), Reader),
   {ok, #mpegts{socket = Socket, demuxer = Reader, options = Options, url = URL, make_request = MakeRequest}}.
 
@@ -115,6 +118,10 @@ handle_control({set_source, _Source}, State) ->
   %% {reply, Reply, State}
   %% {stop, Reason, State}
   {reply, ok, State};
+  
+handle_control({set_socket, Socket}, #mpegts{} = State) ->
+  inet:setopts(Socket, [{active, once}]),
+  {reply, ok, State#mpegts{socket = Socket}};
 
 handle_control(_Control, State) ->
   {reply, ok, State}.
@@ -168,7 +175,7 @@ handle_info({tcp_closed, _Socket}, #mpegts{url = URL, restart_count = Count, mak
     true ->  
       % FIXME
       % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
-      ?D({"Disconnected MPEG-TS socket in mode", Count}),
+      ?D({"Disconnected MPEG-TS/Shoutcast socket in mode", Count}),
       timer:sleep(100),
       Socket = connect_http(URL),
       {noreply, State#mpegts{socket = Socket, restart_count = Count + 1}}

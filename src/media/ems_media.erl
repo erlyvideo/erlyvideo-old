@@ -38,7 +38,7 @@
 -export([start_link/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
 -export([metadata/1, setopts/2, seek_info/3]).
--export([subscribe/2, unsubscribe/1, set_source/2, read_frame/2, publish/2]).
+-export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
@@ -123,6 +123,10 @@ pause(Media) ->
 
 set_source(Media, Source) ->
   gen_server:cast(Media, {set_source, Source}).
+  
+set_socket(Media, Socket) ->
+  gen_tcp:controlling_process(Socket, Media),
+  gen_server:cast(Media, {set_socket, Socket}).
   
 read_frame(Media, Key) ->
   gen_server2:call(Media, {read_frame, Key}).
@@ -348,6 +352,14 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M, st
     {reply, _Reply, S2} ->
       Ref = erlang:monitor(process,Source),
       {noreply, Media#ems_media{source = Source, source_ref = Ref, state = S2}};
+    {stop, Reason, S2} ->
+      {stop, Reason, Media#ems_media{state = S2}}
+  end;
+
+handle_cast({set_socket, Socket}, #ems_media{module = M, state = S1} = Media) ->
+  case M:handle_control({set_socket, Socket}, S1) of
+    {reply, _Reply, S2} ->
+      {noreply, Media#ems_media{state = S2}};
     {stop, Reason, S2} ->
       {stop, Reason, Media#ems_media{state = S2}}
   end;

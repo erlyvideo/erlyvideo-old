@@ -66,11 +66,11 @@ start_shoutcast_reader(Consumer) ->
 
 start_media(_Name, file,          Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
 start_media(_Name, mpegts,        Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
-start_media(_Name, mpegts_file,   Opts) -> supervisor:start_child(ems_media_sup, [mpegts_file_media, Opts]);
+start_media(_Name, shoutcast,     Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
 start_media(_Name, mpegts_passive,Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
+start_media(_Name, mpegts_file,   Opts) -> supervisor:start_child(ems_media_sup, [mpegts_file_media, Opts]);
 start_media(_Name, record,        Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);
 start_media(_Name, live,          Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);
-start_media(Name, shoutcast      = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(_Name, rtsp,          Opts) -> supervisor:start_child(ems_media_sup, [rtsp_media, Opts]);
 start_media(Name, rtmp           = Type, Opts) -> supervisor:start_child(stream_media_sup, [Name, Type, Opts]);
 start_media(Name, http,                  Opts) -> http_media:start_link(Name, Opts).

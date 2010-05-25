@@ -71,7 +71,7 @@ handle_control({subscribe, _Client, _Options}, State) ->
   %% {reply, {error, Reason}, State} -> client receives {error, Reason}
   {reply, ok, State};
 
-handle_control({source_lost, Source}, State) ->
+handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {reply, Source, State} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
@@ -79,6 +79,12 @@ handle_control({source_lost, Source}, State) ->
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
+  %% {reply, Reply, State}
+  %% {stop, Reason, State}
+  {reply, ok, State};
+
+handle_control({set_socket, _Socket}, State) ->
+  %% Set socket returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
   {reply, ok, State};
