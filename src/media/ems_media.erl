@@ -63,7 +63,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 
 %% External API
--export([start_link/2]).
+-export([start_link/2, start_custom/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
 -export([metadata/1, setopts/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
@@ -87,8 +87,14 @@ behaviour_info(callbacks) -> [{init, 1}, {handle_frame,2}, {handle_control,2}, {
 behaviour_info(_Other) -> undefined.
 
 
+%% @private
 start_link(Module, Options) ->
   gen_server2:start_link(?MODULE, [Module, Options], []).
+
+%% @private
+start_custom(Module, Options) ->
+  gen_server2:start_link(Module, [Options], []).
+
 
 
 -record(ems_media, {
@@ -522,7 +528,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sta
       {stop, Reason, Media#ems_media{state = S2}};
     {reply, NewSource, S2} ->
       timer:send_after(LifeTimeout, graceful),
-      {noreply, Media#ems_media{source = NewSource, state = S2}}
+      {noreply, Media#ems_media{source = NewSource, state = S2, ts_delta = undefined}}
   end;
   % FIXME: should send notification
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
@@ -600,11 +606,11 @@ shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delt
   % ?D({Frame#video_frame.type, Frame#video_frame.dts, Delta, DTS + Delta}),
   handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
 
-handle_shifted_frame(#video_frame{} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
+handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
   % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, Frame#video_frame.dts}),
   start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
-  handle_config(Frame, Media#ems_media{storage = Storage1}).
+  handle_config(Frame, Media#ems_media{storage = Storage1, last_dts = DTS}).
 
 handle_config(#video_frame{type = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
   {noreply, Media};
