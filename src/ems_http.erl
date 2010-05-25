@@ -259,7 +259,7 @@ handle(Host, 'PUT', ["stream", Name], Req) ->
   ?D({"Stream", Name, Session}),
   ems_log:access(Host, "MPEGTS PUT ~s ~s", [Host, Name]),
   Stream = media_provider:open(Host, Name, [{type, mpegts_passive}]),
-  stream_media:pass_socket(Stream, Req:socket()),
+  ems_media:set_socket(Stream, Req:socket()),
   exit(leave);
   
 % handle the 404 page not found

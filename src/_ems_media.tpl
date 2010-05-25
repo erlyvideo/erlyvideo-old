@@ -57,8 +57,8 @@ init(Options) ->
   {ok, #state{}}.
 
 %%----------------------------------------------------------------------
-%% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
-%%                                        {ok, State, tick} |
+%% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
+%%                                        {stop, Reason, State} |
 %%                                        {error, Reason}
 %%
 %% @doc Called by ems_media to handle specific events
@@ -66,14 +66,14 @@ init(Options) ->
 %%----------------------------------------------------------------------
 handle_control({subscribe, _Client, _Options}, State) ->
   %% Subscribe returns:
-  %% {ok, State} -> client is subscribed as active receiver
-  %% {ok, State, tick} -> client requires ticker (file reader)
-  %% {error, Reason} -> client receives {error, Reason}
-  {ok, State};
+  %% {reply, tick, State} -> client requires ticker (file reader)
+  %% {reply, Reply, State} -> client is subscribed as active receiver
+  %% {reply, {error, Reason}, State} -> client receives {error, Reason}
+  {reply, ok, State};
 
 handle_control({source_lost, Source}, State) ->
   %% Source lost returns:
-  %% {ok, State, Source} -> new source is created
+  %% {reply, Source, State} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
   {stop, source_lost, State};
 
@@ -84,10 +84,10 @@ handle_control({set_source, _Source}, State) ->
   {reply, ok, State};
 
 handle_control(_Control, State) ->
-  {ok, State}.
+  {reply, ok, State}.
 
 %%----------------------------------------------------------------------
-%% @spec (Frame::video_frame(), State) -> {ok, Frame, State} |
+%% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |
 %%                                        {noreply, State}   |
 %%                                        {stop, Reason, State}
 %%
@@ -95,7 +95,7 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
-  {ok, Frame, State}.
+  {reply, Frame, State}.
 
 
 %%----------------------------------------------------------------------

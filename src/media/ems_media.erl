@@ -212,13 +212,15 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = 
   StreamId = proplists:get_value(stream_id, Options),
   
   case M:handle_control({subscribe, Client, Options}, S) of
-    {error, Reason} ->
-      {reply, {error, Reason}, Media};
-    Else ->
+    {stop, Reason, S1} ->
+      {stop, Reason, Media#ems_media{state = S1}};
+    {reply, {error, Reason}, S1} ->
+      {reply, {error, Reason}, Media#ems_media{state = S1}};
+    {reply, Reply, S1} ->
       Ref = erlang:monitor(process,Client),
-      {RequireTicker, S1} = case Else of
-        {ok, S2, tick} -> {true, S2};
-        {ok, S2} -> {proplists:get_value(start, Options) =/= undefined, S2}
+      RequireTicker = case Reply of
+        tick -> true;
+        _ -> proplists:get_value(start, Options) =/= undefined
       end,
       case RequireTicker of
         true ->
@@ -229,7 +231,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = 
         false ->
           ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
       end,
-      {reply, ok, Media#ems_media{state = S1}}
+      {reply, Reply, Media#ems_media{state = S1}}
   end;
   
 handle_call({unsubscribe,Client}, _From, #ems_media{clients = Clients} = Media) ->
@@ -364,11 +366,12 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, state = S1, source = Source} = Media) ->
+handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, state = S1, source = Source, life_timeout = LifeTimeout} = Media) ->
   case M:handle_control({source_lost, Source}, S1) of
     {stop, Reason, S2} ->
       {stop, Reason, Media#ems_media{state = S2}};
-    {ok, NewSource, S2} ->
+    {reply, NewSource, S2} ->
+      timer:send_after(LifeTimeout, graceful),
       {noreply, Media#ems_media{source = NewSource, state = S2}}
   end;
   % FIXME: should send notification
@@ -470,7 +473,7 @@ handle_config(Frame, Media) ->
 
 handle_frame(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S, clients = Clients} = Media) ->
   case M:handle_frame(Frame, S) of
-    {ok, F, S1} ->
+    {reply, F, S1} ->
       case Type of
         audio -> send_frame(F, Clients, starting);
         _ -> ok

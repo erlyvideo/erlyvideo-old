@@ -34,21 +34,18 @@ init(Options) ->
   {ok, #state{reader = Reader}}.
 
 %%----------------------------------------------------------------------
-%% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
-%%                                        {ok, State, tick} |
+%% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
+%%                                        {stop, Reason, State} |
 %%                                        {error, Reason}
 %%
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({subscribe, _Client, _Options}, State) ->
-  {ok, State};
-
 handle_control(_Control, State) ->
-  {ok, State}.
+  {reply, ok, State}.
 
 %%----------------------------------------------------------------------
-%% @spec (Frame::video_frame(), State) -> {ok, Frame, State} |
+%% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |
 %%                                        {noreply, State}   |
 %%                                        {stop, Reason, State}
 %%
@@ -56,7 +53,7 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
-  {ok, Frame, State}.
+  {reply, Frame, State}.
 
 
 %%----------------------------------------------------------------------
@@ -68,7 +65,11 @@ handle_frame(Frame, State) ->
 %%----------------------------------------------------------------------
 handle_info({'DOWN', _Ref, process, Player, _Reason}, #state{reader = Player} = Media) ->
   ?D({"file player over"}),
-  {stop, normal, Media}.
+  {stop, normal, Media};
+  
+handle_info(_Message, State) ->
+  {noreply, State}.
+
 
 
 

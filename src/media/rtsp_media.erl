@@ -74,19 +74,15 @@ init(Options) ->
   end.
 
 %%----------------------------------------------------------------------
-%% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
-%%                                        {ok, State, tick} |
+%% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
+%%                                        {stop, Reason, State} |
 %%                                        {error, Reason}
 %%
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
 handle_control({subscribe, _Client, _Options}, State) ->
-  %% Subscribe returns:
-  %% {ok, State} -> client is subscribed as active receiver
-  %% {ok, State, tick} -> client requires ticker (file reader)
-  %% {error, Reason} -> client receives {error, Reason}
-  {ok, State};
+  {reply, ok, State};
 
 handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
@@ -94,7 +90,7 @@ handle_control({source_lost, _Source}, State) ->
   %% {stop, Reason, State} -> stop with Reason
   case connect_rtsp(State) of
     {ok, Reader} ->
-      {ok, State, Reader};
+      {reply, Reader, State};
     Else ->
       {stop, Else, State}
   end;
@@ -106,7 +102,7 @@ handle_control({set_source, _Source}, State) ->
   {reply, ok, State};
 
 handle_control(_Control, State) ->
-  {ok, State}.
+  {reply, ok, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {ok, Frame, State} |
@@ -117,7 +113,7 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
-  {ok, Frame, State}.
+  {reply, Frame, State}.
 
 
 %%----------------------------------------------------------------------

@@ -1,39 +1,10 @@
 
-init([URL, Type, Options]) ->
-  Host = proplists:get_value(host, Options),
-  LifeTimeout = proplists:get_value(life_timeout, Options, ?FILE_CACHE_TIME),
-  Filter = proplists:get_value(filter, Options),
-  Timeshift = proplists:get_value(timeshift, Options),
-  TimeshiftModule = proplists:get_value(timeshift_module, Options, array_timeshift),
-  Shift = case Timeshift of
-    undefined -> undefined;
-    Timeshift -> 
-      ?D({"Initializing timeshift", TimeshiftModule, Timeshift}),
-      TimeshiftModule:init(Options)
-  end,
-  Device = case Type of
-    record ->
-    _ -> 
-      undefined
-  end,
-  
-  Media = init(#media_info{host = Host, name = URL, type = Type, life_timeout = LifeTimeout, filter = Filter, 
-                           timeshift = Timeshift, shift = Shift, timeshift_module = TimeshiftModule, device = Device,
-                           options = Options}),
-  {ok, Media, ?TIMEOUT};
 
 init(#media_info{type = rtmp, name = URL} = Media) ->
   {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   Media#media_info{socket = Socket, demuxer = RTMP};
-
-init(#media_info{type = mpegts_file, name = Name, host = Host} = Media) ->
-  FileName = filename:join([file_media:file_dir(Host), Name]), 
-  {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
-  link(Reader),
-  Media#media_info{demuxer = Reader};
-
 
 init(#media_info{type = mpegts_passive} = Media) ->
   {ok, Reader} = ems_sup:start_mpegts_reader(self()),
@@ -48,71 +19,6 @@ init(#media_info{type = shoutcast, options = Options} = Media) ->
   Media#media_info{socket = Sock, demuxer = Reader};
   
 
-init(#media_info{type = rtsp} = Media) ->
-  connect_rtsp(Media);
-  
-
-init(#media_info{options = Options} = Media) ->
-  Owner = proplists:get_value(owner, Options),
-  case Owner of
-    undefined -> ok;
-    _ -> erlang:monitor(process, Owner)
-  end,
-	Media#media_info{owner = Owner}.
-
-
-print_state(#media_info{} = MediaInfo) ->
-  MediaInfo#media_info{shift = hidden_timeshift}.
-
-
-%%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-
-
-handle_call({set_socket, Socket}, _From, #media_info{mode = Mode} = State) ->
-  inet:setopts(Socket, [{active, once}, {packet, raw}]),
-  ?D({"Stream received socket in mode", Mode}),
-  {reply, ok, State#media_info{socket = Socket}, ?TIMEOUT};
-
-handle_call(Request, _From, State) ->
-  ?D({"Undefined call", Request, _From, State}),
-  {stop, {unknown_call, Request}, State}.
-
-
-
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-  ?D({"Undefined cast", _Msg}),
-  {noreply, State, ?TIMEOUT}.
-
-%%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for messages sent directly to server's mailbox.
-%%      If `{stop, ...}' tuple is returned, the server is stopped and
-%%      `terminate/2' is called.
-%% @end
-%% @private
-%%-------------------------------------------------------------------------
 
 
 handle_info(graceful, #media_info{type = mpegts_passive, clients = []} = MediaInfo)  ->
