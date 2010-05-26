@@ -31,11 +31,11 @@
 -module(rtsp_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
-
+-include("../../include/ems_media.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(rtsp, {
   url,
@@ -61,13 +61,13 @@ connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
 %% @end
 %%----------------------------------------------------------------------
 
-init(Options) ->
+init(Media, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
   State = #rtsp{timeout = Timeout, url = proplists:get_value(url, Options)},
   case connect_rtsp(State) of
     {ok, Reader} ->
       ems_media:set_source(self(), Reader),
-      {ok, State};
+      {ok, Media#ems_media{state = State}};
     Else ->
       error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
       {stop, no_source}
@@ -82,7 +82,7 @@ init(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_control({subscribe, _Client, _Options}, State) ->
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
@@ -99,13 +99,13 @@ handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
   %% {stop, Reason}
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control(timeout, State) ->
   {stop, normal, State};
 
 handle_control(_Control, State) ->
-  {reply, ok, State}.
+  {noreply, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {ok, Frame, State} |
