@@ -307,7 +307,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>>, #stream{es_buffer = Buffer, type = video} = Stream) ->
   % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
   % ?D({"Video", Stream1#stream.pcr, Stream1#stream.dts}),
-  % ?D({"Video", Stream#stream.dts, <<Buffer/binary, Rest/binary>>}),
+  % ?D({avc, Stream#stream.dts, <<Buffer/binary, Rest/binary>>}),
   decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
@@ -397,12 +397,12 @@ decode_aac(#stream{send_audio_config = false, dts = DTS, pts = PTS, consumer = C
   % Config = <<16#A:4, 3:2, 1:1, 1:1, 0>>,
   Config = <<18,16>>,
   AudioConfig = #video_frame{       
-   	content         = audio,
-   	flavor = config,
-		dts           = DTS,
-		pts           = PTS,
-		body          = Config,
-	  codec	    = aac,
+   	content = audio,
+   	flavor  = config,
+		dts     = DTS,
+		pts     = PTS,
+		body    = Config,
+	  codec	  = aac,
 	  sound	  = {stereo, bit16, rate44}
 	},
 	Consumer ! AudioConfig,
@@ -426,11 +426,12 @@ decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsen
 send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = Stream) ->
   % ?D({audio, }),
   AudioFrame = #video_frame{       
-    content       = audio,
-    dts           = DTS,
-    pts           = PTS,
-    body          = Data,
-	  codec	    = aac,
+    content = audio,
+    flavor  = frame,
+    dts     = DTS,
+    pts     = PTS,
+    body    = Data,
+	  codec	  = aac,
 	  sound	  = {stereo, bit16, rate44}
   },
   % ?D({audio, Stream#stream.pcr, DTS}),
@@ -443,6 +444,7 @@ decode_avc(#stream{es_buffer = Data} = Stream) ->
     undefined ->
       Stream;
     {ok, NAL, Rest} ->
+      % ?D(NAL),
       Stream1 = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
       decode_avc(Stream1)
   end.
@@ -451,13 +453,6 @@ handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
   Stream;
 
 handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
-  % <<_:3, T:5, _/binary>> = NAL,
-  % case get(prev_dts) of
-  %   undefined -> ok;
-  %   P -> 
-  %     ?D({nal, round(DTS) - P, round(PTS) - round(DTS), T})
-  % end,
-  % put(prev_dts, round(DTS)),
   {H264_1, Frames} = h264:decode_nal(NAL, H264),
   case {h264:has_config(H264), h264:has_config(H264_1)} of
     {false, true} -> 
@@ -480,6 +475,8 @@ extract_nal_erl(Data, Offset) ->
   case Data of
     <<_:Offset/binary>> ->
       undefined;
+    <<_:Offset/binary, 1:32, _Rest/binary>> ->
+      extract_nal_erl(Data, Offset + 1, 0);
     <<_:Offset/binary, 1:24, _Rest/binary>> ->
       extract_nal_erl(Data, Offset, 0);
     _ ->
@@ -490,7 +487,7 @@ extract_nal_erl(Data, Offset) ->
 extract_nal_erl(Data, Offset, Length) ->
   case Data of
     <<_:Offset/binary, 1:24, NAL:Length/binary, 1:32, _/binary>> ->
-      <<_:Offset/binary, 1:24, NAL:Length/binary, 0, Rest/binary>> = Data,
+      <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
       {ok, NAL, Rest};
     <<_:Offset/binary, 1:24, NAL:Length/binary, 1:24, _/binary>> ->
       <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
@@ -502,8 +499,7 @@ extract_nal_erl(Data, Offset, Length) ->
     <<_:Offset/binary, 1:24, _/binary>> ->
       extract_nal_erl(Data, Offset, Length+1)
   end.
-      
-    
+       
 
 
 -include_lib("eunit/include/eunit.hrl").
@@ -524,18 +520,43 @@ nal_test_bin(large) ->
     0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %358
     0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %408
     0,0,0,1>>;
+
+nal_test_bin(filler) ->
+  <<0,0,0,1,9,80,
+    0,0,0,1,6,0,1,192,128,
+    0,0,0,1,6,1,1,36,128,
+    0,0,0,1,1,174,15,3,234,95,253,83,176,
+              187,255,13,246,196,189,93,100,111,80,30,30,167,
+              220,41,236,119,135,93,159,204,2,57,132,207,28,
+              91,54,128,228,85,112,81,129,18,140,99,90,53,128,
+    0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,128,
+    0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>;                                                                                            
   
 nal_test_bin(small) ->
   <<0,0,0,1,9,224,0,0,0,1,104,206,50,200>>.
 
 extract_nal_test() ->
-  Bin = nal_test_bin(small),
-  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal(Bin)),
+  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal(nal_test_bin(small))),
   ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,0,1,104,206,50,200>>)),
-  ?assertEqual(undefined, extract_nal(<<>>)),
-  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal_erl(Bin)),
+  ?assertEqual(undefined, extract_nal(<<>>)).
+  
+extract_nal_erl_test() ->  
+  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal_erl(nal_test_bin(small))),
   ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
   ?assertEqual(undefined, extract_nal_erl(<<>>)).
+
+extract_real_nal_test() ->
+  Bin = nal_test_bin(filler),
+  {ok, <<9,80>>, Bin1} = extract_nal(Bin),
+  {ok, <<6,0,1,192,128>>, Bin2} = extract_nal(Bin1),
+  {ok, <<6,1,1,36,128>>, Bin3} = extract_nal(Bin2),
+  {ok, <<1,174,15,3,234,95,253,83,176,
+            187,255,13,246,196,189,93,100,111,80,30,30,167,
+            220,41,236,119,135,93,159,204,2,57,132,207,28,
+            91,54,128,228,85,112,81,129,18,140,99,90,53,128>>, Bin4} = extract_nal(Bin3),
+  {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,128>>, Bin5} = extract_nal(Bin4),
+  {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>, <<>>} = extract_nal(Bin5).
+
 
 extract_nal_erl_bm() ->
   Bin = nal_test_bin(large),
