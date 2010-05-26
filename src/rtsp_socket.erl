@@ -215,7 +215,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
       end, Frames),
       
       Socket1 = case Frames of
-        [#video_frame{body = Config, type = video, decoder_config = true} |_] ->
+        [#video_frame{body = Config, content = video, flavor = config} |_] ->
           {NalSize, _} = h264:unpack_config(Config),
           Socket#rtsp_socket{nal_size = NalSize};
         _ ->

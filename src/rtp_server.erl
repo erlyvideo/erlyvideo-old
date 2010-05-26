@@ -139,15 +139,13 @@ config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Stream
 
 config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
   AudioConfig = #video_frame{       
-   	type          = audio,
-   	decoder_config = true,
+   	content          = audio,
+   	flavor = config,
 		dts           = 0,
 		pts           = 0,
 		body          = Config,
-	  codec_id	    = aac,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
+	  codec	    = aac,
+	  sound	  = {stereo, bit16, rate44}
 	},
 
   config_media(Streams, [Stream | Output], [AudioConfig | Frames]).
@@ -249,7 +247,7 @@ decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NT
   {setelement(#base_rtp.timecode, State4, Timecode), []};
   % State3.
 
-decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
+decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _Sequence:16, _Timecode:32, _StreamId:32, _Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
   {State, []};
   
 % decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
@@ -297,14 +295,12 @@ unpack_audio_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _D
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
       AudioFrame = #video_frame{       
-        type          = audio,
+        content          = audio,
         dts           = DTS,
         pts           = DTS,
         body          = Data,
-    	  codec_id	    = aac,
-    	  sound_type	  = stereo,
-    	  sound_size	  = bit16,
-    	  sound_rate	  = rate44
+    	  codec	    = aac,
+    	  sound	  = {stereo, bit16, rate44}
       },
       unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024}, [AudioFrame | Frames]);
     _ ->
@@ -341,7 +337,7 @@ video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, 
 
   {Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = NewFrames, timecode = NewTimecode}, Frames}.
  
-send_video(#video{synced = false, buffer = [#video_frame{frame_type = frame} | _]} = Video) ->
+send_video(#video{synced = false, buffer = [#video_frame{flavor = frame} | _]} = Video) ->
   {Video#video{buffer = []}, []};
 
 send_video(#video{buffer = []} = Video) ->
@@ -356,10 +352,10 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
   % ?D({"Video", _Timecode, Timestamp}),
   Frame1 = case Frame of
     undefined -> [];
-    _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, type = video}]
+    _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, content = video}]
   end,
   Frame2 = case Frame of 
-    #video_frame{frame_type = keyframe} -> [h264:video_config(H264) | Frame1];
+    #video_frame{flavor = keyframe} -> [h264:video_config(H264) | Frame1];
     _ -> Frame1
   end,
   {Video#video{synced = true, buffer = []}, Frame2}.
