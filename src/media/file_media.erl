@@ -31,11 +31,11 @@
 -module(file_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
-
+-include("../../include/ems_media.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 -export([file_dir/1, file_format/1]).
 
 %%%------------------------------------------------------------------------
@@ -43,21 +43,20 @@
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Options::list()) -> {ok, State}                   |
-%%                            {ok, State, {Format,Storage}} |
+%% @spec (State, Options::list()) -> {ok, State}                   |
 %%                            {stop, Reason}
 %%
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end
 %%----------------------------------------------------------------------
-init(Options) ->
+init(State, Options) ->
   Name = proplists:get_value(url, Options),
   Host = proplists:get_value(host, Options),
   case open_file(Name,Host) of
     {error, Reason} ->
       {stop, Reason};
-    Else ->
-      {ok, state, Else}
+    {Format, Storage} ->
+      {ok, State#ems_media{format = Format, storage = Storage}}
   end.
   
 
@@ -101,13 +100,13 @@ handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {reply, ok, State};
+  {stop, refused, State};
 
 handle_control(timeout, State) ->
   {noreply, State};
 
 handle_control(_Control, State) ->
-  {reply, ok, State}.
+  {noreply, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |

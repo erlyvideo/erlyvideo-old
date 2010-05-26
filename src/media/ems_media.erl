@@ -86,7 +86,7 @@
 %% @hidden
 %% @end
 %%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{init, 1}, {handle_frame,2}, {handle_control,2}, {handle_info,2}];
+behaviour_info(callbacks) -> [{init, 2}, {handle_frame,2}, {handle_control,2}, {handle_info,2}];
 behaviour_info(_Other) -> undefined.
 
 

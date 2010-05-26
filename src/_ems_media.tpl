@@ -46,16 +46,15 @@
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Options::list()) -> {ok, State}                   |
-%%                            {ok, State, {Format,Storage}} |
-%%                            {stop, Reason}
+%% @spec (State::any(), Options::list()) -> {ok, State}                   |
+%%                                          {stop, Reason, State}
 %%
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end
 %%----------------------------------------------------------------------
 
-init(Options) ->
-  {ok, #state{}}.
+init(State, Options) ->
+  {ok, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
