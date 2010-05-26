@@ -63,7 +63,7 @@ write_frame(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = BaseDTS
   {ok, FlvWriter}.
 
 read_frame(_, _) -> erlang:error(unsupported).
-properties(_) -> erlang:error(unsupported).
+properties(_) -> [{type, file}].
 seek(_,_,_) -> erlang:error(unsupported).
 can_open_file(_) -> erlang:error(unsupported).
 
