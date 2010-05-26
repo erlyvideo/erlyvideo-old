@@ -137,5 +137,5 @@ to_tag(#video_frame{content = Content, stream_id = _RealStreamId, dts = DTS1} = 
 -include_lib("eunit/include/eunit.hrl").
 
 encode_video_test() ->
-  ?assertMatch(<<_/binary>>, encode({video_frame,video,1664.2277777772397,1664.2277777772397,true,1,h264,keyframe,
-                                    undefined,undefined,undefined,<<0,0,4,112,37,184,32,33,241,158,155,37,243>>,undefined})).
+  ?assertMatch(<<_/binary>>, encode({video_frame,video,1664.2277777772397,1664.2277777772397,1,h264,config,
+                                    {undefined,undefined,undefined},<<0,0,4,112,37,184,32,33,241,158,155,37,243>>,undefined})).
