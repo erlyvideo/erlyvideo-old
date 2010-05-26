@@ -166,10 +166,12 @@ handle_info({http, Socket, http_eoh}, State) ->
   {noreply, State};
 
 
-handle_info({tcp, Socket, Bin}, #mpegts{demuxer = Reader} = State) when Reader =/= undefined ->
+handle_info({tcp, Socket, Bin}, #ems_media{state = #mpegts{demuxer = Reader}} = Media) when Reader =/= undefined ->
+  State = Media#ems_media.state,
   inet:setopts(Socket, [{active, once}]),
   Reader ! {data, Bin},
-  {noreply, State};
+  State1 = State#mpegts{demuxer = Reader},
+  {noreply, Media#ems_media{state = State1}};
 
 handle_info({tcp_closed, Socket}, #ems_media{state = #mpegts{restart_count = undefined}} = Media) ->
   State = Media#ems_media.state,
