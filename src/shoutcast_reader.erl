@@ -85,7 +85,7 @@ handle_info({data, Bin}, #shoutcast{buffer = <<>>} = State) ->
 handle_info({data, Bin}, #shoutcast{buffer = Buffer} = State) ->
   {noreply, decode(State#shoutcast{buffer = <<Buffer/binary, Bin/binary>>})};
 
-handle_info(#video_frame{decoder_config = true, type = audio} = Frame, State) ->
+handle_info(#video_frame{flavor = config, content = audio} = Frame, State) ->
   {noreply, send_frame(Frame, State#shoutcast{audio_config = Frame})};
 
 handle_info(#video_frame{} = Frame, State) ->
@@ -161,15 +161,13 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
         {ok, _, _} ->
           ?D({"Synced AAC"}),
           AudioConfig = #video_frame{       
-           	type          = audio,
-           	decoder_config = true,
+           	content          = audio,
+           	flavor = config,
         		dts           = 0,
         		pts           = 0,
         		body          = aac:config(Second),
-        	  codec_id	    = aac,
-        	  sound_type	  = stereo,
-        	  sound_size	  = bit16,
-        	  sound_rate	  = rate44
+        	  codec	    = aac,
+        	  sound	  = {stereo, bit16, rate44}
         	},
         	send_frame(AudioConfig, State),
           decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0})
@@ -194,14 +192,12 @@ decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timesta
   case aac:decode(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
-        type          = audio,
+        content          = audio,
         dts           = Timestamp,
         pts           = Timestamp,
         body          = Packet,
-    	  codec_id      = aac,
-    	  sound_type	  = stereo,
-    	  sound_size	  = bit16,
-    	  sound_rate	  = rate44
+    	  codec      = aac,
+    	  sound	  = {stereo, bit16, rate44}
       },
       send_frame(Frame, State),
       decode(State#shoutcast{buffer = Rest, timestamp = Timestamp + 1024});
@@ -219,14 +215,12 @@ decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timesta
   case mp3:decode(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
-        type          = audio,
+        content          = audio,
         dts           = Timestamp,
         pts           = Timestamp,
         body          = Packet,
-    	  codec_id	    = mp3,
-    	  sound_type	  = stereo,
-    	  sound_size	  = bit16,
-    	  sound_rate	  = rate44
+    	  codec	    = mp3,
+    	  sound	  = {stereo, bit16, rate44}
       },
       send_frame(Frame, State),
       decode(State#shoutcast{buffer = Rest, timestamp = Timestamp + 1024});
