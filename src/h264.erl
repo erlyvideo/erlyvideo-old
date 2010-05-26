@@ -18,13 +18,12 @@ video_config(H264) ->
     false -> undefined;
     true ->
       #video_frame{       
-       	type          = video,
-       	decoder_config = true,
-    		dts           = 0,
-    		pts           = 0,
-    		body          = decoder_config(H264),
-    		frame_type    = keyframe,
-    		codec_id      = h264
+       	content = video,
+       	flavor  = config,
+    		dts     = 0,
+    		pts     = 0,
+    		body    = decoder_config(H264),
+    		codec   = h264
     	}
   end.
 
@@ -32,10 +31,10 @@ metadata(Config) ->
   {_, [SPSBin, _]} = unpack_config(Config),
   #h264_sps{width = Width, height = Height} = parse_sps(SPSBin),
   #video_frame{       
-   	type          = metadata,
-		dts           = 0,
-		pts           = 0,
-		body          = [<<"onMetaData">>, {object, [{width, Width}, {height, Height}]}]
+   	content = metadata,
+		dts     = 0,
+		pts     = 0,
+		body    = [<<"onMetaData">>, {object, [{width, Width}, {height, Height}]}]
 	}.
   
       
@@ -73,10 +72,10 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264
   ?D("P-frame"),
   (catch slice_header(Data)),
   VideoFrame = #video_frame{
-   	type          = video,
-		body          = nal_with_size(Data),
-		frame_type    = frame,
-		codec_id      = h264
+   	content = video,
+		body    = nal_with_size(Data),
+		flavor  = frame,
+		codec   = h264
   },
   {H264, [VideoFrame]};
 
@@ -100,20 +99,20 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) -
   ?D("I-frame"),
   (catch slice_header(Data)),
   VideoFrame = #video_frame{
-   	type          = video,
-		body          = nal_with_size(Data),
-		frame_type    = keyframe,
-		codec_id      = h264
+   	content = video,
+		body    = nal_with_size(Data),
+		flavor  = keyframe,
+		codec   = h264
   },
   {H264, [VideoFrame]};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) ->
   ?D("I-frame"),
   _VideoFrame = #video_frame{
-   	type          = video,
-		body          = nal_with_size(Data),
-		frame_type    = frame,
-		codec_id      = h264
+   	content = video,
+		body    = nal_with_size(Data),
+		flavor  = frame,
+		codec   = h264
   },
   
   {H264, []};
@@ -145,10 +144,10 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary
   end,
   ?D({"DELIM", _PrimaryPicTypeId}),
   VideoFrame = #video_frame{
-   	type          = video,
-		body          = nal_with_size(Delimiter),
-		frame_type    = frame,
-		codec_id      = h264
+   	content = video,
+		body    = nal_with_size(Delimiter),
+		flavor  = frame,
+		codec   = h264
   },
   % io:format("Access unit delimiter, PPT = ~p~n", [PrimaryPicType]),
   {H264, [VideoFrame]};

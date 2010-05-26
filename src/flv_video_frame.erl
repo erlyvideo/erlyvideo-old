@@ -30,8 +30,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(flv_video_frame).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../include/flv.hrl").
 -include("../include/video_frame.hrl").
+-include("../include/flv.hrl").
 
 -export([to_tag/1, encode/1, decode/2]).
 -export([tag_to_video_frame/1]).
@@ -40,37 +40,34 @@
 
 
 
-encode(#video_frame{type = audio} = VideoFrame) ->
+encode(#video_frame{content = audio} = VideoFrame) ->
   flv:encode_audio_tag(video_frame_to_tag(VideoFrame));
 
-encode(#video_frame{type = video} = VideoFrame) ->
+encode(#video_frame{content = video} = VideoFrame) ->
   flv:encode_video_tag(video_frame_to_tag(VideoFrame));
 
-encode(#video_frame{type = metadata} = VideoFrame) ->
+encode(#video_frame{content = metadata} = VideoFrame) ->
   flv:encode_meta_tag(video_frame_to_tag(VideoFrame)).
 
-video_frame_to_tag(#video_frame{type = audio,
-                    decoder_config = DecoderConfig,
-                    codec_id = Codec,
-                	  sound_type	= SoundType,
-                	  sound_size	= SoundSize,
-                	  sound_rate	= SoundRate,
+video_frame_to_tag(#video_frame{content = audio,
+                    flavor = Flavor,
+                    codec = Codec,
+                	  sound	= {SoundType, SoundSize, SoundRate},
                     body = Body}) when is_binary(Body) ->
-  #flv_audio_tag{codec = Codec, rate = SoundRate, bitsize = SoundSize, channels = SoundType, body = Body, decoder_config = DecoderConfig};
+  #flv_audio_tag{codec = Codec, rate = SoundRate, bitsize = SoundSize, channels = SoundType, body = Body, flavor = Flavor};
 
 
 
-video_frame_to_tag(#video_frame{type = video,
-                    frame_type = FrameType,
-                   	decoder_config = DecoderConfig,
-                   	codec_id = Codec,
+video_frame_to_tag(#video_frame{content = video,
+                    flavor = Flavor,
+                   	codec = Codec,
                    	pts = PTS,
                    	dts = DTS,
                     body = Body}) when is_binary(Body) ->
-  #flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = PTS - DTS, body = Body};
+  #flv_video_tag{codec = Codec, flavor = Flavor, composition_time = PTS - DTS, body = Body};
 
 
-video_frame_to_tag(#video_frame{type = metadata, body = Metadata}) ->
+video_frame_to_tag(#video_frame{content = metadata, body = Metadata}) ->
   Metadata.
 
 tag_to_video_frame(#flv_tag{next_tag_offset = NextOffset, timestamp = Timestamp, body = AVTag}) ->
@@ -78,30 +75,27 @@ tag_to_video_frame(#flv_tag{next_tag_offset = NextOffset, timestamp = Timestamp,
 	VideoFrame#video_frame{next_id = NextOffset};
 
 
-tag_to_video_frame(#flv_audio_tag{codec = Codec, rate = Rate, bitsize = Size, channels = SoundType, body = Body, decoder_config = DecoderConfig}) ->
-  #video_frame{type = audio,
-               decoder_config = DecoderConfig,
-               codec_id = Codec,
-               sound_type	= SoundType,
-               sound_size	= Size,
-               sound_rate	= Rate,
+tag_to_video_frame(#flv_audio_tag{codec = Codec, rate = Rate, bitsize = Size, channels = Channels, body = Body, flavor = Flavor}) ->
+  #video_frame{content = audio,
+               flavor = Flavor,
+               codec = Codec,
+               sound = {Channels, Size, Rate},
                pts = 0,
                dts = 0,
                body = Body};
 
 
-tag_to_video_frame(#flv_video_tag{codec = Codec, decoder_config = DecoderConfig, frame_type = FrameType, composition_time = CTime, body = Body}) ->
-  #video_frame{type = video,
-               frame_type = FrameType,
-               decoder_config = DecoderConfig,
-               codec_id = Codec,
+tag_to_video_frame(#flv_video_tag{codec = Codec, flavor = Flavor, composition_time = CTime, body = Body}) ->
+  #video_frame{content = video,
+               flavor = Flavor,
+               codec = Codec,
                pts = CTime,
                dts = 0,
                body = Body};
 
 
 tag_to_video_frame(Metadata) ->
-  #video_frame{type = metadata, body = Metadata, dts = 0, pts = 0}.
+  #video_frame{content = metadata, body = Metadata, dts = 0, pts = 0}.
   
   
 
@@ -112,16 +106,16 @@ tag_to_video_frame(Tag, Timestamp) ->
   Frame#video_frame{dts = Timestamp, pts = Timestamp+CTime}.
   
 
-decode(#video_frame{type = video, dts = DTS} = Frame, Data) ->
-  #flv_video_tag{codec = Codec, frame_type = FrameType, composition_time = CTime, decoder_config = Cfg, body = Body} = flv:decode_video_tag(Data),
-  Frame#video_frame{frame_type = FrameType, codec_id = Codec, decoder_config = Cfg, pts = DTS + CTime, body= Body};
+decode(#video_frame{content = video, dts = DTS} = Frame, Data) ->
+  #flv_video_tag{codec = Codec, flavor = Flavor, composition_time = CTime, body = Body} = flv:decode_video_tag(Data),
+  Frame#video_frame{flavor = Flavor, codec = Codec, pts = DTS + CTime, body = Body};
 
 
-decode(#video_frame{type = audio} = Frame, Data) ->
-  #flv_audio_tag{codec = Codec, rate = Rate, bitsize = Bitsize, channels = Channels, decoder_config = Cfg, body = Body} = flv:decode_audio_tag(Data),
-  Frame#video_frame{codec_id = Codec, sound_type = Channels, sound_size = Bitsize, sound_rate = Rate, body= Body, decoder_config = Cfg};
+decode(#video_frame{content = audio} = Frame, Data) ->
+  #flv_audio_tag{codec = Codec, rate = Rate, bitsize = Bitsize, channels = Channels, flavor = Flavor, body = Body} = flv:decode_audio_tag(Data),
+  Frame#video_frame{codec = Codec, sound = {Channels, Bitsize, Rate}, body= Body, flavor = Flavor};
 
-decode(#video_frame{type = metadata} = Frame, Metadata) ->
+decode(#video_frame{content = metadata} = Frame, Metadata) ->
   Frame#video_frame{body = flv:decode_meta_tag(Metadata)}.
               
 %%--------------------------------------------------------------------
@@ -130,14 +124,14 @@ decode(#video_frame{type = metadata} = Frame, Metadata) ->
 %% @end 
 %%--------------------------------------------------------------------
 
-to_tag(#video_frame{type = Type, stream_id = _RealStreamId, dts = DTS1} = Frame) ->
+to_tag(#video_frame{content = Content, stream_id = _RealStreamId, dts = DTS1} = Frame) ->
   DTS = round(DTS1),
   StreamId = 0, % by spec
   Body = encode(Frame),
 	BodyLength = size(Body),
 	<<TimeStampExt:8,TimeStamp:24>> = <<DTS:32>>,
 	PrevTagSize = BodyLength + 11,
-	<<(flv:frame_format(Type)):8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Body/binary,PrevTagSize:32>>.
+	<<(flv:frame_format(Content)):8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Body/binary,PrevTagSize:32>>.
 
 
 -include_lib("eunit/include/eunit.hrl").

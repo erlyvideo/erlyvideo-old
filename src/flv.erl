@@ -37,6 +37,7 @@
 -author('simpleenigmainc@gmail.com').
 -author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("../include/video_frame.hrl").
 -include("../include/flv.hrl").
 -include("flv_constants.hrl").
 
@@ -155,7 +156,7 @@ read_tag(Device, Offset) ->
     #flv_tag{type = Type, size = Size} = Tag ->
       {ok, Body} = file:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
       
-      FrameType = case Type of
+      Flavor = case Type of
         video ->
           case Body of 
             <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4, _/binary>> -> keyframe;
@@ -164,33 +165,33 @@ read_tag(Device, Offset) ->
         _ -> frame
       end,
       
-      decode_tag(Tag#flv_tag{body = Body, frame_type = FrameType});
+      decode_tag(Tag#flv_tag{body = Body, flavor = Flavor});
     Else -> Else
   end.
 
 
 decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, decoder_config = false, composition_time = CTime, body= Body};
+  #flv_video_tag{flavor = flv:frame_type(FrameType), codec = h264, composition_time = CTime, body= Body};
 
-decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = h264, decoder_config = true, composition_time = CTime, body= Body};
+decode_video_tag(<<_FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER:8, CTime:24, Body/binary>>) ->
+  #flv_video_tag{flavor = config, codec = h264, composition_time = CTime, body= Body};
 
 decode_video_tag(<<FrameType:4, CodecId:4, Body/binary>>) ->
-  #flv_video_tag{frame_type = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), decoder_config = false, composition_time = 0, body = Body}.
+  #flv_video_tag{flavor = flv:frame_type(FrameType), codec = flv:video_codec(CodecId), composition_time = 0, body = Body}.
 
 
 
 decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
   #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
-                 decoder_config = false, rate	= flv:audio_rate(Rate), body= Body};
+                 flavor = frame, rate	= flv:audio_rate(Rate), body= Body};
 
 decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
   #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
-                 decoder_config = true, rate	= flv:audio_rate(Rate), body= Body};
+                 flavor = config, rate	= flv:audio_rate(Rate), body= Body};
 
 decode_audio_tag(<<CodecId:4, Rate:2, Bitsize:1, Channels:1, Body/binary>>) ->
   #flv_audio_tag{codec = flv:audio_codec(CodecId), channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
-                 decoder_config = false, rate	= flv:audio_rate(Rate), body= Body}.
+                 flavor = frame, rate	= flv:audio_rate(Rate), body= Body}.
 
 
 decode_meta_tag(Metadata) when is_binary(Metadata) ->
@@ -242,7 +243,7 @@ encode_tag(#flv_tag{type = Type, timestamp = Time, body = InnerTag}) ->
   PrevTagSize = ?FLV_TAG_HEADER_LENGTH + BodyLength,
   <<(flv:frame_format(Type)):8,BodyLength:24,TimeStamp:24,TimeStampExt:8,StreamId:24,Body/binary,PrevTagSize:32>>.
 
-encode_audio_tag(#flv_audio_tag{decoder_config = true,
+encode_audio_tag(#flv_audio_tag{flavor = config,
                     codec = aac,
                 	  channels	= Channels,
                 	  bitsize	= BitSize,
@@ -269,23 +270,22 @@ encode_audio_tag(#flv_audio_tag{codec = Codec,
 
 
 
-encode_video_tag(#flv_video_tag{frame_type = FrameType,
-                   	decoder_config = true,
+encode_video_tag(#flv_video_tag{flavor = config,
                    	codec = h264,
                    	composition_time = Time,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(h264)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, (round(Time)):24, Body/binary>>;
+	<<(flv:frame_type(keyframe)):4, (flv:video_codec(h264)):4, ?FLV_VIDEO_AVC_SEQUENCE_HEADER, (round(Time)):24, Body/binary>>;
 
-encode_video_tag(#flv_video_tag{frame_type = FrameType,
+encode_video_tag(#flv_video_tag{flavor = Flavor,
                    	codec = h264,
                    	composition_time = Time,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(h264)):4, ?FLV_VIDEO_AVC_NALU, (round(Time)):24, Body/binary>>;
+	<<(flv:frame_type(Flavor)):4, (flv:video_codec(h264)):4, ?FLV_VIDEO_AVC_NALU, (round(Time)):24, Body/binary>>;
 
-encode_video_tag(#flv_video_tag{frame_type = FrameType,
+encode_video_tag(#flv_video_tag{flavor = Flavor,
                    	codec = CodecId,
                     body = Body}) when is_binary(Body) ->
-	<<(flv:frame_type(FrameType)):4, (flv:video_codec(CodecId)):4, Body/binary>>.
+	<<(flv:frame_type(Flavor)):4, (flv:video_codec(CodecId)):4, Body/binary>>.
 
 
 encode_meta_tag(Metadata) when is_binary(Metadata) ->
