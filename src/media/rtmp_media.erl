@@ -33,11 +33,12 @@
 -behaviour(ems_media).
 -include_lib("rtmp/include/rtmp.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include("../../include/ems_media.hrl").
 
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(rtmp, {
   socket,
@@ -50,15 +51,14 @@
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Options::list()) -> {ok, State}                   |
-%%                            {ok, State, {Format,Storage}} |
-%%                            {stop, Reason}
+%% @spec (Media::ems_media(), Options::list()) -> {ok, Media::ems_media()} |
+%%                                                {stop, Reason}
 %%
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end
 %%----------------------------------------------------------------------
 
-init(Options) ->
+init(Media, Options) ->
   URL = proplists:get_value(url, Options),
   {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),

@@ -27,9 +27,8 @@ can_open_file(Name) ->
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Options::list()) -> {ok, State}                   |
-%%                            {ok, State, {Format,Storage}} |
-%%                            {stop, Reason}
+%% @spec (Media::ems_media(), Options::list()) -> {ok, Media::ems_media()} |
+%%                                                {stop, Reason}
 %%
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end

@@ -39,7 +39,9 @@
 
 -record(rtsp, {
   url,
-  timeout
+  timeout,
+  reader,
+  restart_count = 0
 }).
 
 connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
@@ -53,9 +55,8 @@ connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Options::list()) -> {ok, State}                   |
-%%                            {ok, State, {Format,Storage}} |
-%%                            {stop, Reason}
+%% @spec (Media::ems_media(), Options::list()) -> {ok, Media::ems_media()} |
+%%                                                {stop, Reason}
 %%
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end
@@ -67,7 +68,8 @@ init(Media, Options) ->
   case connect_rtsp(State) of
     {ok, Reader} ->
       ems_media:set_source(self(), Reader),
-      {ok, Media#ems_media{state = State}};
+      State1 = State#rtsp{reader = Reader},
+      {ok, Media#ems_media{state = State1}};
     Else ->
       error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
       {stop, no_source}
@@ -101,8 +103,10 @@ handle_control({set_source, _Source}, State) ->
   %% {stop, Reason}
   {noreply, State};
 
-handle_control(timeout, State) ->
-  {stop, normal, State};
+handle_control(timeout, #ems_media{state = State} = Media) ->
+  #rtsp{reader = Reader} = State,
+  erlang:exit(Reader, shutdown),
+  {stop, normal, Media};
 
 handle_control(_Control, State) ->
   {noreply, State}.

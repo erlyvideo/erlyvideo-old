@@ -46,8 +46,8 @@
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (State::any(), Options::list()) -> {ok, State}                   |
-%%                                          {stop, Reason, State}
+%% @spec (Media::ems_media(), Options::list()) -> {ok, Media::ems_media()} |
+%%                                                {stop, Reason}
 %%
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end
