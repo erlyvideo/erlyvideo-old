@@ -41,6 +41,7 @@ init([Path, Options]) ->
   true = is_pid(Consumer),
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
   {ok, Reader} = mpegts_reader:start_link(self()),
+  erlang:monitor(process, Consumer),
   self() ! start,
   {ok, #file_reader{reader = Reader, consumer = Consumer, path = Path, file = File}}.
 
@@ -106,6 +107,9 @@ handle_info(timeout, #file_reader{frame = Frame, consumer = Consumer} = State) -
       timer:send_after(Timeout, timeout),
       {noreply, NewState}
   end;
+  
+handle_info({'DOWN', _Ref, process, Consumer, _Reason}, State) ->
+  {stop, normal, State};
   
 handle_info(#video_frame{} = Frame, #file_reader{frames = Frames} = State) ->
   {noreply, State#file_reader{frames = Frames ++ [Frame]}};
