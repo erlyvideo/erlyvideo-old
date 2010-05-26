@@ -31,11 +31,12 @@
 -module(directory_playlist).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
+-include("../../include/ems_media.hrl").
 
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(playlist, {
   path,
@@ -56,7 +57,7 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(Options) ->
+init(Media, Options) ->
   Path = proplists:get_value(path, Options),
   Host = proplists:get_value(host, Options),
   AbsPath = filename:join([file_media:file_dir(Host), Path]),
@@ -64,7 +65,8 @@ init(Options) ->
   Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
   
   self() ! start_playing,
-  {ok, #playlist{path = AbsPath, files = Files, host = Host}}.
+  State = #playlist{path = AbsPath, files = Files, host = Host},
+  {ok, Media#ems_media{state = State}}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
@@ -79,7 +81,7 @@ handle_control({subscribe, _Client, _Options}, State) ->
   %% {reply, tick, State} -> client requires ticker (file reader)
   %% {reply, Reply, State} -> client is subscribed as active receiver
   %% {reply, {error, Reason}, State} -> client receives {error, Reason}
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
@@ -91,16 +93,19 @@ handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control({set_socket, _Socket}, State) ->
   %% Set socket returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {reply, ok, State};
+  {noreply, State};
+
+handle_control(timeout, State) ->
+  {stop, timeout, State};
 
 handle_control(_Control, State) ->
-  {reply, ok, State}.
+  {noreply, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |
@@ -121,16 +126,18 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(start_playing, #playlist{host = Host, files = [Name|Files]} = State) ->
-  {ok, Media} = media_provider:play(Host, Name, [{stream_id,1}]),
-  ?D({"Playing",Name,Media}),
-  {noreply, State#playlist{files = Files}};
+handle_info(start_playing, #ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
+  State = Media#ems_media.state,
+  {ok, Stream} = media_provider:play(Host, Name, [{stream_id,1}]),
+  ?D({"Playing",Name, Stream}),
+  {noreply, Media#ems_media{state = State#playlist{files = Files}}};
 
-handle_info({ems_stream, _StreamId, play_complete, _DTS}, #playlist{host = Host, files = [Name|Files]} = State) ->
-  {ok, Media} = media_provider:play(Host, Name, [{stream_id,1}]),
+handle_info({ems_stream, _StreamId, play_complete, _DTS}, #ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
+  State = Media#ems_media.state,
+  {ok, Stream} = media_provider:play(Host, Name, [{stream_id,1}]),
   ems_media:set_source(self(), undefined),
-  ?D({"Playing",Name,Media}),
-  {noreply, State#playlist{files = Files}};
+  ?D({"Playing",Name,Stream}),
+  {noreply, Media#ems_media{state = State#playlist{files = Files}}};
 
 handle_info(timeout, State) ->
   {stop, normal, State};
