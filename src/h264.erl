@@ -9,27 +9,8 @@
 
 -export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
--export([open_dump/0, dump_nal/2, fake_open_dump/0, fake_dump_nal/2]).
 -export([parse_sps/1]).
 
-fake_open_dump() -> ok.
-fake_dump_nal(_File, _Nal) -> ok.
-
-open_dump() ->
-  {ok, File} = file:open("out.x264", [write, binary]),
-  File.
-  
-dump_nal(File, NAL) ->
-  file:write(File, <<0,0,1, NAL/binary>>).
-
-
--ifdef(dump_h264).
--define(OPEN_H264_OUT, open_dump).
--define(DUMP_H264, dump_nal).
--else.
--define(OPEN_H264_OUT, fake_open_dump).
--define(DUMP_H264, fake_dump_nal).
--endif.
 
 video_config(H264) ->
   case has_config(H264) of
@@ -87,14 +68,9 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
     (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
 
 
-decode_nal(NAL, #h264{dump_file = undefined} = H264) ->
-  File = ?OPEN_H264_OUT(),
-  decode_nal(NAL, H264#h264{dump_file = File});
-
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
   % ?D("P-frame"),
   (catch slice_header(Data)),
-  ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
    	type          = video,
 		body          = nal_with_size(Data),
@@ -119,10 +95,9 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, _Rest/binary>> = _Data, H264) ->
   % slice_header(Rest, H264);
   {H264, []};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) ->
   % io:format("I-frame ~p ~p~n", [size(Data), element(1, split_binary(Data, 40))]),
   (catch slice_header(Data)),
-  ?DUMP_H264(File, Data),
   VideoFrame = #video_frame{
    	type          = video,
 		body          = nal_with_size(Data),
@@ -131,8 +106,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{dump_file =
   },
   {H264, [VideoFrame]};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file = File} = H264) ->
-  ?DUMP_H264(File, Data),
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) ->
   _VideoFrame = #video_frame{
    	type          = video,
 		body          = nal_with_size(Data),
@@ -142,22 +116,20 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{dump_file =
   
   {H264, []};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{dump_file = File} = H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{} = H264) ->
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
-  ?DUMP_H264(File, SPS),
   % ?D({"Parsing SPS", SPS}),
   % _SPSInfo = parse_sps(SPS),
   % io:format("SPS ~p ~p ~px~p~n", [profile_name(Profile), Level/10, SPSInfo#h264_sps.width, SPSInfo#h264_sps.height]),
   {H264#h264{profile = Profile, level = Level, sps = [SPS]}, []};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{dump_file = File} = H264) ->
-  ?DUMP_H264(File, PPS),
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, Bin/binary>> = PPS, #h264{} = H264) ->
   {_PPSId, Rest1} = exp_golomb_read(Bin),
   {_SPSId, _Rest} = exp_golomb_read(Rest1),
   % video_config(H264#h264{pps = [PPS]});
   {H264#h264{pps = [PPS]}, []};
 
-decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary>> = Delimiter, #h264{dump_file = File} = H264) ->
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary>> = Delimiter, #h264{} = H264) ->
   % PrimaryPicType = case PrimaryPicTypeId of
   %     0 -> "I";
   %     1 -> "I, P";
@@ -168,7 +140,6 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary
   %     6 -> "I, SI, P, SP";
   %     7 -> "I, SI, P, SP, B"
   % end,
-  ?DUMP_H264(File, Delimiter),
   VideoFrame = #video_frame{
    	type          = video,
 		body          = nal_with_size(Delimiter),
@@ -213,6 +184,9 @@ decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, _Type:5, Rest/binary>>, #h2
 % decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, S:1, E:1, R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
 %   ?D({"Unknonw FUA", S, E, R, _Type}),
 %   {H264#h264{buffer = <<>>}, []};
+
+decode_nal(<<0:1, _NalRefIdc:2, ?NAL_FILLER:5, _/binary>> = NAL, H264) ->
+  {H264, []};
 
 
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>> = NAL, H264) ->

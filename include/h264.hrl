@@ -27,7 +27,6 @@
   length_size = 32,
   sps,
   pps,
-  dump_file,
   buffer = <<>>
 }).
 
