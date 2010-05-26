@@ -86,8 +86,10 @@ init([Consumer]) ->
 
 synchronizer(#ts_lander{consumer = Consumer, buffer = Buffer} = TSLander) ->
   receive
+    {'DOWN', _Ref, process, Consumer, normal} ->
+      ok;
     {'DOWN', _Ref, process, Consumer, _Reason} ->
-      ?D({"MPEG TS reader lost consumer"}),
+      ?D({"MPEG TS reader lost consumer", _Reason}),
       ok;
     {'DOWN', _Ref, process, Pid, _Reason} ->
       ?D({"MPEG TS reader lost pid handler"}),
@@ -314,6 +316,7 @@ stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeader
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
+  % ?D({both, PTS1, DTS1}),
   PTS = PTS1 / 90,
   DTS = DTS1 / 90,
   % case PTS of
@@ -327,6 +330,7 @@ stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeader
 stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
   <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
+  % ?D({pts, PTS1}),
   PTS = PTS1/90,
   % ?D({"Have pts", Stream#stream.pid, round(PTS)}),
   normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
@@ -344,14 +348,20 @@ stream_timestamp(_, #stream{dts = DTS, pts = _PTS, pcr = PCR, start_dts = Start}
   Stream;
 
 stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
+  ?D({none, PTS, DTS}),
   % ?D({"Have no timestamps", DTS}),
   Stream#stream{dts = DTS + 40, pts = PTS + 40};
 
+stream_timestamp(Bin,  #stream{pcr = PCR, start_dts = undefined} = Stream) when is_number(PCR) ->
+  stream_timestamp(Bin,  Stream#stream{start_dts = 0});
+
 stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
+  ?D({no_dts, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts, Stream#stream.start_dts}),
   ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
 stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
+  ?D(none),
   ?D({"Not timestamps at all"}),
   Stream.
 
