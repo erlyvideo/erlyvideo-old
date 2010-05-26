@@ -1,11 +1,12 @@
 -module(mpegts_file_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
+-include("../../include/ems_media.hrl").
 
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
 -export([can_open_file/1]).
 
@@ -34,14 +35,15 @@ can_open_file(Name) ->
 %% @end
 %%----------------------------------------------------------------------
 
-init(Options) ->
+init(Media, Options) ->
   Host = proplists:get_value(host, Options),
   Name = proplists:get_value(name, Options),
   FileName = filename:join([file_media:file_dir(Host), binary_to_list(Name)]), 
   {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
   erlang:monitor(process, Reader),
   link(Reader),
-  {ok, #state{reader = Reader}}.
+  State = #state{reader = Reader},
+  {ok, Media#ems_media{state = State}}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
@@ -55,7 +57,7 @@ handle_control(timeout, State) ->
   {stop, normal, State};
 
 handle_control(_Control, State) ->
-  {reply, ok, State}.
+  {noreply, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |
