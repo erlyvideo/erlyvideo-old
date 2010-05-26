@@ -132,6 +132,9 @@ handle_info({ems_stream, _StreamId, play_complete, _DTS}, #playlist{host = Host,
   ?D({"Playing",Name,Media}),
   {noreply, State#playlist{files = Files}};
 
+handle_info(timeout, State) ->
+  {stop, normal, State};
+
 handle_info(_Message, State) ->
   ?D({message, _Message}),
   {noreply, State}.

@@ -31,7 +31,8 @@
 -module(_ems_media_tpl).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
-
+-include_lib("erlyvideo/include/ems_media.hrl").
+%-include("../include/ems_media.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
@@ -66,28 +67,32 @@ init(Options) ->
 %%----------------------------------------------------------------------
 handle_control({subscribe, _Client, _Options}, State) ->
   %% Subscribe returns:
-  %% {reply, tick, State} -> client requires ticker (file reader)
-  %% {reply, Reply, State} -> client is subscribed as active receiver
-  %% {reply, {error, Reason}, State} -> client receives {error, Reason}
-  {reply, ok, State};
+  %% {reply, tick, State}  => client requires ticker (file reader)
+  %% {reply, Reply, State} => client is subscribed as active receiver and receives custom reply
+  %% {noreply, State}      => client is subscribed as active receiver and receives reply ``ok''
+  %% {reply, {error, Reason}, State} => client receives {error, Reason}
+  {noreply, State};
 
 handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
-  %% {reply, Source, State} -> new source is created
-  %% {stop, Reason, State} -> stop with Reason
-  {stop, source_lost, State};
+  %% {reply, Source, State} => new source is created
+  %% {stop, Reason, State}  => stop with Reason
+  %% {noreply, State}       => default action. it is stop
+  {noreply, State};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
-  %% {reply, Reply, State}
-  %% {stop, Reason, State}
-  {reply, ok, State};
+  %% {reply, NewSource, State} => source is rewritten
+  %% {noreply, State}          => just ignore setting new source
+  %% {stop, Reason, State}     => stop after setting
+  {noreply, State};
 
 handle_control({set_socket, _Socket}, State) ->
   %% Set socket returns:
-  %% {reply, Reply, State}
-  %% {stop, Reason, State}
-  {reply, ok, State};
+  %% {reply, Reply, State}  => the same as noreply
+  %% {noreply, State}       => just ignore
+  %% {stop, Reason, State}  => stops
+  {noreply, State};
 
 handle_control(timeout, State) ->
   {stop, normal, State};
