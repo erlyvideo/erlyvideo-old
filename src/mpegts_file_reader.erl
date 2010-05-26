@@ -108,7 +108,7 @@ handle_info(timeout, #file_reader{frame = Frame, consumer = Consumer} = State) -
       {noreply, NewState}
   end;
   
-handle_info({'DOWN', _Ref, process, Consumer, _Reason}, State) ->
+handle_info({'DOWN', _Ref, process, _Consumer, _Reason}, State) ->
   {stop, normal, State};
   
 handle_info(#video_frame{} = Frame, #file_reader{frames = Frames} = State) ->

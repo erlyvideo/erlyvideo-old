@@ -91,7 +91,7 @@ synchronizer(#ts_lander{consumer = Consumer, buffer = Buffer} = TSLander) ->
     {'DOWN', _Ref, process, Consumer, _Reason} ->
       ?D({"MPEG TS reader lost consumer", _Reason}),
       ok;
-    {'DOWN', _Ref, process, Pid, _Reason} ->
+    {'DOWN', _Ref, process, _Pid, _Reason} ->
       ?D({"MPEG TS reader lost pid handler"}),
       ok;
     % {data, Bin} when size(Buffer) == 0 ->
@@ -397,15 +397,13 @@ decode_aac(#stream{send_audio_config = false, dts = DTS, pts = PTS, consumer = C
   % Config = <<16#A:4, 3:2, 1:1, 1:1, 0>>,
   Config = <<18,16>>,
   AudioConfig = #video_frame{       
-   	type          = audio,
-   	decoder_config = true,
+   	content         = audio,
+   	flavor = config,
 		dts           = DTS,
 		pts           = PTS,
 		body          = Config,
-	  codec_id	    = aac,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
+	  codec	    = aac,
+	  sound	  = {stereo, bit16, rate44}
 	},
 	Consumer ! AudioConfig,
   % ?D({"Send audio config", AudioConfig}),
@@ -428,14 +426,12 @@ decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsen
 send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = Stream) ->
   % ?D({audio, }),
   AudioFrame = #video_frame{       
-    type          = audio,
+    content       = audio,
     dts           = DTS,
     pts           = PTS,
     body          = Data,
-	  codec_id	    = aac,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
+	  codec	    = aac,
+	  sound	  = {stereo, bit16, rate44}
   },
   % ?D({audio, Stream#stream.pcr, DTS}),
   Consumer ! AudioFrame,

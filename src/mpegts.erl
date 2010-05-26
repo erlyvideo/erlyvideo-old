@@ -255,7 +255,7 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   % 
   
   
-send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type = FrameType} = _F) ->
+send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Flavor} = _F) ->
   Marker = 2#10,
   Scrambling = 0,
   Priority = 0,
@@ -296,7 +296,8 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, frame_type 
   % no PES size should be provided for video
   PES = <<1:24, ?MPEGTS_STREAMID_H264, 0:16, PesHeader/binary, 1:32, Body/binary>>,
   
-  Keyframe = case FrameType of
+  Keyframe = case Flavor of
+    config -> 1;
     keyframe -> 1;
     _ -> 0
   end,
@@ -334,11 +335,11 @@ unpack_nals(Body, LengthSize, NALS) ->
 
 
 
-encode(#streamer{} = Streamer, #video_frame{type = video, decoder_config = true, body = Config}) ->
+encode(#streamer{} = Streamer, #video_frame{content = video, flavor = config, body = Config}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
   {Streamer#streamer{video_config = Config, length_size = NewLengthSize*8}, none};
 
-encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{type = video, frame_type = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
+encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{content = video, flavor = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
   {Streamer1, PATBin} = send_pat(Streamer, DTS),
   {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
 
@@ -353,7 +354,7 @@ encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streame
   {Streamer3, VideoBin} = send_video(Streamer2, Frame#video_frame{body = Packed}),
   {Streamer3, <<PATBin/binary, PMTBin/binary, VideoBin/binary>>};
 
-encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{type = video, body = Body} = Frame) ->
+encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = video, body = Body} = Frame) ->
   BodyNALS = unpack_nals(Body, LengthSize),
   F = fun(NAL, S) ->
     <<S/binary, 1:24, NAL/binary>>
@@ -361,18 +362,18 @@ encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{type = video
   Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
   send_video(Streamer, Frame#video_frame{body = Packed});
   
-encode(#streamer{} = Streamer, #video_frame{type = audio, decoder_config = true, body = AudioConfig}) ->
+encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, body = AudioConfig}) ->
   Config = aac:decode_config(AudioConfig),
   % ?D({"Audio config", Config}),
   {Streamer#streamer{audio_config = Config}, none};
 
-encode(#streamer{audio_config = undefined} = Streamer, #video_frame{type = audio}) ->
+encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio}) ->
   {Streamer, none};
 
-encode(#streamer{} = Streamer, #video_frame{type = audio} = Frame) ->
+encode(#streamer{} = Streamer, #video_frame{content = audio} = Frame) ->
   send_audio(Streamer, Frame);
 
-encode(#streamer{} = Streamer, #video_frame{type = metadata}) ->
+encode(#streamer{} = Streamer, #video_frame{content = metadata}) ->
   {Streamer, none}.
 
 
