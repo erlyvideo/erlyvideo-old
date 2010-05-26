@@ -1,0 +1,43 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+
+	<title>JW Player for Flash</title>
+
+	<style type="text/css">
+		body { background-color: #fff; padding: 0 20px; color:#000; font: 13px/18px Arial, sans-serif; }
+		a { color: #360; }
+		h3 { padding-top: 20px; }
+		ol { margin:5px 0 15px 16px; padding:0; list-style-type:square; }
+	</style>
+
+</head>
+<body>
+
+	<h1>Welcome to the World of LongTail Video</h1>
+
+  <h2>{{hostname}} {{file}}</h2>
+	<!-- START OF THE PLAYER EMBEDDING TO COPY-PASTE -->
+	
+	<object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="400" height="315">
+		<param name="movie" value="/longtail/player.swf" />
+		<param name="allowfullscreen" value="true" />
+		<param name="allowscriptaccess" value="always" />
+		<param name="flashvars" value="streamer={{hostname}}/live&file={{file}}&image=preview.jpg" />
+		<embed
+			type="application/x-shockwave-flash"
+			id="player2"
+			name="player2"
+			src="/longtail/player.swf" 
+			width="400" 
+			height="315"
+			allowscriptaccess="always" 
+			allowfullscreen="true"
+			flashvars="streamer={{hostname}}/live&file={{file}}&image=preview.jpg" 
+		/>
+	</object>
+	
+	<!-- END OF THE PLAYER EMBEDDING -->
+
+</body>
+</html>

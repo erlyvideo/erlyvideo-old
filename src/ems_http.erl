@@ -44,6 +44,22 @@ handle(Host, 'GET', [], Req) ->
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
 
+handle(Host, 'GET', ["longtail"], Req) ->
+  erlydtl:compile(wwwroot(Host) ++ "/longtail/index.html", longtail_template),
+
+  Query = Req:parse_qs(),
+  io:format("GET /longtail/ ~p~n", [Query]),
+  File = proplists:get_value("file", Query, "video.mp4"),
+  Autostart = proplists:get_value("autostart", Query, "false"),
+  Secret = ems:get_var(secret_key, Host, undefined),
+  {ok, Index} = longtail_template:render([
+    {hostname, <<"rtmp://", (Req:host())/binary>>},
+    {autostart, Autostart},
+    {file, File},
+    {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}]),
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
+
+
 handle(_, 'GET', ["admin", "config.xml"], Req) ->
   Config = mochijson2:encode({struct, application:get_all_env(erlyvideo)}),
   Req:ok([{'Content-Type', "text/json; charset=utf8"}], iolist_to_binary(Config));
