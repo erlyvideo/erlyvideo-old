@@ -400,7 +400,7 @@ detect_http(Host, Name, Opts) ->
 
 detect_ts_file(Host, Name, Opts) ->
   case {check_path(Host, Name), mpegts_file_media:can_open_file(Name)} of
-    {true, true} -> [{type, mpegts_file}];
+    {true, true} -> [{type, mpegts_file},{life_timeout,0}];
     _ -> detect_file(Host, Name, Opts)
   end.
 
