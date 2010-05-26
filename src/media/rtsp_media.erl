@@ -101,6 +101,9 @@ handle_control({set_source, _Source}, State) ->
   %% {stop, Reason}
   {reply, ok, State};
 
+handle_control(timeout, State) ->
+  {stop, normal, State};
+
 handle_control(_Control, State) ->
   {reply, ok, State}.
 

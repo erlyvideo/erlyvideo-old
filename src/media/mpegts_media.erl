@@ -124,6 +124,9 @@ handle_control({set_socket, Socket}, #mpegts{} = State) ->
   inet:setopts(Socket, [{active, once}]),
   {reply, ok, State#mpegts{socket = Socket}};
 
+handle_control(timeout, State) ->
+  {stop, normal, State};
+
 handle_control(_Control, State) ->
   {reply, ok, State}.
 

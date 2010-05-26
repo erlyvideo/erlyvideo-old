@@ -89,6 +89,9 @@ handle_control({set_socket, _Socket}, State) ->
   %% {stop, Reason, State}
   {reply, ok, State};
 
+handle_control(timeout, State) ->
+  {stop, normal, State};
+
 handle_control(_Control, State) ->
   {reply, ok, State}.
 

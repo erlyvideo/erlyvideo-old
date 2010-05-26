@@ -75,6 +75,8 @@
 
 -define(LIFE_TIMEOUT, 60000).
 
+-define(TIMEOUT, 10000).
+
 -export([behaviour_info/1]).
 
 %%-------------------------------------------------------------------------
@@ -328,10 +330,10 @@ init([Module, Options]) ->
               {undefined, undefined}
           end
       end,
-      {ok, Media#ems_media{state = State, format = Format, storage = Storage}};
+      {ok, Media#ems_media{state = State, format = Format, storage = Storage}, ?TIMEOUT};
     {ok, State, {Format, Storage}} ->
       ?D({inited_with_storage,Format}),
-      {ok, Media#ems_media{state = State, format = Format, storage = Storage}};
+      {ok, Media#ems_media{state = State, format = Format, storage = Storage}, ?TIMEOUT};
     {stop, Reason} ->
       {stop, Reason}
   end.
@@ -360,7 +362,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = 
     {stop, Reason, S1} ->
       {stop, Reason, Media#ems_media{state = S1}};
     {reply, {error, Reason}, S1} ->
-      {reply, {error, Reason}, Media#ems_media{state = S1}};
+      {reply, {error, Reason}, Media#ems_media{state = S1}, ?TIMEOUT};
     {reply, Reply, S1} ->
       Ref = erlang:monitor(process,Client),
       RequireTicker = case Reply of
@@ -376,7 +378,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, state = 
         false ->
           ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
       end,
-      {reply, ok, Media#ems_media{state = S1}}
+      {reply, ok, Media#ems_media{state = S1}, ?TIMEOUT}
   end;
   
 handle_call({unsubscribe,Client}, _From, #ems_media{clients = Clients} = Media) ->
@@ -386,15 +388,15 @@ handle_call({unsubscribe,Client}, _From, #ems_media{clients = Clients} = Media) 
       (catch media_ticker:stop(Ticker)),
       erlang:demonitor(Ref, [flush]),
       ets:delete(Clients, Client),
-      {reply, ok, Media};
+      {reply, ok, Media, ?TIMEOUT};
       
     [#client{ref = Ref}] ->
       erlang:demonitor(Ref, [flush]),
       ets:delete(Clients, Client),
-      {reply, ok, Media};
+      {reply, ok, Media, ?TIMEOUT};
 
     [] ->
-      {reply, {error, no_client}, Media}
+      {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
 
 
@@ -405,31 +407,31 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ets:lookup(Clients, Client) of
     [#client{state = passive, ticker = Ticker}] ->
       media_ticker:start(Ticker),
-      {reply, ok, Media};
+      {reply, ok, Media, ?TIMEOUT};
 
     [#client{state = paused}] ->
       ets:update_element(Clients, Client, {#client.state, starting}),
-      {reply, ok, Media};
+      {reply, ok, Media, ?TIMEOUT};
 
     [] ->
-      {reply, {error, no_client}, Media};
+      {reply, {error, no_client}, Media, ?TIMEOUT};
       
     _ ->
-      {reply, ok, Media}
+      {reply, ok, Media, ?TIMEOUT}
   end;
       
 handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ets:lookup(Clients, Client) of
     [#client{state = passive, ticker = Ticker}] ->
       media_ticker:pause(Ticker),
-      {reply, ok, Media};
+      {reply, ok, Media, ?TIMEOUT};
     
     [#client{}] ->
       ets:update_element(Clients, Client, {#client.state, paused}),
-      {reply, ok, Media};
+      {reply, ok, Media, ?TIMEOUT};
       
     [] ->
-      {reply, {error, no_client}, Media}
+      {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
       
 handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Clients, format = Format, storage = Storage} = Media) when Format =/= undefined ->
@@ -438,41 +440,41 @@ handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Client
       case ets:lookup(Clients, Client) of
         [#client{ticker = Ticker, state = passive}] ->
           media_ticker:seek(Ticker, NewPos, NewDTS),
-          {reply, {seek_success, NewDTS}, Media};
+          {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
         
         [#client{stream_id = StreamId} = Entry] ->
           {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
           TickerRef = erlang:monitor(process,Ticker),
           media_ticker:seek(Ticker, NewPos, NewDTS),
           ets:insert(Clients, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
-          {reply, {seek_success, NewDTS}, Media};
+          {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
         
         [] ->
-          {reply, seek_failed, Media}
+          {reply, seek_failed, Media, ?TIMEOUT}
       end;    
     undefined ->
-      {reply, seek_failed, Media}
+      {reply, seek_failed, Media, ?TIMEOUT}
   end;
 
 handle_call({seek, _Client, _BeforeAfter, _DTS}, _From, #ems_media{format = undefined} = Media) ->
-  {reply, seek_failed, Media};
+  {reply, seek_failed, Media, ?TIMEOUT};
 
 %% It is information seek, required for outside needs.
 handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
-  {reply, Format:seek(Storage, BeforeAfter, DTS), Media};
+  {reply, Format:seek(Storage, BeforeAfter, DTS), Media, ?TIMEOUT};
 
 
 handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
-  {reply, Format:read_frame(Storage, Key), Media};
+  {reply, Format:read_frame(Storage, Key), Media, ?TIMEOUT};
 
 handle_call(metadata, _From, #ems_media{} = Media) ->
-  {reply, metadata_frame(Media), Media};
+  {reply, metadata_frame(Media), Media, ?TIMEOUT};
 
 handle_call(info, _From, #ems_media{} = Media) ->
-  {reply, storage_properties(Media), Media};
+  {reply, storage_properties(Media), Media, ?TIMEOUT};
 
 handle_call(status, _From, #ems_media{} = Media) ->
-  {reply, [{client_count, client_count(Media)}], Media};
+  {reply, [{client_count, client_count(Media)}], Media, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -498,7 +500,7 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M, st
         undefined -> undefined;
         _ -> erlang:monitor(process, Source)
       end,
-      {noreply, Media#ems_media{source = Source, source_ref = Ref, state = S2, ts_delta = undefined}};
+      {noreply, Media#ems_media{source = Source, source_ref = Ref, state = S2, ts_delta = undefined}, ?TIMEOUT};
     {stop, Reason, S2} ->
       {stop, Reason, Media#ems_media{state = S2}}
   end;
@@ -506,7 +508,7 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M, st
 handle_cast({set_socket, Socket}, #ems_media{module = M, state = S1} = Media) ->
   case M:handle_control({set_socket, Socket}, S1) of
     {reply, _Reply, S2} ->
-      {noreply, Media#ems_media{state = S2}};
+      {noreply, Media#ems_media{state = S2}, ?TIMEOUT};
     {stop, Reason, S2} ->
       {stop, Reason, Media#ems_media{state = S2}}
   end;
@@ -531,7 +533,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sta
       {stop, Reason, Media#ems_media{state = S2}};
     {reply, NewSource, S2} ->
       timer:send_after(LifeTimeout, graceful),
-      {noreply, Media#ems_media{source = NewSource, state = S2, ts_delta = undefined}}
+      {noreply, Media#ems_media{source = NewSource, state = S2, ts_delta = undefined}, ?TIMEOUT}
   end;
   % FIXME: should send notification
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
@@ -579,16 +581,27 @@ handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
 handle_info(graceful, #ems_media{source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
   case client_count(Media) of
     0 -> {stop, normal, Media};
-    _ -> {noreply, Media}
+    _ -> {noreply, Media, ?TIMEOUT}
   end;
   
 handle_info(graceful, #ems_media{} = Media) ->
-  {noreply, Media};
+  {noreply, Media, ?TIMEOUT};
+
+handle_info(timeout, #ems_media{module = M, state = S1, source = Source} = Media) when Source =/= undefined ->
+  case M:handle_control(timeout, S1) of
+    {stop, Reason, S2} ->
+      error_logger:error_msg("Source of media doesnt send frames, stopping...~n"),
+      {stop, Reason, Media#ems_media{state = S2}};
+    {noreply, S2} ->
+      {noreply, Media#ems_media{state = S2}, ?TIMEOUT};
+    {reply, _Reply, S2} ->
+      {noreply, Media#ems_media{state = S2}, ?TIMEOUT}
+  end;
 
 handle_info(Message, #ems_media{module = M, state = S} = Media) ->
   case M:handle_info(Message, S) of
     {noreply, S1} ->
-      {noreply, Media#ems_media{state = S1}};
+      {noreply, Media#ems_media{state = S1}, ?TIMEOUT};
     {stop, Reason, S1} ->
       {stop, Reason, Media#ems_media{state = S1}}
   end.
@@ -616,10 +629,10 @@ handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format
   handle_config(Frame, Media#ems_media{storage = Storage1, last_dts = DTS}).
 
 handle_config(#video_frame{type = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
-  {noreply, Media};
+  {noreply, Media, ?TIMEOUT};
 
 handle_config(#video_frame{type = audio, body = Config}, #ems_media{audio_config = #video_frame{body = Config}} = Media) -> 
-  {noreply, Media};
+  {noreply, Media, ?TIMEOUT};
 
 handle_config(#video_frame{type = video, decoder_config = true} = Config, #ems_media{} = Media) -> 
   handle_frame(Config, Media#ems_media{video_config = Config});
@@ -638,9 +651,9 @@ handle_frame(#video_frame{type = Type} = Frame, #ems_media{module = M, state = S
         _ -> ok
       end,
       send_frame(F, Clients, active),
-      {noreply, Media#ems_media{state = S1}};
+      {noreply, Media#ems_media{state = S1}, ?TIMEOUT};
     {noreply, S1} ->
-      {noreply, Media#ems_media{state = S1}};
+      {noreply, Media#ems_media{state = S1}, ?TIMEOUT};
     {stop, Reason, S1} ->
       {stop, Reason, Media#ems_media{state = S1}}
   end.

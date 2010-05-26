@@ -41,6 +41,9 @@ init(Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
+handle_control(timeout, State) ->
+  {stop, normal, State};
+
 handle_control(_Control, State) ->
   {reply, ok, State}.
 

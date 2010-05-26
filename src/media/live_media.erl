@@ -105,6 +105,9 @@ handle_control({set_source, _Source}, #live{ref = Ref} = State) ->
   {ok, cancel} = timer:cancel(Ref),
   {reply, ok, State#live{ref = undefined}};
 
+handle_control(timeout, State) ->
+  {noreply, State};
+
 handle_control(_Control, State) ->
   {reply, ok, State}.
 

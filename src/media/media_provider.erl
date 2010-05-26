@@ -338,13 +338,20 @@ internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
 open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider, Opts) ->
   Type = proplists:get_value(type, Opts),
   URL = proplists:get_value(url, Opts, Name),
+  Public = proplists:get_value(public, Opts, true),
   case find_in_cache(Name, MediaProvider) of
     undefined ->
       case ems_sup:start_media(URL, Type, Opts) of
         {ok, Pid} ->
-          erlang:monitor(process, Pid),
-          ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
-          ems_event:stream_started(Host, Name, Pid, [{type,Type}|Opts]),
+          case Public of
+            true ->
+              erlang:monitor(process, Pid),
+              ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+              ems_event:stream_started(Host, Name, Pid, [{type,Type}|Opts]);
+            _ ->
+              ?D({"Skip registration of", Type, URL}),
+              ok
+          end,
           Pid;
         _ ->
           ?D({"Error opening", Type, Name}),
