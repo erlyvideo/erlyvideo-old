@@ -395,6 +395,12 @@ detect_http(Host, Name, Opts) ->
   {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
     {match, _Captured} -> [{type, http}];
+    _ -> detect_ts_file(Host, Name, Opts)
+  end.
+
+detect_ts_file(Host, Name, Opts) ->
+  case {check_path(Host, Name), mpegts_file_media:can_open_file(Name)} of
+    {true, true} -> [{type, mpegts_file}];
     _ -> detect_file(Host, Name, Opts)
   end.
 

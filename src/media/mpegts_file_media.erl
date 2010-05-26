@@ -7,9 +7,19 @@
 
 -export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
 
+-export([can_open_file/1]).
+
 -record(state, {
   reader
 }).
+
+
+can_open_file(Name) when is_binary(Name) ->
+  can_open_file(binary_to_list(Name));
+
+can_open_file(Name) ->
+  filename:extension(Name) == ".ts".
+  
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
