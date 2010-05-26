@@ -79,6 +79,17 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264
   },
   {H264, [VideoFrame]};
 
+% decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
+%   ?D("P-frame important"),
+%   (catch slice_header(Data)),
+%   VideoFrame = #video_frame{
+%     content = video,
+%     body    = nal_with_size(Data),
+%     flavor  = keyframe,
+%     codec   = h264
+%   },
+%   {H264, [VideoFrame]};
+
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_A:5, _Rest/binary>> = _Data, H264) ->
   ?D("Coded slice data partition A"),
@@ -96,7 +107,6 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, _Rest/binary>> = _Data, H264) ->
   {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) ->
-  ?D("I-frame"),
   (catch slice_header(Data)),
   VideoFrame = #video_frame{
    	content = video,
@@ -104,10 +114,11 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) -
 		flavor  = keyframe,
 		codec   = h264
   },
+  ?D({"I-frame", VideoFrame}),
   {H264, [VideoFrame]};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) ->
-  ?D("I-frame"),
+  ?D({"SEI", Data}),
   _VideoFrame = #video_frame{
    	content = video,
 		body    = nal_with_size(Data),

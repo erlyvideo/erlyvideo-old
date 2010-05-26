@@ -43,8 +43,7 @@
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
 
--export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3]).
-
+-export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
 
 -define(FRAMESIZE, 32).
 
