@@ -75,7 +75,7 @@ init(Media, Options) ->
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
       {ok, Writer} = flv_writer:init(FileName),
-      {ok, Media#ems_media{state = State, format = flw_writer, storage = Writer}}
+      {ok, Media#ems_media{state = State, format = flv_writer, storage = Writer}}
   end.
 
 %%----------------------------------------------------------------------

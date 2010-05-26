@@ -324,7 +324,7 @@ internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
     _ ->
       Opts0
   end,
-  Opts2 = lists:ukeymerge(1, Opts1, [{host, Host}, {name, Name}]),
+  Opts2 = lists:ukeymerge(1, Opts1, [{host, Host}, {name, Name}, {url, Name}]),
   case proplists:get_value(type, Opts2) of
     notfound ->
       {notfound, <<"No file ", Name/binary>>};
