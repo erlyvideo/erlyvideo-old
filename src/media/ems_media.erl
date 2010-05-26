@@ -619,22 +619,22 @@ handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format
   Storage1 = save_frame(Format, Storage, Frame),
   handle_config(Frame, Media#ems_media{storage = Storage1, last_dts = DTS}).
 
-handle_config(#video_frame{type = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
+handle_config(#video_frame{content = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
   {noreply, Media, ?TIMEOUT};
 
-handle_config(#video_frame{type = audio, body = Config}, #ems_media{audio_config = #video_frame{body = Config}} = Media) -> 
+handle_config(#video_frame{content = audio, body = Config}, #ems_media{audio_config = #video_frame{body = Config}} = Media) -> 
   {noreply, Media, ?TIMEOUT};
 
-handle_config(#video_frame{type = video, decoder_config = true} = Config, #ems_media{} = Media) -> 
+handle_config(#video_frame{content = video, flavor = config} = Config, #ems_media{} = Media) -> 
   handle_frame(Config, Media#ems_media{video_config = Config});
 
-handle_config(#video_frame{type = audio, decoder_config = true} = Config, #ems_media{} = Media) -> 
+handle_config(#video_frame{content = audio, flavor = config} = Config, #ems_media{} = Media) -> 
   handle_frame(Config, Media#ems_media{audio_config = Config});
   
 handle_config(Frame, Media) ->
   handle_frame(Frame, Media).
 
-handle_frame(#video_frame{type = Type} = Frame, #ems_media{module = M, clients = Clients} = Media) ->
+handle_frame(#video_frame{content = Type} = Frame, #ems_media{module = M, clients = Clients} = Media) ->
   case M:handle_frame(Frame, Media) of
     {reply, F, Media1} ->
       case Type of
@@ -659,7 +659,7 @@ save_frame(Format, Storage, Frame) ->
     _ -> Storage
   end.
 
-start_on_keyframe(#video_frame{type = video, frame_type = keyframe, dts = DTS, decoder_config = false} = _F, #ems_media{clients = Clients, video_config = Video, audio_config = Audio} = M) ->
+start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, #ems_media{clients = Clients, video_config = Video, audio_config = Audio} = M) ->
   MS = ets:fun2ms(fun(#client{state = starting, consumer = Client, stream_id = StreamId}) -> {Client,StreamId} end),
   Starting = ets:select(Clients, MS),
   [ets:update_element(Clients, Client, {#client.state, active}) || {Client,_} <- Starting],
@@ -695,7 +695,7 @@ metadata_frame(#ems_media{format = undefined}) ->
   undefined;
   
 metadata_frame(#ems_media{} = Media) ->
-   #video_frame{type = metadata, body = [<<"onMetaData">>, {object, storage_properties(Media)}]}.
+   #video_frame{content = metadata, body = [<<"onMetaData">>, {object, storage_properties(Media)}]}.
   
 
 send_frame(Frame, Clients, State) ->

@@ -169,7 +169,7 @@ handle_info(timeout, #publisher{frame = Frame1, stream = Stream, rtmp = RTMP, co
 handle_info(_Info, State) ->
   {noreply, State}.
 
-rtmp_message(#video_frame{dts = DTS, type = Type} = Frame, StreamId) ->
+rtmp_message(#video_frame{dts = DTS, content = Type} = Frame, StreamId) ->
   #rtmp_message{
     channel_id = channel_id(Frame), 
     timestamp = DTS,
@@ -178,9 +178,9 @@ rtmp_message(#video_frame{dts = DTS, type = Type} = Frame, StreamId) ->
     body = flv_video_frame:encode(Frame)}.
   
 
-channel_id(#video_frame{type = metadata}) -> 4;
-channel_id(#video_frame{type = audio}) -> 5;
-channel_id(#video_frame{type = video}) -> 6.
+channel_id(#video_frame{content = metadata}) -> 4;
+channel_id(#video_frame{content = audio}) -> 5;
+channel_id(#video_frame{content = video}) -> 6.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any

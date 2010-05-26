@@ -140,7 +140,7 @@ handle_info({rtmp, RTMP, connected}, #rtmp{url = URL} = State) ->
   {noreply, State};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body} = Message}, Recorder) when Type == audio orelse Type == video ->
-  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
+  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
   % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
   self() ! Frame,
   {noreply, Recorder};
@@ -148,7 +148,7 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body
 handle_info({rtmp, _RTMP, #rtmp_message{type = metadata, timestamp = Timestamp, body = [<<"onMetaData">>, {object, Meta}]}}, Recorder)  ->
   ?D(Meta),
   % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
-  Frame = #video_frame{type = metadata, dts = Timestamp, pts = Timestamp, body = Meta},
+  Frame = #video_frame{content = metadata, dts = Timestamp, pts = Timestamp, body = Meta},
   self() ! Frame,
   {noreply, Recorder};
 

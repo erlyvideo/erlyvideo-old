@@ -43,28 +43,25 @@ codec_config(video, #mp4_reader{video_codec = VideoCodec} = MediaInfo) ->
   Config = decoder_config(video, MediaInfo),
   % ?D({"Video config", Config}),
   #video_frame{       
-   	type          = video,
-   	decoder_config = true,
-		dts           = 0,
-		pts           = 0,
-		body          = Config,
-		frame_type    = keyframe,
-		codec_id      = VideoCodec
+   	content = video,
+   	flavor  = config,
+		dts     = 0,
+		pts     = 0,
+		body    = Config,
+		codec   = VideoCodec
 	};
 
 codec_config(audio, #mp4_reader{audio_codec = AudioCodec} = MediaInfo) ->
   Config = decoder_config(audio, MediaInfo),
   % ?D({"Audio config", aac:decode_config(Config)}),
   #video_frame{       
-   	type          = audio,
-   	decoder_config = true,
-		dts           = 0,
-		pts           = 0,
-		body          = Config,
-	  codec_id	= AudioCodec,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
+   	content = audio,
+   	flavor  = config,
+		dts     = 0,
+		pts     = 0,
+		body    = Config,
+	  codec	  = AudioCodec,
+	  sound   = {stereo, bit16, rate44}
 	}.
 
 
@@ -169,27 +166,26 @@ find_by_frameid(Frames, Type, FrameID) ->
 
 video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS}, Data) ->
   #video_frame{
-   	type          = video,
-		dts           = DTS,
-		pts           = PTS,
-		body          = Data,
-		frame_type    = case Keyframe of
+   	content = video,
+		dts     = DTS,
+		pts     = PTS,
+		body    = Data,
+		flavor  = case Keyframe of
 		  true ->	keyframe;
 		  _ -> frame
 	  end,
-		codec_id      = h264
+		codec   = h264
   };  
 
 video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
   #video_frame{       
-   	type          = audio,
-		dts           = DTS,
-		pts           = DTS,
-  	body          = Data,
-	  codec_id	    = aac,
-	  sound_type	  = stereo,
-	  sound_size	  = bit16,
-	  sound_rate	  = rate44
+   	content = audio,
+		dts     = DTS,
+		pts     = DTS,
+  	body    = Data,
+  	flavor  = frame,
+	  codec	  = aac,
+	  sound	  = {stereo, bit16, rate44}
   }.
 
 

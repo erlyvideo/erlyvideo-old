@@ -105,7 +105,7 @@ handle_control({set_source, _Source}, #ems_media{state = State} = Media) ->
   #live{ref = Ref} = State,
   {ok, cancel} = timer:cancel(Ref),
   State1 = State#live{ref = undefined},
-  {reply, ok, Media#ems_media{state = State1}};
+  {noreply, Media#ems_media{state = State1}};
 
 handle_control(timeout, State) ->
   {noreply, State};

@@ -239,7 +239,7 @@ handle_rtmp_message(#rtmp_session{streams = Streams} = State,
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   Recorder = ems:element(StreamId, Streams),
   
-  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, type = Type}, Body),
+  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
   ems_media:publish(Recorder, Frame),
   State;
 
@@ -444,7 +444,7 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
-handle_frame(#video_frame{type = Type, stream_id=StreamId,dts = DTS} = Frame, #rtmp_session{socket = Socket} = State) ->
+handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Frame, #rtmp_session{socket = Socket} = State) ->
   % ?D({Type,Frame#video_frame.frame_type,DTS}),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 

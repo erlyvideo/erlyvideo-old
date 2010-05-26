@@ -59,9 +59,9 @@ seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, Key) ->
   case array:get(First, Frames) of
     #video_frame{dts = DTS} when BeforeAfter == before andalso DTS > Timestamp ->
       Key;
-    #video_frame{type = video, frame_type = keyframe, decoder_config = false, dts = DTS} when BeforeAfter == 'after' andalso DTS > Timestamp ->
+    #video_frame{content = video, flavor = keyframe, dts = DTS} when BeforeAfter == 'after' andalso DTS > Timestamp ->
       {First, DTS};
-    #video_frame{type = video, frame_type = keyframe, decoder_config = false, dts = DTS} ->
+    #video_frame{content = video, flavor = keyframe, dts = DTS} ->
       seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, {First, DTS});
     #video_frame{} ->
       seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, Key)
@@ -78,7 +78,7 @@ read_frame(#shift{frames = Frames}, Key) ->
   end.
 
 
-write_frame(#video_frame{decoder_config = true}, MediaInfo) ->
+write_frame(#video_frame{flavor = config}, MediaInfo) ->
   {ok, MediaInfo};
 
 write_frame(#video_frame{} = Frame, #shift{first = First, last = Last, frames = Frames} = Shift) ->
