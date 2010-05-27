@@ -1,4 +1,6 @@
 -record(ems_media, {
+  url,
+  name,
   module,
   state,
   type,

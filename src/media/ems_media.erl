@@ -294,7 +294,9 @@ print_state(#ems_media{} = Media) ->
 
 init([Module, Options]) ->
   ?D({init,Module,Options}),
-  Media = #ems_media{options = Options, module = Module, 
+  Name = proplists:get_value(name, Options),
+  URL = proplists:get_value(url, Options),
+  Media = #ems_media{options = Options, module = Module, name = Name, url = URL,
                      clients = ets:new(clients, [set,  {keypos,#client.consumer}]),
                      life_timeout = proplists:get_value(life_timeout, Options, ?LIFE_TIMEOUT)},
   case Module:init(Media, Options) of

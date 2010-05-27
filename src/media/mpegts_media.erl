@@ -122,7 +122,6 @@ handle_control({set_source, _Source}, State) ->
   {noreply, State};
   
 handle_control({set_socket, Socket}, #ems_media{state = State} = Media) ->
-  #mpegts{} = State,
   inet:setopts(Socket, [{active, once}]),
   State1 = State#mpegts{socket = Socket},
   {noreply, Media#ems_media{state = State1}};
@@ -142,6 +141,11 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
+  % ?D({State#ems_media.name, Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
+  case State#ems_media.name of
+    <<"a">> -> ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts});
+    _ -> ok
+  end,
   {reply, Frame, State}.
 
 

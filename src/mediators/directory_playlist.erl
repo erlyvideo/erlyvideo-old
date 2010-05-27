@@ -62,6 +62,7 @@ init(Media, Options) ->
   AbsPath = filename:join([file_media:file_dir(Host), Path]),
   Wildcard = proplists:get_value(wildcard, Options),
   Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
+  ?D({AbsPath, Wildcard, Files}),
   
   self() ! start_playing,
   State = #playlist{path = AbsPath, files = Files, host = Host},
