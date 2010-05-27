@@ -177,8 +177,9 @@ handle_info({tcp_closed, Socket}, #ems_media{state = #mpegts{restart_count = und
   State1 = State#mpegts{restart_count = 0},
   handle_info({tcp_closed, Socket}, Media#ems_media{state = State1});
 
-handle_info({tcp_closed, _Socket}, #ems_media{state = State} = Media) ->
-  #mpegts{url = URL, restart_count = Count, make_request = MakeRequest} = State,
+handle_info({tcp_closed, Socket}, #ems_media{state = 
+            #mpegts{socket = Socket, url = URL, restart_count = Count, make_request = MakeRequest}} = Media) ->
+  State = Media#ems_media.state,
   if
     Count > ?MAX_RESTART ->
       {stop, normal, Media};
@@ -189,9 +190,13 @@ handle_info({tcp_closed, _Socket}, #ems_media{state = State} = Media) ->
       % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
       ?D({"Disconnected MPEG-TS/Shoutcast socket in mode", Count}),
       timer:sleep(100),
-      Socket = connect_http(URL),
-      {noreply, Media#ems_media{state = State#mpegts{socket = Socket, restart_count = Count + 1}}}
+      NewSocket = connect_http(URL),
+      {noreply, Media#ems_media{state = State#mpegts{socket = NewSocket, restart_count = Count + 1}}}
   end;
+
+handle_info({tcp_closed, Socket}, State) ->
+  ?D({"Some socket closed", Socket, State}),
+  {noreply, State};
 
 handle_info(Msg, State) ->
   {stop, {unhandled, Msg}, State}.

@@ -24,7 +24,7 @@ class MpegtsWriterTest < Test::Unit::TestCase
     Thread.new do
       limited_run("./contrib/reverse_mpegts http://localhost:8082/stream/video.ts http://localhost:8082/stream/a", 10)
     end
-    limited_run("rtmpdump -r rtmp://localhost/vod/a --stop 5 -o /tmp/test.flv", 5)
+    limited_run("rtmpdump -r rtmp://localhost/vod/a --stop 5 -o /tmp/test.flv", 10)
     duration = flvtool2_duration("/tmp/test.flv")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
     assert duration > 4, "Duration should be positive: #{duration}"
