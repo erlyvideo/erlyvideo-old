@@ -445,7 +445,7 @@ handle_info(_Info, StateName, StateData) ->
 
 
 handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Frame, #rtmp_session{socket = Socket} = State) ->
-  % ?D({Type,Frame#video_frame.frame_type,DTS}),
+  % ?D({Type,Frame#video_frame.flavor,DTS}),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp = DTS,
