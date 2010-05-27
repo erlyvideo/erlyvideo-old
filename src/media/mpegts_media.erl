@@ -141,11 +141,6 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
-  % ?D({State#ems_media.name, Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
-  case State#ems_media.name of
-    <<"a">> -> ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts});
-    _ -> ok
-  end,
   {reply, Frame, State}.
 
 
