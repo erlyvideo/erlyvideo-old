@@ -69,7 +69,7 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
 
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
-  ?D("P-frame"),
+  ?D({"P-frame", _NalRefIdc}),
   (catch slice_header(Data)),
   VideoFrame = #video_frame{
    	content = video,
@@ -246,7 +246,7 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) -
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
-  % ?D({"Pic order", PicOrder}),
+  ?D({"Pic order", PicOrder}),
   parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
   
 parse_sps_pic_order(Data, 0, SPS) ->
