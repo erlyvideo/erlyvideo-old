@@ -567,6 +567,7 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
   
 
 handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
+  % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
   shift_dts(Frame, Media);
 
 handle_info(graceful, #ems_media{source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->

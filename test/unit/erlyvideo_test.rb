@@ -15,6 +15,10 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("h264")
   end
 
+  def test_mpegts_reader
+    run_test("mpegts_reader")
+  end
+
   def test_flv_video_frame
     run_test("flv_video_frame")
   end
