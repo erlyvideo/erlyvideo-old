@@ -40,7 +40,7 @@
 -export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(media_info, {
-  device,
+  reader,
   frames,
   header,
   metadata,
@@ -64,13 +64,15 @@ write_frame(Device, Frame) ->
 
 
 
+
 %%--------------------------------------------------------------------
 %% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(#media_info{device = File} = MediaInfo) -> 
-  case flv:read_header(File) of
+init(Reader) ->
+  MediaInfo = #media_info{reader = Reader},
+  case flv:read_header(Reader) of
     {#flv_header{} = Header, Offset} -> 
       read_frame_list(MediaInfo#media_info{
           frames = ets:new(frames, [ordered_set, public]),
@@ -86,11 +88,12 @@ first(_) ->
 
 properties(#media_info{metadata = Meta}) -> Meta.
 
-read_frame_list(#media_info{device = Device} = MediaInfo, Offset) ->
+read_frame_list(#media_info{reader = Reader} = MediaInfo, Offset) ->
+  {Module,Device} = Reader,
   % We need to bypass PreviousTagSize and read header.
-	case flv:read_tag_header(Device, Offset)	of
+	case flv:read_tag_header(Reader, Offset)	of
 	  #flv_tag{type = metadata, size = Length, offset = BodyOffset} ->
-			{ok, MetaBody} = file:pread(Device, BodyOffset, Length),
+			{ok, MetaBody} = Module:pread(Device, BodyOffset, Length),
 			Meta = rtmp:decode_list(MetaBody),
 			{ok, parse_metadata(MediaInfo, Meta)};
 		#flv_tag{next_tag_offset = NextOffset} ->
@@ -174,8 +177,8 @@ seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
 read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
-read_frame(#media_info{device = Device}, Offset) ->
-	case flv:read_tag(Device, Offset) of
+read_frame(#media_info{reader = Reader}, Offset) ->
+	case flv:read_tag(Reader, Offset) of
 		#flv_tag{} = Tag ->
 		  flv_video_frame:tag_to_video_frame(Tag);
     eof -> eof;

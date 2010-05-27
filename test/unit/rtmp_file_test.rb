@@ -16,6 +16,13 @@ class RtmpFileTest < Test::Unit::TestCase
     assert duration > 4, "Duration should be positive: #{duration}"
   end
 
+  def test_read_file_flv
+    limited_run("rtmpdump -r rtmp://localhost/vod/flv:video --stop 5 -o /tmp/test.flv", 5)
+    duration = flvtool2_duration("/tmp/test.flv")
+    assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
+    assert duration > 4, "Duration should be positive: #{duration}"
+  end
+
   def test_read_stream
     File.unlink("/tmp/test.flv") if File.exists?("/tmp/test.flv")
     
