@@ -107,6 +107,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   Frame = ems_media:read_frame(Media, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
   Metadata = ems_media:metadata(Media),
+  % ?D({tick, NewDTS, NewPos}),
   Consumer ! Metadata#video_frame{dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   self() ! tick,
   
@@ -121,10 +122,12 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
   case ems_media:read_frame(Media, Pos) of
     eof ->
+      % ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       ok;
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
+      % ?D({play_complete, DTS}),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       ok;
       
@@ -143,11 +146,41 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
 
 
 tick_timeout(DTS, PlayingFrom, TimerStart, ClientBuffer) ->
+  {Now, _} = erlang:statistics(wall_clock),
+  tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer).
+
+tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer) ->
   NextTime = DTS - PlayingFrom,   %% Time from PlayingFrom in video timeline in which next frame should be seen
-  RealTime = element(1, erlang:statistics(wall_clock)) - TimerStart, %% Wall clock from PlayingFrom
-  Sleep = NextTime - RealTime,    %% Delta between next show time and current wall clock delta
+  RealTime = Now - TimerStart,    %% Wall clock from PlayingFrom
+  Sleep = NextTime - RealTime - ClientBuffer,    %% Delta between next show time and current wall clock delta
   if
     Sleep < 0 -> 0;                %% This case means, that frame was too late. show it immediately
     ClientBuffer >= NextTime -> 0; %% We have seen less than buffer size from stream begin
     true -> round(Sleep)           %% Regular situation: we are far from stream begin, feed with frames
   end.
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+
+timeout_in_buffer_from_start_test() ->
+  ?assertEqual(0, tick_timeout(232, 0, 8, 10, 3000)).
+
+timeout_in_buffer_after_seek_test() ->
+  ?assertEqual(0, tick_timeout(10232, 10000, 8, 10, 3000)).
+
+timeout_right_after_buffer_from_start_test() ->
+  ?assertEqual(40, tick_timeout(3042, 0, 8, 10, 3000)).
+
+timeout_right_after_buffer_after_seek_test() ->
+  ?assertEqual(40, tick_timeout(13042, 10000, 8, 10, 3000)).
+
+
+
+
+
+
+
+
+
+

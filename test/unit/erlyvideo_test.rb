@@ -19,6 +19,10 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("mpegts_reader")
   end
 
+  def test_media_ticker
+    run_test("media_ticker")
+  end
+
   def test_flv_video_frame
     run_test("flv_video_frame")
   end
