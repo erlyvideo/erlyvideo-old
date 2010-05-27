@@ -41,6 +41,9 @@ debian:
 	rm ../erlang-mpegts_$(VERSION)*
 	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
 	
+test:
+	ERL_LIBS=.. erl -pa ebin -s mpegts_reader test -s init stop -noinput -noshell
+
 
 .PHONY: debian
 

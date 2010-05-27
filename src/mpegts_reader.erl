@@ -533,19 +533,20 @@ nal_test_bin(filler) ->
     0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>;                                                                                            
   
 nal_test_bin(small) ->
-  <<0,0,0,1,9,224,0,0,0,1,104,206,50,200>>.
+  <<0,0,0,1,9,224,0,0,1,104,206,50,200>>.
 
 extract_nal_test() ->
-  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal(nal_test_bin(small))),
-  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual({ok, <<9,224>>, <<>>}, extract_nal(<<0,0,1,9,224>>)),
+  ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal(nal_test_bin(small))),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,1,104,206,50,200>>)),
   ?assertEqual(undefined, extract_nal(<<>>)).
   
-extract_nal_erl_test() ->  
-  ?assertEqual({ok, <<9,224>>, <<0,0,0,1,104,206,50,200>>}, extract_nal_erl(nal_test_bin(small))),
+extract_nal_erl_t1est() ->  
+  ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal_erl(nal_test_bin(small))),
   ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
   ?assertEqual(undefined, extract_nal_erl(<<>>)).
 
-extract_real_nal_test() ->
+extract_real_nal_t1est() ->
   Bin = nal_test_bin(filler),
   {ok, <<9,80>>, Bin1} = extract_nal(Bin),
   {ok, <<6,0,1,192,128>>, Bin2} = extract_nal(Bin1),

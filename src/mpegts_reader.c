@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "erl_nif.h"
 
+enum {START, END};
 
 static int
 reload(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
@@ -23,18 +24,16 @@ unload(ErlNifEnv* env, void* priv)
 
 
 static int
-find_nal(ErlNifBinary data, int i, int start) {
+find_nal(ErlNifBinary data, int i, int border) {
   if (i + 3 >= data.size) {
     return -1;
   }
-  for(; i + 4 < data.size; i++) {
-    if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 0 && data.data[i+3] == 1) {
-      return start ? i + 4 : i;
+  for(; i + 2 < data.size; i++) {
+    if (i + 3 < data.size && data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 0 && data.data[i+3] == 1) {
+      return border == START ? i + 4 : i;
     }
-  }
-  for(; i + 3 < data.size; i++) {
     if (data.data[i] == 0 && data.data[i+1] == 0 && data.data[i+2] == 1) {
-      return start ? i + 3 : i;
+      return border == START ? i + 3 : i;
     }
   }
   return -1;
@@ -56,13 +55,13 @@ extract_nal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_badarg(env);
   }
   
-  start = find_nal(data, 0, 1);
+  start = find_nal(data, 0, START);
   
   if(start == -1) {
     return enif_make_atom(env, "undefined");
   }
   
-  end = find_nal(data, start, 0);
+  end = find_nal(data, start, END);
   if (end == -1) {
     end = data.size;
   }
