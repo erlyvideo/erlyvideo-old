@@ -121,21 +121,26 @@ data_offset() -> ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
 %% @doc Read header from freshly opened file
 %% @end 
 %%--------------------------------------------------------------------
-read_header(Device) ->  % Always on first bytes
-  case file:read(Device, ?FLV_HEADER_LENGTH) of
+read_header({Module, Device}) ->  % Always on first bytes
+  case Module:read(Device, ?FLV_HEADER_LENGTH) of
     {ok, Data} ->
       {header(Data), size(Data) + ?FLV_PREV_TAG_SIZE_LENGTH};
     Else ->
       Else
-  end.
+  end;
+  
+read_header(Device) ->
+  read_header({file, Device}).
+  
+
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary()) -> Config::aac_config()
 %% @doc Unpack binary AAC config into #aac_config{}
 %% @end 
 %%--------------------------------------------------------------------
-read_tag_header(Device, Offset) ->
-	case file:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH) of
+read_tag_header({Module,Device}, Offset) ->
+	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH) of
 		{ok, <<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
       % io:format("Frame ~p ~p ~p~n", [Type, TimeStamp, Size]),
 		  <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
@@ -144,17 +149,21 @@ read_tag_header(Device, Offset) ->
                next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + Size + ?FLV_PREV_TAG_SIZE_LENGTH};
     eof -> eof;
     {error, Reason} -> {error, Reason}
-  end.
+  end;
+
+read_tag_header(Device, Offset) ->
+  read_tag_header({file,Device}, Offset).
+  
 
 %%--------------------------------------------------------------------
 %% @spec (File::file(), Offset::numeric()) -> Tag::flv_tag()
 %% @doc Reads from File FLV tag, starting on offset Offset. NextOffset is hidden in #flv_tag{}
 %% @end 
 %%--------------------------------------------------------------------
-read_tag(Device, Offset) ->
-  case read_tag_header(Device, Offset) of
+read_tag({Module,Device} = Reader, Offset) ->
+  case read_tag_header(Reader, Offset) of
     #flv_tag{type = Type, size = Size} = Tag ->
-      {ok, Body} = file:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
+      {ok, Body} = Module:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
       
       Flavor = case Type of
         video ->
@@ -167,7 +176,10 @@ read_tag(Device, Offset) ->
       
       decode_tag(Tag#flv_tag{body = Body, flavor = Flavor});
     Else -> Else
-  end.
+  end;
+
+read_tag(Device, Offset) ->
+  read_tag({file,Device}, Offset).
 
 
 decode_video_tag(<<FrameType:4, ?FLV_VIDEO_CODEC_AVC:4, ?FLV_VIDEO_AVC_NALU:8, CTime:24, Body/binary>>) ->
@@ -301,7 +313,7 @@ encode_meta_tag(Metadata) ->
 % @param Pos
 % @param codecID
 % @return {Width, Height}
-getWidthHeight(IoDev, Pos, CodecID)->
+getWidthHeight({_Module,_Device} = IoDev, Pos, CodecID)->
 	case CodecID of
 		?FLV_VIDEO_CODEC_SORENSEN 	-> decodeSorensen(IoDev, Pos);
 		?FLV_VIDEO_CODEC_SCREENVIDEO 	-> decodeScreenVideo(IoDev, Pos);
@@ -311,7 +323,7 @@ getWidthHeight(IoDev, Pos, CodecID)->
 		%FLV_VIDEO_CODEC_SCREENVIDEO2 doesn't seem to be widely used yet, no decoding method available
 		?FLV_VIDEO_CODEC_SCREENVIDEO2 	-> {undefined, undefined}
 	end.
-
+	
 				
 
 
@@ -319,20 +331,20 @@ getWidthHeight(IoDev, Pos, CodecID)->
 % @param IoDev
 % @param Pos
 % @return {FrameType, CodecID}
-extractVideoHeader(IoDev, Pos) ->	
-	{ok, <<FrameType:4, CodecID:4>>} = file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1),
-	{Width, Height} = getWidthHeight(IoDev, Pos, CodecID),
+extractVideoHeader({Module,IoDev} = Reader, Pos) ->	
+	{ok, <<FrameType:4, CodecID:4>>} = Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1),
+	{Width, Height} = getWidthHeight(Reader, Pos, CodecID),
 	{FrameType, CodecID, Width, Height}.
 
 
 
-decodeScreenVideo(IoDev, Pos) ->
-	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 4) of
+decodeScreenVideo({Module,IoDev}, Pos) ->
+	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 4) of
 		{ok, <<_Offset:4, Width:12, Height:12, _Rest:4>>} -> {Width, Height}
 	end.
 	
-decodeSorensen(IoDev, Pos) ->
-	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 9) of
+decodeSorensen({Module,IoDev}, Pos) ->
+	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 9) of
 		{ok, IoList} ->
 		  <<_Offset:30, Info:3, _Rest:39>> = IoList,
 			case Info of
@@ -347,8 +359,8 @@ decodeSorensen(IoDev, Pos) ->
 			end
 	end.
 
-decodeVP6(IoDev, Pos)->
-	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 6) of
+decodeVP6({Module,IoDev}, Pos)->
+	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 6) of
 			{ok, <<HeightHelper:4, WidthHelper:4, _Offset:24, Width:8, Height:8>>} -> {Width*16-WidthHelper, Height*16-HeightHelper}
 	end.
 % Extracts audio header information for a tag.
