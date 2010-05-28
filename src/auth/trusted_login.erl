@@ -48,6 +48,15 @@ auth(_Host, http, Header) ->
       [{user_id, UserId}, {password, Password}]
   end;    
 
+% auth(_Host, rtsp, Header) ->
+%   case Header of
+%     undefined -> undefined;
+%     _ ->
+%       Session = auth(_Host, http, binary_to_list(Header)),
+%       ?D({"TRUSTED LOGIN", Header, Session}),
+%       Session
+%   end;
+% 
 auth(_Host, _Protocol, _Session) ->
   [].
 
