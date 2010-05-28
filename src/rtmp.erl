@@ -427,8 +427,12 @@ decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtm
 % Work with packet when it has accumulated and flush buffers
 decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtmp_socket{channels = Channels} = State) when size(Msg) == Length ->
   {NewState, Message} = command(Channel, State), % Perform Commands here
+  TSType = case Channel#channel.delta of
+    undefined -> new;
+    _ -> delta
+  end,
   NextChannelList = rtmp:setelement(Channel#channel.id, Channels, Channel#channel{msg = <<>>}),
-  {NewState#rtmp_socket{channels=NextChannelList}, Message, Rest}.
+  {NewState#rtmp_socket{channels=NextChannelList}, Message#rtmp_message{ts_type = TSType}, Rest}.
   
 extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) -> #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}.
 
@@ -501,10 +505,10 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16, Body/binary>>}
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = control, body = {EventType, Body}}};
 
-command(#channel{type = Type, delta = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
-  Message = extract_message(Channel),
-  {State, Message#rtmp_message{type = broken_meta}};
-
+% command(#channel{type = Type, delta = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
+%   Message = extract_message(Channel),
+%   {State, Message#rtmp_message{type = broken_meta}};
+% 
 command(#channel{type = Type, length = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
   Message = extract_message(Channel),
   {State, Message#rtmp_message{type = broken_meta}};
