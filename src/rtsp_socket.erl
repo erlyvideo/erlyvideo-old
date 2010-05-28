@@ -21,6 +21,7 @@
   sdp_config = [],
   options,
   rtp_streams = {undefined,undefined,undefined,undefined},
+  peer = gstreamer ::live555|gstreamer,
   nal_size = 32,
   consumer,
   consumer_ref,
@@ -114,7 +115,7 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
 handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, auth = Auth} = RTSP) ->
-  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL,1), Seq + 1]),
+  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL,1,RTSP#rtsp_socket.peer), Seq + 1]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
@@ -208,6 +209,12 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
+      
+      Peer = case string:str(binary_to_list(Body), "LIVE555") of
+        0 -> gstreamer;
+        _ -> live555
+      end,
+      
       ?D({"Autoconfiguring RTP", Frames, RtpStreams1}),
 
       lists:foreach(fun(Frame) ->
@@ -221,7 +228,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
         _ ->
           Socket
       end,
-      Socket1#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
+      Socket1#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1, peer = Peer};
     undefined ->
       Socket;
     Else ->
@@ -364,8 +371,14 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+append_trackid(URL, TrackID, live555) ->
+  Track = "/track"++integer_to_list(TrackID),
+  case string:tokens(URL, "?") of
+    [URL1, URL2] -> URL1 ++ Track ++ "?" ++ URL2;
+    [URL] -> URL ++ Track
+  end;
 
-append_trackid(URL, TrackID) ->
+append_trackid(URL, TrackID, gstreamer) ->
   Track = "/trackID="++integer_to_list(TrackID),
   case string:tokens(URL, "?") of
     [URL1, URL2] -> URL1 ++ Track ++ "?" ++ URL2;
@@ -379,10 +392,13 @@ append_trackid(URL, TrackID) ->
 
 
 append_trackid1_test() ->
-  ?assertEqual("rtsp://cam1:554/h264.sdp/trackID=1", append_trackid("rtsp://cam1:554/h264.sdp", 1)).
+  ?assertEqual("rtsp://cam1:554/h264.sdp/trackID=1", append_trackid("rtsp://cam1:554/h264.sdp", 1, gstreamer)).
 
 append_trackid2_test() ->
-  ?assertEqual("rtsp://cam1:554/h264.sdp/trackID=1?res=half&x0=0", append_trackid("rtsp://cam1:554/h264.sdp?res=half&x0=0", 1)).
+  ?assertEqual("rtsp://cam1:554/h264.sdp/trackID=1?res=half&x0=0", append_trackid("rtsp://cam1:554/h264.sdp?res=half&x0=0", 1, gstreamer)).
+
+append_trackid3_test() ->
+  ?assertEqual("rtsp://cam1:554/h264/track1?res=half&x0=0", append_trackid("rtsp://cam1:554/h264.sdp?res=half&x0=0", 1, live555)).
 
 
 
