@@ -54,6 +54,7 @@ init_rtmp_client(Server, Port, Path) ->
   {ok, Socket} = gen_tcp:connect(Server, Port, [binary, {active, false}, {packet, raw}]),
   % io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
+  rtmp_socket:setopts(RTMP, [{debug,true}]),
   io:format("Connected to ~s~n", [Server]),
   rtmp_client(RTMP, Path).
   
