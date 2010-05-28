@@ -33,6 +33,7 @@
 % ==========================================================================================================
 -module(misultin_req, [Req, SocketPid]).
 -vsn('0.3').
+-include_lib("kernel/include/file.hrl").
 
 % macros
 -define(PERCENT, 37).  % $\%
@@ -90,12 +91,17 @@ stream(head, HttpCode, Headers) ->
 	
 % Description: Sends a file to the browser.
 file(FilePath) ->
-	file_send(FilePath, []).
+  {ok, FileInfo} = file:read_file_info(FilePath),
+	file_send(FilePath, [{'Last-Modified', httpd_util:rfc1123_date(FileInfo#file_info.mtime)}]).
 % Description: Sends a file for download.	
 file(attachment, FilePath) ->
 	% get filename
 	FileName = filename:basename(FilePath),
-	file_send(FilePath, [{'Content-Disposition', lists:flatten(io_lib:format("attachment; filename=~s", [FileName]))}]).
+	{ok, FileInfo} = file:read_file_info(FilePath),
+	file_send(FilePath, [
+	  {'Content-Disposition', lists:flatten(io_lib:format("attachment; filename=~s", [FileName]))},
+	  {'Last-Modified', httpd_util:rfc1123_date(FileInfo#file_info.mtime)}
+	]).
 
 % Description: Get request info.
 get(peer_addr) ->
