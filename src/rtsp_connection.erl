@@ -78,14 +78,20 @@ handle_info({tcp_closed, _Socket}, State) ->
 handle_info(timeout, State) ->
   {stop, normal, State}.
 
+handle_call({announce, URL, Headers, Body}, _From, #rtsp_connection{callback = Callback} = State) ->
+  {reply, Callback:announce(URL, Headers, Body), State};
 
-handle_call({record, URL}, _From, #rtsp_connection{callback = Callback, frames = Frames} = State) ->
-  {ok, Media} = Callback:record(URL),
-  lists:foreach(fun(Frame) -> 
-    Media ! Frame
-  end, Frames),
-  {reply, {ok, Media}, State#rtsp_connection{frames = []}};
-
+handle_call({record, URL, Headers}, _From, #rtsp_connection{callback = Callback, frames = Frames} = State) ->
+  case Callback:record(URL, Headers) of
+    {ok, Media} ->
+      lists:foreach(fun(Frame) -> 
+        Media ! Frame
+      end, Frames),
+      {reply, {ok, Media}, State#rtsp_connection{frames = []}};
+    Else ->
+      {reply, Else, State}
+  end;
+  
 handle_call(Call, _From, State) ->
   {stop, {unknown_call, Call}, State}.
 

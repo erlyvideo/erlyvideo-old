@@ -236,17 +236,26 @@ seq(Headers) ->
 handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
   reply(State, "200 OK", [{'Cseq', seq(Headers)}, {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
 
-handle_request({request, 'ANNOUNCE', _URL, Headers, _Body}, State) ->
-  reply(State#rtsp_socket{session = "42"}, "200 OK", [{'Cseq', seq(Headers)}]);
+handle_request({request, 'ANNOUNCE', URL, Headers, Body}, #rtsp_socket{acceptor = Acceptor} = State) ->
+  case gen_server:call(Acceptor, {announce, URL, Headers, Body}) of
+    ok ->
+      reply(State#rtsp_socket{session = "42"}, "200 OK", [{'Cseq', seq(Headers)}]);
+    {error, authentication} ->
+      reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
+  end;
 
 handle_request({request, 'PAUSE', _URL, Headers, _Body}, State) ->
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 
 handle_request({request, 'RECORD', URL, Headers, _}, #rtsp_socket{acceptor = Acceptor} = State) ->
-  {ok, Consumer} = gen_server:call(Acceptor, {record, URL}),
-  erlang:monitor(process, Consumer),
-  reply(State#rtsp_socket{consumer = Consumer}, "200 OK", [{'Cseq', seq(Headers)}]);
-
+  case gen_server:call(Acceptor, {record, URL, Headers}) of
+    {ok, Consumer} ->
+      erlang:monitor(process, Consumer),
+      reply(State#rtsp_socket{consumer = Consumer}, "200 OK", [{'Cseq', seq(Headers)}]);
+    {error, authentication} ->
+      reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
+  end;
+      
 handle_request({request, 'SETUP', _URL, Headers, _}, State) ->
   Transport = proplists:get_value('Transport', Headers),
   Date = httpd_util:rfc1123_date(),
