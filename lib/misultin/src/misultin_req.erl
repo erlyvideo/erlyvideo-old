@@ -99,7 +99,17 @@ file(attachment, FilePath) ->
 
 % Description: Get request info.
 get(peer_addr) ->
-	Req#req.peer_addr;
+  case proplists:get_value("X-Real-Ip", Req#req.headers) of
+    undefined ->
+      case proplists:get_value("X-Forwarded-For", Req#req.headers) of
+        undefined -> Req#req.peer_addr;
+        {A,B,C,D} ->
+          lists:flatten(io_lib:format("~p.~p.~p.~p", [A,B,C,D]))
+      end;
+    Else ->
+      Else
+  end;  
+	
 get(peer_port) ->
 	Req#req.peer_port;
 get(connection) ->

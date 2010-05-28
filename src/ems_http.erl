@@ -20,11 +20,12 @@ wwwroot(Host) ->
   ems:get_var(wwwroot, Host, ems:get_var(wwwroot, "wwwroot")).
 
 handle(Host, 'GET', [], Req) ->
-  localhost,
+  ?D(Req:get(headers)),
   erlydtl:compile(wwwroot(Host) ++ "/index.html", index_template),
   
   Query = Req:parse_qs(),
-  io:format("GET / ~p~n", [Query]),
+  ems_log:access(Host, "GET ~p ~s /", [Req:get(peer_addr), "-"]),
+  
   File = proplists:get_value("file", Query, "video.mp4"),
   Autostart = proplists:get_value("autostart", Query, "false"),
   case file:list_dir(file_media:file_dir(Host)) of
