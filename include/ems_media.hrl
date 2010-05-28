@@ -14,7 +14,7 @@
   storage,
   format,
   
-  last_dts,
+  last_dts = 0,
   ts_delta,
   
   life_timeout,

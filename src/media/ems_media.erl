@@ -346,7 +346,7 @@ handle_call({subscribe, Client, Options}, From, #ems_media{timeout_ref = Ref} = 
 handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
 
-  DefaultSubscribe = fun(Reply, Media1) ->
+  DefaultSubscribe = fun(Reply, #ems_media{audio_config = A, video_config = V, last_dts = DTS} = Media1) ->
     Ref = erlang:monitor(process,Client),
     RequireTicker = case Reply of
       tick -> true;
@@ -359,6 +359,19 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
         ets:insert(Clients, Entry);
       false ->
+        case V of
+          undefined -> ok;
+          _ -> Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
+        end,
+        case A of
+          undefined -> ok;
+          _ -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
+        end,
+        case metadata_frame(Media1) of
+          undefined -> ok;
+          Meta -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
+        end,
+        
         ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
     end,
     {reply, ok, Media1, ?TIMEOUT}
@@ -675,19 +688,20 @@ start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = 
   MS = ets:fun2ms(fun(#client{state = starting, consumer = Client, stream_id = StreamId}) -> {Client,StreamId} end),
   Starting = ets:select(Clients, MS),
   [ets:update_element(Clients, Client, {#client.state, active}) || {Client,_} <- Starting],
-  case Video of
-    undefined -> ok;
-    _ -> [Client ! Video#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
-  end,
-  case Audio of
-    undefined -> ok;
-    _ -> [Client ! Audio#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
-  end,
-  case metadata_frame(M) of
-    undefined -> ok;
-    Meta -> [Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
-  end,
+  % case Video of
+  %   undefined -> ok;
+  %   _ -> [Client ! Video#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
+  % end,
+  % case Audio of
+  %   undefined -> ok;
+  %   _ -> [Client ! Audio#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
+  % end,
+  % case metadata_frame(M) of
+  %   undefined -> ok;
+  %   Meta -> [Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId} || {Client,StreamId} <- Starting]
+  % end,
   M;
+
 
 start_on_keyframe(_, Media) ->
   Media.
@@ -704,7 +718,8 @@ storage_properties(#ems_media{format = Format, storage = Storage}) ->
 
 
 metadata_frame(#ems_media{format = undefined}) ->
-  undefined;
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, []}]};
+  % undefined;
   
 metadata_frame(#ems_media{} = Media) ->
   Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
