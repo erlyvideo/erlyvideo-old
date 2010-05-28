@@ -3,6 +3,43 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("eunit/include/eunit.hrl").
 
+
+
+beward_sdp() ->
+  <<"v=0
+o=- 1275067839203788 1 IN IP4 0.0.0.0
+s=Session streamed by \"nessyMediaServer\"
+i=h264
+t=0 0
+a=tool:LIVE555 Streaming Media v2008.04.09
+a=type:broadcast
+a=control:*
+a=range:npt=0-
+a=x-qt-text-nam:Session streamed by \"nessyMediaServer\"
+a=x-qt-text-inf:h264
+m=video 0 RTP/AVP 99
+c=IN IP4 0.0.0.0
+a=rtpmap:99 H264/90000
+a=fmtp:99 packetization-mode=28;profile-level-id=4D0028.; sprop-parameter-sets=J00AKI2NKAoAt2AtQEBAUAAAPoAADDUGhgBQAABZ9LvLjQwAoAAAs+l3lwT6LAA=,KO48gA==
+a=control:track1
+a=cliprect:0,0,1280,720
+a=framerate:25.000000
+m=audio 7878 RTP/AVP 8
+a=rtpmap:8 PCMA/8000/1
+a=control:track2">>.
+
+beward_test() ->
+  ?assertEqual([
+   {rtsp_stream,video,undefined,90.0,"track1",h264,
+                <<40,238,60,128>>,
+                <<39,77,0,40,141,141,40,10,0,183,96,45,64,64,64,80,0,0,62,128,0,12,53,6,134,0,
+                  80,0,0,89,244,187,203,141,12,0,160,0,0,179,233,119,151,4,250,44,0>>,
+                undefined},
+  {rtsp_stream,audio,undefined,8.0,"track2","PCMA",
+                undefined,undefined,undefined}], sdp:decode(beward_sdp())).
+  
+
+
 axis_m1011_sdp() ->
   <<"v=0
 o=- 1273580251173374 1273580251173374 IN IP4 axis-00408ca51334.local
@@ -50,14 +87,14 @@ b=AS:32
 a=control:rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264
 a=rtpmap:97 mpeg4-generic/16000/1
 a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;">>,
-  ?assertEqual([{rtsp_stream,audio,undefined,16.0,
-                 "rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264",aac,
-                undefined,undefined,
-                <<20,8>>},
-   {rtsp_stream,video,undefined,90.0,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264",h264,
+  ?assertEqual([{rtsp_stream,video,undefined,90.0,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264",h264,
                 <<104,206,60,128>>,
                 <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
-                undefined}], sdp:decode(SDP)).
+                undefined},
+      {rtsp_stream,audio,undefined,16.0,
+         "rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264",aac,
+        undefined,undefined,
+        <<20,8>>}], sdp:decode(SDP)).
 
 
 axis_test() ->
