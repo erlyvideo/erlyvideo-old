@@ -1,7 +1,7 @@
 Source: erlang-shoutcast
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), ruby, erlmedia
+Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), ruby, erlmedia (>= 1.3.1)
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/shoutcast
@@ -9,6 +9,6 @@ Homepage: http://erlyvideo.org/shoutcast
 Package: erlang-shoutcast
 Section: net
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.2), erlang (>= 1:13.b.4)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.3.1), erlang (>= 1:13.b.4)
 Description: Erlang shoutcast library
  Erlang library that decodes shoutcast protocol

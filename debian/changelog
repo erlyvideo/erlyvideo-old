@@ -1,3 +1,9 @@
+erlang-shoutcast (1.1.6) karmic; urgency=low
+
+  Updated debian requirements
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 29 May 2010 03:20:51 +0400
+
 erlang-shoutcast (1.1.5) karmic; urgency=low
 
   New video_frame
