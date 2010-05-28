@@ -92,6 +92,7 @@
   amf_version = 0   ::integer(),
 	channels          ::array(),
 	out_channels      ::array(),
+	debug = false     ::boolean(),
 	address           ::tuple(),
 	port              ::integer(),
 	buffer = <<>>     ::binary(),

@@ -134,6 +134,7 @@ start_link(Type) ->
 %%  <li><code>window_size</code> - ask remote client to send read acknowlegement after WindowSize bytes</li>
 %%  <li><code>amf_version</code> - change AMF0 to AMF3, but only before first call</li>
 %%  <li><code>consumer</code> - change messages consumer</li>
+%%  <li><code>debug = true|false</code> - dump all important packets or no</li>
 %% </ul>
 %% @end
 -spec(setopts(RTMP::rtmp_socket_pid(), Options::[{Key::atom(), Value::any()}]) -> ok).
@@ -202,7 +203,7 @@ notify(RTMP, StreamId, Name, Args) ->
 
 prepare_notify(StreamId, Name, Args) ->
   Arg = {object, lists:ukeymerge(1, [{level, <<"status">>}], lists:keysort(1, Args))},
-  #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}.
+  #rtmp_message{type = metadata, channel_id = channel_id(audio, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}.
 
 
 prepare_status(StreamId, Code) when is_list(Code) ->
@@ -348,6 +349,9 @@ get_options(State, window_size) ->
 get_options(State, client_buffer) ->
   {client_buffer, State#rtmp_socket.client_buffer};
 
+get_options(State, debug) ->
+  {debug, State#rtmp_socket.debug};
+
 get_options(State, address) ->
   {address, {State#rtmp_socket.address, State#rtmp_socket.port}};
 
@@ -388,6 +392,10 @@ set_options(#rtmp_socket{socket = Socket, buffer = Data} = State, [{active, Acti
       handle_rtmp_data(State1, Data)
   end,
   set_options(State2, Options);
+
+set_options(#rtmp_socket{} = State, [{debug, Debug} | Options]) ->
+  io:format("Set debug to ~p~n", [Debug]),
+  set_options(State#rtmp_socket{debug = Debug}, Options);
 
 set_options(#rtmp_socket{consumer = PrevConsumer} = State, [{consumer, Consumer} | Options]) ->
   (catch unlink(PrevConsumer)),  
@@ -544,7 +552,18 @@ handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State
   State1 = send_data(State, #rtmp_message{type = ack_read}),
   handle_rtmp_data(State1#rtmp_socket{}, Data);
 
-handle_rtmp_data(State, Data) ->
+handle_rtmp_data(#rtmp_socket{debug = true} = State, Data) ->
+  Decode = rtmp:decode(State, Data),
+  case Decode of
+    % {_, #rtmp_message{type = audio}, _} -> ok;
+    % {_, #rtmp_message{type = video}, _} -> ok;
+    {_, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, _} ->
+      io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, Body]);
+    _ -> ok
+  end,
+  handle_rtmp_message(Decode);
+
+handle_rtmp_data(#rtmp_socket{} = State, Data) ->
   handle_rtmp_message(rtmp:decode(State, Data)).
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, #rtmp_message{type = window_size, body = Size} = Message, Rest}) ->
