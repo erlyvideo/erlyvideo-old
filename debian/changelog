@@ -1,3 +1,9 @@
+erlang-mpegts (2.2.6) karmic; urgency=low
+
+  New video_frame structure
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 29 May 2010 03:06:38 +0400
+
 erlang-mpegts (2.2.5) karmic; urgency=low
 
   Normalized sending timestamps of decoder config
