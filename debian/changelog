@@ -1,3 +1,9 @@
+erlang-rtsp (1.3.1) karmic; urgency=low
+
+  Updated debian requirements
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 29 May 2010 03:13:54 +0400
+
 erlang-rtsp (1.3.0) karmic; urgency=low
 
   Now with source authorization and better camera support
