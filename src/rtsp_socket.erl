@@ -113,12 +113,16 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
-handle_call({request, setup}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, auth = Auth} = RTSP) ->
-  ?D(RTSP),
-  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL,"trackID=1"), Seq + 1]),
-  gen_tcp:send(Socket, Call),
-  io:format("~s~n", [Call]),
-  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
+handle_call({request, setup}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
+  
+  Setup = fun(#rtsp_stream{track_control = Control}, CSeq) ->
+    Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL, Control), CSeq + 1]),
+    gen_tcp:send(Socket, Call),
+    io:format("~s~n", [Call]),
+    CSeq + 1
+  end,
+  NewSeq = lists:foldl(Setup, Seq, Streams),
+  {noreply, RTSP#rtsp_socket{pending = From, seq = NewSeq}};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
@@ -208,10 +212,11 @@ configure_rtp(Socket, _Headers, undefined) ->
 configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Socket, Headers, Body) ->
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
+      io:format("~s~n", [Body]),
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
       
-      ?D({"Autoconfiguring RTP", Frames, RtpStreams1}),
-
+      ?D({"ZZ", SDPConfig}),
+      
       lists:foreach(fun(Frame) ->
         Consumer ! Frame
       end, Frames),
@@ -319,7 +324,7 @@ sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
         {K, V}
       end,
       RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
-      ?D({"Rtp", RtpInfo}),
+      % ?D({"Rtp", RtpInfo}),
       Streams1 = rtp_server:presync(Streams, RtpInfo),
       Socket#rtsp_socket{rtp_streams = Streams1}
   end.

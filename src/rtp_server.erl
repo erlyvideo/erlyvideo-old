@@ -134,7 +134,11 @@ config_media(Streams) -> config_media(Streams, [], []).
 config_media([], Output, Frames) -> {Output, Frames};
 config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
-  {H264_2, Configs} = h264:decode_nal(PPS, H264),
+  {H264_2, _} = h264:decode_nal(PPS, H264),
+  Configs = case h264:video_config(H264_2) of
+    undefined -> [];
+    Config -> [Config]
+  end,
   config_media(Streams, [Stream#rtsp_stream{config = H264_2} | Output], Configs ++ Frames);
 
 config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
