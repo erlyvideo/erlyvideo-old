@@ -34,7 +34,7 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--define(STREAM_TIME, 10000).
+-define(STREAM_TIME, ems:get_var(iphone_segment_size, 10000)).
 -define(TIMEOUT, 10000).
 
 %% External API
@@ -84,8 +84,9 @@ segments(Host, Name) ->
   Type = proplists:get_value(type, Info),
   Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
   SegmentLength = ?STREAM_TIME div 1000,
+  DurationLimit = 2*?STREAM_TIME,
   Count = if 
-    Duration > 2*?STREAM_TIME -> round(Duration/?STREAM_TIME);
+    Duration > DurationLimit -> round(Duration/?STREAM_TIME);
     true -> 1
   end,
   {Start,Count,SegmentLength,Type}.
