@@ -59,7 +59,7 @@ can_open_file(Name) ->
   filename:extension(Name) == ".flv".
 
 
-write_frame(Device, Frame) -> 
+write_frame(_Device, _Frame) -> 
   erlang:error(unsupported).
 
 
@@ -85,7 +85,7 @@ init(Reader) ->
 first(_) ->
   flv:data_offset().
 
-
+properties(#media_info{metadata = undefined}) -> [];
 properties(#media_info{metadata = Meta}) -> Meta.
 
 read_frame_list(#media_info{reader = Reader} = MediaInfo, Offset) ->
@@ -107,11 +107,13 @@ read_frame_list(#media_info{reader = Reader} = MediaInfo, Offset) ->
 get_int(Key, Meta, Coeff) ->
   case {proplists:get_value(Key, Meta), Coeff} of
     {undefined, _} -> undefined;
+    {{object, []}, _} -> undefined;
     {Value, Coeff} when is_number(Coeff) andalso is_number(Value) -> Value*Coeff;
     {Value, {M, F}} -> M:F(round(Value))
   end.
 
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
+  ?D(Meta),
   Meta1 = lists:keydelete(<<"keyframes">>, 1, Meta),
   Meta2 = lists:keydelete(<<"times">>, 1, Meta1),
   Meta3 = lists:map(fun({Key,Value}) ->
@@ -119,8 +121,14 @@ parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
   end, Meta2),
   % ?D({"Metadata", get_int(<<"duration">>, Meta, 1000), Meta2}),
   MediaInfo1 = MediaInfo#media_info{
-    width = round(get_int(<<"width">>, Meta, 1)),
-    height = round(get_int(<<"height">>, Meta, 1)),
+    width = case get_int(<<"width">>, Meta, 1) of
+      undefined -> undefined;
+      ElseW -> round(ElseW)
+    end,
+    height = case get_int(<<"height">>, Meta, 1) of
+      undefined -> undefined;
+      ElseH -> round(ElseH)
+    end,
     duration = get_int(<<"duration">>, Meta, 1000),
     audio_codec = get_int(<<"audiocodecid">>, Meta, {flv, audio_codec}),
     video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec}),
