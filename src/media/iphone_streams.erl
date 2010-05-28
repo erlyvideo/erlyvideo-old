@@ -38,7 +38,7 @@
 -define(TIMEOUT, 10000).
 
 %% External API
--export([start_link/1, find/3, segments/2, segment_info/3, play/4]).
+-export([start_link/1, find/3, segments/2, play/4, playlist/2]).
 
 -export([save_counters/4, get_counters/3]).
 
@@ -59,15 +59,42 @@ start_link(Options) ->
 find(Host, Name, Number) ->
   {_, Count, _, Type} = segments(Host, Name),
   Options = case {Count - 1,Type} of
-    {Number,<<"stream">>} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
-    {Number,<<"file">>} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment doesn't require any end limit
+    {Number,stream} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
+    {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment doesn't require any end limit
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
   {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, {'before', Number * ?STREAM_TIME}}|Options]).
 
 
-segment_info(_MediaEntry, Name, Number) ->
-  % {_Seek, PlayingFrom, PlayEnd} = ems_stream:segment(MediaEntry, [{seek, {'before', Number * ?STREAM_TIME}}, {duration, {'before', ?STREAM_TIME}}]),
+playlist(Host, Name) ->
+  {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
+  Media = media_provider:open(Host, Name),
+  SegmentListDirty = lists:map(fun(N) ->
+    segment_info(Media, Name, N, Count)
+  end, lists:seq(Start, Start + Count - 1)),
+  SegmentList = lists:filter(fun(undefined) -> false;
+                                (_) -> true end, SegmentListDirty),
+  EndList = case Type of
+    stream -> "";
+    file -> "#EXT-X-ENDLIST\n"
+  end,
+  [
+    "#EXTM3U\n",
+    io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength)]),
+    "#EXT-X-ALLOW-CACHE:YES\n",
+    SegmentList,
+    EndList
+  ].
+
+
+segment_info(Media, Name, Number, Count) when Count == Number + 1 ->
+  {_Key, StartDTS} = ems_media:seek_info(Media, 'before', Number * ?STREAM_TIME),
+  Info = ems_media:info(Media),
+  Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
+  io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [round((Duration - StartDTS)/1000), Name, Number]);
+  
+
+segment_info(_MediaEntry, Name, Number, _Count) ->
   % case {PlayingFrom, PlayEnd} of
   %   {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
   %     SegmentLength = round((PlayEnd - PlayingFrom)/1000),

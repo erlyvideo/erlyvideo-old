@@ -66,7 +66,7 @@
 %% External API
 -export([start_link/2, start_custom/2]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1, setopts/2, seek_info/3, status/1]).
+-export([metadata/1, info/1, setopts/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
 
 %% gen_server callbacks
@@ -241,13 +241,22 @@ status(Media) ->
   gen_server2:call(Media, status).
   
 %%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> Metadata::list()
+%% @spec (Media::pid()) -> Metadata::video_frame()
 %%
-%% @doc Returns property list, suitable for returning into flash
+%% @doc Returns video_frame, prepared to send into flash
 %% @end
 %%----------------------------------------------------------------------
 metadata(Media) ->
-  gen_server2:call(Media, metadata).  
+  gen_server:call(Media, metadata).  
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Info::list()
+%%
+%% @doc Information about stream
+%% @end
+%%----------------------------------------------------------------------
+info(Media) ->
+  gen_server:call(Media, info).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Options::list()) -> ok
@@ -698,7 +707,9 @@ metadata_frame(#ems_media{format = undefined}) ->
   undefined;
   
 metadata_frame(#ems_media{} = Media) ->
-   #video_frame{content = metadata, body = [<<"onMetaData">>, {object, storage_properties(Media)}]}.
+  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+                      (Else) -> Else end, storage_properties(Media)),
+   #video_frame{content = metadata, body = [<<"onMetaData">>, {object, Meta}]}.
   
 
 send_frame(Frame, Clients, State) ->

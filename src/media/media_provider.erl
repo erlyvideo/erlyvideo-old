@@ -173,8 +173,8 @@ info(Host, Name) ->
 info(undefined) ->
   [];
   
-info(MediaEntry) ->
-  gen_server:call(MediaEntry, info).
+info(Media) ->
+  ems_media:info(Media).
   
 
 init_names() ->

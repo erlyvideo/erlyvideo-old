@@ -228,25 +228,8 @@ handle(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   {ok, Re} = re:compile("^(.+).m3u8$"),
   {match, [_, Name]} = re:run(FullName, Re, [{capture, all, binary}]),
   
-  {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
-  MediaEntry = media_provider:open(Host, Name),
-  SegmentListDirty = lists:map(fun(N) ->
-    iphone_streams:segment_info(MediaEntry, Name,N)
-  end, lists:seq(Start, Start + Count - 1)),
-  SegmentList = lists:filter(fun(undefined) -> false;
-                                (_) -> true end, SegmentListDirty),
-  EndList = case Type of
-    <<"stream">> -> "";
-    <<"file">> -> "#EXT-X-ENDLIST\n"
-  end,
-  Playlist = [
-    "#EXTM3U\n",
-    io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength)]),
-    "#EXT-X-ALLOW-CACHE:YES\n",
-    % EXT-X-DISCONTINUITY
-    SegmentList,
-    EndList
-  ],
+  Playlist = iphone_streams:playlist(Host, Name),
+  
   Req:respond(200, [{"Content-Type", "application/vnd.apple.mpegurl"}], Playlist);
   
 
