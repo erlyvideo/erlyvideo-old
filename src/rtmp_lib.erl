@@ -51,7 +51,7 @@ wait_for_reply(RTMP, InvokeId) ->
 
 default_connect_options() ->
   [
-    {app, <<"/">>},
+    {app, <<"ondemand">>},
     {flashVer,<<"MAC 10,0,32,18">>},
     {swfUrl,<<"http://localhost/player/Player.swf">>},
     {tcUrl,<<"rtmp://localhost/">>},
@@ -167,7 +167,8 @@ play_start(RTMP, StreamId) ->
   rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Start">>),
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId,
     body = [<<"|RtmpSampleAccess">>, true, true]}),
-  rtmp_socket:notify(RTMP, StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]).
+  Notify = rtmp_socket:prepare_notify(StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]),
+  rtmp_socket:send(RTMP, Notify#rtmp_message{channel_id = channel_id(video, StreamId)}).
   
 
 pause_notify(RTMP, StreamId) ->
