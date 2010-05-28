@@ -45,36 +45,16 @@
 %%----------------------------------------------------------------------
 
 decode(Announce) when is_binary(Announce) ->
-  decode(decode_body(Announce));
+  Lines = string:tokens(binary_to_list(Announce), "\r\n"),
+  KeyValues = [{list_to_atom([K]), Value} || [K,$=|Value] <- Lines],
+  decode(KeyValues);
 
 decode(Announce) ->
   parse_announce(Announce, [], undefined).
 
 
-decode_body(Body) ->
-  {ok, Re} = re:compile("(\\w)=(.*)\\r\\n$"),
-  Split = split_body(Body, []),
-  % ?D({"Split", Split}),
-  decode_body(Split, [], Re).
 
-decode_body([], List, _Re) ->
-  lists:reverse(List);
 
-decode_body([Message | Body], List, Re) ->
-  ?D({"SDP", Message}),
-  {match, [_, Key, Value]} = re:run(Message, Re, [{capture, all, binary}]),
-  decode_body(Body, [{Key, Value} | List], Re).
-
-split_body(<<>>, List) ->
-  lists:reverse(List);
-
-split_body(Body, List) ->
-  case erlang:decode_packet(line, Body, []) of
-    {ok, Line, More} ->
-      split_body(More, [Line | List]);
-    {more, undefined} ->
-      lists:reverse([<<Body/binary, "\r\n">> | List])
-  end.
 
 
 parse_announce([], Streams, undefined) ->
@@ -83,73 +63,72 @@ parse_announce([], Streams, undefined) ->
 parse_announce([], Streams, Stream) ->
   [Stream | Streams];
   
-parse_announce([{<<"v">>, _} | Announce], Streams, Stream) ->
+parse_announce([{v, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"o">>, _} | Announce], Streams, Stream) ->
+parse_announce([{o, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"s">>, _} | Announce], Streams, Stream) ->
+parse_announce([{s, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"e">>, _} | Announce], Streams, Stream) ->
+parse_announce([{e, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"b">>, _} | Announce], Streams, undefined) ->
+parse_announce([{b, _} | Announce], Streams, undefined) ->
   parse_announce(Announce, Streams, undefined);
 
-parse_announce([{<<"c">>, _} | Announce], Streams, Stream) ->
+parse_announce([{c, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"t">>, _} | Announce], Streams, Stream) ->
+parse_announce([{t, _} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"a">>, _} | Announce], Streams, undefined) ->
+parse_announce([{a, _} | Announce], Streams, undefined) ->
   parse_announce(Announce, Streams, undefined);
 
-parse_announce([{<<"m">>, Info} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  parse_announce([{<<"m">>, Info} | Announce], [Stream | Streams], undefined);
+parse_announce([{m, Info} | Announce], Streams, #rtsp_stream{} = Stream) ->
+  parse_announce([{m, Info} | Announce], [Stream | Streams], undefined);
 
-parse_announce([{<<"m">>, Info} | Announce], Streams, undefined) ->
-  [TypeS, _PortS, "RTP/AVP", PayloadType] = string:tokens(binary_to_list(Info), " "),
+parse_announce([{m, Info} | Announce], Streams, undefined) ->
+  [TypeS, _PortS, "RTP/AVP", _PayloadType] = string:tokens(Info, " "),
   Type = binary_to_existing_atom(list_to_binary(TypeS), utf8),
-  parse_announce(Announce, Streams, #rtsp_stream{type = Type, payload_type = list_to_integer(PayloadType)});
+  parse_announce(Announce, Streams, #rtsp_stream{type = Type, track_control = "trackID="++integer_to_list(length(Streams)+1)});
 
-parse_announce([{<<"b">>, <<"AS:", Bitrate/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  _Bitrate = list_to_integer(binary_to_list(Bitrate)),
+parse_announce([{b, _Bitrate} | Announce], Streams, #rtsp_stream{} = Stream) ->
   parse_announce(Announce, Streams, Stream);
 
-parse_announce([{<<"a">>, <<"rtpmap:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  {ok, Re} = re:compile("\\d+ ([^/]+)/([\\d]+)"),
-  {match, [_, CodecCode, ClockMap]} = re:run(Info, Re, [{capture, all, list}]),
-  Codec = case CodecCode of
-    "H264" -> h264;
-    "mpeg4-generic" -> aac;
-    Other -> Other
-  end,
-  parse_announce(Announce, Streams, Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000, codec = Codec});
+parse_announce([{a, Attribute} | Announce], Streams, #rtsp_stream{} = Stream) ->
+  Pos = string:chr(Attribute, $:),
+  Key = string:substr(Attribute, 1, Pos - 1),
+  Value = string:substr(Attribute, Pos + 1),
 
-% parse_announce([{a, <<"cliprect:", Info/binary>>} | Announce], Streams, Stream) when is_list(Stream) ->
-%   [_,_,Width, Height] = string:tokens(binary_to_list(Info), ","),
-%   parse_announce(Announce, Streams, [{height, list_to_integer(Height)} | [{width, list_to_integer(Width)} | Stream]]);
+  Stream1 = case Key of
+    "rtpmap" ->
+      {ok, Re} = re:compile("\\d+ ([^/]+)/([\\d]+)"),
+      {match, [_, CodecCode, ClockMap]} = re:run(Value, Re, [{capture, all, list}]),
+      Codec = case CodecCode of
+        "H264" -> h264;
+        "mpeg4-generic" -> aac;
+        Other -> Other
+      end,
+      Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000, codec = Codec};
+    "control" ->
+      Stream#rtsp_stream{track_control = Value};
+    "fmtp" ->
+      {ok, Re} = re:compile("([^=]+)=(.*)"),
+      [_ | OptList] = string:tokens(Value, " "),
+      Opts = lists:map(fun(Opt) ->
+        {match, [_, Key1, Value1]} = re:run(Opt, Re, [{capture, all, list}]),
+        {string:to_lower(Key1), Value1}
+      end, string:tokens(string:join(OptList, ""), ";")),
+      parse_fmtp(Stream, Opts);
+    _Else ->
+      Stream
+  end,  
+  parse_announce(Announce, Streams, Stream1);
 
-parse_announce([{<<"a">>, <<"control:trackid=", Track/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  parse_announce(Announce, Streams, Stream#rtsp_stream{id = list_to_integer(binary_to_list(Track))});
-
-parse_announce([{<<"a">>, <<"fmtp:", Info/binary>>} | Announce], Streams, #rtsp_stream{} = Stream) ->
-  {ok, Re} = re:compile("([^=]+)=(.*)"),
-  [_ | OptList] = string:tokens(binary_to_list(Info), " "),
-  Opts = lists:map(fun(Opt) ->
-    {match, [_, Key, Value]} = re:run(Opt, Re, [{capture, all, list}]),
-    {string:to_lower(Key), Value}
-  end, string:tokens(string:join(OptList, ""), ";")),
-  
-  parse_announce(Announce, Streams, parse_fmtp(Stream, Opts ));
-
-parse_announce([{<<"a">>, _Info} | Announce], Streams, Stream) ->
-  parse_announce(Announce, Streams, Stream);
-
-parse_announce([{<<"i">>, _Info} | Announce], Streams, Stream) ->
+parse_announce([{_Other, _Info} | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream).
 
 
