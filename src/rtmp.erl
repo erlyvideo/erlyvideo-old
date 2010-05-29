@@ -201,7 +201,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
       %   Type == 8 orelse Type == 9 -> ok;
       %   true -> io:format("d ~p ~p ~p~n",[Id, Type, Delta])
       % end,
-    	Channel1 = Channel#channel{timestamp = NewTS, delta = undefined},
+    	Channel1 = Channel#channel{timestamp = NewTS, delta = undefined, type = Type},
     	Header = case Delta < 16#FFFFFF of
     	  true -> <<BinId/binary,Delta:24,(size(Data)):24,Type:8>>;
     	  false -> <<BinId/binary,16#FFFFFF:24,(size(Data)):24,Type:8,Delta:32>>
@@ -215,8 +215,8 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
       end rem 16#FFFFFFFF,
       % io:format("n ~p ~p ~p~n",[Id, Type, TS]),
       Channel1 = case Channel of
-        undefined -> #channel{id = Id, timestamp = TS, delta = undefined, stream_id = StreamId};
-        _ -> Channel#channel{timestamp = TS, delta = undefined, stream_id = StreamId}
+        undefined -> #channel{id = Id, timestamp = TS, delta = undefined, stream_id = StreamId, type = Type};
+        _ -> Channel#channel{timestamp = TS, delta = undefined, stream_id = StreamId, type = Type}
       end,
     	BinId = encode_id(?RTMP_HDR_NEW,Id),
       Header = case TS < 16#FFFFFF of
@@ -229,9 +229,9 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
 
 timestamp_type(_State, #rtmp_message{ts_type = absolute}) -> absolute;
 timestamp_type(_State, #rtmp_message{ts_type = relative}) -> relative;
-timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}) -> 
+timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, type = Type, timestamp = Timestamp, stream_id = StreamId}) -> 
   case rtmp:element(Id, Channels) of
-    #channel{timestamp = PrevTS, stream_id = StreamId} when PrevTS =< Timestamp -> relative;
+    #channel{timestamp = PrevTS, type = Type, stream_id = StreamId} when PrevTS =< Timestamp -> relative;
     _ -> absolute
   end.
 
