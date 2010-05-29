@@ -740,7 +740,7 @@ error_info(Reason, Name, Msg, Mod, State, Debug) ->
 	    true -> (catch Mod:print_state(State));
 	    false -> State
 	  end,
-    format("** Generic server ~p terminating \n"
+    format("** Generic server2 ~p terminating \n"
            "** Last message in was ~p~n"
            "** When Server state == ~p~n"
            "** Reason for termination == ~n** ~p~n",

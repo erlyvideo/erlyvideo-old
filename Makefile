@@ -4,7 +4,7 @@ ERLANG_VERSION:=$(shell erl -eval 'io:format("~s", [erlang:system_info(otp_relea
 ERLDIR:=$(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/erlyvideo-$(VERSION)
 DEBIANREPO:=/apps/erlyvideo/debian/public
 DESTROOT:=$(CURDIR)/debian/erlyvideo
-ERL_LIBS:=deps:lib:plugins
+ERL_LIBS:=deps:lib:plugins:..
 
 ERL=erl +A 4 +K true
 APP_NAME=ems

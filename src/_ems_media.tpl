@@ -36,7 +36,7 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([init/1, handle_frame/2, handle_control/2, handle_info/2]).
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(state, {
 }).
@@ -70,6 +70,13 @@ handle_control({subscribe, _Client, _Options}, State) ->
   %% {reply, Reply, State} => client is subscribed as active receiver and receives custom reply
   %% {noreply, State}      => client is subscribed as active receiver and receives reply ``ok''
   %% {reply, {error, Reason}, State} => client receives {error, Reason}
+  {noreply, State};
+
+handle_control({unsubscribe, _Client}, State) ->
+  %% Unsubscribe returns:
+  %% {reply, Reply, State} => client is unsubscribed inside plugin, but not rejected from ets table
+  %% {noreply, State}      => client is unsubscribed in usual way.
+  %% {reply, {error, Reason}, State} => client receives {error, Reason} 
   {noreply, State};
 
 handle_control({source_lost, _Source}, State) ->
