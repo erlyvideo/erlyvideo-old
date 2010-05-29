@@ -531,7 +531,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
     {noreply, Media1} ->
-      {stop, Media1};
+      {stop, normal, Media1};
     {reply, NewSource, Media1} ->
       timer:send_after(LifeTimeout, graceful),
       {noreply, Media1#ems_media{source = NewSource, ts_delta = undefined}, ?TIMEOUT}
@@ -561,16 +561,12 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
           end;
         [] -> 
           case M:handle_info(Msg, Media2) of
-            {noreply, Media3} -> 
-              {noreply, Media3};
-            {stop, Reason, Media3} ->
-              {stop, Reason, Media3}
+            {noreply, Media3} -> {noreply, Media3};
+            {stop, Reason, Media3} -> {stop, normal, Media3}
           end
       end;
-    {reply, _Reply, Media2, _} ->
-      {noreply, Media2, ?TIMEOUT};
-    {stop, Reason, Media2} ->
-      {stop, Reason, Media2}
+    {reply, _Reply, Media2, _} -> {noreply, Media2, ?TIMEOUT};
+    {stop, Reason, Media2} -> {stop, Reason, Media2}
   end;
   
 

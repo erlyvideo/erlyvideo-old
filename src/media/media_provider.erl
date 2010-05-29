@@ -41,6 +41,7 @@
 -module(media_provider).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/ems.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
 
@@ -507,10 +508,11 @@ handle_info({'DOWN', _, process, MasterPid, _Reason}, #media_provider{master_pid
   {noreply, MediaProvider#media_provider{master_pid = undefined}};
 
 handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
-  case ets:match(OpenedMedia, #media_entry{name = '$1', handler = Media}) of
+  MS = ets:fun2ms(fun(#media_entry{handler = Pid, name = Name}) when Pid == Media -> Name end),
+  case ets:select(OpenedMedia, MS) of
     [] -> 
       {noreply, MediaProvider};
-    [[Name]] ->
+    [Name] ->
       ets:delete(OpenedMedia, Name),
       ems_event:stream_stopped(Host, Name, Media),
       {noreply, MediaProvider}
