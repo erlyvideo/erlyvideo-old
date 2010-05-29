@@ -8,7 +8,6 @@ ERL_LIBS:=deps:lib:plugins:..
 
 ERL=erl +A 4 +K true
 APP_NAME=ems
-NODE_NAME=$(APP_NAME)@`hostname`
 
 all: compile doc
 

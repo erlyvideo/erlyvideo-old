@@ -13,7 +13,13 @@
   
 
 NODE=ems
-HOST=localhost
+HOST=`hostname`
+if expr "$HOSTNAME" : '.*\..*' ; then
+  TYPE="name"
+else
+  TYPE="sname"
+fi
+
 
 # Define ejabberd environment
 ERL="erl +A 4 +K true"
@@ -31,7 +37,7 @@ start()
   -kernel error_logger 'false' \
 	-boot start_sasl \
 	-s erlyvideo \
-	-sname $NODE@$HOST
+	-$TYPE $NODE@$HOST
 }
 
 run()
@@ -39,14 +45,14 @@ run()
 	ERL_LIBS=deps:lib:plugins $ERL -pa ebin \
 	-boot start_sasl \
 	-s erlyvideo \
-	-sname $NODE@$HOST
+	-$TYPE $NODE@$HOST
 	exit
 }
 
 shell()
 {
     $ERL \
-      -sname debug$NODE@$HOST \
+      -$TYPE debug$NODE@$HOST \
       -pa ebin \
       -hidden \
       -remsh $NODE@$HOST
