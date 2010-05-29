@@ -587,7 +587,10 @@ handle_info(graceful, #ems_media{source = Source, life_timeout = LifeTimeout} = 
 handle_info(graceful, #ems_media{} = Media) ->
   {noreply, Media, ?TIMEOUT};
 
-handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Source =/= undefined ->
+% handle_info(timeout, #ems_media{timeout_ref = Ref} = Media) when Ref =/= undefined ->
+%   {noreply, Media}; % No need to set timeout, because Timeout is already going to arrive
+% 
+handle_info(timeout, #ems_media{module = M, source = Source, life_timeout = LifeTimeout} = Media) when Source =/= undefined ->
   case M:handle_control(timeout, Media) of
     {stop, Reason, Media1} ->
       error_logger:error_msg("Source of media doesnt send frames, stopping...~n"),
