@@ -104,7 +104,7 @@ handle_control(timeout, State) ->
   {stop, normal, State};
 
 handle_control(_Control, State) ->
-  {reply, ok, State}.
+  {noreply, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |

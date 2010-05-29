@@ -64,6 +64,7 @@
 
 -record(media_entry, {
   name,
+  ref,
   handler
 }).
 
@@ -272,11 +273,23 @@ handle_call({open, Name, Opts}, {_Opener, _Ref}, MediaProvider) ->
     Player ->
       {reply, Player, MediaProvider}
   end;
+
+handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
+  case ets:match(OpenedMedia, #media_entry{name = '$1', ref = '$2', handler = Pid}) of
+    [] -> 
+      {noreply, MediaProvider};
+    [[Name, Ref]] ->
+      erlang:demonitor(Ref, [flush]),
+      ets:delete(OpenedMedia, Name),
+      ems_event:stream_stopped(Host, Name, Pid),
+      {noreply, MediaProvider}
+  end;
     
 handle_call({register, Name, Pid}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
-      ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+      Ref = erlang:monitor(process, Pid),
+      ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
       ?D({"Registering", Name, Pid}),
       {reply, {ok, {Name, Pid}}, MediaProvider};
     OldPid ->
@@ -300,7 +313,7 @@ handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaP
   %     {Name, Clients}
   %   end,
   % ets:match(OpenedMedia, {'_', '$1', '$2'})),
-  Info = [{Name, Pid, ems_media:status(Pid)} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
+  Info = [{Name, Pid, (catch ems_media:status(Pid))} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
   {reply, Info, MediaProvider};
 
 handle_call(Request, _From, State) ->
@@ -345,8 +358,8 @@ open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} 
         {ok, Pid} ->
           case Public of
             true ->
-              erlang:monitor(process, Pid),
-              ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid}),
+              Ref = erlang:monitor(process, Pid),
+              ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
               ems_event:stream_started(Host, Name, Pid, [{type,Type}|Opts]);
             _ ->
               ?D({"Skip registration of", Type, URL}),
