@@ -703,9 +703,9 @@ start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = 
   MS = ets:fun2ms(fun(#client{state = starting, consumer = Client, stream_id = StreamId}) -> {Client,StreamId} end),
   Starting = ets:select(Clients, MS),
   [begin 
-    (catch Client ! V#video_frame{dts = DTS}),
+    (catch Client ! V#video_frame{dts = DTS, stream_id = StreamId}),
     ets:update_element(Clients, Client, {#client.state, active}) 
-  end || {Client,_} <- Starting],
+  end || {Client,StreamId} <- Starting],
   M;
 
 
