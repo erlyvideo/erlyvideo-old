@@ -36,7 +36,7 @@
 -export([wait_for_reply/2]).
 -export([connect/1, connect/2, createStream/1, play/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
--export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/2, pause_notify/2]).
+-export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/3, pause_notify/2]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -158,17 +158,23 @@ shared_object_set(RTMP, Name, Key, Value) ->
   end.
   
   
-play_start(RTMP, StreamId) ->
-  rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(audio, StreamId)}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(video, StreamId)}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Reset">>),
-  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Start">>),
+play_start(RTMP, StreamId, DTS) ->
+  rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(audio, StreamId), timestamp = DTS}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(video, StreamId), timestamp = DTS}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId, timestamp = DTS}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId, timestamp = DTS}),
+  
+  Reset = rtmp_socket:prepare_status(StreamId, <<"NetStream.Play.Reset">>),
+  rtmp_socket:send(RTMP, Reset#rtmp_message{timestamp = DTS}),
+  
+  PlayStart = rtmp_socket:prepare_status(StreamId, <<"NetStream.Play.Start">>),
+  rtmp_socket:send(RTMP, PlayStart#rtmp_message{timestamp = DTS}),
+
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId,
-    body = [<<"|RtmpSampleAccess">>, true, true]}),
+    body = [<<"|RtmpSampleAccess">>, true, true], timestamp = DTS}),
+    
   Notify = rtmp_socket:prepare_notify(StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]),
-  rtmp_socket:send(RTMP, Notify#rtmp_message{channel_id = channel_id(video, StreamId)}).
+  rtmp_socket:send(RTMP, Notify#rtmp_message{channel_id = channel_id(video, StreamId), timestamp = DTS}).
   
 
 pause_notify(RTMP, StreamId) ->

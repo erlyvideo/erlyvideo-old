@@ -155,6 +155,9 @@ encode(State, #rtmp_message{timestamp = TimeStamp} = Message) when is_float(Time
 encode(State, #rtmp_message{stream_id = StreamId} = Message) when is_float(StreamId) -> 
   encode(State, Message#rtmp_message{stream_id = round(StreamId)});
 
+encode(State, #rtmp_message{stream_id = StreamId} = Message) when not is_number(StreamId) ->
+  erlang:error({invalid_rtmp_stream_id,StreamId});
+
 
 encode(#rtmp_socket{} = State, #rtmp_message{type = Type, body = Data} = Message) when is_binary(Data) and is_integer(Type)-> 
   encode_bin(State, Message).
@@ -179,7 +182,8 @@ encode_bin(#rtmp_socket{codec = Codec} = State,
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) andalso is_integer(Type) andalso Codec =/= undefined ->
   TS = case Timestamp of
     same -> -1;
-    Timestamp when is_integer(Timestamp) -> Timestamp
+    Timestamp when is_integer(Timestamp) -> Timestamp;
+    Timestamp when is_number(Timestamp) -> round(Timestamp)
   end,
   Packet = <<Type:32, StreamId:32, TS:32, Id:32, Data/binary>>,
   {State, port_control(Codec, ?ENCODE, Packet)};

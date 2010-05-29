@@ -183,6 +183,7 @@ getstat(RTMP) ->
 %% @end
 -spec(send(RTMP::rtmp_socket_pid(), Message::rtmp_message()) -> ok).
 send(RTMP, Message) ->
+  % io:format("Message ~p ~p ~p~n", [Message#rtmp_message.type, Message#rtmp_message.timestamp, Message#rtmp_message.stream_id]),
   % case process_info(RTMP, message_queue_len) of
   %   {message_queue_len, Length} when Length < 20 -> RTMP ! Message;
   %   {message_queue_len, Length} -> gen_fsm:sync_send_event(RTMP, Message, ?RTMP_TIMEOUT);
@@ -213,7 +214,7 @@ prepare_status(StreamId, Code) when is_binary(Code) ->
   prepare_status(StreamId, Code, <<"-">>).
 
 
--spec(status(RTMP::rtmp_socket_pid(), StreamId::integer(), Code::any_string(), Description::any_string()) -> ok).
+-spec(prepare_status(StreamId::integer(), Code::any_string(), Description::any_string()) -> ok).
 prepare_status(StreamId, Code, Description) ->
   Arg = {object, [
     {code, Code}, 
@@ -234,7 +235,7 @@ status(RTMP, StreamId, Code) when is_binary(Code) ->
   status(RTMP, StreamId, Code, <<"-">>).
 
   
-prepare_invoke(StreamId, Command, Args) ->
+prepare_invoke(StreamId, Command, Args) when is_integer(StreamId) ->
   AMF = #rtmp_funcall{
       command = Command,
         type = invoke,
