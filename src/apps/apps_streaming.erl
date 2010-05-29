@@ -134,9 +134,6 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
     {notfound, _Reason} -> 
       State;
     {ok, Media} ->
-      % self() ! {ems_stream, StreamId, start_play},
-      rtmp_lib:play_start(State#rtmp_session.socket, StreamId),
-      
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
   end.

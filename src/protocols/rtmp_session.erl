@@ -444,7 +444,16 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
-handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Frame, #rtmp_session{socket = Socket} = State) ->
+handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Frame, 
+             #rtmp_session{socket = Socket, streams_started = Started} = State) ->
+  State1 = case ems:element(StreamId, Started) of
+    undefined ->
+      rtmp_lib:play_start(Socket, StreamId, DTS),
+      State#rtmp_session{streams_started = ems:setelement(StreamId, Started, true)};
+    _ ->
+      State
+  end,
+    
   % ?D({Type,Frame#video_frame.flavor,DTS}),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
@@ -453,7 +462,7 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Fram
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame)},
 	rtmp_socket:send(Socket, Message),
-  State.
+  State1.
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive
