@@ -142,14 +142,22 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
 
 
 % Part of RTMP specification.
-extract_play_args([]) -> [{wait,infinity}];
+extract_play_args([]) ->
+  case ems:get_var(rtmp_default_wait, false) of
+    true -> [{wait,infinity}];
+    false -> []
+  end;
 extract_play_args([Start]) when Start > 0 -> [{start, Start}];
 extract_play_args([Start]) when Start == -2 -> [{wait, infinity}];
 extract_play_args([_Start]) -> [];
 extract_play_args([Start, Duration]) when Start > 0 andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
 extract_play_args([Start, _Duration]) when Start > 0 -> [{start, Start}];
 extract_play_args([Start, Duration]) when Start == -1 -> [{wait,Duration}];
-extract_play_args([_Start, _Duration]) -> [{wait,infinity}];
+extract_play_args([_Start, _Duration]) -> 
+  case ems:get_var(rtmp_default_wait, false) of
+    true -> [{wait,infinity}];
+    false -> []
+  end;
 extract_play_args([Start, Duration, Reset]) when Start > 0 andalso Duration > 0 andalso Reset == 0 -> [{start, Start}, {duration, Duration}, {reset, false}];
 extract_play_args([Start, _Duration, Reset]) when Start > 0 andalso Reset == 0 -> [{start, Start}, {reset, false}];
 extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].

@@ -2,6 +2,7 @@
 {rtsp_port, 8081}.
 {http_port, 8082}.
 {iphone_segment_size, 10000}.
+{rtmp_default_wait, false}.
 {modules,[]}.
 {file_formats,[mp4_reader,flv_reader]}.
 {vhosts, [
