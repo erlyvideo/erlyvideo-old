@@ -282,15 +282,17 @@ handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media 
     [[Name, Ref]] ->
       erlang:demonitor(Ref, [flush]),
       ets:delete(OpenedMedia, Name),
+      ?D({"Unregistering", Name, Pid}),
       ems_event:stream_stopped(Host, Name, Pid),
       {noreply, MediaProvider}
   end;
     
-handle_call({register, Name, Pid}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
+handle_call({register, Name, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     undefined ->
       Ref = erlang:monitor(process, Pid),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
+      ems_event:stream_started(Host, Name, Pid, []),
       ?D({"Registering", Name, Pid}),
       {reply, {ok, {Name, Pid}}, MediaProvider};
     OldPid ->
@@ -514,6 +516,7 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{host = Host, o
       {noreply, MediaProvider};
     [Name] ->
       ets:delete(OpenedMedia, Name),
+      ?D({"Stream died", Media, Name, _Reason}),
       ems_event:stream_stopped(Host, Name, Media),
       {noreply, MediaProvider}
   end;

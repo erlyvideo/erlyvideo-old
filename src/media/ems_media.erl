@@ -323,6 +323,7 @@ init([Module, Options]) ->
       end,
       {ok, Media2, ?TIMEOUT};
     {stop, Reason} ->
+      ?D({"ems_media failed to initialize",Module,Reason}),
       {stop, Reason}
   end.
 
@@ -380,6 +381,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
   
   case M:handle_control({subscribe, Client, Options}, Media) of
     {stop, Reason, Media1} ->
+      ?D({"ems_media failed to subscribe",Client,M,Reason}),
       {stop, Reason, Media1};
     {reply, {error, Reason}, Media1} ->
       {reply, {error, Reason}, Media1, ?TIMEOUT};
@@ -419,14 +421,17 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
 handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ets:lookup(Clients, Client) of
     [#client{state = passive, ticker = Ticker}] ->
+      ?D({"Pausing passive client", Client}),
       media_ticker:pause(Ticker),
       {reply, ok, Media, ?TIMEOUT};
     
     [#client{}] ->
+      ?D({"Pausing active client", Client}),
       ets:update_element(Clients, Client, {#client.state, paused}),
       {reply, ok, Media, ?TIMEOUT};
       
     [] ->
+      ?D({"No client to pause", Client}),
       {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
       
@@ -505,6 +510,7 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M} = 
     {reply, OtherSource, Media1} ->
       DefaultSource(OtherSource, Media1);
     {stop, Reason, S2} ->
+      ?D({"ems_media failed to set_source", M, Source, Reason}),
       {stop, Reason, Media#ems_media{state = S2}}
   end;
 
@@ -515,6 +521,7 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
     {reply, _Reply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
+      ?D({"ems_media failed to cast", M, Cast, Reason}),
       {stop, Reason, Media1}
   end.
 
@@ -532,10 +539,12 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, source = Source, life_timeout = LifeTimeout} = Media) ->
   case M:handle_control({source_lost, Source}, Media) of
     {stop, Reason, Media1} ->
+      ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {reply, NewSource, Media1} ->
+      ?D({"ems_media lost source and sending graceful", LifeTimeout}),
       timer:send_after(LifeTimeout, graceful),
       {noreply, Media1#ems_media{source = NewSource, ts_delta = undefined}, ?TIMEOUT}
   end;
@@ -554,16 +563,22 @@ handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Cli
           end,
           case unsubscribe_client(Client, Media2) of
             {reply, _Reply, Media3, _} -> {noreply, Media3, ?TIMEOUT};
-            {stop, Reason, Media3} -> {stop, Reason, Media3}
+            {stop, Reason, Media3} -> 
+              ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
+              {stop, Reason, Media3}
           end;
         [] -> 
           case M:handle_info(Msg, Media2) of
             {noreply, Media3} -> {noreply, Media3};
-            {stop, Reason, Media3} -> {stop, normal, Media3}
+            {stop, Reason, Media3} -> 
+              ?D({"ems_media is stopping after handling info", M, Msg, Reason}),
+              {stop, normal, Media3}
           end
       end;
     {reply, _Reply, Media2, _} -> {noreply, Media2, ?TIMEOUT};
-    {stop, Reason, Media2} -> {stop, Reason, Media2}
+    {stop, Reason, Media2} -> 
+      ?D({"ems_media is stopping after unsubscribe", M, Pid, Reason}),
+      {stop, Reason, Media2}
   end;
   
 
@@ -573,7 +588,9 @@ handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
 
 handle_info(graceful2, #ems_media{source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
   case client_count(Media) of
-    0 -> {stop, normal, Media};
+    0 -> 
+      ?D({"ems_media is stopping after graceful2", LifeTimeout}),
+      {stop, normal, Media};
     _ -> {noreply, Media, ?TIMEOUT}
   end;
 
@@ -584,8 +601,10 @@ handle_info(graceful, #ems_media{module = M, source = Source, life_timeout = Lif
       ?D("graceful received, handling"),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
+          ?D({"ems_media is stopping after graceful", M, LifeTimeout}),
           {stop, normal, Media1};
         {stop, Reason, Media1} ->
+          ?D({"ems_media is stopping after graceful", M, LifeTimeout, Reason}),
           {stop, Reason, Media1};
         {reply, ok, Media1} ->
           {noreply, Media1#ems_media{timeout_ref = undefined}, ?TIMEOUT};
@@ -618,6 +637,7 @@ handle_info(Message, #ems_media{module = M} = Media) ->
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
+      ?D({"ems_media is stopping after handle_info", M, Message, Reason}),
       {stop, Reason, Media1}
   end.
 
@@ -768,10 +788,12 @@ send_frame(Frame, Clients, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
+  ?D("ems_media exit normal"),
   erlang:exit(Source, shutdown),
   ok;
 
 terminate(_Reason, _State) ->
+  ?D({"ems_media exit", _Reason}),
   ok.
 
 %%-------------------------------------------------------------------------

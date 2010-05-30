@@ -106,7 +106,8 @@ handle_control({set_source, _Source}, State) ->
 handle_control(timeout, #ems_media{state = State} = Media) ->
   #rtsp{reader = Reader} = State,
   erlang:exit(Reader, shutdown),
-  {stop, normal, Media};
+  ?D("RTSP timeout"),
+  {noreply, Media};
 
 handle_control(_Control, State) ->
   {noreply, State}.
