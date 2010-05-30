@@ -3,6 +3,27 @@
 -export([start_link/1, stop/0, handle_http/1]).
 -include("../include/ems.hrl").
 
+-export([bonjour_available/0, start_bonjour/1, bonjour/1]).
+
+bonjour_available() ->
+  % os:find_executable("mDNS") =/= false.
+  false.
+  
+start_bonjour(Port) ->
+  Pid = spawn_link(?MODULE, bonjour, [Port]),
+  {ok, Pid}.
+  
+bonjour(Port) ->
+  Cmd = os:find_executable("mDNS"),
+  open_port({spawn_executable, Cmd}, [stream, {args, ["-R", "Erlyvideo web interface at "++atom_to_list(node()), "_http._tcp", "local.", integer_to_list(Port)]}, {line, 1000}, exit_status, binary, stderr_to_stdout, eof]),
+  wait_for_bonjour().
+
+wait_for_bonjour() ->
+  receive
+    Msg -> ?D(Msg)
+  end,
+  wait_for_bonjour().
+  
 % start misultin http server
 start_link(Port) ->
 	misultin:start_link([{port, Port}, {loop, fun handle_http/1}]).

@@ -92,7 +92,22 @@ start_http_server(Port) ->
       worker,                                  % Type     = worker | supervisor
       [ems_http]                               % Modules  = [Module] | dynamic
   },
-  supervisor:start_child(?MODULE, Listener).
+  {ok, Pid} = supervisor:start_child(?MODULE, Listener),
+  case ems_http:bonjour_available() of
+    false ->
+      ok;
+    _ ->
+      HTTPBonjour = {ems_http_mdns_sup,
+        {ems_http, start_bonjour, [Port]},
+        permanent,
+        2000,
+        worker,
+        [ems_http]
+      },
+      supervisor:start_child(?MODULE, HTTPBonjour)
+  end,
+  {ok, Pid}.
+  
 
 -spec(init([]) -> any()).
 init([rtmp_session]) ->
