@@ -23,5 +23,6 @@
 	body           = <<>>      ::binary(),
 	next_id        = undefined ::any()
 }).
-	
+
+-type(video_frame() :: #video_frame{}).
 -endif.

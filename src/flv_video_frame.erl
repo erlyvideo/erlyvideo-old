@@ -97,9 +97,7 @@ tag_to_video_frame(#flv_video_tag{codec = Codec, flavor = Flavor, composition_ti
 tag_to_video_frame(Metadata) ->
   #video_frame{content = metadata, body = Metadata, dts = 0, pts = 0}.
   
-  
-
-
+-spec(tag_to_video_frame(Tag::flv_specific_tag(), Timestamp::number()) -> video_frame()).
 tag_to_video_frame(Tag, Timestamp) ->
   Frame = tag_to_video_frame(Tag),
   CTime = Frame#video_frame.pts,

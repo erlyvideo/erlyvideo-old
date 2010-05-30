@@ -136,6 +136,7 @@ config(<<16#FFF:12, _ID:1, _Layer:2, _:1, Profile:2, SampleRate:4,
 
 
 
+-spec(samples_per_frame(integer()) -> integer()).
 samples_per_frame(0) -> 1024;
 samples_per_frame(1) -> 960;
 samples_per_frame(1024) -> 0;
