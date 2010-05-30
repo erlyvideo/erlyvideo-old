@@ -31,6 +31,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtsp).
 -author('Max Lapshin <max@maxidoors.ru>').
+-behaviour(application).
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
@@ -39,6 +40,44 @@
 -export([parse/2, decode/1]).
 
 -export([edoc/1, edoc/0]).
+
+
+-export([start/2, stop/1, config_change/3, test_all/0]).
+
+%%--------------------------------------------------------------------
+%% @spec (Type::any(), Args::list()) -> any()
+%% @doc Starts RTSP library
+%% @end 
+%%--------------------------------------------------------------------
+
+start(_Type, _Args) -> 
+  rtsp_sup:start_link().
+  
+
+
+%%--------------------------------------------------------------------
+%% @spec (Any::any()) -> ok()
+%% @doc Stop RTSP library
+%% @end 
+%%--------------------------------------------------------------------
+stop(_S) ->
+  ok.
+
+
+%%--------------------------------------------------------------------
+%% @spec (Any::any(),Any::any(),Any::any()) -> any()
+%% @doc Reload RTSP config
+%% @end 
+%%--------------------------------------------------------------------
+config_change(_Changed, _New, _Remove) ->
+  ok.
+
+
+test_all() ->
+  rtsp:test(),
+  rtsp_socket:test(),
+  sdp:test().
+
 
 
 %%-------------------------------------------------------------------------
