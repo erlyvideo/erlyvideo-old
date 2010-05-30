@@ -1,3 +1,9 @@
+erlyvideo (1.9.3) karmic; urgency=low
+
+  Fixed failing live_media. Changed way mpegts_passive works with stopping client
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 30 May 2010 11:24:00 +0400
+
 erlyvideo (1.9.2) karmic; urgency=low
 
   Now rtmp_lib:play_start starts stream from proper timestamp
