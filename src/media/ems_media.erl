@@ -389,8 +389,10 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
       DefaultSubscribe(ok, Media1)
   end;
   
+handle_call({stop, Client}, _From, Media) ->
+  unsubscribe_client(Client, Media);
   
-handle_call({unsubscribe,Client}, _From, Media) ->
+handle_call({unsubscribe, Client}, _From, Media) ->
   unsubscribe_client(Client, Media);
 
 
