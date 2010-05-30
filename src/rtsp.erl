@@ -34,11 +34,21 @@
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
--export([start_server/3]).
+-export([start_server/3, behaviour_info/1]).
 
 -export([parse/2, decode/1]).
 
 -export([edoc/1, edoc/0]).
+
+
+%%-------------------------------------------------------------------------
+%% @spec (Callbacks::atom()) -> CallBackList::list()
+%% @doc  List of require functions in a video file reader
+%% @hidden
+%% @end
+%%-------------------------------------------------------------------------
+behaviour_info(callbacks) -> [{record,2}, {announce,3}];
+behaviour_info(_Other) -> undefined.
 
 
 edoc() ->
