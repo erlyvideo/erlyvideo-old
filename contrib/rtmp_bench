@@ -9,8 +9,11 @@ main([]) ->
 
 main([Path]) ->
   main([Path, "10"]);
-  
+
 main([URL, CountS]) ->
+  main([URL, CountS, ""]);
+  
+main([URL, CountS, DebugS]) ->
   application:start(rtmp),
   {ok, Re1} = re:compile("([^:]+)://([^/]+):(\\d+)/(.*)"),
   {ok, Re2} = re:compile("([^:]+)://([^/]+)/(.*)"),
@@ -23,7 +26,11 @@ main([URL, CountS]) ->
 			Port = 1935
 	end,
   Count = list_to_integer(CountS),
-  rtmp_bench:start_spawner(Server, Port, list_to_binary(Path), Count).
+  Debug = case DebugS of
+    "-d" -> true;
+    _ -> false
+  end,
+  rtmp_bench:start_spawner(Server, Port, list_to_binary(Path), Count, Debug).
   
 
   

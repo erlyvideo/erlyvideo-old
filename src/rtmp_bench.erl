@@ -15,32 +15,32 @@
 }).
 
 
--export([start_spawner/4]).
+-export([start_spawner/5]).
 
-start_spawner(Server, Port, Path, Count) ->
-  start_spawner(Server, Port, Path, Count, 0).
+start_spawner(Server, Port, Path, Count, Debug) ->
+  start_spawner(Server, Port, Path, Count, Debug, 0).
 
-start_spawner(Server, Port, Path, Count, Number) when Number < Count ->
+start_spawner(Server, Port, Path, Count, Debug, Number) when Number < Count ->
   io:format("Starting client ~p~n", [Number+1]),
-  spawn_link(fun() -> init_rtmp_client(Server, Port, Path) end),
+  spawn_link(fun() -> init_rtmp_client(Server, Port, Path, Debug) end),
   receive
     {'EXIT', _Pid, _Reason} ->
       NewCount = flush_exits(Number),
-      start_spawner(Server, Port, Path, Count, NewCount)
+      start_spawner(Server, Port, Path, Count, Debug, NewCount)
   after
     500 ->
-      start_spawner(Server, Port, Path, Count, Number + 1)
+      start_spawner(Server, Port, Path, Count, Debug, Number + 1)
   end;
 
-start_spawner(Server, Port, Path, Count, Count) ->
+start_spawner(Server, Port, Path, Count, Debug, Count) ->
   receive
     {'EXIT', _Pid, _Reason} ->
       io:format("Dead client ~p~n", [_Reason]),
       NewCount = flush_exits(Count - 1),
-      start_spawner(Server, Port, Path, Count, NewCount);
+      start_spawner(Server, Port, Path, Count, Debug, NewCount);
     Else ->
       io:format("Spawner message: ~p~n", [Else]),
-      start_spawner(Server, Port, Path, Count, Count)
+      start_spawner(Server, Port, Path, Count, Debug, Count)
   end.
 
 flush_exits(Count) ->
@@ -50,11 +50,11 @@ flush_exits(Count) ->
     0 -> Count
   end.
   
-init_rtmp_client(Server, Port, Path) ->
+init_rtmp_client(Server, Port, Path, Debug) ->
   {ok, Socket} = gen_tcp:connect(Server, Port, [binary, {active, false}, {packet, raw}]),
   % io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
-  rtmp_socket:setopts(RTMP, [{debug,true}]),
+  rtmp_socket:setopts(RTMP, [{debug,Debug}]),
   io:format("Connected to ~s~n", [Server]),
   rtmp_client(RTMP, Path).
   
