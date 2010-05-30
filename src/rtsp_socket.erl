@@ -186,14 +186,14 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, Body} = _Response, Rest} ->
-      io:format("--------------------------~n[RTSP] ~p ~s~n~p~n", [_Code, _Message, Headers]),
+      io:format("--------------------------~n[RTSP]~n~p ~s~n~p~n", [_Code, _Message, Headers]),
       Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
       Socket2 = extract_session(Socket1, Headers),
       Socket3 = sync_rtp(Socket2, Headers),
       Socket4 = reply_pending(Socket3),
       handle_packet(Socket4);
     {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
-      io:format("--------------------------~n[RTSP] ~p ~p~n~p~n", [_Method, _URL, Headers]),
+      io:format("--------------------------~n[RTSP]~n~s ~s~n~p~n", [_Method, _URL, Headers]),
       Socket1 = handle_request(Request, Socket),
       Socket2 = configure_rtp(Socket1#rtsp_socket{buffer = Rest}, Headers, Body),
       handle_packet(Socket2)
@@ -312,10 +312,10 @@ handle_request({request, 'SETUP', URL, Headers, _}, State) ->
   Transport = case re:run(URL, Re, [{capture, all, list}]) of
     {match, [_, TrackID_S]} ->
       TrackID = (list_to_integer(TrackID_S) - 1)*2,
-      list_to_binary("Transport: RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
+      list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
     _ -> OldTransport
   end,
-  ReplyHeaders = [{"Transport", OldTransport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
+  ReplyHeaders = [{'Transport', OldTransport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State, "200 OK", ReplyHeaders);
 
 handle_request({request, 'TEARDOWN', _URL, Headers, _Body}, #rtsp_socket{consumer = Consumer} = State) ->
@@ -395,7 +395,8 @@ handle_rtp(#rtsp_socket{rtp_streams = Streams, consumer = Consumer} = Socket, {r
       {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
       setelement(RTPNum+1, Streams, {Type, RtpState1});
     {Type, RtpState} ->
-      % ?D({"Decode rtp on", Channel, Type}),
+      % ?D({"Decode rtp on", Channel, Type, size(Packet), element(1, RtpState)}),
+      % ?D(RtpState),
       {RtpState1, Frames} = rtp_server:decode(Type, RtpState, Packet),
       % ?D({"Frame", Frames}),
       lists:foreach(fun(Frame) ->
