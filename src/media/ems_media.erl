@@ -305,7 +305,7 @@ init([Module, Options]) ->
   ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
   URL = proplists:get_value(url, Options),
-  Media = #ems_media{options = Options, module = Module, name = Name, url = URL,
+  Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ets:new(clients, [set,  {keypos,#client.consumer}]),
                      life_timeout = proplists:get_value(life_timeout, Options, ?LIFE_TIMEOUT)},
   case Module:init(Media, Options) of
@@ -346,7 +346,8 @@ handle_call({subscribe, Client, Options}, From, #ems_media{timeout_ref = Ref} = 
 handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
 
-  DefaultSubscribe = fun(Reply, #ems_media{audio_config = A, last_dts = DTS} = Media1) ->
+  DefaultSubscribe = fun(Reply, #ems_media{timeout_ref = TimeoutRef, audio_config = A, last_dts = DTS} = Media1) ->
+    (catch timer:cancel(TimeoutRef)),
     Ref = erlang:monitor(process,Client),
     RequireTicker = case Reply of
       tick -> true;
@@ -531,7 +532,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
     {noreply, Media1} ->
-      {stop, normal, Media1};
+      {noreply, Media1, ?TIMEOUT};
     {reply, NewSource, Media1} ->
       timer:send_after(LifeTimeout, graceful),
       {noreply, Media1#ems_media{source = NewSource, ts_delta = undefined}, ?TIMEOUT}
@@ -540,13 +541,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
 
   
-handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M, life_timeout = LifeTimeout} = Media) ->
-  Count = client_count(Media),
-  {ok, TimeoutRef} = if
-    Count < 2 -> timer:send_after(LifeTimeout, graceful);
-    true -> {ok, undefined}
-  end,
-  Media1 = Media#ems_media{timeout_ref = TimeoutRef},
+handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M} = Media1) ->
   case unsubscribe_client(Pid, Media1) of
     {reply, {error, no_client}, Media2, _} ->
       case ets:select(Clients, ets:fun2ms(fun(#client{ticker = Ticker} = Entry) when Ticker == Pid -> Entry end)) of
@@ -574,9 +569,28 @@ handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
   % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
   shift_dts(Frame, Media);
 
-handle_info(graceful, #ems_media{source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
+handle_info(graceful2, #ems_media{source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
   case client_count(Media) of
     0 -> {stop, normal, Media};
+    _ -> {noreply, Media, ?TIMEOUT}
+  end;
+
+
+handle_info(graceful, #ems_media{module = M, source = Source, life_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
+  case client_count(Media) of
+    0 ->
+      ?D("graceful received, handling"),
+      case M:handle_control(no_clients, Media) of
+        {noreply, Media1} ->
+          {stop, normal, Media1};
+        {stop, Reason, Media1} ->
+          {stop, Reason, Media1};
+        {reply, ok, Media1} ->
+          {noreply, Media1#ems_media{timeout_ref = undefined}, ?TIMEOUT};
+        {reply, Timeout, Media1} ->
+          Ref = timer:send_after(Timeout, graceful2),
+          {noreply, Media1#ems_media{timeout_ref = Ref}, ?TIMEOUT}
+      end;
     _ -> {noreply, Media, ?TIMEOUT}
   end;
   
@@ -586,7 +600,7 @@ handle_info(graceful, #ems_media{} = Media) ->
 % handle_info(timeout, #ems_media{timeout_ref = Ref} = Media) when Ref =/= undefined ->
 %   {noreply, Media}; % No need to set timeout, because Timeout is already going to arrive
 % 
-handle_info(timeout, #ems_media{module = M, source = Source, life_timeout = LifeTimeout} = Media) when Source =/= undefined ->
+handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Source =/= undefined ->
   case M:handle_control(timeout, Media) of
     {stop, Reason, Media1} ->
       error_logger:error_msg("Source of media doesnt send frames, stopping...~n"),
@@ -608,7 +622,7 @@ handle_info(Message, #ems_media{module = M} = Media) ->
 
 
 
-unsubscribe_client(Client, #ems_media{clients = Clients, module = M} = Media) ->
+unsubscribe_client(Client, #ems_media{clients = Clients, module = M, life_timeout = LifeTimeout} = Media) ->
   case ets:lookup(Clients, Client) of
     [#client{ref = Ref, ticker = Ticker, ticker_ref = TickerRef}] ->
       case M:handle_control({unsubscribe, Client}, Media) of
@@ -622,7 +636,13 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M} = Media) ->
         
           erlang:demonitor(Ref, [flush]),
           ets:delete(Clients, Client),
-          {reply, ok, Media1, ?TIMEOUT};
+
+          Count = client_count(Media1),
+          {ok, TimeoutRef} = if
+            Count < 2 -> ?D({"No clients, sending delayed graceful", LifeTimeout}), timer:send_after(LifeTimeout, graceful);
+            true -> {ok, undefined}
+          end,
+          {reply, ok, Media1#ems_media{timeout_ref = TimeoutRef}, ?TIMEOUT};
         {reply, Reply, Media1} ->
           {reply, Reply, Media1, ?TIMEOUT};
 

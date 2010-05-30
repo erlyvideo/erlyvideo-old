@@ -20,7 +20,6 @@ wwwroot(Host) ->
   ems:get_var(wwwroot, Host, ems:get_var(wwwroot, "wwwroot")).
 
 handle(Host, 'GET', [], Req) ->
-  ?D(Req:get(headers)),
   erlydtl:compile(wwwroot(Host) ++ "/index.html", index_template),
   
   Query = Req:parse_qs(),

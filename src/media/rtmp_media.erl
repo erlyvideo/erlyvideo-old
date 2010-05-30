@@ -80,7 +80,7 @@ handle_control({subscribe, _Client, _Options}, State) ->
   %% {reply, tick, State} -> client requires ticker (file reader)
   %% {reply, Reply, State} -> client is subscribed as active receiver
   %% {reply, {error, Reason}, State} -> client receives {error, Reason}
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
@@ -92,19 +92,19 @@ handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control({set_socket, _Socket}, State) ->
   %% Set socket returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {reply, ok, State};
+  {noreply, State};
 
 handle_control(timeout, State) ->
   {stop, normal, State};
 
 handle_control(_Control, State) ->
-  {reply, ok, State}.
+  {noreply, State}.
 
 %%----------------------------------------------------------------------
 %% @spec (Frame::video_frame(), State) -> {reply, Frame, State} |

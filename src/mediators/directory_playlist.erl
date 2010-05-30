@@ -87,7 +87,8 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {reply, Source, State} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {stop, source_lost, State};
+  {Stream, State1} = next_file(State),
+  {reply, Stream, State1};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
@@ -146,6 +147,12 @@ handle_info(_Message, State) ->
   ?D({message, _Message}),
   {noreply, State}.
 
-
+next_file(#ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
+  State = Media#ems_media.state,
+  {ok, Stream} = media_provider:play(Host, Name, [{stream_id,1}]),
+  ems_media:set_source(self(), Stream),
+  ?D({"Playing",Name, Stream}),
+  {Stream, Media#ems_media{state = State#playlist{files = Files}}}.
+  
 
 

@@ -45,7 +45,6 @@
 -record(mpegts, {
   socket,
   options,
-  url,
   demuxer,
   make_request,
   restart_count
@@ -64,9 +63,7 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(Media, Options) ->
-  URL = proplists:get_value(url, Options),
-  Type = proplists:get_value(type, Options),
+init(#ems_media{type = Type, url = URL} = Media, Options) ->
   MakeRequest = case {Type, proplists:get_value(make_request, Options, true)} of
     {mpegts_passive, _} -> false;
     {_, true} -> true;
@@ -81,7 +78,7 @@ init(Media, Options) ->
     _ -> ems_sup:start_mpegts_reader(self())
   end,
   ems_media:set_source(self(), Reader),
-  State = #mpegts{socket = Socket, demuxer = Reader, options = Options, url = URL, make_request = MakeRequest},
+  State = #mpegts{socket = Socket, demuxer = Reader, options = Options, make_request = MakeRequest},
   {ok, Media#ems_media{state = State}}.
 
 
@@ -129,6 +126,10 @@ handle_control({set_socket, Socket}, #ems_media{state = State} = Media) ->
 handle_control(timeout, State) ->
   {stop, normal, State};
 
+handle_control(no_clients, #ems_media{type = mpegts_passive} = Media) ->
+  ?D(graceful),
+  {reply, ok, Media};
+
 handle_control(_Control, State) ->
   {noreply, State}.
 
@@ -171,13 +172,19 @@ handle_info({tcp, Socket, Bin}, #ems_media{state = #mpegts{demuxer = Reader}} = 
   State1 = State#mpegts{demuxer = Reader},
   {noreply, Media#ems_media{state = State1}};
 
+handle_info({tcp_closed, _Socket}, #ems_media{type = mpegts_passive, state = State} = Media) ->
+  ?D({"MPEG-TS passive lost socket"}),
+  State1 = State#mpegts{socket = undefined},
+  {noreply, Media#ems_media{state = State1}};
+
+
 handle_info({tcp_closed, Socket}, #ems_media{state = #mpegts{restart_count = undefined}} = Media) ->
   State = Media#ems_media.state,
   State1 = State#mpegts{restart_count = 0},
   handle_info({tcp_closed, Socket}, Media#ems_media{state = State1});
 
-handle_info({tcp_closed, Socket}, #ems_media{state = 
-            #mpegts{socket = Socket, url = URL, restart_count = Count, make_request = MakeRequest}} = Media) ->
+handle_info({tcp_closed, Socket}, #ems_media{url = URL, state = 
+            #mpegts{socket = Socket, restart_count = Count, make_request = MakeRequest}} = Media) ->
   State = Media#ems_media.state,
   if
     Count > ?MAX_RESTART ->

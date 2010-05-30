@@ -84,7 +84,7 @@ handle_control({source_lost, _Source}, State) ->
   %% {reply, Source, State} => new source is created
   %% {stop, Reason, State}  => stop with Reason
   %% {noreply, State}       => default action. it is stop
-  {noreply, State};
+  {stop, normal, State};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:

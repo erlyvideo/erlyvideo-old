@@ -96,7 +96,7 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {reply, Source, State} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {reply, undefined, State};
+  {noreply, State};
 
 handle_control({set_source, _Source}, #ems_media{state = #live{ref = undefined}} = State) ->
   {noreply, State};
