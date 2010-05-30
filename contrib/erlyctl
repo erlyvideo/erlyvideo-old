@@ -14,10 +14,11 @@
 
 NODE=ems
 HOST=`hostname`
-if expr "$HOSTNAME" : '.*\..*' ; then
-  TYPE="name"
-else
+DOTTED=`hostname | grep '\.'`
+if [ "" = "$DOTTED" ] ;then
   TYPE="sname"
+else
+  TYPE="name"
 fi
 
 
@@ -61,7 +62,7 @@ shell()
 ctl()
 {
     $ERL \
-      -sname ctl$NODE@$HOST \
+      -$TYPE ctl$NODE@$HOST \
       -pa ebin \
       -noinput \
       -hidden \
