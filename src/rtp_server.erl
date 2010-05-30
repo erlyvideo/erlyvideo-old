@@ -304,6 +304,7 @@ unpack_audio_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _D
         pts     = DTS,
         body    = Data,
     	  codec	  = aac,
+    	  flavor  = frame,
     	  sound	  = {stereo, bit16, rate44}
       },
       unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024}, [AudioFrame | Frames]);
