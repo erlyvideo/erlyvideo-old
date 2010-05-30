@@ -1,3 +1,9 @@
+erlyvideo (1.9.5) karmic; urgency=low
+
+  Made configurable behaviour to autostart livestream if none found
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 31 May 2010 02:03:51 +0400
+
 erlyvideo (1.9.4) karmic; urgency=low
 
   Compatibility with new rtsp callbacks
