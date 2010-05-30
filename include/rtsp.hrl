@@ -4,9 +4,7 @@
 -endif.
 
 -record(rtsp_stream, {
-  % id,
   type,
-  transport,
   clock_map,
   track_control,
   codec,

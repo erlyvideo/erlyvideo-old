@@ -22,7 +22,6 @@
   sdp_config = [],
   options,
   rtp_streams = {undefined,undefined,undefined,undefined},
-  nal_size = 32,
   consumer,
   consumer_ref,
   state,
@@ -223,14 +222,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
         Consumer ! Frame
       end, Frames),
       
-      Socket1 = case Frames of
-        [#video_frame{body = Config, content = video, flavor = config} |_] ->
-          {NalSize, _} = h264:unpack_config(Config),
-          Socket#rtsp_socket{nal_size = NalSize};
-        _ ->
-          Socket
-      end,
-      Socket1#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
+      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
     undefined ->
       Socket;
     Else ->
@@ -391,6 +383,7 @@ sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
 handle_rtp(#rtsp_socket{rtp_streams = Streams, consumer = Consumer} = Socket, {rtp, Channel, Packet}) ->
   Streams1 = case element(Channel+1, Streams) of
     {rtcp, RTPNum} ->
+      % ?D({rtcp, RTPNum}),
       {Type, RtpState} = element(RTPNum+1, Streams),
       {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
       setelement(RTPNum+1, Streams, {Type, RtpState1});

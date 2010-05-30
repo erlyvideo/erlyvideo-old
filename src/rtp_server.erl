@@ -88,9 +88,7 @@ configure(Body, RTPStreams) ->
 configure(Body, RTPStreams, Media) ->
   Streams = sdp:decode(Body),
   
-  Streams0 = [Stream || #rtsp_stream{codec = Codec} = Stream <- Streams, is_atom(Codec)], % only those, whose codec is detected
-  
-  {Streams1, Frames} = config_media(Streams0),
+  {Streams1, Frames} = config_media(Streams),
   
   RtpStreams2 = configure(Streams1, RTPStreams, Media, 0),
   {Streams1, RtpStreams2, Frames}.
@@ -131,7 +129,7 @@ presync(Streams, [RTP | Info], N, Now) ->
 
 config_media(Streams) -> config_media(Streams, [], []).
 
-config_media([], Output, Frames) -> {Output, Frames};
+config_media([], Output, Frames) -> {lists:reverse(Output), Frames};
 config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, _} = h264:decode_nal(PPS, H264),

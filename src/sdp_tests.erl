@@ -30,15 +30,50 @@ a=control:track2">>.
 
 beward_test() ->
   ?assertEqual([
-   {rtsp_stream,video,undefined,90.0,"track1",h264,
+   {rtsp_stream,video,90.0,"track1",h264,
                 <<40,238,60,128>>,
                 <<39,77,0,40,141,141,40,10,0,183,96,45,64,64,64,80,0,0,62,128,0,12,53,6,134,0,
                   80,0,0,89,244,187,203,141,12,0,160,0,0,179,233,119,151,4,250,44,0>>,
                 undefined},
-  {rtsp_stream,audio,undefined,8.0,"track2","PCMA",
+  {rtsp_stream,audio,8.0,"track2","PCMA",
                 undefined,undefined,undefined}], sdp:decode(beward_sdp())).
   
 
+
+
+quicktime_broadcaster_sdp() ->
+<<"v=0
+o=- 165 931665148 IN IP4 127.0.0.0
+s=QuickTime
+c=IN IP4 127.0.0.1
+t=0 0
+a=x-qt-text-an©:railsconf
+a=range:npt=now-
+a=isma-compliance:2,2.0,2
+m=audio 0 RTP/AVP 96
+b=AS:8
+a=rtpmap:96 mpeg4-generic/8000/1
+a=fmtp:96 profile-level-id=15;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1588
+a=mpeg4-esid:101
+a=control:trackid=1
+m=video 0 RTP/AVP 97
+b=AS:300
+a=rtpmap:97 H264/90000
+a=fmtp:97 packetization-mode=1;profile-level-id=4D400C;sprop-parameter-sets=J01ADKkYUI/LgDUGAQa2wrXvfAQ=,KN4JF6A=
+a=mpeg4-esid:201
+a=cliprect:0,0,120,160
+a=framesize:97 160-120
+a=control:trackid=2
+">>.
+
+quicktime_broadcaster_test() ->
+  ?assertEqual([
+    {rtsp_stream,audio,8.0,"trackid=1",aac,undefined,undefined,<<21,136>>},
+    {rtsp_stream,video,90.0,"trackid=2",h264,
+                <<40,222,9,23,160>>,
+                <<39,77,64,12,169,24,80,143,203,128,53,6,1,6,182,194,181,239,124,4>>,
+                undefined}], sdp:decode(quicktime_broadcaster_sdp())).
+  
 
 axis_m1011_sdp() ->
   <<"v=0
@@ -60,7 +95,7 @@ a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0
   
 axis_m1011_test() ->
   ?assertEqual([
-   {rtsp_stream,video,undefined,90.0,"trackID=1",h264,
+   {rtsp_stream,video,90.0,"trackID=1",h264,
                 <<104,206,60,128>>,
                 <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
                 undefined}], sdp:decode(axis_m1011_sdp())).
@@ -87,18 +122,18 @@ b=AS:32
 a=control:rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264
 a=rtpmap:97 mpeg4-generic/16000/1
 a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;">>,
-  ?assertEqual([{rtsp_stream,video,undefined,90.0,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264",h264,
+  ?assertEqual([{rtsp_stream,video,90.0,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264",h264,
                 <<104,206,60,128>>,
                 <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
                 undefined},
-      {rtsp_stream,audio,undefined,16.0,
+      {rtsp_stream,audio,16.0,
          "rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264",aac,
         undefined,undefined,
         <<20,8>>}], sdp:decode(SDP)).
 
 
 axis_test() ->
-  ?assertEqual([{rtsp_stream,video,undefined,90.0,"trackID=1",h264,
+  ?assertEqual([{rtsp_stream,video,90.0,"trackID=1",h264,
                 <<104,206,60,128>>,
                 <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
                 undefined}], sdp:decode(<<"v=0\r\no=- 1266472632763124 1266472632763124 IN IP4 192.168.4.1\r\ns=Media Presentation\r\ne=NONE\r\nc=IN IP4 0.0.0.0\r\nb=AS:50000\r\nt=0 0\r\na=control:*\r\na=range:npt=0.000000-\r\nm=video 0 RTP/AVP 96\r\nb=AS:50000\r\na=framerate:25.0\r\na=control:trackID=1\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r\n">>)).
@@ -112,5 +147,5 @@ dlink_dcs_2121_test() ->
 
 
 darwinss_test() ->
-  ?assertEqual([{rtsp_stream,video,undefined,90.0,"trackID=1",h264,
+  ?assertEqual([{rtsp_stream,video,90.0,"trackID=1",h264,
                 undefined,undefined,undefined}], sdp:decode(<<"v=0\r\no=- 1188340656180883 1 IN IP4 224.1.2.3\r\ns=Session streamed by GStreamer\r\ni=server.sh\r\nt=0 0\r\na=tool:GStreamer\r\na=type:broadcast\r\nm=video 10000 RTP/AVP 96\r\nc=IN IP4 224.1.2.3\r\na=rtpmap:96 H264/90000\r\na=framerate:30">>)).
