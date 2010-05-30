@@ -99,8 +99,8 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}},
             #rtsp_listener{listener=ListSock, acceptor=Ref, callback=Callback} = State) ->
     case set_sockopt(ListSock, CliSocket) of
     ok ->
-        {ok, Pid} = rtsp_sup:start_rtsp_connection(Callback),
-        rtsp_connection:set_socket(Pid, CliSocket),
+        {ok, Pid} = rtsp_sup:start_rtsp_socket(Callback),
+        rtsp_socket:set_socket(Pid, CliSocket),
         {ok, NewRef} = prim_inet:async_accept(ListSock, -1),
         {noreply, State#rtsp_listener{acceptor=NewRef}};
     {error, Reason} ->
