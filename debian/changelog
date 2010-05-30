@@ -1,3 +1,9 @@
+erlang-rtmp (1.5.13) karmic; urgency=low
+
+  debug key for rtmp_benck
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 31 May 2010 01:12:57 +0400
+
 erlang-rtmp (1.5.12) karmic; urgency=low
 
   Now rtmp_lib:play_start starts stream from proper timestamp
