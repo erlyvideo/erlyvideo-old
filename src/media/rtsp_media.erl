@@ -103,6 +103,14 @@ handle_control({set_source, _Source}, State) ->
   %% {stop, Reason}
   {noreply, State};
 
+handle_control(no_clients, State) ->
+  %% no_clients returns:
+  %% {reply, ok, State}      => wait forever till clients returns
+  %% {reply, Timeout, State} => wait for Timeout till clients returns
+  %% {noreply, State}        => just ignore and live more
+  %% {stop, Reason, State}   => stops. This should be default
+  {stop, normal, State};
+
 handle_control(timeout, #ems_media{state = State} = Media) ->
   #rtsp{reader = Reader} = State,
   erlang:exit(Reader, shutdown),

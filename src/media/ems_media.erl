@@ -601,8 +601,8 @@ handle_info(graceful, #ems_media{module = M, source = Source, life_timeout = Lif
       ?D("graceful received, handling"),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
-          ?D({"ems_media is stopping after graceful", M, LifeTimeout}),
-          {stop, normal, Media1};
+          ?D({"ems_media is living more", M, LifeTimeout, Source}),
+          {noreply, Media1, ?TIMEOUT};
         {stop, Reason, Media1} ->
           ?D({"ems_media is stopping after graceful", M, LifeTimeout, Reason}),
           {stop, Reason, Media1};

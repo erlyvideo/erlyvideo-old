@@ -128,7 +128,15 @@ handle_control(timeout, State) ->
 
 handle_control(no_clients, #ems_media{type = mpegts_passive} = Media) ->
   ?D(graceful),
-  {reply, ok, Media};
+  {noreply, Media};
+
+handle_control(no_clients, State) ->
+  %% no_clients returns:
+  %% {reply, ok, State}      => wait forever till clients returns
+  %% {reply, Timeout, State} => wait for Timeout till clients returns
+  %% {noreply, State}        => just ignore and live more
+  %% {stop, Reason, State}   => stops. This should be default
+  {stop, normal, State};
 
 handle_control(_Control, State) ->
   {noreply, State}.
