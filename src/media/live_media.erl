@@ -98,7 +98,7 @@ handle_control({source_lost, _Source}, State) ->
   %% {stop, Reason, State} -> stop with Reason
   {reply, undefined, State};
 
-handle_control({set_source, _Source}, #live{ref = undefined} = State) ->
+handle_control({set_source, _Source}, #ems_media{state = #live{ref = undefined}} = State) ->
   {noreply, State};
 
 handle_control({set_source, _Source}, #ems_media{state = State} = Media) ->
