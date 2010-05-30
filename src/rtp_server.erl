@@ -299,11 +299,11 @@ unpack_audio_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _D
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
       AudioFrame = #video_frame{       
-        content          = audio,
-        dts           = DTS,
-        pts           = DTS,
-        body          = Data,
-    	  codec	    = aac,
+        content = audio,
+        dts     = DTS,
+        pts     = DTS,
+        body    = Data,
+    	  codec	  = aac,
     	  sound	  = {stereo, bit16, rate44}
       },
       unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024}, [AudioFrame | Frames]);
@@ -338,6 +338,7 @@ video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, 
     false -> send_video(Video)
   end,
   {H264_1, NewFrames} = h264:decode_nal(Body, H264),
+  % ?D({"ZZZ", Timecode, size(Body), NewFrames}),
 
   {Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = NewFrames, timecode = NewTimecode}, Frames}.
  
