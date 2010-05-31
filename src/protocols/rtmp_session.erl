@@ -31,8 +31,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include("../../include/ems.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -behaviour(gen_fsm).

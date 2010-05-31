@@ -30,8 +30,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(flv_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("erlmedia/include/flv.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/flv.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
