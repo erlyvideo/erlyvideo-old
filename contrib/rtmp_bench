@@ -15,22 +15,13 @@ main([URL, CountS]) ->
   
 main([URL, CountS, DebugS]) ->
   application:start(rtmp),
-  {ok, Re1} = re:compile("([^:]+)://([^/]+):(\\d+)/(.*)"),
-  {ok, Re2} = re:compile("([^:]+)://([^/]+)/(.*)"),
-  process_flag(trap_exit, true),
-	case re:run(URL, Re1, [{capture, all, list}]) of
-	  {match, [_, _Protocol, Server, PortS, Path]} ->
-			Port = list_to_integer(PortS);
-		_ ->
-			{match, [_, _Protocol, Server, Path]} = re:run(URL, Re2, [{capture, all, list}]),
-			Port = 1935
-	end,
   Count = list_to_integer(CountS),
   Debug = case DebugS of
     "-d" -> true;
     _ -> false
   end,
-  rtmp_bench:start_spawner(Server, Port, list_to_binary(Path), Count, Debug).
+  Spawner = rtmp_bench:init(URL, Count, Debug),
+  rtmp_bench:start_spawner(Spawner).
   
 
   

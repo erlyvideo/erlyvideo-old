@@ -14,33 +14,58 @@
   count = 1
 }).
 
+-record(spawner, {
+  url,
+  count,
+  debug,
+  server,
+  port,
+  app,
+  path
+}).
 
--export([start_spawner/5]).
 
-start_spawner(Server, Port, Path, Count, Debug) ->
-  start_spawner(Server, Port, Path, Count, Debug, 0).
+-export([start_spawner/1, init/3]).
 
-start_spawner(Server, Port, Path, Count, Debug, Number) when Number < Count ->
+init(URL, Count, Debug) ->
+  {ok, Re1} = re:compile("([^:]+)://([^/]+):(\\d+)/(.*)"),
+  {ok, Re2} = re:compile("([^:]+)://([^/]+)/(.*)"),
+  process_flag(trap_exit, true),
+	case re:run(URL, Re1, [{capture, all, list}]) of
+	  {match, [_, _Protocol, Server, PortS, Path]} ->
+			Port = list_to_integer(PortS);
+		_ ->
+			{match, [_, _Protocol, Server, Path]} = re:run(URL, Re2, [{capture, all, list}]),
+			Port = 1935
+	end,
+	[App | PathRest] = string:tokens(Path, "/"),
+  #spawner{server = Server, port = Port, app = list_to_binary(App), path = list_to_binary(string:join(PathRest,"/")), count = Count, debug = Debug}.
+
+
+start_spawner(Spawner) ->
+  start_spawner(Spawner, 0).
+
+start_spawner(#spawner{count = Count} = Spawner, Number) when Number < Count ->
   io:format("Starting client ~p~n", [Number+1]),
-  spawn_link(fun() -> init_rtmp_client(Server, Port, Path, Debug) end),
+  spawn_link(fun() -> init_rtmp_client(Spawner) end),
   receive
     {'EXIT', _Pid, _Reason} ->
       NewCount = flush_exits(Number),
-      start_spawner(Server, Port, Path, Count, Debug, NewCount)
+      start_spawner(Spawner, NewCount)
   after
     500 ->
-      start_spawner(Server, Port, Path, Count, Debug, Number + 1)
+      start_spawner(Spawner, Number + 1)
   end;
 
-start_spawner(Server, Port, Path, Count, Debug, Count) ->
+start_spawner(#spawner{count = Count} = Spawner, Count) ->
   receive
     {'EXIT', _Pid, _Reason} ->
       io:format("Dead client ~p~n", [_Reason]),
       NewCount = flush_exits(Count - 1),
-      start_spawner(Server, Port, Path, Count, Debug, NewCount);
+      start_spawner(Spawner, NewCount);
     Else ->
       io:format("Spawner message: ~p~n", [Else]),
-      start_spawner(Server, Port, Path, Count, Debug, Count)
+      start_spawner(Spawner, Count)
   end.
 
 flush_exits(Count) ->
@@ -50,30 +75,30 @@ flush_exits(Count) ->
     0 -> Count
   end.
   
-init_rtmp_client(Server, Port, Path, Debug) ->
+init_rtmp_client(#spawner{server = Server, port = Port, debug = Debug, app = App, path = Path}) ->
   {ok, Socket} = gen_tcp:connect(Server, Port, [binary, {active, false}, {packet, raw}]),
   % io:format("Socket opened to ~s~n", [Server]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   rtmp_socket:setopts(RTMP, [{debug,Debug}]),
   io:format("Connected to ~s~n", [Server]),
-  rtmp_client(RTMP, Path).
+  rtmp_client(RTMP, App, Path).
   
-rtmp_client(RTMP, Path) ->
+rtmp_client(RTMP, App, Path) ->
   receive 
     {rtmp, RTMP, connected} ->
       rtmp_socket:setopts(RTMP, [{active, true}]),
-      play(RTMP, Path);
+      play(RTMP, App, Path);
     Else ->
       io:format("Client message: ~p (~p)~n", [Else, RTMP]),
-      rtmp_client(RTMP, Path)
+      rtmp_client(RTMP, App, Path)
   after
     10000 ->
       io:format("Client timeout~n"),
       ok
   end.
 
-play(RTMP, Path) ->
-  rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
+play(RTMP, App, Path) ->
+  rtmp_lib:connect(RTMP, [{app, App}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:play(RTMP, Stream, Path),
   io:format("Playing ~s~n", [Path]),
