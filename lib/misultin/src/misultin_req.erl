@@ -170,7 +170,8 @@ resource(Options) when is_list(Options) ->
 	{_UriType, RawUri} = Req#req.uri,
 	Uri = lists:foldl(fun(Option, Acc) -> clean_uri(Option, Acc) end, RawUri, Options),
 	% split
-	string:tokens(Uri, "/").
+	URI = string:tokens(Uri, "/"),
+	lists:filter(fun("..") -> false; (_) -> true end, URI).
 
 % ============================ /\ API ======================================================================
 
