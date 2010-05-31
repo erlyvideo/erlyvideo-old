@@ -543,11 +543,13 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
     {noreply, Media1} ->
+      mark_clients_as_starting(Media),
       {noreply, Media1#ems_media{source = undefined, source_ref = undefined}, ?TIMEOUT};
     {reply, NewSource, Media1} ->
       ?D({"ems_media lost source and sending graceful, but have new source", LifeTimeout, NewSource}),
       timer:send_after(LifeTimeout, graceful),
       Ref = erlang:monitor(process, NewSource),
+      mark_clients_as_starting(Media),
       {noreply, Media1#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
   end;
   % FIXME: should send notification
@@ -679,6 +681,11 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M, life_timeou
   end.
 
 
+mark_clients_as_starting(#ems_media{clients = Clients}) ->
+  MS = ets:fun2ms(fun(#client{state = active, consumer = Client}) -> Client end),
+  Starting = ets:select(Clients, MS),
+  [ets:update_element(Clients, Client, {#client.state, starting}) || Client <- Starting],
+  ok.
 
 
 client_count(#ems_media{clients = Clients}) ->
