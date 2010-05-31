@@ -155,7 +155,7 @@ encode(State, #rtmp_message{timestamp = TimeStamp} = Message) when is_float(Time
 encode(State, #rtmp_message{stream_id = StreamId} = Message) when is_float(StreamId) -> 
   encode(State, Message#rtmp_message{stream_id = round(StreamId)});
 
-encode(State, #rtmp_message{stream_id = StreamId} = Message) when not is_number(StreamId) ->
+encode(_State, #rtmp_message{stream_id = StreamId}) when not is_number(StreamId) ->
   erlang:error({invalid_rtmp_stream_id,StreamId});
 
 
@@ -438,7 +438,8 @@ decode_channel_packet(Rest, #channel{msg = Msg, length = Length} = Channel, #rtm
   NextChannelList = rtmp:setelement(Channel#channel.id, Channels, Channel#channel{msg = <<>>}),
   {NewState#rtmp_socket{channels=NextChannelList}, Message#rtmp_message{ts_type = TSType}, Rest}.
   
-extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) -> #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}.
+extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) -> 
+  #rtmp_message{channel_id = Id, timestamp = Timestamp, stream_id = StreamId}.
 
 
 
