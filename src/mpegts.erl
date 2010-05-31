@@ -58,7 +58,7 @@
   pmt_counter = 0,
   audio_counter = 0,
   video_counter = 0,
-  length_size = 2,
+  length_size = 32,
   audio_config = undefined,
   video_config = undefined
 }).
