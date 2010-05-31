@@ -11,9 +11,8 @@
 -define(RTMP_WINDOW_SIZE, 2500000).
 -define(RTMP_PREF_CHUNK_SIZE, (1024*1024)).
 
--define(ERLYINFO, "Erlyvideo 1.5").
 -define(CONTENT_TYPE, "application/x-fcs").
--define(SERVER_HEADER, {"Server", ?ERLYINFO}).
+-define(SERVER_HEADER, {"Server", "Erlyvideo 1.9"}).
 
 -define(DEFAULT_FLV_DIR, "/tmp").
 

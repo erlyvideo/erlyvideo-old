@@ -79,10 +79,11 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
   rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
   
-  ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
+  ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
-               {code, <<?NC_CONNECT_SUCCESS>>},
+               {code, <<"NetConnection.Connect.Success">>},
                {description, <<"Connection succeeded.">>},
+               {data,[<<"version">>, <<"3,5,2,654">>]},
                {objectEncoding, AMFVersion}],
   reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
@@ -94,7 +95,7 @@ accept_connection(Session) when is_pid(Session) ->
 
 
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
-  ConnectObj = [{fmsVer, <<?ERLYINFO>>}, {capabilities, 31}],
+  ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<?NC_CONNECT_REJECTED>>},
                {description, <<"Connection rejected.">>}],
