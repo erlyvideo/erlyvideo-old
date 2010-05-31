@@ -124,7 +124,8 @@ handle_control({set_socket, Socket}, #ems_media{state = State} = Media) ->
   {noreply, Media#ems_media{state = State1}};
 
 handle_control(timeout, State) ->
-  {stop, normal, State};
+  ?D({"Timeout in MPEG-TS", State#ems_media.type}),
+  {noreply, State};
 
 handle_control(no_clients, #ems_media{type = mpegts_passive} = Media) ->
   ?D(graceful),

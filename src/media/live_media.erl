@@ -107,12 +107,16 @@ handle_control({set_source, _Source}, #ems_media{state = State} = Media) ->
   State1 = State#live{ref = undefined},
   {noreply, Media#ems_media{state = State1}};
 
+handle_control(no_clients, #ems_media{source = undefined} = State) ->
+  {stop, normal, State};
+
 handle_control(no_clients, State) ->
   %% no_clients returns:
   %% {reply, ok, State}      => wait forever till clients returns
   %% {reply, Timeout, State} => wait for Timeout till clients returns
   %% {noreply, State}        => just ignore and live more
   %% {stop, Reason, State}   => stops. This should be default
+  ?D({"No clients, but has source", State#ems_media.source}),
   {noreply, State};
 
 handle_control(timeout, State) ->

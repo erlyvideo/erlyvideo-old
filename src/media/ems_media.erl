@@ -542,11 +542,12 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
     {noreply, Media1} ->
-      {noreply, Media1, ?TIMEOUT};
+      {noreply, Media1#ems_media{source = undefined, source_ref = undefined}, ?TIMEOUT};
     {reply, NewSource, Media1} ->
       ?D({"ems_media lost source and sending graceful", LifeTimeout}),
       timer:send_after(LifeTimeout, graceful),
-      {noreply, Media1#ems_media{source = NewSource, ts_delta = undefined}, ?TIMEOUT}
+      Ref = erlang:monitor(process, NewSource),
+      {noreply, Media1#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
   end;
   % FIXME: should send notification
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
