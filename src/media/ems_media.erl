@@ -537,6 +537,7 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
 %%-------------------------------------------------------------------------
 
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, source = Source, life_timeout = LifeTimeout} = Media) ->
+  ?D({"ems_media lost source", Source, _Reason}),
   case M:handle_control({source_lost, Source}, Media) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
@@ -544,7 +545,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
     {noreply, Media1} ->
       {noreply, Media1#ems_media{source = undefined, source_ref = undefined}, ?TIMEOUT};
     {reply, NewSource, Media1} ->
-      ?D({"ems_media lost source and sending graceful", LifeTimeout}),
+      ?D({"ems_media lost source and sending graceful, but have new source", LifeTimeout, NewSource}),
       timer:send_after(LifeTimeout, graceful),
       Ref = erlang:monitor(process, NewSource),
       {noreply, Media1#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}

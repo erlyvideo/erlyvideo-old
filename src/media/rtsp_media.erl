@@ -38,13 +38,12 @@
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
 -record(rtsp, {
-  url,
   timeout,
   reader,
   restart_count = 0
 }).
 
-connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
+connect_rtsp(#ems_media{url = URL, state = #rtsp{timeout = Timeout}}) ->
   ?D({"Connecting to RTSP", URL}),
   rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]).
 
@@ -64,12 +63,13 @@ connect_rtsp(#rtsp{url = URL, timeout = Timeout}) ->
 
 init(Media, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
-  State = #rtsp{timeout = Timeout, url = proplists:get_value(url, Options)},
-  case connect_rtsp(State) of
+  State = #rtsp{timeout = Timeout},
+  Media1 = Media#ems_media{state = State},
+  case connect_rtsp(Media1) of
     {ok, Reader} ->
       ems_media:set_source(self(), Reader),
       State1 = State#rtsp{reader = Reader},
-      {ok, Media#ems_media{state = State1}};
+      {ok, Media1#ems_media{state = State1}};
     Else ->
       error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
       {stop, no_source}
@@ -86,15 +86,15 @@ init(Media, Options) ->
 handle_control({subscribe, _Client, _Options}, State) ->
   {noreply, State};
 
-handle_control({source_lost, _Source}, State) ->
+handle_control({source_lost, _Source}, #ems_media{} = Media) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  case connect_rtsp(State) of
+  case connect_rtsp(Media) of
     {ok, Reader} ->
-      {reply, Reader, State};
+      {reply, Reader, Media};
     Else ->
-      {stop, Else, State}
+      {stop, Else, Media}
   end;
 
 handle_control({set_source, _Source}, State) ->
