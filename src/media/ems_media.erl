@@ -262,6 +262,10 @@ info(Media) ->
 %% @spec (Media::pid(), Options::list()) -> ok
 %%
 %% @doc One day will set same options as in {@link subscribe/2.} dynamically
+%% Available options:
+%% {buffer_size, BufferSize} — size of prepush in seconds
+%% {send_video, true|false} — send video or not
+%% {send_audio, true|false} — send audio or not
 %% @end
 %%----------------------------------------------------------------------
 setopts(Media, Options) ->
@@ -665,7 +669,9 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M, life_timeou
 
           Count = client_count(Media1),
           {ok, TimeoutRef} = if
-            Count < 2 -> ?D({"No clients, sending delayed graceful", LifeTimeout}), timer:send_after(LifeTimeout, graceful);
+            Count < 2 andalso is_number(LifeTimeout) -> 
+              ?D({"No clients, sending delayed graceful", LifeTimeout}), 
+              timer:send_after(LifeTimeout, graceful);
             true -> {ok, undefined}
           end,
           {reply, ok, Media1#ems_media{timeout_ref = TimeoutRef}, ?TIMEOUT};

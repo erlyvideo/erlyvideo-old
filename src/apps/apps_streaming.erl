@@ -191,12 +191,12 @@ pauseRaw(AMF, State) -> pause(AMF, State).
 
 receiveAudio(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Audio], stream_id = StreamId}) ->
   Player = ems:element(StreamId, Streams),
-  (catch Player ! {send_audio, Audio}),
+  ems_media:setopts(Player, [{send_audio, Video}]),
   State.
 
 receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [null, Video], stream_id = StreamId}) ->
   Player = ems:element(StreamId, Streams),
-  (catch Player ! {send_video, Video}),
+  ems_media:setopts(Player, [{send_video, Video}]),
   State.
 
 
