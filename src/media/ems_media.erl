@@ -263,9 +263,9 @@ info(Media) ->
 %%
 %% @doc One day will set same options as in {@link subscribe/2.} dynamically
 %% Available options:
-%% {buffer_size, BufferSize} — size of prepush in seconds
-%% {send_video, true|false} — send video or not
-%% {send_audio, true|false} — send audio or not
+%% buffer_size : BufferSize - size of prepush in seconds
+%% send_video : boolean() - send video or not
+%% send_audio : boolean() - send audio or not
 %% @end
 %%----------------------------------------------------------------------
 setopts(Media, Options) ->
