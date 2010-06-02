@@ -3,12 +3,12 @@ Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Standards-Version: 3.8.3
 Section: net
-Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), ruby
+Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4), ruby, log4erl (>= 0.8.6-2)
 Homepage: http://erlyvideo.org/
 
 Package: erlmedia
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang (>= 1:13.b.4)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang (>= 1:13.b.4), log4erl (>= 0.8.6-2)
 Description: Erlang media library
  Erlang library that handles some of common formats
