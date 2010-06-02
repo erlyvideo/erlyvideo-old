@@ -39,7 +39,8 @@ class Test::Unit::TestCase
     
     Alarm.alarm(timeout)
     begin
-      p, status = Process.wait2(pid, Process::WNOHANG|Process::WUNTRACED)
+      Process.waitpid(pid, Process::WUNTRACED)
+      status = $?.exitstatus
     rescue Errno::ECHILD
       status = nil
     end
