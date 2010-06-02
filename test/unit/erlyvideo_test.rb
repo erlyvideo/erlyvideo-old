@@ -19,8 +19,8 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("mpegts_reader")
   end
 
-  def test_mpegts_crc32
-    run_test("mpegts_crc32")
+  def test_mpeg2_crc32
+    run_test("mpeg2_crc32")
   end
 
   def test_media_ticker

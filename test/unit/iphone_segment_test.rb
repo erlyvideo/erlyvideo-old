@@ -13,7 +13,7 @@ class IphoneSegmentTest < Test::Unit::TestCase
   end
   
   def test_no_segment_after_end
-    assert_raise(NotFound404) { media_start("http://localhost:8082/iphone/segments/video.mp4/3.ts") }
+    assert_raise(NotFound404) { media_start("http://localhost:8082/iphone/segments/video.mp4/300.ts") }
   end
   
   def test_segment_duration

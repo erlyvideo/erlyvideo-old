@@ -61,7 +61,12 @@ find(Host, Name, Number) ->
     {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment doesn't require any end limit
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
-  {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, {'before', Number * ?STREAM_TIME}}|Options]).
+  if
+    Number >= Count -> 
+      {notfound, io_lib:format("Too large segment number: ~p/~p", [Number, Count])};
+    true ->
+      {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, {'before', Number * ?STREAM_TIME}}|Options])
+  end.
 
 
 playlist(Host, Name) ->
@@ -126,11 +131,9 @@ play(Host, Name, Number, Req) ->
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
       ok;
     {notfound, Reason} ->
-      Req:stream(io_lib:format("404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason])),
-      Req:stream(close);
-    Reason -> 
-      Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
-      Req:stream(close)
+      Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
+    Reason ->
+      Req:respond(500, [{"Content-Type", "text/plain"}], "500 Internal Server Error.~n Failed to start video player: ~p~n ~p", [Reason, Name])
   end.
   
   
