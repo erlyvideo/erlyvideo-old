@@ -12,6 +12,10 @@ class IphoneSegmentTest < Test::Unit::TestCase
     assert start < 12, "Start should be below 12 seconds: #{start}"
   end
   
+  def test_no_segment_after_end
+    assert_raise(NotFound404) { media_start("http://localhost:8082/iphone/segments/video.mp4/3.ts") }
+  end
+  
   def test_segment_duration
     duration = media_duration("http://localhost:8082/iphone/segments/video.mp4/1.ts")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"

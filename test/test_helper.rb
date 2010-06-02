@@ -2,7 +2,20 @@ require 'test/unit'
 # require 'test_help'
 require 'timeout'
 
+
+module Alarm
+  require 'dl/import'
+  extend DL::Importable
+  path = File.exists?('/lib/libc.so') ? '/lib/libc.so' :
+         File.exists?('/usr/lib/libSystem.B.dylib') ? '/usr/lib/libSystem.B.dylib' : nil
+  dlload path
+  extern "unsigned int alarm(unsigned int)"
+end
+
 class Test::Unit::TestCase
+  class NotFound404 < StandardError
+  end
+  
   def restart_erlyvideo
     `#{File.dirname(__FILE__)}/../contrib/erlyctl restart`
   end
@@ -19,16 +32,26 @@ class Test::Unit::TestCase
   
   def limited_run(command, timeout)
     pid = start_command(command, "/tmp/output.txt")
+
+    trap("ALRM") do
+      Process.kill("KILL", pid)
+    end
     
-    sleep(timeout)
-    Process.kill("KILL", pid)
+    Alarm.alarm(timeout)
+    begin
+      p, status = Process.wait2(pid, Process::WNOHANG|Process::WUNTRACED)
+    rescue Errno::ECHILD
+      status = nil
+    end
     File.read("/tmp/output.txt")
+    status
   end
   
   def media_info(url, options = nil)
     if url =~ /http:\/\//
       File.unlink("/tmp/test") if File.exists?("/tmp/test")
-      limited_run("curl --connect-timeout 1 -s -S -o /tmp/test \"#{url}\"", 5)
+      status = limited_run("curl --connect-timeout 1 --fail -s -S -o /tmp/test \"#{url}\"", 5)
+      raise NotFound404, "no resource: #{url.inspect}" if status == 22
       File.exists?("/tmp/test") ? `ffmpeg -timelimit 8 #{options} -i /tmp/test 2>&1` : raise("Couldn't download #{url}")
     else
       `ffmpeg -i #{url} 2>&1`
