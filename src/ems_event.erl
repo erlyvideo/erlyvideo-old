@@ -31,7 +31,7 @@
 -module(ems_event).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_event).
-
+-include("../include/ems.hrl").
 
 %% External API
 -export([start_link/0, notify/1, add_handler/2, add_sup_handler/2, remove_handler/1]).
@@ -196,7 +196,7 @@ handle_call(Request, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_event(Event, State) ->
-  error_logger:info_msg("ems_event: ~p~n", [Event]),
+  ?D({ems_event, Event}),
   {ok, State}.
 
 %%-------------------------------------------------------------------------
