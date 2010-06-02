@@ -35,6 +35,7 @@
 -export([decode/1]).
 -include("../include/rtsp.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("log.hrl").
 
 %%----------------------------------------------------------------------
 %% @spec (Data::binary()) -> [rtsp_streams()]

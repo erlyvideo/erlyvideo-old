@@ -4,6 +4,7 @@
 -include_lib("erlmedia/include/h264.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/rtsp.hrl").
+-include("log.hrl").
 
 -record(rtp_state, {
   rtcp_socket,

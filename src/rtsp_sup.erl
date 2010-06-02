@@ -1,6 +1,7 @@
 %% @private
 -module(rtsp_sup).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("log.hrl").
 
 -behaviour(supervisor).
 

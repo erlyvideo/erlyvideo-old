@@ -3,6 +3,7 @@
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
+-include("log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -export([start_link/1, set_socket/2]).

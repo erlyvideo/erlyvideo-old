@@ -32,8 +32,8 @@
 -module(rtsp).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(application).
+-include("log.hrl").
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -export([start_server/3, behaviour_info/1]).
 

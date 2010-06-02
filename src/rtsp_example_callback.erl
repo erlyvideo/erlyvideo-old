@@ -1,6 +1,7 @@
 -module(rtsp_example_callback).
 -behaviour(rtsp).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("log.hrl").
 
 % -export([handle_rtsp_response/2, handle_rtp_packet/2, handle_rtsp_request/2, media/1]).
 
@@ -19,7 +20,7 @@ recorder(URL) ->
     Frame ->
       Type = element(2, Frame),
       DTS = round(element(3, Frame)),
-      io:format("F: ~s ~p~n", [Type, DTS]),
+      ?D({"F:", [Type, DTS]}),
       recorder(URL)
   end.
 

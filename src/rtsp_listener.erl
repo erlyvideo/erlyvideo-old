@@ -1,7 +1,7 @@
 -module(rtsp_listener).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("log.hrl").
 
 -record(rtsp_listener, {
   callback,
