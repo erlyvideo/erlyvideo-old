@@ -30,7 +30,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(aac).
 -author('Max Lapshin <max@maxidoors.ru>').
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("log.hrl").
 
 -record(aac_config, {
   type,

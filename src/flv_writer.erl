@@ -1,8 +1,7 @@
 -module(flv_writer).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("log.hrl").
 
 -export([start_link/1, init_raw/1, writer/1]).
 

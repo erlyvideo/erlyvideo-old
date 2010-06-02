@@ -39,9 +39,9 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
 -include("../include/flv.hrl").
+-include("log.hrl").
 -include("flv_constants.hrl").
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).

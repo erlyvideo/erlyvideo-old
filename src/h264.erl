@@ -1,6 +1,6 @@
 -module(h264).
 
-% -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+% -include("log.hrl").
 -define(D(X), ok).
 -author('Max Lapshin <max@maxidoors.ru>').
 

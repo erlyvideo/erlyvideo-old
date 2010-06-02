@@ -30,11 +30,11 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
-
 -module(mkv).
 -author('Max Lapshin <max@maxidoors.ru>').
 -compile(export_all).
+
+-include("log.hrl").
 
 -record(tag, {
   name,

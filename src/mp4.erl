@@ -37,8 +37,8 @@
 -include("../include/mp4.hrl").
 -include("../include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
+-include("log.hrl").
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 
