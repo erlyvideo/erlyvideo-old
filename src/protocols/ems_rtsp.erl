@@ -1,7 +1,6 @@
 -module(ems_rtsp).
 -author('Max Lapshin <max@maxidoors.ru>').
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("../../include/ems.hrl").
 
 -export([record/3, announce/3, describe/3, play/3]).
 

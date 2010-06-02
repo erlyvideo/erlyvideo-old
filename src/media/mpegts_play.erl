@@ -1,8 +1,7 @@
 -module(mpegts_play).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("../../include/ems.hrl").
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
--define(TIMEOUT, 4000).
 -include_lib("erlmedia/include/video_frame.hrl").
 
 

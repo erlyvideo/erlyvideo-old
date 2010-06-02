@@ -35,14 +35,13 @@ edoc(Options) ->
   
 start() -> 
 	error_logger:info_report("Starting Erlyvideo ..."),
-	application:start(log4erl),
+  ems_log:start(),
 	application:start(crypto),
 	application:start(rtmp),
 	application:start(rtsp),
 	
 	application:load(erlyvideo),
 	load_config(),
-  ems_log:start(),
   media_provider:init_names(),
   
 	application:start(erlyvideo),

@@ -31,11 +31,9 @@
 -module(iphone_streams).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("../../include/ems.hrl").
 
 -define(STREAM_TIME, ems:get_var(iphone_segment_size, 10000)).
--define(TIMEOUT, 10000).
 
 %% External API
 -export([start_link/1, find/3, segments/2, play/4, playlist/2]).

@@ -32,8 +32,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
 -include("../../include/ems_media.hrl").
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("../../include/ems.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 

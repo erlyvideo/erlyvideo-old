@@ -33,11 +33,9 @@
 -behaviour(ems_media).
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../../include/ems_media.hrl").
+-include("../../include/ems.hrl").
 
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
-
--define(MAX_RESTART, 10).
 -define(TIMEOUT_RESTART, 1000).
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).

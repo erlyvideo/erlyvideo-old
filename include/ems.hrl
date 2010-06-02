@@ -1,7 +1,9 @@
 % luke: "is it possilbe to use lowercase names? 
 % uppercase breaks the syntax highlighting in textmate"
--include("debug.hrl").
+
 -include_lib("rtmp/include/rtmp.hrl").
+-define(D(X), ems_log:debug(3, main, "~p:~p ~p~n",[?MODULE, ?LINE, X])).
+
 
 -define(MAX_RESTART,      5).
 -define(MAX_TIME,        60).

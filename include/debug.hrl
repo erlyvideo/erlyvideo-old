@@ -1,2 +1,0 @@
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
--define(MARK, io:format("MARK: ~p:~p ~p~n",[?MODULE, ?LINE])).

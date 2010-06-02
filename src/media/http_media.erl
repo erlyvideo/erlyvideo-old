@@ -1,8 +1,7 @@
 -module(http_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -export([start_link/2]).
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("../../include/ems.hrl").
 
 %% gen_server callbacks
 start_link(URL, Opts) when is_binary(URL) ->

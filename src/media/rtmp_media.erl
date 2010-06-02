@@ -31,12 +31,10 @@
 -module(rtmp_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
--include_lib("rtmp/include/rtmp.hrl").
+-include("../../include/ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../../include/ems_media.hrl").
 
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 

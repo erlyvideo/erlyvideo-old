@@ -33,8 +33,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/flv.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("../../include/ems.hrl").
 
 -behaviour(gen_format).
 -export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).

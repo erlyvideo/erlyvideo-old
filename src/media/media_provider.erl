@@ -40,7 +40,7 @@
 
 -module(media_provider).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../include/ems.hrl").
+-include("../../include/ems.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).

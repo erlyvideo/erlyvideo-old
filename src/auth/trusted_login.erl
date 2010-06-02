@@ -30,10 +30,9 @@
 %%%---------------------------------------------------------------------------------------
 -module(trusted_login).
 -author('Max Lapshin <max@maxidoors.ru>').
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include_lib("../../include/ems.hrl").
 
 -include("../../include/rtmp_session.hrl").
--include_lib("rtmp/include/rtmp.hrl").
 
 -export([connect/2, auth/3]).
 

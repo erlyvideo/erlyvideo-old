@@ -62,6 +62,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/ems_media.hrl").
+-include("../include/ems.hrl").
 
 %% External API
 -export([start_link/2, start_custom/2]).
@@ -72,11 +73,8 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -define(LIFE_TIMEOUT, 60000).
-
--define(TIMEOUT, 10000).
 
 -export([behaviour_info/1]).
 

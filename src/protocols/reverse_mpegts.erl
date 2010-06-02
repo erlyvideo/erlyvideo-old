@@ -1,11 +1,10 @@
 -module(reverse_mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("../../include/ems.hrl").
 
 -export([start/2, loop/2]).
 
--define(TIMEOUT, 4000).
 -define(COUNTER, 100).
--define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
 
 -record(pusher, {
   from_url,
