@@ -56,7 +56,8 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(Media, Options) ->
+init(_Media, Options) ->
+  erlang:error(unimplemented),
   URL = proplists:get_value(url, Options),
   {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
@@ -145,7 +146,7 @@ handle_info({rtmp, RTMP, connected}, #rtmp{url = URL} = State) ->
   ?D({"Playing", Path}),
   {noreply, State};
 
-handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body} = Message}, Recorder) when Type == audio orelse Type == video ->
+handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body}}, Recorder) when Type == audio orelse Type == video ->
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
   % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
   self() ! Frame,

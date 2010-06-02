@@ -52,7 +52,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([init_names/0, name/1, resolve_global/3]).
+-export([init_names/0, name/1]).
 
 -export([static_stream_name/2, start_static_stream/2, start_static_streams/0]).
 
@@ -97,28 +97,10 @@ name(Host) ->
   media_provider_names:name(Host).
 
 %% @hidden
-global_name(Host) ->
-  media_provider_names:name(Host).
-
-%% @hidden
 start_link(Host) ->
   gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
 
-%% @hidden
-find_provider(Host) ->
-  % {global, global_name(Host)}.
-  name(Host).
 
-%% @hidden  
-resolve_global(Name, Pid1, Pid2) ->
-  ?D({"Resolving global clash for", Name, Pid1, Pid2}),
-  Entries = gen_server:call(Pid2, entries),
-  % Host = gen_server:call(Pid2, host),
-  % supervisor:terminate_child(ems_sup, name(Host)),
-  % supervisor:delete_child(ems_sup, name(Host)),
-  gen_server:call(Pid1, {import, Entries}),
-  Pid2 ! {wait_for, Pid1},
-  Pid1.
 
 %%-------------------------------------------------------------------------
 %% @spec create(Host, Name, Options) -> Pid::pid()
@@ -148,22 +130,22 @@ open(Host, Name, Opts) when is_list(Name)->
   open(Host, list_to_binary(Name), Opts);
 
 open(Host, Name, Opts) ->
-  gen_server:call(find_provider(Host), {open, Name, Opts}, infinity).
+  gen_server:call(name(Host), {open, Name, Opts}, infinity).
 
 find(Host, Name) when is_list(Name)->
   find(Host, list_to_binary(Name));
 
 find(Host, Name) ->
-  gen_server:call(find_provider(Host), {find, Name}, infinity).
+  gen_server:call(name(Host), {find, Name}, infinity).
 
 register(Host, Name, Pid) ->
-  gen_server:call(find_provider(Host), {register, Name, Pid}).
+  gen_server:call(name(Host), {register, Name, Pid}).
 
 entries(Host) ->
-  gen_server:call(find_provider(Host), entries).
+  gen_server:call(name(Host), entries).
   
 remove(Host, Name) ->
-  gen_server:cast(find_provider(Host), {remove, Name}).
+  gen_server:cast(name(Host), {remove, Name}).
 
 info(Host, Name) ->
   case find_or_open(Host, Name) of
@@ -239,7 +221,6 @@ find_or_open(Host, Name, Options) ->
 init([Host]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
-  % global:register_name(global_name(Host), self(), {?MODULE, resolve_global}),
   {ok, #media_provider{opened_media = OpenedMedia, host = Host}}.
   
 
@@ -256,14 +237,6 @@ init([Host]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({import, Entries}, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  ?D({"Importing", Entries}),
-  ets:insert(OpenedMedia, Entries),
-  lists:foreach(fun(#media_entry{handler = Pid}) ->
-    erlang:monitor(process, Pid)
-  end, Entries),
-  {reply, ok, MediaProvider};
-
 handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
