@@ -1,8 +1,7 @@
 -module(mpegts_file_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("mpegts.hrl").
 
 -behaviour(gen_server).
 %% gen_server callbacks
