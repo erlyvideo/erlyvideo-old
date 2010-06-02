@@ -3,8 +3,7 @@
 -export([start_link/1]).
 -behaviour(gen_server).
 
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
-
+-define(D(X), ems_log:debug(3, shoutcast, "~p:~p ~p~n",[?MODULE, ?LINE, X])).
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -record(shoutcast, {
