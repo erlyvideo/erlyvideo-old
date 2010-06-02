@@ -2,7 +2,7 @@
 % uppercase breaks the syntax highlighting in textmate"
 
 -include_lib("rtmp/include/rtmp.hrl").
--define(D(X), ems_log:debug(3, main, "~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-define(D(X), ems_log:debug(3, main, "~p:~p ~p",[?MODULE, ?LINE, X])).
 
 
 -define(MAX_RESTART,      5).
