@@ -97,7 +97,10 @@ configure(Body, RTPStreams, Media) ->
 configure([], RTPStreams, _, _) -> 
   RTPStreams;
 
-configure([Stream | Streams], RTPStreams, Media, RTP) ->
+configure([undefined | Streams], RTPStreams, Media, RTP) ->
+  configure(Streams, RTPStreams, Media, RTP+2);
+
+configure([#rtsp_stream{} = Stream | Streams], RTPStreams, Media, RTP) ->
   RtpConfig = rtp_server:init(Stream, Media),
   RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
   RTPStreams2 = setelement(RTP+2, RtpStreams1, {rtcp, RTP}),
@@ -130,6 +133,10 @@ presync(Streams, [RTP | Info], N, Now) ->
 config_media(Streams) -> config_media(Streams, [], []).
 
 config_media([], Output, Frames) -> {lists:reverse(Output), Frames};
+config_media([#rtsp_stream{codec = Codec} | Streams], Output, Frames) when not is_atom(Codec) ->
+  ?D({"Unknown rtp codec", Codec}),
+  config_media(Streams, [undefined | Output], Frames);
+
 config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, _} = h264:decode_nal(PPS, H264),
@@ -157,8 +164,10 @@ init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
   #video{media = Media, clock_map = ClockMap, h264 = H264};
 
 init(#rtsp_stream{type = audio, clock_map = ClockMap}, Media) ->
-  #audio{media = Media, clock_map = ClockMap}.
+  #audio{media = Media, clock_map = ClockMap};
   
+init(undefined, Media) ->
+  undefined.
 
 open_ports(audio) ->
   try_rtp(8000);

@@ -114,7 +114,9 @@ handle_call({request, setup}, From, #rtsp_socket{socket = Socket, sdp_config = S
     Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL, Control), CSeq + 1]),
     gen_tcp:send(Socket, Call),
     io:format("~s~n", [Call]),
-    CSeq + 1
+    CSeq + 1;
+             (undefined, CSeq) ->
+               CSeq
   end,
   NewSeq = lists:foldl(Setup, Seq, Streams),
   {noreply, RTSP#rtsp_socket{pending = From, seq = NewSeq}};
@@ -159,6 +161,7 @@ handle_cast(Request, #rtsp_socket{} = Socket) ->
 
 
 handle_info({tcp_closed, _Socket}, State) ->
+  ?D({"RTSP socket closed"}),
   {stop, normal, State};
   
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf} = RTSPSocket) ->
@@ -166,9 +169,10 @@ handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf} = RTSPSocket) ->
   {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>})};
 
 handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{consumer = Consumer} = Socket) ->
+  ?D({"RTSP consumer died", Consumer, _Reason}),
   {stop, normal, Socket};
 
-handle_info(#video_frame{} = Frame, #rtsp_socket{socket = Socket} = Socket) ->
+handle_info(#video_frame{} = _Frame, #rtsp_socket{socket = Socket} = Socket) ->
   {noreply, Socket};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
@@ -296,17 +300,17 @@ handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = 
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
       
-handle_request({request, 'SETUP', URL, Headers, _}, State) ->
+handle_request({request, 'SETUP', _URL, Headers, _}, State) ->
   OldTransport = proplists:get_value('Transport', Headers),
   Date = httpd_util:rfc1123_date(),
   
-  {ok, Re} = re:compile("trackID=(\\d+)$"),
-  Transport = case re:run(URL, Re, [{capture, all, list}]) of
-    {match, [_, TrackID_S]} ->
-      TrackID = (list_to_integer(TrackID_S) - 1)*2,
-      list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
-    _ -> OldTransport
-  end,
+  % {ok, Re} = re:compile("trackID=(\\d+)$"),
+  % Transport = case re:run(URL, Re, [{capture, all, list}]) of
+  %   {match, [_, TrackID_S]} ->
+  %     TrackID = (list_to_integer(TrackID_S) - 1)*2,
+  %     list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
+  %   _ -> OldTransport
+  % end,
   ReplyHeaders = [{'Transport', OldTransport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State, "200 OK", ReplyHeaders);
 
@@ -412,7 +416,7 @@ handle_rtp(#rtsp_socket{rtp_streams = Streams, consumer = Consumer} = Socket, {r
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
-  ?D({"RTSP stopping"}),
+  ?D({"RTSP stopping", _Reason}),
   ok.
 
 
