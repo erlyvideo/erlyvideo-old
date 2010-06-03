@@ -47,7 +47,7 @@ handle(Host, 'GET', [], Req) ->
   ems_log:access(Host, "GET ~p ~s /", [Req:get(peer_addr), "-"]),
   
   File = proplists:get_value("file", Query, "video.mp4"),
-  Autostart = proplists:get_value("autostart", Query, "false"),
+  Autostart = proplists:get_value("autostart", Query, "true"),
   case file:list_dir(file_media:file_dir(Host)) of
     {ok, FileList} -> ok;
     {error, Error} -> 
