@@ -48,8 +48,11 @@ clean-doc:
 	rm -fv doc/*.css
 
 
-run: erlang_version priv/erlyvideo.conf
+run: erlang_version priv/erlyvideo.conf priv/log4erl.conf
 	contrib/erlyctl run
+
+priv/log4erl.conf: priv/log4erl.conf.sample
+	[ -f priv/log4erl.conf ] || cp priv/log4erl.conf.sample priv/log4erl.conf
 
 priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
@@ -68,6 +71,7 @@ install: compile
 	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
+	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config $(DESTROOT)/etc/erlyvideo/production.config
 
 
