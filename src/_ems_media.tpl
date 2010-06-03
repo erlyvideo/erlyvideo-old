@@ -33,8 +33,7 @@
 -behaviour(ems_media).
 -include_lib("erlyvideo/include/ems_media.hrl").
 %-include("../include/ems_media.hrl").
-
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("../include/ems.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 
@@ -64,7 +63,7 @@ init(State, Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({subscribe, _Client, _Options}, State) ->
+handle_control({subscribe, _Client, _Options}, #ems_media{} = State) ->
   %% Subscribe returns:
   %% {reply, tick, State}  => client requires ticker (file reader)
   %% {reply, Reply, State} => client is subscribed as active receiver and receives custom reply
@@ -72,35 +71,42 @@ handle_control({subscribe, _Client, _Options}, State) ->
   %% {reply, {error, Reason}, State} => client receives {error, Reason}
   {noreply, State};
 
-handle_control({unsubscribe, _Client}, State) ->
+handle_control({unsubscribe, _Client}, #ems_media{} = State) ->
   %% Unsubscribe returns:
   %% {reply, Reply, State} => client is unsubscribed inside plugin, but not rejected from ets table
   %% {noreply, State}      => client is unsubscribed in usual way.
   %% {reply, {error, Reason}, State} => client receives {error, Reason} 
   {noreply, State};
 
-handle_control({source_lost, _Source}, State) ->
+handle_control({seek, _Client, _BeforeAfter, _DTS}, #ems_media{} = State) ->
+  %% seek returns:
+  %% {reply, {NewPos, NewDTS}, State} => media knows how to seek in storage
+  %% {stop, Reason, State}  => stop with Reason
+  %% {noreply, State}       => default action is to seek in storage.
+  {noreply, State};
+
+handle_control({source_lost, _Source}, #ems_media{} = State) ->
   %% Source lost returns:
   %% {reply, Source, State} => new source is created
   %% {stop, Reason, State}  => stop with Reason
   %% {noreply, State}       => default action. it is stop
   {stop, normal, State};
 
-handle_control({set_source, _Source}, State) ->
+handle_control({set_source, _Source}, #ems_media{} = State) ->
   %% Set source returns:
   %% {reply, NewSource, State} => source is rewritten
   %% {noreply, State}          => just ignore setting new source
   %% {stop, Reason, State}     => stop after setting
   {noreply, State};
 
-handle_control({set_socket, _Socket}, State) ->
+handle_control({set_socket, _Socket}, #ems_media{} = State) ->
   %% Set socket returns:
   %% {reply, Reply, State}  => the same as noreply
   %% {noreply, State}       => just ignore
   %% {stop, Reason, State}  => stops
   {noreply, State};
 
-handle_control(no_clients, State) ->
+handle_control(no_clients, #ems_media{} = State) ->
   %% no_clients returns:
   %% {reply, ok, State}      => wait forever till clients returns
   %% {reply, Timeout, State} => wait for Timeout till clients returns
@@ -108,10 +114,10 @@ handle_control(no_clients, State) ->
   %% {stop, Reason, State}   => stops. This should be default
   {stop, normal, State};
 
-handle_control(timeout, State) ->
+handle_control(timeout, #ems_media{} = State) ->
   {stop, normal, State};
 
-handle_control(_Control, State) ->
+handle_control(_Control, #ems_media{} = State) ->
   {noreply, State}.
 
 %%----------------------------------------------------------------------

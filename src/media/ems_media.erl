@@ -437,30 +437,46 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
       {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
       
-handle_call({seek, Client, BeforeAfter, DTS}, _From, #ems_media{clients = Clients, format = Format, storage = Storage} = Media) when Format =/= undefined ->
-  case Format:seek(Storage, BeforeAfter, DTS) of
-    {NewPos, NewDTS} ->
-      case ets:lookup(Clients, Client) of
-        [#client{ticker = Ticker, state = passive}] ->
-          media_ticker:seek(Ticker, NewPos, NewDTS),
-          {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
-        
-        [#client{stream_id = StreamId} = Entry] ->
-          {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
-          TickerRef = erlang:monitor(process,Ticker),
-          media_ticker:seek(Ticker, NewPos, NewDTS),
-          ets:insert(Clients, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
-          {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
-        
-        [] ->
-          {reply, seek_failed, Media, ?TIMEOUT}
-      end;    
-    undefined ->
-      {reply, seek_failed, Media, ?TIMEOUT}
+handle_call({seek, Client, BeforeAfter, DTS} = Seek, _From, #ems_media{module = M} = Media) ->
+  
+  DefaultReply = fun({NewPos, NewDTS}, #ems_media{clients = Clients} = Media1) ->
+    case ets:lookup(Clients, Client) of
+      [#client{ticker = Ticker, state = passive}] ->
+        media_ticker:seek(Ticker, NewPos, NewDTS),
+        {reply, {seek_success, NewDTS}, Media1, ?TIMEOUT};
+    
+      [#client{stream_id = StreamId} = Entry] ->
+        {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
+        TickerRef = erlang:monitor(process,Ticker),
+        media_ticker:seek(Ticker, NewPos, NewDTS),
+        ets:insert(Clients, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
+        {reply, {seek_success, NewDTS}, Media1, ?TIMEOUT};
+    
+      [] ->
+        {reply, seek_failed, Media1, ?TIMEOUT}
+    end
+  end,
+  
+  DefaultSeek = fun(#ems_media{format = undefined} = Media1) ->
+    {reply, seek_failed, Media1, ?TIMEOUT};
+                   (#ems_media{format = Format, storage = Storage} = Media1) ->
+    case Format:seek(Storage, BeforeAfter, DTS) of
+      {NewPos, NewDTS} ->
+        DefaultReply({NewPos, NewDTS}, Media1);
+      undefined ->
+        {reply, seek_failed, Media1, ?TIMEOUT}
+    end
+  end,
+  
+  case M:handle_control(Seek, Media) of
+    {noreply, Media1} ->
+      DefaultSeek(Media1);
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1};
+    {reply, Reply, Media1} ->
+      DefaultReply(Reply, Media1)
   end;
 
-handle_call({seek, _Client, _BeforeAfter, _DTS}, _From, #ems_media{format = undefined} = Media) ->
-  {reply, seek_failed, Media, ?TIMEOUT};
 
 %% It is information seek, required for outside needs.
 handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
