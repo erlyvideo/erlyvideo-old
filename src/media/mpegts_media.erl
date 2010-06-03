@@ -43,7 +43,6 @@
 -record(mpegts, {
   socket,
   options,
-  demuxer,
   make_request,
   restart_count
 }).
@@ -61,23 +60,23 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(#ems_media{type = Type, url = URL} = Media, Options) ->
+init(#ems_media{type = Type} = Media, Options) ->
   MakeRequest = case {Type, proplists:get_value(make_request, Options, true)} of
     {mpegts_passive, _} -> false;
-    {_, true} -> true;
+    {_, true} -> self() ! make_request, true;
     _ -> false
-  end,
-  Socket = case MakeRequest of
-    true -> connect_http(URL);
-    false -> undefined
   end,
   {ok, Reader} = case Type of
     shoutcast -> ems_sup:start_shoutcast_reader(self());
     _ -> ems_sup:start_mpegts_reader(self())
   end,
   ems_media:set_source(self(), Reader),
-  State = #mpegts{socket = Socket, demuxer = Reader, options = Options, make_request = MakeRequest},
-  {ok, Media#ems_media{state = State}}.
+  Media1 = Media#ems_media{state = #mpegts{options = Options, make_request = MakeRequest}},
+  Media2 = case Type of
+    mpegts_passive -> Media#ems_media{clients_timeout = false};
+    _ -> Media1
+  end,  
+  {ok, Media2}.
 
 
   
@@ -163,6 +162,15 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info(make_request, #ems_media{state = State, url = URL} = Media) ->
+  Socket = case State#mpegts.make_request of
+    true -> connect_http(URL);
+    false -> undefined
+  end,
+  State1 = State#mpegts{socket = Socket},
+  {noreply, Media#ems_media{state = State1}};
+  
+
 handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, #ems_media{state = State} = Media) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, Media#ems_media{state = State#mpegts{restart_count = undefined}}};
@@ -176,12 +184,10 @@ handle_info({http, Socket, http_eoh}, State) ->
   {noreply, State};
 
 
-handle_info({tcp, Socket, Bin}, #ems_media{state = #mpegts{demuxer = Reader}} = Media) when Reader =/= undefined ->
-  State = Media#ems_media.state,
+handle_info({tcp, Socket, Bin}, #ems_media{source = Reader} = Media) when Reader =/= undefined ->
   inet:setopts(Socket, [{active, once}]),
   Reader ! {data, Bin},
-  State1 = State#mpegts{demuxer = Reader},
-  {noreply, Media#ems_media{state = State1}};
+  {noreply, Media};
 
 handle_info({tcp_closed, _Socket}, #ems_media{type = mpegts_passive, state = State} = Media) ->
   ?D({"MPEG-TS passive lost socket"}),
