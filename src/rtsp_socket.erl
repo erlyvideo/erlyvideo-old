@@ -31,13 +31,19 @@
   session
 }).
 
-
 read(URL, Options) ->
-  {ok, RTSP} = start_link(undefined),
-  rtsp_socket:connect(RTSP, URL, Options),
-  rtsp_socket:describe(RTSP, Options),
-  rtsp_socket:setup(RTSP, Options),
-  rtsp_socket:play(RTSP, Options),
+  try read_raw(URL, Options) of
+    {ok, RTSP} -> {ok, RTSP}
+  catch
+    Class:Reason -> {Class, Reason}
+  end.
+
+read_raw(URL, Options) ->
+  {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
+  ok = rtsp_socket:connect(RTSP, URL, Options),
+  ok = rtsp_socket:describe(RTSP, Options),
+  ok = rtsp_socket:setup(RTSP, Options),
+  ok = rtsp_socket:play(RTSP, Options),
   {ok, RTSP}.
 
 
@@ -95,7 +101,6 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
   end,
   {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, consumer = Consumer, consumer_ref = Ref, socket = Socket, auth = Auth}};
-  
   
 handle_call({consume, Consumer}, _From, #rtsp_socket{consumer_ref = OldRef} = RTSP) ->
   (catch erlang:demonitor(OldRef)),
