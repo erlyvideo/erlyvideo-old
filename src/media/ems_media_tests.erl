@@ -161,6 +161,11 @@ file_media_test_() ->
       {ok, Media, _} = ems_media:init([file_media, [{url, <<"video.mp4">>}, {host, default}]]),
       ?assertEqual(false, Media#ems_media.source_timeout),
       ?assertEqual(file_media:default_timeout(), Media#ems_media.clients_timeout)
+    end,
+    fun() ->
+      {ok, Media, _} = ems_media:init([file_media, [{url, <<"video.mp4">>}, {host, default}, {clients_timeout, false}]]),
+      ?assertEqual(false, Media#ems_media.source_timeout),
+      ?assertEqual(false, Media#ems_media.clients_timeout)
     end
   ]}.
 
@@ -169,6 +174,11 @@ live_media_test_() ->
     fun() ->
       {ok, Media, _} = ems_media:init([live_media, []]),
       ?assertEqual(live_media:default_timeout(), Media#ems_media.source_timeout),
+      ?assertEqual(false, Media#ems_media.clients_timeout)
+    end,
+    fun() ->
+      {ok, Media, _} = ems_media:init([live_media, [{source_timeout, 150}]]),
+      ?assertEqual(150, Media#ems_media.source_timeout),
       ?assertEqual(false, Media#ems_media.clients_timeout)
     end
   ]}.
