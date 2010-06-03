@@ -833,3 +833,9 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+%
+%  Tests
+% 
+-include_lib("eunit/include/eunit.hrl").
+

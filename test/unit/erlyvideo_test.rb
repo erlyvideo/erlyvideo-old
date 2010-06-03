@@ -23,6 +23,10 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("mpeg2_crc32")
   end
 
+  def test_http_uri2
+    run_test("http_uri2")
+  end
+
   def test_media_ticker
     run_test("media_ticker")
   end

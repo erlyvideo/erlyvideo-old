@@ -85,10 +85,16 @@ flush_tick() ->
     0 -> ok
   end.
 
-handle_message({'DOWN', _Ref, process, _Pid, _Reason}, _Ticker) ->
+notify_about_stop(#ticker{media = Media, dts = DTS, pos = Pos}) ->
+  Media ! {ticker_stop, self(), DTS, Pos}.
+  
+
+handle_message({'DOWN', _Ref, process, _Pid, _Reason}, Ticker) ->
+  notify_about_stop(Ticker),
   ok;
 
-handle_message(stop, _Ticker) ->
+handle_message(stop, Ticker) ->
+  notify_about_stop(Ticker),
   ok;
 
 handle_message(start, Ticker) ->
@@ -124,11 +130,13 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
     eof ->
       % ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
+      notify_about_stop(Ticker),
       ok;
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
       % ?D({play_complete, DTS}),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
+      notify_about_stop(Ticker),
       ok;
       
     #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
