@@ -70,6 +70,9 @@ parse_uri_rest(Scheme, "//" ++ URIPart) ->
     {UserInfo, Host, Port, Path, Query}.
 
 
+parse_path_query(PathQuery) when is_binary(PathQuery) ->
+    parse_path_query(binary_to_list(PathQuery));
+    
 parse_path_query(PathQuery) ->
     {Path, Query} =  split_uri(PathQuery, "\\?", {PathQuery, ""}, 1, 1),
     {path(Path), parse_query(Query)}.
@@ -209,8 +212,11 @@ parse_http_9_test() ->
   ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "of life"}, {"start", []}, {"a", "15"}]},  http_uri2:parse("http://ya.ru/?q=of%20life&start&a=15")).
 
 
-parse_path_test() ->
+parse_path_1_test() ->
   ?assertEqual({"lala", [{"q", "of life"}, {"start", []}, {"a", "15"}]},  http_uri2:parse_path_query("lala?q=of%20life&start&a=15")).
+
+parse_path_2_test() ->
+  ?assertEqual({"lala", [{"q", "of life"}, {"start", []}, {"a", "15"}]},  http_uri2:parse_path_query(<<"lala?q=of%20life&start&a=15">>)).
 
 parse_rtmp_1_test() ->
   ?assertEqual({rtmp,[],"ya.ru",1935,"/",[]},  http_uri2:parse("rtmp://ya.ru/")).
