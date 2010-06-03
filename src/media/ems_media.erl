@@ -310,8 +310,8 @@ init([Module, Options]) ->
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ets:new(clients, [set,  {keypos,#client.consumer}]),
                      source_timeout = proplists:get_value(source_timeout, Options, ?LIFE_TIMEOUT),
-                     clients_timeout = proplists:get_value(clients_timeout, Options, ?LIFE_TIMEOUT)
-                     },
+                     clients_timeout = proplists:get_value(clients_timeout, Options, ?LIFE_TIMEOUT)},
+  ?D("Starting"),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = case proplists:get_value(timeshift, Options) of
@@ -325,6 +325,7 @@ init([Module, Options]) ->
               Media1
           end
       end,
+      ?D("Started"),
       {ok, Media2, ?TIMEOUT};
     {stop, Reason} ->
       ?D({"ems_media failed to initialize",Module,Reason}),
@@ -561,7 +562,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
-    {noreply, Media1} when SourceTimeout > 0 ->
+    {noreply, Media1} when is_number(SourceTimeout) andalso SourceTimeout > 0 ->
       ?D({"ems_media lost source and sending graceful", SourceTimeout}),
       mark_clients_as_starting(Media),
       {ok, Ref} = timer:send_after(SourceTimeout, no_source),
@@ -629,39 +630,24 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
   end;
 
 
-handle_info(no_clients, #ems_media{module = M, source = Source, clients_timeout = LifeTimeout} = Media) when Source == undefined orelse LifeTimeout =/= false ->
+handle_info(no_clients, #ems_media{module = M} = Media) ->
   case client_count(Media) of
     0 ->
       ?D("graceful received, handling"),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
-          ?D({"ems_media is living more", M, LifeTimeout, Source}),
-          {noreply, Media1, ?TIMEOUT};
+          ?D({"ems_media is stopping", M, Media#ems_media.name}),
+          {stop, normal, Media1};
         {stop, Reason, Media1} ->
-          ?D({"ems_media is stopping after graceful", M, LifeTimeout, Reason}),
+          ?D({"ems_media is stopping after graceful", M, Reason}),
           {stop, Reason, Media1};
         {reply, ok, Media1} ->
-          {noreply, Media1#ems_media{clients_timeout_ref = undefined}, ?TIMEOUT};
-        {reply, Timeout, Media1} ->
-          {ok, Ref} = timer:send_after(Timeout, graceful2),
-          {noreply, Media1#ems_media{clients_timeout_ref = Ref}, ?TIMEOUT}
+          ?D({M, "rejected stopping of ems_media due to 0 clients"}),
+          {noreply, Media1#ems_media{clients_timeout_ref = undefined}, ?TIMEOUT}
       end;
     _ -> {noreply, Media, ?TIMEOUT}
   end;
   
-handle_info(graceful, #ems_media{} = Media) ->
-  {noreply, Media, ?TIMEOUT};
-
-
-handle_info(graceful2, #ems_media{source = Source, source_timeout = Timeout} = Media)  ->
-  % TODO: fix here check for stop
-  case client_count(Media) of
-    0 -> 
-      ?D({"ems_media is stopping after graceful2", Timeout}),
-      {stop, normal, Media};
-    _ -> {noreply, Media, ?TIMEOUT}
-  end;
-
 
 
 
@@ -707,11 +693,12 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M, clients_tim
           ets:delete(Clients, Client),
 
           Count = client_count(Media1),
-          {ok, TimeoutRef} = if
-            Count == 0 andalso is_number(Timeout) -> 
+          {ok, TimeoutRef} = case Count of
+            0 when is_number(Timeout) -> 
               ?D({"No clients, sending delayed graceful", Timeout}), 
               timer:send_after(Timeout, no_clients);
-            true -> {ok, undefined}
+            _ -> 
+              {ok, undefined}
           end,
           {reply, ok, Media1#ems_media{clients_timeout_ref = TimeoutRef}, ?TIMEOUT};
         {reply, Reply, Media1} ->

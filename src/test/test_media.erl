@@ -95,7 +95,7 @@ handle_control(no_clients, #ems_media{} = State) ->
   %% {reply, Timeout, State} => wait for Timeout till clients returns
   %% {noreply, State}        => just ignore and live more
   %% {stop, Reason, State}   => stops. This should be default
-  {stop, normal, State};
+  {noreply, State};
 
 handle_control(timeout, #ems_media{} = State) ->
   {stop, normal, State};

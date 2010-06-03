@@ -14,7 +14,7 @@ dump_source() ->
   end.
 
 source_timeout_test_() ->
-  {setup,
+  {spawn, {setup,
     fun() -> 
       (catch erlang:exit(whereis(ems_media_test), kill)),
       {ok, Pid} = ems_media:start_link(test_media, [{source_timeout, 3}]),
@@ -47,10 +47,34 @@ source_timeout_test_() ->
       timer:sleep(6),
       ?assertDead(ems_media_test)
     end]
-  }.
+  }}.
+
+source_false_timeout_test_() ->
+  {spawn, {setup,
+    fun() -> 
+      (catch erlang:exit(whereis(ems_media_test), kill)),
+      {ok, Pid} = ems_media:start_link(test_media, [{source_timeout, false}]),
+      erlang:register(ems_media_test, Pid),
+      {ok, Pid} 
+    end,
+    fun({ok, Pid}) -> erlang:exit(Pid, shutdown) end,
+    [fun() ->
+      Source = spawn_link(fun dump_source/0),
+      ems_media:set_source(ems_media_test, Source),
+
+      timer:sleep(60),
+      ?assertAlive(ems_media_test),
+
+      Source ! stop,               
+      timer:sleep(60),
+      ?assertAlive(ems_media_test),
+      
+      Source ! stop
+    end]
+  }}.
   
 clients_timeout_test_() ->
-  {setup,
+  {spawn, {setup,
     fun() -> 
       (catch erlang:exit(whereis(ems_media_test), kill)),
       {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, 3}]),
@@ -80,7 +104,28 @@ clients_timeout_test_() ->
       timer:sleep(6),
       ?assertDead(ems_media_test)
     end]
-  }.
+  }}.
+
+clients_false_timeout_test_() ->
+  {spawn, {setup,
+    fun() -> 
+      (catch erlang:exit(whereis(ems_media_test), kill)),
+      {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, false}]),
+      erlang:register(ems_media_test, Pid),
+      {ok, Pid} 
+    end,
+    fun({ok, Pid}) -> erlang:exit(Pid, shutdown) end,
+    [fun() ->
+      ems_media:subscribe(ems_media_test, [{start, 20}]),
+
+      timer:sleep(60),
+      ?assertAlive(ems_media_test),
+
+      ems_media:unsubscribe(ems_media_test),
+      timer:sleep(60),
+      ?assertAlive(ems_media_test)
+    end]
+  }}.
   
 
   
