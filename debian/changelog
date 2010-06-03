@@ -1,3 +1,9 @@
+erlyvideo (1.9.6) karmic; urgency=low
+
+  New logger, new timeouts, new tests
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Jun 2010 02:04:52 +0400
+
 erlyvideo (1.9.5) karmic; urgency=low
 
   Made configurable behaviour to autostart livestream if none found
