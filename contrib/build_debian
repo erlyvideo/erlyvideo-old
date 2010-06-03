@@ -103,7 +103,7 @@ EOF
   
   def commit_debian
     version, log = last_version
-    `(cd #{path}; git checkout master; git pull; git add debian; git commit -m 'debian #{version}'; git push)`
+    `(cd #{path}; git checkout master; git pull; git add debian; git commit -m 'debian #{version}'; git push; git push --tags)`
   end
   
   def make_debian
