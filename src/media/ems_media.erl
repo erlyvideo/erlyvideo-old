@@ -328,7 +328,8 @@ init([Module, Options]) ->
       ?D("Started"),
       Media3 = Media2#ems_media{
         source_timeout = or_time(proplists:get_value(source_timeout, Options), Media2#ems_media.source_timeout),
-        clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout)
+        clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout),
+        retry_limit = or_time(proplists:get_value(retry_limit, Options), Media2#ems_media.retry_limit)
       },
       
       {ok, Media3, ?TIMEOUT};

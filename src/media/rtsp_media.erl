@@ -81,12 +81,8 @@ handle_control({source_lost, _Source}, #ems_media{} = Media) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  case connect_rtsp(Media) of
-    {ok, Reader} ->
-      {reply, Reader, Media};
-    Else ->
-      {stop, Else, Media}
-  end;
+  self() ! make_request,
+  {noreply, Media};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
@@ -100,10 +96,9 @@ handle_control(no_clients, State) ->
   %% {reply, Timeout, State} => wait for Timeout till clients returns
   %% {noreply, State}        => just ignore and live more
   %% {stop, Reason, State}   => stops. This should be default
-  {stop, normal, State};
+  {noreply, State};
 
-handle_control(timeout, #ems_media{state = State} = Media) ->
-  #rtsp{reader = Reader} = State,
+handle_control(timeout, #ems_media{source = Reader} = Media) ->
   erlang:exit(Reader, shutdown),
   ?D("RTSP timeout"),
   {noreply, Media};
@@ -130,15 +125,21 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{} = Media) ->
+handle_info(make_request, #ems_media{retry_count = Count, retry_limit = Limit} = Media) when 
+  (is_number(Count) andalso is_number(Limit) andalso Count =< Limit) orelse Limit == undefined ->
   case connect_rtsp(Media) of
     {ok, Reader} ->
       ems_media:set_source(self(), Reader),
-      {noreply, Media};
-    Else ->
-      error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
-      {stop, no_source, Media}
+      {noreply, Media#ems_media{retry_count = 0}};
+    _Else ->
+      ?D({"Failed to open rtsp_source", Media#ems_media.url, "retry count/limit", Count, Limit}),
+      timer:send_after(1000, make_request),
+      {noreply, Media#ems_media{retry_count = Count + 1}}
   end;
+
+handle_info(make_request, Media) ->
+  ?D("No RTSP source and retry limits are over"),
+  {stop, normal, Media};
   
 handle_info(_Message, State) ->
   {noreply, State}.
