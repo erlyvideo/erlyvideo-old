@@ -49,8 +49,38 @@ source_timeout_test_() ->
     end]
   }.
   
-clients_timeout_test() ->
-  ?assertEqual(a, a).
+clients_timeout_test_() ->
+  {setup,
+    fun() -> 
+      (catch erlang:exit(whereis(ems_media_test), kill)),
+      {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, 3}]),
+      erlang:register(ems_media_test, Pid),
+      {ok, Pid} 
+    end,
+    fun({ok, Pid}) -> erlang:exit(Pid, shutdown) end,
+    [fun() ->
+      ems_media:subscribe(ems_media_test, [{start, 20}]),
+
+      ?assertAlive(ems_media_test),
+      timer:sleep(60),
+      ?assertAlive(ems_media_test),
+
+      ems_media:unsubscribe(ems_media_test),
+      timer:sleep(2),
+
+      ems_media:subscribe(ems_media_test, [{start, 20}]),
+      timer:sleep(60),
+      ?assertAlive(ems_media_test),
+
+
+      ems_media:unsubscribe(ems_media_test),
+      timer:sleep(2),
+
+      ?assertAlive(ems_media_test),
+      timer:sleep(6),
+      ?assertDead(ems_media_test)
+    end]
+  }.
   
 
   

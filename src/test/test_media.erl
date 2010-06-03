@@ -6,6 +6,15 @@
 -include("../include/ems_media.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
+-export([seek/3]).
+
+
+
+seek(_Media, before, Timestamp) ->
+  {Timestamp, Timestamp}.
+
+
+
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -21,7 +30,8 @@
 
 init(State, _Options) ->
   timer:kill_after(1000),
-  {ok, State}.
+  {ok, State#ems_media{format = ?MODULE}}.
+
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
@@ -31,13 +41,18 @@ init(State, _Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({subscribe, _Client, _Options}, #ems_media{} = State) ->
+handle_control({subscribe, _Client, Options}, #ems_media{} = State) ->
   %% Subscribe returns:
   %% {reply, tick, State}  => client requires ticker (file reader)
   %% {reply, Reply, State} => client is subscribed as active receiver and receives custom reply
   %% {noreply, State}      => client is subscribed as active receiver and receives reply ``ok''
   %% {reply, {error, Reason}, State} => client receives {error, Reason}
-  {noreply, State};
+  case proplists:get_value(test_start, Options) of
+    undefined ->
+      {noreply, State};
+    _ ->
+      {reply, tick, State}
+  end;
 
 handle_control({unsubscribe, _Client}, #ems_media{} = State) ->
   %% Unsubscribe returns:
