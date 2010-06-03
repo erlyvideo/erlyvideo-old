@@ -126,7 +126,7 @@ handle_frame(Frame, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_info(make_request, #ems_media{retry_count = Count, retry_limit = Limit} = Media) when 
-  (is_number(Count) andalso is_number(Limit) andalso Count =< Limit) orelse Limit == undefined ->
+  (is_number(Count) andalso is_number(Limit) andalso Count =< Limit) orelse Limit == false ->
   case connect_rtsp(Media) of
     {ok, Reader} ->
       ems_media:set_source(self(), Reader),

@@ -388,8 +388,6 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
           undefined -> ok;
           Meta -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
         end,
-        ?D({metadata, metadata_frame(Media1)}),
-        
         ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
     end,
     {reply, ok, Media1, ?TIMEOUT}
