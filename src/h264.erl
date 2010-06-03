@@ -8,7 +8,7 @@
 -include("../include/h264.hrl").
 -include("../include/video_frame.hrl").
 
--export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata/1]).
+-export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([parse_sps/1]).
 
@@ -30,11 +30,15 @@ video_config(H264) ->
 metadata(Config) ->
   {_, [SPSBin, _]} = unpack_config(Config),
   #h264_sps{width = Width, height = Height} = parse_sps(SPSBin),
+  [{width,Width},{height,Height}].
+  
+
+metadata_frame(Config) ->
   #video_frame{       
    	content = metadata,
 		dts     = 0,
 		pts     = 0,
-		body    = [<<"onMetaData">>, {object, [{width, Width}, {height, Height}]}]
+		body    = [<<"onMetaData">>, {object, metadata(Config)}]
 	}.
   
       
