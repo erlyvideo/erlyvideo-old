@@ -12,6 +12,10 @@
 
 -export([read/2, connect/3, describe/2, setup/2, play/2]).
 
+
+-define(FRAMES_BUFFER, 15).
+-define(REORDER_FRAMES, 10).
+
 -record(rtsp_socket, {
   callback,
   buffer = <<>>,
@@ -19,6 +23,7 @@
   port,
   url,
   auth = "",
+  frames = [],
   socket,
   sdp_config = [],
   options,
@@ -390,27 +395,37 @@ sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
       Socket#rtsp_socket{rtp_streams = Streams1}
   end.
 
-handle_rtp(#rtsp_socket{rtp_streams = Streams, consumer = Consumer} = Socket, {rtp, Channel, Packet}) ->
-  Streams1 = case element(Channel+1, Streams) of
+handle_rtp(#rtsp_socket{rtp_streams = Streams, frames = Frames} = Socket, {rtp, Channel, Packet}) ->
+  {Streams1, NewFrames} = case element(Channel+1, Streams) of
     {rtcp, RTPNum} ->
       % ?D({rtcp, RTPNum}),
       {Type, RtpState} = element(RTPNum+1, Streams),
       {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
-      setelement(RTPNum+1, Streams, {Type, RtpState1});
+      {setelement(RTPNum+1, Streams, {Type, RtpState1}), []};
     {Type, RtpState} ->
       % ?D({"Decode rtp on", Channel, Type, size(Packet), element(1, RtpState)}),
       % ?D(RtpState),
-      {RtpState1, Frames} = rtp_server:decode(Type, RtpState, Packet),
+      {RtpState1, RtpFrames} = rtp_server:decode(Type, RtpState, Packet),
       % ?D({"Frame", Frames}),
-      lists:foreach(fun(Frame) ->
-        % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
-        Consumer ! Frame
-      end, Frames),
-      setelement(Channel+1, Streams, {Type, RtpState1});
+      {setelement(Channel+1, Streams, {Type, RtpState1}), RtpFrames};
     undefined ->
-      Streams
+      {Streams, []}
   end,
-  Socket#rtsp_socket{rtp_streams = Streams1}.
+  reorder_frames(Socket#rtsp_socket{rtp_streams = Streams1, frames = Frames ++ NewFrames}).
+
+reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FRAMES_BUFFER ->
+  Socket;
+  
+reorder_frames(#rtsp_socket{frames = Frames, consumer = Consumer} = Socket) ->
+  Ordered = lists:sort(fun frame_sort/2, Frames),
+  {ToSend, NewFrames} = lists:split(?REORDER_FRAMES, Ordered),
+  lists:foreach(fun(Frame) ->
+    % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
+    Consumer ! Frame
+  end, ToSend),
+  Socket#rtsp_socket{frames = NewFrames}.
+  
+frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
       
 
 %%-------------------------------------------------------------------------
