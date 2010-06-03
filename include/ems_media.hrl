@@ -17,7 +17,12 @@
   last_dts = 0,
   ts_delta,
   
-  life_timeout,
-  timeout_ref
+  source_timeout,
+  source_timeout_ref,
+
+  clients_timeout,
+  clients_timeout_ref,
+  
+  retry_count
 }).
 

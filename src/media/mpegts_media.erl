@@ -125,7 +125,7 @@ handle_control(timeout, State) ->
   ?D({"Timeout in MPEG-TS", State#ems_media.type}),
   {noreply, State};
 
-handle_control(no_clients, #ems_media{type = mpegts_passive, state = #mpegts{socket = undefined}, life_timeout = LifeTimeout} = Media) ->
+handle_control(no_clients, #ems_media{type = mpegts_passive, state = #mpegts{socket = undefined}, clients_timeout = LifeTimeout} = Media) ->
   ?D("MPEG-TS passive doesn't have clients and socket"),
   {reply, LifeTimeout, Media};
 
