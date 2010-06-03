@@ -63,16 +63,8 @@ connect_rtsp(#ems_media{url = URL, state = #rtsp{timeout = Timeout}}) ->
 init(Media, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
   State = #rtsp{timeout = Timeout},
-  Media1 = Media#ems_media{state = State},
-  case connect_rtsp(Media1) of
-    {ok, Reader} ->
-      ems_media:set_source(self(), Reader),
-      State1 = State#rtsp{reader = Reader},
-      {ok, Media1#ems_media{state = State1}};
-    Else ->
-      error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
-      {stop, no_source}
-  end.
+  self() ! make_request,
+  {ok, Media#ems_media{state = State, source_timeout = live_media:default_timeout(), clients_timeout = live_media:default_timeout()}}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
@@ -138,6 +130,16 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info(make_request, #ems_media{} = Media) ->
+  case connect_rtsp(Media) of
+    {ok, Reader} ->
+      ems_media:set_source(self(), Reader),
+      {noreply, Media};
+    Else ->
+      error_logger:error_msg("Failed to open RTSP media: ~p, will retry~n", [Else]),
+      {stop, no_source, Media}
+  end;
+  
 handle_info(_Message, State) ->
   {noreply, State}.
 

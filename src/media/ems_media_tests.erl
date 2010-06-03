@@ -200,4 +200,13 @@ mpegts_media_test_() ->
     end
   ]}.
 
+rtsp_media_test_() ->
+  {spawn, [
+    fun() ->
+      {ok, Media, _} = ems_media:init([rtsp_media, [{url, <<"rtsp://localhost/">>}, {host, default}]]),
+      ?assertEqual(live_media:default_timeout(), Media#ems_media.clients_timeout),
+      ?assertEqual(live_media:default_timeout(), Media#ems_media.source_timeout)
+    end
+  ]}.
+
   
