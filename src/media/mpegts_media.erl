@@ -44,7 +44,7 @@
   socket,
   options,
   make_request,
-  restart_count
+  timeout
 }).
 
 
@@ -71,7 +71,8 @@ init(#ems_media{type = Type} = Media, Options) ->
     _ -> ems_sup:start_mpegts_reader(self())
   end,
   ems_media:set_source(self(), Reader),
-  Media1 = Media#ems_media{state = #mpegts{options = Options, make_request = MakeRequest}},
+  State = #mpegts{options = Options, make_request = MakeRequest, timeout = proplists:get_value(timeout, Options, 4000)},
+  Media1 = Media#ems_media{state = State},
   Media2 = case Type of
     mpegts_passive -> Media#ems_media{clients_timeout = false};
     _ -> Media1
@@ -79,14 +80,20 @@ init(#ems_media{type = Type} = Media, Options) ->
   {ok, Media2}.
 
 
+connect_http(URL, Timeout) ->
+  try connect_http_raw(URL, Timeout) of
+    {ok, Socket} -> {ok, Socket}
+  catch
+    Class:Error -> {Class, Error}
+  end.
   
-connect_http(URL) ->
+connect_http_raw(URL, Timeout) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, line}, {active, false}], 4000),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, line}, {active, false}], Timeout),
   ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
-  gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
+  ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
-  Socket.
+  {ok, Socket}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
@@ -162,18 +169,29 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{state = State, url = URL} = Media) ->
-  Socket = case State#mpegts.make_request of
-    true -> connect_http(URL);
-    false -> undefined
-  end,
-  State1 = State#mpegts{socket = Socket},
-  {noreply, Media#ems_media{state = State1}};
+handle_info(make_request, #ems_media{retry_count = Count, retry_limit = Limit, state = State, url = URL} = Media) ->
+  if
+    is_number(Count) andalso is_number(Limit) andalso Count > Limit ->
+      {stop, normal, Media};
+    State#mpegts.make_request == false ->
+      {noreply, Media#ems_media{retry_count = Count + 1, state = State#mpegts{socket = undefined}}};
+    true ->  
+      % FIXME
+      % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
+      ?D({"Disconnected MPEG-TS/Shoutcast socket in mode", Count, URL}),
+      case connect_http(URL, State#mpegts.timeout) of
+        {ok, NewSocket} ->
+          {noreply, Media#ems_media{retry_count = Count + 1, state = State#mpegts{socket = NewSocket}}};
+        _Else ->
+          timer:send_after(1000, make_request),
+          {noreply, Media#ems_media{retry_count = Count + 1}}
+      end
+  end;
   
 
-handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, #ems_media{state = State} = Media) ->
+handle_info({http, Socket, {http_response, _Version, 200, _Reply}}, #ems_media{} = Media) ->
   inet:setopts(Socket, [{active, once}]),
-  {noreply, Media#ems_media{state = State#mpegts{restart_count = undefined}}};
+  {noreply, Media#ems_media{retry_count = 0}};
 
 handle_info({http, Socket, {http_header, _, _Header, _, _Value}}, State) ->
   inet:setopts(Socket, [{active, once}]),
@@ -195,32 +213,14 @@ handle_info({tcp_closed, _Socket}, #ems_media{type = mpegts_passive, state = Sta
   {noreply, Media#ems_media{state = State1}};
 
 
-handle_info({tcp_closed, Socket}, #ems_media{state = #mpegts{restart_count = undefined}} = Media) ->
-  State = Media#ems_media.state,
-  State1 = State#mpegts{restart_count = 0},
-  handle_info({tcp_closed, Socket}, Media#ems_media{state = State1});
-
-handle_info({tcp_closed, Socket}, #ems_media{url = URL, state = 
-            #mpegts{socket = Socket, restart_count = Count, make_request = MakeRequest}} = Media) ->
-  State = Media#ems_media.state,
-  if
-    Count > ?MAX_RESTART ->
-      {stop, normal, Media};
-    MakeRequest == false ->
-      {noreply, Media#ems_media{state = State#mpegts{socket = undefined, restart_count = Count + 1}}};
-    true ->  
-      % FIXME
-      % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
-      ?D({"Disconnected MPEG-TS/Shoutcast socket in mode", Count}),
-      timer:sleep(100),
-      NewSocket = connect_http(URL),
-      {noreply, Media#ems_media{state = State#mpegts{socket = NewSocket, restart_count = Count + 1}}}
-  end;
+handle_info({tcp_closed, _Socket}, #ems_media{} = Media) ->
+  self() ! make_request,
+  {noreply, Media};
 
 handle_info({tcp_closed, Socket}, State) ->
   ?D({"Some socket closed", Socket, State}),
   {noreply, State};
 
-handle_info(Msg, State) ->
-  {stop, {unhandled, Msg}, State}.
+handle_info(_Msg, State) ->
+  {noreply, State}.
 
