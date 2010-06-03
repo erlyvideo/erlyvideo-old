@@ -1,3 +1,9 @@
+erlang-rtmp (1.5.14) karmic; urgency=low
+
+  Modifications in benchmark tool for apps
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Jun 2010 02:00:52 +0400
+
 erlang-rtmp (1.5.13) karmic; urgency=low
 
   debug key for rtmp_benck
