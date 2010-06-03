@@ -822,12 +822,8 @@ metadata_frame(#ems_media{format = undefined} = M) ->
   % undefined;
   
 metadata_frame(#ems_media{} = Media) ->
-  Meta1 = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
                       (Else) -> Else end, storage_properties(Media)),
-  Meta2 = lists:filter(fun({start,_}) -> false;
-                          ({length, _}) -> false;
-                          (_) -> true end, Meta1),
-  Meta = Meta2,                        
   #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, Meta, video_parameters(Media))}]}.
 
 

@@ -441,7 +441,7 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Fram
              #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started} = State) ->
   {State1, BaseDts} = case ems:element(StreamId, Started) of
     undefined ->
-      rtmp_lib:play_start(Socket, StreamId, DTS),
+      rtmp_lib:play_start(Socket, StreamId, 0),
       {State#rtmp_session{
         streams_started = ems:setelement(StreamId, Started, true),
         streams_dts = ems:setelement(StreamId, StreamsDTS, DTS)}, DTS};
@@ -449,7 +449,7 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Fram
       {State, ems:element(StreamId, StreamsDTS)}
   end,
     
-  % ?D({Type,Frame#video_frame.flavor,DTS}),
+  % ?D({Type,Frame#video_frame.flavor,DTS - BaseDts}),
   Message = #rtmp_message{
     channel_id = channel_id(Type, StreamId), 
     timestamp = DTS - BaseDts,
