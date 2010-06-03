@@ -1,3 +1,9 @@
+erlang-rtsp (1.3.3) karmic; urgency=low
+
+  New logging for ?D
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Jun 2010 01:58:15 +0400
+
 erlang-rtsp (1.3.2) karmic; urgency=low
 
   Refactored callback system, removed useless rtsp_connection. Fixed bug with audio/video streams
