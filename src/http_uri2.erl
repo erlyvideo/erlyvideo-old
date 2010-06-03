@@ -20,7 +20,7 @@
 
 -module(http_uri2).
 
--export([parse/1]).
+-export([parse/1, parse_path_query/1]).
 
 %%%=========================================================================
 %%%  API
@@ -113,3 +113,60 @@ path("") ->
     "/";
 path(Path) ->
     Path.
+
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
+
+parse_http_1_test() ->
+  ?assertEqual({http,[],"ya.ru",80,"/",[]},  http_uri2:parse("http://ya.ru/")).
+
+parse_http_2_test() ->
+  ?assertEqual({http,[],"ya.ru",8081,"/",[]},  http_uri2:parse("http://ya.ru:8081/")).
+
+parse_http_3_test() ->
+  ?assertEqual({https,[],"ya.ru",443,"/",[]},  http_uri2:parse("https://ya.ru/")).
+
+parse_http_4_test() ->
+  ?assertEqual({https,[],"ya.ru",8081,"/",[]},  http_uri2:parse("https://ya.ru:8081/")).
+
+parse_http_5_test() ->
+  ?assertEqual({https,[],"ya.ru",8081,"/",[]},  http_uri2:parse("https://ya.ru:8081/")).
+
+parse_http_6_test() ->
+  ?assertEqual({https,"root:password","ya.ru",8081,"/",[]},  http_uri2:parse("https://root:password@ya.ru:8081/")).
+
+parse_http_7_test() ->
+  ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "question"}]},  http_uri2:parse("http://ya.ru/?q=question")).
+
+parse_http_8_test() ->
+  ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "of life"}]},  http_uri2:parse("http://ya.ru/?q=of%20life")).
+
+parse_http_9_test() ->
+  ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "of life"}, "start", {"a", "15"}]},  http_uri2:parse("http://ya.ru/?q=of%20life&start&a=15")).
+
+parse_rtmp_1_test() ->
+  ?assertEqual({rtmp,[],"ya.ru",1935,"/",[]},  http_uri2:parse("rtmp://ya.ru/")).
+
+parse_rtsp_1_test() ->
+  ?assertEqual({rtsp,[],"ya.ru",554,"/test/access",[]},  http_uri2:parse("rtsp://ya.ru/test/access")).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
