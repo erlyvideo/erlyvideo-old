@@ -183,4 +183,22 @@ live_media_test_() ->
     end
   ]}.
 
+mpegts_file_media_test_() ->
+  {spawn, [
+    fun() ->
+      {ok, Media, _} = ems_media:init([mpegts_file_media, [{url, <<"video.ts">>}, {host, default}]]),
+      ?assertEqual(1, Media#ems_media.source_timeout),
+      ?assertEqual(file_media:default_timeout(), Media#ems_media.clients_timeout)
+    end
+  ]}.
+
+mpegts_file_media_test_() ->
+  {spawn, [
+    fun() ->
+      {ok, Media, _} = ems_media:init([mpegts_file_media, [{url, <<"video.ts">>}, {host, default}]]),
+      ?assertEqual(1, Media#ems_media.source_timeout),
+      ?assertEqual(file_media:default_timeout(), Media#ems_media.clients_timeout)
+    end
+  ]}.
+
   

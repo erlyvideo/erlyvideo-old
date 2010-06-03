@@ -35,13 +35,12 @@ can_open_file(Name) ->
 
 init(Media, Options) ->
   Host = proplists:get_value(host, Options),
-  Name = proplists:get_value(name, Options),
+  Name = proplists:get_value(url, Options),
   FileName = filename:join([file_media:file_dir(Host), binary_to_list(Name)]), 
   {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
-  erlang:monitor(process, Reader),
   link(Reader),
-  State = #state{reader = Reader},
-  {ok, Media#ems_media{state = State}}.
+  ems_media:set_source(self(), Reader),
+  {ok, Media#ems_media{source_timeout = 1, clients_timeout = file_media:default_timeout()}}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
