@@ -230,14 +230,15 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
+seek(#rtmp_session{streams = Streams, streams_dts = StreamsDTS, socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
   Player = ems:element(StreamId, Streams),
   ?D({"seek", round(Timestamp), Player}),
-  case ems_media:seek(Player, before, Timestamp) of
+  BaseDTS = ems:element(StreamId, StreamsDTS),
+  case ems_media:seek(Player, before, Timestamp + BaseDTS) of
     {seek_success, NewTimestamp} ->
-      self() ! {ems_stream, StreamId, seek_notify, NewTimestamp};
+      rtmp_lib:seek_notify(Socket, StreamId, NewTimestamp - BaseDTS);
     seek_failed ->
-      self() ! {ems_stream, StreamId, seek_failed}
+      rtmp_lib:seek_failed(Socket, StreamId)
   end,
   State.
   

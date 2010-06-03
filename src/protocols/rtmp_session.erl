@@ -424,14 +424,6 @@ handle_info({ems_stream, StreamId, play_failed}, StateName, #rtmp_session{socket
   rtmp_lib:play_failed(Socket, StreamId),
   {next_state, StateName, State};
   
-handle_info({ems_stream, StreamId, seek_notify, Timestamp}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:seek_notify(Socket, StreamId, Timestamp),
-  {next_state, StateName, State};
-
-handle_info({ems_stream, StreamId, seek_failed}, StateName, #rtmp_session{socket = Socket} = State) ->
-  ?D({"Send seek failed"}),
-  rtmp_lib:seek_failed(Socket, StreamId),
-  {next_state, StateName, State};
 
 handle_info(#video_frame{} = Frame, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
   {next_state, 'WAIT_FOR_DATA', handle_frame(Frame, State)};
