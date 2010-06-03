@@ -388,6 +388,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
           undefined -> ok;
           Meta -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
         end,
+        ?D({metadata, metadata_frame(Media1)}),
         
         ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
     end,
@@ -816,14 +817,26 @@ storage_properties(#ems_media{format = Format, storage = Storage}) ->
   end.
 
 
-metadata_frame(#ems_media{format = undefined}) ->
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, []}]};
+metadata_frame(#ems_media{format = undefined} = M) ->
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, video_parameters(M)}]};
   % undefined;
   
 metadata_frame(#ems_media{} = Media) ->
-  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+  Meta1 = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
                       (Else) -> Else end, storage_properties(Media)),
-   #video_frame{content = metadata, body = [<<"onMetaData">>, {object, Meta}]}.
+  Meta2 = lists:filter(fun({start,_}) -> false;
+                          ({length, _}) -> false;
+                          (_) -> true end, Meta1),
+  Meta = Meta2,                        
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, Meta, video_parameters(Media))}]}.
+
+
+
+video_parameters(#ems_media{video_config = undefined}) ->
+  [];
+  
+video_parameters(#ems_media{video_config = #video_frame{body = Config}}) ->
+  h264:metadata(Config).
   
 
 send_frame(Frame, Clients, State) ->
