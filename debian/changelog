@@ -1,3 +1,9 @@
+erlang-mpegts (2.2.8) karmic; urgency=low
+
+  New logging for ?D
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Jun 2010 01:59:32 +0400
+
 erlang-mpegts (2.2.7) karmic; urgency=low
 
   Updated debian requirements
