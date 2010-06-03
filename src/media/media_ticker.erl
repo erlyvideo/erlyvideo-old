@@ -46,7 +46,7 @@ init(Media, Consumer, Options) ->
   {Pos, DTS} = case proplists:get_value(start, Options) of
     undefined -> {undefined, undefined};
     {BeforeAfter, Start} -> ems_media:seek_info(Media, BeforeAfter, Start);
-    Start -> ems_media:seek(Media, before, Start)
+    Start -> ems_media:seek_info(Media, before, Start)
   end,
   
   PlayingTill = case proplists:get_value(duration, Options) of

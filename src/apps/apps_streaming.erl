@@ -128,8 +128,14 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, Name | Args], stream_id = StreamId}) ->
-  Options = extract_play_args(Args),
+play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+  Options1 = extract_play_args(Args),
+
+  {Name, Args2} = http_uri2:parse_path_query(FullName),
+  Options2 = extract_url_args(Args2),
+  
+  Options = lists:ukeymerge(1, Options2, Options1),
+  
   case media_provider:play(Host, Name, [{stream_id,StreamId}|Options]) of
     {notfound, _Reason} -> 
       State;
@@ -139,6 +145,10 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
   
+extract_url_args([]) -> [];
+extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};
+extract_url_args({"duration", Duration}) -> {duration, list_to_integer(Duration)*1000};
+extract_url_args(List) -> [extract_url_args(Arg) || Arg <- List].
 
 
 % Part of RTMP specification.
