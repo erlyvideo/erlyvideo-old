@@ -11,6 +11,10 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("aac")
   end
 
+  def test_gen_cache
+    run_test("gen_cache")
+  end
+
   def test_h264
     run_test("h264")
   end
