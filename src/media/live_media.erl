@@ -35,13 +35,15 @@
 -include("../../include/ems.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
-
--define(SOURCE_TIMEOUT, 1000).
+-export([default_timeout/0]).
 
 -record(live, {
   timeout,
   ref
 }).
+
+default_timeout() ->
+  600000.
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -56,16 +58,19 @@
 %%----------------------------------------------------------------------
 
 init(Media, Options) ->
-  State = case proplists:get_value(wait, Options, ?SOURCE_TIMEOUT) of
+  State = case proplists:get_value(wait, Options, default_timeout()) of
     Timeout when is_number(Timeout) ->
       {ok, Ref} = timer:send_after(Timeout, source_timeout),
       #live{timeout = Timeout, ref = Ref};
     infinity ->
       #live{}
   end,
+  Media1 = Media#ems_media{state = State, clients_timeout = false, source_timeout = default_timeout()},
   case proplists:get_value(type, Options) of
     live -> 
-      {ok, Media#ems_media{state = State}};
+      {ok, Media1};
+    undefined -> 
+      {ok, Media1};
     record ->
       URL = proplists:get_value(url, Options),
       Host = proplists:get_value(host, Options),
@@ -73,7 +78,7 @@ init(Media, Options) ->
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
       {ok, Writer} = flv_writer:init(FileName),
-      {ok, Media#ems_media{state = State, format = flv_writer, storage = Writer}}
+      {ok, Media1#ems_media{format = flv_writer, storage = Writer}}
   end.
 
 %%----------------------------------------------------------------------

@@ -2,6 +2,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("eunit/include/eunit.hrl").
+-include("../../include/ems_media.hrl").
 
 -define(assertAlive(Name), ?assertMatch(Pid when is_pid(Pid), whereis(Name))).
 -define(assertDead(Name), ?assertEqual(undefined, whereis(Name))).
@@ -126,6 +127,50 @@ clients_false_timeout_test_() ->
       ?assertAlive(ems_media_test)
     end]
   }}.
+
+
+false_timeouts_test_() ->
+  {spawn, {setup,
+    fun() -> 
+      (catch erlang:exit(whereis(ems_media_test), kill)),
+      {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, false},{source_timeout, false}]),
+      erlang:register(ems_media_test, Pid),
+      {ok, Pid} 
+    end,
+    fun({ok, Pid}) -> erlang:exit(Pid, shutdown) end,
+    [fun() ->
+      Source = spawn_link(fun dump_source/0),
+      ems_media:set_source(ems_media_test, Source),
+      ems_media:subscribe(ems_media_test, [{start, 20}]),
+
+      timer:sleep(60),
+      ?assertAlive(ems_media_test),
+      
+      Source ! stop,
+      ems_media:unsubscribe(ems_media_test),
+      
+      timer:sleep(60),
+      ?assertAlive(ems_media_test)
+    end]
+  }}.
   
+
+file_media_test_() ->
+  {spawn, [
+    fun() ->
+      {ok, Media, _} = ems_media:init([file_media, [{url, <<"video.mp4">>}, {host, default}]]),
+      ?assertEqual(false, Media#ems_media.source_timeout),
+      ?assertEqual(file_media:default_timeout(), Media#ems_media.clients_timeout)
+    end
+  ]}.
+
+live_media_test_() ->
+  {spawn, [
+    fun() ->
+      {ok, Media, _} = ems_media:init([live_media, []]),
+      ?assertEqual(live_media:default_timeout(), Media#ems_media.source_timeout),
+      ?assertEqual(false, Media#ems_media.clients_timeout)
+    end
+  ]}.
 
   

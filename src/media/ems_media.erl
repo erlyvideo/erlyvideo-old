@@ -303,14 +303,14 @@ print_state(#ems_media{} = Media) ->
 %%----------------------------------------------------------------------
 
 
+
+
 init([Module, Options]) ->
   ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
   URL = proplists:get_value(url, Options),
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
-                     clients = ets:new(clients, [set,  {keypos,#client.consumer}]),
-                     source_timeout = proplists:get_value(source_timeout, Options, ?LIFE_TIMEOUT),
-                     clients_timeout = proplists:get_value(clients_timeout, Options, ?LIFE_TIMEOUT)},
+                     clients = ets:new(clients, [set,  {keypos,#client.consumer}])},
   ?D("Starting"),
   case Module:init(Media, Options) of
     {ok, Media1} ->
@@ -326,11 +326,21 @@ init([Module, Options]) ->
           end
       end,
       ?D("Started"),
-      {ok, Media2, ?TIMEOUT};
+      Media3 = Media2#ems_media{
+        source_timeout = or_time(proplists:get_value(source_timeout, Options), Media2#ems_media.source_timeout),
+        clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout)
+      },
+      
+      {ok, Media3, ?TIMEOUT};
     {stop, Reason} ->
       ?D({"ems_media failed to initialize",Module,Reason}),
       {stop, Reason}
   end.
+
+
+or_time(undefined, undefined) -> ?LIFE_TIMEOUT;
+or_time(undefined, Timeout) -> Timeout;
+or_time(Timeout, _) -> Timeout.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |

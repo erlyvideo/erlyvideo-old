@@ -35,7 +35,10 @@
 -include("../../include/ems.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
--export([file_dir/1, file_format/1]).
+-export([file_dir/1, file_format/1, default_timeout/0]).
+
+default_timeout() ->
+  600000.
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -55,7 +58,7 @@ init(State, Options) ->
     {error, Reason} ->
       {stop, Reason};
     {Format, Storage} ->
-      {ok, State#ems_media{format = Format, storage = Storage}}
+      {ok, State#ems_media{format = Format, storage = Storage, source_timeout = false, clients_timeout = default_timeout()}}
   end.
   
 
