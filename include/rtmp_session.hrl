@@ -11,6 +11,7 @@
 	player_info = [],
 	streams      = {},
 	streams_started = {},
+	streams_dts = {},
 	bytes_recv   = 0,
 	bytes_sent   = 0,
 	play_stats   = [],
