@@ -1,3 +1,9 @@
+erlang-shoutcast (1.1.7) karmic; urgency=low
+
+  New logging for ?D
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Jun 2010 02:02:45 +0400
+
 erlang-shoutcast (1.1.6) karmic; urgency=low
 
   Updated debian requirements
