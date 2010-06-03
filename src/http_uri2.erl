@@ -71,8 +71,8 @@ parse_uri_rest(Scheme, "//" ++ URIPart) ->
 
 
 parse_path_query(PathQuery) ->
-    {Path, Query} =  split_uri(PathQuery, "\\?", {PathQuery, ""}, 1, 0),
-    {path(Path), Query}.
+    {Path, Query} =  split_uri(PathQuery, "\\?", {PathQuery, ""}, 1, 1),
+    {path(Path), parse_query(Query)}.
     
 
 parse_host_port(Scheme,"[" ++ HostPort) -> %ipv6
@@ -94,6 +94,67 @@ split_uri(UriPart, SplitChar, NoMatchResult, SkipLeft, SkipRight) ->
 	nomatch ->
 	    NoMatchResult
     end.
+
+parse_query(Query) ->
+  parse_qs(Query).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Copypaste from musiltin_req.erl %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-define(PERCENT, 37).  % $\%
+-define(FULLSTOP, 46). % $\.
+-define(IS_HEX(C), ((C >= $0 andalso C =< $9) orelse
+					(C >= $a andalso C =< $f) orelse
+					(C >= $A andalso C =< $F))).
+
+parse_qs(String) ->
+	parse_qs(String, []).
+parse_qs([], Acc) ->
+	lists:reverse(Acc);
+parse_qs(String, Acc) ->
+	{Key, Rest} = parse_qs_key(String),
+	{Value, Rest1} = parse_qs_value(Rest),
+	parse_qs(Rest1, [{Key, Value} | Acc]).
+parse_qs_key(String) ->
+	parse_qs_key(String, []).
+parse_qs_key([], Acc) ->
+	{qs_revdecode(Acc), ""};
+parse_qs_key([$= | Rest], Acc) ->
+	{qs_revdecode(Acc), Rest};
+parse_qs_key(Rest=[$; | _], Acc) ->
+	{qs_revdecode(Acc), Rest};
+parse_qs_key(Rest=[$& | _], Acc) ->
+	{qs_revdecode(Acc), Rest};
+parse_qs_key([C | Rest], Acc) ->
+	parse_qs_key(Rest, [C | Acc]).
+parse_qs_value(String) ->
+	parse_qs_value(String, []).
+parse_qs_value([], Acc) ->
+	{qs_revdecode(Acc), ""};
+parse_qs_value([$; | Rest], Acc) ->
+	{qs_revdecode(Acc), Rest};
+parse_qs_value([$& | Rest], Acc) ->
+	{qs_revdecode(Acc), Rest};
+parse_qs_value([C | Rest], Acc) ->
+	parse_qs_value(Rest, [C | Acc]).
+
+% revdecode
+qs_revdecode(S) ->
+	qs_revdecode(S, []).
+qs_revdecode([], Acc) ->
+	Acc;
+qs_revdecode([$+ | Rest], Acc) ->
+	qs_revdecode(Rest, [$\s | Acc]);
+qs_revdecode([Lo, Hi, ?PERCENT | Rest], Acc) when ?IS_HEX(Lo), ?IS_HEX(Hi) ->
+	qs_revdecode(Rest, [(unhexdigit(Lo) bor (unhexdigit(Hi) bsl 4)) | Acc]);
+qs_revdecode([C | Rest], Acc) ->
+	qs_revdecode(Rest, [C | Acc]).
+
+% unexdigit
+unhexdigit(C) when C >= $0, C =< $9 -> C - $0;
+unhexdigit(C) when C >= $a, C =< $f -> C - $a + 10;
+unhexdigit(C) when C >= $A, C =< $F -> C - $A + 10.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Copypaste finished %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 default_port(http) ->
     80;
@@ -145,7 +206,11 @@ parse_http_8_test() ->
   ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "of life"}]},  http_uri2:parse("http://ya.ru/?q=of%20life")).
 
 parse_http_9_test() ->
-  ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "of life"}, "start", {"a", "15"}]},  http_uri2:parse("http://ya.ru/?q=of%20life&start&a=15")).
+  ?assertEqual({http,[],"ya.ru",80,"/",[{"q", "of life"}, {"start", []}, {"a", "15"}]},  http_uri2:parse("http://ya.ru/?q=of%20life&start&a=15")).
+
+
+parse_path_test() ->
+  ?assertEqual({"lala", [{"q", "of life"}, {"start", []}, {"a", "15"}]},  http_uri2:parse_path_query("lala?q=of%20life&start&a=15")).
 
 parse_rtmp_1_test() ->
   ?assertEqual({rtmp,[],"ya.ru",1935,"/",[]},  http_uri2:parse("rtmp://ya.ru/")).
