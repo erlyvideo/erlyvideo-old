@@ -206,23 +206,27 @@ read_header(#mp4_reader{reader = Reader} = MediaInfo) ->
   {ok, Mp4Media} = mp4:read_header(Reader),
   #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, seconds = Seconds} = Mp4Media,
   ?D({"Opened mp4 file with following video tracks:", [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs], "and audio tracks", [Language || #mp4_track{language = Language} <- ATs]}),
-  AT = hd(ATs),
-  VT = hd(VTs),
-  #mp4_track{decoder_config = AC} = AT,
-  #mp4_track{decoder_config = VC} = VT,
+  AC = case ATs of
+    [#mp4_track{decoder_config = ACC}|_] -> ACC;
+    [] -> undefined
+  end,
+  VC = case VTs of
+    [#mp4_track{decoder_config = VCC}|_] -> VCC;
+    [] -> undefined
+  end,
   Info1 = MediaInfo#mp4_reader{header = Mp4Media, width = Width, height = Height,            
                        audio_config = AC, video_config = VC, 
                        audio_track = list_to_tuple(ATs), video_track = list_to_tuple(VTs), duration = Seconds},
   {ok, Info1}.
 
 
+track_by_number(Tracks, Number) when size(Tracks) < Number -> {undefined, 0};
+track_by_number(Tracks, Number) -> {element(Number, Tracks), mp4:frame_count(element(Number, Tracks))}.
+
 
 build_index_table(#mp4_reader{video_track = VTs, audio_track = ATs} = MediaInfo) ->
-  Video = element(1, VTs),
-  Audio = element(1, ATs),
-  VideoCount = mp4:frame_count(Video),
-  AudioCount = mp4:frame_count(Audio),
-  % Index = ets:new(index_table, [ordered_set]),
+  {Video, VideoCount} = track_by_number(VTs, 1),
+  {Audio, AudioCount} = track_by_number(ATs, 1),
   Index = <<>>,
   BuiltIndex = build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
   {ok, MediaInfo#mp4_reader{frames = BuiltIndex}}.
