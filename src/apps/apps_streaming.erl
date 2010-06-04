@@ -131,7 +131,8 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   Options1 = extract_play_args(Args),
 
-  {Name, Args2} = http_uri2:parse_path_query(FullName),
+  {RawName, Args2} = http_uri2:parse_path_query(FullName),
+  Name = string:join( [Part || Part <- string:tokens(RawName, "/"), Part =/= ".."], "/"),
   Options2 = extract_url_args(Args2),
   
   Options = lists:ukeymerge(1, Options2, Options1),
