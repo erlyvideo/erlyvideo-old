@@ -1,3 +1,9 @@
+erlyvideo (1.9.7) karmic; urgency=low
+
+  Fixed corner timeout case in rtsp_media
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Jun 2010 08:13:42 +0400
+
 erlyvideo (1.9.6) karmic; urgency=low
 
   New logger, new timeouts, new tests
