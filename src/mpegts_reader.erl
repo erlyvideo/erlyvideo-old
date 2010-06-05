@@ -539,12 +539,12 @@ extract_nal_test() ->
   ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,1,104,206,50,200>>)),
   ?assertEqual(undefined, extract_nal(<<>>)).
   
-extract_nal_erl_t1est() ->  
+extract_nal_erl_test() ->  
   ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal_erl(nal_test_bin(small))),
   ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
   ?assertEqual(undefined, extract_nal_erl(<<>>)).
 
-extract_real_nal_t1est() ->
+extract_real_nal_test() ->
   Bin = nal_test_bin(filler),
   {ok, <<9,80>>, Bin1} = extract_nal(Bin),
   {ok, <<6,0,1,192,128>>, Bin2} = extract_nal(Bin1),
