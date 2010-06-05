@@ -54,11 +54,11 @@ writer(#flv_file_writer{} = FlvWriter) ->
   end.
   
 write_frame(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined, writer = Writer} = FlvWriter) ->
-  Writer(flv_video_frame:to_tag(Frame#video_frame{dts = 0})),
+  Writer(flv_video_frame:to_tag(Frame#video_frame{dts = 0, pts = 0})),
   {ok, FlvWriter#flv_file_writer{base_dts = DTS}};
   
-write_frame(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
-  Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS})),
+write_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
+  Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS, pts = PTS - BaseDTS})),
   {ok, FlvWriter}.
 
 read_frame(_, _) -> erlang:error(unsupported).
