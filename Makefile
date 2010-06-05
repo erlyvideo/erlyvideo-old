@@ -69,7 +69,7 @@ debian:
 	debuild -us -uc
 	cp ../erlang-rtmp_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlang-rtmp_$(VERSION)*
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	(cd $(DEBIANREPO)/..; ./update)
 
 deploy-doc:
 	(cd doc; rsync -avz . -e ssh erlyvideo.org:/apps/erlyvideo/www/public/rtmp)
