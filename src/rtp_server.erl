@@ -167,7 +167,7 @@ init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
 init(#rtsp_stream{type = audio, clock_map = ClockMap}, Media) ->
   #audio{media = Media, clock_map = ClockMap};
   
-init(undefined, Media) ->
+init(undefined, _Media) ->
   undefined.
 
 open_ports(audio) ->
@@ -328,7 +328,7 @@ video(#video{sequence = undefined} = Video, {data, _, Sequence, _} = Packet) ->
   ?D({"Reset seq to", Sequence}),
   video(Video#video{sequence = Sequence - 1}, Packet);
 
-video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when Sequence /= PrevSeq + 1->
+video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when Sequence /= (PrevSeq + 1) rem 65536 ->
   ?D({PrevSeq + 1, Sequence}),
   video(Video#video{broken = true, sequence = Sequence - 1}, Packet);
 
