@@ -75,7 +75,10 @@ read_atom_header({Module, Device}, Pos) ->
     {ok, <<AtomLength:32, AtomName/binary>>} when AtomLength >= 8 ->
       % ?D({"Atom", binary_to_atom(AtomName, latin1), Pos, AtomLength}),
       {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8};
-    Else -> Else
+    eof ->
+      eof;
+    Else -> 
+      {error, Else}
   end.
 
 
