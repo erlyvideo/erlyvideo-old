@@ -71,7 +71,7 @@ find(Host, Name, Number) ->
 
 playlist(Host, Name) ->
   {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
-  Media = media_provider:open(Host, Name),
+  {ok, Media} = media_provider:open(Host, Name),
   SegmentListDirty = lists:map(fun(N) ->
     segment_info(Media, Name, N, Count)
   end, lists:seq(Start, Start + Count - 1)),

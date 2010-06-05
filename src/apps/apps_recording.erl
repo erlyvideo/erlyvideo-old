@@ -55,7 +55,7 @@
 
 publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF) -> 
   ?D({"Publish - Action - record",Name}),
-  Recorder = media_provider:create(Host, Name, [{type, record}]),
+  {ok, Recorder} = media_provider:create(Host, Name, [{type, record}]),
   State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)};
 
 
@@ -73,7 +73,7 @@ publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, 
   [Name | _Params] = string:tokens(binary_to_list(URL), "?"),
   ?D({"LIVE", _AMF#rtmp_funcall.stream_id}),
   ems_log:access(Host, "RECORD LIVE ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-  Recorder = media_provider:create(Host, Name, [{type, live}]),
+  {ok, Recorder} = media_provider:create(Host, Name, [{type, live}]),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
   State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)};
@@ -89,6 +89,6 @@ publish(State, #rtmp_funcall{args = [null, <<"null">>]} = AMF) ->
   
 publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name], stream_id = StreamId} = _AMF) -> 
   ems_log:access(Host, "LIVE ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-  Recorder = media_provider:create(Host, Name, [{type, live}]),
+  {ok, Recorder} = media_provider:create(Host, Name, [{type, live}]),
   State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)}.
 

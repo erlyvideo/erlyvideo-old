@@ -75,8 +75,7 @@ static_stream_name(Host, Name) ->
 
 %% @hidden  
 start_static_stream(Host, Name) ->
-  Pid = find_or_open(Host, Name),
-  {ok, Pid}.
+  find_or_open(Host, Name).
 
 %%-------------------------------------------------------------------------
 %% @spec start_static_streams() -> {ok, Pid}
@@ -103,7 +102,7 @@ start_link(Host) ->
 
 
 %%-------------------------------------------------------------------------
-%% @spec create(Host, Name, Options) -> Pid::pid()
+%% @spec create(Host, Name, Options) -> {ok, Pid::pid()}
 %% @doc Create stream. Must be called by process, that wants to send 
 %% video frames to this stream.
 %% Usually called as ``media_provider:create(Host, Name, [{type,live}])''
@@ -111,9 +110,9 @@ start_link(Host) ->
 %%-------------------------------------------------------------------------
 create(Host, Name, Options) ->
   ?D({"Create", Name, Options}),
-  Pid = open(Host, Name, Options),
+  {ok, Pid} = open(Host, Name, Options),
   ems_media:set_source(Pid, self()),
-  Pid.
+  {ok, Pid}.
 
 open(Host, Name) when is_list(Name)->
   open(Host, list_to_binary(Name));
@@ -122,7 +121,7 @@ open(Host, Name) ->
   open(Host, Name, []).
 
 %%-------------------------------------------------------------------------
-%% @spec open(Host, Name, Options) -> Pid::pid()
+%% @spec open(Host, Name, Options) -> {ok, Pid::pid()}|undefined
 %% @doc Open or start stream.
 %% @end
 %%-------------------------------------------------------------------------
@@ -149,7 +148,7 @@ remove(Host, Name) ->
 
 info(Host, Name) ->
   case find_or_open(Host, Name) of
-    Media when is_pid(Media) -> media_provider:info(Media);
+    {ok, Media} -> media_provider:info(Media);
     _ -> []
   end.
   
@@ -201,7 +200,7 @@ play(Host, Name, Options) ->
   case find_or_open(Host, Name, Options) of
     {notfound, Reason} -> 
       {notfound, Reason};
-    Stream when is_pid(Stream) ->
+    {ok, Stream} ->
       ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
       {ok, Stream}
   end.
@@ -211,8 +210,8 @@ find_or_open(Host, Name) ->
   
 find_or_open(Host, Name, Options) ->
   case find(Host, Name) of
-    undefined -> open(Host, Name, Options);
-    MediaEntry -> MediaEntry
+    {ok, Media} -> {ok, Media};
+    undefined -> open(Host, Name, Options)
   end.
 
 
@@ -242,10 +241,10 @@ handle_call({find, Name}, _From, MediaProvider) ->
   
 handle_call({open, Name, Opts}, {_Opener, _Ref}, MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
+    {ok, Player} ->
+      {reply, {ok, Player}, MediaProvider};
     undefined ->
-      {reply, internal_open(Name, Opts, MediaProvider), MediaProvider};
-    Player ->
-      {reply, Player, MediaProvider}
+      {reply, internal_open(Name, Opts, MediaProvider), MediaProvider}
   end;
 
 handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
@@ -262,14 +261,14 @@ handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media 
     
 handle_call({register, Name, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
+    {ok, OldPid} ->
+      {reply, {error, {already_set, Name, OldPid}}, MediaProvider};
     undefined ->
       Ref = erlang:monitor(process, Pid),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
       ems_event:stream_started(Host, Name, Pid, []),
       ?D({"Registering", Name, Pid}),
-      {reply, {ok, {Name, Pid}}, MediaProvider};
-    OldPid ->
-      {reply, {error, {already_set, Name, OldPid}}, MediaProvider}
+      {reply, {ok, {Name, Pid}}, MediaProvider}
   end;
 
 handle_call(host, _From, #media_provider{host = Host} = MediaProvider) ->
@@ -298,7 +297,7 @@ handle_call(Request, _From, State) ->
 
 find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
   case ets:lookup(OpenedMedia, Name) of
-    [#media_entry{handler = Pid}] -> Pid;
+    [#media_entry{handler = Pid}] -> {ok, Pid};
     _ -> undefined
   end.
 
@@ -341,13 +340,13 @@ open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} 
               ?D({"Skip registration of", Type, URL}),
               ok
           end,
-          Pid;
+          {ok, Pid};
         _ ->
           ?D({"Error opening", Type, Name}),
           {notfound, <<"Failed to open ", Name/binary>>}
       end;
-    MediaEntry ->
-      MediaEntry
+    {ok, Media} ->
+      {ok, Media}
   end.
   
 detect_type(Host, Name, Opts) ->

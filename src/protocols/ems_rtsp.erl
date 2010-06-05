@@ -19,7 +19,7 @@ announce(URL, Headers, _Body) ->
     undefined ->
       {error, authentication};
     _Session ->
-      Media = media_provider:open(Host, Path, [{type, live}]),
+      {ok, Media} = media_provider:open(Host, Path, [{type, live}]),
       ems_media:set_source(Media, self()),
       {ok, Media}
   end.
