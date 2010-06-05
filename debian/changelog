@@ -1,3 +1,9 @@
+erlmedia (1.4.1) karmic; urgency=low
+
+  Parsing headers
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 05 Jun 2010 22:01:21 +0400
+
 erlmedia (1.4.0) karmic; urgency=low
 
   Added unified logger for ?D
