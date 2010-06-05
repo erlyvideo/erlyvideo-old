@@ -39,7 +39,7 @@ debian:
 	dput erly ../erlang-mpegts_$(VERSION)_source.changes
 	(debuild -us -uc; cp ../erlang-mpegts_$(VERSION)*.deb $(DEBIANREPO)/binary/; true)
 	rm ../erlang-mpegts_$(VERSION)*
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	(cd $(DEBIANREPO)/..; ./update)
 	
 test:
 	ERL_LIBS=.. erl -pa ebin -s mpegts_reader test -s init stop -noinput -noshell
