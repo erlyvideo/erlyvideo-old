@@ -194,7 +194,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
   Channel = rtmp:element(Id, Channels),
 
   case timestamp_type(State, Msg) of
-    relative ->
+    delta ->
       #channel{timestamp = PrevTS} = Channel,
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
@@ -212,7 +212,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
     	end,
     	Bin = [Header | ChunkList],
       {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin};
-    absolute ->
+    new ->
       TS = case Timestamp of
         same -> 0;
         _ -> Timestamp
@@ -231,12 +231,12 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
       {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin}
   end.
 
-timestamp_type(_State, #rtmp_message{ts_type = absolute}) -> absolute;
-timestamp_type(_State, #rtmp_message{ts_type = relative}) -> relative;
+timestamp_type(_State, #rtmp_message{ts_type = new}) -> new;
+timestamp_type(_State, #rtmp_message{ts_type = delta}) -> delta;
 timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, type = Type, timestamp = Timestamp, stream_id = StreamId}) -> 
   case rtmp:element(Id, Channels) of
-    #channel{timestamp = PrevTS, type = Type, stream_id = StreamId} when PrevTS =< Timestamp -> relative;
-    _ -> absolute
+    #channel{timestamp = PrevTS, type = Type, stream_id = StreamId} when PrevTS =< Timestamp -> delta;
+    _ -> new
   end.
 
 
@@ -514,9 +514,9 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<EventType:16, Body/binary>>}
 %   Message = extract_message(Channel),
 %   {State, Message#rtmp_message{type = broken_meta}};
 % 
-command(#channel{type = Type, length = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
-  Message = extract_message(Channel),
-  {State, Message#rtmp_message{type = broken_meta}};
+% command(#channel{type = Type, length = 0} = Channel, State) when (Type =:= ?RTMP_TYPE_AUDIO) or (Type =:= ?RTMP_TYPE_VIDEO) or (Type =:= ?RTMP_TYPE_METADATA_AMF0) ->
+%   Message = extract_message(Channel),
+%   {State, Message#rtmp_message{type = broken_meta}};
 
 command(#channel{type = ?RTMP_TYPE_AUDIO, msg = Body} = Channel, State)	 ->
   Message = extract_message(Channel),
