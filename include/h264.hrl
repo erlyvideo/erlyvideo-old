@@ -30,6 +30,15 @@
   buffer = <<>>
 }).
 
+-record(h264_nal, {
+  nal_unit_type,
+  ref_idc,
+  first_mb_in_slice,
+  slice_type,
+  pps_id,
+  frame_num
+}).
+
 -record(h264_sps, {
   profile,
   level,

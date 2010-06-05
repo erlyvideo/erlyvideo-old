@@ -74,12 +74,12 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
   ?D({"P-frame", _NalRefIdc}),
-  (catch slice_header(Data)),
   VideoFrame = #video_frame{
    	content = video,
 		body    = nal_with_size(Data),
 		flavor  = frame,
-		codec   = h264
+		codec   = h264,
+		sound   = slice_header(Data)
   },
   {H264, [VideoFrame]};
 
@@ -111,12 +111,12 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SLICE_C:5, _Rest/binary>> = _Data, H264) ->
   {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) ->
-  (catch slice_header(Data)),
   VideoFrame = #video_frame{
    	content = video,
 		body    = nal_with_size(Data),
 		flavor  = keyframe,
-		codec   = h264
+		codec   = h264,
+		sound   = slice_header(Data)
   },
   ?D({"I-frame", VideoFrame}),
   {H264, [VideoFrame]};
@@ -286,18 +286,19 @@ profile_name(144) -> "High 4:4:4";
 profile_name(Profile) -> "Unknown "++integer_to_list(Profile).
 
 
-slice_header(Bin) ->
-    {_FirstMbInSlice, Rest} = exp_golomb_read(Bin),
+slice_header(<<0:1, NalRefIdc:2, NalType:5, Bin/binary>>) ->
+    {FirstMbInSlice, Rest} = exp_golomb_read(Bin),
     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
-    {_PicParameterSetId, Rest3 } = exp_golomb_read(Rest2),
-    <<_FrameNum:5, _FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest3,
-    _SliceType = slice_type(SliceTypeId),
+    {PPSID, Rest3} = exp_golomb_read(Rest2),
+    {FrameNum, Rest4} = exp_golomb_read(Rest3),
+    % <<_FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest4,
+    SliceType = slice_type(SliceTypeId),
     % case _PicParameterSetId of
     %   0 -> ok;
     %   _ -> io:format("~s ~p~n", [_SliceType, _PicParameterSetId])
     % end,
     % io:format("~s~p:~p:~p:~p ~n", [_SliceType, _FrameNum, _PicParameterSetId, _FieldPicFlag, _BottomFieldFlag]),
-    ok.
+    #h264_nal{nal_unit_type = nal_unit_type(NalType), ref_idc = NalRefIdc, first_mb_in_slice = FirstMbInSlice, slice_type = SliceType, pps_id = PPSID, frame_num = FrameNum}.
 
 slice_type(0) -> 'P';
 slice_type(1) -> 'B';
@@ -310,6 +311,27 @@ slice_type(7) -> 'I';
 slice_type(8) -> 'p';
 slice_type(9) -> 'i';
 slice_type(_) -> undefined.
+
+
+nal_unit_type(?NAL_SINGLE) -> single;
+nal_unit_type(?NAL_SLICE_A) -> slice_a;
+nal_unit_type(?NAL_SLICE_B) -> slice_b;
+nal_unit_type(?NAL_SLICE_C) -> slice_c;
+nal_unit_type(?NAL_IDR) -> idr;
+nal_unit_type(?NAL_SEI) -> sei;
+nal_unit_type(?NAL_SPS) -> sps;
+nal_unit_type(?NAL_PPS) -> pps;
+nal_unit_type(?NAL_DELIM) -> delim;
+nal_unit_type(?NAL_END_SEQ) -> end_seq;
+nal_unit_type(?NAL_END_STREAM) -> end_stream;
+nal_unit_type(?NAL_FILLER) -> filler;
+nal_unit_type(?NAL_SPS_EXT) -> sps_ext;
+nal_unit_type(?NAL_STAP_A) -> stap_a;
+nal_unit_type(?NAL_STAP_B) -> stap_b;
+nal_unit_type(?NAL_MTAP16) -> mtap_16;
+nal_unit_type(?NAL_MTAP24) -> mtap_24;
+nal_unit_type(?NAL_FUA) -> fua;
+nal_unit_type(?NAL_FUB) -> fub.
 
 
 exp_golomb_read_list(Bin, List) ->
