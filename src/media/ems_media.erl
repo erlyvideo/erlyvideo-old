@@ -496,7 +496,13 @@ handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, st
 
 
 handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
-  {reply, Format:read_frame(Storage, Key), Media, ?TIMEOUT};
+  Frame = Format:read_frame(Storage, Key),
+  Media1 = case Frame of
+    #video_frame{content = video, flavor = config} -> Media#ems_media{video_config = Frame};
+    #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
+    _ -> Media
+  end,
+  {reply, Frame, Media1, ?TIMEOUT};
 
 handle_call(metadata, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media), Media, ?TIMEOUT};
@@ -827,10 +833,10 @@ metadata_frame(#ems_media{} = Media) ->
 
 
 video_parameters(#ems_media{video_config = undefined}) ->
-  [];
+  [{duration,0}];
   
 video_parameters(#ems_media{video_config = #video_frame{body = Config}}) ->
-  h264:metadata(Config).
+  [{duration,0}] ++ h264:metadata(Config).
   
 
 send_frame(Frame, Clients, State) ->
