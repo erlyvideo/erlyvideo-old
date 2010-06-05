@@ -1,3 +1,9 @@
+erlyvideo (1.9.8) karmic; urgency=low
+
+  Fixed security flaw. Changed protocol for media_provider:open
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 05 Jun 2010 22:48:49 +0400
+
 erlyvideo (1.9.7) karmic; urgency=low
 
   Fixed corner timeout case in rtsp_media
