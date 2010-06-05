@@ -34,7 +34,7 @@ debian:
 	debuild -us -uc
 	cp ../erlang-rtsp_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../erlang-rtsp_$(VERSION)*
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	(cd $(DEBIANREPO)/..; ./update)
 	
 
 .PHONY: debian
