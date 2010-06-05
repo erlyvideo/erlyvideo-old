@@ -149,12 +149,12 @@ config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Stream
 
 config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
   AudioConfig = #video_frame{       
-   	content          = audio,
-   	flavor = config,
-		dts           = 0,
-		pts           = 0,
-		body          = Config,
-	  codec	    = aac,
+   	content = audio,
+   	flavor  = config,
+		dts     = 0,
+		pts     = 0,
+		body    = Config,
+	  codec	  = aac,
 	  sound	  = {stereo, bit16, rate44}
 	},
 
@@ -361,15 +361,17 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
   Frame = lists:foldl(fun(_, undefined) -> undefined;
                          (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
-  end, #video_frame{body = <<>>}, Frames),
+                      end, #video_frame{body = <<>>}, Frames),
   Timestamp = convert_timecode(Video),
   % ?D({"Video", _Timecode, Timestamp}),
-  Frame1 = case Frame of
+  Frames1 = case Frame of
     undefined -> [];
     _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, content = video}]
   end,
-  Frame2 = case Frame of 
-    #video_frame{flavor = keyframe} -> [h264:video_config(H264) | Frame1];
-    _ -> Frame1
+  Frames2 = case Frame of 
+    #video_frame{content = video, flavor = keyframe} ->
+      Config = h264:video_config(H264),
+      [Config#video_frame{dts = Timestamp, pts = Timestamp} | Frames1];
+    _ -> Frames1
   end,
-  {Video#video{synced = true, buffer = []}, Frame2}.
+  {Video#video{synced = true, buffer = []}, Frames2}.

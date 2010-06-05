@@ -418,7 +418,18 @@ reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FR
   
 reorder_frames(#rtsp_socket{frames = Frames, consumer = Consumer} = Socket) ->
   Ordered = lists:sort(fun frame_sort/2, Frames),
+  % case Ordered of
+  %   Frames -> ok;
+  %   _ -> 
+  %     ?D("Reorder"),
+  %     lists:foreach(fun(#video_frame{content = C, flavor = F, dts = DTS, sound = S}) ->
+  %       % io:format("~p~n", [{C,F,round(DTS),S}]),
+  %       ok
+  %     end, Frames)
+  % end,
   {ToSend, NewFrames} = lists:split(?REORDER_FRAMES, Ordered),
+  % ToSend = Frames,
+  % NewFrames = [],
   lists:foreach(fun(Frame) ->
     % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
     Consumer ! Frame
