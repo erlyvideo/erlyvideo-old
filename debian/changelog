@@ -1,3 +1,9 @@
+erlmedia (1.4.2) karmic; urgency=low
+
+  Trying to use slice_type for h264 nals
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 05 Jun 2010 22:28:43 +0400
+
 erlmedia (1.4.1) karmic; urgency=low
 
   Parsing headers
