@@ -73,13 +73,18 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
 
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
-  ?D({"P-frame", _NalRefIdc}),
+  Header = slice_header(Data),
+  Flavor = case Header#h264_nal.slice_type of
+    'I' -> keyframe;
+    _ -> frame
+  end,
+  ?D({"P-frame", Header}),
   VideoFrame = #video_frame{
    	content = video,
 		body    = nal_with_size(Data),
-		flavor  = frame,
+		flavor  = Flavor,
 		codec   = h264,
-		sound   = slice_header(Data)
+		sound   = Header
   },
   {H264, [VideoFrame]};
 
@@ -290,7 +295,7 @@ slice_header(<<0:1, NalRefIdc:2, NalType:5, Bin/binary>>) ->
     {FirstMbInSlice, Rest} = exp_golomb_read(Bin),
     {SliceTypeId, Rest2 } = exp_golomb_read(Rest),
     {PPSID, Rest3} = exp_golomb_read(Rest2),
-    {FrameNum, Rest4} = exp_golomb_read(Rest3),
+    {FrameNum, _Rest4} = exp_golomb_read(Rest3),
     % <<_FieldPicFlag:1, _BottomFieldFlag:1, _/bitstring>> = Rest4,
     SliceType = slice_type(SliceTypeId),
     % case _PicParameterSetId of
