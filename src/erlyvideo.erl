@@ -93,13 +93,13 @@ stop() ->
   ems_vhosts:stop(),
 	stop_modules(),
 	ems_script:stop(),
-  ems_log:stop(),
 	application:stop(erlyvideo),
 	application:unload(erlyvideo),
 	application:stop(rtsp),
 	application:unload(rtsp),
 	application:stop(rtmp),
 	application:unload(rtmp),
+  ems_log:stop(),
 	ok.
 
 %%--------------------------------------------------------------------
