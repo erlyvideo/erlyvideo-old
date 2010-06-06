@@ -39,8 +39,6 @@
 
 -export([start_link/0, set_socket/2]).
 
--export([channel_id/2]).
-
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
@@ -76,6 +74,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
+  rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
   % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
   rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
   
@@ -437,7 +436,7 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
-handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Frame, 
+handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
              #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started} = State) ->
   {State1, BaseDts} = case ems:element(StreamId, Started) of
     undefined ->
@@ -449,14 +448,18 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId,dts = DTS} = Fram
       {State, ems:element(StreamId, StreamsDTS)}
   end,
     
-  % ?D({Type,Frame#video_frame.flavor,DTS - BaseDts}),
+  % ?D({Type,Frame#video_frame.flavor,DTS, PTS, BaseDts}),
   Message = #rtmp_message{
-    channel_id = channel_id(Type, StreamId), 
+    channel_id = rtmp_lib:channel_id(Type, StreamId), 
     timestamp = DTS - BaseDts,
     type = Type,
     stream_id = StreamId,
-    body = flv_video_frame:encode(Frame)},
+    body = flv_video_frame:encode(Frame#video_frame{dts = DTS - BaseDts, pts = PTS - BaseDts})},
 	rtmp_socket:send(Socket, Message),
+	case Frame of
+	  #video_frame{content = video, flavor = config} -> rtmp_socket:send(Socket, Message);
+	  _ -> ok
+	end,
   State1.
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
@@ -508,12 +511,6 @@ plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) ->
       {NewStateName, NewState} = {StateName, State}
   end,
   plugins_code_change(OldVersion, NewStateName, NewState, Extra, Modules).
-
-
-
-channel_id(metadata, StreamId) -> 3 + StreamId;
-channel_id(video, StreamId) -> 4 + StreamId;
-channel_id(audio, StreamId) -> 5 + StreamId.
 
 
 
