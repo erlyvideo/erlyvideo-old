@@ -1,3 +1,9 @@
+erlang-rtmp (1.5.15) karmic; urgency=low
+
+  Dialyzing. Fixed playstart and seek.
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 06 Jun 2010 14:41:40 +0400
+
 erlang-rtmp (1.5.14) karmic; urgency=low
 
   Modifications in benchmark tool for apps
