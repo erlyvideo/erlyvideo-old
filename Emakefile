@@ -13,6 +13,7 @@
 {"src/shared_objects/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/plugins/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/test/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+{"src/http/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"lib/misultin/src/*", [debug_info, {outdir, "ebin"}, {i, "lib/misultin/include"}]}.
 {"deps/erlmedia/src/*", [debug_info, {outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
