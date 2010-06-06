@@ -71,7 +71,7 @@
 open(IP, Callback) ->
   {ok, RTMPT, SessionID} = rtmpt_sessions:create(IP),
   % {ok, RTMP} = rtmp_socket:start_socket(Consumer, accept, RTMPT),
-  {ok, RTMP} = rtmp_sup:start_rtmp_socket(undefined, accept),
+  {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
   {ok, Pid} = Callback:create_client(RTMP),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   rtmpt:set_consumer(RTMPT, RTMP),
