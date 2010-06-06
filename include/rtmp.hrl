@@ -1,5 +1,5 @@
 -type(rtmp_message_type() ::chunk_size|ack_read|ping|pong|buffer_size|window_size|
-                            bw_peer|audio|video|broken_meta|control|
+                            bw_peer|audio|video|control|
                             metadata3|shared_object3|invoke3|metadata|shared_object|invoke).
 
 -type(shared_object_event() ::connect|disconnect|set_attribute|update_data|update_attribute|send_message|
@@ -40,16 +40,19 @@
 }).
 
 -type(so_message() ::#so_message{}).
+-type(content_type() ::audio|video|metadata).
 
--type(timestamp_type() ::absolute|relative|undefined).
+-type(timestamp_type() ::new|delta|undefined).
+-type(fixed_timestamp_type() ::new|delta).
+-type(rtmp_timestamp() ::non_neg_integer()|float()|same).
 
 -record(rtmp_message, {
   channel_id ::non_neg_integer(),
   ts_type    ::timestamp_type(),
-  timestamp  ::non_neg_integer()|float(),
+  timestamp  ::rtmp_timestamp(),
   type       ::rtmp_message_type()|integer(),
   stream_id  ::non_neg_integer()|float(),
-  body       ::binary()|non_neg_integer()|rtmp_message_ack()|rtmp_funcall()|so_message()|proplist()|rtmp_control()
+  body       ::binary()|non_neg_integer()|rtmp_message_ack()|rtmp_funcall()|so_message()|proplist()|rtmp_control()|list()
 }).
 
 -type(rtmp_message() ::#rtmp_message{}).

@@ -193,18 +193,13 @@ send(RTMP, Message) ->
   ok.
   
 
-channel_id(metadata, StreamId) -> 3 + StreamId;
-channel_id(video, StreamId) -> 4 + StreamId;
-channel_id(audio, StreamId) -> 5 + StreamId.
-
-
 
 notify(RTMP, StreamId, Name, Args) ->
   send(RTMP, prepare_notify(StreamId, Name, Args)).
 
 prepare_notify(StreamId, Name, Args) ->
   Arg = {object, lists:ukeymerge(1, [{level, <<"status">>}], lists:keysort(1, Args))},
-  #rtmp_message{type = metadata, channel_id = channel_id(audio, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}.
+  #rtmp_message{type = metadata, channel_id = rtmp_lib:channel_id(audio, StreamId), stream_id = StreamId, body = [Name, Arg], timestamp = same}.
 
 
 prepare_status(StreamId, Code) when is_list(Code) ->
@@ -214,7 +209,7 @@ prepare_status(StreamId, Code) when is_binary(Code) ->
   prepare_status(StreamId, Code, <<"-">>).
 
 
--spec(prepare_status(StreamId::integer(), Code::any_string(), Description::any_string()) -> ok).
+-spec(prepare_status(StreamId::non_neg_integer(), Code::any_string(), Description::any_string()) -> rtmp_message()).
 prepare_status(StreamId, Code, Description) ->
   Arg = {object, [
     {code, Code}, 

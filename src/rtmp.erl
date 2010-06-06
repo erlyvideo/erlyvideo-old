@@ -163,9 +163,11 @@ encode(#rtmp_socket{} = State, #rtmp_message{type = Type, body = Data} = Message
   encode_bin(State, Message).
 
 
+-spec element(Id::non_neg_integer(), Tuple::tuple()) -> any().
 element(Id, Tuple) when Id > size(Tuple) -> undefined;
 element(Id, Tuple) -> erlang:element(Id, Tuple).
 
+-spec setelement(Id::non_neg_integer(), Tuple::tuple(), Value::any()) -> any().
 setelement(Id, Tuple, Value) when Id > size(Tuple) -> rtmp:setelement(Id, erlang:append_element(Tuple, undefined), Value);
 setelement(Id, Tuple, Value) -> erlang:setelement(Id, Tuple, Value).
 
@@ -231,6 +233,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
       {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin}
   end.
 
+-spec timestamp_type(Socket::rtmp_socket(), Message::rtmp_message()) -> fixed_timestamp_type().
 timestamp_type(_State, #rtmp_message{ts_type = new}) -> new;
 timestamp_type(_State, #rtmp_message{ts_type = delta}) -> delta;
 timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, type = Type, timestamp = Timestamp, stream_id = StreamId}) -> 

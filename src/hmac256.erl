@@ -13,9 +13,11 @@
 -export([unhex/1]).
 -version(1.0).
 
+-spec hexdigest(string()|binary(),string()|binary()) -> string().
 hexdigest(Key, Data)->
     digest(Key, Data, true).
 
+-spec digest(string()|binary(),string()|binary()) -> string().
 digest(Key, Data) ->
     digest(Key, Data, false).
 
@@ -73,7 +75,9 @@ is_hex_digit(C) when C >= $A, C =< $F -> true;
 is_hex_digit(C) when C >= $a, C =< $f -> true;
 is_hex_digit(_) -> false.
 
+-spec unhex(string()) -> string().
 unhex(S) -> unhex(S, []).
+
 unhex([], Acc) ->
     lists:reverse(Acc);
 unhex([_], Acc) ->

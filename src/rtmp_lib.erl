@@ -172,7 +172,8 @@ shared_object_set(RTMP, Name, Key, Value) ->
     30000 -> erlang:error(timeout)
   end.
   
-  
+
+-spec play_start(RTMP::pid(), StreamId::non_neg_integer(), DTS::timestamp_type()) -> ok.
 play_start(RTMP, StreamId, DTS) ->
   % rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(audio, StreamId), timestamp = DTS}),
   % rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(video, StreamId), timestamp = DTS}),
@@ -197,13 +198,15 @@ play_start(RTMP, StreamId, DTS) ->
   
   rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<82,0>>, ts_type = new}),
   rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<23,2,0,0,0>>, ts_type = new}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<82,1>>, ts_type = new}).
+  rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<82,1>>, ts_type = new}),
+  ok.
   
 
 pause_notify(RTMP, StreamId) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_maybe_seek, stream_id = StreamId}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
-  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Pause.Notify">>).
+  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Pause.Notify">>),
+  ok.
   
 
 seek_notify(RTMP, StreamId, DTS) ->
@@ -232,11 +235,11 @@ seek_notify(RTMP, StreamId, DTS) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,0>>, ts_type = new}),
   rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<23,2,0,0,0>>, ts_type = new}),
   rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,1>>, ts_type = delta}),
-  
-  ok. 
+  ok.
 
 seek_failed(RTMP, StreamId) ->
-  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Seek.InvalidTime">>).
+  rtmp_socket:status(RTMP, StreamId, <<"NetStream.Seek.InvalidTime">>),
+  ok.
   
 
 play_complete(RTMP, StreamId, Options) ->
@@ -266,8 +269,9 @@ play_complete(RTMP, StreamId, Options) ->
   PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Stop">>},{description,"file end"}]},
   PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(video, StreamId), timestamp = 0, stream_id = StreamId, 
                 body = #rtmp_funcall{command = onStatus, id = 0, stream_id = StreamId, args = [null, PlayStopArg]}},
-  rtmp_socket:send(RTMP, PlayStop).
+  rtmp_socket:send(RTMP, PlayStop),
   % rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Stop">>).
+  ok.
 
 
 play_failed(RTMP, StreamId) ->
@@ -289,10 +293,12 @@ play_failed(RTMP, StreamId) ->
   PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Failed">>},{description,"file end"}]},
   PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(video, StreamId), timestamp = 0, stream_id = StreamId, 
                 body = #rtmp_funcall{command = onStatus, id = 0, stream_id = StreamId, args = [null, PlayStopArg]}},
-  rtmp_socket:send(RTMP, PlayStop).
+  rtmp_socket:send(RTMP, PlayStop),
   % rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Stop">>).
+  ok.
   
 
+-spec channel_id(Content::content_type(), StreamId::non_neg_integer()) -> non_neg_integer().
 channel_id(metadata, StreamId) -> 4 + StreamId;
 channel_id(video, StreamId) -> 6 + StreamId;
 channel_id(audio, StreamId) -> 5 + StreamId.

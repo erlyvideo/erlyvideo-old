@@ -183,6 +183,8 @@ c2(_S2) ->
 flash_version(<<T:32, V1, V2, V3, V4, _/binary>>) ->
   {T, V1, V2, V3, V4}.
 
+-type handshake_version() ::version1|version2.
+-spec clientDigest(Handshake::binary(), handshake_version()) -> {First::binary(), Seed::binary(), Last::binary()}.
 % Flash from 10.0.32.18
 clientDigest(<<_:772/binary, P1, P2, P3, P4, _/binary>> = C1, version2) ->
 	Offset = (P1+P2+P3+P4) rem 728 + 776,
@@ -196,6 +198,7 @@ clientDigest(<<_:8/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
 	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
   {First, Seed, Last}.
 
+-spec dhKey(Handshake::binary(), handshake_version()) -> {First::binary(), Seed::binary(), Last::binary()}.
 dhKey(<<_:1532/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
 	Offset = (P1+P2+P3+P4) rem 632 + 772,
 	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
@@ -206,15 +209,17 @@ dhKey(<<_:768/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
 	<<First:Offset/binary, Seed:32/binary, Last/binary>> = C1,
   {First, Seed, Last}.
 
+-spec validateClientScheme(C1::binary()) -> handshake_version().
 validateClientScheme(C1) ->
   case validateClientScheme(C1, version1) of
     true -> version1;
     false -> case validateClientScheme(C1, version2) of
-      true -> version2;
-      false -> undefined
+      true -> version2
     end
   end.
 
+
+-spec validateClientScheme(C1::binary(), Version::handshake_version()) -> boolean().
 validateClientScheme(C1, Version) ->
   {First, ClientDigestBin, Last} = clientDigest(C1, Version),
   ClientDigest = binary_to_list(ClientDigestBin),
