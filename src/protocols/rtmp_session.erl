@@ -438,14 +438,14 @@ handle_info(_Info, StateName, StateData) ->
 
 handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
              #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started} = State) ->
-  {State1, BaseDts} = case ems:element(StreamId, Started) of
+  {State1, BaseDts, Starting} = case ems:element(StreamId, Started) of
     undefined ->
       rtmp_lib:play_start(Socket, StreamId, 0),
       {State#rtmp_session{
         streams_started = ems:setelement(StreamId, Started, true),
-        streams_dts = ems:setelement(StreamId, StreamsDTS, DTS)}, DTS};
+        streams_dts = ems:setelement(StreamId, StreamsDTS, DTS)}, DTS, true};
     _ ->
-      {State, ems:element(StreamId, StreamsDTS)}
+      {State, ems:element(StreamId, StreamsDTS), false}
   end,
     
   % ?D({Type,Frame#video_frame.flavor,DTS, PTS, BaseDts}),
@@ -456,8 +456,8 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame#video_frame{dts = DTS - BaseDts, pts = PTS - BaseDts})},
 	rtmp_socket:send(Socket, Message),
-	case Frame of
-	  #video_frame{content = video, flavor = config} -> rtmp_socket:send(Socket, Message);
+	case {Starting, Frame} of
+	  {true, #video_frame{content = video, flavor = config}} -> rtmp_socket:send(Socket, Message);
 	  _ -> ok
 	end,
   State1.
