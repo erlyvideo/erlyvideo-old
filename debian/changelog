@@ -1,3 +1,9 @@
+erlyvideo (1.9.10) karmic; urgency=low
+
+  Proper saving of stream
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 06 Jun 2010 14:49:19 +0400
+
 erlyvideo (1.9.8) karmic; urgency=low
 
   Fixed security flaw. Changed protocol for media_provider:open
