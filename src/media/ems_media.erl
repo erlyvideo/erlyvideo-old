@@ -597,12 +597,12 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
 
   
-handle_info({'DOWN', _Ref, process, Pid, Reason} = Msg, #ems_media{clients = Clients, module = M} = Media1) ->
-  case unsubscribe_client(Pid, Media1) of
+handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
+  case unsubscribe_client(Pid, Media) of
     {reply, {error, no_client}, Media2, _} ->
       case ets:select(Clients, ets:fun2ms(fun(#client{ticker = Ticker} = Entry) when Ticker == Pid -> Entry end)) of
         [#client{consumer = Client, stream_id = StreamId}] ->
-          case Reason of 
+          case ClientReason of 
             normal -> ok;
             _ -> Client ! {ems_stream, StreamId, play_failed}
           end,

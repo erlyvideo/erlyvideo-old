@@ -15,6 +15,10 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("gen_cache")
   end
 
+  def test_ems_media
+    run_test("ems_media")
+  end
+
   def test_h264
     run_test("h264")
   end
