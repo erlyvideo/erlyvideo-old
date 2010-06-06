@@ -559,7 +559,12 @@ handle_rtmp_data(#rtmp_socket{debug = true} = State, Data) ->
     % {_, #rtmp_message{type = audio}, _} -> ok;
     % {_, #rtmp_message{type = video}, _} -> ok;
     {_, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, _} ->
-      io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, Body]);
+      DecodedBody = case Type of
+        video when size(Body) > 10 -> flv:decode_video_tag(Body);
+        audio when size(Body) > 0 -> flv:decode_audio_tag(Body);
+        _ -> Body
+      end,
+      io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, DecodedBody]);
     _ -> ok
   end,
   handle_rtmp_message(Decode);
