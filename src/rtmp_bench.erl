@@ -11,7 +11,8 @@
   socket,
   delta = 0,
   path,
-  count = 1
+  count = 1,
+  debug
 }).
 
 -record(spawner, {
@@ -81,28 +82,28 @@ init_rtmp_client(#spawner{server = Server, port = Port, debug = Debug, app = App
   {ok, RTMP} = rtmp_socket:connect(Socket),
   rtmp_socket:setopts(RTMP, [{debug,Debug}]),
   io:format("Connected to ~s~n", [Server]),
-  rtmp_client(RTMP, App, Path).
+  rtmp_client(RTMP, App, Path, Debug).
   
-rtmp_client(RTMP, App, Path) ->
+rtmp_client(RTMP, App, Path, Debug) ->
   receive 
     {rtmp, RTMP, connected} ->
       rtmp_socket:setopts(RTMP, [{active, true}]),
-      play(RTMP, App, Path);
+      play(RTMP, App, Path, Debug);
     Else ->
       io:format("Client message: ~p (~p)~n", [Else, RTMP]),
-      rtmp_client(RTMP, App, Path)
+      rtmp_client(RTMP, App, Path, Debug)
   after
     10000 ->
       io:format("Client timeout~n"),
       ok
   end.
 
-play(RTMP, App, Path) ->
+play(RTMP, App, Path, Debug) ->
   rtmp_lib:connect(RTMP, [{app, App}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:play(RTMP, Stream, Path),
   io:format("Playing ~s~n", [Path]),
-  read_frame(#reader{socket = RTMP, path = Path}).
+  read_frame(#reader{socket = RTMP, path = Path, debug = Debug}).
 
 % read_frame(#reader{count = Count, last_dts = DTS} = Reader) when is_number(DTS) andalso Count rem 10000 == 0->
 %   io:format("time: ~p~n", [round(DTS/1000)]),
@@ -119,6 +120,13 @@ read_frame(#reader{count = Count, delta = Delta, last_dts = DTS} = Reader) when 
       io:format("pid ~p, time = ~ps~n", [self(), round(DTS/1000)])
   end,
   read_frame(Reader#reader{count = Count+1});
+
+read_frame(#reader{socket = RTMP, last_dts = DTS, debug = true} = Reader) when DTS >= 200 andalso DTS =< 300 ->
+  Seek = 100000,
+  io:format("Make seek to ~p~n", [Seek]),
+  rtmp_lib:seek(RTMP, 1, Seek),
+  read_frame(Reader);
+
   
 read_frame(#reader{socket = RTMP, count = Count} = Reader) ->
   receive
