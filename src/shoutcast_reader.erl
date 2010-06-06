@@ -103,6 +103,9 @@ handle_info(Message, State) ->
 decode(#shoutcast{state = request, buffer = <<"ICY 200 OK\r\n", Rest/binary>>} = State) ->
   decode(State#shoutcast{state = headers, buffer = Rest});
 
+decode(#shoutcast{state = request, buffer = <<"HTTP 200 OK\r\n", Rest/binary>>} = State) ->
+  decode(State#shoutcast{state = headers, buffer = Rest});
+
 decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) ->
   case erlang:decode_packet(httph_bin, Buffer, []) of
     {more, undefined} -> 
