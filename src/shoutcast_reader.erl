@@ -103,7 +103,10 @@ handle_info(Message, State) ->
 decode(#shoutcast{state = request, buffer = <<"ICY 200 OK\r\n", Rest/binary>>} = State) ->
   decode(State#shoutcast{state = headers, buffer = Rest});
 
-decode(#shoutcast{state = request, buffer = <<"HTTP 200 OK\r\n", Rest/binary>>} = State) ->
+decode(#shoutcast{state = request, buffer = <<"HTTP/1.0 200 OK\r\n", Rest/binary>>} = State) ->
+  decode(State#shoutcast{state = headers, buffer = Rest});
+
+decode(#shoutcast{state = request, buffer = <<"HTTP/1.1 200 OK\r\n", Rest/binary>>} = State) ->
   decode(State#shoutcast{state = headers, buffer = Rest});
 
 decode(#shoutcast{state = headers, buffer = Buffer, headers = Headers} = State) ->
