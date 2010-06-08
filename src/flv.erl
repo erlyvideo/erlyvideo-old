@@ -53,6 +53,18 @@
          decode_audio_tag/1, decode_video_tag/1, decode_meta_tag/1, decode_tag/1]).
 
 
+-export([read_frame/2]).
+
+read_frame(Reader, Offset) ->
+  case flv:read_tag(Reader, Offset) of
+		#flv_tag{} = Tag ->
+		  flv_video_frame:tag_to_video_frame(Tag);
+    eof -> eof;
+    {error, Reason} -> {error, Reason}
+  end.
+	
+
+
 frame_format(audio) -> ?FLV_TAG_TYPE_AUDIO;
 frame_format(video) -> ?FLV_TAG_TYPE_VIDEO;
 frame_format(metadata) -> ?FLV_TAG_TYPE_META;
