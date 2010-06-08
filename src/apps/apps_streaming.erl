@@ -137,6 +137,11 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   
   Options = lists:ukeymerge(1, Options2, Options1),
   
+  case ems:element(StreamId, Streams) of
+    OldMedia when is_pid(OldMedia) -> ems_media:stop(OldMedia);
+    _ -> ok
+  end,
+  
   case media_provider:play(Host, Name, [{stream_id,StreamId}|Options]) of
     {notfound, _Reason} -> 
       State;
