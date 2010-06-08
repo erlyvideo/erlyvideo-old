@@ -97,9 +97,8 @@ init([Path, URL]) ->
 
 
 read_frame(#publisher{file = File, offset = Offset} = Publisher) ->
-  case flv:read_tag(File, Offset) of
-    #flv_tag{next_tag_offset = NextOffset} = Tag ->
-		  Frame = flv_video_frame:tag_to_video_frame(Tag),
+  case flv:read_frame(File, Offset) of
+    #video_frame{next_id = NextOffset} = Frame ->
 		  {Frame, Publisher#publisher{frame = Frame, offset = NextOffset}};
     eof -> eof;
     {error, Reason} -> {error, Reason}

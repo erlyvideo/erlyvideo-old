@@ -185,10 +185,5 @@ read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
 read_frame(#media_info{reader = Reader}, Offset) ->
-	case flv:read_tag(Reader, Offset) of
-		#flv_tag{} = Tag ->
-		  flv_video_frame:tag_to_video_frame(Tag);
-    eof -> eof;
-    {error, Reason} -> {error, Reason}
-  end.
+  flv:read_frame(Reader, Offset).
 
