@@ -147,6 +147,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
       State;
     {ok, Media} ->
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
+      ?D(ems:setelement(StreamId, Streams, Media)),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
