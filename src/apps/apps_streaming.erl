@@ -138,7 +138,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   Options = lists:ukeymerge(1, Options2, Options1),
   
   case ems:element(StreamId, Streams) of
-    OldMedia when is_pid(OldMedia) -> ems_media:stop(OldMedia);
+    OldMedia when is_pid(OldMedia) -> ?D({"Unsubscribe from old", OldMedia}), ems_media:stop(OldMedia);
     _ -> ok
   end,
   
