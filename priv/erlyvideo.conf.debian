@@ -10,8 +10,6 @@
     {hostname, ["localhost"]},
     {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
     {secret_key, "123"},
-    {access_log, {"/var/log/erlyvideo/", "access", {size, 1000000}, 10, "log", info}},
-    {error_log, {"/var/log/erlyvideo/", "error", {size, 1000000}, 10, "log", info}},
     {file_dir, "/var/lib/erlyvideo/movies"},
     {wwwroot, "/var/lib/erlyvideo/wwwroot"},
     {www_handlers, [ems_http_templates, ems_http_rtmpt, ems_http_push, ems_http_mpegts, ems_http_flv, ems_http_file]},
@@ -22,8 +20,6 @@
   {production, [
     {hostname, ["production.local"]},
     {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_rtmp, apps_shared_objects]},
-    {access_log, {"log", "production-access", {size, 1000000}, 10, "log", info}},
-    {error_log, {"log", "production-error", {size, 1000000}, 10, "log", info}},
     {secret_key, "fddbb018f51cb867a2e6d10b9eea7bd5eaec2d9ee1b814856251776f08e8acdef49154b0317b432ff6dfbd7c7e0e74d5db53287cc991e8cf46da8d6a27fc5ae8"},
     {file_dir, "/tmp"}
   ]}

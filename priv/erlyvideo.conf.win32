@@ -10,8 +10,6 @@
     {hostname, ["localhost"]},
     {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
     {secret_key, "123"},
-    {access_log, {"log", "access", {size, 1000000}, 10, "log", info}},
-    {error_log, {"log", "error", {size, 1000000}, 10, "log", info}},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},
     {www_handlers, [ems_http_templates, ems_http_rtmpt, ems_http_push, ems_http_mpegts, ems_http_flv, ems_http_file]},
