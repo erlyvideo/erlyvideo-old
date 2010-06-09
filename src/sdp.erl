@@ -147,9 +147,10 @@ parse_fmtp(#rtsp_stream{type = video} = Stream, Opts) ->
   Stream#rtsp_stream{pps = PPS, sps = SPS};
 
 parse_fmtp(#rtsp_stream{type = audio} = Stream, Opts) ->
-  "13" = proplists:get_value("sizelength", Opts), % Length of size in bits in Access Unit header
-  "3" = proplists:get_value("indexlength", Opts),
-  "3" = proplists:get_value("indexdeltalength", Opts),
+  % ?D(Opts),
+  % "13" = proplists:get_value("sizelength", Opts), % Length of size in bits in Access Unit header
+  % "3" = proplists:get_value("indexlength", Opts),
+  % "3" = proplists:get_value("indexdeltalength", Opts),
   Config = ssl_debug:unhex(proplists:get_value("config", Opts)),
   
   % {value, {_, _Mode}, Opts1} = lists:keytake('mode', 1, lists:keysort(1, Opts)),

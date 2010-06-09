@@ -149,3 +149,38 @@ dlink_dcs_2121_test() ->
 darwinss_test() ->
   ?assertEqual([{rtsp_stream,video,90.0,"trackID=1",h264,
                 undefined,undefined,undefined}], sdp:decode(<<"v=0\r\no=- 1188340656180883 1 IN IP4 224.1.2.3\r\ns=Session streamed by GStreamer\r\ni=server.sh\r\nt=0 0\r\na=tool:GStreamer\r\na=type:broadcast\r\nm=video 10000 RTP/AVP 96\r\nc=IN IP4 224.1.2.3\r\na=rtpmap:96 H264/90000\r\na=framerate:30">>)).
+                
+darwin_sdp() ->
+  <<"v=0
+o=StreamingServer 3485077701 1211414520000 IN IP4 129.85.244.160
+s=/evolution/coyne.mov
+u=http:///
+e=admin@
+c=IN IP4 0.0.0.0
+b=AS:876
+t=0 0
+a=control:*
+a=range:npt=0-3973.80667
+m=video 0 RTP/AVP 96
+b=AS:734
+a=rtpmap:96 H264/90000
+a=control:trackID=1
+a=cliprect:0,0,360,480
+a=range:npt=0-3973.8071
+a=fmtp:96 packetization-mode=1;profile-level-id=42E016;sprop-parameter-sets=Z0LAFpZ0DwX/LgCBAAALuwACvyC0YAw4BJd73weEQjU=,aN48gA==
+m=audio 0 RTP/AVP 97
+b=AS:142
+a=rtpmap:97 MP4A-LATM/48000/2
+a=control:trackID=2
+a=range:npt=0-3973.8240
+a=fmtp:97 profile-level-id=15;object=2;cpresent=0;config=400023203FC0
+">>.
+
+darwin_test() ->
+  ?assertEqual([{rtsp_stream,video,90.0,"trackID=1",h264,<<104,222,60,128>>,<<103,66,192,22,150,116,15,5,255,46,0,129,0,0,11,
+                 187,0,2,191,32,180,96,12,56,4,151,123,223,7,132,66,53>>,
+                      undefined},
+                      {rtsp_stream,audio,48.0,"trackID=2","MP4A-LATM",undefined,
+                                          undefined,<<64,0,35,32,63,192>>}], sdp:decode(darwin_sdp())).
+
+                
