@@ -1,3 +1,9 @@
+erlyvideo (1.9.11) karmic; urgency=low
+
+  http handlers
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 10 Jun 2010 11:57:55 +0400
+
 erlyvideo (1.9.10) karmic; urgency=low
 
   Proper saving of stream
