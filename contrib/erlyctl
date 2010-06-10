@@ -22,7 +22,6 @@ else
 fi
 
 
-# Define ejabberd environment
 ERL="erl +A 4 +K true"
 
 start()

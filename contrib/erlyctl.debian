@@ -13,41 +13,45 @@
   
 
 NODE=ems
-HOST=localhost
+HOST=`hostname`
+DOTTED=`hostname | grep '\.'`
+if [ "" = "$DOTTED" ] ;then
+  TYPE="sname"
+else
+  TYPE="name"
+fi
 
-# Define ejabberd environment
+
 ERL="erl +A 4 +K true"
 
 start()
 {
-  export ERL_LIBS=deps:lib:plugins:..
   EBIN=`erl -eval 'io:format("~s", [code:lib_dir(erlyvideo,ebin)])' -s init stop -noshell`
-	$ERL -noinput -detached -pa ebin -pa "$EBIN" \
-	-sasl sasl_error_logger 'false' \
+  if [ -f "/etc/erlyvideo/production.config" ] ; then
+    CONFIG="-config /etc/erlyvideo/production.config"
+  else
+    CONFIG=""
+  fi
+	$ERL -noinput -detached -pa ebin -pa "$EBIN" $CONFIG \
   -kernel error_logger 'false' \
-	-sasl error_logger_mf_dir '"log/report"' \
-	-sasl error_logger_mf_maxbytes '100000' \
-	-sasl error_logger_mf_maxfiles '255' \
-	-sasl utc_log 'true' \
 	-boot start_sasl \
 	-s erlyvideo \
-	-sname $NODE@$HOST
+	-$TYPE $NODE@$HOST
 }
 
 run()
 {
-	ERL_LIBS=deps:lib:plugins $ERL -pa ebin \
-  -sasl errlog_type 'all' \
+	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin \
 	-boot start_sasl \
 	-s erlyvideo \
-	-sname $NODE@$HOST
+	-$TYPE $NODE@$HOST
 	exit
 }
 
 shell()
 {
     $ERL \
-      -sname debug$NODE@$HOST \
+      -$TYPE debug$NODE@$HOST \
       -pa ebin \
       -hidden \
       -remsh $NODE@$HOST
@@ -56,7 +60,7 @@ shell()
 ctl()
 {
     $ERL \
-      -sname ctl$NODE@$HOST \
+      -$TYPE ctl$NODE@$HOST \
       -pa ebin \
       -noinput \
       -hidden \
@@ -91,6 +95,7 @@ restart()
   ctl restart
 }
 
+
 runas()
 {
   if [ `id -u` != "0" ]; then
@@ -98,7 +103,7 @@ runas()
   else
     cd /var/lib/erlyvideo
     ulimit -n 65536
-    su - erlyvideo -s /bin/sh -c "/usr/bin/erlyctl $*"
+    su - erlyvideo -s /bin/bash -c "/usr/bin/erlyctl $*"
   fi
 }
 
