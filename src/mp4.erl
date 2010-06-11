@@ -41,6 +41,7 @@
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
 btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
+-export([mp4a/2, avc1/2, s263/2, samr/2]).
 
 
 -export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
@@ -175,12 +176,16 @@ trak(Atom, MediaInfo) ->
   
 
 % Track header
+% tkhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32,
+%                     TrackID:32, _Reserved1:4/binary, 
+%                     Duration:32, _Reserved2:8/binary,
+%                     _Layer:16, _AlternateGroup:2/binary,
+%                     _Volume:2/binary, _Reserved3:2/binary,
+%                     _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
+%   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
 tkhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32,
                     TrackID:32, _Reserved1:4/binary, 
-                    Duration:32, _Reserved2:8/binary,
-                    _Layer:16, _AlternateGroup:2/binary,
-                    _Volume:2/binary, _Reserved3:2/binary,
-                    _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
+                    Duration:32, _Rest/binary>>, Mp4Track) ->
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
 
 % Media box
@@ -219,60 +224,35 @@ stbl(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 % Sample description
-stsd(<<0:8, _Flags:3/binary, EntryCount:32, EntryData/binary>>, Mp4Track) ->
-  stsd({EntryCount, EntryData}, Mp4Track);
+stsd(<<0:8, _Flags:3/binary, _EntryCount:32, EntryData/binary>>, Mp4Track) ->
+  ?D({_EntryCount, EntryData}),
+  parse_atom(EntryData, Mp4Track).
 
-stsd({0, _}, Mp4Track) ->
-  Mp4Track;
 
-stsd({_, <<>>}, Mp4Track) ->
-  Mp4Track;
-  
-stsd({_EntryCount, <<_SampleDescriptionSize:32, 
-                                  "mp4a", _Reserved:6/binary, _RefIndex:16, 
-                                  _Unknown:8/binary, _ChannelsCount:32,
-                                  _SampleSize:32, _SampleRate:32,
-                                  Atom/binary>>}, Mp4Track) ->
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = aac});
+mp4a(<<_Reserved:6/binary, _RefIndex:16, _Unknown:8/binary, _ChannelsCount:32,
+       _SampleSize:32, _SampleRate:32, Atom/binary>>, Mp4Track) ->
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = aac}).
 
-stsd({_EntryCount, <<_SampleDescriptionSize:32, 
-                                  "avc1", _Reserved:6/binary, _RefIndex:16, 
-                                  _Unknown1:16/binary, 
-                                  Width:16, Height:16,
-                                  _HorizRes:32, _VertRes:32,
-                                  _FrameCount:16, _CompressorName:32/binary,
-                                  _Depth:16, _Predefined:16,
-                                  _Unknown:4/binary,
-                                  Atom/binary>>}, Mp4Track) ->
+avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
+      HorizRes:16, _:16, VertRes:16, _:16, _FrameCount:16, _CompressorName:32/binary,
+      Depth:16, _Predefined:16, _Unknown:4/binary, Atom/binary>>, Mp4Track) ->
+  Meta = [{width,Width},{height,Height},
+          {horiz_res, HorizRes},{vert_res, VertRes},
+          {depth,Depth}],
+  ?D({"Video size:", Meta}),
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = h264, width = Width, height = Height}).
+
+s263(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
+       _HorizRes:32, _VertRes:32, _FrameCount:16, _CompressorName:32/binary, _Depth:16, 
+       _Predefined:16, _Unknown:4/binary, Atom/binary>>, Mp4Track) ->
   % ?D({"Video size:", Width, Height}),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = h264, width = Width, height = Height});
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = s263, width = Width, height = Height}).
 
-stsd({_EntryCount, <<_SampleDescriptionSize:32, 
-                                  "s263", _Reserved:6/binary, _RefIndex:16, 
-                                  _Unknown1:16/binary, 
-                                  Width:16, Height:16,
-                                  _HorizRes:32, _VertRes:32,
-                                  _FrameCount:16, _CompressorName:32/binary,
-                                  _Depth:16, _Predefined:16,
-                                  _Unknown:4/binary,
-                                  Atom/binary>>}, Mp4Track) ->
-  % ?D({"Video size:", Width, Height}),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = s263, width = Width, height = Height});
-
-stsd({_EntryCount,   <<_SampleDescriptionSize:32, 
-                                    "samr", _Reserved:2/binary, _RefIndex:16, 
-                                    Atom/binary>> = AMR}, Mp4Track) ->
+samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
   ?D(AMR),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = samr});
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = samr}).
 
 
-
-stsd({_EntryCount, <<SampleDescriptionSize:32, DataFormat:4/binary, 
-                                 _Reserved:6/binary, _RefIndex:16, EntryData/binary>>}, Mp4Track) 
-           when SampleDescriptionSize == size(EntryData) + 16 ->
-  NewTrack = Mp4Track#mp4_track{data_format = binary_to_atom(DataFormat, utf8)},
-  ?D({"Unknown sample description:", NewTrack#mp4_track.data_format, SampleDescriptionSize, size(EntryData), binary_to_list(EntryData)}),
-  NewTrack.
   
 % ESDS atom
 esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = aac} = Mp4Track) when Version == 0 ->
