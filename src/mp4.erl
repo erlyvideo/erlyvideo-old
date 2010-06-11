@@ -162,8 +162,12 @@ moov(Atom, MediaInfo) ->
   parse_atom(Atom, MediaInfo).
 
 % MVHD atom
-mvhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32, TimeScale:32,
-                    Duration:32, _Rest/binary>>, #mp4_media{} = Media) ->
+mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
+      Volume:16, 0:16, _Reserved1:64, Matrix:36/binary, _Reserved2:24/binary, NextTrackId:32>>, #mp4_media{} = Media) ->
+        
+  Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
+          {volume,Volume},{matrix,Matrix},{next_track,NextTrackId}],
+  ?D(Meta),
   Media#mp4_media{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
 % Track box
@@ -176,16 +180,12 @@ trak(Atom, MediaInfo) ->
   
 
 % Track header
-% tkhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32,
-%                     TrackID:32, _Reserved1:4/binary, 
-%                     Duration:32, _Reserved2:8/binary,
-%                     _Layer:16, _AlternateGroup:2/binary,
-%                     _Volume:2/binary, _Reserved3:2/binary,
-%                     _Matrix:36/binary, _TrackWidth:4/binary, _TrackHeigth:4/binary>>, Mp4Track) ->
-%   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
-tkhd(<<0:8, _Flags:3/binary, _CTime:32, _MTime:32,
-                    TrackID:32, _Reserved1:4/binary, 
-                    Duration:32, _Rest/binary>>, Mp4Track) ->
+tkhd(<<0, Flags:24, CTime:32, MTime:32, TrackID:32, _Reserved1:32, 
+       Duration:32, _Reserved2:64, Layer:16, _AlternateGroup:16,
+       Volume, VolDelim, _Reserved3:16, Matrix:36/binary, Width:16, WidthDelim:16, Height:16, HeightDelim:16>>, Mp4Track) ->
+  Meta = [{flags,Flags},{ctime,CTime},{mtime,MTime},{track_id,TrackID},{duration,Duration},{layer,Layer},
+         {volume,Volume},{matrix,Matrix},{width,Width},{height,Height}],
+  ?D(Meta),
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
 
 % Media box
