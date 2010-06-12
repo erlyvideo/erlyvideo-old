@@ -356,7 +356,12 @@ detect_type(Host, Name, Opts) ->
 detect_rewrite(Host, Name, Opts) ->
   Rewrite = ems:get_var(rewrite, Host, []),
   case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
-    false -> detect_mpegts(Host, Name, Opts);
+    false ->
+      ?D({auto_guess, ems:get_var(auto_guess, Host, true)}),
+      case ems:get_var(auto_guess, Host, true) of
+        true -> detect_mpegts(Host, Name, Opts);
+        _ -> detect_ts_file(Host, Name, Opts)
+      end;
     {_NameS, Type, URL} -> [{type, Type}, {url, URL}];
     {_NameS, Type, URL, Options} -> [{type, Type}, {url, URL} | Options]
   end.
