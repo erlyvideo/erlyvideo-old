@@ -35,6 +35,7 @@
 -export([host/1]).
 
 -export([expand_tuple/2, tuple_find/2, element/2, setelement/3]).
+-export([str_split/2]).
 
 -export([rebuild/0, restart/0]).
 
@@ -185,5 +186,28 @@ check_app(Host, Command, Arity) ->
   check_app(Modules, Command, Arity).
 
 
+str_split(String, Delim) ->
+  str_split(String, Delim, []).
 
+str_split([], _, Acc) ->
+  lists:reverse([[]|Acc]);
+
+str_split(String, Delim, Acc) ->
+  case string:str(String, Delim) of
+    0 -> lists:reverse([String|Acc]);
+    N -> 
+      str_split(string:substr(String, N+1), Delim, [string:substr(String,1,N-1)|Acc])
+  end.
+
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
 	
+str_split1_test() ->
+  ?assertEqual(["http:","","ya.ru"], str_split("http://ya.ru", "/")).
+
+str_split2_test() ->
+  ?assertEqual(["http:","","ya.ru", ""], str_split("http://ya.ru/", "/")).
+

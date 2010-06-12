@@ -132,7 +132,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   Options1 = extract_play_args(Args),
 
   {RawName, Args2} = http_uri2:parse_path_query(FullName),
-  Name = string:join( [Part || Part <- string:tokens(RawName, "/"), Part =/= ".."], "/"),
+  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   Options2 = extract_url_args(Args2),
   
   Options = lists:ukeymerge(1, Options2, Options1),
@@ -147,7 +147,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
       State;
     {ok, Media} ->
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
-      ?D(ems:setelement(StreamId, Streams, Media)),
+      ?D({play, Name, ems:setelement(StreamId, Streams, Media)}),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
