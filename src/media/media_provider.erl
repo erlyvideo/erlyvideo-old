@@ -354,7 +354,7 @@ detect_type(Host, Name, Opts) ->
   detect_type(Detectors, Host, Name, Opts).
   
 detect_type([], _, _, _) ->
-  [{type, notfound}].
+  [{type, notfound}];
   
 detect_type([Detector|Detectors], Host, Name, Opts) ->
   {Module,Function} = case Detector of

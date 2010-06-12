@@ -19,6 +19,10 @@ class ErlmediaTest < Test::Unit::TestCase
     run_test("ems_media")
   end
 
+  def test_ems
+    run_test("ems")
+  end
+
   def test_h264
     run_test("h264")
   end

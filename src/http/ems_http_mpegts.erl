@@ -49,7 +49,7 @@ http(Host, 'PUT', ["stream", Name], Req) ->
   _Session = Module:Function(Host, http, proplists:get_value('Authorization', Req:get(headers))),
 
   ems_log:access(Host, "MPEGTS PUT ~s ~s", [Host, Name]),
-  Stream = media_provider:open(Host, Name, [{type, mpegts_passive}]),
+  {ok, Stream} = media_provider:open(Host, Name, [{type, mpegts_passive}]),
   ems_media:set_socket(Stream, Req:socket()),
   exit(leave);
 

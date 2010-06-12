@@ -74,7 +74,7 @@ init(#ems_media{type = Type} = Media, Options) ->
   State = #mpegts{options = Options, make_request = MakeRequest, timeout = proplists:get_value(timeout, Options, 4000)},
   Media1 = Media#ems_media{state = State},
   Media2 = case Type of
-    mpegts_passive -> Media#ems_media{clients_timeout = false};
+    mpegts_passive -> Media1#ems_media{clients_timeout = false};
     _ -> Media1
   end,  
   {ok, Media2}.

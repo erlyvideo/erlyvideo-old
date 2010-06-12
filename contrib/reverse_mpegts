@@ -1,9 +1,10 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -smp enable -name reverse_mpegts -mnesia debug verbose
+%%! -smp enable -name reverse_mpegts -mnesia debug verbose -pa ebin -pa deps
 
 
 main([FromUrl, ToUrl]) ->
+  application:start(log4erl),
   reverse_mpegts:loop(FromUrl, ToUrl);
   
 main(_) ->

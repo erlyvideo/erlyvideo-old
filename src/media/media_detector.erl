@@ -33,7 +33,7 @@
 -export([rewrite/3, http/3, rtsp/3, ts_file/3, file/3, livestream/3]).
 
 
-rewrite(Host, Name, Opts) ->
+rewrite(Host, Name, _Opts) ->
   Rewrite = ems:get_var(rewrite, Host, []),
   case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
     false -> false;
@@ -42,14 +42,14 @@ rewrite(Host, Name, Opts) ->
   end.
   
 
-http(Host, Name, Opts) ->
+http(_Host, Name, _Opts) ->
   {ok, Re} = re:compile("http://(.*)"),
   case re:run(Name, Re) of
     {match, _Captured} -> [{type, http},{url,Name}];
     _ -> false
   end.
 
-rtsp(Host, Name, Opts) ->
+rtsp(_Host, Name, _Opts) ->
   {ok, Re} = re:compile("rtsp://(.*)"),
   case re:run(Name, Re) of
     {match, _Captured} -> [{type, rtsp},{url,Name}];
@@ -57,7 +57,7 @@ rtsp(Host, Name, Opts) ->
   end.
 
 
-ts_file(Host, Name, Opts) ->
+ts_file(Host, Name, _Opts) ->
   case {check_path(Host, Name), mpegts_file_media:can_open_file(Name)} of
     {true, true} -> [{type, mpegts_file},{life_timeout,0}];
     _ -> false
@@ -98,7 +98,7 @@ detect_prefixed_file(Host, <<"mp4:", Name/binary>>, _Opts) ->
       end
   end;
   
-detect_prefixed_file(Host, Name, Opts) ->
+detect_prefixed_file(_Host, _Name, _Opts) ->
   false.
   
   
