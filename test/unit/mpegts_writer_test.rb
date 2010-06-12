@@ -1,4 +1,5 @@
 require 'test_helper'
+require 'thread'
 
 class MpegtsWriterTest < Test::Unit::TestCase
   def setup
@@ -27,10 +28,14 @@ class MpegtsWriterTest < Test::Unit::TestCase
   end
   
   def test_reverse_mpegts
+    Thread.abort_on_exception = true
+    lock = true
     Thread.new do
-      limited_run("./contrib/reverse_mpegts http://localhost:8082/stream/video.ts http://localhost:8082/stream/a", 15)
+      lock = false
+      limited_run("sh -c 'ERL_LIBS=deps ./contrib/reverse_mpegts http://localhost:8082/stream/video.ts http://localhost:8082/stream/a'", 15)
     end
-    limited_run("rtmpdump -r rtmp://localhost/vod/a --stop 15 -o /tmp/test.flv", 15)
+    sleep 5
+    limited_run("rtmpdump -r rtmp://localhost/vod/a --stop 15 -o /tmp/test.flv", 10)
     duration = flvtool2_duration("/tmp/test.flv")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
     assert duration > 4, "Duration should be positive: #{duration}"

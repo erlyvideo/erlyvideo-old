@@ -18,6 +18,7 @@ class Test::Unit::TestCase
   
   def restart_erlyvideo
     `#{File.dirname(__FILE__)}/../contrib/erlyctl restart`
+    sleep 3
   end
   
   def start_command(command, output)
