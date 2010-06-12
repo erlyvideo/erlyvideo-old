@@ -6,15 +6,21 @@ main(["test"]) ->
   http_file:test();
 
 main([]) ->
-  % inets:start(),
+  inets:start(),
   URL = "http://erlyvideo.org/video.mp4",
   Limit = 100,
-  File = http_file:open(URL, [{cache_file, "video.mp4"}]),
+  {ok, File} = http_file:open(URL, [{cache_file, "video.mp4"}]),
   
   Self = self(),
   spawn(fun() ->
-    {ok, Result} = http_file:pread(File, 200000, Limit),
-    io:format("~p~n", [size(Result)]),
+    Result = http_file:pread(File, 33213403, Limit),
+    io:format("~p~n", [Result]),
+    Self ! tick
+  end),
+
+  spawn(fun() ->
+    Result = http_file:pread(File, 33213400, Limit),
+    io:format("~p~n", [Result]),
     Self ! tick
   end),
 
@@ -30,7 +36,7 @@ main([]) ->
     Self ! tick
   end),
   
-  wait(3).
+  wait(4).
   
 wait(0) ->
   ok;
