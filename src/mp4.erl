@@ -39,9 +39,10 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
 
--export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2,
-btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
+-export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
+-export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 -export([mp4a/2, avc1/2, s263/2, samr/2]).
+-export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2]).
 
 
 -export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
@@ -206,6 +207,31 @@ mdhd(<<1:8, _Flags:24, _Ctime:64, _Mtime:64, TimeScale:32, Duration:64,
 extract_language(<<L1:5, L2:5, L3:5>>) ->
   [L1+16#60, L2+16#60, L3+16#60].
 
+
+%% Handler Reference Box
+hdlr(<<0:32, 0:32, "vide", 0:96, NameNull/binary>>, Mp4Track) ->
+  Len = (size(NameNull) - 1),
+  <<Name:Len/binary, 0>> = NameNull,
+  ?D({hdlr, video, Name}),
+  Mp4Track;
+
+hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
+  Len = (size(NameNull) - 1),
+  <<Name:Len/binary, 0>> = NameNull,
+  ?D({hdlr, video, Name}),
+  Mp4Track;
+
+hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
+  Len = (size(NameNull) - 1),
+  <<Name:Len/binary, 0>> = NameNull,
+  ?D({hdlr, video, Name}),
+  Mp4Track;
+
+hdlr(<<0:32, 0:32, Handler:32, 0:96, NameNull/binary>>, Mp4Track) ->
+  Len = (size(NameNull) - 1),
+  <<Name:Len/binary, 0>> = NameNull,
+  ?D({hdlr, Handler, Name}),
+  Mp4Track.
   
   
 % SMHD atom
@@ -219,13 +245,29 @@ smhd(<<0:8, _Flags:3/binary, _Balance:16/big-signed-integer, _Reserve:2/binary>>
 minf(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
+%% Video Media Header Box
+vmhd(<<Version:32, Mode:16, R:16, G:16, B:16>>, Mp4Track) ->
+  _VMHD = {vmhd, Version, Mode, R, G, B},
+  ?D(_VMHD),
+  Mp4Track.
+  
+dinf(Atom, Mp4Track) ->
+  parse_atom(Atom, Mp4Track).
+  
+dref(<<0:32, Count:32, Atom/binary>> = Dref, Mp4Track) ->
+  parse_atom(Atom, Mp4Track).
+
+'url '(URL, Mp4Track) ->
+  ?D({url, URL}),
+  Mp4Track.
+
 % Sample table box
 stbl(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 % Sample description
 stsd(<<0:8, _Flags:3/binary, _EntryCount:32, EntryData/binary>>, Mp4Track) ->
-  ?D({_EntryCount, EntryData}),
+  % ?D({_EntryCount, EntryData}),
   parse_atom(EntryData, Mp4Track).
 
 
@@ -236,10 +278,10 @@ mp4a(<<_Reserved:6/binary, _RefIndex:16, _Unknown:8/binary, _ChannelsCount:32,
 avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
       HorizRes:16, _:16, VertRes:16, _:16, _FrameCount:16, _CompressorName:32/binary,
       Depth:16, _Predefined:16, _Unknown:4/binary, Atom/binary>>, Mp4Track) ->
-  Meta = [{width,Width},{height,Height},
+  _Meta = [{width,Width},{height,Height},
           {horiz_res, HorizRes},{vert_res, VertRes},
           {depth,Depth}],
-  ?D({"Video size:", Meta}),
+  % ?D({"Video size:", Meta}),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = h264, width = Width, height = Height}).
 
 s263(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
@@ -375,6 +417,7 @@ read_stco(_, 0, #mp4_track{chunk_offsets = ChunkOffsets} = Mp4Track) ->
 
 read_stco(<<Offset:32, Rest/binary>>, OffsetCount, #mp4_track{chunk_offsets = ChunkOffsets} = Mp4Track) ->
   read_stco(Rest, OffsetCount - 1, Mp4Track#mp4_track{chunk_offsets = [Offset | ChunkOffsets]}).
+
 
 
 
