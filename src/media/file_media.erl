@@ -55,7 +55,7 @@ init(State, Options) ->
   Path = proplists:get_value(url, Options),
   Host = proplists:get_value(host, Options),
   Access = proplists:get_value(access, Options, file),
-  case open_file(Access, Path, Host) of
+  case open_file(Access, Path, Options) of
     {error, Reason} ->
       {stop, Reason};
     {Format, Storage} ->
@@ -63,11 +63,15 @@ init(State, Options) ->
   end.
   
 
-open_file(Access, Path, Host) when is_binary(Path) ->
-  open_file(Access, binary_to_list(Path), Host);
+open_file(Access, Path, Options) when is_binary(Path) ->
+  open_file(Access, binary_to_list(Path), Options);
 
-open_file(Access, Path, _Host) ->
-	{ok, File} = Access:open(Path, [read, binary, {read_ahead, 100000}, raw]),
+open_file(Access, Path, Options) ->
+  Opts = case Access of
+    file -> [binary, raw, read, {read_ahead, 100000}];
+    _ -> Options
+  end,
+	{ok, File} = Access:open(Path, Opts),
 	case file_media:file_format(Path) of
 	  undefined ->
 	    {error, notfound};
