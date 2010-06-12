@@ -65,36 +65,31 @@ ts_file(Host, Name, _Opts) ->
 
 file(Host, Name, Opts) ->
   case check_path(Host, Name) of
-    true -> [{type, file}, {url, Name}];
+    {true, Path} -> [{type, file}, {url, Path}];
     _ ->
       case check_path(Host, <<Name/binary, ".flv">>) of
-        true -> [{type, file}, {url, <<Name/binary, ".flv">>}];
+        {true, Path} -> [{type, file}, {url, Path}];
         _ -> detect_prefixed_file(Host, Name, Opts)
       end
   end.
 
 detect_prefixed_file(Host, <<"flv:", Name/binary>>, _Opts) ->
   case check_path(Host, Name) of
-    true -> [{type, file}, {url, Name}];
+    {true, Path} -> [{type, file}, {url, Path}];
     _ -> 
       case check_path(Host, <<Name/binary, ".flv">>) of
-        true ->
-          [{type, file}, {url, <<Name/binary, ".flv">>}];
-        false ->
-          false
+        {true, Path} -> [{type, file}, {url, Path}];
+        false -> false
       end
   end;
 
 detect_prefixed_file(Host, <<"mp4:", Name/binary>>, _Opts) ->
   case check_path(Host, Name) of
-    true -> 
-      [{type, file}, {url, Name}];
+    {true, Path} -> [{type, file}, {url, Path}];
     _ -> 
       case check_path(Host, <<Name/binary, ".mp4">>) of
-        true ->
-          [{type, file}, {url, <<Name/binary, ".mp4">>}];
-        false ->
-          false
+        {true, Path} -> [{type, file}, {url, Path}];
+        false -> false
       end
   end;
   
@@ -118,5 +113,10 @@ check_path(Host, Name) when is_binary(Name) ->
 check_path(Host, Name) ->
   case file_media:file_dir(Host) of
     undefined -> false;
-    Dir -> filelib:is_regular(filename:join([Dir, Name]))
+    Dir -> 
+      Path = filename:join([Dir, Name]), 
+      case filelib:is_regular(filename:join([Dir, Name])) of
+        true -> {true, Path};
+        false -> false
+      end  
   end.

@@ -52,9 +52,10 @@ default_timeout() ->
 %% @end
 %%----------------------------------------------------------------------
 init(State, Options) ->
-  Name = proplists:get_value(url, Options),
+  Path = proplists:get_value(url, Options),
   Host = proplists:get_value(host, Options),
-  case open_file(Name,Host) of
+  Access = proplists:get_value(access, Options, file),
+  case open_file(Access, Path, Host) of
     {error, Reason} ->
       {stop, Reason};
     {Format, Storage} ->
@@ -62,17 +63,16 @@ init(State, Options) ->
   end.
   
 
-open_file(Name, Host) when is_binary(Name) ->
-  open_file(binary_to_list(Name), Host);
+open_file(Access, Path, Host) when is_binary(Path) ->
+  open_file(Access, binary_to_list(Path), Host);
 
-open_file(Name, Host) ->
-  FileName = filename:join([file_media:file_dir(Host), Name]), 
-	{ok, File} = file:open(FileName, [read, binary, {read_ahead, 100000}, raw]),
-	case file_media:file_format(FileName) of
+open_file(Access, Path, _Host) ->
+	{ok, File} = Access:open(Path, [read, binary, {read_ahead, 100000}, raw]),
+	case file_media:file_format(Path) of
 	  undefined ->
 	    {error, notfound};
   	Format ->
-    	{ok, Storage} = Format:init({file,File}),
+    	{ok, Storage} = Format:init({Access,File}),
     	{Format, Storage}
   end.
 
