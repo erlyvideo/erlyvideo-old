@@ -1,9 +1,13 @@
 -module(http_file).
 -define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
+% Application API
+-export([start/2, stop/1, config_change/3]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([open/2, pread/3, close/1]).
+
+-export([start/0, stop/0, start_link/2]).
 
 -behaviour(gen_server).
 
@@ -18,44 +22,123 @@
 }).
 
 
-open(URL, Options) ->
-  {ok, Pid} = gen_server:start_link(?MODULE, [URL, Options], []),
-  Pid.
+start() ->
+  application:start(http_file).
+
+stop() ->
+  application:stop(http_file),
+  application:unload(http_file).
   
+
+reload() ->
+  {ok, Modules} = application:get_key(http_file,modules),
+  [begin
+    code:soft_purge(Module),
+    code:load_file(Module)
+  end || Module <- Modules].
+
+
+
+archive() ->
+  make:all([load]),
+  application:load(http_file),
+  {ok, Version} = application:get_key(http_file,vsn),
+  zip:create("http_file-"++Version++".ez", ["http_file/ebin"], [{cwd, "../"},{compress,all},{uncompress,[".beam",".app"]},verbose]).
+
+
+  
+%%--------------------------------------------------------------------
+%% @spec (Type::any(), Args::list()) -> any()
+%% @doc Starts RTMP library
+%% @end 
+%%--------------------------------------------------------------------
+
+start(_Type, _Args) -> 
+  http_file_sup:start_link().
+
+
+
+%%--------------------------------------------------------------------
+%% @spec (Any::any()) -> ok()
+%% @doc Stop RTMP library
+%% @end 
+%%--------------------------------------------------------------------
+stop(_S) ->
+  ok.
+
+
+%%--------------------------------------------------------------------
+%% @spec (Any::any(),Any::any(),Any::any()) -> any()
+%% @doc Reload ErlMedia Application config
+%% @end 
+%%--------------------------------------------------------------------
+config_change(_Changed, _New, _Remove) ->
+  ok.
+  
+
+%%%%%%%%% File API  %%%%%%%%%%%%
+
+
+open(URL, Options) ->
+  http_file_sup:start_file(URL, Options).
+  
+
+pread(File, Offset, Limit) ->
+  ?D({"Requesting", Offset, Limit}),
+  gen_server:call(File, {pread, Offset, Limit}, infinity).
+
+
+close(File) ->
+  gen_server:call(File, close).
+
+%%%%%%%%%% Gen server API %%%%%%%%
+
+start_link(URL, Options) ->
+  gen_server:start_link(?MODULE, [URL, Options], []).
 
 init([URL, Options]) ->
   CacheName = proplists:get_value(cache_file, Options),
+  filelib:ensure_dir(CacheName),
   {ok, CacheFile} = file:open(CacheName, [write, read, binary]),
+  ?D({"Storing",URL,to,CacheName, Options}),
   self() ! start_download,
   {ok, #http_file{url = URL, cache_file = CacheFile, options = Options}}.
   
 
+handle_call({pread, Offset, _Limit}, _From, #http_file{size = Size} = File)
+  when Offset >= Size ->
+  {reply, eof, File};
+
+
+handle_call({pread, Offset, Limit}, From, #http_file{size = Size} = File) when Offset + Limit > Size ->
+  handle_call({pread, Offset, Size - Offset}, From, File);
+
 handle_call({pread, Offset, Limit}, From, #http_file{streams = Streams} = File) ->
   case is_data_cached(Streams, Offset, Limit) of
     true ->
-      ?D({"Data ok"}),
+      % ?D({"Data ok"}),
       {reply, fetch_cached_data(File, Offset, Limit), File};
     false ->
       File1 = schedule_request(File, {From, Offset, Limit}),
       {noreply, File1}
   end;    
+
+handle_call(close, _From, State) ->
+  {stop, normal, ok, State};
   
 handle_call(Unknown, From, File) ->
   io:format("Unknown call: ~p from ~p (~p)~n", [Unknown, From, File]),
   {stop, {error, unknown_call, Unknown}, File}.
   
 
-handle_cast(close, State) ->
-  {stop, normal, State};
-  
 handle_cast(_, State) ->
   {noreply, State}.  
 
 
 handle_info(start_download, #http_file{url = URL} = State) ->
-  % {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
-  % Length = proplists:get_value("content-length", Headers),
-  Length = "0",
+  {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
+  ?D(Headers),
+  Length = proplists:get_value("content-length", Headers),
   {ok, FirstRequest} = http_file_request:start(self(), URL, 0),
   erlang:monitor(process, FirstRequest),
   {noreply, State#http_file{streams = [{FirstRequest, 0, 0}], size = list_to_integer(Length)}};
@@ -183,17 +266,6 @@ is_data_cached([{_Request, CurrentOffset, CurrentSize} | _], Offset, Size)
 
 is_data_cached([_ | Streams], Offset, Size) ->
   is_data_cached(Streams, Offset, Size).
-  
-  
-pread(File, Offset, Limit) ->
-  ?D({"Requesting", Offset, Limit}),
-  gen_server:call(File, {pread, Offset, Limit}, infinity).
-
-  
-
-close(File) ->
-  gen_server:cast(File, close),
-  ok.
   
 
 %%
