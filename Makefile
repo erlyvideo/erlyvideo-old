@@ -80,7 +80,7 @@ debian: all
 	dput erly ../erlyvideo_$(VERSION)_source.changes
 	(debuild -us -uc; cp ../erlyvideo_$(VERSION)*.deb  $(DEBIANREPO)/binary/; true)
 	rm ../erlyvideo_$(VERSION)*
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9 > binary/Packages.gz)
+	(cd $(DEBIANREPO); ../update)
 
 
 .PHONY: doc debian compile
