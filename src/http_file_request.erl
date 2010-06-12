@@ -20,6 +20,7 @@ start_link(File, URL, Offset) ->
 
 init([File, URL, Offset]) ->
   self() ! start,
+  erlang:monitor(process, File),
   {ok, #http_file_request{file = File, url = URL, offset = Offset}}.
   
   
@@ -60,13 +61,18 @@ handle_info({tcp, Socket, Bin}, #http_file_request{offset = Offset, file = Origi
   Origin ! {bin, Bin, Offset, self()},
   {noreply, File#http_file_request{offset = Offset + size(Bin)}};
 
+handle_info({tcp_closed, Socket}, Request) ->
+  {stop, normal, Request};
+
+handle_info({'DOWN', _, process, _File, _Reason}, Request) ->
+  {stop, normal, Request};
 
 handle_info(stop, File) ->
   % ?D({"Stopped", File}),
   {stop, normal, File};
 
 handle_info(Message, State) ->
-  io:format("Some message: ~p~n", [Message]),
+  ?D({"Some message:", Message}),
   {noreply, State}.
 
 

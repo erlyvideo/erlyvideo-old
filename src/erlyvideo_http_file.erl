@@ -5,8 +5,8 @@
 
 
 check(Host, Name, _Opts) ->
-  {ok, Re} = re:compile("http://(.*)", [{capture,all,list}]),
-  case re:run(Name, Re) of
+  {ok, Re} = re:compile("http://(.*)"),
+  case re:run(Name, Re, [{capture,all,list}]) of
     {match, [_, Path]} -> 
       Cache = filename:join([file_media:file_dir(Host), "cache", Path]),
       [{type, file},{url,Name},{access,http_file},{cache_file,Cache}];

@@ -22,7 +22,10 @@
 }).
 
 
+-define(COVER_LIMIT, 100000).
+
 start() ->
+  inets:start(),
   application:start(http_file).
 
 stop() ->
@@ -116,9 +119,10 @@ handle_call({pread, Offset, Limit}, From, #http_file{size = Size} = File) when O
 handle_call({pread, Offset, Limit}, From, #http_file{streams = Streams} = File) ->
   case is_data_cached(Streams, Offset, Limit) of
     true ->
-      % ?D({"Data ok"}),
+      ?D({"Data ok"}),
       {reply, fetch_cached_data(File, Offset, Limit), File};
     false ->
+      ?D({"No data, waiting"}),
       File1 = schedule_request(File, {From, Offset, Limit}),
       {noreply, File1}
   end;    
@@ -139,23 +143,23 @@ handle_info(start_download, #http_file{url = URL} = State) ->
   {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
   ?D(Headers),
   Length = proplists:get_value("content-length", Headers),
-  {ok, FirstRequest} = http_file_request:start(self(), URL, 0),
+  {ok, FirstRequest} = http_file_sup:start_request(self(), URL, 0),
   erlang:monitor(process, FirstRequest),
   {noreply, State#http_file{streams = [{FirstRequest, 0, 0}], size = list_to_integer(Length)}};
 
-handle_info({bin, Bin, Offset, Request}, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
-  case lists:keyfind(Request, 1, Streams) of
+handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
+  case lists:keyfind(Stream, 1, Streams) of
     false -> 
-      ?D({"Got message from dead process", Request}),
+      ?D({"Got message from dead process", Stream, Streams}),
       {noreply, State};
     _ -> 
       ok = file:pwrite(Cache, Offset, Bin),
-      % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
-      NewStreams1 = update_map(Streams, Request, Offset, size(Bin)),
+      ?D({"Got bin", Offset, size(Bin), Request, Streams}),
+      NewStreams1 = update_map(Streams, Stream, Offset, size(Bin)),
       {NewStreams2, Removed} = glue_map(NewStreams1),
       % ?D({"Removing streams", NewStreams2, Removed}),
-      lists:foreach(fun(Stream) ->
-        Stream ! stop
+      lists:foreach(fun(OldStream) ->
+        OldStream ! stop
       end, Removed),
       {NewRequests, Replies} = match_requests(Requests, NewStreams2),
       % ?D({"Matching requests", NewRequests, Replies}),
@@ -179,7 +183,7 @@ handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams} 
   
 
 handle_info(Message, State) ->
-  io:format("Some message: ~p~n", [Message]),
+  ?D({"Some message:", Message}),
   {noreply, State}.
   
   
@@ -193,11 +197,23 @@ code_change(_Old, State, _Extra) ->
   
   
 schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} = File, {_From, Offset, Limit} = Request) ->
-  {ok, Stream} = http_file_request:start(self(), URL, Offset),
-  erlang:monitor(process, Stream),
-  ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
-  File#http_file{streams = lists:ukeymerge(1, [{Stream, Offset, 0}], Streams), requests = lists:ukeymerge(1, [Request], Requests)}.
+  NewStreams = case has_covering_stream(Streams, Request) of
+    true -> Streams;
+    false ->
+      {ok, Stream} = http_file_sup:start_request(self(), URL, Offset),
+      erlang:monitor(process, Stream),
+      ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
+      lists:ukeymerge(1, [{Stream, Offset, 0}], Streams)
+  end,
+  File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.
   
+  
+has_covering_stream([{_Stream, RequestOffset, _Size} | _], {_Client, Offset, _Limit}) 
+  when RequestOffset =< Offset andalso RequestOffset >= Offset - ?COVER_LIMIT ->
+  true;
+has_covering_stream([_Stream|Streams], Request) -> has_covering_stream(Streams, Request);
+has_covering_stream([], _Request) -> false.
+
   
 fetch_cached_data(#http_file{cache_file = Cache}, Offset, Limit) ->
   file:pread(Cache, Offset, Limit).
