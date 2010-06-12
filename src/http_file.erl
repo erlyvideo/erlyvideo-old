@@ -7,7 +7,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([open/2, pread/3, close/1]).
 
--export([start/0, stop/0, start_link/2]).
+-export([start/0, stop/0, start_link/2, reload/0, archive/0]).
 
 -behaviour(gen_server).
 

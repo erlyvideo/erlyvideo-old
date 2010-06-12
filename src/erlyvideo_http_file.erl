@@ -1,4 +1,4 @@
--module(ems_http_file).
+-module(erlyvideo_http_file).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -export([check/3]).

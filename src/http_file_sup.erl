@@ -6,7 +6,7 @@
 
 -export([init/1,start_link/0]).
 
--export([start_request/3]).
+-export([start_request/3, start_file/2]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -22,7 +22,7 @@ start_request(Consumer, URL, Offset) ->
   supervisor:start_child(http_file_request_sup, [Consumer, URL, Offset]).
 
 start_file(URL, Options) ->
-  supervisor:start_child(http_file_sup, [URL, Options]).
+  supervisor:start_child(http_one_file_sup, [URL, Options]).
 
 init([http_file_request]) ->
     {ok,
@@ -58,8 +58,8 @@ init([http_file]) ->
 
 init([]) ->
   Supervisors = [
-    {   http_file_sup,
-        {supervisor,start_link,[{local, http_file_sup}, ?MODULE, [http_file]]},
+    {   http_one_file_sup,
+        {supervisor,start_link,[{local, http_one_file_sup}, ?MODULE, [http_file]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
