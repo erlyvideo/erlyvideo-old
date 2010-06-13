@@ -1,3 +1,9 @@
+erlang-shoutcast (1.1.9) karmic; urgency=low
+
+  Accept stream from icecast
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 13 Jun 2010 11:52:12 +0400
+
 erlang-shoutcast (1.1.8) karmic; urgency=low
 
   shoutcast with HTTP response
