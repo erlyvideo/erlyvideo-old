@@ -1,3 +1,9 @@
+erlyvideo (1.9.13) karmic; urgency=low
+
+  Fixed reverse_mpegts in http_handlers
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 13 Jun 2010 11:54:33 +0400
+
 erlyvideo (1.9.12) karmic; urgency=low
 
   debian log location
