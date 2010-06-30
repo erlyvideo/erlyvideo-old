@@ -46,7 +46,7 @@
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).
 
--export([header/0, header/1, read_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
+-export([header/0, header/1, read_header/1, tag_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
 
 -export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1, encode_tag/1,
@@ -146,6 +146,10 @@ read_header(Device) ->
   
 
 
+tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->  
+  <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
+  #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size}.
+
 %%--------------------------------------------------------------------
 %% @spec (Body::binary()) -> Config::aac_config()
 %% @doc Unpack binary AAC config into #aac_config{}
@@ -153,12 +157,11 @@ read_header(Device) ->
 %%--------------------------------------------------------------------
 read_tag_header({Module,Device}, Offset) ->
 	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH) of
-		{ok, <<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>} ->
+		{ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary>>} ->
       % io:format("Frame ~p ~p ~p~n", [Type, TimeStamp, Size]),
-		  <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
-      #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size, 
-               offset = Offset + ?FLV_TAG_HEADER_LENGTH,
-               next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + Size + ?FLV_PREV_TAG_SIZE_LENGTH};
+      FlvTag = tag_header(Bin),
+      FlvTag#flv_tag{offset = Offset + ?FLV_TAG_HEADER_LENGTH,
+       next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + FlvTag#flv_tag.size + ?FLV_PREV_TAG_SIZE_LENGTH};
     eof -> eof;
     {error, Reason} -> {error, Reason}
   end;
