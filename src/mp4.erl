@@ -168,7 +168,7 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
         
   Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
           {volume,Volume},{matrix,Matrix},{next_track,NextTrackId}],
-  ?D(Meta),
+  % ?D(Meta),
   Media#mp4_media{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
 % Track box
@@ -186,7 +186,7 @@ tkhd(<<0, Flags:24, CTime:32, MTime:32, TrackID:32, _Reserved1:32,
        Volume, VolDelim, _Reserved3:16, Matrix:36/binary, Width:16, WidthDelim:16, Height:16, HeightDelim:16>>, Mp4Track) ->
   Meta = [{flags,Flags},{ctime,CTime},{mtime,MTime},{track_id,TrackID},{duration,Duration},{layer,Layer},
          {volume,Volume},{matrix,Matrix},{width,Width},{height,Height}],
-  ?D(Meta),
+  % ?D(Meta),
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
 
 % Media box
