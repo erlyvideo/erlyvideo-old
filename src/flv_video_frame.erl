@@ -109,7 +109,7 @@ decode(<<FlvHeader:?FLV_TAG_HEADER_LENGTH/binary, Bin/binary>>) ->
   Tag = flv:tag_header(FlvHeader),
   #flv_tag{type = Content, timestamp = DTS, size = Size} = Tag,
   <<Body:Size/binary, _/binary>> = Bin,
-  decode(#video_frame{content = Content, dts = DTS}, Body).
+  decode(#video_frame{content = Content, dts = DTS, pts = DTS}, Body).
 
 decode(#video_frame{content = video, dts = DTS} = Frame, Data) ->
   #flv_video_tag{codec = Codec, flavor = Flavor, composition_time = CTime, body = Body} = flv:decode_video_tag(Data),
