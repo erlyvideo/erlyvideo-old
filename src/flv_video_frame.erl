@@ -105,9 +105,11 @@ tag_to_video_frame(Tag, Timestamp) ->
   CTime = Frame#video_frame.pts,
   Frame#video_frame{dts = Timestamp, pts = Timestamp+CTime}.
   
-decode(<<FlvHeader:?FLV_TAG_HEADER_LENGTH/binary, Body/binary>>) ->
+decode(<<FlvHeader:?FLV_TAG_HEADER_LENGTH/binary, Bin/binary>>) ->
   Tag = flv:tag_header(FlvHeader),
-  decode(#video_frame{content = Tag#flv_tag.type, dts = Tag#flv_tag.timestamp}, Body).
+  #flv_tag{type = Content, timestamp = DTS, size = Size} = Tag,
+  <<Body:Size/binary, _/binary>> = Bin,
+  decode(#video_frame{content = Content, dts = DTS}, Body).
 
 decode(#video_frame{content = video, dts = DTS} = Frame, Data) ->
   #flv_video_tag{codec = Codec, flavor = Flavor, composition_time = CTime, body = Body} = flv:decode_video_tag(Data),
