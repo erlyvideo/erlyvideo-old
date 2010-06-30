@@ -33,8 +33,8 @@
 -module(rtmp_publish).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
--include_lib("erlmedia/include/flv.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/flv.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 
 
