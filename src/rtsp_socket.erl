@@ -121,15 +121,15 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
 
 handle_call({request, setup}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
   
-  Setup = fun(#rtsp_stream{track_control = Control}, CSeq) ->
-    Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"++Auth++"\r\n", [append_trackid(URL, Control), CSeq + 1]),
+  Setup = fun(#rtsp_stream{track_control = Control}, Num) ->
+    Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n", [append_trackid(URL, Control), Seq + Num + 1, Num*2, Num*2 + 1]),
     gen_tcp:send(Socket, Call),
     io:format("~s~n", [Call]),
-    CSeq + 1;
-             (undefined, CSeq) ->
-               CSeq
+    Num + 1;
+             (undefined, Num) ->
+               Num
   end,
-  NewSeq = lists:foldl(Setup, Seq, Streams),
+  NewSeq = lists:foldl(Setup, 0, Streams),
   {noreply, RTSP#rtsp_socket{pending = From, seq = NewSeq}};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth} = RTSP) ->
@@ -431,7 +431,7 @@ reorder_frames(#rtsp_socket{frames = Frames, consumer = Consumer} = Socket) ->
   % ToSend = Frames,
   % NewFrames = [],
   lists:foreach(fun(Frame) ->
-    % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
+    % ?D({Frame#video_frame.content, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
     Consumer ! Frame
   end, ToSend),
   Socket#rtsp_socket{frames = NewFrames}.

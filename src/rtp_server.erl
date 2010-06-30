@@ -21,7 +21,8 @@
   wall_clock = undefined,
   base_wall_clock = undefined,
   timecode = undefined,
-  synced = false
+  synced = false,
+  codec
 }).
 
 -record(video, {
@@ -33,6 +34,7 @@
   base_wall_clock = undefined,
   timecode = undefined,
   synced = false,
+  codec,
   h264 = #h264{},
   broken = false,
   buffer = []
@@ -47,6 +49,7 @@
   base_wall_clock = undefined,
   timecode = undefined,
   synced = false,
+  codec,
   audio_rate,
   audio_headers = <<>>,
   audio_data = <<>>
@@ -138,7 +141,7 @@ config_media([#rtsp_stream{codec = Codec} | Streams], Output, Frames) when not i
   ?D({"Unknown rtp codec", Codec}),
   config_media(Streams, [undefined | Output], Frames);
 
-config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
+config_media([#rtsp_stream{type = video, codec = h264, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, _} = h264:decode_nal(PPS, H264),
   Configs = case h264:video_config(H264_2) of
@@ -147,7 +150,7 @@ config_media([#rtsp_stream{type = video, pps = PPS, sps = SPS} = Stream | Stream
   end,
   config_media(Streams, [Stream#rtsp_stream{config = H264_2} | Output], Configs ++ Frames);
 
-config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
+config_media([#rtsp_stream{type = audio, codec = aac, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
   AudioConfig = #video_frame{       
    	content = audio,
    	flavor  = config,
@@ -157,15 +160,18 @@ config_media([#rtsp_stream{type = audio, config = Config} = Stream | Streams], O
 	  codec	  = aac,
 	  sound	  = {stereo, bit16, rate44}
 	},
+  config_media(Streams, [Stream | Output], [AudioConfig | Frames]);
+  
+config_media([#rtsp_stream{codec = pcma} = Stream | Streams], Output, Frames) ->
+  config_media(Streams, [Stream | Output], Frames).
+  
 
-  config_media(Streams, [Stream | Output], [AudioConfig | Frames]).
 
+init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264, codec = Codec}, Media) ->
+  #video{media = Media, clock_map = ClockMap, h264 = H264, codec = Codec};
 
-init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264}, Media) ->
-  #video{media = Media, clock_map = ClockMap, h264 = H264};
-
-init(#rtsp_stream{type = audio, clock_map = ClockMap}, Media) ->
-  #audio{media = Media, clock_map = ClockMap};
+init(#rtsp_stream{type = audio, clock_map = ClockMap, codec = Codec}, Media) ->
+  #audio{media = Media, clock_map = ClockMap, codec = Codec};
   
 init(undefined, _Media) ->
   undefined.
@@ -287,35 +293,48 @@ convert_timecode(State) ->
 %   audio(Audio#audio{base_timecode = Timestamp}, Packet)ю
   
   
-audio(#audio{media = _Media, audio_headers = <<>>} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, _Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData}, []);
+audio(#audio{media = _Media, audio_headers = <<>>, codec = aac} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, _Timestamp}) ->
+  unpack_aac_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData}, []);
   
-audio(#audio{media = _Media, audio_data = AudioData} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
-  unpack_audio_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []).
+audio(#audio{media = _Media, audio_data = AudioData, codec = aac} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
+  unpack_aac_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []);
 
-
-  
-unpack_audio_units(#audio{audio_headers = <<>>} = Audio, Frames) ->
-  {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
-  
-unpack_audio_units(#audio{audio_data = <<>>} = Audio, Frames) ->
-  {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
-  
-unpack_audio_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode} = Audio, Frames) ->
+audio(#audio{timecode = Timecode, codec = pcma} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
   DTS = convert_timecode(Audio),
-  % ?D({"Audio", Timecode, Timestamp}),
+  % ?D({"Audio", size(Bin), DTS}),
+  Frame = #video_frame{
+    content = audio,
+    dts     = DTS,
+    pts     = DTS,
+    body    = Bin,
+	  codec	  = pcma,
+	  flavor  = frame,
+	  sound	  = {stereo, bit16, rate44}
+  },
+  {Audio#audio{timecode = Timecode + 1024}, [Frame]}.
+
+  
+unpack_aac_units(#audio{audio_headers = <<>>} = Audio, Frames) ->
+  {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
+  
+unpack_aac_units(#audio{audio_data = <<>>} = Audio, Frames) ->
+  {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
+  
+unpack_aac_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode, codec = Codec} = Audio, Frames) ->
+  DTS = convert_timecode(Audio),
+  ?D({"Audio", Codec, Timecode, DTS}),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
-      AudioFrame = #video_frame{       
+      AudioFrame = #video_frame{
         content = audio,
         dts     = DTS,
         pts     = DTS,
         body    = Data,
-    	  codec	  = aac,
+    	  codec	  = Codec,
     	  flavor  = frame,
     	  sound	  = {stereo, bit16, rate44}
       },
-      unpack_audio_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024}, [AudioFrame | Frames]);
+      unpack_aac_units(Audio#audio{audio_headers = AUHeaders, audio_data = Rest, timecode = Timecode + 1024}, [AudioFrame | Frames]);
     _ ->
       {Audio, lists:reverse(Frames)}
   end.
@@ -332,15 +351,15 @@ video(#video{sequence = PrevSeq} = Video, {data, _, Sequence, _} = Packet) when 
   ?D({PrevSeq + 1, Sequence}),
   video(Video#video{broken = true, sequence = Sequence - 1}, Packet);
 
-video(#video{h264 = H264, buffer = Buffer, timecode = Timecode} = Video, {data, Body, Sequence, Timecode}) ->
+video(#video{h264 = H264, buffer = Buffer, timecode = Timecode, codec = h264} = Video, {data, Body, Sequence, Timecode}) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   {Video#video{sequence = Sequence, h264 = H264_1, buffer = Buffer ++ Frames}, []};
 
-video(#video{h264 = _H264, timecode = _Timecode, broken = _Broken} = Video, {data, <<>>, Sequence, NewTimecode}) ->
+video(#video{timecode = _Timecode, broken = _Broken} = Video, {data, <<>>, Sequence, NewTimecode}) ->
   ?D({"Warning! Zero frame"}),
   {Video#video{sequence = Sequence, timecode = NewTimecode}};
   
-video(#video{h264 = H264, timecode = Timecode, broken = Broken} = Video, {data, Body, Sequence, NewTimecode}) ->
+video(#video{h264 = H264, timecode = Timecode, broken = Broken, codec = h264} = Video, {data, Body, Sequence, NewTimecode}) ->
 
   {Video1, Frames} = case Broken of
     true -> ?D({"Drop broken video frame", Timecode}), {Video, []};

@@ -35,7 +35,7 @@ beward_test() ->
                 <<39,77,0,40,141,141,40,10,0,183,96,45,64,64,64,80,0,0,62,128,0,12,53,6,134,0,
                   80,0,0,89,244,187,203,141,12,0,160,0,0,179,233,119,151,4,250,44,0>>,
                 undefined},
-  {rtsp_stream,audio,8.0,"track2","PCMA",
+  {rtsp_stream,audio,8.0,"track2",pcma,
                 undefined,undefined,undefined}], sdp:decode(beward_sdp())).
   
 

@@ -111,6 +111,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #rtsp_stream{} = Stream) ->
       Codec = case CodecCode of
         "H264" -> h264;
         "mpeg4-generic" -> aac;
+        "PCMA" -> pcma;
         Other -> Other
       end,
       Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000, codec = Codec};
@@ -147,11 +148,14 @@ parse_fmtp(#rtsp_stream{type = video} = Stream, Opts) ->
   Stream#rtsp_stream{pps = PPS, sps = SPS};
 
 parse_fmtp(#rtsp_stream{type = audio} = Stream, Opts) ->
-  % ?D(Opts),
+  ?D(Opts),
   % "13" = proplists:get_value("sizelength", Opts), % Length of size in bits in Access Unit header
   % "3" = proplists:get_value("indexlength", Opts),
   % "3" = proplists:get_value("indexdeltalength", Opts),
-  Config = ssl_debug:unhex(proplists:get_value("config", Opts)),
+  Config = case proplists:get_value("config", Opts) of
+    undefined -> undefined;
+    HexConfig -> ssl_debug:unhex(HexConfig)
+  end,
   
   % {value, {_, _Mode}, Opts1} = lists:keytake('mode', 1, lists:keysort(1, Opts)),
   % {value, {_, Config}, Opts2} = lists:keytake('config', 1, Opts1),
