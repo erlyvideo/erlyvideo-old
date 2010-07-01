@@ -240,6 +240,7 @@ decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timesta
 format(#shoutcast{headers = Headers}) ->
   case proplists:get_value('Content-Type', Headers) of
     <<"audio/mpeg">> -> mp3;
+    <<"audio/aac">> -> aac;
     <<"audio/aacp">> -> aac
   end.
 
