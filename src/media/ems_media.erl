@@ -743,12 +743,15 @@ client_count(#ems_media{clients = Clients}) ->
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
   shift_dts(Frame, Media#ems_media{last_dts = 0});
 
+shift_dts(#video_frame{dts = undefined} = Frame, #ems_media{last_dts = LastDTS} = Media) ->
+  handle_shifted_frame(Frame#video_frame{dts = LastDTS, pts = LastDTS}, Media);
+
 shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, last_dts = LastDTS} = Media) ->
-  ?D({"New instance of stream", LastDTS - DTS}),
+  ?D({"New instance of stream", LastDTS, DTS, LastDTS - DTS}),
   shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
 
 shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  % ?D({Frame#video_frame.type, Frame#video_frame.dts, Delta, DTS + Delta}),
+  % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
   handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
 
 handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
