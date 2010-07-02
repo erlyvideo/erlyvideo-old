@@ -309,7 +309,7 @@ rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, T
   State6 = setelement(#base_rtp.timecode, State5, Timecode),
   State7 = setelement(#base_rtp.last_sr, State6, NTP),
   
-  decode_sender_reports(Count, Rest),
+  % decode_sender_reports(Count, Rest),
   
   {State7, []}.
 
