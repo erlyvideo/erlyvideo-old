@@ -395,12 +395,14 @@ sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
       Socket#rtsp_socket{rtp_streams = Streams1}
   end.
 
-handle_rtp(#rtsp_socket{rtp_streams = Streams, frames = Frames} = Socket, {rtp, Channel, Packet}) ->
+handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} = Socket, {rtp, Channel, Packet}) ->
   {Streams1, NewFrames} = case element(Channel+1, Streams) of
     {rtcp, RTPNum} ->
       % ?D({rtcp, RTPNum}),
       {Type, RtpState} = element(RTPNum+1, Streams),
       {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
+      RTCP_RR = rtsp:encode({rtcp, RTPNum, rtp_server:encode(receiver_report, RtpState1)}),
+      gen_tcp:send(Sock, RTCP_RR),
       {setelement(RTPNum+1, Streams, {Type, RtpState1}), []};
     {Type, RtpState} ->
       % ?D({"Decode rtp on", Channel, Type, size(Packet), element(1, RtpState)}),

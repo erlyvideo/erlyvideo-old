@@ -22,6 +22,8 @@
   base_wall_clock = undefined,
   timecode = undefined,
   synced = false,
+  stream_id,
+  last_sr,
   codec
 }).
 
@@ -34,6 +36,8 @@
   base_wall_clock = undefined,
   timecode = undefined,
   synced = false,
+  stream_id,
+  last_sr,
   codec,
   h264 = #h264{},
   broken = false,
@@ -49,6 +53,8 @@
   base_wall_clock = undefined,
   timecode = undefined,
   synced = false,
+  stream_id,
+  last_sr,
   codec,
   audio_rate,
   audio_headers = <<>>,
@@ -70,6 +76,8 @@
 -export([video/2, audio/2, rtcp_sr/2]).
 -export([decode/3, init/2, get_socket/3, wait_data/1]).
 -export([configure/2, configure/3, presync/2]).
+
+-export([encode/2]).
 
 %%--------------------------------------------------------------------
 %% @spec (Media::any(), Stream::rtsp_stream()) -> {ok, Pid} | {error, Reason}
@@ -253,6 +261,8 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
 decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _/binary>> = SR) ->
   ?MODULE:rtcp_sr(State, SR);
   
+decode(rtcp, _State, <<2:2, 0:1, _Count:5, Type, _/binary>>) ->
+  erlang:error({unhandled_rtcp, Type});
 
 decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _Sequence:16, _Timecode:32, _StreamId:32, _Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
   {State, []};
@@ -282,7 +292,7 @@ convert_timecode(State) ->
 %% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
 %%
 %% or google:  RTCP Sender Report
-rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, Rest/binary>>) ->
+rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, Rest/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
   _ClockMap = element(#base_rtp.clock_map, State),
   State1 = case element(#base_rtp.base_wall_clock, State) of
@@ -295,14 +305,17 @@ rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, 
     undefined -> State3;
     _ -> State
   end,
+  State5 = setelement(#base_rtp.stream_id, State4, StreamId),
+  State6 = setelement(#base_rtp.timecode, State5, Timecode),
+  State7 = setelement(#base_rtp.last_sr, State6, NTP),
   
   decode_sender_reports(Count, Rest),
   
-  {setelement(#base_rtp.timecode, State4, Timecode), []}.
+  {State7, []}.
 
 %% This part of Sender Report is useless to me, however not to forget, I've added parsing
 decode_sender_reports(0, <<_FractionLost, _Lost:24, _MaxSeq:32, _Jitter:32, _LSR:32, _DLSR:32>>) ->
-  Delay = DLSR / 65.536,
+  % _Delay = _DLSR / 65.536,
   % ?D({sr, FractionLost, Lost, MaxSeq, Jitter, LSR, DLSR, round(Delay)}),
   ok.
   
@@ -407,3 +420,29 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
     _ -> Frames1
   end,
   {Video#video{synced = true, buffer = []}, Frames2}.
+
+
+
+%%----------------------------------------------------------------------
+%% @spec (receiver_report, RtpState) -> Data::binary()
+%%
+%% @doc Creates different RTCP packets
+%%
+%% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/20.htm
+%%
+%% or google:  RTCP Receiver Report
+%% @end
+%%----------------------------------------------------------------------
+encode(receiver_report, State) ->
+  Count = 0,
+  StreamId = element(#base_rtp.stream_id, State),
+  Length = 16,
+  FractionLost = 0,
+  LostPackets = 0,
+  MaxSeq = element(#base_rtp.sequence, State),
+  Jitter = 0,
+  LSR = element(#base_rtp.last_sr, State),
+  DLSR = 0,
+  <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
+  % <<>>.
+

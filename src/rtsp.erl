@@ -37,7 +37,7 @@
 
 -export([start_server/3, behaviour_info/1]).
 
--export([parse/2, decode/1]).
+-export([parse/2, decode/1, encode/1]).
 
 -export([edoc/1, edoc/0]).
 
@@ -210,6 +210,15 @@ decode_headers(Data, Headers, BodyLength) ->
       more
   end.
 
+%%----------------------------------------------------------------------
+%% @spec ({rtcp, Channel::integer(), Bin::binary()}) -> Data::binary()
+%%
+%% @doc Called by {@link rtsp_socket. to encode outcoming RTSP/RTP/RTCP data}
+%% @end
+%%----------------------------------------------------------------------
+encode({rtcp, Channel, Bin}) ->
+  <<$$, Channel, (size(Bin)):16, Bin/binary>>.
+
 %%
 %% Tests
 %%
@@ -245,6 +254,9 @@ parse_header_test() ->
           parse(header, <<"Content-Length: 10\r\n\r\nzzz">>)),
   ?assertEqual({ok, header_end, <<"zzz">>}, 
           parse(header, <<"\r\nzzz">>)).
+
+encode_rtcp_test() ->
+  ?assertEqual(<<$$, 1, 5:16, 1,2,3,4,5>>, encode({rtcp, 1, <<1,2,3,4,5>>})).
           
   
 decode_request_test() ->
