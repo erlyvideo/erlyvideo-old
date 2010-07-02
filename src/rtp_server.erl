@@ -309,12 +309,13 @@ rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, T
   State6 = setelement(#base_rtp.timecode, State5, Timecode),
   State7 = setelement(#base_rtp.last_sr, State6, NTP),
   
-  % decode_sender_reports(Count, Rest),
+  decode_sender_reports(Count, Rest),
   
   {State7, []}.
 
 %% This part of Sender Report is useless to me, however not to forget, I've added parsing
-decode_sender_reports(0, <<_FractionLost, _Lost:24, _MaxSeq:32, _Jitter:32, _LSR:32, _DLSR:32>>) ->
+% decode_sender_reports(0, <<_FractionLost, _Lost:24, _MaxSeq:32, _Jitter:32, _LSR:32, _DLSR:32>>) ->
+decode_sender_reports(_, _) ->
   % _Delay = _DLSR / 65.536,
   % ?D({sr, FractionLost, Lost, MaxSeq, Jitter, LSR, DLSR, round(Delay)}),
   ok.
