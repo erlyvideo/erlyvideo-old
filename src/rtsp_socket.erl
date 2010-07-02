@@ -234,7 +234,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, consumer = Consumer} = Sock
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
       
       lists:foreach(fun(Frame) ->
-        Consumer ! Frame
+        Consumer ! Frame#video_frame{dts = undefined, pts = undefined}
       end, Frames),
       
       Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
