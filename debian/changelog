@@ -1,3 +1,9 @@
+erlang-rtsp (1.4.0) karmic; urgency=low
+
+  Added PCMA and RTCP RR
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 02 Jul 2010 15:15:32 +0400
+
 erlang-rtsp (1.3.7) karmic; urgency=low
 
   DSS streaming with LATM without sound yet
