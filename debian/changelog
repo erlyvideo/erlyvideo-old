@@ -1,3 +1,9 @@
+erlmedia (1.4.5) karmic; urgency=low
+
+  Added proper flv decoding
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 02 Jul 2010 15:12:32 +0400
+
 erlmedia (1.4.4) karmic; urgency=low
 
   new flv api
