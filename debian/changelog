@@ -1,3 +1,9 @@
+erlyvideo (1.9.14) karmic; urgency=low
+
+  Better rtsp reconnect support
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 02 Jul 2010 15:22:30 +0400
+
 erlyvideo (1.9.13) karmic; urgency=low
 
   Fixed reverse_mpegts in http_handlers
