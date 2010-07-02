@@ -58,6 +58,7 @@
 
 
 -define(RTCP_SR, 200).
+-define(RTCP_RR, 201).
 -define(RTCP_SD, 202).
 -define(YEARS_70, 2208988800).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
@@ -66,7 +67,8 @@
 
 %% gen_server callbacks
 
--export([video/2, audio/2, decode/3, init/2, get_socket/3, wait_data/1]).
+-export([video/2, audio/2, rtcp_sr/2]).
+-export([decode/3, init/2, get_socket/3, wait_data/1]).
 -export([configure/2, configure/3, presync/2]).
 
 %%--------------------------------------------------------------------
@@ -248,22 +250,9 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
       error_logger:error_msg("RTP timeout: ~p~n", [Type])
   end.
 
-decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _/binary>>) ->
-  WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  % ?D({"RTCP", element(1, State), WallClock, Timecode}),
-  _ClockMap = element(#base_rtp.clock_map, State),
-  State1 = case element(#base_rtp.base_wall_clock, State) of
-    undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
-    _ -> State
-  end,
-  State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
-  State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
-  State4 = case element(#base_rtp.base_timecode, State) of
-    undefined -> State3;
-    _ -> State
-  end,
-  {setelement(#base_rtp.timecode, State4, Timecode), []};
-  % State3.
+decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _/binary>> = SR) ->
+  ?MODULE:rtcp_sr(State, SR);
+  
 
 decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _Sequence:16, _Timecode:32, _StreamId:32, _Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
   {State, []};
@@ -289,9 +278,33 @@ convert_timecode(State) ->
   WallClock + (Timecode - BaseTimecode)/ClockMap.
   
 
-% rtcp(State, {data, _, _, Timestamp} = Packet) ->
-%   audio(Audio#audio{base_timecode = Timestamp}, Packet)ю
+%%
+%% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
+%%
+%% or google:  RTCP Sender Report
+rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, Rest/binary>>) ->
+  WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
+  _ClockMap = element(#base_rtp.clock_map, State),
+  State1 = case element(#base_rtp.base_wall_clock, State) of
+    undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
+    _ -> State
+  end,
+  State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
+  State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
+  State4 = case element(#base_rtp.base_timecode, State) of
+    undefined -> State3;
+    _ -> State
+  end,
   
+  decode_sender_reports(Count, Rest),
+  
+  {setelement(#base_rtp.timecode, State4, Timecode), []}.
+
+%% This part of Sender Report is useless to me, however not to forget, I've added parsing
+decode_sender_reports(0, <<_FractionLost, _Lost:24, _MaxSeq:32, _Jitter:32, _LSR:32, _DLSR:32>>) ->
+  Delay = DLSR / 65.536,
+  % ?D({sr, FractionLost, Lost, MaxSeq, Jitter, LSR, DLSR, round(Delay)}),
+  ok.
   
 audio(#audio{media = _Media, audio_headers = <<>>, codec = aac} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, _Timestamp}) ->
   unpack_aac_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData}, []);
