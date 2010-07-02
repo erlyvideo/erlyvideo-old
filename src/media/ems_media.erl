@@ -579,7 +579,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
     {noreply, Media1} when is_number(SourceTimeout) andalso SourceTimeout > 0 ->
-      ?D({"ems_media lost source and sending graceful", SourceTimeout}),
+      ?D({"ems_media lost source and sending graceful", SourceTimeout, round(Media1#ems_media.last_dts)}),
       mark_clients_as_starting(Media),
       {ok, Ref} = timer:send_after(SourceTimeout, no_source),
       {noreply, Media1#ems_media{source = undefined, source_ref = undefined, source_timeout_ref = Ref}, ?TIMEOUT};
