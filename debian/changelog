@@ -1,3 +1,9 @@
+erlang-rtsp (1.4.1) karmic; urgency=low
+
+  axis sr bugfix
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 02 Jul 2010 18:04:49 +0400
+
 erlang-rtsp (1.4.0) karmic; urgency=low
 
   Added PCMA and RTCP RR
