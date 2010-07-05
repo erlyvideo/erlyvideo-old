@@ -2,9 +2,12 @@
 -define(RTMP_TIMEOUT, 10000).
 -define(RTMP_DEF_CHUNK_SIZE, 128).
 -define(MIN_CLIENT_BUFFER, 100).
+-define(HS_UNCRYPTED,        3).
+-define(HS_CRYPTED,        6).
 -define(HS_HEADER,        3).
 -define(HS_BODY_LEN,   1536).
 
+-define(D(X), ems_log:debug(3, rtmp, "~p:~p ~p",[?MODULE, ?LINE, X])).
 
 
 %% RTMP header
@@ -66,6 +69,8 @@
 -define(GET_CHUNK_SIZE_OUT, 9).
 -define(CHUNK_ABORT, 10).
 -define(ALLOC_CSID, 11).
+-define(SET_KEY_IN, 12).
+-define(SET_KEY_OUT, 13).
 
 
 -record(channel,{
@@ -95,6 +100,8 @@
 	debug = false     ::boolean(),
 	address           ::tuple(),
 	port              ::integer(),
+	key_in            ::binary()|undefined,
+	key_out           ::binary()|undefined,
 	buffer = <<>>     ::binary(),
 	bytes_read = 0    ::integer(),
 	bytes_sent = 0    ::integer(),

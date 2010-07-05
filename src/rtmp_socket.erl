@@ -65,8 +65,7 @@
 
 
 %% gen_fsm callbacks
--export([init/1, handle_event/3,
-         handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+-export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
 -export([wait_for_socket_on_server/2, wait_for_socket_on_client/2, handshake_c1/2, handshake_c3/2, handshake_s1/2, loop/2, loop/3]).
 
@@ -295,7 +294,7 @@ wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
   State1 = State#rtmp_socket{socket = Socket, address = IP, port = Port},
-  send_data(State1, [?HS_HEADER, rtmp_handshake:c1()]),
+  send_data(State1, [?HS_UNCRYPTED, rtmp_handshake:c1()]),
   {next_state, handshake_s1, State1, ?RTMP_TIMEOUT}.
 
 %% @private  
@@ -453,11 +452,25 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
   activate_socket(Socket),
   {next_state, handshake_c1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
-handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
+handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead, codec = Codec} = State) ->
   activate_socket(Socket),
-  <<?HS_HEADER, Handshake:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
-	send_data(State, [?HS_HEADER, rtmp_handshake:s1(), rtmp_handshake:s2(Handshake)]),
-	{next_state, 'handshake_c3', State#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
+  <<Handshake:(?HS_BODY_LEN+1)/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
+  State1 = case rtmp_handshake:server(Handshake) of
+    {uncrypted, Reply} -> 
+  	  send_data(State, Reply),
+      State;
+    {crypted, Reply, KeyIn, KeyOut} ->
+  	  send_data(State, Reply),
+  	  ?D({"Established RTMPE connection:", [KeyIn, KeyOut]}),
+  	  case Codec of
+  	    undefined -> ok;
+  	    _ -> 
+  	      erlang:port_control(Codec, ?SET_KEY_IN, KeyIn),
+  	      erlang:port_control(Codec, ?SET_KEY_OUT, KeyOut)
+  	  end,
+      State#rtmp_socket{key_in = KeyIn, key_out = KeyOut}
+  end,
+	{next_state, 'handshake_c3', State1#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
 
 handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN ->
@@ -478,7 +491,7 @@ handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, buffe
   {next_state, handshake_s1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
 handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active} = State) ->
-  <<?HS_HEADER, _S1:?HS_BODY_LEN/binary, S2:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
+  <<?HS_UNCRYPTED, _S1:?HS_BODY_LEN/binary, S2:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
   send_data(State, rtmp_handshake:c2(S2)),
   Consumer ! {rtmp, self(), connected},
   case Active of
@@ -530,42 +543,51 @@ activate_socket(Socket) when is_pid(Socket) ->
   ok.
 
 % FIXME: make here proper handling of flushing message queue
-send_data(#rtmp_socket{socket = Socket} = State, Message) ->
+send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
   {NewState, Data} = case Message of
     #rtmp_message{} -> rtmp:encode(State, Message);
     _ -> {State, Message}
   end,
+  Crypt = case {Codec, KeyOut} of
+    {undefined,undefined} -> Data;
+    {undefined,_} -> crypto:rc4_encrypt(KeyOut,Data);
+    _ -> Data
+  end,
   if
     is_port(Socket) ->
-      gen_tcp:send(Socket, Data);
+      gen_tcp:send(Socket, Crypt);
     is_pid(Socket) ->
-      rtmpt:write(Socket, Data)
+      rtmpt:write(Socket, Crypt)
   end,
   NewState.    
+
 
 
 handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State, Data) when Bytes >= Window ->
   State1 = send_data(State, #rtmp_message{type = ack_read}),
   handle_rtmp_data(State1#rtmp_socket{}, Data);
 
-handle_rtmp_data(#rtmp_socket{debug = true} = State, Data) ->
-  Decode = rtmp:decode(State, Data),
-  case Decode of
-    % {_, #rtmp_message{type = audio}, _} -> ok;
-    % {_, #rtmp_message{type = video}, _} -> ok;
-    {_, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, _} ->
-      DecodedBody = case Type of
-        video when size(Body) > 10 -> flv:decode_video_tag(Body);
-        audio when size(Body) > 0 -> flv:decode_audio_tag(Body);
-        _ -> Body
-      end,
-      io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, DecodedBody]);
-    _ -> ok
-  end,
-  handle_rtmp_message(Decode);
+handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
+  got_rtmp_message(rtmp:decode(State, Data));
 
-handle_rtmp_data(#rtmp_socket{} = State, Data) ->
-  handle_rtmp_message(rtmp:decode(State, Data)).
+handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
+  Data = crypto:rc4_encrypt(KeyIn, CryptedData),
+  got_rtmp_message(rtmp:decode(State, Data)).
+
+
+
+got_rtmp_message({#rtmp_socket{debug = true} = State, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, Rest} = Message) ->
+  DecodedBody = case Type of
+    video when size(Body) > 10 -> flv:decode_video_tag(Body);
+    audio when size(Body) > 0 -> flv:decode_audio_tag(Body);
+    _ -> Body
+  end,
+  io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, DecodedBody]),
+  handle_rtmp_message({State, Message, Rest});
+
+got_rtmp_message(Decoded) ->
+  handle_rtmp_message(Decoded).
+
 
 handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, #rtmp_message{type = window_size, body = Size} = Message, Rest}) ->
   Consumer ! {rtmp, self(), Message},
