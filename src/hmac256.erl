@@ -9,7 +9,7 @@
 %%%-------------------------------------------------------------------
 %% @private
 -module(hmac256).
--export([hexdigest/2,digest/2,test/0]).
+-export([hexdigest/2,digest/2,digest_bin/2,test/0]).
 -export([unhex/1]).
 -version(1.0).
 
@@ -20,6 +20,10 @@ hexdigest(Key, Data)->
 -spec digest(string()|binary(),string()|binary()) -> string().
 digest(Key, Data) ->
     digest(Key, Data, false).
+
+digest_bin(Key, Data) ->
+  list_to_binary(digest(Key,Data)).
+
 
 digest(Key, Data, Hex) when is_binary(Key) -> 
   digest(binary_to_list(Key), Data, Hex);
