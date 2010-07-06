@@ -41,9 +41,11 @@
 -version(1.0).
 
 -export([server/1]).
+-export([clientSchemeVersion/1, dhKey/2, rc4_key/2]).
 
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 -define(DH_KEY_SIZE, 128).
@@ -86,15 +88,17 @@
 
 -type handshake_version() ::version1|version2.
 -spec clientDigest(Handshake::binary(), handshake_version()) -> {First::binary(), Seed::binary(), Last::binary()}.
-% Flash from 10.0.32.18
-clientDigest(<<_:772/binary, P1, P2, P3, P4, _/binary>> = C1, version2) ->
-	Offset = (P1+P2+P3+P4) rem 728 + 776,
-	<<First:Offset/binary, Seed:?DIGEST_SIZE/binary, Last/binary>> = C1,
-  {First, Seed, Last};
 
 % Flash before 10.0.32.18
 clientDigest(<<_:8/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
 	Offset = (P1+P2+P3+P4) rem 728 + 12,
+	<<First:Offset/binary, Seed:?DIGEST_SIZE/binary, Last/binary>> = C1,
+  {First, Seed, Last};
+
+
+% Flash from 10.0.32.18
+clientDigest(<<_:772/binary, P1, P2, P3, P4, _/binary>> = C1, version2) ->
+	Offset = (P1+P2+P3+P4) rem 728 + 776,
 	<<First:Offset/binary, Seed:?DIGEST_SIZE/binary, Last/binary>> = C1,
   {First, Seed, Last}.
 
@@ -106,18 +110,16 @@ dhKey(<<_:1532/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
 	<<First:Offset/binary, Seed:?DH_KEY_SIZE/binary, Last/binary>> = C1,
   {First, Seed, Last};
 
-dhKey(<<_:768/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->
+dhKey(<<_:768/binary, P1, P2, P3, P4, _/binary>> = C1, version2) ->
 	Offset = (P1+P2+P3+P4) rem 632 + 8,
 	<<First:Offset/binary, Seed:?DH_KEY_SIZE/binary, Last/binary>> = C1,
   {First, Seed, Last}.
 
 -spec validateClientScheme(C1::binary(), Version::handshake_version()) -> boolean().
 validateClientScheme(C1, Version) ->
-  {First, ClientDigestBin, Last} = clientDigest(C1, Version),
-  ClientDigest = binary_to_list(ClientDigestBin),
+  {First, ClientDigest, Last} = clientDigest(C1, Version),
   <<Key:30/binary, _/binary>> = ?GENUINE_FP_KEY,
-  GuessDigest = hmac256:digest(Key, <<First/binary, Last/binary>>),
-  ClientDigest == GuessDigest.
+  ClientDigest == hmac256:digest_bin(Key, <<First/binary, Last/binary>>).
 
 
 -spec clientSchemeVersion(C1::binary()) -> handshake_version().
@@ -129,8 +131,26 @@ clientSchemeVersion(C1) ->
     end
   end.
 
-
+rc4_key(Key, Data) ->
+  <<Out:16/binary, _/binary>> = hmac256:digest_bin(Key, Data),
+  ID1 = 0,
+  ID2 = 0,
+  D = array:from_list(lists:seq(0, 255)),
+  set_rc4_key(D, 0, array:from_list(binary_to_list(Out)), ID1, ID2).
   
+set_rc4_key(D, 256, _, _, _) ->
+  list_to_binary(array:to_list(D));
+  
+set_rc4_key(D, N, Out, ID1, ID2) ->
+  TMP = array:get(N, D),
+  ID2_ = (array:get(ID1, Out) + TMP + ID2) band 16#FF,
+  ID1_ = case array:size(Out) - 1 of
+    ID1 -> 0;
+    _ -> ID1 + 1
+  end,
+  D1 = array:set(N, array:get(ID2_, D), D),
+  D2 = array:set(ID2_, TMP, D1),
+  set_rc4_key(D2, N+1, Out, ID1_, ID2_).
   
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
 %   {uncrypted, [?HS_UNCRYPTED, s1(), s2(C1)]};
@@ -144,16 +164,15 @@ server(<<Encryption, C1:?HS_BODY_LEN/binary>>) ->
       P = <<(size(?DH_P)):32, ?DH_P/binary>>,
       G = <<(size(?DH_G)):32, ?DH_G/binary>>,
     	{<<?DH_KEY_SIZE:32, Public:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([P, G]),
-
+    	
       {_, ClientKey, _} = dhKey(C1, SchemeVersion),
       {ServerFirst, ServerKey, ServerLast} = dhKey(Response1, SchemeVersion),
 
       SharedSecret = crypto:dh_compute_key(<<(size(ClientKey)):32, ClientKey/binary>>, Private, [P, G]),
-      ?D({"Shared secret", SharedSecret}),
 
-      KeyIn = hmac256:digest_bin(SharedSecret, ClientKey),
-      KeyOut = hmac256:digest_bin(SharedSecret, ServerKey),
-  
+      KeyOut = rc4_key(SharedSecret, ClientKey),
+      KeyIn = rc4_key(SharedSecret, ServerKey),
+      
       {<<ServerFirst/binary, Public/binary, ServerLast/binary>>, {KeyIn, KeyOut}};
       
     ?HS_UNCRYPTED ->

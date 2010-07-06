@@ -461,7 +461,7 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
       State;
     {crypted, Reply, KeyIn, KeyOut} ->
   	  send_data(State, Reply),
-  	  ?D({"Established RTMPE connection:", [KeyIn, KeyOut]}),
+  	  ?D({"Established RTMPE connection:"}),
   	  case Codec of
   	    undefined -> ok;
   	    _ -> 
@@ -572,6 +572,7 @@ handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
 
 handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
   Data = crypto:rc4_encrypt(KeyIn, CryptedData),
+  ?D({CryptedData,to,Data}),
   got_rtmp_message(rtmp:decode(State, Data)).
 
 
