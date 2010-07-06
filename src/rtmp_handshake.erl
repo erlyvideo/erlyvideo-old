@@ -140,22 +140,35 @@ rc4_key(Key, Data) ->
 %   {uncrypted, [?HS_UNCRYPTED, s1(), s2(C1)]};
 % 
 server(<<Encryption, C1:?HS_BODY_LEN/binary>>) ->
-  Response1 = <<0:32, 3,0,2,1, (crypto:rand_bytes(?HS_BODY_LEN - 8))/binary>>,
+  Rand = list_to_binary(lists:map(fun(N) -> N rem 256 end, lists:seq(8,?HS_BODY_LEN-1))),
+  Response1 = <<0:32, 1,2,3,4, Rand/binary>>, %(crypto:rand_bytes(?HS_BODY_LEN - 8))
   SchemeVersion = clientSchemeVersion(C1),
 
   {Response2, Keys} = case Encryption of
     ?HS_CRYPTED ->
       P = <<(size(?DH_P)):32, ?DH_P/binary>>,
       G = <<(size(?DH_G)):32, ?DH_G/binary>>,
-    	{<<?DH_KEY_SIZE:32, Public:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([P, G]),
+      PreKey = <<1,2,3,4,5,6,7,8,9,138,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,240,175,190,95,255,127,0,0,
+      131,71,192,95,255,127,0,0,84,138,5,0,0,0,0,0,84,138,5,0,0,0,0,0,
+      192,176,190,95,255,127,0,0,30,192,47,132,255,127,0,0,32,177,
+      190,95,255,127,0,0,0,4,0,0,0,0,0,0,32,177,190,95,255,127,0,0,249,0,0,0,0,0,0,0>>,
+      
+      ok = crypto:dh_check([P, G]),
+      
+    	{<<?DH_KEY_SIZE:32, Public:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key(<<(size(PreKey)):32, PreKey/binary>>, [P, G]),
     	
-      {_, ClientKey, _} = dhKey(C1, SchemeVersion),
+      {_ClientFirst, ClientKey, _} = dhKey(C1, SchemeVersion),
       {ServerFirst, ServerKey, ServerLast} = dhKey(Response1, SchemeVersion),
+      
 
       SharedSecret = crypto:dh_compute_key(<<(size(ClientKey)):32, ClientKey/binary>>, Private, [P, G]),
-
+    	?D({Public, Private, SharedSecret}),
+      
       KeyOut = rc4_key(SharedSecret, ClientKey),
       KeyIn = rc4_key(SharedSecret, ServerKey),
+      
+      ?D({KeyIn, KeyOut}),
       
       {<<ServerFirst/binary, Public/binary, ServerLast/binary>>, {KeyIn, KeyOut}};
       
