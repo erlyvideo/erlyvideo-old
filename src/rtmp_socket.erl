@@ -548,10 +548,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     #rtmp_message{} -> rtmp:encode(State, Message);
     _ -> {State, Message}
   end,
-  Crypt = case {Codec, KeyOut} of
-    {undefined,undefined} -> Data;
-    {undefined,_} -> crypto:rc4_encrypt(KeyOut,Data);
-    _ -> Data
+  {NewKeyOut, Crypt} = case {Codec, KeyOut} of
+    {undefined,undefined} -> {undefined, Data};
+    {undefined,_} -> crypto:rc4_encrypt_with_state(KeyOut,Data);
+    _ -> {KeyOut, Data}
   end,
   if
     is_port(Socket) ->
@@ -559,7 +559,7 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     is_pid(Socket) ->
       rtmpt:write(Socket, Crypt)
   end,
-  NewState.    
+  NewState#rtmp_socket{key_out = NewKeyOut}.
 
 
 
@@ -571,9 +571,9 @@ handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
   got_rtmp_message(rtmp:decode(State, Data));
 
 handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
-  Data = crypto:rc4_encrypt(KeyIn, CryptedData),
-  ?D({CryptedData,to,Data}),
-  got_rtmp_message(rtmp:decode(State, Data)).
+  {NewKeyIn, Data} = crypto:rc4_encrypt_with_state(KeyIn, CryptedData),
+  ?D({CryptedData,to,Data, KeyIn, NewKeyIn}),
+  got_rtmp_message(rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data)).
 
 
 

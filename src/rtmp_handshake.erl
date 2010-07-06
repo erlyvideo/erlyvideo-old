@@ -127,30 +127,14 @@ clientSchemeVersion(C1) ->
   case validateClientScheme(C1, version1) of
     true -> version1;
     false -> case validateClientScheme(C1, version2) of
-      true -> version2
+      true -> version2;
+      false -> version1
     end
   end.
 
 rc4_key(Key, Data) ->
   <<Out:16/binary, _/binary>> = hmac256:digest_bin(Key, Data),
-  ID1 = 0,
-  ID2 = 0,
-  D = array:from_list(lists:seq(0, 255)),
-  set_rc4_key(D, 0, array:from_list(binary_to_list(Out)), ID1, ID2).
-  
-set_rc4_key(D, 256, _, _, _) ->
-  list_to_binary(array:to_list(D));
-  
-set_rc4_key(D, N, Out, ID1, ID2) ->
-  TMP = array:get(N, D),
-  ID2_ = (array:get(ID1, Out) + TMP + ID2) band 16#FF,
-  ID1_ = case array:size(Out) - 1 of
-    ID1 -> 0;
-    _ -> ID1 + 1
-  end,
-  D1 = array:set(N, array:get(ID2_, D), D),
-  D2 = array:set(ID2_, TMP, D1),
-  set_rc4_key(D2, N+1, Out, ID1_, ID2_).
+  crypto:rc4_set_key(Out).
   
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
 %   {uncrypted, [?HS_UNCRYPTED, s1(), s2(C1)]};
