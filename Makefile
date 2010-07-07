@@ -1,6 +1,8 @@
 VERSION := $(shell head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]')
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtmp
+NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
+NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
 # Assume Linux-style dynamic library flags
 DYNAMIC_LIB_CFLAGS = -fpic -shared
@@ -17,8 +19,15 @@ ERLANG_DIR := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init sto
 
 OBJS := $(patsubst src/%c,ebin/%so,$(wildcard src/*.c))
 
-all: $(OBJS)
+all: compile $(OBJS)
 	erl -make
+
+compile: ebin/rtmp_handshake.so
+	erl -make
+
+ebin/rtmp_handshake.so: src/rtmp_handshake.c
+	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
+
 	
 analyze:
 	 dialyzer -Wno_improper_lists -c src/*.erl
