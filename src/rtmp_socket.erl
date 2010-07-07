@@ -559,10 +559,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     {undefined,_} -> crypto:rc4_encrypt_with_state(KeyOut,Data);
     _ -> {KeyOut, Data}
   end,
-  % case KeyOut of
-  %   <<O:10/binary, _/binary>> -> ?D({encrypt, O, iolist_size(Data), Message});
-  %   undefined -> ?D({raw_send, iolist_size(Data)})
-  % end,
+  case KeyOut of
+    <<_/binary>> -> ?D({encrypt, iolist_size(Data), Data});
+    undefined -> ?D({raw_send, iolist_size(Data)})
+  end,
   if
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
@@ -586,12 +586,11 @@ handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
 
 handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
   {NewKeyIn, Data} = crypto:rc4_encrypt_with_state(KeyIn, CryptedData),
-  <<O:10/binary, _/binary>> = KeyIn,
   M = case rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data) of
     {_, M1, _} -> M1;
     _ -> more
   end,
-  % ?D({uncrypt, O, iolist_size(CryptedData), M}),
+  ?D({uncrypt, iolist_size(CryptedData), M}),
   got_rtmp_message(rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data)).
 
 
