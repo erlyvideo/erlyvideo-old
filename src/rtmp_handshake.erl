@@ -41,7 +41,7 @@
 -version(1.0).
 
 -export([server/1]).
--export([clientSchemeVersion/1, dhKey/2, rc4_key/2]).
+-export([clientSchemeVersion/1, dhKey/2, rc4_key/2, crypt/2]).
 
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
@@ -137,6 +137,29 @@ rc4_key(Key, Data) ->
   % Out = hmac256:digest_bin(Key, Data),
   crypto:rc4_set_key(Out).
   
+crypt(Key, Data) ->
+  crypto:rc4_encrypt_with_state(Key, Data).
+  
+prepare_keys(KeyIn1, KeyOut1) ->
+  D1 = crypto:rand_bytes(?HS_BODY_LEN),
+  {KeyIn, D2} = crypt(KeyIn1, D1),
+  {KeyOut, _} = crypt(KeyOut1, D2),
+  {KeyIn, KeyOut}.
+
+crypto_keys(ServerPublic, ClientPublic, SharedSecret) ->
+  KeyOut1 = rc4_key(SharedSecret, ClientPublic),
+  KeyIn1 = rc4_key(SharedSecret, ServerPublic),
+  
+  prepare_keys(KeyIn1, KeyOut1).
+  
+
+generate_dh(ClientPublic) ->
+  P = <<(size(?DH_P)):32, ?DH_P/binary>>,
+  G = <<(size(?DH_G)):32, ?DH_G/binary>>,
+  {<<?DH_KEY_SIZE:32, ServerPublic:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([P, G]),
+  SharedSecret = crypto:dh_compute_key(<<(size(ClientPublic)):32, ClientPublic/binary>>, Private, [P, G]),
+	{ServerPublic, SharedSecret}.
+  
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
 %   {uncrypted, [?HS_UNCRYPTED, s1(), s2(C1)]};
 % 
@@ -144,23 +167,13 @@ server(<<Encryption, C2:?HS_BODY_LEN/binary>>) ->
   Response1 = <<0:32, 3,0,2,1, (crypto:rand_bytes(?HS_BODY_LEN - 8))/binary>>, 
   SchemeVersion = clientSchemeVersion(C2),
 
-  P = <<(size(?DH_P)):32, ?DH_P/binary>>,
-  G = <<(size(?DH_G)):32, ?DH_G/binary>>,
-
-	{<<?DH_KEY_SIZE:32, ServerPublic:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([P, G]),
-	
-  {ServerFirst, _, ServerLast} = dhKey(Response1, SchemeVersion),
   {_, ClientPublic, _} = dhKey(C2, SchemeVersion),
+  {ServerPublic, SharedSecret} = generate_dh(ClientPublic),
   
-
-  SharedSecret = crypto:dh_compute_key(<<(size(ClientPublic)):32, ClientPublic/binary>>, Private, [P, G]),
+  {ServerFirst, _, ServerLast} = dhKey(Response1, SchemeVersion),
   Response2 = <<ServerFirst/binary, ServerPublic/binary, ServerLast/binary>>,
   
-  KeyOut1 = rc4_key(SharedSecret, ClientPublic),
-  KeyIn1 = rc4_key(SharedSecret, ServerPublic),
-  
-  {KeyIn, D2} = crypto:rc4_encrypt_with_state(KeyIn1, C2),
-  {KeyOut, _} = crypto:rc4_encrypt_with_state(KeyOut1, D2),
+  {KeyIn, KeyOut} = crypto_keys(ServerPublic, ClientPublic, SharedSecret),
 
   %% Now generate digest of S2
 

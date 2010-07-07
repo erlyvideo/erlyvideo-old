@@ -556,7 +556,7 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
   end,
   {NewKeyOut, Crypt} = case {Codec, KeyOut} of
     {undefined,undefined} -> {undefined, Data};
-    {undefined,_} -> crypto:rc4_encrypt_with_state(KeyOut,Data);
+    {undefined,_} -> rtmp_handshake:crypt(KeyOut, Data);
     _ -> {KeyOut, Data}
   end,
   case KeyOut of
