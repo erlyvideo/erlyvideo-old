@@ -576,14 +576,14 @@ handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
 
 
 
-got_rtmp_message({#rtmp_socket{debug = true} = State, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, Rest} = Message) ->
+got_rtmp_message({#rtmp_socket{debug = true}, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, _} = Message) ->
   DecodedBody = case Type of
     video when size(Body) > 10 -> flv:decode_video_tag(Body);
     audio when size(Body) > 0 -> flv:decode_audio_tag(Body);
     _ -> Body
   end,
   io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, DecodedBody]),
-  handle_rtmp_message({State, Message, Rest});
+  handle_rtmp_message(Message);
 
 got_rtmp_message(Decoded) ->
   handle_rtmp_message(Decoded).
