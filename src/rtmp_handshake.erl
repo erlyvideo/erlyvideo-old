@@ -140,9 +140,9 @@ rc4_key(Key, Data) ->
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
 %   {uncrypted, [?HS_UNCRYPTED, s1(), s2(C1)]};
 % 
-server(<<Encryption, C1:?HS_BODY_LEN/binary>>) ->
+server(<<Encryption, C2:?HS_BODY_LEN/binary>>) ->
   Response1 = <<0:32, 3,0,2,1, (crypto:rand_bytes(?HS_BODY_LEN - 8))/binary>>, 
-  SchemeVersion = clientSchemeVersion(C1),
+  SchemeVersion = clientSchemeVersion(C2),
 
   P = <<(size(?DH_P)):32, ?DH_P/binary>>,
   G = <<(size(?DH_G)):32, ?DH_G/binary>>,
@@ -150,38 +150,40 @@ server(<<Encryption, C1:?HS_BODY_LEN/binary>>) ->
 	{<<?DH_KEY_SIZE:32, ServerPublic:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([P, G]),
 	
   {ServerFirst, _, ServerLast} = dhKey(Response1, SchemeVersion),
-  {_, ClientPublic, _} = dhKey(C1, SchemeVersion),
+  {_, ClientPublic, _} = dhKey(C2, SchemeVersion),
   
 
   SharedSecret = crypto:dh_compute_key(<<(size(ClientPublic)):32, ClientPublic/binary>>, Private, [P, G]),
   Response2 = <<ServerFirst/binary, ServerPublic/binary, ServerLast/binary>>,
+  
   KeyOut1 = rc4_key(SharedSecret, ClientPublic),
   KeyIn1 = rc4_key(SharedSecret, ServerPublic),
   
-  D1 = crypto:rand_bytes(?HS_BODY_LEN),
-  {KeyIn, D2} = crypto:rc4_encrypt_with_state(KeyIn1, D1),
+  {KeyIn, D2} = crypto:rc4_encrypt_with_state(KeyIn1, C2),
   {KeyOut, _} = crypto:rc4_encrypt_with_state(KeyOut1, D2),
 
+  %% Now generate digest of S2
 
   {Digest1, _, Digest2} = clientDigest(Response2, SchemeVersion),
   {ServerFMSKey, _} = erlang:split_binary(?GENUINE_FMS_KEY, 36),
   ServerDigest = hmac256:digest_bin(ServerFMSKey, <<Digest1/binary, Digest2/binary>>),
 
-  S1 = <<Digest1/binary, ServerDigest/binary, Digest2/binary>>,
+  S2 = <<Digest1/binary, ServerDigest/binary, Digest2/binary>>,
 
-  %% ------ Second part
+  ?D({serverDH, size(ServerFirst), serverDigest, size(Digest1)}),
+  %% ------ S3
   
   Response4 = crypto:rand_bytes(?HS_BODY_LEN - 32),
-  {_, ClientDigest, _} = clientDigest(C1, SchemeVersion),
+  {_, ClientDigest, _} = clientDigest(C2, SchemeVersion),
   {ClientFMSKey, _} = erlang:split_binary(?GENUINE_FMS_KEY, 68),
   TempHash = hmac256:digest_bin(ClientFMSKey, ClientDigest),
   ClientHash = hmac256:digest_bin(TempHash, Response4),
-  S2 = <<Response4/binary, ClientHash/binary>>,
+  S3 = <<Response4/binary, ClientHash/binary>>,
 
   case Encryption of
     ?HS_CRYPTED ->
-      {crypted, [?HS_CRYPTED, S1, S2], KeyIn, KeyOut};
+      {crypted, [?HS_CRYPTED, S2, S3], KeyIn, KeyOut};
     ?HS_UNCRYPTED ->
-      {uncrypted, [?HS_UNCRYPTED, S1, S2]}
+      {uncrypted, [?HS_UNCRYPTED, S2, S3]}
   end.
   
