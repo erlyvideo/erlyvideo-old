@@ -383,8 +383,10 @@ set_options(#rtmp_socket{socket = Socket, buffer = Data} = State, [{active, Acti
     true ->
       inet:setopts(Socket, [{active, true}]),
       State1;
+    once when size(Data) > 0 ->
+      handle_rtmp_data(State1, Data);
     once ->
-      handle_rtmp_data(State1, Data)
+      State1
   end,
   set_options(State2, Options);
 
@@ -533,8 +535,11 @@ flush_send(Packet, State) ->
       {NewState, Data} = rtmp:encode(State, Message),
       flush_send([Data | Packet], NewState)
   after
-    0 -> 
-      send_data(State, lists:reverse(Packet))
+    0 ->
+      case Packet of
+        [] -> State;
+        _ -> send_data(State, lists:reverse(Packet))
+      end
   end.
   
 activate_socket(Socket) when is_port(Socket) ->
@@ -553,6 +558,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     {undefined,_} -> crypto:rc4_encrypt_with_state(KeyOut,Data);
     _ -> {KeyOut, Data}
   end,
+  case KeyOut of
+    <<O:10/binary, _/binary>> -> ?D({encrypt, O, iolist_size(Data), Message});
+    undefined -> ?D({raw_send, iolist_size(Data)})
+  end,
   if
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
@@ -561,6 +570,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
   end,
   NewState#rtmp_socket{key_out = NewKeyOut}.
 
+
+handle_rtmp_data(#rtmp_socket{} = State, <<>>) ->
+  ?D({empty_input, erlang:get_stacktrace()}),
+  State;
 
 
 handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State, Data) when Bytes >= Window ->
@@ -572,6 +585,12 @@ handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
 
 handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
   {NewKeyIn, Data} = crypto:rc4_encrypt_with_state(KeyIn, CryptedData),
+  <<O:10/binary, _/binary>> = KeyIn,
+  M = case rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data) of
+    {_, M1, _} -> M1;
+    _ -> more
+  end,
+  ?D({uncrypt, O, iolist_size(CryptedData), M}),
   got_rtmp_message(rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data)).
 
 
