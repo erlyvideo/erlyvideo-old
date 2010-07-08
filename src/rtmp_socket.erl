@@ -585,7 +585,7 @@ handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
   got_rtmp_message(rtmp:decode(State, Data));
 
 handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
-  {NewKeyIn, Data} = crypto:rc4_encrypt_with_state(KeyIn, CryptedData),
+  {NewKeyIn, Data} = rtmp_handshake:crypt(KeyIn, CryptedData),
   M = case rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data) of
     {_, M1, _} -> M1;
     _ -> more
