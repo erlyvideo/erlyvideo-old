@@ -80,6 +80,8 @@ crypto_keys(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
   ErlNifBinary client_public, shared, server_public, key_in, key_out;
   uint8_t digest[SHA256_DIGEST_LENGTH];
   unsigned int digestLen = 0;
+  
+  int i;
 
   if(!enif_inspect_binary(env, argv[0], &server_public)) return enif_make_badarg(env);
   if(!enif_inspect_binary(env, argv[1], &client_public)) return enif_make_badarg(env);
@@ -95,6 +97,10 @@ crypto_keys(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
   HMAC_Update(&ctx, client_public.data, client_public.size);
   HMAC_Final(&ctx, digest, &digestLen);
   HMAC_CTX_cleanup(&ctx);
+  
+  printf("RC4KeyOut:");
+  for(i = 0; i < 16; i++) printf(" %02x", digest[i]);
+  printf("\n");
 
   RC4_set_key((RC4_KEY *)key_out.data, 16, digest);
 
@@ -104,7 +110,10 @@ crypto_keys(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
   HMAC_Final(&ctx, digest, &digestLen);
   HMAC_CTX_cleanup(&ctx);
 
+  printf("RC4KeyIn:");
+  for(i = 0; i < 16; i++) printf(" %x", digest[i]);
   RC4_set_key((RC4_KEY *)key_in.data, 16, digest);
+  printf("\n");
 
   uint8_t data[1536];
   RC4((RC4_KEY *)key_in.data, 1536, data, data);
@@ -140,6 +149,7 @@ crypt_rc4(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
   memcpy(key_out.data, key_in.data, key_in.size);
   memcpy(data_out.data, data_in.data, data_in.size);
   
+  // RC4((RC4_KEY *)key_out.data, data_out.size, data_in.data, data_out.data);
   RC4((RC4_KEY *)key_out.data, data_out.size, data_out.data, data_out.data);
 
   return enif_make_tuple2(env, enif_make_binary(env, &key_out), enif_make_binary(env, &data_out));

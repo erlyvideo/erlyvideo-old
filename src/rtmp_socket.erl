@@ -311,8 +311,8 @@ handshake_s1(timeout, State) ->
   
 %% @private  
 loop(timeout, #rtmp_socket{pinged = false} = State) ->
-  send_data(State, #rtmp_message{type = ping}),
-  {next_state, loop, State#rtmp_socket{pinged = true}, ?RTMP_TIMEOUT};
+  State1 = send_data(State, #rtmp_message{type = ping}),
+  {next_state, loop, State1#rtmp_socket{pinged = true}, ?RTMP_TIMEOUT};
   
 loop(timeout, #rtmp_socket{consumer = Consumer} = State) ->
   Consumer ! {rtmp, self(), timeout},
@@ -322,7 +322,7 @@ loop(timeout, #rtmp_socket{consumer = Consumer} = State) ->
 %% @private
 loop(#rtmp_message{} = Message, _From, State) ->
   State1 = send_data(State, Message),
-  {reply, ok, loop, State1}.
+  {reply, ok, loop, State1, ?RTMP_TIMEOUT}.
 
 
 -type(rtmp_option() ::active|amf_version|chunk_size|window_size|client_buffer|address).
@@ -401,8 +401,8 @@ set_options(#rtmp_socket{consumer = PrevConsumer} = State, [{consumer, Consumer}
   set_options(State#rtmp_socket{consumer = Consumer}, Options);
 
 set_options(State, [{chunk_size, ChunkSize} | Options]) ->
-  send_data(State, #rtmp_message{type = chunk_size, body = ChunkSize}),
-  set_options(State#rtmp_socket{server_chunk_size = ChunkSize}, Options);
+  State1 = send_data(State, #rtmp_message{type = chunk_size, body = ChunkSize}),
+  set_options(State1#rtmp_socket{server_chunk_size = ChunkSize}, Options);
 
 set_options(State, []) -> State.
   
@@ -460,18 +460,17 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
   <<Handshake:(?HS_BODY_LEN+1)/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
   State1 = case rtmp_handshake:server(Handshake) of
     {uncrypted, Reply} -> 
-  	  send_data(State, Reply),
-      State;
+  	  send_data(State, Reply);
     {crypted, Reply, KeyIn, KeyOut} ->
-  	  send_data(State, Reply),
-  	  ?D("Established RTMPE connection:"),
+  	  NewState = send_data(State, Reply),
+  	  ?D({"Established RTMPE connection"}),
   	  case Codec of
   	    undefined -> ok;
   	    _ -> 
   	      erlang:port_control(Codec, ?SET_KEY_IN, KeyIn),
   	      erlang:port_control(Codec, ?SET_KEY_OUT, KeyOut)
   	  end,
-      State#rtmp_socket{key_in = KeyIn, key_out = KeyOut}
+      NewState#rtmp_socket{key_in = KeyIn, key_out = KeyOut}
   end,
 	{next_state, 'handshake_c3', State1#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
@@ -492,11 +491,10 @@ handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consu
     undefined -> {undefined, CryptedData};
     _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
   end,
-  
-  ?D({rest_c3, Rest}),
+  ?D({decrypt, Rest, CryptedData == element(2, rtmp_handshake:crypt(NewKeyIn, Rest))}),
   
   State1 = State#rtmp_socket{bytes_read = BytesRead + size(Data), key_in = NewKeyIn, buffer = Rest},
-  case CryptedData of
+  case Rest of
     <<>> -> {next_state, loop, State1, ?RTMP_TIMEOUT};
     _ -> {next_state, loop, handle_rtmp_data(State1), ?RTMP_TIMEOUT}
   end;
@@ -524,7 +522,7 @@ handle_info({tcp, Socket, CryptedData}, loop, #rtmp_socket{socket=Socket, buffer
     undefined -> {undefined, CryptedData};
     _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
   end,
-  ?D({decrypt, Data}),
+  ?D({decrypt, Data, CryptedData == element(2, rtmp_handshake:crypt(KeyIn, Data))}),
   {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data), key_in = NewKeyIn, buffer = <<Buffer/binary, Data/binary>>}), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
@@ -546,19 +544,18 @@ handle_info(_Info, StateName, StateData) ->
   error_logger:error_msg("Unknown message to rtmp socket: ~p ~p~n", [_Info, StateData]),
   {next_state, StateName, StateData, ?RTMP_TIMEOUT}.
 
-flush_send(State) -> flush_send([], State).
+% flush_send(State) -> flush_send([], State).
 
-flush_send(Packet, State) ->
+flush_send(State) ->
   receive
     #rtmp_message{} = Message ->
-      {NewState, Data} = rtmp:encode(State, Message),
-      flush_send([Data | Packet], NewState)
+      NewState = send_data(State, Message),
+      % ?D({out, Message}),
+      % {NewState, Data} = rtmp:encode(State, Message),
+      % flush_send([Data | Packet], NewState)
+      flush_send(NewState)
   after
-    0 ->
-      case Packet of
-        [] -> State;
-        _ -> send_data(State, lists:reverse(Packet))
-      end
+    0 -> State
   end.
   
 activate_socket(Socket) when is_port(Socket) ->
@@ -566,7 +563,6 @@ activate_socket(Socket) when is_port(Socket) ->
 activate_socket(Socket) when is_pid(Socket) ->
   ok.
 
-% FIXME: make here proper handling of flushing message queue
 send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
   {NewState, Data} = case Message of
     #rtmp_message{} -> rtmp:encode(State, Message);
@@ -577,10 +573,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     {undefined,_} -> rtmp_handshake:crypt(KeyOut, Data);
     _ -> erlang:error(not_implemented_rtmpe_codec)
   end,
-  case KeyOut of
-    undefined -> ?D({raw_send, iolist_size(Data)});
-    _ -> ?D({encrypt, iolist_size(Data), Data})
-  end,
+  % case KeyOut of
+  %   undefined -> ?D({raw_send, iolist_size(Data)});
+  %   _ -> ?D({encrypt, iolist_size(Data), element(1, split_binary(KeyOut, 10)), element(1, split_binary(NewKeyOut, 10)), Data, Crypt, iolist_to_binary(Data) == element(2, rtmp_handshake:crypt(KeyOut, Crypt))})
+  % end,
   if
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
@@ -592,7 +588,7 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
 
 
 handle_rtmp_data(#rtmp_socket{buffer = <<>>} = State) ->
-  ?D({empty_input, erlang:get_stacktrace()}),
+  % ?D({empty_input, erlang:get_stacktrace()}),
   State;
 
 handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State) when Bytes >= Window ->
@@ -600,6 +596,10 @@ handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State
   handle_rtmp_data(State1);
 
 handle_rtmp_data(#rtmp_socket{buffer = Data} = State) ->
+  case rtmp:decode(State, Data) of
+    {_, M, _} -> ?D({in, M});
+    _ -> ?D(more)
+  end,
   got_rtmp_message(rtmp:decode(State, Data)).
 
 
