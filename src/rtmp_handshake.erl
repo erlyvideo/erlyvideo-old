@@ -51,7 +51,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 start() ->
-  load_nif(erlang:system_info(otp_release) >= "R13B04").
+  % load_nif(erlang:system_info(otp_release) >= "R13B04").
+  ok.
 
 load_nif(true) ->
   Load = erlang:load_nif(code:lib_dir(rtmp,ebin)++ "/rtmp_handshake", 0),

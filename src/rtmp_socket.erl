@@ -522,7 +522,7 @@ handle_info({tcp, Socket, CryptedData}, loop, #rtmp_socket{socket=Socket, buffer
     undefined -> {undefined, CryptedData};
     _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
   end,
-  ?D({decrypt, Data, CryptedData == element(2, rtmp_handshake:crypt(KeyIn, Data))}),
+  % ?D({decrypt, Data, CryptedData == element(2, rtmp_handshake:crypt(KeyIn, Data))}),
   {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data), key_in = NewKeyIn, buffer = <<Buffer/binary, Data/binary>>}), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
@@ -596,10 +596,10 @@ handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State
   handle_rtmp_data(State1);
 
 handle_rtmp_data(#rtmp_socket{buffer = Data} = State) ->
-  case rtmp:decode(State, Data) of
-    {_, M, _} -> ?D({in, M});
-    _ -> ?D(more)
-  end,
+  % case rtmp:decode(State, Data) of
+  %   {_, M, _} -> ?D({in, M});
+  %   _ -> ?D(more)
+  % end,
   got_rtmp_message(rtmp:decode(State, Data)).
 
 
