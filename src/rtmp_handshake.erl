@@ -39,8 +39,6 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_handshake).
 -version(1.0).
--on_load(start/0).
--export([start/0]).
 
 -export([server/1]).
 -export([clientSchemeVersion/1, dhKey/2, rc4_key/2, crypt/2]).
@@ -50,18 +48,6 @@
 -include("rtmp_private.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-start() ->
-  % load_nif(erlang:system_info(otp_release) >= "R13B04").
-  ok.
-
-load_nif(true) ->
-  Load = erlang:load_nif(code:lib_dir(rtmp,ebin)++ "/rtmp_handshake", 0),
-  io:format("Load rtmp_handshake: ~p~n", [Load]),
-  ok;
-
-load_nif(false) ->
-  ok.
-  
 
 -define(DH_KEY_SIZE, 128).
 -define(DIGEST_SIZE, 32).
@@ -173,7 +159,6 @@ generate_dh(ClientPublic) ->
   G = <<(size(?DH_G)):32, ?DH_G/binary>>,
   {<<?DH_KEY_SIZE:32, ServerPublic:?DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([P, G]),
   SharedSecret = crypto:dh_compute_key(<<(size(ClientPublic)):32, ClientPublic/binary>>, Private, [P, G]),
-  ?D(erl_generate_dh),
 	{ServerPublic, SharedSecret}.
   
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
@@ -199,7 +184,7 @@ server(<<Encryption, C2:?HS_BODY_LEN/binary>>) ->
 
   S2 = <<Digest1/binary, ServerDigest/binary, Digest2/binary>>,
 
-  ?D({serverDH, size(ServerFirst), serverDigest, size(Digest1)}),
+  % ?D({serverDH, size(ServerFirst), serverDigest, size(Digest1)}),
   %% ------ S3
   
   Response4 = crypto:rand_bytes(?HS_BODY_LEN - 32),

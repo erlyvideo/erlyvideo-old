@@ -491,7 +491,7 @@ handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consu
     undefined -> {undefined, CryptedData};
     _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
   end,
-  ?D({decrypt, Rest, CryptedData == element(2, rtmp_handshake:crypt(NewKeyIn, Rest))}),
+  % ?D({decrypt, Rest, CryptedData == element(2, rtmp_handshake:crypt(NewKeyIn, Rest))}),
   
   State1 = State#rtmp_socket{bytes_read = BytesRead + size(Data), key_in = NewKeyIn, buffer = Rest},
   case Rest of
