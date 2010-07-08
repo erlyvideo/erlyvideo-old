@@ -384,7 +384,7 @@ set_options(#rtmp_socket{socket = Socket, buffer = Data} = State, [{active, Acti
       inet:setopts(Socket, [{active, true}]),
       State1;
     once when size(Data) > 0 ->
-      handle_rtmp_data(State1, Data);
+      handle_rtmp_data(State1);
     once ->
       activate_socket(Socket),
       State1
@@ -480,14 +480,26 @@ handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, buffe
   activate_socket(Socket),
   {next_state, handshake_c3, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
-handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active} = State) ->
-  <<_HandShakeC3:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
+handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active, key_in = KeyIn} = State) ->
+  <<_HandShakeC3:?HS_BODY_LEN/binary, CryptedData/binary>> = <<Buffer/binary, Data/binary>>,
   Consumer ! {rtmp, self(), connected},
   case Active of
     true -> inet:setopts(Socket, [{active, true}]);
     _ -> ok
   end,
-  {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, Rest), ?RTMP_TIMEOUT};
+
+  {NewKeyIn, Rest} = case KeyIn of
+    undefined -> {undefined, CryptedData};
+    _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
+  end,
+  
+  ?D({rest_c3, Rest}),
+  
+  State1 = State#rtmp_socket{bytes_read = BytesRead + size(Data), key_in = NewKeyIn, buffer = Rest},
+  case CryptedData of
+    <<>> -> {next_state, loop, State1, ?RTMP_TIMEOUT};
+    _ -> {next_state, loop, handle_rtmp_data(State1), ?RTMP_TIMEOUT}
+  end;
 
 handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN*2 + 1 ->
   activate_socket(Socket),
@@ -501,13 +513,19 @@ handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consu
     true -> inet:setopts(Socket, [{active, true}]);
     _ -> ok
   end,
-  {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data)}, Rest), ?RTMP_TIMEOUT};
+  
+  {next_state, loop, handle_rtmp_data(State#rtmp_socket{bytes_read = BytesRead + size(Data), buffer = Rest}), ?RTMP_TIMEOUT};
 
 
 
-handle_info({tcp, Socket, Data}, loop, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead, bytes_unack = BytesUnack} = State) ->
+handle_info({tcp, Socket, CryptedData}, loop, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead, bytes_unack = BytesUnack, key_in = KeyIn} = State) ->
   State1 = flush_send(State),
-  {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data)}, <<Buffer/binary, Data/binary>>), ?RTMP_TIMEOUT};
+  {NewKeyIn, Data} = case KeyIn of
+    undefined -> {undefined, CryptedData};
+    _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
+  end,
+  ?D({decrypt, Data}),
+  {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data), key_in = NewKeyIn, buffer = <<Buffer/binary, Data/binary>>}), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
   Consumer ! {rtmp, self(), disconnect, get_stat(StateData)},
@@ -557,11 +575,11 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
   {NewKeyOut, Crypt} = case {Codec, KeyOut} of
     {undefined,undefined} -> {undefined, Data};
     {undefined,_} -> rtmp_handshake:crypt(KeyOut, Data);
-    _ -> {KeyOut, Data}
+    _ -> erlang:error(not_implemented_rtmpe_codec)
   end,
   case KeyOut of
-    <<_/binary>> -> ?D({encrypt, iolist_size(Data), Data});
-    undefined -> ?D({raw_send, iolist_size(Data)})
+    undefined -> ?D({raw_send, iolist_size(Data)});
+    _ -> ?D({encrypt, iolist_size(Data), Data})
   end,
   if
     is_port(Socket) ->
@@ -572,27 +590,17 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
   NewState#rtmp_socket{key_out = NewKeyOut}.
 
 
-handle_rtmp_data(#rtmp_socket{} = State, <<>>) ->
+
+handle_rtmp_data(#rtmp_socket{buffer = <<>>} = State) ->
   ?D({empty_input, erlang:get_stacktrace()}),
   State;
 
-
-handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State, Data) when Bytes >= Window ->
+handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State) when Bytes >= Window ->
   State1 = send_data(State, #rtmp_message{type = ack_read}),
-  handle_rtmp_data(State1#rtmp_socket{}, Data);
+  handle_rtmp_data(State1);
 
-handle_rtmp_data(#rtmp_socket{key_in = undefined} = State, Data) ->
-  got_rtmp_message(rtmp:decode(State, Data));
-
-handle_rtmp_data(#rtmp_socket{key_in = KeyIn} = State, CryptedData) ->
-  {NewKeyIn, Data} = rtmp_handshake:crypt(KeyIn, CryptedData),
-  M = case rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data) of
-    {_, M1, _} -> M1;
-    {_, More} -> {more, More}
-  end,
-  ?D({uncrypt, iolist_size(CryptedData), M}),
-  got_rtmp_message(rtmp:decode(State#rtmp_socket{key_in = NewKeyIn}, Data)).
-
+handle_rtmp_data(#rtmp_socket{buffer = Data} = State) ->
+  got_rtmp_message(rtmp:decode(State, Data)).
 
 
 got_rtmp_message({#rtmp_socket{debug = true}, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, _} = Message) ->
@@ -629,8 +637,8 @@ handle_rtmp_message({#rtmp_socket{socket=Socket} = State, Rest}) ->
   activate_socket(Socket),
   State#rtmp_socket{buffer = Rest}.
 
-rtmp_message_sent(#rtmp_socket{active = true, buffer = Data} = State) ->
-  handle_rtmp_data(State, Data);
+rtmp_message_sent(#rtmp_socket{active = _} = State) ->
+  handle_rtmp_data(State);
 
 rtmp_message_sent(State) -> 
   State.
