@@ -625,6 +625,14 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
       ?D({"ems_media is stopping after unsubscribe", M, Pid, Reason}),
       {stop, Reason, Media2}
   end;
+
+handle_info(#video_frame{content = audio, codec = pcma} = Frame, #ems_media{} = Media) ->
+  % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
+  shift_dts(ems_sound:adapt_sound(Frame), Media);
+
+handle_info(#video_frame{content = audio, codec = pcmu} = Frame, #ems_media{} = Media) ->
+  % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
+  shift_dts(ems_sound:adapt_sound(Frame), Media);
   
 
 handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
