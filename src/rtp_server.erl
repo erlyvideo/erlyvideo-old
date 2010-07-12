@@ -171,6 +171,9 @@ config_media([#rtsp_stream{type = audio, codec = aac, config = Config} = Stream 
 	  sound	  = {stereo, bit16, rate44}
 	},
   config_media(Streams, [Stream | Output], [AudioConfig | Frames]);
+
+config_media([#rtsp_stream{codec = pcmu} = Stream | Streams], Output, Frames) ->
+  config_media(Streams, [Stream | Output], Frames);
   
 config_media([#rtsp_stream{codec = pcma} = Stream | Streams], Output, Frames) ->
   config_media(Streams, [Stream | Output], Frames).
@@ -309,7 +312,7 @@ rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, T
   State6 = setelement(#base_rtp.timecode, State5, Timecode),
   State7 = setelement(#base_rtp.last_sr, State6, NTP),
   
-  decode_sender_reports(Count, Rest),
+  % decode_sender_reports(Count, Rest),
   
   {State7, []}.
 
@@ -336,7 +339,7 @@ audio(#audio{timecode = Timecode, codec = pcma} = Audio, {data, Bin, _Sequence, 
     body    = Bin,
 	  codec	  = pcma,
 	  flavor  = frame,
-	  sound	  = {stereo, bit16, rate44}
+	  sound	  = {mono, bit8, rate11}
   },
   {Audio#audio{timecode = Timecode + 1024}, [Frame]}.
 

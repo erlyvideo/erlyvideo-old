@@ -112,6 +112,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #rtsp_stream{} = Stream) ->
         "H264" -> h264;
         "mpeg4-generic" -> aac;
         "PCMA" -> pcma;
+        "PCMU" -> pcmu;
         Other -> Other
       end,
       Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000, codec = Codec};

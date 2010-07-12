@@ -311,18 +311,19 @@ handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = 
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
       
-handle_request({request, 'SETUP', _URL, Headers, _}, State) ->
+handle_request({request, 'SETUP', URL, Headers, _}, State) ->
   OldTransport = proplists:get_value('Transport', Headers),
   Date = httpd_util:rfc1123_date(),
   
-  % {ok, Re} = re:compile("trackID=(\\d+)$"),
-  % Transport = case re:run(URL, Re, [{capture, all, list}]) of
-  %   {match, [_, TrackID_S]} ->
-  %     TrackID = (list_to_integer(TrackID_S) - 1)*2,
-  %     list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
-  %   _ -> OldTransport
-  % end,
-  ReplyHeaders = [{'Transport', OldTransport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
+  {ok, Re} = re:compile("trackID=(\\d+)$"),
+  Transport = case re:run(URL, Re, [{capture, all, list}]) of
+    {match, [_, TrackID_S]} ->
+      TrackID = (list_to_integer(TrackID_S) - 1)*2,
+      list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
+    _ -> OldTransport
+  end,
+  % Transport = OldTransport,
+  ReplyHeaders = [{'Transport', Transport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
   reply(State, "200 OK", ReplyHeaders);
 
 handle_request({request, 'TEARDOWN', _URL, Headers, _Body}, #rtsp_socket{consumer = Consumer} = State) ->
