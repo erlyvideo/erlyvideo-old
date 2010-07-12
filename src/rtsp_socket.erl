@@ -464,6 +464,9 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+append_trackid(_URL, ("rtsp://"++ _) = TrackID) ->
+  TrackID;
+
 append_trackid(URL, TrackID) ->
   case string:tokens(URL, "?") of
     [URL1, URL2] -> URL1 ++ "/" ++ TrackID ++ "?" ++ URL2;
