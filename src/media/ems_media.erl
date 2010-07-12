@@ -626,18 +626,14 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
       {stop, Reason, Media2}
   end;
 
-handle_info(#video_frame{content = audio, codec = pcma} = Frame, #ems_media{} = Media) ->
-  % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
-  shift_dts(ems_sound:adapt_sound(Frame), Media);
-
-handle_info(#video_frame{content = audio, codec = pcmu} = Frame, #ems_media{} = Media) ->
-  % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
-  shift_dts(ems_sound:adapt_sound(Frame), Media);
-  
-
 handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
   % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
-  shift_dts(Frame, Media);
+  case transcode(Frame) of
+    undefined ->
+      {noreply, Media, ?TIMEOUT};
+    Transcoded ->  
+      shift_dts(Transcoded, Media)
+  end;
 
 handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
   case M:handle_control(no_source, Media) of
@@ -698,6 +694,17 @@ handle_info(Message, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
+
+
+
+transcode(#video_frame{content = audio, codec = Codec} = Frame) when Codec == pcma orelse 
+                                                                     Codec == pcm orelse
+                                                                     % Codec == pcm_le orelse
+                                                                     Codec == pcmu ->
+  ems_sound:adapt_sound(Frame);
+
+transcode(Frame) ->
+  Frame.
 
 
 
