@@ -36,7 +36,7 @@
 -define(STREAM_TIME, ems:get_var(iphone_segment_size, 10000)).
 
 %% External API
--export([start_link/1, find/3, segments/2, play/4, playlist/2]).
+-export([start_link/1, find/3, segments/2, play/4, playlist/2, playlist/3]).
 
 -export([save_counters/4, get_counters/3]).
 
@@ -70,10 +70,16 @@ find(Host, Name, Number) ->
 
 
 playlist(Host, Name) ->
+  playlist(Host, Name, []).
+
+playlist(Host, Name, Options) ->
   {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
   {ok, Media} = media_provider:open(Host, Name),
+  Generator = proplists:get_value(generator, Options, fun(Duration, StreamName, Number) ->
+    io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [Duration, StreamName, Number])
+  end),
   SegmentListDirty = lists:map(fun(N) ->
-    segment_info(Media, Name, N, Count)
+    segment_info(Media, Name, N, Count, Generator)
   end, lists:seq(Start, Start + Count - 1)),
   SegmentList = lists:filter(fun(undefined) -> false;
                                 (_) -> true end, SegmentListDirty),
@@ -90,14 +96,14 @@ playlist(Host, Name) ->
   ].
 
 
-segment_info(Media, Name, Number, Count) when Count == Number + 1 ->
+segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
   {_Key, StartDTS} = ems_media:seek_info(Media, 'before', Number * ?STREAM_TIME),
   Info = ems_media:info(Media),
   Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
-  io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [round((Duration - StartDTS)/1000), Name, Number]);
+  Generator(round((Duration - StartDTS)/1000), Name, Number);
   
 
-segment_info(_MediaEntry, Name, Number, _Count) ->
+segment_info(_MediaEntry, Name, Number, _Count, Generator) ->
   % case {PlayingFrom, PlayEnd} of
   %   {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
   %     SegmentLength = round((PlayEnd - PlayingFrom)/1000),
@@ -105,7 +111,7 @@ segment_info(_MediaEntry, Name, Number, _Count) ->
   %   _Else -> 
   %     undefined
   % end.
-  io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [?STREAM_TIME div 1000, Name, Number]).
+  Generator(?STREAM_TIME div 1000, Name, Number).
   
 
 segments(Host, Name) ->
