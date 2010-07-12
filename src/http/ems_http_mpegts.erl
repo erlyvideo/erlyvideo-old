@@ -24,8 +24,6 @@ http(Host, 'GET', ["stream" | Name], Req) ->
   end;
 
 http(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
-  _Hostname = proplists:get_value('Host', Req:get(headers)),
-
   ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
   FullName = string:join(StreamName, "/"),
   {ok, Re} = re:compile("^(.+).m3u8$"),
@@ -38,11 +36,11 @@ http(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
 
 http(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
-  {ok, Re} = re:compile("^(.+)/(\\d+).ts$"),
-  {match, [_, Name, SegmentId]} = re:run(string:join(StreamName, "/"), Re, [{capture, all, binary}]),
+  
+  {Name, [SegmentId]} = lists:split(length(StreamName) - 1, StreamName),
 
-  Segment = list_to_integer(binary_to_list(SegmentId)),
-  iphone_streams:play(Host, Name, Segment, Req);
+  Segment = list_to_integer(hd(string:tokens(SegmentId, "."))),
+  iphone_streams:play(Host, string:join(Name, "/"), Segment, Req);
 
 http(Host, 'PUT', ["stream", Name], Req) ->
   {Module, Function} = ems:check_app(Host, auth, 3),
