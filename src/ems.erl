@@ -72,7 +72,7 @@ expand_tuple(Tuple, _N) -> Tuple.
 tuple_find(Tuple, Term) -> tuple_find(Tuple, Term, 1).
 
 tuple_find(Tuple, _Term, N) when size(Tuple) < N -> false;
-tuple_find(Tuple, Term, N) when element(N, Tuple) == Term -> {N, Term};
+tuple_find(Tuple, Term, N) when erlang:element(N, Tuple) == Term -> {N, Term};
 tuple_find(Tuple, Term, N) -> tuple_find(Tuple, Term, N+1).
 	
 
