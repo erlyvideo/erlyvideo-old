@@ -54,5 +54,13 @@ class ErlmediaTest < Test::Unit::TestCase
   def test_sdp
     run_test("sdp")
   end
+  
+  def test_rtsp
+    run_test("rtsp")
+  end
+  
+  def test_rtsp_socket
+    run_test("rtsp_socket")
+  end
 end
 
