@@ -72,6 +72,8 @@ frame_format(?FLV_TAG_TYPE_AUDIO) -> audio;
 frame_format(?FLV_TAG_TYPE_VIDEO) -> video;
 frame_format(?FLV_TAG_TYPE_META) -> metadata.
 
+audio_codec(pcm) -> ?FLV_AUDIO_FORMAT_PCM;
+audio_codec(pcm_le) -> ?FLV_AUDIO_FORMAT_PCM_LE;
 audio_codec(adpcm) -> ?FLV_AUDIO_FORMAT_ADPCM;
 audio_codec(aac) -> ?FLV_AUDIO_FORMAT_AAC;
 audio_codec(speex) -> ?FLV_AUDIO_FORMAT_SPEEX;
@@ -80,7 +82,9 @@ audio_codec(pcma) -> ?FLV_AUDIO_FORMAT_A_G711;
 audio_codec(pcmu) -> ?FLV_AUDIO_FORMAT_MU_G711;
 audio_codec(nelly_moser) -> ?FLV_AUDIO_FORMAT_NELLYMOSER;
 audio_codec(nelly_moser8) -> ?FLV_AUDIO_FORMAT_NELLYMOSER8;
+audio_codec(?FLV_AUDIO_FORMAT_PCM) -> pcm;
 audio_codec(?FLV_AUDIO_FORMAT_ADPCM) -> adpcm;
+audio_codec(?FLV_AUDIO_FORMAT_PCM_LE) -> pcm_le;
 audio_codec(?FLV_AUDIO_FORMAT_MP3) -> mp3;
 audio_codec(?FLV_AUDIO_FORMAT_NELLYMOSER8) -> nelly_moser8;
 audio_codec(?FLV_AUDIO_FORMAT_NELLYMOSER) -> nelly_moser;

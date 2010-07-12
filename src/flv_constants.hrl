@@ -22,9 +22,10 @@
 -define(FLV_AUDIO_RATE_11, 1).
 -define(FLV_AUDIO_RATE_22, 2).
 -define(FLV_AUDIO_RATE_44, 3).
--define(FLV_AUDIO_FORMAT_UNCOMPRESSED, 0).
+-define(FLV_AUDIO_FORMAT_PCM,          0).
 -define(FLV_AUDIO_FORMAT_ADPCM,        1).
 -define(FLV_AUDIO_FORMAT_MP3,          2).
+-define(FLV_AUDIO_FORMAT_PCM_LE,       3).
 -define(FLV_AUDIO_FORMAT_NELLYMOSER8,  5).
 -define(FLV_AUDIO_FORMAT_NELLYMOSER,   6).
 -define(FLV_AUDIO_FORMAT_A_G711,       7).
