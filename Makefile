@@ -11,7 +11,7 @@ SRC = src
 all:    subdirs
 
 subdirs: 
-	cd ${SRC}; make
+	cd ${SRC}; $(MAKE)
 
 # remove all the code
 clean: 
@@ -20,7 +20,7 @@ clean:
 	rm -f src/*~
 	rm -f ebin/*~
 	rm -f include/*~
-	cd ${SRC}; make clean
+	cd ${SRC}; $(MAKE) clean
 #install:
 #        cp -f ebin/* ../../www/ebin
 
