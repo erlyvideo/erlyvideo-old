@@ -1,3 +1,9 @@
+erlmedia (1.5.0) karmic; urgency=low
+
+  Adding wav support
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 12 Jul 2010 15:51:29 +0400
+
 erlmedia (1.4.5) karmic; urgency=low
 
   Added proper flv decoding
