@@ -87,6 +87,8 @@
 -type(channel() ::#channel{}).
 
 
+-type handshake_version() ::version1|version2.
+
 
 
 -record(rtmp_socket, {

@@ -489,9 +489,9 @@ handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consu
 
   {NewKeyIn, Rest} = case KeyIn of
     undefined -> {undefined, CryptedData};
-    _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
+    _ -> rtmpe:crypt(KeyIn, CryptedData)
   end,
-  % ?D({decrypt, Rest, CryptedData == element(2, rtmp_handshake:crypt(NewKeyIn, Rest))}),
+  % ?D({decrypt, Rest, CryptedData == element(2, rtmpe:crypt(NewKeyIn, Rest))}),
   
   State1 = State#rtmp_socket{bytes_read = BytesRead + size(Data), key_in = NewKeyIn, buffer = Rest},
   case Rest of
@@ -520,9 +520,9 @@ handle_info({tcp, Socket, CryptedData}, loop, #rtmp_socket{socket=Socket, buffer
   State1 = flush_send(State),
   {NewKeyIn, Data} = case KeyIn of
     undefined -> {undefined, CryptedData};
-    _ -> rtmp_handshake:crypt(KeyIn, CryptedData)
+    _ -> rtmpe:crypt(KeyIn, CryptedData)
   end,
-  % ?D({decrypt, Data, CryptedData == element(2, rtmp_handshake:crypt(KeyIn, Data))}),
+  % ?D({decrypt, Data, CryptedData == element(2, rtmpe:crypt(KeyIn, Data))}),
   {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data), key_in = NewKeyIn, buffer = <<Buffer/binary, Data/binary>>}), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
@@ -570,12 +570,12 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
   end,
   {NewKeyOut, Crypt} = case {Codec, KeyOut} of
     {undefined,undefined} -> {undefined, Data};
-    {undefined,_} -> rtmp_handshake:crypt(KeyOut, Data);
+    {undefined,_} -> rtmpe:crypt(KeyOut, Data);
     _ -> erlang:error(not_implemented_rtmpe_codec)
   end,
   % case KeyOut of
   %   undefined -> ?D({raw_send, iolist_size(Data)});
-  %   _ -> ?D({encrypt, iolist_size(Data), element(1, split_binary(KeyOut, 10)), element(1, split_binary(NewKeyOut, 10)), Data, Crypt, iolist_to_binary(Data) == element(2, rtmp_handshake:crypt(KeyOut, Crypt))})
+  %   _ -> ?D({encrypt, iolist_size(Data), element(1, split_binary(KeyOut, 10)), element(1, split_binary(NewKeyOut, 10)), Data, Crypt, iolist_to_binary(Data) == element(2, rtmpe:crypt(KeyOut, Crypt))})
   % end,
   if
     is_port(Socket) ->
