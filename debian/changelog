@@ -1,3 +1,9 @@
+erlang-rtsp (1.4.2) karmic; urgency=low
+
+  added pcma/pcmu support
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 12 Jul 2010 15:56:10 +0400
+
 erlang-rtsp (1.4.1) karmic; urgency=low
 
   axis sr bugfix
