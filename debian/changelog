@@ -1,3 +1,9 @@
+erlang-rtmp (1.6.0) karmic; urgency=low
+
+  rtmpe
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 12 Jul 2010 15:53:20 +0400
+
 erlang-rtmp (1.5.15) karmic; urgency=low
 
   Dialyzing. Fixed playstart and seek.
