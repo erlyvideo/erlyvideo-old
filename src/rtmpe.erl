@@ -72,7 +72,7 @@ generate_dh(ClientPublic) ->
 
 s2(C2, ?HS_CRYPTED) ->
   Response1 = <<0:32, 3,0,2,1, (crypto:rand_bytes(?HS_BODY_LEN - 8))/binary>>, 
-  SchemeVersion = rtmp_handshake:clientSchemeVersion(C2),
+  SchemeVersion = rtmp_handshake:client_scheme_version(C2),
 
   {_, ClientPublic, _} = dhKey(C2, SchemeVersion),
   {ServerPublic, SharedSecret} = generate_dh(ClientPublic),

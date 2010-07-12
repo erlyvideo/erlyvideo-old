@@ -40,7 +40,7 @@
 -module(rtmp_handshake).
 -version(1.0).
 
--export([server/1, clientSchemeVersion/1]).
+-export([server/1, client_scheme_version/1]).
 
 
 -include("../include/rtmp.hrl").
@@ -83,18 +83,18 @@ clientDigest(<<_:772/binary, P1, P2, P3, P4, _/binary>> = C1, version2) ->
 
 
 
--spec validateClientScheme(C1::binary(), Version::handshake_version()) -> boolean().
-validateClientScheme(C1, Version) ->
+-spec validate_scheme_version(C1::binary(), Version::handshake_version()) -> boolean().
+validate_scheme_version(C1, Version) ->
   {First, ClientDigest, Last} = clientDigest(C1, Version),
-  <<Key:30/binary, _/binary>> = ?GENUINE_FP_KEY,
+  {Key, _} = erlang:split_binary(?GENUINE_FP_KEY, 30),
   ClientDigest == hmac256:digest_bin(Key, <<First/binary, Last/binary>>).
 
 
--spec clientSchemeVersion(C1::binary()) -> handshake_version().
-clientSchemeVersion(C1) ->
-  case validateClientScheme(C1, version1) of
+-spec client_scheme_version(C1::binary()) -> handshake_version().
+client_scheme_version(C1) ->
+  case validate_scheme_version(C1, version1) of
     true -> version1;
-    false -> case validateClientScheme(C1, version2) of
+    false -> case validate_scheme_version(C1, version2) of
       true -> version2;
       false -> version1
     end
@@ -105,7 +105,7 @@ clientSchemeVersion(C1) ->
 % 
 server(<<Encryption, C2:?HS_BODY_LEN/binary>>) ->
   
-  SchemeVersion = clientSchemeVersion(C2),
+  SchemeVersion = client_scheme_version(C2),
   
   {KeyIn, KeyOut, Response2} = case Encryption of
     ?HS_CRYPTED ->
@@ -129,8 +129,7 @@ server(<<Encryption, C2:?HS_BODY_LEN/binary>>) ->
   
   Response4 = crypto:rand_bytes(?HS_BODY_LEN - 32),
   {_, ClientDigest, _} = clientDigest(C2, SchemeVersion),
-  {ClientFMSKey, _} = erlang:split_binary(?GENUINE_FMS_KEY, 68),
-  TempHash = hmac256:digest_bin(ClientFMSKey, ClientDigest),
+  TempHash = hmac256:digest_bin(?GENUINE_FMS_KEY, ClientDigest),
   ClientHash = hmac256:digest_bin(TempHash, Response4),
   S3 = <<Response4/binary, ClientHash/binary>>,
 
