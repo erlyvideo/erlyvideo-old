@@ -1,3 +1,9 @@
+erlyvideo (1.9.16) karmic; urgency=low
+
+  R14A support and custom iphone links generator
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 13 Jul 2010 16:48:52 +0400
+
 erlyvideo (1.9.15) karmic; urgency=low
 
   Added transcoding hooks and rtmpe
