@@ -352,7 +352,7 @@ unpack_aac_units(#audio{audio_data = <<>>} = Audio, Frames) ->
   
 unpack_aac_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode, codec = Codec} = Audio, Frames) ->
   DTS = convert_timecode(Audio),
-  ?D({"Audio", Codec, Timecode, DTS}),
+  % ?D({"Audio", Codec, Timecode, DTS}),
   case AudioData of
     <<Data:AUSize/binary, Rest/binary>> ->
       AudioFrame = #video_frame{
@@ -443,10 +443,14 @@ encode(receiver_report, State) ->
   Length = 16,
   FractionLost = 0,
   LostPackets = 0,
-  MaxSeq = element(#base_rtp.sequence, State),
+  MaxSeq = case element(#base_rtp.sequence, State) of
+    undefined -> 0;
+    MS -> MS
+  end,
   Jitter = 0,
   LSR = element(#base_rtp.last_sr, State),
   DLSR = 0,
+  ?D({rr, StreamId, MaxSeq, LSR}),
   <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
   % <<>>.
 
