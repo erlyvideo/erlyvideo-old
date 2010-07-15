@@ -211,25 +211,37 @@ extract_language(<<L1:5, L2:5, L3:5>>) ->
 %% Handler Reference Box
 hdlr(<<0:32, 0:32, "vide", 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  <<Name:Len/binary, 0>> = NameNull,
+  Name = case NameNull of
+    <<N:Len/binary, 0>> -> N;
+    _ -> NameNull
+  end,
   ?D({hdlr, video, Name}),
   Mp4Track;
 
 hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  <<Name:Len/binary, 0>> = NameNull,
+  Name = case NameNull of
+    <<N:Len/binary, 0>> -> N;
+    _ -> NameNull
+  end,
   ?D({hdlr, video, Name}),
   Mp4Track;
 
 hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  <<Name:Len/binary, 0>> = NameNull,
+  Name = case NameNull of
+    <<N:Len/binary, 0>> -> N;
+    _ -> NameNull
+  end,
   ?D({hdlr, video, Name}),
   Mp4Track;
 
 hdlr(<<0:32, 0:32, Handler:32, 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  <<Name:Len/binary, 0>> = NameNull,
+  Name = case NameNull of
+    <<N:Len/binary, 0>> -> N;
+    _ -> NameNull
+  end,
   ?D({hdlr, Handler, Name}),
   Mp4Track.
   
