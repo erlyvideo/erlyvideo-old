@@ -54,7 +54,8 @@ default_timeout() ->
 init(State, Options) ->
   Path = proplists:get_value(url, Options),
   Host = proplists:get_value(host, Options),
-  Access = proplists:get_value(access, Options, file),
+  DefaultAccess = ems:get_var(file_access, Host, file),
+  Access = proplists:get_value(access, Options, DefaultAccess),
   case open_file(Access, Path, Options) of
     {error, Reason} ->
       {stop, Reason};

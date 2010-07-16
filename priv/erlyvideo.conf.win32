@@ -7,6 +7,7 @@
 {file_formats,[mp4_reader,flv_reader]}.
 {vhosts, [
   {default, [
+	{file_access, file},
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
     {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
