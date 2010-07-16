@@ -28,16 +28,16 @@
 %%% THE SOFTWARE.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(_gen_server).
+-module(_gen_fsm).
 -author('Max Lapshin <max@maxidoors.ru>').
--behaviour(gen_server).
+-behaviour(gen_fsm).
 
 
 %% External API
 -export([start_link/0]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
 
 
@@ -46,86 +46,78 @@ start_link() ->
 
 
 
-
 %%%------------------------------------------------------------------------
-%%% Callback functions from gen_server
+%%% Callback functions from gen_fsm
 %%%------------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%% @spec (Port::integer()) -> {ok, State}           |
-%%                            {ok, State, Timeout}  |
-%%                            ignore                |
-%%                            {stop, Reason}
+%% @spec () -> {ok, StateName, State}           |
+%%             {ok, StateName, State, Timeout}  |
+%%             ignore                           |
+%%             {stop, Reason}
 %%
-%% @doc Called by gen_server framework at process startup.
-%%      Create listening socket.
+%% @doc Called by gen_fsm framework at process startup.
+%%    
 %% @end
 %%----------------------------------------------------------------------
 
 
 init([]) ->
-  {ok, state}.
+  {ok, loop, state}.
+
+
 
 %%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
+%% Func: handle_event/3
+%% Returns: {next_state, NextStateName, NextStateData}          |
+%%          {next_state, NextStateName, NextStateData, Timeout} |
+%%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-handle_call(Request, _From, State) ->
-  {stop, {unknown_call, Request}, State}.
+handle_event(Event, StateName, StateData) ->
+  {stop, {StateName, undefined_event, Event}, StateData}.
 
 
 %%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
-%% @end
+%% Func: handle_sync_event/4
+%% Returns: {next_state, NextStateName, NextStateData}            |
+%%          {next_state, NextStateName, NextStateData, Timeout}   |
+%%          {reply, Reply, NextStateName, NextStateData}          |
+%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
+%%          {stop, Reason, NewStateData}                          |
+%%          {stop, Reason, Reply, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-  {stop, {unknown_cast, _Msg}, State}.
+
+handle_sync_event(Event, _From, StateName, StateData) ->
+  {stop, {StateName, undefined_event, Event}, StateData}.
 
 %%-------------------------------------------------------------------------
-%% @spec (Msg, State) ->{noreply, State}          |
-%%                      {noreply, State, Timeout} |
-%%                      {stop, Reason, State}
-%% @doc Callback for messages sent directly to server's mailbox.
-%%      If `{stop, ...}' tuple is returned, the server is stopped and
-%%      `terminate/2' is called.
-%% @end
+%% Func: handle_info/3
+%% Returns: {next_state, NextStateName, NextStateData}          |
+%%          {next_state, NextStateName, NextStateData, Timeout} |
+%%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'DOWN', process, Client, _Reason}, Server) ->
-  {noreply, Server};
-
-handle_info(_Info, State) ->
-  {noreply, State}.
+handle_info(_Info, StateName, StateData) ->
+  {next_state, StateName, StateData}.
 
 %%-------------------------------------------------------------------------
-%% @spec (Reason, State) -> any
-%% @doc  Callback executed on server shutdown. It is only invoked if
-%%       `process_flag(trap_exit, true)' is set by the server process.
-%%       The return value is ignored.
-%% @end
+%% Func: terminate/3
+%% Purpose: Shutdown the fsm
+%% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _StateName, _State) ->
   ok.
 
+
 %%-------------------------------------------------------------------------
-%% @spec (OldVsn, State, Extra) -> {ok, NewState}
-%% @doc  Convert process state when code is changed.
-%% @end
+%% Func: code_change/4
+%% Purpose: Convert process state when code is changed
+%% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
+code_change(_OldVersion, _StateName, _State, _Extra) ->
+  ok.
+
