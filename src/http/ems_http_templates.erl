@@ -46,7 +46,7 @@ http(Host, 'GET', ["longtail"], Req) ->
     {session, json_session:encode([{channels, [10, 12]}, {user_id, 5}], Secret)}]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
-http(Host, 'GET', ["admin.html"], Req) ->
+http(Host, 'GET', ["admin"], Req) ->
   ok = erlydtl:compile(ems_http:wwwroot(Host) ++ "/admin.html", admin_template),
   Entries = [{Name, proplists:get_value(client_count, Options)} || {Name, _Pid, Options} <- media_provider:entries(Host)],
   {ok, Index} = admin_template:render([{entries, Entries}]),
