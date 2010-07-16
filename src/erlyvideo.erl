@@ -195,8 +195,7 @@ reload() ->
 	end.
 
 reload(Module) when is_atom(Module) ->
-	code:purge(Module),
-	code:delete(Module),
+	code:soft_purge(Module),
 	code:load_file(Module),
 	true;
 reload([]) -> ok;
