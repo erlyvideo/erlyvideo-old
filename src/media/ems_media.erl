@@ -71,7 +71,7 @@
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, print_state/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, format_status/1]).
 
 
 -define(LIFE_TIMEOUT, 60000).
@@ -90,11 +90,11 @@ behaviour_info(_Other) -> undefined.
 
 %% @private
 start_link(Module, Options) ->
-  gen_server2:start_link(?MODULE, [Module, Options], []).
+  gen_server:start_link(?MODULE, [Module, Options], []).
 
 %% @private
 start_custom(Module, Options) ->
-  gen_server2:start_link(Module, [Options], []).
+  gen_server:start_link(Module, [Options], []).
 
 
 
@@ -143,7 +143,7 @@ stop(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 subscribe(Media, Options) ->
-  gen_server2:call(Media, {subscribe, self(), Options}).
+  gen_server:call(Media, {subscribe, self(), Options}).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> ok
@@ -203,7 +203,7 @@ set_socket(Media, Socket) ->
 %% @end
 %%----------------------------------------------------------------------
 read_frame(Media, Key) ->
-  gen_server2:call(Media, {read_frame, Key}).
+  gen_server:call(Media, {read_frame, Key}).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> ok |
@@ -214,7 +214,7 @@ read_frame(Media, Key) ->
 %% @end
 %%----------------------------------------------------------------------
 seek(Media, BeforeAfter, DTS) ->
-  gen_server2:call(Media, {seek, self(), BeforeAfter, DTS}).
+  gen_server:call(Media, {seek, self(), BeforeAfter, DTS}).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> {Key::any(), NewDTS::number()} |
@@ -225,7 +225,7 @@ seek(Media, BeforeAfter, DTS) ->
 %% @end
 %%----------------------------------------------------------------------
 seek_info(Media, BeforeAfter, DTS) ->
-  gen_server2:call(Media, {seek_info, BeforeAfter, DTS}).
+  gen_server:call(Media, {seek_info, BeforeAfter, DTS}).
 
 
 %%----------------------------------------------------------------------
@@ -236,7 +236,7 @@ seek_info(Media, BeforeAfter, DTS) ->
 %% @end
 %%----------------------------------------------------------------------
 status(Media) ->
-  gen_server2:call(Media, status).
+  gen_server:call(Media, status).
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Metadata::video_frame()
@@ -286,7 +286,7 @@ publish(Media, #video_frame{} = Frame) ->
 %%%------------------------------------------------------------------------
 
 %% @hidden
-print_state(#ems_media{} = Media) ->
+format_status(#ems_media{} = Media) ->
   Media#ems_media{storage = storage}.
 
 
