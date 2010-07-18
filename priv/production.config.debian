@@ -1,0 +1,7 @@
+[{sasl, [
+	{errlog_type, error},
+	{error_logger_mf_dir, "/var/log/erlyvideo/report"},
+	{error_logger_mf_maxbytes, 10240},
+	{error_logger_mf_maxfiles, 100},
+	{utc_log, true}
+]}].

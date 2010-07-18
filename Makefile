@@ -70,9 +70,10 @@ install: compile
 	mkdir -p $(DESTROOT)/etc/init.d/
 	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
+	mkdir -p $(DESTROOT)/var/log/erlyvideo
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
-	cp priv/production.config $(DESTROOT)/etc/erlyvideo/production.config
+	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
 
 
 debian: all

@@ -30,11 +30,13 @@ start()
   EBIN=`erl -eval 'io:format("~s", [code:lib_dir(erlyvideo,ebin)])' -s init stop -noshell`
   if [ -f "/etc/erlyvideo/production.config" ] ; then
     CONFIG="-config /etc/erlyvideo/production.config"
+  else if   [ -f "priv/production.config" ] ; then
+    CONFIG="-config priv/production.config"
   else
     CONFIG=""
   fi
 	$ERL -noinput -detached -pa ebin -pa "$EBIN" $CONFIG \
-  # -kernel error_logger 'false' \
+  -kernel error_logger false \
 	-boot start_sasl \
 	-s erlyvideo \
 	-$TYPE $NODE@$HOST
@@ -42,7 +44,12 @@ start()
 
 run()
 {
-	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin \
+  if [ -f "priv/development.config" ] ; then
+    CONFIG="-config priv/development.config"
+  else
+    CONFIG=""
+  fi
+	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin $CONFIG \
 	-boot start_sasl \
 	-s erlyvideo \
 	-$TYPE $NODE@$HOST
