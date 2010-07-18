@@ -34,7 +34,7 @@ start()
     CONFIG=""
   fi
 	$ERL -noinput -detached -pa ebin -pa "$EBIN" $CONFIG \
-  -kernel error_logger 'false' \
+  # -kernel error_logger 'false' \
 	-boot start_sasl \
 	-s erlyvideo \
 	-$TYPE $NODE@$HOST
