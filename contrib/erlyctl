@@ -32,8 +32,9 @@ start()
     CONFIG="-config /etc/erlyvideo/production.config"
   else if   [ -f "priv/production.config" ] ; then
     CONFIG="-config priv/production.config"
-  else
-    CONFIG=""
+    else
+      CONFIG=""
+    fi
   fi
 	$ERL -noinput -detached -pa ebin -pa "$EBIN" $CONFIG \
   -kernel error_logger false \
