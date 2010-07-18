@@ -9,7 +9,7 @@
 http(Host, 'GET', ["flv" | Name], Req) ->
   Query = Req:parse_qs(),
   Seek = list_to_integer(proplists:get_value("start", Query, "0")),
-  Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
+  Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, {before, Seek}}]) of
     {ok, PlayerPid} ->
       link(PlayerPid),
