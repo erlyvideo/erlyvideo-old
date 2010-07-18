@@ -450,7 +450,7 @@ encode(receiver_report, State) ->
   Jitter = 0,
   LSR = element(#base_rtp.last_sr, State),
   DLSR = 0,
-  ?D({rr, StreamId, MaxSeq, LSR}),
+  % ?D({rr, StreamId, MaxSeq, LSR}),
   <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
   % <<>>.
 
