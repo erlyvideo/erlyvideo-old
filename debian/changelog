@@ -1,3 +1,9 @@
+erlang-rtsp (1.4.4) karmic; urgency=low
+
+  Lowered log
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 19 Jul 2010 15:46:03 +0400
+
 erlang-rtsp (1.4.3) karmic; urgency=low
 
   Fixed wirecast and axis
