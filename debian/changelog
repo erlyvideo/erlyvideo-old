@@ -1,3 +1,9 @@
+erlmedia (1.6.0) karmic; urgency=low
+
+  Switched to GPLv3
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 20 Jul 2010 21:46:11 +0400
+
 erlmedia (1.5.1) karmic; urgency=low
 
   mp4 hdlr fix
