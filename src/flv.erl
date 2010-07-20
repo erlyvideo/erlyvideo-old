@@ -1,8 +1,5 @@
-%%% @author     Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @author     Stuart Jackson <simpleenigmainc@gmail.com> [http://erlsoft.org]
-%%% @author     Luke Hubbard <luke@codegent.com> [http://www.codegent.com]
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2007 Luke Hubbard, Stuart Jackson, Roberto Saccon, 2009 Max Lapshin
+%%% @copyright  2009 Max Lapshin
 %%% @doc        Module to read and write FLV files
 %%% It has many functions, but you need only several of them: read_header/1, header/1, read_tag/2, encode_tag/1
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
@@ -33,9 +30,6 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(flv).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
 -include("../include/flv.hrl").
