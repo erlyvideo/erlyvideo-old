@@ -2,8 +2,36 @@
 -module(mp3).
 -author('Max Lapshin <max@maxidoors.ru>').
 -author('Alexander Songe <a@songe.me>').
+-include("../include/mp3.hrl").
 
 -export([decode/1]).
+
+-export([header_size/0, read/1, frame_length/1]).
+
+header_size() -> 4.
+
+frame_length(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2, Padding:1, 
+         _Private:1, Channels:2, _Joint:2, _Copyright:1, _Original:1, _Emphasise:2, _/binary>>) ->
+  Layer = layer(LayerBits),
+  Version = version(VsnBits),
+  Length = framelength(bitrate({Version,Layer}, BitRate), samplerate({Version,Layer}, SampleRate), Padding, Channels),
+  true = is_integer(Length),
+  Length.
+
+read(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2, _Padding:1, 
+     _Private:1, Channels:2, Joint:2, _Copyright:1, _Original:1, _Emphasise:2, _/binary>> = Packet) ->
+  Length = frame_length(Packet),
+  Layer = layer(LayerBits),
+  Version = version(VsnBits),
+  case Packet of
+    <<Frame:Length/binary, Rest/binary>> -> 
+      BRate = bitrate({Version,Layer}, BitRate),
+      SRate = samplerate({Version,Layer}, SampleRate),
+      {ok, #mp3_frame{sample_rate = SRate, bitrate = BRate, channels = Channels, joint = Joint, body = Frame}, Rest};
+    _ ->
+      {more, undefined}
+  end.
+  
 
 decode(Header) when size(Header) < 4 ->
   {more, undefined};
