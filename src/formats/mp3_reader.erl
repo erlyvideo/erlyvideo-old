@@ -69,8 +69,25 @@ read_header(#media_info{reader = {Module,Device}} = Media) ->
       Media#media_info{format = id3, version = {Major, Minor}, header_size = Size + 10};
     {ok, <<"ID3", _/binary>>} ->
       ?D({id3,unsupported}),
-      erlang:error(unknown_mp3)
+      erlang:error(unknown_mp3);
+    {ok, <<2#11111111111:11, _:5, _/binary>>} ->
+      Media#media_info{format = raw, header_size = 0};
+    {ok, Binary} ->
+      sync(Binary, Media, 0)
   end.  
+
+
+sync(<<2#11111111111:11, _:5, _/binary>>, Media, Offset) ->
+  Media#media_info{header_size = Offset, format = raw};
+  
+sync(<<_, Binary/binary>>, Media, Offset) ->
+  sync(Binary, Media, Offset + 1);
+  
+sync(<<>>, #media_info{reader = {Module, Device}} = Media, Offset) ->
+  case Module:pread(Device, Offset, 256) of
+    {ok, Block} ->
+      sync(Block, Media, Offset)
+  end.
     
 
 first(#media_info{header_size = Size}) ->
