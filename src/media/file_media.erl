@@ -55,7 +55,7 @@ init(State, Options) ->
   Path = proplists:get_value(url, Options),
   Host = proplists:get_value(host, Options),
   DefaultAccess = ems:get_var(file_access, Host, file),
-  Access = proplists:get_value(access, Options, DefaultAccess),
+  Access = proplists:get_value(file_access, Options, DefaultAccess),
   case open_file(Access, Path, Options) of
     {error, Reason} ->
       {stop, Reason};
@@ -157,7 +157,7 @@ file_dir(Host) ->
 
 
 file_format(Name) ->
-  Readers = ems:get_var(file_formats, [mp4_reader, flv_reader]),
+  Readers = ems:get_var(file_formats, [mp4_reader, flv_reader, mp3_reader]),
   file_format(Name, Readers).
 
 file_format(_Name, []) ->
