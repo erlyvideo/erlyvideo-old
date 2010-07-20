@@ -1,40 +1,26 @@
 %%% @private
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @author     All those guys, that have found how to sign handshake from red5:
-%%% @author Jacinto Shy II (jacinto.m.shy@ieee.org)
-%%% @author Steven Zimmer (stevenlzimmer@gmail.com)
-%%% @author Gavriloaie Eugen-Andrei <crtmpserver@gmail.com>
-%%% @author Ari-Pekka Viitanen
-%%% @author Paul Gregoire
-%%% @author Tiago Jacobs 
-%%% @copyright  2009 Max Lapshin
+%%% @author     Thanks to all those guys, that have found how to sign handshake.
+%%% @copyright  2010 Max Lapshin
 %%% @doc        RTMP handshake module
 %%% @reference  See <a href="http://erlyvideo.org/rtmp" target="_top">http://erlyvideo.org/rtmp</a> for more information
 %%% also good reference is http://red5.googlecode.com/svn/java/server/trunk/src/org/red5/server/net/rtmp/RTMPHandshake.java
 %%% @end
 %%%
+%%% This file is part of erlang-rtmp.
+%%% 
+%%% erlang-rtmp is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
 %%%
-%%% The MIT License
+%%% erlang-rtmp is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
 %%%
-%%% Copyright (c) 2009 Max Lapshin
-%%%
-%%% Permission is hereby granted, free of charge, to any person obtaining a copy
-%%% of this software and associated documentation files (the "Software"), to deal
-%%% in the Software without restriction, including without limitation the rights
-%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-%%% copies of the Software, and to permit persons to whom the Software is
-%%% furnished to do so, subject to the following conditions:
-%%%
-%%% The above copyright notice and this permission notice shall be included in
-%%% all copies or substantial portions of the Software.
-%%%
-%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-%%% THE SOFTWARE.
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlang-rtmp.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_handshake).
