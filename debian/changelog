@@ -1,3 +1,9 @@
+erlang-shoutcast (1.2.0) karmic; urgency=low
+
+  Switched to GPLv3
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 20 Jul 2010 21:57:01 +0400
+
 erlang-shoutcast (1.1.10) karmic; urgency=low
 
   Added audio/aac
