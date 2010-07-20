@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.0) karmic; urgency=low
+
+  Switched to GPLv3
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 20 Jul 2010 21:52:55 +0400
+
 erlang-rtmp (1.6.1) karmic; urgency=low
 
   1.6.0 was broken
