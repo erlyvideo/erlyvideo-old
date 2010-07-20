@@ -43,6 +43,7 @@
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
 -export([mp4a/2, avc1/2, s263/2, samr/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2]).
+-export([extract_language/1]).
 
 
 -export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
@@ -168,7 +169,7 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
         
   Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
           {volume,Volume},{matrix,Matrix},{next_track,NextTrackId}],
-  % ?D(Meta),
+  ?D(Meta),
   Media#mp4_media{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
 % Track box
@@ -224,7 +225,7 @@ hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
-  ?D({hdlr, video, Name}),
+  ?D({hdlr, audio, Name}),
   Mp4Track;
 
 hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
@@ -233,10 +234,10 @@ hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
-  ?D({hdlr, video, Name}),
+  ?D({hdlr, hint, Name}),
   Mp4Track;
 
-hdlr(<<0:32, 0:32, Handler:32, 0:96, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, Handler:4/binary, 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
   Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -306,6 +307,10 @@ samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
   ?D(AMR),
   parse_atom(Atom, Mp4Track#mp4_track{data_format = samr}).
 
+
+'pcm '(_, Mp4Track) ->
+  ?D(pcm),
+  Mp4Track#mp4_track{data_format = pcm_le}.
 
   
 % ESDS atom
