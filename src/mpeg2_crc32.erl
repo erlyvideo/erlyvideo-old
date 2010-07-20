@@ -1,4 +1,4 @@
-
+%%% Authorship lost, no copyrights
 -module (mpeg2_crc32).
 
 

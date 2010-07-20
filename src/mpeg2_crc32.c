@@ -1,3 +1,4 @@
+// Authorship lost, no copyrights
 #include <stdint.h>
 #include "erl_nif.h"
 
