@@ -355,6 +355,15 @@ decode_channel_id(<<Format:2, Id:6, Rest/binary>>, State) ->
   decode_channel_header(Rest, Format, Id, State).
 
 % Now extracting channel header
+decode_channel_header(Packet, ?RTMP_HDR_CONTINUE = Type, Id, #rtmp_socket{channels = Channels} = S) when size(Channels) < Id ->
+  erlang:error({invalid_rtmp,Id,Type,S, Packet});
+  
+decode_channel_header(Packet, ?RTMP_HDR_SAME_SRC = Type, Id, #rtmp_socket{channels = Channels} = S) when size(Channels) < Id ->
+  erlang:error({invalid_rtmp,Id,Type,S, Packet});
+
+decode_channel_header(Packet, ?RTMP_HDR_TS_CHG = Type, Id, #rtmp_socket{channels = Channels} = S) when size(Channels) < Id ->
+  erlang:error({invalid_rtmp,Id,Type,S, Packet});
+
 decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
   Channel = rtmp:element(Id, State#rtmp_socket.channels),
   #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
