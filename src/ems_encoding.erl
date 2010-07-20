@@ -5,6 +5,29 @@
 % ems_encoding:encode("/Users/max/Movies/imgp7615.avi", "/Users/max/Movies/imgp7615.mp4").
 
 % /Applications/VLC.app/Contents/MacOS/VLC -vvv -I dummy  canoneos1000d640x480.flv  ":sout=#transcode{venc=x264{bframes=3,cabac,level=51,keyint=25,bpyramid=none,profile=main,qpmin=20,qpmax=55,partitions=slow},vcodec=x264,vb=1000,width=640,height=480,fps=25,acodec=mp4a,ab=128}:standard{access=file,mux=mp4,dst=\"canon.mp4\"}" --sout-mp4-faststart  vlc://quit
+%%%---------------------------------------------------------------------------------------
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2010 Max Lapshin
+%%% @doc        Authorization with checking allowed url
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
+%%% @end
+%%%
+%%% This file is part of erlyvideo.
+%%% 
+%%% erlyvideo is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% erlyvideo is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
+%%%
+%%%---------------------------------------------------------------------------------------
 
 -module(ems_encoding).
 -include("../include/ems.hrl").
