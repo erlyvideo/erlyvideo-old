@@ -7,7 +7,7 @@
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% retrieved online at http://www.erlang.org/EPLICENSE.
 %% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
@@ -17,6 +17,8 @@
 %% %CopyrightEnd%
 %%
 %%
+%% Copyright 2010 Max Lapshin <max@maxidoors.ru> for changes, applied to 
+%% recognizing non-http protocols, such as rtsp or rtmp
 
 -module(http_uri2).
 

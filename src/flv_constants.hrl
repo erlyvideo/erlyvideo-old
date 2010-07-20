@@ -1,3 +1,26 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2010 Max Lapshin
+%%% @doc        Internal module with flv constants
+%%% It has many functions, but you need only several of them: read_header/1, header/1, read_tag/2, encode_tag/1
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
+%%% @end
+%%%
+%%% This file is part of erlmedia.
+%%% 
+%%% erlmedia is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% erlmedia is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlmedia.  If not, see <http://www.gnu.org/licenses/>.
+%%%
+%%%---------------------------------------------------------------------------------------
 %% FLV header
 -define(FLV_HEADER_LENGTH,          9).
 -define(FLV_HEAD_SIG,    <<70,76,86>>).

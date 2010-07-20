@@ -5,20 +5,24 @@ It was downloaded from http://erlyvideo.org/
 
 Upstream Author: Max Lapshin <max@maxidoors.ru>
 
-Copyright: (c) 2009 by Max Lapshin
+Copyright: (c) 2010 by Max Lapshin
 
 License:
 
-   The MIT License
-   Permission is hereby granted, free of charge, to any person obtaining a copy
-   of this software and associated documentation files (the "Software"), to deal
-   in the Software without restriction, including without limitation the rights
-   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-   copies of the Software, and to permit persons to whom the Software is
-   furnished to do so, subject to the following conditions:
+This file is part of Erlmedia.
 
-   The above copyright notice and this permission notice shall be included in
-   all copies or substantial portions of the Software.
+   Erlmedia is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   Erlmedia is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with erlmedia.  If not, see <http://www.gnu.org/licenses/>.
 
    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -28,8 +32,8 @@ License:
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
    THE SOFTWARE.
 
-The Debian packaging is (C) 2009, Max Lapshin <max@maxidoors.ru> and
-is licensed under the MIT, see above.
+The Debian packaging is (C) 2010, Max Lapshin <max@maxidoors.ru> and
+is licensed under the GPLv3, see above.
 
 
 # Please also look if there are files or directories which have a
