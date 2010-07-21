@@ -1,3 +1,9 @@
+erlyvideo (2.0.2) karmic; urgency=low
+
+  Added path to plugins in installer
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 22 Jul 2010 01:28:36 +0400
+
 erlyvideo (2.0.1) karmic; urgency=low
 
   Added proper mp3 reading
