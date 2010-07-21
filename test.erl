@@ -6,7 +6,7 @@ main(["test"]) ->
   http_file:test();
 
 main([]) ->
-  inets:start(),
+  http_file:start(),
   URL = "http://erlyvideo.org/video.mp4",
   Limit = 100,
   {ok, File} = http_file:open(URL, [{cache_file, "video.mp4"}]),

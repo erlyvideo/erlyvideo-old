@@ -11,6 +11,7 @@
  {applications, [kernel,stdlib]},
  {mod, {http_file,[]}},
  {env, [
+	{cache_path,"/tmp"}
  ]}
 ]}.
 

@@ -83,11 +83,12 @@ config_change(_Changed, _New, _Remove) ->
 
 
 open(URL, Options) ->
-  http_file_sup:start_file(URL, Options).
+  {ok, CachePath} = application:get_env(http_file, cache_path),
+  http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]).
   
 
 pread(File, Offset, Limit) ->
-  ?D({"Requesting", Offset, Limit}),
+  % ?D({"Requesting", Offset, Limit}),
   gen_server:call(File, {pread, Offset, Limit}, infinity).
 
 
@@ -100,7 +101,9 @@ start_link(URL, Options) ->
   gen_server:start_link(?MODULE, [URL, Options], []).
 
 init([URL, Options]) ->
-  CacheName = proplists:get_value(cache_file, Options),
+  CachePath = proplists:get_value(cache_path, Options),
+  "http://" ++ ClearedName = URL,
+  CacheName = filename:join(CachePath, ClearedName),
   filelib:ensure_dir(CacheName),
   {ok, CacheFile} = file:open(CacheName, [write, read, binary]),
   ?D({"Storing",URL,to,CacheName, Options}),
@@ -119,7 +122,7 @@ handle_call({pread, Offset, Limit}, From, #http_file{size = Size} = File) when O
 handle_call({pread, Offset, Limit}, From, #http_file{streams = Streams} = File) ->
   case is_data_cached(Streams, Offset, Limit) of
     true ->
-      ?D({"Data ok"}),
+      % ?D({"Data ok"}),
       {reply, fetch_cached_data(File, Offset, Limit), File};
     false ->
       ?D({"No data, waiting"}),
@@ -154,7 +157,7 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
       {noreply, State};
     _ -> 
       ok = file:pwrite(Cache, Offset, Bin),
-      ?D({"Got bin", Offset, size(Bin), Request, Streams}),
+      % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
       NewStreams1 = update_map(Streams, Stream, Offset, size(Bin)),
       {NewStreams2, Removed} = glue_map(NewStreams1),
       % ?D({"Removing streams", NewStreams2, Removed}),
