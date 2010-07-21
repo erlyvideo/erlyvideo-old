@@ -66,7 +66,7 @@ read_header(#media_info{reader = {Module,Device}} = Media) ->
     {ok, <<"ID3", Major, Minor, Unsync:1, Extended:1, _Experimental:1, Footer:1, 0:4, 
            _:1, S1:7, _:1, S2:7, _:1, S3:7, _:1, S4:7>>} ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
-      Media#media_info{format = id3, version = {Major, Minor}, header_size = Size + 10};
+      sync(<<>>, Media#media_info{format = id3, version = {Major, Minor}}, Size + 10);
     {ok, <<"ID3", _/binary>>} ->
       ?D({id3,unsupported}),
       erlang:error(unknown_mp3);
