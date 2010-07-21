@@ -692,6 +692,7 @@ handle_info(Message, #ems_media{module = M} = Media) ->
 transcode(#video_frame{content = audio, codec = Codec} = Frame) when Codec == pcma orelse 
                                                                      Codec == pcm orelse
                                                                      % Codec == pcm_le orelse
+                                                                     % Codec == mp3 orelse
                                                                      Codec == pcmu ->
   ems_sound:adapt_sound(Frame);
 
