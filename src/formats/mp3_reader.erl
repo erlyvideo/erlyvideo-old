@@ -66,19 +66,22 @@ read_header(#media_info{reader = {Module,Device}} = Media) ->
     {ok, <<"ID3", Major, Minor, Unsync:1, Extended:1, _Experimental:1, Footer:1, 0:4, 
            _:1, S1:7, _:1, S2:7, _:1, S3:7, _:1, S4:7>>} ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
-      sync(<<>>, Media#media_info{format = id3, version = {Major, Minor}}, Size + 10);
+      Media1 = Media#media_info{format = id3, version = {Major, Minor}},
+      Offset = sync(<<>>, Media1, Size + 10),
+      Media1#media_info{header_size = Offset};
     {ok, <<"ID3", _/binary>>} ->
       ?D({id3,unsupported}),
       erlang:error(unknown_mp3);
     {ok, <<2#11111111111:11, _:5, _/binary>>} ->
       Media#media_info{format = raw, header_size = 0};
     {ok, Binary} ->
-      sync(Binary, Media, 0)
+      Offset = sync(Binary, Media, 0),
+      Media#media_info{header_size = Offset}
   end.  
 
 
 sync(<<2#11111111111:11, _:5, _/binary>>, Media, Offset) ->
-  Media#media_info{header_size = Offset, format = raw};
+  Offset;
   
 sync(<<_, Binary/binary>>, Media, Offset) ->
   sync(Binary, Media, Offset + 1);
@@ -86,7 +89,9 @@ sync(<<_, Binary/binary>>, Media, Offset) ->
 sync(<<>>, #media_info{reader = {Module, Device}} = Media, Offset) ->
   case Module:pread(Device, Offset, 256) of
     {ok, Block} ->
-      sync(Block, Media, Offset)
+      sync(Block, Media, Offset);
+    eof ->
+      eof
   end.
     
 
@@ -108,10 +113,13 @@ seek(#media_info{}, _BeforeAfter, _Timestamp) ->
 read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
-read_frame(#media_info{reader = {Module,Device}}, {Offset, N}) ->
+read_frame(Media, {eof, _N}) ->
+  eof;
+
+read_frame(#media_info{reader = {Module,Device}} = Media, {Offset, N}) ->
   case Module:pread(Device, Offset, mp3:header_size()) of
     eof -> eof;
-    {ok, Header} ->
+    {ok, <<2#11111111111:11, _:5, _/binary>> = Header} ->
       DTS = N*1000*1024 div 44100,
       Length = mp3:frame_length(Header),
       {ok, Frame} = Module:pread(Device, Offset, Length),
@@ -124,6 +132,9 @@ read_frame(#media_info{reader = {Module,Device}}, {Offset, N}) ->
         sound    = {stereo, bit16, rate44},
         body     = Frame,
         next_id  = {Offset+Length, N+1}
-      }
+      };
+    {ok, Binary} ->
+      Offset1 = sync(Binary, Media, Offset),
+      read_frame(Media, {Offset1,N})
   end.
 
