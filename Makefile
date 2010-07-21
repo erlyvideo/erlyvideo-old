@@ -62,6 +62,7 @@ start: erlang_version priv/erlyvideo.conf
 
 install: compile
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
+	mkdir -p $(DESTROOT)/var/lib/erlyvideo/plugins
 	mkdir -p $(DESTROOT)$(ERLDIR)
 	cp -r ebin src include lib Emakefile $(DESTROOT)$(ERLDIR)/
 	mkdir -p $(DESTROOT)/usr/bin/

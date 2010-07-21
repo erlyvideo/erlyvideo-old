@@ -36,7 +36,7 @@ start()
       CONFIG=""
     fi
   fi
-	$ERL -noinput -detached -pa ebin -pa "$EBIN" $CONFIG \
+	$ERL -noinput -detached -pa ebin -pa "$EBIN" -pa /var/lib/erlyvideo/plugins $CONFIG \
   -kernel error_logger false \
 	-boot start_sasl \
 	-s erlyvideo \
@@ -50,7 +50,7 @@ run()
   else
     CONFIG=""
   fi
-	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin $CONFIG \
+	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin -pa /var/lib/erlyvideo/plugins $CONFIG \
 	-boot start_sasl \
 	-s erlyvideo \
 	-$TYPE $NODE@$HOST
