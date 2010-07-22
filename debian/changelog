@@ -1,3 +1,9 @@
+erlang-http-file (1.0) karmic; urgency=low
+
+  First working release
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 22 Jul 2010 23:39:36 +0400
+
 erlang-http-file (0.9) karmic; urgency=low
 
   pre-release
