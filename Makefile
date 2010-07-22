@@ -2,7 +2,7 @@ VERSION=`head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
 ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/http_file-$(VERSION)
 
 DEBIANREPO=/apps/erlyvideo/debian/public
-DESTROOT=$(CURDIR)/debian/erlang-http_file
+DESTROOT=$(CURDIR)/debian/erlang-http-file
 
 all:
 	erl -make
@@ -22,6 +22,9 @@ install:
 debian:
 	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
 	debuild -us -uc
-	cp ../erlang-http_file_$(VERSION)*.deb $(DEBIANREPO)/closed/
-	rm ../erlang-http_file_$(VERSION)*
+	cp ../erlang-http-file_$(VERSION)*.deb $(DEBIANREPO)/closed/
+	rm ../erlang-http-file_$(VERSION)*
 	# (cd $(DEBIANREPO)/..; ./update)
+
+.PHONY: debian
+
