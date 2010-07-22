@@ -46,7 +46,7 @@ start_link(CachePath) ->
 
 
 open(URL, Options) ->
-  gen_server:call(?MODULE, {open, URL, Options}).
+  gen_server:call(?MODULE, {open, URL, Options, self()}).
 
 
 %%%------------------------------------------------------------------------
@@ -80,7 +80,7 @@ init([CachePath]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({open, URL, Options}, _From, #tracker{files = Files, cache_path = CachePath} = State) ->
+handle_call({open, URL, Options, Opener}, _From, #tracker{files = Files, cache_path = CachePath} = State) ->
   CacheName = http_file:cache_path(CachePath, URL),
   case filelib:is_regular(CacheName) of
     true ->
@@ -91,6 +91,7 @@ handle_call({open, URL, Options}, _From, #tracker{files = Files, cache_path = Ca
       case proplists:get_value(URL, Files) of
         undefined ->
           {ok, File} = http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]),
+          http_file:add_client(File, Opener),
           erlang:monitor(process, File),
           ?D({"starting new file", URL, CachePath}),
           {reply, {ok, File}, State#tracker{files = [{URL, File}|Files]}};

@@ -7,7 +7,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([open/2, pread/3, close/1]).
 
--export([cache_path/2]).
+-export([cache_path/2, add_client/2]).
 
 -export([start/0, stop/0, start_link/2, reload/0, archive/0]).
 
@@ -22,7 +22,9 @@
   options,
   streams = [],
   requests = [],
-  size
+  size,
+  file_cached = false,
+  clients = []
 }).
 
 
@@ -91,6 +93,9 @@ open(URL, Options) ->
   % http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]).
   http_file_tracker:open(URL, Options).
   
+  
+add_client(File, Opener) ->
+  gen_server:call(File, {add_client, Opener}).
 
 pread({cached,File}, Offset, Limit) ->
   file:pread(File, Offset, Limit);
@@ -103,7 +108,7 @@ close({cached,File}) ->
   file:close(File);
   
 close(File) ->
-  gen_server:call(File, close).
+  gen_server:call(File, {close, self()}).
 
 %%%%%%%%%% Gen server API %%%%%%%%
 
@@ -144,8 +149,28 @@ handle_call({pread, Offset, Limit}, From, #http_file{streams = Streams} = File) 
       {noreply, File1}
   end;    
 
-handle_call(close, _From, State) ->
-  {stop, normal, ok, State};
+
+handle_call({add_client, Opener}, _From, #http_file{clients = Clients} = State) ->
+  Clients1 = case proplists:get_value(Opener, Clients) of
+    undefined ->
+      Ref = erlang:monitor(process, Opener),
+      [{Opener,Ref}|Clients];
+    _ ->
+      Clients
+  end,
+  {reply, ok, State#http_file{clients = Clients1}};
+
+
+handle_call({close, Client}, _From, #http_file{clients = Clients, file_cached = Cached} = State) ->
+  case lists:keytake(Client, 1, Clients) of
+    {value, Client, NewClients} ->
+      ?D({"closing for", Client}),
+      {reply, ok, State#http_file{clients = NewClients}};
+    {value, Client, []} when Cached == true ->
+      {stop, normal, State#http_file{clients = []}};
+    _ ->  
+    {reply, ok, State}
+  end;
   
 handle_call(Unknown, From, File) ->
   ?D({"Unknown call:", Unknown, From, File}),
@@ -188,29 +213,42 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
       
       NewStreams = NewStreams2,
       
-      case NewStreams of
+      FileCached = case NewStreams of
         [{_,0,Size}] ->
           ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path}),
-          file:rename(State#http_file.temp_path, State#http_file.path);
+          file:rename(State#http_file.temp_path, State#http_file.path),
+          true;
         _ ->
-          ok
+          false
       end,
-      {noreply, State#http_file{streams = NewStreams, requests = NewRequests}}
+      stop_if_no_clients(State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached})
   end;
   
-handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams} = State) ->
+handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
   case lists:keytake(Stream, 1, Streams) of
     {value, Stream, NewStreams} ->
-      {noreply, State#http_file{streams = NewStreams}};
+      stop_if_no_clients(State#http_file{streams = NewStreams});
     _ ->
-      {noreply, State}
+      case lists:keytake(Stream, 1, Clients) of
+        {value, Stream, NewClients} ->
+          stop_if_no_clients(State#http_file{clients = NewClients});
+        _ ->
+          ?D({unknown_died, Stream, State}),
+          {noreply, State}
+      end
   end;
   
 
 handle_info(Message, State) ->
   ?D({"Some message:", Message}),
   {noreply, State}.
+
+
+stop_if_no_clients(#http_file{file_cached = true, clients = []} = State) ->
+  {stop, normal, State};
   
+stop_if_no_clients(State) ->
+  {noreply, State}.
   
 terminate(_Reason, _State) ->
   ok.
