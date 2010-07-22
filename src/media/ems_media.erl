@@ -195,7 +195,7 @@ set_socket(Media, Socket) ->
 %% @end
 %%----------------------------------------------------------------------
 read_frame(Media, Key) ->
-  gen_server:call(Media, {read_frame, Key}).
+  gen_server:call(Media, {read_frame, Key}, 10000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> ok |
@@ -206,7 +206,7 @@ read_frame(Media, Key) ->
 %% @end
 %%----------------------------------------------------------------------
 seek(Media, BeforeAfter, DTS) ->
-  gen_server:call(Media, {seek, self(), BeforeAfter, DTS}).
+  gen_server:call(Media, {seek, self(), BeforeAfter, DTS}, 5000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> {Key::any(), NewDTS::number()} |
