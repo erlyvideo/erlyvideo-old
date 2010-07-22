@@ -95,10 +95,17 @@ config_change(_Changed, _New, _Remove) ->
 
 %%%%%%%%% File API  %%%%%%%%%%%%
 
+autostart() ->
+  case lists:keyfind(http_file,1, application:loaded_applications()) of
+    false -> http_file:start();
+    _ -> ok
+  end.
+
 
 open(URL, Options) ->
   % {ok, CachePath} = application:get_env(http_file, cache_path),
   % http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]).
+  autostart(),
   http_file_tracker:open(URL, Options).
   
   
