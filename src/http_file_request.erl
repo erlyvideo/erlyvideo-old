@@ -10,7 +10,7 @@
   file,
   url,
   offset,
-  request_id
+  socket
 }).
 
 
@@ -35,11 +35,11 @@ handle_cast(_Cast, State) ->
 handle_info(start, #http_file_request{offset = Offset, url = URL} = File) ->
   Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-  Request = "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\nRange: "++Range++"\r\n\r\n",
+  Request = "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\nConnection: close\r\nRange: "++Range++"\r\n\r\n",
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, once}, {packet, http}]),
   gen_tcp:send(Socket, Request),
   ?D({"Started request", URL, Offset, self()}),
-  {noreply, File#http_file_request{request_id = Socket}};
+  {noreply, File#http_file_request{socket = Socket}};
 
 
   
@@ -48,6 +48,7 @@ handle_info({http, Socket, {http_response, _, _Code, _Message}}, File) ->
   {noreply, File};
 
 handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, File) ->
+  ?D({self(), _Key, _Value}),
   inet:setopts(Socket, [{active, once}]),
   {noreply, File};
 
@@ -59,16 +60,20 @@ handle_info({http, Socket, http_eoh}, File) ->
 handle_info({tcp, Socket, Bin}, #http_file_request{offset = Offset, file = Origin} = File) ->
   inet:setopts(Socket, [{active, once}]),
   Origin ! {bin, Bin, Offset, self()},
-  {noreply, File#http_file_request{offset = Offset + size(Bin)}};
+  receive
+    stop -> ?D({self(), stopping}), {stop, normal, File}
+  after
+    0 -> {noreply, File#http_file_request{offset = Offset + size(Bin)}}
+  end;
 
-handle_info({tcp_closed, Socket}, Request) ->
+handle_info({tcp_closed, _Socket}, Request) ->
   {stop, normal, Request};
 
 handle_info({'DOWN', _, process, _File, _Reason}, Request) ->
   {stop, normal, Request};
 
 handle_info(stop, File) ->
-  % ?D({"Stopped", File}),
+  ?D({"Stopped", File}),
   {stop, normal, File};
 
 handle_info(Message, State) ->
@@ -76,8 +81,7 @@ handle_info(Message, State) ->
   {noreply, State}.
 
 
-terminate(_Reason, #http_file_request{request_id = RequestID} = _State) ->
-  (catch httpc:cancel_request(RequestID)),
+terminate(_Reason, _State) ->
   ok.
 
 code_change(_Old, State, _Extra) ->

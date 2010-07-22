@@ -7,7 +7,7 @@ main(["test"]) ->
 
 main([]) ->
   http_file:start(),
-  URL = "http://erlyvideo.org/video.mp4",
+  URL = "http://localhost/video.mp4",
   Limit = 100,
   {ok, File} = http_file:open(URL, []),
   
@@ -41,8 +41,14 @@ main([]) ->
   timer:sleep(1000),
   {ok, File1} = http_file:open(URL, []),
   
+  timer:sleep(10000),
   
-  wait(4).
+  wait(4),
+  erlang:monitor(process, File),
+  receive
+    {'DOWN', _, process, File, _Reason} -> ok
+  end.
+    
   
 wait(0) ->
   ok;

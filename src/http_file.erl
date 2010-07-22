@@ -16,6 +16,8 @@
 -record(http_file, {
   url,
   cache_file,
+  temp_path,
+  path,
   request_id,
   options,
   streams = [],
@@ -114,13 +116,13 @@ start_link(URL, Options) ->
   gen_server:start_link(?MODULE, [URL, Options], []).
 
 init([URL, Options]) ->
-  CachePath = proplists:get_value(cache_path, Options),
-  CacheName = cache_path(CachePath, URL) ++ ".tmp",
-  filelib:ensure_dir(CacheName),
-  {ok, CacheFile} = file:open(CacheName, [write, read, binary]),
-  ?D({"Storing",URL,to,CacheName, Options}),
+  Path = cache_path(proplists:get_value(cache_path, Options), URL),
+  TempPath = Path ++ ".tmp",
+  filelib:ensure_dir(Path),
+  {ok, CacheFile} = file:open(TempPath, [write, read, binary]),
+  ?D({"Storing",URL,to,Path, Options}),
   self() ! start_download,
-  {ok, #http_file{url = URL, cache_file = CacheFile, options = Options}}.
+  {ok, #http_file{url = URL, cache_file = CacheFile, path = Path, temp_path = TempPath, options = Options}}.
   
 
 handle_call({pread, Offset, _Limit}, _From, #http_file{size = Size} = File)
@@ -162,10 +164,10 @@ handle_info(start_download, #http_file{url = URL} = State) ->
   erlang:monitor(process, FirstRequest),
   {noreply, State#http_file{streams = [{FirstRequest, 0, 0}], size = list_to_integer(Length)}};
 
-handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
+handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
   case lists:keyfind(Stream, 1, Streams) of
     false -> 
-      ?D({"Got message from dead process", Stream, Streams}),
+      % ?D({"Got message from dead process", {bin, size(Bin), Offset, Stream}}),
       {noreply, State};
     _ -> 
       ok = file:pwrite(Cache, Offset, Bin),
@@ -185,6 +187,14 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
       end, Replies),
       
       NewStreams = NewStreams2,
+      
+      case NewStreams of
+        [{_,0,Size}] ->
+          ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path}),
+          file:rename(State#http_file.temp_path, State#http_file.path);
+        _ ->
+          ok
+      end,
       {noreply, State#http_file{streams = NewStreams, requests = NewRequests}}
   end;
   
@@ -238,7 +248,7 @@ update_map(Streams, Stream, Offset, Size) ->
   {Stream, OldOffset, OldSize} = Entry,
   Offset = OldOffset + OldSize,
   NewEntry = {Stream, OldOffset, OldSize + Size},
-  lists:ukeymerge(1, [NewEntry], Streams1).
+  lists:keysort(2, lists:ukeymerge(1, [NewEntry], Streams1)).
   
   
 glue_map(Streams) ->
@@ -246,7 +256,7 @@ glue_map(Streams) ->
   glue_map(Sorted, [], []).
 
 glue_map([Stream], NewStreams, Removed) ->
-  {lists:keysort(1, [Stream|NewStreams]), lists:sort(Removed)};
+  {lists:keysort(2, [Stream|NewStreams]), lists:keysort(2, Removed)};
 
 glue_map([Stream1, Stream2 | Streams], NewStreams, Removed) ->
   case intersect(Stream1, Stream2) of
