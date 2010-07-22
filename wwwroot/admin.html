@@ -55,7 +55,7 @@
         {% endif %}
         <table border="0">
           {% for name, client_count in entries %}	
-          <tr><td>{{name}} :&nbsp;</td><td class="channel">{{client_count}}</td><td><div style="width:{{clients|length}}px;background-color:#CCCCCF;"/>&nbsp;</td></tr>
+          <tr><td>{{name}} :&nbsp;</td><td class="channel">{{client_count}}</td><td><div style="width:{{client_count}}px;background-color:#CCCCCF;"/>&nbsp;</td></tr>
           {% endfor %}
 	  <tr><td>Sum : &nbsp;</td>
 	        <td><span id="sum">0</span></td>
