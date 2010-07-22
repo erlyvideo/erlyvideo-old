@@ -1,11 +1,13 @@
 -module(http_file).
--define(D(X), io:format("DEBUG ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-include("log.hrl").
 
 % Application API
 -export([start/2, stop/1, config_change/3]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([open/2, pread/3, close/1]).
+
+-export([cache_path/2]).
 
 -export([start/0, stop/0, start_link/2, reload/0, archive/0]).
 
@@ -83,8 +85,9 @@ config_change(_Changed, _New, _Remove) ->
 
 
 open(URL, Options) ->
-  {ok, CachePath} = application:get_env(http_file, cache_path),
-  http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]).
+  % {ok, CachePath} = application:get_env(http_file, cache_path),
+  % http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]).
+  http_file_tracker:open(URL, Options).
   
 
 pread(File, Offset, Limit) ->
@@ -97,13 +100,17 @@ close(File) ->
 
 %%%%%%%%%% Gen server API %%%%%%%%
 
+cache_path(CachePath, URL) ->
+  "http://" ++ ClearedName = URL,
+  filename:join(CachePath, ClearedName).
+
+
 start_link(URL, Options) ->
   gen_server:start_link(?MODULE, [URL, Options], []).
 
 init([URL, Options]) ->
   CachePath = proplists:get_value(cache_path, Options),
-  "http://" ++ ClearedName = URL,
-  CacheName = filename:join(CachePath, ClearedName),
+  CacheName = cache_path(CachePath, URL) ++ ".tmp",
   filelib:ensure_dir(CacheName),
   {ok, CacheFile} = file:open(CacheName, [write, read, binary]),
   ?D({"Storing",URL,to,CacheName, Options}),
@@ -134,7 +141,7 @@ handle_call(close, _From, State) ->
   {stop, normal, ok, State};
   
 handle_call(Unknown, From, File) ->
-  io:format("Unknown call: ~p from ~p (~p)~n", [Unknown, From, File]),
+  ?D({"Unknown call:", Unknown, From, File}),
   {stop, {error, unknown_call, Unknown}, File}.
   
 

@@ -11,6 +11,7 @@ main([]) ->
   Limit = 100,
   {ok, File} = http_file:open(URL, [{cache_file, "video.mp4"}]),
   
+
   Self = self(),
   spawn(fun() ->
     Result = http_file:pread(File, 33213403, Limit),
@@ -35,6 +36,10 @@ main([]) ->
     io:format("~p~n", [size(Result)]),
     Self ! tick
   end),
+  
+  wait(2),
+  {ok, File1} = http_file:open(URL, [{cache_file, "video.mp4"}]),
+  
   
   wait(4).
   

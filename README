@@ -3,7 +3,5 @@
 Steps:
 
 1) check is cached file exists
-2) check if requested file is already opened
-3) stream to temp file
 4) if file is ready, rename it to original name
 

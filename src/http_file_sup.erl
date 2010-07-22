@@ -57,7 +57,15 @@ init([http_file]) ->
     };
 
 init([]) ->
+  {ok, CachePath} = application:get_env(http_file, cache_path),
   Supervisors = [
+    {   http_file_tracker_sup,
+        {http_file_tracker,start_link,[CachePath]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [http_file_tracker]                      % Modules  = [Module] | dynamic
+    },
     {   http_one_file_sup,
         {supervisor,start_link,[{local, http_one_file_sup}, ?MODULE, [http_file]]},
         permanent,                               % Restart  = permanent | transient | temporary
