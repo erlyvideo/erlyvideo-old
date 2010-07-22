@@ -14,7 +14,7 @@ logger{
     max = 100000,
     suffix = log,
     rotation = 5,
-    format = '%t %l%n'
+    format = '%j %T %l%n'
   }
 
   file_appender app2{
