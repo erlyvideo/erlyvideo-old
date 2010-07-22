@@ -33,33 +33,6 @@
 
 -export([next_stream/1, extract_play_args/1]).
 
-% 'WAIT_FOR_DATA'({play, Name, Options}, #rtmp_session{socket = Socket, streams = Streams, host = Host} = State) ->
-%   {client_buffer, ClientBuffer} = rtmp_socket:getopts(Socket, client_buffer),
-%   StreamId = proplists:get_value(stream_id, Options),
-%   
-%   case ems:element(StreamId, Streams) of
-%     CurrentPlayer when is_pid(CurrentPlayer) -> 
-%       ?D({"Stop current player", CurrentPlayer}),
-%       CurrentPlayer ! exit;
-%     _ -> ok
-%   end,
-%   case media_provider:play(Host, Name, [{client_buffer, ClientBuffer} | Options]) of
-%     {ok, Player} ->
-%       Player ! start,
-%       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
-%       NewState = State#rtmp_session{streams = ems:setelement(StreamId, Streams, Player)},
-%       {next_state, 'WAIT_FOR_DATA', NewState};
-%     {notfound, _Reason} ->
-%       ems_log:access(Host, "NOTFOUND ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-%       rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
-%       {next_state, 'WAIT_FOR_DATA', State};
-%     Reason -> 
-%       ?D({"Failed to start video player", Reason}),
-%       {error, Reason}
-%   end;
-
-
-
 'WAIT_FOR_DATA'({metadata, Command, AMF, StreamId}, #rtmp_session{socket = Socket} = State) ->
   Socket ! #rtmp_message{
     channel_id = 4, 
