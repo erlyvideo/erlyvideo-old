@@ -10,7 +10,8 @@
   file,
   url,
   offset,
-  socket
+  socket,
+  content_range = false
 }).
 
 
@@ -47,9 +48,23 @@ handle_info({http, Socket, {http_response, _, _Code, _Message}}, File) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, File};
 
+handle_info({http, Socket, {http_header, _, 'Content-Range', _, "bytes "++Range}}, #http_file_request{offset = Offset} = File) ->
+  Pattern = integer_to_list(Offset) ++ "-",
+  case string:str(Range,Pattern) of
+    1 ->
+      inet:setopts(Socket, [{active, once}]),
+      {noreply, File#http_file_request{content_range = true}};
+    _ ->
+      {stop, invalid_content_range, File}
+  end;
+
 handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, File) ->
+  % ?D({_Key, _Value}),
   inet:setopts(Socket, [{active, once}]),
   {noreply, File};
+
+handle_info({http, _Socket, http_eoh}, #http_file_request{content_range = false} = File) ->
+  {stop, content_range_unsupported, File};
 
 handle_info({http, Socket, http_eoh}, File) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}]),
@@ -57,12 +72,17 @@ handle_info({http, Socket, http_eoh}, File) ->
   
 
 handle_info({tcp, Socket, Bin}, #http_file_request{offset = Offset, file = Origin} = File) ->
-  inet:setopts(Socket, [{active, once}]),
-  Origin ! {bin, Bin, Offset, self()},
-  receive
-    stop -> ?D({self(), stopping}), {stop, normal, File}
-  after
-    0 -> {noreply, File#http_file_request{offset = Offset + size(Bin)}}
+  case gen_server:call(Origin, {bin, Bin, Offset, self()}) of
+    stop ->
+      {stop, normal, File};
+    _ ->
+    receive
+      stop -> {stop, normal, File}
+    after
+      0 -> 
+        inet:setopts(Socket, [{active, once}]),
+        {noreply, File#http_file_request{offset = Offset + size(Bin)}}
+    end
   end;
 
 handle_info({tcp_closed, _Socket}, Request) ->
@@ -72,7 +92,7 @@ handle_info({'DOWN', _, process, _File, _Reason}, Request) ->
   {stop, normal, Request};
 
 handle_info(stop, File) ->
-  ?D({"Stopped", File}),
+  % ?D({"Stopped", File}),
   {stop, normal, File};
 
 handle_info(Message, State) ->

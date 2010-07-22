@@ -7,7 +7,7 @@ main(["test"]) ->
 
 main([]) ->
   http_file:start(),
-  URL = "http://localhost/video.mp4",
+  URL = "http://erlyvideo.org/video.mp4",
   Limit = 100,
   {ok, File} = http_file:open(URL, []),
   
@@ -15,14 +15,14 @@ main([]) ->
   
   Self = self(),
   spawn(fun() ->
-    Result = http_file:pread(File, 33212403, Limit),
-    io:format("~p~n", [Result]),
+    {ok, Result} = http_file:pread(File, 33212403, Limit),
+    io:format("~p~n", [size(Result)]),
     Self ! tick
   end),
 
   spawn(fun() ->
-    Result = http_file:pread(File, 33212400, Limit),
-    io:format("~p~n", [Result]),
+    {ok, Result} = http_file:pread(File, 33212400, Limit),
+    io:format("~p~n", [size(Result)]),
     Self ! tick
   end),
 
@@ -40,15 +40,16 @@ main([]) ->
   
   timer:sleep(1000),
   {ok, File1} = http_file:open(URL, []),
-  
-  timer:sleep(10000),
+  ?D({open,File1}),
   
   wait(4),
   http_file:close(File),
+  http_file:close(File1),
   
-  erlang:monitor(process, File),
+  {http_file,F, _} = File,
+  erlang:monitor(process, F),
   receive
-    {'DOWN', _, process, File, _Reason} -> ok
+    {'DOWN', _, process, F, _Reason} -> ok
   end.
     
   

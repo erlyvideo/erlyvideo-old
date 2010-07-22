@@ -108,15 +108,16 @@ add_client(File, Opener) ->
 pread({cached,File}, Offset, Limit) ->
   file:pread(File, Offset, Limit);
 
-pread(File, Offset, Limit) ->
+pread({http_file,File,_Ref}, Offset, Limit) ->
   % ?D({"Requesting", Offset, Limit}),
   gen_server:call(File, {pread, Offset, Limit}, infinity).
 
 close({cached,File}) ->
   file:close(File);
   
-close(File) ->
-  gen_server:call(File, {close, self()}).
+close({http_file,File,Ref}) ->
+  % ?D({"closing file", File,Ref}),
+  gen_server:call(File, {close, self(), Ref}).
 
 %%%%%%%%%% Gen server API %%%%%%%%
 
@@ -133,7 +134,7 @@ init([URL, Options]) ->
   TempPath = Path ++ ".tmp",
   filelib:ensure_dir(Path),
   {ok, CacheFile} = file:open(TempPath, [write, read, binary]),
-  ?D({"Storing",URL,to,Path, Options}),
+  % ?D({"Storing",URL,to,Path, Options}),
   self() ! start_download,
   {ok, #http_file{url = URL, cache_file = CacheFile, path = Path, temp_path = TempPath, options = Options}}.
   
@@ -152,56 +153,36 @@ handle_call({pread, Offset, Limit}, From, #http_file{streams = Streams} = File) 
       % ?D({"Data ok"}),
       {reply, fetch_cached_data(File, Offset, Limit), File};
     false ->
-      ?D({"No data, waiting"}),
+      % ?D({"No data, waiting"}),
       File1 = schedule_request(File, {From, Offset, Limit}),
       {noreply, File1}
   end;    
 
 
 handle_call({add_client, Opener}, _From, #http_file{clients = Clients} = State) ->
-  Clients1 = case proplists:get_value(Opener, Clients) of
-    undefined ->
-      Ref = erlang:monitor(process, Opener),
-      [{Opener,Ref}|Clients];
-    _ ->
-      Clients
-  end,
-  {reply, ok, State#http_file{clients = Clients1}};
+  Ref = erlang:monitor(process, Opener),
+  {reply, {ok,Ref}, State#http_file{clients = [{Opener,Ref}|Clients]}};
 
 
-handle_call({close, Client}, _From, #http_file{clients = Clients, file_cached = Cached} = State) ->
-  case lists:keytake(Client, 1, Clients) of
+handle_call({close, Client, Ref}, _From, #http_file{clients = Clients, file_cached = Cached} = State) ->
+  case lists:keytake(Ref, 2, Clients) of
     {value, _Entry, []} when Cached == true ->
+      % ?D({"No clients left"}),
       {stop, normal, ok, State#http_file{clients = []}};
-    {value, _Entry, NewClients} ->
-      ?D({"closing for", Client}),
+    {value, {Client,Ref}, NewClients} ->
+      % ?D({"closing for", Client, NewClients}),
+      erlang:demonitor(Ref, [flush]),
       {reply, ok, State#http_file{clients = NewClients}};
     _ ->  
     {reply, ok, State}
   end;
-  
-handle_call(Unknown, From, File) ->
-  ?D({"Unknown call:", Unknown, From, File}),
-  {stop, {error, unknown_call, Unknown}, File}.
-  
-
-handle_cast(_, State) ->
-  {noreply, State}.  
 
 
-handle_info(start_download, #http_file{url = URL} = State) ->
-  {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
-  ?D(Headers),
-  Length = proplists:get_value("content-length", Headers),
-  {ok, FirstRequest} = http_file_sup:start_request(self(), URL, 0),
-  Ref = erlang:monitor(process, FirstRequest),
-  {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = list_to_integer(Length)}};
-
-handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
+handle_call({bin, Bin, Offset, Stream}, _From, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
   case lists:keyfind(Stream, #stream.pid, Streams) of
     false -> 
       % ?D({"Got message from dead process", {bin, size(Bin), Offset, Stream}}),
-      {noreply, State};
+      {reply, stop, State};
     _ -> 
       ok = file:pwrite(Cache, Offset, Bin),
       % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
@@ -216,23 +197,51 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
       % ?D({"Matching requests", NewRequests, Replies}),
       lists:foreach(fun({From, Position, Limit}) ->
         {ok, Data} = file:pread(Cache, Position, Limit),
-        ?D({"Replying to", From, Offset, Limit}),
+        % ?D({"Replying to", From, Offset, Limit}),
         gen_server:reply(From, {ok, Data})
       end, Replies),
-      
+
       NewStreams = NewStreams2,
-      
+
       FileCached = case NewStreams of
         [#stream{offset = 0, size = Size}] ->
-          ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path}),
+          % ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path, State#http_file.clients}),
           file:rename(State#http_file.temp_path, State#http_file.path),
           true;
         _ ->
           false
       end,
-      stop_if_no_clients(State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached})
+      State1 = State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached},
+      case {FileCached, State#http_file.clients} of
+        {true, []} ->
+          % ?D({"All is ready, exit"}),
+          {stop, normal, stop, State1};
+        _ ->
+          {reply, ok, State1}
+      end
   end;
+
+
+
+
   
+handle_call(Unknown, _From, File) ->
+  % ?D({"Unknown call:", Unknown, From, File}),
+  {stop, {error, unknown_call, Unknown}, File}.
+  
+
+handle_cast(_, State) ->
+  {noreply, State}.  
+
+
+handle_info(start_download, #http_file{url = URL} = State) ->
+  {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
+  % ?D(Headers),
+  Length = proplists:get_value("content-length", Headers),
+  {ok, FirstRequest} = http_file_sup:start_request(self(), URL, 0),
+  Ref = erlang:monitor(process, FirstRequest),
+  {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = list_to_integer(Length)}};
+
 handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
     {value, _Entry, NewStreams} ->
@@ -268,13 +277,13 @@ code_change(_Old, State, _Extra) ->
 %%%----------------------------
   
   
-schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} = File, {_From, Offset, Limit} = Request) ->
+schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} = File, {_From, Offset, _Limit} = Request) ->
   NewStreams = case has_covering_stream(Streams, Request) of
     true -> Streams;
     false ->
       {ok, Stream} = http_file_sup:start_request(self(), URL, Offset),
       Ref = erlang:monitor(process, Stream),
-      ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
+      % ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
       lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0, ref = Ref}], Streams)
   end,
   File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.

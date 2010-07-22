@@ -84,20 +84,21 @@ handle_call({open, URL, Options, Opener}, _From, #tracker{files = Files, cache_p
   CacheName = http_file:cache_path(CachePath, URL),
   case filelib:is_regular(CacheName) of
     true ->
-      ?D({"Returning cached file from disk", CacheName}),
+      % ?D({"Returning cached file from disk", CacheName}),
       {ok, Cached} = file:open(CacheName, [read,binary]),
       {reply, {ok, {cached,Cached}}, State};
     false ->
       case proplists:get_value(URL, Files) of
         undefined ->
           {ok, File} = http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]),
-          http_file:add_client(File, Opener),
+          {ok, Ref} = http_file:add_client(File, Opener),
           erlang:monitor(process, File),
-          ?D({"starting new file", URL, CachePath}),
-          {reply, {ok, File}, State#tracker{files = [{URL, File}|Files]}};
+          % ?D({"starting new file", URL, CachePath}),
+          {reply, {ok, {http_file,File,Ref}}, State#tracker{files = [{URL, File}|Files]}};
         File ->
-          ?D({"reply with existing tracker", File}),
-          {reply, {ok, File}, State}
+          % ?D({"reply with existing tracker", File}),
+          {ok, Ref} = http_file:add_client(File, Opener),
+          {reply, {ok, {http_file,File,Ref}}, State}
       end
   end;
     
