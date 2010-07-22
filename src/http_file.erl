@@ -28,6 +28,14 @@
 }).
 
 
+-record(stream, {
+  pid,
+  offset,
+  size,
+  ref
+}).
+
+
 -define(COVER_LIMIT, 100000).
 
 start() ->
@@ -163,11 +171,11 @@ handle_call({add_client, Opener}, _From, #http_file{clients = Clients} = State) 
 
 handle_call({close, Client}, _From, #http_file{clients = Clients, file_cached = Cached} = State) ->
   case lists:keytake(Client, 1, Clients) of
-    {value, Client, NewClients} ->
+    {value, _Entry, []} when Cached == true ->
+      {stop, normal, ok, State#http_file{clients = []}};
+    {value, _Entry, NewClients} ->
       ?D({"closing for", Client}),
       {reply, ok, State#http_file{clients = NewClients}};
-    {value, Client, []} when Cached == true ->
-      {stop, normal, State#http_file{clients = []}};
     _ ->  
     {reply, ok, State}
   end;
@@ -186,11 +194,11 @@ handle_info(start_download, #http_file{url = URL} = State) ->
   ?D(Headers),
   Length = proplists:get_value("content-length", Headers),
   {ok, FirstRequest} = http_file_sup:start_request(self(), URL, 0),
-  erlang:monitor(process, FirstRequest),
-  {noreply, State#http_file{streams = [{FirstRequest, 0, 0}], size = list_to_integer(Length)}};
+  Ref = erlang:monitor(process, FirstRequest),
+  {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = list_to_integer(Length)}};
 
 handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
-  case lists:keyfind(Stream, 1, Streams) of
+  case lists:keyfind(Stream, #stream.pid, Streams) of
     false -> 
       % ?D({"Got message from dead process", {bin, size(Bin), Offset, Stream}}),
       {noreply, State};
@@ -200,7 +208,8 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
       NewStreams1 = update_map(Streams, Stream, Offset, size(Bin)),
       {NewStreams2, Removed} = glue_map(NewStreams1),
       % ?D({"Removing streams", NewStreams2, Removed}),
-      lists:foreach(fun(OldStream) ->
+      lists:foreach(fun({OldStream, Ref}) ->
+        erlang:demonitor(Ref, [flush]),
         OldStream ! stop
       end, Removed),
       {NewRequests, Replies} = match_requests(Requests, NewStreams2),
@@ -214,7 +223,7 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
       NewStreams = NewStreams2,
       
       FileCached = case NewStreams of
-        [{_,0,Size}] ->
+        [#stream{offset = 0, size = Size}] ->
           ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path}),
           file:rename(State#http_file.temp_path, State#http_file.path),
           true;
@@ -225,12 +234,12 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
   end;
   
 handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
-  case lists:keytake(Stream, 1, Streams) of
-    {value, Stream, NewStreams} ->
+  case lists:keytake(Stream, #stream.pid, Streams) of
+    {value, _Entry, NewStreams} ->
       stop_if_no_clients(State#http_file{streams = NewStreams});
     _ ->
       case lists:keytake(Stream, 1, Clients) of
-        {value, Stream, NewClients} ->
+        {value, _Entry, NewClients} ->
           stop_if_no_clients(State#http_file{clients = NewClients});
         _ ->
           ?D({unknown_died, Stream, State}),
@@ -264,15 +273,15 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
     true -> Streams;
     false ->
       {ok, Stream} = http_file_sup:start_request(self(), URL, Offset),
-      erlang:monitor(process, Stream),
+      Ref = erlang:monitor(process, Stream),
       ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
-      lists:ukeymerge(1, [{Stream, Offset, 0}], Streams)
+      lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0, ref = Ref}], Streams)
   end,
   File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.
   
   
-has_covering_stream([{_Stream, RequestOffset, _Size} | _], {_Client, Offset, _Limit}) 
-  when RequestOffset =< Offset andalso RequestOffset >= Offset - ?COVER_LIMIT ->
+has_covering_stream([#stream{offset = RequestOffset, size = Size} | _], {_Client, Offset, _Limit}) 
+  when RequestOffset =< Offset andalso RequestOffset + Size >= Offset - ?COVER_LIMIT ->
   true;
 has_covering_stream([_Stream|Streams], Request) -> has_covering_stream(Streams, Request);
 has_covering_stream([], _Request) -> false.
@@ -282,19 +291,18 @@ fetch_cached_data(#http_file{cache_file = Cache}, Offset, Limit) ->
   file:pread(Cache, Offset, Limit).
   
 update_map(Streams, Stream, Offset, Size) ->
-  {value, Entry, Streams1} = lists:keytake(Stream, 1, Streams),
-  {Stream, OldOffset, OldSize} = Entry,
-  Offset = OldOffset + OldSize,
-  NewEntry = {Stream, OldOffset, OldSize + Size},
-  lists:keysort(2, lists:ukeymerge(1, [NewEntry], Streams1)).
+  {value, #stream{offset = OldOffset, size = OldSize} = Entry, Streams1} = lists:keytake(Stream, #stream.pid, Streams),
+  Offset = OldOffset + OldSize, % This is assertion, that we haven't missed not a packet
+  NewEntry = Entry#stream{size = OldSize + Size},
+  lists:keysort(#stream.offset, lists:ukeymerge(#stream.pid, [NewEntry], Streams1)).
   
   
 glue_map(Streams) ->
-  Sorted = lists:keysort(2, Streams),
+  Sorted = lists:keysort(#stream.offset, Streams),
   glue_map(Sorted, [], []).
 
 glue_map([Stream], NewStreams, Removed) ->
-  {lists:keysort(2, [Stream|NewStreams]), lists:keysort(2, Removed)};
+  {lists:keysort(#stream.offset, [Stream|NewStreams]), lists:keysort(1, Removed)};
 
 glue_map([Stream1, Stream2 | Streams], NewStreams, Removed) ->
   case intersect(Stream1, Stream2) of
@@ -305,20 +313,20 @@ glue_map([Stream1, Stream2 | Streams], NewStreams, Removed) ->
   end.
 
 %%   Start1....End1   Start2...End2  
-intersect({_Key1, Offset1, Size1} = R1, {_Key2, Offset2, _Size2} = R2) 
+intersect(#stream{offset = Offset1, size = Size1} = R1, #stream{offset = Offset2} = R2) 
                                        when Offset1 + Size1 < Offset2 ->
   {leave, R1, R2};
 
 %%   Start1....Start2...End1...End2
-intersect({Key1, Offset1, Size1}, {Key2, Offset2, Size2}) 
+intersect(#stream{pid = Key1, ref = Ref, offset = Offset1, size = Size1}, #stream{offset = Offset2, size = Size2} = S) 
   when Offset1 + Size1 >= Offset2 andalso Offset1 + Size1 < Offset2 + Size2 ->
-  {remove, {Key2, Offset1, Offset2 + Size2 - Offset1}, Key1};
+  {remove, S#stream{offset = Offset1, size = Offset2 + Size2 - Offset1}, {Key1,Ref}};
 
 
 %%   Start1....Start2...End2...End1
-intersect({_Key1, Offset1, Size1} = R1, {Key2, Offset2, Size2}) 
+intersect(#stream{offset = Offset1, size = Size1} = R1, #stream{pid = Key2, offset = Offset2, size = Size2, ref = Ref}) 
   when Offset1 + Size1 >= Offset2 andalso Offset1 + Size1 >= Offset2 + Size2 ->
-  {remove, R1, Key2}.
+  {remove, R1, {Key2,Ref}}.
 
 
 match_requests(Requests, Streams) ->
@@ -339,7 +347,7 @@ match_requests([{From, Offset, Size}|Requests], Streams, NewRequests, Replies) -
 is_data_cached([], _Offset, _Size) ->
   false;
   
-is_data_cached([{_Request, CurrentOffset, CurrentSize} | _], Offset, Size) 
+is_data_cached([#stream{offset = CurrentOffset, size = CurrentSize} | _], Offset, Size) 
   when Offset >= CurrentOffset andalso Offset + Size =< CurrentOffset + CurrentSize ->
   true;
 
@@ -353,16 +361,16 @@ is_data_cached([_ | Streams], Offset, Size) ->
 -include_lib("eunit/include/eunit.hrl").
 
 update_map1_test() ->
-  Map1 = [{a, 0, 10}],
-  ?assertEqual([{a, 0, 20}], update_map(Map1, a, 10, 10)).
+  Map1 = [#stream{pid = a, offset = 0, size = 10}],
+  ?assertEqual([#stream{pid = a, offset = 0, size = 20}], update_map(Map1, a, 10, 10)).
 
 update_map2_test() ->
-  Map1 = [{a, 0, 10}, {b, 15, 15}],
-  ?assertEqual([{a, 0, 20},{b, 15, 15}], update_map(Map1, a, 10, 10)).
+  Map1 = [#stream{pid = a, offset = 0, size = 10}, #stream{pid = b, offset = 15, size = 15}],
+  ?assertEqual([#stream{pid = a, offset = 0, size = 20},#stream{pid = b, offset = 15, size = 15}], update_map(Map1, a, 10, 10)).
   
 
 is_data_cached_test() ->
-  Map1 = [{a, 0, 10}, {b, 15, 15}],
+  Map1 = [#stream{pid = a, offset = 0, size = 10}, #stream{pid = b, offset = 15, size = 15}],
   ?assertEqual(true, is_data_cached(Map1, 0, 10)),
   ?assertEqual(true, is_data_cached(Map1, 17, 5)),
   ?assertEqual(false, is_data_cached(Map1, 0, 25)),
@@ -372,27 +380,27 @@ is_data_cached_test() ->
  
  
 intersect_test() ->
-  ?assertEqual({remove, {b, 0, 30}, a}, intersect({a, 0, 20}, {b, 20, 10})),
-  ?assertEqual({leave, {a, 0, 18}, {b, 20, 10}}, intersect({a, 0, 18}, {b, 20, 10})),
-  ?assertEqual({remove, {a, 0, 45}, b}, intersect({a, 0, 45}, {b, 20, 10})).
+  ?assertEqual({remove, #stream{pid = b, offset = 0, size = 30}, {a,ar}}, intersect(#stream{pid=a, offset=0, size=20,ref=ar}, #stream{pid=b, offset=20, size=10})),
+  ?assertEqual({leave, #stream{pid=a, offset=0, size=18}, #stream{pid=b, offset=20, size=10}}, intersect(#stream{pid=a, offset=0, size=18}, #stream{pid=b, offset=20, size=10})),
+  ?assertEqual({remove, #stream{pid=a, offset=0, size=45}, {b,br}}, intersect(#stream{pid=a, offset=0, size=45}, #stream{pid=b, offset=20, size=10, ref=br})).
 
 glue_map1_test() ->
-  Map = [{a, 0, 20}, {b, 20, 10}],
-  ?assertEqual({[{b, 0, 30}], [a]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=20, ref=ar}, #stream{pid=b, offset=20, size=10}],
+  ?assertEqual({[#stream{pid=b, offset=0, size=30}], [{a,ar}]}, glue_map(Map)).
 
 
 glue_map2_test() ->
-  Map = [{a, 0, 25}, {b, 20, 10}],
-  ?assertEqual({[{b, 0, 30}], [a]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=25, ref=ar}, #stream{pid=b, offset=20, size=10}],
+  ?assertEqual({[#stream{pid=b, offset=0, size=30}], [{a,ar}]}, glue_map(Map)).
 
 
 glue_map3_test() ->
-  Map = [{a, 0, 45}, {b, 20, 10}, {c, 32, 6}],
-  ?assertEqual({[{a, 0, 45}], [b,c]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=45}, #stream{pid=b, ref=br,offset=20, size=10}, #stream{pid=c,ref=cr, offset=32, size=6}],
+  ?assertEqual({[#stream{pid=a, offset=0, size=45}], [{b,br},{c,cr}]}, glue_map(Map)).
 
 glue_map4_test() ->
-  Map = [{a, 0, 31}, {b, 20, 10}, {c, 35, 100}],
-  ?assertEqual({[{a, 0, 31}, {c, 35, 100}], [b]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=31}, #stream{pid=b, ref=br, offset=20, size=10}, #stream{pid=c, offset=35, size=100}],
+  ?assertEqual({[#stream{pid=a, offset=0, size=31}, #stream{pid=c, offset=35, size=100}], [{b,br}]}, glue_map(Map)).
 
 
 

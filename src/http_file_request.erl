@@ -38,7 +38,7 @@ handle_info(start, #http_file_request{offset = Offset, url = URL} = File) ->
   Request = "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\nConnection: close\r\nRange: "++Range++"\r\n\r\n",
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, once}, {packet, http}]),
   gen_tcp:send(Socket, Request),
-  ?D({"Started request", URL, Offset, self()}),
+  % ?D({"Started request", URL, Offset, self()}),
   {noreply, File#http_file_request{socket = Socket}};
 
 
@@ -48,7 +48,6 @@ handle_info({http, Socket, {http_response, _, _Code, _Message}}, File) ->
   {noreply, File};
 
 handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, File) ->
-  ?D({self(), _Key, _Value}),
   inet:setopts(Socket, [{active, once}]),
   {noreply, File};
 

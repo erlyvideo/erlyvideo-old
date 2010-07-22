@@ -2,5 +2,5 @@
 
 Steps:
 
-4) if file is ready, rename it to original name
+1) make reenterable http_file:open
 

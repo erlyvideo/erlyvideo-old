@@ -45,7 +45,7 @@ main([]) ->
   
   wait(4),
   http_file:close(File),
-  http_file:close(File1),
+  
   erlang:monitor(process, File),
   receive
     {'DOWN', _, process, File, _Reason} -> ok
