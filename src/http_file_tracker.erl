@@ -85,7 +85,8 @@ handle_call({open, URL, Options}, _From, #tracker{files = Files, cache_path = Ca
   case filelib:is_regular(CacheName) of
     true ->
       ?D({"Returning cached file from disk", CacheName}),
-      {reply, http_file_sup:start_cached_file(CacheName), State};
+      {ok, Cached} = file:open(CacheName, [read,binary]),
+      {reply, {ok, {cached,Cached}}, State};
     false ->
       case proplists:get_value(URL, Files) of
         undefined ->

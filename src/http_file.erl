@@ -90,11 +90,16 @@ open(URL, Options) ->
   http_file_tracker:open(URL, Options).
   
 
+pread({cached,File}, Offset, Limit) ->
+  file:pread(File, Offset, Limit);
+
 pread(File, Offset, Limit) ->
   % ?D({"Requesting", Offset, Limit}),
   gen_server:call(File, {pread, Offset, Limit}, infinity).
 
-
+close({cached,File}) ->
+  file:close(File);
+  
 close(File) ->
   gen_server:call(File, close).
 
