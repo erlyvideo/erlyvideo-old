@@ -286,7 +286,7 @@ wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
   State1 = State#rtmp_socket{socket = Socket, address = IP, port = Port},
-  send_data(State1, [?HS_UNCRYPTED, rtmp_handshake:c1()]),
+  send_data(State1, rtmp_handshake:c1()),
   {next_state, handshake_s1, State1, ?RTMP_TIMEOUT}.
 
 %% @private  

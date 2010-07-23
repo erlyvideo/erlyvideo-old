@@ -26,7 +26,7 @@
 -module(rtmp_handshake).
 -version(1.0).
 
--export([server/1, client_scheme_version/1]).
+-export([server/1, c1/0, c2/1, client_scheme_version/1]).
 
 
 -include("../include/rtmp.hrl").
@@ -85,6 +85,13 @@ client_scheme_version(C1) ->
       false -> version1
     end
   end.
+
+c1() ->
+  [?HS_UNCRYPTED, lists:duplicate(?HS_BODY_LEN, 0)].
+  
+c2(_) ->
+  lists:duplicate(?HS_BODY_LEN, 0).
+
 
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
 %   {uncrypted, [?HS_UNCRYPTED, s1(), s2(C1)]};
