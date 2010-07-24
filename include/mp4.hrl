@@ -40,7 +40,8 @@
   size,
   pts,
   keyframe = false,
-  offset
+  offset,
+  codec
 }).
 
 -record(mp4_sample_description, {

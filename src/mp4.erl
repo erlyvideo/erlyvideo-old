@@ -30,8 +30,8 @@
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
--export([mp4a/2, avc1/2, s263/2, samr/2]).
--export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2]).
+-export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2]).
+-export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2]).
 -export([extract_language/1]).
 
 
@@ -92,8 +92,9 @@ seek(<<_:?FRAMESIZE/binary, Frames/binary>>, Direction, Timestamp, Id, Found) ->
 seek(<<>>, _, _, _, Found) ->
   Found.
   
-read_frame(#mp4_track{frames = Frames}, Id) when Id*?FRAMESIZE < size(Frames) ->
-  read_frame(Frames, Id);
+read_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
+  Frame = read_frame(Frames, Id),
+  Frame#mp4_frame{codec = Codec};
 
 read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
@@ -276,6 +277,9 @@ stsd(<<0:8, _Flags:3/binary, _EntryCount:32, EntryData/binary>>, Mp4Track) ->
 mp4a(<<_Reserved:6/binary, _RefIndex:16, _Unknown:8/binary, _ChannelsCount:32,
        _SampleSize:32, _SampleRate:32, Atom/binary>>, Mp4Track) ->
   parse_atom(Atom, Mp4Track#mp4_track{data_format = aac}).
+  
+mp4v(T, Mp4Track) ->
+  Mp4Track#mp4_track{data_format = mpeg4}.
 
 avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
       HorizRes:16, _:16, VertRes:16, _:16, _FrameCount:16, _CompressorName:32/binary,
@@ -433,6 +437,9 @@ read_stco(<<Offset:32, Rest/binary>>, OffsetCount, #mp4_track{chunk_offsets = Ch
 clean_track(#mp4_track{} = Track) ->
   Track#mp4_track{sample_sizes = [], sample_dts = [], sample_offsets = [], sample_composition = [],
                   keyframes = [], chunk_offsets = [], chunk_sizes = []}.
+
+append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, #mp4_track{data_format = mpeg4, width = Width, height = Height} = Track) ->
+  MediaInfo#mp4_media{width = Width, height = Height, video_tracks = [clean_track(Track)|Tracks]};
 
 append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, #mp4_track{data_format = h264, width = Width, height = Height} = Track) ->
   MediaInfo#mp4_media{width = Width, height = Height, video_tracks = [clean_track(Track)|Tracks]};
