@@ -60,6 +60,7 @@ start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   ems_log:start(),
 	application:start(crypto),
+	application:start(os_mon),
 	application:start(rtmp),
 	application:start(rtsp),
 	
