@@ -1,3 +1,9 @@
+erlyvideo (2.0.3) karmic; urgency=low
+
+  Fixed admin page
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 23 Jul 2010 17:10:43 +0400
+
 erlyvideo (2.0.2) karmic; urgency=low
 
   Added path to plugins in installer
