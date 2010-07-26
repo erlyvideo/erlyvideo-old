@@ -174,8 +174,8 @@ trak(Atom, MediaInfo) ->
 % Track header
 tkhd(<<0, Flags:24, CTime:32, MTime:32, TrackID:32, _Reserved1:32, 
        Duration:32, _Reserved2:64, Layer:16, _AlternateGroup:16,
-       Volume, VolDelim, _Reserved3:16, Matrix:36/binary, Width:16, WidthDelim:16, Height:16, HeightDelim:16>>, Mp4Track) ->
-  Meta = [{flags,Flags},{ctime,CTime},{mtime,MTime},{track_id,TrackID},{duration,Duration},{layer,Layer},
+       Volume, _VolDelim, _Reserved3:16, Matrix:36/binary, Width:16, _WidthDelim:16, Height:16, _HeightDelim:16>>, Mp4Track) ->
+  _Meta = [{flags,Flags},{ctime,CTime},{mtime,MTime},{track_id,TrackID},{duration,Duration},{layer,Layer},
          {volume,Volume},{matrix,Matrix},{width,Width},{height,Height}],
   % ?D(Meta),
   Mp4Track#mp4_track{track_id = TrackID, duration = Duration}.
@@ -257,7 +257,7 @@ vmhd(<<Version:32, Mode:16, R:16, G:16, B:16>>, Mp4Track) ->
 dinf(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
   
-dref(<<0:32, Count:32, Atom/binary>> = Dref, Mp4Track) ->
+dref(<<0:32, _Count:32, Atom/binary>> = _Dref, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 'url '(URL, Mp4Track) ->
@@ -278,7 +278,7 @@ mp4a(<<_Reserved:6/binary, _RefIndex:16, _Unknown:8/binary, _ChannelsCount:32,
        _SampleSize:32, _SampleRate:32, Atom/binary>>, Mp4Track) ->
   parse_atom(Atom, Mp4Track#mp4_track{data_format = aac}).
   
-mp4v(T, Mp4Track) ->
+mp4v(_T, Mp4Track) ->
   Mp4Track#mp4_track{data_format = mpeg4}.
 
 avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
