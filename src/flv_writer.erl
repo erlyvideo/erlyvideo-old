@@ -25,9 +25,9 @@
 -include("../include/video_frame.hrl").
 -include("log.hrl").
 
--export([start_link/1, init_raw/1, writer/1]).
+-export([start_link/1, init/1, writer/1]).
 
--export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(flv_file_writer, {
   writer,
@@ -36,14 +36,14 @@
 
 
 start_link(FileName) ->
-  {ok, spawn_link(?MODULE, init_raw, [[FileName]])}.
+  {ok, spawn_link(?MODULE, init, [[FileName]])}.
 
-init_raw([Writer]) when is_function(Writer) ->
+init([Writer]) when is_function(Writer) ->
 	Writer(flv:header()),
 	?MODULE:writer(#flv_file_writer{writer = Writer});
 
-init_raw([FileName]) ->
-  case init(FileName) of
+init([FileName]) ->
+  case init_file(FileName) of
     {ok, State} ->
       ?MODULE:writer(State);
 		Error ->
@@ -51,7 +51,7 @@ init_raw([FileName]) ->
 			exit({flv_file_writer, Error})
   end.
   
-init(FileName) ->
+init_file(FileName) ->
 	ok = filelib:ensure_dir(FileName),
   case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
 		{ok, File} ->
