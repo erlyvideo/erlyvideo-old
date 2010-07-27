@@ -1,3 +1,9 @@
+erlang-mpegts (2.3.1) karmic; urgency=low
+
+  Changed erlang dependency
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 27 Jul 2010 19:38:59 +0400
+
 erlang-mpegts (2.3.0) karmic; urgency=low
 
   Switched to GPLv3
