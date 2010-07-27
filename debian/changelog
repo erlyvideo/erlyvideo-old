@@ -1,3 +1,9 @@
+erlmedia (1.6.1) karmic; urgency=low
+
+  Added reading non-h264/aac from mp4
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 27 Jul 2010 19:10:55 +0400
+
 erlmedia (1.6.0) karmic; urgency=low
 
   Switched to GPLv3
