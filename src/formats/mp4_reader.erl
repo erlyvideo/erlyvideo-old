@@ -111,7 +111,11 @@ read_frame(MediaInfo, undefined) ->
 read_frame(MediaInfo, {audio_config, Pos, DTS}) ->
   % ?D({"Send audio config", Pos}),
   Frame = codec_config(audio, MediaInfo),
-  Frame#video_frame{next_id = {video_config,Pos, DTS}, dts = DTS, pts = DTS};
+  Next = case MediaInfo#mp4_reader.video_config of
+    undefined -> 0;
+    _ -> {video_config,Pos, DTS}
+  end,
+  Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
 
 read_frame(MediaInfo, {video_config,Pos, DTS}) ->
   % ?D({"Send video config", Pos}),
@@ -187,7 +191,7 @@ find_by_frameid(Frames, Type, FrameID) ->
   
   
 
-video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS}, Data) ->
+video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS, codec = Codec}, Data) ->
   #video_frame{
    	content = video,
 		dts     = DTS,
@@ -197,17 +201,17 @@ video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS}, Data) 
 		  true ->	keyframe;
 		  _ -> frame
 	  end,
-		codec   = h264
+		codec   = Codec
   };  
 
-video_frame(audio, #mp4_frame{dts = DTS}, Data) ->
+video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
   #video_frame{       
    	content = audio,
 		dts     = DTS,
 		pts     = DTS,
   	body    = Data,
   	flavor  = frame,
-	  codec	  = aac,
+	  codec	  = Codec,
 	  sound	  = {stereo, bit16, rate44}
   }.
 
