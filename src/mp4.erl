@@ -442,15 +442,16 @@ clean_track(#mp4_track{} = Track) ->
   Track#mp4_track{sample_sizes = [], sample_dts = [], sample_offsets = [], sample_composition = [],
                   keyframes = [], chunk_offsets = [], chunk_sizes = []}.
 
-append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, #mp4_track{data_format = mpeg4, width = Width, height = Height} = Track) ->
+append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, 
+             #mp4_track{data_format = VideoCodec, width = Width, height = Height} = Track) 
+             when VideoCodec == mpeg4 orelse VideoCodec == h264 ->
   MediaInfo#mp4_media{width = Width, height = Height, video_tracks = [clean_track(Track)|Tracks]};
 
-append_track(#mp4_media{video_tracks = Tracks} = MediaInfo, #mp4_track{data_format = h264, width = Width, height = Height} = Track) ->
-  MediaInfo#mp4_media{width = Width, height = Height, video_tracks = [clean_track(Track)|Tracks]};
-
-append_track(#mp4_media{audio_tracks = Tracks} = MediaInfo, #mp4_track{data_format = aac} = Track) ->
+append_track(#mp4_media{audio_tracks = Tracks} = MediaInfo, 
+             #mp4_track{data_format = AudioCodec} = Track) 
+             when AudioCodec == aac orelse AudioCodec == speex orelse AudioCodec == pcm_le ->
   MediaInfo#mp4_media{audio_tracks = [clean_track(Track)|Tracks]};
-  
+
 append_track(MediaInfo, #mp4_track{data_format = Format}) ->
   ?D({"Unknown format", Format}),
   MediaInfo.
