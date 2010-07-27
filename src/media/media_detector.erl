@@ -25,9 +25,12 @@
 -export([rewrite/3, http/3, rtsp/3, ts_file/3, file/3, livestream/3]).
 
 
+rewrite(Host, Name, Opts) when is_binary(Name) -> 
+  rewrite(Host, binary_to_list(Name), Opts);
+  
 rewrite(Host, Name, _Opts) ->
   Rewrite = ems:get_var(rewrite, Host, []),
-  case lists:keyfind(binary_to_list(Name), 1, Rewrite) of
+  case lists:keyfind(Name, 1, Rewrite) of
     false -> false;
     {_NameS, Type, URL} -> [{type, Type}, {url, URL}];
     {_NameS, Type, URL, Options} -> [{type, Type}, {url, URL} | Options]

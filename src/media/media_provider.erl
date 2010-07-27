@@ -38,7 +38,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, find_or_open/2, find_or_open/3, register/3]).
+-export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, register/3, register/4]).
 -export([info/1, info/2, detect_type/3]). % just for getStreamLength
 
 %% gen_server callbacks
@@ -67,7 +67,7 @@ static_stream_name(Host, Name) ->
 
 %% @hidden  
 start_static_stream(Host, Name) ->
-  find_or_open(Host, Name).
+  open(Host, Name).
 
 %%-------------------------------------------------------------------------
 %% @spec start_static_streams() -> {ok, Pid}
@@ -105,6 +105,26 @@ create(Host, Name, Options) ->
   {ok, Pid} = open(Host, Name, Options),
   ems_media:set_source(Pid, self()),
   {ok, Pid}.
+  
+
+% Plays media named Name
+% Required options:
+%   stream_id: for RTMP, FLV stream id
+%
+% Valid options:
+%   consumer: pid of media consumer
+%   client_buffer: client buffer size
+%
+play(Host, Name, Options) ->
+  case open(Host, Name, Options) of
+    {notfound, Reason} -> 
+      {notfound, Reason};
+    {ok, Stream} ->
+      ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
+      {ok, Stream}
+  end.
+
+  
 
 open(Host, Name) when is_list(Name)->
   open(Host, list_to_binary(Name));
@@ -120,8 +140,11 @@ open(Host, Name) ->
 open(Host, Name, Opts) when is_list(Name)->
   open(Host, list_to_binary(Name), Opts);
 
-open(Host, Name, Opts) ->
-  gen_server:call(name(Host), {open, Name, Opts}, infinity).
+open(Host, Name, Options) ->
+  case find(Host, Name) of
+    {ok, Media} -> {ok, Media};
+    undefined -> internal_open(Host, Name, Options)
+  end.
 
 find(Host, Name) when is_list(Name)->
   find(Host, list_to_binary(Name));
@@ -130,7 +153,10 @@ find(Host, Name) ->
   gen_server:call(name(Host), {find, Name}, infinity).
 
 register(Host, Name, Pid) ->
-  gen_server:call(name(Host), {register, Name, Pid}).
+  register(Host, Name, Pid, []).
+
+register(Host, Name, Pid, Options) ->
+  gen_server:call(name(Host), {register, Name, Pid, Options}).
 
 entries(Host) ->
   gen_server:call(name(Host), entries).
@@ -139,7 +165,7 @@ remove(Host, Name) ->
   gen_server:cast(name(Host), {remove, Name}).
 
 info(Host, Name) ->
-  case find_or_open(Host, Name) of
+  case open(Host, Name) of
     {ok, Media} -> media_provider:info(Media);
     _ -> []
   end.
@@ -180,33 +206,6 @@ init_names() ->
   ok.
 
 
-% Plays media named Name
-% Required options:
-%   stream_id: for RTMP, FLV stream id
-%
-% Valid options:
-%   consumer: pid of media consumer
-%   client_buffer: client buffer size
-%
-play(Host, Name, Options) ->
-  case find_or_open(Host, Name, Options) of
-    {notfound, Reason} -> 
-      {notfound, Reason};
-    {ok, Stream} ->
-      ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
-      {ok, Stream}
-  end.
-
-find_or_open(Host, Name) ->
-  find_or_open(Host, Name, []).
-  
-find_or_open(Host, Name, Options) ->
-  case find(Host, Name) of
-    {ok, Media} -> {ok, Media};
-    undefined -> open(Host, Name, Options)
-  end.
-
-
   
 
 init([Host]) ->
@@ -231,14 +230,6 @@ init([Host]) ->
 handle_call({find, Name}, _From, MediaProvider) ->
   {reply, find_in_cache(Name, MediaProvider), MediaProvider};
   
-handle_call({open, Name, Opts}, {_Opener, _Ref}, MediaProvider) ->
-  case find_in_cache(Name, MediaProvider) of
-    {ok, Player} ->
-      {reply, {ok, Player}, MediaProvider};
-    undefined ->
-      {reply, internal_open(Name, Opts, MediaProvider), MediaProvider}
-  end;
-
 handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case ets:match(OpenedMedia, #media_entry{name = '$1', ref = '$2', handler = Pid}) of
     [] -> 
@@ -251,14 +242,14 @@ handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media 
       {noreply, MediaProvider}
   end;
     
-handle_call({register, Name, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
+handle_call({register, Name, Pid, Options}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
   case find_in_cache(Name, MediaProvider) of
     {ok, OldPid} ->
       {reply, {error, {already_set, Name, OldPid}}, MediaProvider};
     undefined ->
       Ref = erlang:monitor(process, Pid),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
-      ems_event:stream_started(Host, Name, Pid, []),
+      ems_event:stream_started(Host, Name, Pid, Options),
       ?D({"Registering", Name, Pid}),
       {reply, {ok, {Name, Pid}}, MediaProvider}
   end;
@@ -267,19 +258,6 @@ handle_call(host, _From, #media_provider{host = Host} = MediaProvider) ->
   {reply, Host, MediaProvider};
 
 handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  % Entries = lists:map(
-  %   fun([Name, Handler]) -> 
-  %     Clients = try gen_server:call(Handler, clients, 1000) of
-  %       C when is_list(C) -> C
-  %     catch
-  %       exit:{timeout, _} -> [];
-  %       Class:Else ->
-  %         ?D({"Media",Name,"error",Class,Else}),
-  %         []
-  %     end,
-  %     {Name, Clients}
-  %   end,
-  % ets:match(OpenedMedia, {'_', '$1', '$2'})),
   Info = [{Name, Pid, (catch ems_media:status(Pid))} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
   {reply, Info, MediaProvider};
 
@@ -292,9 +270,12 @@ find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
     [#media_entry{handler = Pid}] -> {ok, Pid};
     _ -> undefined
   end.
+  
+  
+%%%%%%%%   Function in caller  
+  
 
-
-internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
+internal_open(Host, Name, Opts) ->
   Opts0 = lists:ukeysort(1, Opts),
   Opts1 = case proplists:get_value(type, Opts0) of
     undefined ->
@@ -310,35 +291,43 @@ internal_open(Name, Opts, #media_provider{host = Host} = MediaProvider) ->
       {notfound, <<"No file ", Name/binary>>};
     undefined ->
       {notfound, <<"Error ", Name/binary>>};
+    alias ->
+      NewName = proplists:get_value(url, Opts2),
+      ?D({"Aliasing", Name, NewName}),
+      internal_open(Host, NewName, Opts1);
     _ ->
-      open_media_entry(Name, MediaProvider, Opts2)
+      start_new_media_entry(Host, Name, Opts2)
   end.
 
 
-open_media_entry(Name, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider, Opts) ->
+start_new_media_entry(Host, Name, Opts) ->
   Type = proplists:get_value(type, Opts),
   URL = proplists:get_value(url, Opts, Name),
-  Public = proplists:get_value(public, Opts, true),
-  case find_in_cache(Name, MediaProvider) of
-    undefined ->
-      case ems_sup:start_media(URL, Type, Opts) of
-        {ok, Pid} ->
-          case Public of
-            true ->
-              Ref = erlang:monitor(process, Pid),
-              ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
-              ems_event:stream_started(Host, Name, Pid, [{type,Type}|Opts]);
-            _ ->
-              ?D({"Skip registration of", Type, URL}),
-              ok
-          end,
-          {ok, Pid};
+
+  Reply = case Type of
+    remote ->
+      Node = proplists:get_value(node, Opts),
+      net_adm:ping(Node),
+      gen_server:call({name(Host), Node}, {open, Name, []}, infinity);
+    _ ->
+      ems_sup:start_media(URL, Type, Opts)
+  end,
+      
+  ?D({reply, Reply}),
+      
+  case Reply of
+    {ok, Pid} ->
+      case proplists:get_value(public, Opts, true) of
+        true ->
+          register(Host, Name, Pid, Opts);
         _ ->
-          ?D({"Error opening", Type, Name}),
-          {notfound, <<"Failed to open ", Name/binary>>}
-      end;
-    {ok, Media} ->
-      {ok, Media}
+          ?D({"Skip registration of", Type, URL}),
+          ok
+      end,
+      {ok, Pid};
+    _ ->
+      ?D({"Error opening", Type, Name}),
+      {notfound, <<"Failed to open ", Name/binary>>}
   end.
   
 detect_type(Host, Name, Opts) ->
