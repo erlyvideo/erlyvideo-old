@@ -299,6 +299,11 @@ internal_open(Host, Name, Opts) ->
       start_new_media_entry(Host, Name, Opts2)
   end.
 
+lists_except(Opts, []) ->
+  Opts;
+
+lists_except(Opts, [Key|Keys]) ->
+  lists_except(lists:keydelete(Key,1,Opts), Keys).
 
 start_new_media_entry(Host, Name, Opts) ->
   Type = proplists:get_value(type, Opts),
@@ -308,7 +313,8 @@ start_new_media_entry(Host, Name, Opts) ->
     remote ->
       Node = proplists:get_value(node, Opts),
       net_adm:ping(Node),
-      gen_server:call({name(Host), Node}, {open, Name, []}, infinity);
+      ?D({open_remote,Node,Host,Name}),
+      rpc:call(Node, ?MODULE, open, [Host, URL, lists_except(Opts, [node,type,url])], 5000);
     _ ->
       ems_sup:start_media(URL, Type, Opts)
   end,
