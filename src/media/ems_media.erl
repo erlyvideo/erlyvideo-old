@@ -502,8 +502,8 @@ handle_call(metadata, _From, #ems_media{} = Media) ->
 handle_call(info, _From, #ems_media{} = Media) ->
   {reply, storage_properties(Media), Media, ?TIMEOUT};
 
-handle_call(status, _From, #ems_media{} = Media) ->
-  {reply, [{client_count, client_count(Media)}], Media, ?TIMEOUT};
+handle_call(status, _From, #ems_media{type = Type, url = URL} = Media) ->
+  {reply, [{client_count, client_count(Media)},{type, Type},{url,URL}], Media, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -623,7 +623,15 @@ handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
   case transcode(Frame) of
     undefined ->
       {noreply, Media, ?TIMEOUT};
-    Transcoded ->  
+    Frames when is_list(Frames) ->
+      State2 = lists:foldl(fun(undefined, State) ->
+        State;
+                              (F, State) ->
+        {noreply, State1, _} = shift_dts(F, State),
+        State1
+      end, Media, Frames),
+      {noreply, State2, ?TIMEOUT};
+    Transcoded ->
       shift_dts(Transcoded, Media)
   end;
 
@@ -691,6 +699,7 @@ handle_info(Message, #ems_media{module = M} = Media) ->
 
 transcode(#video_frame{content = audio, codec = Codec} = Frame) when Codec == pcma orelse 
                                                                      Codec == pcm orelse
+                                                                     Codec == g726_16 orelse
                                                                      % Codec == pcm_le orelse
                                                                      % Codec == mp3 orelse
                                                                      Codec == pcmu ->
