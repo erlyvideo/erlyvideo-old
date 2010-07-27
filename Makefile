@@ -39,7 +39,7 @@ debian:
 	debuild -us -uc
 	cp ../log4erl_$(VERSION)*.deb $(DEBIANREPO)/binary/
 	rm ../log4erl_$(VERSION)*
-	(cd $(DEBIANREPO); dpkg-scanpackages binary /dev/null | gzip -9c > binary/Packages.gz)
+	(cd $(DEBIANREPO)/..; ./update)
 
 
 .PHONY: doc debian
