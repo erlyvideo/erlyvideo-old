@@ -195,10 +195,7 @@ config_media([#rtsp_stream{type = audio, codec = aac, config = Config} = Stream 
 	},
   config_media(Streams, [Stream | Output], [AudioConfig | Frames]);
 
-config_media([#rtsp_stream{codec = pcmu} = Stream | Streams], Output, Frames) ->
-  config_media(Streams, [Stream | Output], Frames);
-  
-config_media([#rtsp_stream{codec = pcma} = Stream | Streams], Output, Frames) ->
+config_media([#rtsp_stream{} = Stream | Streams], Output, Frames) ->
   config_media(Streams, [Stream | Output], Frames).
   
 
@@ -318,7 +315,7 @@ convert_timecode(State) ->
 %% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
 %%
 %% or google:  RTCP Sender Report
-rtcp_sr(State, <<2:2, 0:1, Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, Rest/binary>>) ->
+rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
   _ClockMap = element(#base_rtp.clock_map, State),
   State1 = case element(#base_rtp.base_wall_clock, State) of
@@ -352,19 +349,23 @@ audio(#audio{media = _Media, audio_headers = <<>>, codec = aac} = Audio, {data, 
 audio(#audio{media = _Media, audio_data = AudioData, codec = aac} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
   unpack_aac_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []);
 
-audio(#audio{timecode = Timecode, codec = pcma} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
-  DTS = convert_timecode(Audio),
+audio(#audio{codec = Codec} = Audio, {data, Bin, _Sequence, Timestamp}) when Codec == pcma orelse Codec == pcmu orelse Codec == g726_16 ->
+  DTS = convert_timecode(Audio#audio{timecode = Timestamp}),
   % ?D({"Audio", size(Bin), DTS}),
   Frame = #video_frame{
     content = audio,
     dts     = DTS,
     pts     = DTS,
     body    = Bin,
-	  codec	  = pcma,
+	  codec	  = Codec,
 	  flavor  = frame,
 	  sound	  = {mono, bit8, rate11}
   },
-  {Audio#audio{timecode = Timecode + 1024}, [Frame]}.
+  Samples = case Codec of
+    g726_16 -> 1344;
+    _ -> 1024
+  end,
+  {Audio, [Frame]}.
 
   
 unpack_aac_units(#audio{audio_headers = <<>>} = Audio, Frames) ->

@@ -99,15 +99,20 @@ parse_announce([{a, Attribute} | Announce], Streams, #rtsp_stream{} = Stream) ->
   Stream1 = case Key of
     "rtpmap" ->
       {ok, Re} = re:compile("\\d+ ([^/]+)/([\\d]+)"),
-      {match, [_, CodecCode, ClockMap]} = re:run(Value, Re, [{capture, all, list}]),
+      {match, [_, CodecCode, ClockMap1]} = re:run(Value, Re, [{capture, all, list}]),
       Codec = case CodecCode of
         "H264" -> h264;
         "mpeg4-generic" -> aac;
         "PCMA" -> pcma;
         "PCMU" -> pcmu;
+        "G726-16" -> g726_16;
         Other -> Other
       end,
-      Stream#rtsp_stream{clock_map = list_to_integer(ClockMap)/1000, codec = Codec};
+      ClockMap = case Codec of
+        g726_16 -> 8000;
+        _ -> list_to_integer(ClockMap1)
+      end,
+      Stream#rtsp_stream{clock_map = ClockMap/1000, codec = Codec};
     "control" ->
       Stream#rtsp_stream{track_control = Value};
     "fmtp" ->
