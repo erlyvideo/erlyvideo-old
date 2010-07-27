@@ -1,3 +1,9 @@
+erlyvideo (2.0.5) karmic; urgency=low
+
+  Refactored media provider to remove deadlocks
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 27 Jul 2010 22:09:10 +0400
+
 erlyvideo (2.0.4) karmic; urgency=low
 
   Updated audio issues and flv enless streams
