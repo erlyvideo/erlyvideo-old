@@ -1,3 +1,9 @@
+erlang-rtsp (1.5.1) karmic; urgency=low
+
+  Added support for G.726
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 27 Jul 2010 19:18:19 +0400
+
 erlang-rtsp (1.5.0) karmic; urgency=low
 
   Switched to GPLv3
