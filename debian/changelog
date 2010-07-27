@@ -1,3 +1,9 @@
+log4erl (0.8.6-3) karmic; urgency=low
+
+  Changed dependency to erlang-nox
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 27 Jul 2010 19:24:03 +0400
+
 log4erl (0.8.6-2) karmic; urgency=low
 
   * Launchpad compilation

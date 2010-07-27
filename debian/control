@@ -1,7 +1,7 @@
 Source: log4erl
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), erlang (>= 1:13)
+Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13)
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://log4erl.blogspot.com/
@@ -9,6 +9,6 @@ Homepage: http://log4erl.blogspot.com/
 Package: log4erl
 Section: net
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang (>= 1:13)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-nox (>= 1:13)
 Description: Erlang logger
  Erlang logger
