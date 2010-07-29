@@ -170,9 +170,8 @@ read_data(#mp4_reader{reader = {M, Dev}} = MediaInfo, Offset, Size) ->
 seek(#mp4_reader{} = Media, before, Timestamp) when Timestamp == 0 ->
   {first(Media), 0};
   
-seek(#mp4_reader{video_track = VTs, frames = Frames} = Media, Direction, Timestamp) ->
-  FrameTable = element(1,VTs),
-  case mp4:seek(FrameTable, Direction, Timestamp) of
+seek(#mp4_reader{video_track = VT, frames = Frames} = Media, Direction, Timestamp) ->
+  case mp4:seek(VT, Direction, Timestamp) of
     {VideoID, NewTimestamp} ->
       ID = find_by_frameid(Frames, video, VideoID),
       {first(Media, ID, NewTimestamp),NewTimestamp};
@@ -252,7 +251,7 @@ build_index_table(#mp4_reader{video_tracks = VTs, audio_tracks = ATs, lang = Lan
   {Audio, AudioCount} = track_by_language(ATs, Lang),
   Index = <<>>,
   AC = Audio#mp4_track.decoder_config,
-  VC = Audio#mp4_track.decoder_config,
+  VC = Video#mp4_track.decoder_config,
   BuiltIndex = build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
   {ok, MediaInfo#mp4_reader{frames = BuiltIndex, audio_config = AC, video_config = VC, audio_track = Audio, video_track = Video}}.
 
