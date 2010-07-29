@@ -419,7 +419,6 @@ handle_info({ems_stream, StreamId, play_failed}, StateName, #rtmp_session{socket
   rtmp_lib:play_failed(Socket, StreamId),
   {next_state, StateName, State};
   
-
 handle_info(#video_frame{} = Frame, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
   {next_state, 'WAIT_FOR_DATA', handle_frame(Frame, State)};
 
@@ -444,7 +443,7 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
       {State, ems:element(StreamId, StreamsDTS), false}
   end,
     
-  % ?D({Type,Frame#video_frame.flavor,round(DTS), round(PTS), BaseDts}),
+  % ?D({Type,Frame#video_frame.flavor,round(DTS)}),
   Message = #rtmp_message{
     channel_id = rtmp_lib:channel_id(Type, StreamId), 
     timestamp = DTS - BaseDts,

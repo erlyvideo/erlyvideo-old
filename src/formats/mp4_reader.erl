@@ -34,7 +34,9 @@
   width,
   height,
   duration,
+  audio_tracks,
   audio_track,
+  video_tracks,
   video_track,
   video_codec,
   audio_codec,
@@ -42,7 +44,8 @@
   video_config,
   frames,
   reader,
-  header
+  header,
+  lang
 }).
 
 
@@ -101,8 +104,8 @@ first(_, Id, _DTS) ->
   Id.
 
 
-lookup_frame(video, #mp4_reader{video_track = VTs}) -> element(1,VTs);
-lookup_frame(audio, #mp4_reader{audio_track = ATs}) -> element(1,ATs).
+lookup_frame(video, #mp4_reader{video_track = VT}) -> VT;
+lookup_frame(audio, #mp4_reader{audio_track = AT}) -> AT.
 
 
 read_frame(MediaInfo, undefined) ->
@@ -218,7 +221,7 @@ video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
 
 
 init(Reader, Options) -> 
-  Info1 = #mp4_reader{reader = Reader, audio_codec = aac, video_codec = h264},
+  Info1 = #mp4_reader{reader = Reader, audio_codec = aac, video_codec = h264, lang = proplists:get_value("lang", Options)},
   ?D({"Going to read header", Options}),
   % eprof:start(),
   % eprof:start_profiling([self()]),
@@ -233,30 +236,25 @@ read_header(#mp4_reader{reader = Reader} = MediaInfo) ->
   {ok, Mp4Media} = mp4:read_header(Reader),
   #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, seconds = Seconds} = Mp4Media,
   ?D({"Opened mp4 file with following video tracks:", [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs], "and audio tracks", [Language || #mp4_track{language = Language} <- ATs]}),
-  AC = case ATs of
-    [#mp4_track{decoder_config = ACC}|_] -> ACC;
-    [] -> undefined
-  end,
-  VC = case VTs of
-    [#mp4_track{decoder_config = VCC}|_] -> VCC;
-    [] -> undefined
-  end,
   Info1 = MediaInfo#mp4_reader{header = Mp4Media, width = Width, height = Height,            
-                       audio_config = AC, video_config = VC, 
-                       audio_track = list_to_tuple(ATs), video_track = list_to_tuple(VTs), duration = Seconds},
+                       audio_tracks = ATs, video_tracks = VTs, duration = Seconds},
   {ok, Info1}.
 
 
-track_by_number(Tracks, Number) when size(Tracks) < Number -> {undefined, 0};
-track_by_number(Tracks, Number) -> {element(Number, Tracks), mp4:frame_count(element(Number, Tracks))}.
+track_by_language([Track|_], undefined) -> {Track, mp4:frame_count(Track)};
+track_by_language([#mp4_track{language = Lang} = Track|_], Lang) -> ?D({"Selected track", Lang}), {Track, mp4:frame_count(Track)};
+track_by_language([_|Tracks], Lang) -> track_by_language(Tracks, Lang);
+track_by_language([], _Lang) -> {undefined, 0}.
 
 
-build_index_table(#mp4_reader{video_track = VTs, audio_track = ATs} = MediaInfo) ->
-  {Video, VideoCount} = track_by_number(VTs, 1),
-  {Audio, AudioCount} = track_by_number(ATs, 1),
+build_index_table(#mp4_reader{video_tracks = VTs, audio_tracks = ATs, lang = Lang} = MediaInfo) ->
+  {Video, VideoCount} = track_by_language(VTs, Lang),
+  {Audio, AudioCount} = track_by_language(ATs, Lang),
   Index = <<>>,
+  AC = Audio#mp4_track.decoder_config,
+  VC = Audio#mp4_track.decoder_config,
   BuiltIndex = build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
-  {ok, MediaInfo#mp4_reader{frames = BuiltIndex}}.
+  {ok, MediaInfo#mp4_reader{frames = BuiltIndex, audio_config = AC, video_config = VC, audio_track = Audio, video_track = Video}}.
 
 
 build_index_table(_Video, VC, VC, _Audio, AC, AC, Index, _ID) ->
@@ -284,9 +282,9 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   end.
 
 
-properties(#mp4_reader{width = Width, height = Height, duration = Duration, audio_track = ATs, video_track = VTs}) -> 
-  Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- tuple_to_list(VTs)],
-  Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- tuple_to_list(ATs)],
+properties(#mp4_reader{width = Width, height = Height, duration = Duration, audio_tracks = ATs, video_tracks = VTs}) -> 
+  Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs],
+  Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- ATs],
   [{width, Width}, 
    {height, Height},
    {type, file},
