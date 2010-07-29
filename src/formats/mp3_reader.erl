@@ -53,7 +53,7 @@ write_frame(_Device, _Frame) ->
 
 
 %%--------------------------------------------------------------------
-%% @spec (IoDev::iodev()) -> {ok, IoSize::integer(), Header::header()} | {error,Reason::atom()}
+%% @spec (IoDev::iodev(), Options) -> {ok, State} | {error,Reason::atom()}
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
