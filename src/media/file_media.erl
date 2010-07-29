@@ -69,7 +69,7 @@ open_file(Access, Path, Options) ->
 	  undefined ->
 	    {error, notfound};
   	Format ->
-    	{ok, Storage} = Format:init({Access,File}),
+    	{ok, Storage} = Format:init({Access,File}, Options),
     	{Format, Storage}
   end.
 

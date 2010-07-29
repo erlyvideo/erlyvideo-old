@@ -28,7 +28,7 @@
 -include("../../include/ems.hrl").
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(media_info, {
   reader,
@@ -61,7 +61,7 @@ write_frame(_Device, _Frame) ->
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(Reader) ->
+init(Reader, _Options) ->
   MediaInfo = #media_info{reader = Reader},
   case flv:read_header(Reader) of
     {#flv_header{} = Header, Offset} -> 

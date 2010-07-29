@@ -30,7 +30,7 @@
 
 -behaviour(gen_format).
 
--export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(shift, {
   first = 0,
@@ -41,7 +41,7 @@
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-init(Options) ->
+init(Options, _MoreOptions) ->
   Shift = proplists:get_value(timeshift, Options),
   Size = Shift*80 div 1000, % About 80 fps for video and audio
   {ok, #shift{frames = array:new(Size), size = Size}}.

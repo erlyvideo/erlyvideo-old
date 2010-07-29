@@ -27,7 +27,7 @@
 -include("../../include/ems.hrl").
 
 -behaviour(gen_format).
--export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(media_info, {
   reader,
@@ -57,13 +57,13 @@ write_frame(_Device, _Frame) ->
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(Reader) ->
+init(Reader, _Options) ->
   {ok, read_header(#media_info{reader = Reader})}.
 
 
 read_header(#media_info{reader = {Module,Device}} = Media) -> 
   case Module:pread(Device, 0, 10) of
-    {ok, <<"ID3", Major, Minor, Unsync:1, Extended:1, _Experimental:1, Footer:1, 0:4, 
+    {ok, <<"ID3", Major, Minor, _Unsync:1, _Extended:1, _Experimental:1, _Footer:1, 0:4, 
            _:1, S1:7, _:1, S2:7, _:1, S3:7, _:1, S4:7>>} ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
       Media1 = Media#media_info{format = id3, version = {Major, Minor}},
@@ -80,7 +80,7 @@ read_header(#media_info{reader = {Module,Device}} = Media) ->
   end.  
 
 
-sync(<<2#11111111111:11, _:5, _/binary>>, Media, Offset) ->
+sync(<<2#11111111111:11, _:5, _/binary>>, _Media, Offset) ->
   Offset;
   
 sync(<<_, Binary/binary>>, Media, Offset) ->
@@ -113,7 +113,7 @@ seek(#media_info{}, _BeforeAfter, _Timestamp) ->
 read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
-read_frame(Media, {eof, _N}) ->
+read_frame(_Media, {eof, _N}) ->
   eof;
 
 read_frame(#media_info{reader = {Module,Device}} = Media, {Offset, N}) ->

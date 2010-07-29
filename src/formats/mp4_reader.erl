@@ -48,7 +48,7 @@
 
 -export([build_index_table/1, read_header/1]).
 
--export([init/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -define(FRAMESIZE, 8).
 
@@ -217,9 +217,9 @@ video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
 
 
 
-init(Reader) -> 
+init(Reader, Options) -> 
   Info1 = #mp4_reader{reader = Reader, audio_codec = aac, video_codec = h264},
-  ?D("Going to read header"),
+  ?D({"Going to read header", Options}),
   % eprof:start(),
   % eprof:start_profiling([self()]),
   {Time, {ok, Info2}} = timer:tc(?MODULE, read_header, [Info1]),
