@@ -120,6 +120,7 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
 extract_url_args([]) -> [];
 extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};
 extract_url_args({"duration", Duration}) -> {duration, list_to_integer(Duration)*1000};
+extract_url_args({Key, Value}) -> {Key, Value};
 extract_url_args(List) -> [extract_url_args(Arg) || Arg <- List].
 
 
