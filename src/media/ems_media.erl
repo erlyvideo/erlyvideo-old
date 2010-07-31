@@ -269,7 +269,7 @@ setopts(Media, Options) ->
 %% @doc Publishes frame to media
 %% @end
 %%----------------------------------------------------------------------
-publish(Media, #video_frame{} = Frame) ->
+publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
   Media ! Frame.
 
   
