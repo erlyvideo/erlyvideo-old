@@ -38,7 +38,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/3, open/2, open/3, play/3, entries/1, remove/2, find/2, register/3, register/4]).
+-export([start_link/1, create/3, open/2, open/3, play/2, play/3, entries/1, remove/2, find/2, register/3, register/4]).
 -export([info/1, info/2, detect_type/3]). % just for getStreamLength
 
 %% gen_server callbacks
@@ -124,6 +124,10 @@ play(Host, Name, Options) ->
       {ok, Stream}
   end.
 
+
+play(Stream, Options) when is_pid(Stream) andalso is_list(Options) ->
+  ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
+  {ok, Stream}.
   
 
 open(Host, Name) when is_list(Name)->
