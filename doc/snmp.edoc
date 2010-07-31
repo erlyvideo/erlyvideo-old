@@ -1,0 +1,13 @@
+@author     Max Lapshin <max@maxidoors.ru> [http://maxidoors.ru]
+@copyright  2009-2010 Max Lapshin
+@reference  See following articles about snmp:
+<ul>
+<li><a href="http://www.erlang.org/doc/apps/snmp/index.html">Erlang SNMP reference</a></li>
+<li><a href="http://www.trapexit.org/SNMP_Quick_Start">SNMP quick start</a></li>
+<li><a href="http://www.slideshare.net/ddossot/looking-under-thecoverserlangsnmp">erlang SNMP on slideshare</a></li>
+<li><a href="http://www.erlang-consulting.com/thesis/protocolmapping.html">SNMP based Management</a></li>
+</ul>
+@version 
+@title SNMP management of erlyvideo
+@doc Once erlyvideo will have snmp management
+@end
