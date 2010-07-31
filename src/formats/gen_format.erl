@@ -10,7 +10,7 @@
 %%%    frames, video_track, audio_track, header, width, height, duration, framerate, timescale, audio_config, video_config
 %%%    
 %%%
-%%% ```read_frame(MediaInfo, Offset) -> {#video_frame{}, NextOffset}'''
+%%% ```read_frame(MediaInfo, Offset) -> #video_frame{next_id = NextOffset}'''
 %%%  Client calls this method frame by frame, retrieving NextOffset
 %%%  First frame is called with Offset = undefined. 
 %%%
