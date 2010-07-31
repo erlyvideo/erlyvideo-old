@@ -27,7 +27,7 @@
 
 -export([start_link/1, init/1, writer/1]).
 
--export([read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init_file/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(flv_file_writer, {
   writer,
