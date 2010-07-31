@@ -96,7 +96,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'DOWN', process, Client, _Reason}, Server) ->
+handle_info({'DOWN', _, process, Client, _Reason}, Server) ->
   {noreply, Server};
 
 handle_info(_Info, State) ->
