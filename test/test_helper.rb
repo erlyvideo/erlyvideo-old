@@ -35,7 +35,10 @@ class Test::Unit::TestCase
     pid = start_command(command, "/tmp/output.txt")
 
     trap("ALRM") do
-      Process.kill("KILL", pid)
+      begin
+        Process.kill("KILL", pid) 
+      rescue Errno::ESRCH
+      end
     end
     
     Alarm.alarm(timeout)
@@ -45,14 +48,14 @@ class Test::Unit::TestCase
     rescue Errno::ECHILD
       status = nil
     end
-    File.read("/tmp/output.txt")
-    status
+    
+    [status, File.read("/tmp/output.txt")]
   end
   
   def media_info(url, options = nil)
     if url =~ /http:\/\//
       File.unlink("/tmp/test") if File.exists?("/tmp/test")
-      status = limited_run("curl --connect-timeout 1 --fail -s -S -o /tmp/test \"#{url}\"", 5)
+      status, output = limited_run("curl --connect-timeout 1 --fail -s -S -o /tmp/test \"#{url}\"", 5)
       raise NotFound404, "no resource: #{url.inspect}" if status == 22
       File.exists?("/tmp/test") ? `ffmpeg -timelimit 8 #{options} -i /tmp/test 2>&1` : raise("Couldn't download #{url}")
     else

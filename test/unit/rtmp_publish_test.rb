@@ -15,7 +15,7 @@ class RtmpFileTest < Test::Unit::TestCase
   
   def test_published_stream_is_shifted
     File.unlink("/tmp/test.flv") if File.exists?("/tmp/test.flv")
-    result = limited_run("rtmpdump -r rtmp://localhost/live/livestream --stop 5 -o /tmp/test.flv", 5)
+    result, output = limited_run("rtmpdump -r rtmp://localhost/live/livestream --stop 5 -o /tmp/test.flv", 5)
 
     assert(File.size("/tmp/test.flv") > 0, "Should download file: #{result} #{File.read("/tmp/livestream.txt")}")
     
@@ -31,7 +31,7 @@ class RtmpFileTest < Test::Unit::TestCase
   end
   
   def test_iphone_of_live_stream
-    result = limited_run("curl -s http://localhost:8082/iphone/playlists/livestream.m3u8", 5)
+    result, output = limited_run("curl -s http://localhost:8082/iphone/playlists/livestream.m3u8", 5)
     assert_equal <<-EOF, result
 #EXTM3U
 #EXT-X-MEDIA-SEQUENCE:0
@@ -41,7 +41,7 @@ class RtmpFileTest < Test::Unit::TestCase
 /iphone/segments/livestream/0.ts
     EOF
 
-    result = limited_run("curl -s http://localhost:8082/iphone/segments/livestream/0.ts", 5)
+    result, output = limited_run("curl -s http://localhost:8082/iphone/segments/livestream/0.ts", 5)
     assert result.size > 10000, "Should download large content: size is #{result.size}"
   end
 end

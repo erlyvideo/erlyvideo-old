@@ -26,7 +26,7 @@ class RtmpFileTest < Test::Unit::TestCase
   def test_read_stream
     File.unlink("/tmp/test.flv") if File.exists?("/tmp/test.flv")
     
-    result = limited_run("rtmpdump -r rtmp://localhost/vod/video.ts --stop 5 -o /tmp/test.flv", 7)
+    result, output = limited_run("rtmpdump -r rtmp://localhost/vod/video.ts --stop 5 -o /tmp/test.flv", 7)
     assert( (File.size("/tmp/test.flv") > 0), "Should download file: #{result}")
     duration = flvtool2_duration("/tmp/test.flv")
     assert duration.is_a?(Numeric), "Duration should be number: #{duration.inspect}"
