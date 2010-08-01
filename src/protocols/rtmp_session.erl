@@ -477,12 +477,13 @@ collect_statistics(#rtmp_session{socket = Socket}) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_session{socket=Socket,
+terminate(_Reason, _StateName, #rtmp_session{socket=Socket, host = Host,
   addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId} = State) ->
   erlyvideo:call_modules(logout, [State]),
   (catch rtmp_listener:logout()),
   (catch gen_tcp:close(Socket)),
   ems_event:user_disconnected(State#rtmp_session.host, [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId}|PlayStats]),
+	ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p", [Addr, Host, UserId, Recv, Sent]),
   ok.
 
 
