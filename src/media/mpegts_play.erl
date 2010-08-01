@@ -53,6 +53,7 @@ play(_Name, Player, Req, Options, Counters) ->
   case proplists:get_value(buffered, Options) of
     true -> 
       {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
+      ?D({iphone_segment, iolist_size(Buffer)}),
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       Req:stream(lists:reverse(Buffer));
     _ ->

@@ -323,8 +323,6 @@ start_new_media_entry(Host, Name, Opts) ->
       ems_sup:start_media(URL, Type, Opts)
   end,
       
-  ?D({reply, Reply}),
-      
   case Reply of
     {ok, Pid} ->
       case proplists:get_value(public, Opts, true) of

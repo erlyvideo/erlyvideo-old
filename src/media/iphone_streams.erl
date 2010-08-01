@@ -123,10 +123,12 @@ segments(Host, Name) ->
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
+      {MS1, _} = erlang:statistics(wall_clock),
       Counters = iphone_streams:get_counters(Host, Name, Number),
-      ?D({"Get counters for", Host, Name, Number, Counters}),
       NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}], Counters),
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
+      {MS2, _} = erlang:statistics(wall_clock),
+      ?D({iphone_segment, Name, Number, MS2-MS1}),
       ok;
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
