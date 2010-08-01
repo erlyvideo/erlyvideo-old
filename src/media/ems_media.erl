@@ -303,21 +303,20 @@ init([Module, Options]) ->
   URL = proplists:get_value(url, Options),
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ets:new(clients, [set,  {keypos,#client.consumer}])},
-  ?D("Starting"),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = case proplists:get_value(timeshift, Options) of
         undefined -> 
           Media1;
         Timeshift when is_number(Timeshift) andalso Timeshift > 0 ->
-          case array_timeshift:init(Options) of
+          case array_timeshift:init(Options, []) of
             {ok, TSData} ->
               Media1#ems_media{format = array_timeshift, storage = TSData};
             _ ->
               Media1
           end
       end,
-      ?D("Started"),
+      ?D({"Started", Module,Options}),
       Media3 = Media2#ems_media{
         source_timeout = or_time(proplists:get_value(source_timeout, Options), Media2#ems_media.source_timeout),
         clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout),
