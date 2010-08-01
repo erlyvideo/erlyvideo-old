@@ -26,7 +26,7 @@
 -include("log.hrl").
 -include("../include/wav.hrl").
 
--export([header_size/0, read_header/1, write_header/1]).
+-export([header_size/0, read_header/1, write_header/1, write_header/3]).
 
 
 header_size() ->
@@ -37,13 +37,26 @@ read_header(<<"RIFF", _TotalSize:32/little, "WAVE", "fmt ", 16:32/little,
               _BlockAlign:16/little, BitsPerSample:16/little, "data", _Sub2Size:32/little>>) ->
   #wav_header{audio = AudioFormat, channels = Channels, rate = Rate, bps = BitsPerSample}.
 
+audio_format(pcm_le) -> ?WAV_PCM_LE;
+audio_format(pcma) -> ?WAV_PCMA;
+audio_format(pcmu) -> ?WAV_PCMU;
+audio_format(Format) when is_integer(Format) -> Format.
+
+bps(pcm_le) -> 16;
+bps(pcma) -> 8;
+bps(pcmu) -> 8.
+
+write_header(AudioFormat, Channels, Rate) ->
+  write_header(#wav_header{audio = AudioFormat, channels = Channels, rate = Rate, bps = bps(AudioFormat)}).
+
 write_header(#wav_header{audio = AudioFormat, channels = Channels, rate = Rate, bps = BitsPerSample}) ->
+  Format = audio_format(AudioFormat),
   BlockAlign = BitsPerSample div 8,
   ByteRate = BlockAlign * Rate,
   DataSize = 0,
   TotalSize = DataSize + 36,
   <<"RIFF", TotalSize:32/little, "WAVE", "fmt ", 16:32/little,
-    AudioFormat:16/little, Channels:16/little, Rate:32/little, ByteRate:32/little,
+    Format:16/little, Channels:16/little, Rate:32/little, ByteRate:32/little,
     BlockAlign:16/little, BitsPerSample:16/little, "data", DataSize:32/little>>.
   
               
