@@ -61,7 +61,7 @@ write_frame(_Device, _Frame) ->
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(Reader, _Options) ->
+init({_Module,_Device} = Reader, _Options) ->
   MediaInfo = #media_info{reader = Reader},
   case flv:read_header(Reader) of
     {#flv_header{} = Header, Offset} -> 
