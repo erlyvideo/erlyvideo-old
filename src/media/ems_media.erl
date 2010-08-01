@@ -63,7 +63,7 @@
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, format_status/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, format_status/2]).
 
 
 -define(LIFE_TIMEOUT, 60000).
@@ -278,7 +278,7 @@ publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
 %%%------------------------------------------------------------------------
 
 %% @hidden
-format_status(#ems_media{} = Media) ->
+format_status(Reason, [_Dict, #ems_media{} = Media]) ->
   Media#ems_media{storage = storage}.
 
 
