@@ -176,21 +176,55 @@ reconfigure() ->
   ok.
 
 load_config() ->
-  % [application:unset_env(erlyvideo, Key) || {Key, _} <- application:get_all_env(erlyvideo)],
+  
+  File = load_file_config(),
+  % Dets = load_persistent_config(),
+  % Env = deep_merge(File, Dets),
+  Env = File,
+  [application:set_env(erlyvideo, Key, Value) || {Key, Value} <- Env],
+  ok.
 
+
+load_file_config() ->
   case file:path_consult(["priv", "/etc/erlyvideo"], "erlyvideo.conf") of
     {ok, Env, Path} -> 
       error_logger:info_report("Erlyvideo is loading config from file ~s~n", [Path]),
-      [application:set_env(erlyvideo, Key, Value) || {Key, Value} <- Env],
-      ok;
+      Env;
     {error, enoent} ->
-      error_logger:error_msg("No erlyvideo.conf found");
+      error_logger:error_msg("No erlyvideo.conf found"),
+      [];
     {error, Reason} ->
       error_logger:error_msg("Couldn't load erlyvideo.conf: ~p~n", [Reason]),
-      ok
+      []
   end.
 
 
+load_persistent_config() ->
+  load_persistent_config(["priv", "/var/lib/erlyvideo"]).
+  
+load_persistent_config([]) ->
+  [];
+  
+load_persistent_config([Path|Paths]) ->
+  case file:read_file_info(Path) of
+    {ok, _FileInfo} ->
+      case dets:is_dets_file(Path) of
+        true ->
+          {ok, Config} = dets:open_file("erlyvideo_config", [{file, Path}]),
+          [Entry || [Entry] <- dets:match(Config, '$1')];
+        false ->
+          []
+      end;
+    {error, _} ->
+      load_persistent_config(Paths)
+  end.
+
+deep_merge(List1, List2) ->
+  deep_merge(lists:ukeysort(1, List1), lists:ukeysort(1, List2), []).
+
+% TODO: implement real deep merge for erlyvideo  
+deep_merge(List1, _, _) ->
+  List1.
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
