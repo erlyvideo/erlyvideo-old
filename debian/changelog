@@ -1,3 +1,9 @@
+erlyvideo (2.0.6) karmic; urgency=low
+
+  Fixed tests, added disconnect logging
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 02 Aug 2010 00:49:45 +0400
+
 erlyvideo (2.0.5) karmic; urgency=low
 
   Refactored media provider to remove deadlocks
