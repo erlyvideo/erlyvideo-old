@@ -4,7 +4,7 @@
 {iphone_segment_size, 10000}.
 {rtmp_default_wait, false}.
 {modules,[]}.
-{file_formats,[mp4_reader,flv_reader]}.
+{file_formats,[mp4_reader,flv_reader,mp3_reader]}.
 {vhosts, [
   {default, [
   	{file_access, file},
