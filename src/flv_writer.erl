@@ -1,6 +1,32 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
 %%% @doc        Module to write FLV files
+%%%
+%%% There are two ways to use it:
+%%% 1) passive with state
+%%% 2) active with process, consuming #video_frame{}
+%%% 
+%%% On lower level, lies atomic writer:
+%%% <code>
+%%% {ok, Writer} = flv_writer:init_file(Filename),
+%%% {ok, Writer1} = flv_writer:write_frame(Frame, Writer)
+%%% </code>
+%%% 
+%%% Other way is to launch process, that will accept media frames:
+%%% <code>
+%%% {ok, Pid} = flv_writer:start_link(Filename),
+%%% Pid ! Frame
+%%% </code>
+%%% 
+%%% The code above will open ```Filename''' and write there frames. Also it is possible to
+%%% pass writer function:
+%%% 
+%%% <code>
+%%% {ok, File} = file:open("test.flv", [binary, write]),
+%%% {ok, Pid} = flv_writer:start_link(fun(Data) -> file:write(File, Data) end),
+%%% Pid ! Frame
+%%% </code>
+%%% 
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
@@ -34,22 +60,39 @@
   base_dts
 }).
 
-
+%%-------------------------------------------------------------------------
+%% @spec (FileName|Writer) -> {ok, Pid}
+%% @doc  Starts linked writer process
+%% @end
+%%-------------------------------------------------------------------------
 start_link(FileName) ->
   {ok, spawn_link(?MODULE, init, [[FileName]])}.
 
+%% @hidden
 init([Writer]) when is_function(Writer) ->
 	Writer(flv:header()),
 	?MODULE:writer(#flv_file_writer{writer = Writer});
 
-init([FileName]) ->
+init([FileName]) when is_list(FileName) or is_binary(FileName) ->
   case init_file(FileName) of
     {ok, State} ->
       ?MODULE:writer(State);
 		Error ->
 		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, Error]),
 			exit({flv_file_writer, Error})
-  end.
+  end;
+  
+init(FileName) when is_list(FileName) or is_binary(FileName)  ->
+  init([FileName]).
+
+
+%%-------------------------------------------------------------------------
+%% @spec (FileName) -> {ok, Writer}
+%% @doc  Creates writer state
+%% @end
+%%-------------------------------------------------------------------------
+init_file(FileName) when is_binary(FileName) ->
+  init_file(binary_to_list(FileName));
   
 init_file(FileName) ->
 	ok = filelib:ensure_dir(FileName),
@@ -62,7 +105,8 @@ init_file(FileName) ->
 		Error ->
 			Error
   end.
-	
+
+%% @hidden	
 writer(#flv_file_writer{} = FlvWriter) ->
   receive
     #video_frame{} = Frame ->
@@ -75,6 +119,11 @@ writer(#flv_file_writer{} = FlvWriter) ->
     	?MODULE:writer(FlvWriter)
   end.
   
+%%-------------------------------------------------------------------------
+%% @spec (Frame, Writer) -> {ok, NewWriter}
+%% @doc  Writes one flv frame
+%% @end
+%%-------------------------------------------------------------------------
 write_frame(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined, writer = Writer} = FlvWriter) ->
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = 0, pts = 0})),
   {ok, FlvWriter#flv_file_writer{base_dts = DTS}};
