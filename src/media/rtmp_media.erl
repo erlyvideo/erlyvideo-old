@@ -48,14 +48,15 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(_Media, Options) ->
-  erlang:error(unimplemented),
+init(Media, Options) ->
   URL = proplists:get_value(url, Options),
   {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  ?D({rtmp_connect, Host, Port}),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
+  rtmp_socket:setopts(RTMP, [{active, true}]),
   ems_media:set_source(self(), RTMP),
-  {ok, #rtmp{socket = Socket, demuxer = RTMP, url = URL}}.
+  {ok, Media#ems_media{state = #rtmp{socket = Socket, demuxer = RTMP, url = URL}}}.
 
 
 %%----------------------------------------------------------------------
@@ -124,13 +125,12 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info({rtmp, RTMP, connected}, #rtmp{url = URL} = State) ->
+handle_info({rtmp, RTMP, connected}, #ems_media{state = #rtmp{url = URL}} = State) ->
   ?D({"Connected to RTMP source", URL}),
   {rtmp, _UserInfo, _Host, _Port, FullPath, _Query} = http_uri2:parse(URL),
   [App|PathParts] = string:tokens(FullPath, "/"),
   Path = list_to_binary(string:join(PathParts, "/")),
   ?D({"App,path", App, Path}),
-  rtmp_socket:setopts(RTMP, [{active, true}]),
   rtmp_lib:connect(RTMP, [{app, list_to_binary(App)}, {tcUrl, list_to_binary(URL)}]),
   Stream = rtmp_lib:createStream(RTMP),
   ?D({"Stream",Stream}),
@@ -138,9 +138,12 @@ handle_info({rtmp, RTMP, connected}, #rtmp{url = URL} = State) ->
   ?D({"Playing", Path}),
   {noreply, State};
 
-handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body}}, Recorder) when Type == audio orelse Type == video ->
+handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body}}, Recorder) when (Type == audio orelse Type == video) andalso size(Body) > 0 ->
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
-  % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
+  case Frame#video_frame.flavor of
+    command -> ?D(Frame);
+    _ -> ?D({Frame#video_frame.content, Frame#video_frame.codec, Frame#video_frame.flavor, Timestamp})
+  end,
   self() ! Frame,
   {noreply, Recorder};
 
