@@ -7,7 +7,7 @@
 %%% @end
 %%%
 %%% This file is part of erlang-rtsp.
-%%% 
+%%%
 %%% erlang-rtsp is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -25,7 +25,7 @@
 -module(sdp_tests).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("eunit/include/eunit.hrl").
-
+-include_lib("../include/sdp.hrl").
 
 
 beward_sdp() ->
@@ -60,7 +60,7 @@ beward_test() ->
                 undefined},
   {rtsp_stream,audio,8.0,"track2",pcma,
                 undefined,undefined,undefined}], sdp:decode(beward_sdp())).
-  
+
 
 
 
@@ -96,7 +96,7 @@ quicktime_broadcaster_test() ->
                 <<40,222,9,23,160>>,
                 <<39,77,64,12,169,24,80,143,203,128,53,6,1,6,182,194,181,239,124,4>>,
                 undefined}], sdp:decode(quicktime_broadcaster_sdp())).
-  
+
 
 axis_m1011_sdp() ->
   <<"v=0
@@ -114,15 +114,15 @@ a=framerate:30.0
 a=control:trackID=1
 a=rtpmap:96 H264/90000
 a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==">>.
-  
-  
+
+
 axis_m1011_test() ->
   ?assertEqual([
    {rtsp_stream,video,90.0,"trackID=1",h264,
                 <<104,206,60,128>>,
                 <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
                 undefined}], sdp:decode(axis_m1011_sdp())).
-  
+
 
 axis_p1311_test() ->
   SDP = <<"v=0
@@ -160,10 +160,10 @@ axis_test() ->
                 <<104,206,60,128>>,
                 <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
                 undefined}], sdp:decode(<<"v=0\r\no=- 1266472632763124 1266472632763124 IN IP4 192.168.4.1\r\ns=Media Presentation\r\ne=NONE\r\nc=IN IP4 0.0.0.0\r\nb=AS:50000\r\nt=0 0\r\na=control:*\r\na=range:npt=0.000000-\r\nm=video 0 RTP/AVP 96\r\nb=AS:50000\r\na=framerate:25.0\r\na=control:trackID=1\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r\n">>)).
-                
+
 
 % D-Link is an IP-camera, not AVC-camera. ertsp doesn't currently support it.
-% http://github.com/erlyvideo/erlyvideo/issues/issue/5              
+% http://github.com/erlyvideo/erlyvideo/issues/issue/5
 dlink_dcs_2121_test() ->
   ?assertError(function_clause, sdp:decode(<<"v=0\r\no=CV-RTSPHandler 1123412 0 IN IP4 10.48.135.130\r\ns=D-Link DCS-2121\r\nc=IN IP4 0.0.0.0\r\nt=0 0\r\na=charset:Shift_JIS\r\na=range:npt=now-\r\na=control:*\r\na=etag:1234567890\r\nm=video 0 RTP/AVP 96\r\nb=AS:18\r\na=rtpmap:96 MP4V-ES/90000\r\na=control:trackID=1\r\na=fmtp:96 profile-level-id=1;config=000001B001000001B509000001000000012000C488BA98514043C1443F;decode_buf=76800\r\na=sendonly\r\nm=audio 0 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\na=control:trackID=2\r\na=sendonly\r\n">>)).
 
@@ -172,7 +172,7 @@ dlink_dcs_2121_test() ->
 darwinss_test() ->
   ?assertEqual([{rtsp_stream,video,90.0,"trackID=1",h264,
                 undefined,undefined,undefined}], sdp:decode(<<"v=0\r\no=- 1188340656180883 1 IN IP4 224.1.2.3\r\ns=Session streamed by GStreamer\r\ni=server.sh\r\nt=0 0\r\na=tool:GStreamer\r\na=type:broadcast\r\nm=video 10000 RTP/AVP 96\r\nc=IN IP4 224.1.2.3\r\na=rtpmap:96 H264/90000\r\na=framerate:30">>)).
-                
+
 darwin_sdp() ->
   <<"v=0
 o=StreamingServer 3485077701 1211414520000 IN IP4 129.85.244.160
@@ -206,4 +206,52 @@ darwin_test() ->
                       {rtsp_stream,audio,48.0,"trackID=2","MP4A-LATM",undefined,
                                           undefined,<<64,0,35,32,63,192>>}], sdp:decode(darwin_sdp())).
 
-                
+
+some_random_sdp() ->
+  <<"v=0
+o=- 234234 546456 IN IP4 10.11.12.13
+s=Test
+c=IP4 10.11.12.13
+m=video 1500 RTP/AVP 8
+a=control:trackID=1
+a=rtpmap:8 PCMA/90000
+m=audio 1600 RTP/AVP 97
+a=control:trackID=2
+a=rtpmap:97 MP4A-LATM/48000
+">>.
+
+
+encoder_test() ->
+  Sess =
+    #session_desc{version = <<"0">>,
+                  originator = #sdp_o{username = <<"-">>,
+                                      sessionid = <<"234234">>,
+                                      version = <<"546456">>,
+                                      nettype = <<"IN">>,
+                                      addrtype = inet4,
+                                      address = "10.11.12.13"},
+                  name = <<"Test">>,
+                  connect = {inet4,"10.11.12.13"}},
+  MediaV =
+    #media_desc{type = video,
+                connect = {inet4, "10.11.12.13"},
+                port = 1500,
+                payload = 8,
+                clock_map = 90,
+                track_control = <<"trackID=1">>,
+                codec = pcma,
+                pps = undefined,
+                sps = undefined,
+                config = undefined},
+  MediaA =
+    #media_desc{type = audio,
+                connect = {inet4, "10.11.12.13"},
+                port = 1600,
+                payload = 97,
+                clock_map = 48,
+                track_control = <<"trackID=2">>,
+                codec = mp4,
+                pps = undefined,
+                sps = undefined,
+                config = undefined},
+  ?assertEqual(some_random_sdp(), sdp:encode(Sess, [MediaV, MediaA])).
