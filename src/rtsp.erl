@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlang-rtsp.
-%%% 
+%%%
 %%% erlang-rtsp is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -39,18 +39,18 @@
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
 %% @doc Starts RTSP library
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 
-start(_Type, _Args) -> 
+start(_Type, _Args) ->
   rtsp_sup:start_link().
-  
+
 
 
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> ok()
 %% @doc Stop RTSP library
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 stop(_S) ->
   ok.
@@ -59,7 +59,7 @@ stop(_S) ->
 %%--------------------------------------------------------------------
 %% @spec (Any::any(),Any::any(),Any::any()) -> any()
 %% @doc Reload RTSP config
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 config_change(_Changed, _New, _Remove) ->
   ok.
@@ -84,13 +84,13 @@ behaviour_info(_Other) -> undefined.
 
 edoc() ->
   edoc([{dir,"doc/html"}]).
-  
+
 edoc(Options) ->
   edoc:application(?MODULE,".",[{packages,false} | Options]).
 
 start_server(Port, Name, Callback) ->
   rtsp_sup:start_rtsp_listener(Port, Name, Callback).
-  
+
 
 parse(ready, <<$$, ChannelId, Length:16, RTP:Length/binary, Rest/binary>>) ->
   {ok, {rtp, ChannelId, RTP}, Rest};
@@ -108,6 +108,9 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
       {more, ready, Data}
   end;
 
+parse(ready, <<"INVITE ", Request/binary>> = Data) ->
+    parse_sip_invite(Request);
+
 parse(ready, Data) ->
   case erlang:decode_packet(line, Data, []) of
     {ok, Line, Rest} ->
@@ -117,7 +120,7 @@ parse(ready, Data) ->
     _ ->
       {more, ready, Data}
   end;
-  
+
 parse({body, Length}, Data) when size(Data) >= Length ->
   {Body, Rest} = split_binary(Data, Length),
   {ok, {body, Body}, Rest};
@@ -137,6 +140,14 @@ parse(header, Data) ->
 
 parse(State, Data) ->
   {error, State, Data}.
+
+parse_sip_invite(Request) ->
+  case erlang:decode_packet(line, Request, []) of
+      {ok, R, Rest} ->
+          {ok, Re} = re:compile("([^ ]+)\s+SIP/2\.0.*"),
+          {match, [_, URI]} = re:run(R, Re, [{capture, all, list}]),
+          {ok, {sip, invite, URI}, Rest}
+  end.
 
 
 %%----------------------------------------------------------------------
@@ -168,12 +179,23 @@ decode(Data) ->
           {more, Data};
         {ok, Headers, Body, Rest1} ->
           {ok, {response, Code, Status, Headers, Body}, Rest1}
+      end;
+    {ok, {sip, Method, URI}, Rest} ->
+      case decode_headers(Rest, [], undefined) of
+          {ok, Headers, Body, _Other} ->
+              case lists:keyfind('Content-Type', 1, Headers) of
+                  {'Content-Type', <<"application/sdp">>} ->
+                      DecBody = sdp:decode(Body);
+                  false ->
+                      DecBody = Body
+              end,
+              {ok, {sip, Method, URI, Headers, DecBody}}
       end
   end.
 
 decode_headers(Data, Headers, BodyLength) ->
   case parse(header, Data) of
-    
+
     {ok, {header, 'Content-Length', Length}, Rest} ->
       NewLength = list_to_integer(binary_to_list(Length)),
       decode_headers(Rest, [{'Content-Length', NewLength} | Headers], NewLength);
@@ -183,10 +205,10 @@ decode_headers(Data, Headers, BodyLength) ->
       decode_headers(Rest, [{'Transport', Value} | Headers], BodyLength);
     {ok, {header, <<"Session">>, Value}, Rest} ->
       decode_headers(Rest, [{'Session', Value} | Headers], BodyLength);
-    {ok, {header, Key, Value}, Rest} -> 
+    {ok, {header, Key, Value}, Rest} ->
       decode_headers(Rest, [{Key, Value} | Headers], BodyLength);
-      
-      
+
+
     {ok, header_end, Rest} when BodyLength == undefined ->
       {ok, Headers, undefined, Rest};
     {ok, header_end, Rest} ->
@@ -196,8 +218,8 @@ decode_headers(Data, Headers, BodyLength) ->
         {more, body, _} ->
           more
       end;
-      
-      
+
+
     {more, header, Data} ->
       more
   end.
@@ -220,37 +242,37 @@ parse_rtp_test() ->
   ?assertEqual({ok, {rtp, 0, <<1,2,3,4,5,6>>}, <<7,8>>}, parse(ready, <<$$, 0, 6:16, 1,2,3,4,5,6,7,8>>)),
   Chunk = <<$$,0,26:16,1,2,3,4,5,6,7,8,9,10,11,12>>,
   ?assertEqual({more, ready, Chunk}, parse(ready, Chunk)).
-  
+
 
 parse_request_test() ->
-  ?assertEqual({more, ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>}, 
+  ?assertEqual({more, ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>},
                 parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>)),
-  ?assertEqual({ok, {request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1\r\nSession: 5\r\n\r\naa">>}, 
+  ?assertEqual({ok, {request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1\r\nSession: 5\r\n\r\naa">>},
                 parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0\r\nCSeq: 1\r\nSession: 5\r\n\r\naa">>)).
 
 parse_response_test() ->
-  ?assertEqual({more, ready, <<"RTSP/1.0 200 OK">>}, 
+  ?assertEqual({more, ready, <<"RTSP/1.0 200 OK">>},
                 parse(ready, <<"RTSP/1.0 200 OK">>)),
-  ?assertEqual({ok, {response, 200, <<"OK">>}, <<"Session: 10\r\nCSeq: 4\r\n\r\n">>}, 
+  ?assertEqual({ok, {response, 200, <<"OK">>}, <<"Session: 10\r\nCSeq: 4\r\n\r\n">>},
                 parse(ready, <<"RTSP/1.0 200 OK\r\nSession: 10\r\nCSeq: 4\r\n\r\n">>)).
 
-  
+
 parse_body_test() ->
   ?assertEqual({more, body, <<1,2,3,4,5>>}, parse({body, 6}, <<1,2,3,4,5>>)),
   ?assertEqual({ok, {body, <<1,2,3,4,5,6>>}, <<7,8>>}, parse({body, 6}, <<1,2,3,4,5,6,7,8>>)).
-  
+
 parse_header_test() ->
-  ?assertEqual({more, header, <<"Content-Length: 10\r\n">>}, 
+  ?assertEqual({more, header, <<"Content-Length: 10\r\n">>},
           parse(header, <<"Content-Length: 10\r\n">>)),
-  ?assertEqual({ok, {header, 'Content-Length', <<"10">>}, <<"\r\nzzz">>}, 
+  ?assertEqual({ok, {header, 'Content-Length', <<"10">>}, <<"\r\nzzz">>},
           parse(header, <<"Content-Length: 10\r\n\r\nzzz">>)),
-  ?assertEqual({ok, header_end, <<"zzz">>}, 
+  ?assertEqual({ok, header_end, <<"zzz">>},
           parse(header, <<"\r\nzzz">>)).
 
 encode_rtcp_test() ->
   ?assertEqual(<<$$, 1, 5:16, 1,2,3,4,5>>, encode({rtcp, 1, <<1,2,3,4,5>>})).
-          
-  
+
+
 decode_request_test() ->
   RTP = <<$$, 1, 5:16, 1,2,3,4,5, "RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>,
   Request = <<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\n",
@@ -265,15 +287,70 @@ decode_request_test() ->
                <<"a=fmtp: 96\r\n">>}, RTP},
                decode(Request)),
   ?assertEqual({ok, {rtp, 1, <<1,2,3,4,5>>}, <<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>}, decode(RTP)),
-  ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', <<"2">>}], undefined}, <<"">>}, 
+  ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', <<"2">>}], undefined}, <<"">>},
                decode(<<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>)),
   ?assertEqual({ok, {response, 200, <<"OK">>, [
                     {'Date', <<"Thu, 18 Feb 2010 06:21:00 GMT">>},
-                    {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>}, 
-                    {'Session', <<"94544680; timeout=60">>}, 
+                    {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>},
+                    {'Session', <<"94544680; timeout=60">>},
                     {'Cseq', <<"2">>}
                 ], undefined}, <<>>},
                decode(<<"RTSP/1.0 200 OK\r\nCSeq: 2\r\nSession: 94544680; timeout=60\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"\r\nDate: Thu, 18 Feb 2010 06:21:00 GMT\r\n\r\n">>)).
-  
-  
-  
+
+
+
+decode_sip_invite_test() ->
+    SDP = <<"v=0
+o=StreamingServer 3485077701 1211414520000 IN IP4 129.85.244.160
+s=/evolution/coyne.mov
+u=http:///
+e=admin@
+c=IN IP4 0.0.0.0
+b=AS:876
+t=0 0
+a=control:*
+a=range:npt=0-3973.80667
+m=video 0 RTP/AVP 96
+b=AS:734
+a=rtpmap:96 H264/90000
+a=control:trackID=1
+a=cliprect:0,0,360,480
+a=range:npt=0-3973.8071
+a=fmtp:96 packetization-mode=1;profile-level-id=42E016;sprop-parameter-sets=Z0LAFpZ0DwX/LgCBAAALuwACvyC0YAw4BJd73weEQjU=,aN48gA==
+m=audio 0 RTP/AVP 97
+b=AS:142
+a=rtpmap:97 MP4A-LATM/48000/2
+a=control:trackID=2
+a=range:npt=0-3973.8240
+a=fmtp:97 profile-level-id=15;object=2;cpresent=0;config=400023203FC0
+">>,
+    Req = <<"INVITE sip:ev@erlyvideo.ru SIP/2.0\r\n",
+            "To: sip:ev@erlyvideo.ru\r\n",
+            "From: tt@hh\r\n",
+            "CSeq: 1234 INVITE\r\n",
+            "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
+            "Content-Type: application/sdp\r\n",
+            "Content-Length: ",(list_to_binary(integer_to_list(size(SDP))))/binary,"\r\n",
+            "\r\n",
+            SDP/binary>>,
+  ?assertEqual({ok,{sip,invite,"sip:ev@erlyvideo.ru",
+                   [{'Content-Length',605},
+                    {'Content-Type',<<"application/sdp">>},
+                    {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
+                    {'Cseq',<<"1234 INVITE">>},
+                    {'From',<<"tt@hh">>},
+                    {<<"To">>,<<"sip:ev@erlyvideo.ru">>}],
+                   [{media_desc,video,
+                      {inet4,"0.0.0.0"},
+                      "0","96",90.0,"trackID=1",h264,
+                      <<104,222,60,128>>,
+                      <<103,66,192,22,150,116,15,5,255,46,0,129,0,0,11,187,0,2,
+                        191,32,180,96,12,56,4,151,123,223,7,132,66,53>>,
+                      undefined},
+                    {media_desc,audio,
+                      {inet4,"0.0.0.0"},
+                      "0","97",48.0,"trackID=2","MP4A-LATM",undefined,
+                      undefined,
+                      <<64,0,35,32,63,192>>}]}},
+            decode(Req)).
+
