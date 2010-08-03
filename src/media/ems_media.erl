@@ -847,7 +847,7 @@ metadata_frame(#ems_media{format = undefined} = M) ->
 metadata_frame(#ems_media{} = Media) ->
   Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
                       (Else) -> Else end, storage_properties(Media)),
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, Meta, video_parameters(Media))}]}.
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media))}]}.
 
 
 
@@ -855,7 +855,7 @@ video_parameters(#ems_media{video_config = undefined}) ->
   [{duration,0}];
   
 video_parameters(#ems_media{video_config = #video_frame{body = Config}}) ->
-  [{duration,0}] ++ h264:metadata(Config).
+  lists:ukeymerge(1, [{duration,0}], lists:keysort(1, h264:metadata(Config))).
   
 
 send_frame(Frame, Clients, State) ->
