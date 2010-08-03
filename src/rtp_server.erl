@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlang-rtsp.
-%%% 
+%%%
 %%% erlang-rtsp is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -26,7 +26,7 @@
 
 -include_lib("erlmedia/include/h264.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
--include("../include/rtsp.hrl").
+-include("../include/sdp.hrl").
 -include("log.hrl").
 
 -record(rtp_state, {
@@ -83,7 +83,7 @@
   audio_headers = <<>>,
   audio_data = <<>>
 }).
-	
+
 
 
 -define(RTCP_SR, 200).
@@ -103,13 +103,13 @@
 -export([encode/2]).
 
 %%--------------------------------------------------------------------
-%% @spec (Media::any(), Stream::rtsp_stream()) -> {ok, Pid} | {error, Reason}
+%% @spec (Media::any(), Stream::media_desc()) -> {ok, Pid} | {error, Reason}
 %%
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
 
-start_link(Media, #rtsp_stream{type = Type} = Stream)  ->
+start_link(Media, #media_desc{type = Type} = Stream)  ->
   {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
   Pid = spawn_link(?MODULE, get_socket, [Type, init(Stream, Media), Media]),
   link(Pid),
@@ -124,22 +124,22 @@ configure(Body, RTPStreams) ->
 
 configure(Body, RTPStreams, Media) ->
   Streams = sdp:decode(Body),
-  
+
   {Streams1, Frames} = config_media(Streams),
-  
+
   RtpStreams2 = configure(Streams1, RTPStreams, Media, 0),
   {Streams1, RtpStreams2, Frames}.
 
 
-configure([], RTPStreams, _, _) -> 
+configure([], RTPStreams, _, _) ->
   RTPStreams;
 
 configure([undefined | Streams], RTPStreams, Media, RTP) ->
   configure(Streams, RTPStreams, Media, RTP+2);
 
-configure([#rtsp_stream{} = Stream | Streams], RTPStreams, Media, RTP) ->
+configure([#media_desc{} = Stream | Streams], RTPStreams, Media, RTP) ->
   RtpConfig = rtp_server:init(Stream, Media),
-  RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#rtsp_stream.type, RtpConfig}),
+  RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#media_desc.type, RtpConfig}),
   RTPStreams2 = setelement(RTP+2, RtpStreams1, {rtcp, RTP}),
   configure(Streams, RTPStreams2, Media, RTP+2).
 
@@ -153,7 +153,7 @@ presync(Streams, [], _N, _Now) ->
 
 presync(Streams, [_RTP | Info], N, Now) when element(N, Streams) == undefined ->
   presync(Streams, Info, N+2, Now);
-  
+
 presync(Streams, [RTP | Info], N, Now) ->
   {Type, Stream} = element(N, Streams),
 
@@ -170,21 +170,21 @@ presync(Streams, [RTP | Info], N, Now) ->
 config_media(Streams) -> config_media(Streams, [], []).
 
 config_media([], Output, Frames) -> {lists:reverse(Output), Frames};
-config_media([#rtsp_stream{codec = Codec} | Streams], Output, Frames) when not is_atom(Codec) ->
+config_media([#media_desc{codec = Codec} | Streams], Output, Frames) when not is_atom(Codec) ->
   ?D({"Unknown rtp codec", Codec}),
   config_media(Streams, [undefined | Output], Frames);
 
-config_media([#rtsp_stream{type = video, codec = h264, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
+config_media([#media_desc{type = video, codec = h264, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, _} = h264:decode_nal(PPS, H264),
   Configs = case h264:video_config(H264_2) of
     undefined -> [];
     Config -> [Config]
   end,
-  config_media(Streams, [Stream#rtsp_stream{config = H264_2} | Output], Configs ++ Frames);
+  config_media(Streams, [Stream#media_desc{config = H264_2} | Output], Configs ++ Frames);
 
-config_media([#rtsp_stream{type = audio, codec = aac, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
-  AudioConfig = #video_frame{       
+config_media([#media_desc{type = audio, codec = aac, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
+  AudioConfig = #video_frame{
    	content = audio,
    	flavor  = config,
 		dts     = 0,
@@ -195,17 +195,17 @@ config_media([#rtsp_stream{type = audio, codec = aac, config = Config} = Stream 
 	},
   config_media(Streams, [Stream | Output], [AudioConfig | Frames]);
 
-config_media([#rtsp_stream{} = Stream | Streams], Output, Frames) ->
+config_media([#media_desc{} = Stream | Streams], Output, Frames) ->
   config_media(Streams, [Stream | Output], Frames).
-  
 
 
-init(#rtsp_stream{type = video, clock_map = ClockMap, config = H264, codec = Codec}, Media) ->
+
+init(#media_desc{type = video, clock_map = ClockMap, config = H264, codec = Codec}, Media) ->
   #video{media = Media, clock_map = ClockMap, h264 = H264, codec = Codec};
 
-init(#rtsp_stream{type = audio, clock_map = ClockMap, codec = Codec}, Media) ->
+init(#media_desc{type = audio, clock_map = ClockMap, codec = Codec}, Media) ->
   #audio{media = Media, clock_map = ClockMap, codec = Codec};
-  
+
 init(undefined, _Media) ->
   undefined.
 
@@ -217,7 +217,7 @@ open_ports(video) ->
 
 try_rtp(40000) ->
   error;
-  
+
 try_rtp(Port) ->
   case gen_udp:open(Port, [binary, {active, false}, {recbuf, 1048576}]) of
     {ok, RTPSocket} ->
@@ -235,8 +235,8 @@ try_rtcp(RTP, RTPSocket) ->
       gen_udp:close(RTPSocket),
       try_rtp(RTP + 2)
   end.
-  
-% 
+
+%
 %  0                   1                   2                   3
 %  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 %  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -261,7 +261,7 @@ get_socket(Type, State, Media) ->
     50000 ->
       error_logger:error_msg("RTP socket timeout: ~p~n", [Type])
   end.
-  
+
 wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = State, type = Type} = RtpStream) ->
   receive
     {udp,RTPSocket,_Host,_Port, Bin} ->
@@ -283,13 +283,13 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
 
 decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _/binary>> = SR) ->
   ?MODULE:rtcp_sr(State, SR);
-  
+
 decode(rtcp, _State, <<2:2, 0:1, _Count:5, Type, _/binary>>) ->
   erlang:error({unhandled_rtcp, Type});
 
 decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _Sequence:16, _Timecode:32, _StreamId:32, _Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
   {State, []};
-  
+
 % decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>) when element(#base_rtp.base_timecode, State) == undefined ->
 %   ?D({autosync),
 %   {{Type,State1}} = rtp_server:presync({{Type,State}}, [[{"seq",integer_to_list(Sequence)},{"rtptime",integer_to_list(Timecode)}]]),
@@ -309,7 +309,7 @@ convert_timecode(State) ->
   _BaseWallClock = element(#base_rtp.base_wall_clock, State),
   % ?D({"TC", WallClock, Timecode, BaseTimecode, ClockMap}),
   WallClock + (Timecode - BaseTimecode)/ClockMap.
-  
+
 
 %%
 %% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
@@ -331,9 +331,9 @@ rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, 
   State5 = setelement(#base_rtp.stream_id, State4, StreamId),
   State6 = setelement(#base_rtp.timecode, State5, Timecode),
   State7 = setelement(#base_rtp.last_sr, State6, NTP),
-  
+
   % decode_sender_reports(Count, Rest),
-  
+
   {State7, []}.
 
 %% This part of Sender Report is useless to me, however not to forget, I've added parsing
@@ -342,10 +342,10 @@ decode_sender_reports(_, _) ->
   % _Delay = _DLSR / 65.536,
   % ?D({sr, FractionLost, Lost, MaxSeq, Jitter, LSR, DLSR, round(Delay)}),
   ok.
-  
+
 audio(#audio{media = _Media, audio_headers = <<>>, codec = aac} = Audio, {data, <<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, _Sequence, _Timestamp}) ->
   unpack_aac_units(Audio#audio{audio_headers = AUHeaders, audio_data = AudioData}, []);
-  
+
 audio(#audio{media = _Media, audio_data = AudioData, codec = aac} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
   unpack_aac_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []);
 
@@ -367,13 +367,13 @@ audio(#audio{codec = Codec} = Audio, {data, Bin, _Sequence, Timestamp}) when Cod
   end,
   {Audio, [Frame]}.
 
-  
+
 unpack_aac_units(#audio{audio_headers = <<>>} = Audio, Frames) ->
   {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
-  
+
 unpack_aac_units(#audio{audio_data = <<>>} = Audio, Frames) ->
   {Audio#audio{audio_headers = <<>>, audio_data = <<>>}, lists:reverse(Frames)};
-  
+
 unpack_aac_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, audio_data = AudioData, timecode = Timecode, codec = Codec} = Audio, Frames) ->
   DTS = convert_timecode(Audio),
   % ?D({"Audio", Codec, Timecode, DTS}),
@@ -392,7 +392,7 @@ unpack_aac_units(#audio{clock_map = _ClockMap, audio_headers = <<AUSize:13, _Del
     _ ->
       {Audio, lists:reverse(Frames)}
   end.
-    
+
 video(#video{timecode = undefined} = Video, {data, _, _, Timecode} = Packet) ->
   ?D({"No timecode"}),
   video(Video#video{timecode = Timecode}, Packet);
@@ -412,7 +412,7 @@ video(#video{h264 = H264, buffer = Buffer, timecode = Timecode, codec = h264} = 
 video(#video{timecode = _Timecode, broken = _Broken} = Video, {data, <<>>, Sequence, NewTimecode}) ->
   ?D({"Warning! Zero frame"}),
   {Video#video{sequence = Sequence, timecode = NewTimecode}};
-  
+
 video(#video{h264 = H264, timecode = Timecode, broken = Broken, codec = h264} = Video, {data, Body, Sequence, NewTimecode}) ->
 
   {Video1, Frames} = case Broken of
@@ -423,7 +423,7 @@ video(#video{h264 = H264, timecode = Timecode, broken = Broken, codec = h264} = 
   % ?D({"ZZZ", Timecode, size(Body), NewFrames}),
 
   {Video1#video{sequence = Sequence, broken = false, h264 = H264_1, buffer = NewFrames, timecode = NewTimecode}, Frames}.
- 
+
 send_video(#video{synced = false, buffer = [#video_frame{flavor = frame} | _]} = Video) ->
   {Video#video{buffer = []}, []};
 
@@ -432,7 +432,7 @@ send_video(#video{buffer = []} = Video) ->
 
 send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = H264} = Video) ->
   Frame = lists:foldl(fun(_, undefined) -> undefined;
-                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) -> 
+                         (#video_frame{body = NAL} = F, #video_frame{body = NALs}) ->
                                 F#video_frame{body = <<NALs/binary, NAL/binary>>}
                       end, #video_frame{body = <<>>}, Frames),
   Timestamp = convert_timecode(Video),
@@ -441,7 +441,7 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
     undefined -> [];
     _ -> [Frame#video_frame{dts = Timestamp, pts = Timestamp, content = video}]
   end,
-  Frames2 = case Frame of 
+  Frames2 = case Frame of
     #video_frame{content = video, flavor = keyframe} ->
       Config = h264:video_config(H264),
       [Config#video_frame{dts = Timestamp, pts = Timestamp} | Frames1];

@@ -30,7 +30,7 @@
 -include("log.hrl").
 
 %%----------------------------------------------------------------------
-%% @spec (Data::binary()) -> [rtsp_streams()]
+%% @spec (Data::binary()) -> [media_desc()]
 %%
 %% @doc Called by {@link rtsp_socket.} to decode SDP when it meets "Content-Type: application/sdp"
 %% in incoming headers. Returns list of preconfigured, but unsynced rtsp streams

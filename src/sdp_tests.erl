@@ -51,6 +51,7 @@ m=audio 7878 RTP/AVP 8
 a=rtpmap:8 PCMA/8000/1
 a=control:track2">>.
 
+%% Tests with rtsp_stream temporary broken due to replacement this record with media_desc and change its structure
 beward_test() ->
   ?assertEqual([
    {rtsp_stream,video,90.0,"track1",h264,
