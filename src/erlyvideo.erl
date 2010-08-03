@@ -66,6 +66,7 @@ start() ->
 	
 	application:load(erlyvideo),
 	load_config(),
+	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
   media_provider:init_names(),
   
 	application:start(erlyvideo),
