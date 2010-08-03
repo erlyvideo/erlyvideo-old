@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlyvideo is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -45,7 +45,7 @@ stop(_) ->
 
 edoc() ->
   edoc([{dir,"doc/html"}]).
-  
+
 edoc(Options) ->
   edoc:application(?MODULE,".",[{packages,false} | Options]).
 
@@ -53,57 +53,67 @@ edoc(Options) ->
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc Starts Erlyvideo
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
-  
-start() -> 
+
+start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   ems_log:start(),
 	application:start(crypto),
 	application:start(os_mon),
 	application:start(rtmp),
 	application:start(rtsp),
-	
+	%%application:start(esip),
+
 	application:load(erlyvideo),
 	load_config(),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
   media_provider:init_names(),
-  
+
 	application:start(erlyvideo),
 
   start_http(),
   start_rtmp(),
   start_rtsp(),
+  %%start_esip(),
 	start_modules(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
-  
+
 	ok.
-  
+
 start_http() ->
   case ems:get_var(http_port, 8082) of
-    undefined -> 
+    undefined ->
       ok;
-    HTTP when is_integer(HTTP) -> 
+    HTTP when is_integer(HTTP) ->
       ems_sup:start_http_server(HTTP)
   end.
 
 
 start_rtmp() ->
   case ems:get_var(rtmp_port, 1935) of
-    undefined -> 
+    undefined ->
       ok;
-    RTMP when is_integer(RTMP) -> 
+    RTMP when is_integer(RTMP) ->
       rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
   end.
 
 
 start_rtsp() ->
   case ems:get_var(rtsp_port, undefined) of
-    undefined -> 
+    undefined ->
       ok;
-    RTSP when is_integer(RTSP) -> 
+    RTSP when is_integer(RTSP) ->
       rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
+  end.
+
+start_esip() ->
+  case ems:get_var(sip_port, undefined) of
+    undefined ->
+      ok;
+    ESIP when is_integer(ESIP) ->
+      esip:start_server(ESIP, esip_listener1, ems_esip)
   end.
 
 
@@ -111,7 +121,7 @@ start_rtsp() ->
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc Stops Erlyvideo
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 stop() ->
 	io:format("Stopping Erlyvideo ...~n"),
@@ -124,13 +134,15 @@ stop() ->
 	application:unload(rtsp),
 	application:stop(rtmp),
 	application:unload(rtmp),
+	application:stop(esip),
+	application:unload(esip),
   ems_log:stop(),
 	ok.
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc Stops, Compiles , Reloads and starts Erlyvideo
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 restart() ->
 	stop(),
@@ -143,6 +155,7 @@ reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   RTSP = ems:get_var(rtsp_port, undefined),
   HTTP = ems:get_var(http_port, undefined),
+  SIP = ems:get_var(sip_port, undefined),
   ems_vhosts:stop(),
   load_config(),
   ems_vhosts:start(),
@@ -152,9 +165,9 @@ reconfigure() ->
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
     {undefined, undefined} -> ok;
     {RTMP, RTMP} -> ok;
-    {undefined, _} -> 
+    {undefined, _} ->
       {ok, _} = start_rtmp();
-    _ -> 
+    _ ->
       supervisor:terminate_child(rtmp_sup, rtmp_listener1),
       supervisor:delete_child(rtmp_sup, rtmp_listener1),
       {ok, _} = start_rtmp()
@@ -162,22 +175,31 @@ reconfigure() ->
   case {HTTP, ems:get_var(http_port, undefined)} of
     {undefined, _} -> ok;
     {HTTP, HTTP} -> ok;
-    _ -> 
+    _ ->
       ems_http:stop()
   end,
   case {RTSP, ems:get_var(rtsp_port, undefined)} of
     {undefined, undefined} -> ok;
     {RTSP, RTSP} -> ok;
     {undefined, _} -> {ok, _} = start_rtsp();
-    _ -> 
+    _ ->
       supervisor:terminate_child(rtsp_sup, rtsp_listener1),
       supervisor:delete_child(rtsp_sup, rtsp_listener1),
       {ok, _} = start_rtsp()
   end,
+  case {SIP, ems:get_var(sip_port, undefined)} of
+    {undefined, undefined} -> ok;
+    {SIP, SIP} -> ok;
+    {undefined, _} -> {ok, _} = start_esip();
+    _ ->
+      supervisor:terminate_child(esip_sup, esip_listener1),
+      supervisor:delete_child(esip_sup, esip_listener1),
+      {ok, _} = start_esip()
+  end,
   ok.
 
 load_config() ->
-  
+
   File = load_file_config(),
   % Dets = load_persistent_config(),
   % Env = deep_merge(File, Dets),
@@ -188,7 +210,7 @@ load_config() ->
 
 load_file_config() ->
   case file:path_consult(["priv", "/etc/erlyvideo"], "erlyvideo.conf") of
-    {ok, Env, Path} -> 
+    {ok, Env, Path} ->
       error_logger:info_report("Erlyvideo is loading config from file ~s~n", [Path]),
       Env;
     {error, enoent} ->
@@ -202,10 +224,10 @@ load_file_config() ->
 
 load_persistent_config() ->
   load_persistent_config(["priv", "/var/lib/erlyvideo"]).
-  
+
 load_persistent_config([]) ->
   [];
-  
+
 load_persistent_config([Path|Paths]) ->
   case file:read_file_info(Path) of
     {ok, _FileInfo} ->
@@ -223,14 +245,14 @@ load_persistent_config([Path|Paths]) ->
 deep_merge(List1, List2) ->
   deep_merge(lists:ukeysort(1, List1), lists:ukeysort(1, List2), []).
 
-% TODO: implement real deep merge for erlyvideo  
+% TODO: implement real deep merge for erlyvideo
 deep_merge(List1, _, _) ->
   List1.
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc Compiles Erlyvideo
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 rebuild() ->
 	io:format("Recompiling EMS Modules ...~n"),
@@ -245,10 +267,10 @@ rebuild() ->
 reload() ->
 	application:load(erlyvideo),
 	case application:get_key(erlyvideo,modules) of
-		undefined    -> 
+		undefined    ->
 			application:load(erlyvideo),
 			reload();
-		{ok,Modules} -> 
+		{ok,Modules} ->
 			io:format("Reloading EMS Modules ...~n"),
 			reload(lists:usort(Modules))
 	end.
@@ -268,17 +290,17 @@ reload([H|T]) ->
 %%--------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
 %% @doc Initializes all modules
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 start_modules() -> call_modules(start, []).
 
 call_modules(Function, Args) -> call_modules(Function, Args, ems:get_var(modules, [])).
 
-call_modules(_, _, []) -> 
+call_modules(_, _, []) ->
   ok;
 call_modules(Function, Args, [Module|Modules]) ->
   case ems:respond_to(Module, Function, length(Args)) of
-    true -> 
+    true ->
       ok = erlang:apply(Module, Function, Args);
     _ ->
       ok
@@ -289,7 +311,7 @@ call_modules(Function, Args, [Module|Modules]) ->
 %%--------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
 %% @doc Shutdown all modules
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 stop_modules() -> call_modules(stop, []).
 

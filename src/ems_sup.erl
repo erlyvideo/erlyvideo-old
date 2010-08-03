@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlyvideo is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -30,7 +30,7 @@
 -export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
           start_http_server/1, start_ticker/3]).
-      
+
 -export([static_streams/0,start_static_streams/0]).
 
 -spec(start_link() -> {error,_} | {ok,pid()}).
@@ -39,7 +39,7 @@ start_link() ->
 
 
 -spec start_rtmp_session(RTMPSocket::pid()) -> {'error',_} | {'ok',pid()}.
-start_rtmp_session(RTMPSocket) -> 
+start_rtmp_session(RTMPSocket) ->
   {ok, Pid} = supervisor:start_child(rtmp_session_sup, []),
   rtmp_session:set_socket(Pid, RTMPSocket),
   {ok, Pid}.
@@ -86,7 +86,7 @@ start_http_server(Port) ->
       [ems_http]                               % Modules  = [Module] | dynamic
   },
   supervisor:start_child(?MODULE, Listener).
-  
+
 
 -spec(init([]) -> any()).
 init([rtmp_session]) ->
@@ -225,7 +225,7 @@ init([shared_object]) ->
         }
     };
 init([]) ->
-  
+
 
   MediaProviders = lists:map(fun({Host, _}) ->
     {   media_provider:name(Host), % Id       = internal id
@@ -236,10 +236,10 @@ init([]) ->
         [media_provider]                         % Modules  = [Module] | dynamic
     }
   end, ems:get_var(vhosts, [])),
-  
-  
-  
-  
+
+
+
+
   Supervisors1 = [
     {   rtmp_session_sup,
         {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
@@ -326,7 +326,7 @@ init([]) ->
         []                                       % Modules  = [Module] | dynamic
     }
   ] ++ MediaProviders,
-  
+
   Supervisors2 = case ems:get_var(scripting, false) of
     true -> [{   ems_script_sup,
         {ems_script,start_link,[]},
