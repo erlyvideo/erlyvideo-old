@@ -32,7 +32,7 @@
 
 -export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
--export([parse_sps/1]).
+-export([parse_sps/1, init/0]).
 
 
 video_config(H264) ->
@@ -72,6 +72,7 @@ unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, _Skip1:6, LengthSize
   {LengthSize + 1, lists:reverse(PPS)}.
   
   
+init() -> #h264{}.
   
   
 parse_h264_config(Rest, 0, List) -> {List, Rest};
