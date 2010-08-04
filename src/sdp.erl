@@ -169,7 +169,7 @@ parse_fmtp(#media_desc{type = audio} = Stream, Opts) ->
 
 
 parse_connect(Connect) ->
-  {ok, Re} = re:compile("IN +IP(\\d) +([0-9.]+) *"),
+  {ok, Re} = re:compile("IN +IP(\\d) +([^ ]+) *"),
   {match, [_, NT, Addr]} = re:run(Connect, Re, [{capture, all, list}]),
   N = case NT of
         "4" -> inet4;
