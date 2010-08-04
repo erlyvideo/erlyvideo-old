@@ -28,3 +28,6 @@
 [submodule "wwwroot/player"]
 	path = wwwroot/player
 	url = git://github.com/erlyvideo/erlyplayer
+[submodule "deps/ertp"]
+	path = deps/ertp
+	url = git://github.com/erlyvideo/ertp.git
