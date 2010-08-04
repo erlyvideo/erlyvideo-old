@@ -53,13 +53,13 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
   end;
 
 parse(ready, <<"INVITE ", Request/binary>> = Data) ->
-    parse_sip(invite, Request);
+  parse_sip(invite, Request);
 parse(ready, <<"ACK ", Request/binary>> = Data) ->
-    parse_sip(ack, Request);
+  parse_sip(ack, Request);
 parse(ready, <<"BYE ", Request/binary>> = Data) ->
-    parse_sip(bye, Request);
+  parse_sip(bye, Request);
 parse(ready, <<"CANCEL ", Request/binary>> = Data) ->
-    parse_sip(cancel, Request);
+  parse_sip(cancel, Request);
 
 parse(ready, Data) ->
   case erlang:decode_packet(line, Data, []) of
@@ -93,10 +93,10 @@ parse(State, Data) ->
 
 parse_sip(Method, Request) ->
   case erlang:decode_packet(line, Request, []) of
-      {ok, R, Rest} ->
-          {ok, Re} = re:compile("([^ ]+)\s+SIP/2\.0.*"),
-          {match, [_, URI]} = re:run(R, Re, [{capture, all, list}]),
-          {ok, {sip, Method, URI}, Rest}
+    {ok, R, Rest} ->
+      {ok, Re} = re:compile("([^ ]+)\s+SIP/2\.0.*"),
+      {match, [_, URI]} = re:run(R, Re, [{capture, all, list}]),
+      {ok, {sip, Method, URI}, Rest}
   end.
 
 
@@ -132,14 +132,10 @@ decode(Data) ->
       end;
     {ok, {sip, Method, URI}, Rest} ->
       case decode_headers(Rest, [], undefined) of
-          {ok, Headers, Body, _Other} ->
-              case lists:keyfind('Content-Type', 1, Headers) of
-                  {'Content-Type', <<"application/sdp">>} ->
-                      DecBody = sdp:decode(Body);
-                  false ->
-                      DecBody = Body
-              end,
-              {ok, {sip, Method, URI, Headers, DecBody}}
+        {ok, Headers, Body, _Other} ->
+          {ok, {sip, Method, URI, Headers, Body}};
+        more ->
+          {more, Data}
       end
   end.
 
@@ -196,15 +192,15 @@ parse_rtp_test() ->
 
 parse_request_test() ->
   ?assertEqual({more, ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>},
-                parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>)),
+               parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>)),
   ?assertEqual({ok, {request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1\r\nSession: 5\r\n\r\naa">>},
-                parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0\r\nCSeq: 1\r\nSession: 5\r\n\r\naa">>)).
+               parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0\r\nCSeq: 1\r\nSession: 5\r\n\r\naa">>)).
 
 parse_response_test() ->
   ?assertEqual({more, ready, <<"RTSP/1.0 200 OK">>},
-                parse(ready, <<"RTSP/1.0 200 OK">>)),
+               parse(ready, <<"RTSP/1.0 200 OK">>)),
   ?assertEqual({ok, {response, 200, <<"OK">>}, <<"Session: 10\r\nCSeq: 4\r\n\r\n">>},
-                parse(ready, <<"RTSP/1.0 200 OK\r\nSession: 10\r\nCSeq: 4\r\n\r\n">>)).
+               parse(ready, <<"RTSP/1.0 200 OK\r\nSession: 10\r\nCSeq: 4\r\n\r\n">>)).
 
 
 parse_body_test() ->
@@ -213,11 +209,11 @@ parse_body_test() ->
 
 parse_header_test() ->
   ?assertEqual({more, header, <<"Content-Length: 10\r\n">>},
-          parse(header, <<"Content-Length: 10\r\n">>)),
+               parse(header, <<"Content-Length: 10\r\n">>)),
   ?assertEqual({ok, {header, 'Content-Length', <<"10">>}, <<"\r\nzzz">>},
-          parse(header, <<"Content-Length: 10\r\n\r\nzzz">>)),
+               parse(header, <<"Content-Length: 10\r\n\r\nzzz">>)),
   ?assertEqual({ok, header_end, <<"zzz">>},
-          parse(header, <<"\r\nzzz">>)).
+               parse(header, <<"\r\nzzz">>)).
 
 encode_rtcp_test() ->
   ?assertEqual(<<$$, 1, 5:16, 1,2,3,4,5>>, encode({rtcp, 1, <<1,2,3,4,5>>})).
@@ -234,17 +230,17 @@ decode_request_test() ->
   ?assertEqual({more, <<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\nCSeq: 1\r\n">>},
                decode(<<"ANNOUNCE rtsp://erlyvideo.org RTSP/1.0\r\nCSeq: 1\r\n">>)),
   ?assertEqual({ok, {request, 'ANNOUNCE', <<"rtsp://erlyvideo.org">>, [ {'Content-Length', 12},{'Cseq', <<"1">>}],
-               <<"a=fmtp: 96\r\n">>}, RTP},
+                     <<"a=fmtp: 96\r\n">>}, RTP},
                decode(Request)),
   ?assertEqual({ok, {rtp, 1, <<1,2,3,4,5>>}, <<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>}, decode(RTP)),
   ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', <<"2">>}], undefined}, <<"">>},
                decode(<<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>)),
   ?assertEqual({ok, {response, 200, <<"OK">>, [
-                    {'Date', <<"Thu, 18 Feb 2010 06:21:00 GMT">>},
-                    {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>},
-                    {'Session', <<"94544680; timeout=60">>},
-                    {'Cseq', <<"2">>}
-                ], undefined}, <<>>},
+                                               {'Date', <<"Thu, 18 Feb 2010 06:21:00 GMT">>},
+                                               {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>},
+                                               {'Session', <<"94544680; timeout=60">>},
+                                               {'Cseq', <<"2">>}
+                                              ], undefined}, <<>>},
                decode(<<"RTSP/1.0 200 OK\r\nCSeq: 2\r\nSession: 94544680; timeout=60\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"\r\nDate: Thu, 18 Feb 2010 06:21:00 GMT\r\n\r\n">>)).
 
 
@@ -306,13 +302,13 @@ decode_sip_invite_test() ->
                decode(Req)).
 
 decode_sip_ack_test() ->
-    Req = <<"ACK sip:tt@hh SIP/2.0\r\n",
-            "To: sip:tt@hh\r\n",
-            "From: sip:ev@erlyvideo.ru\r\n",
-            "CSeq: 1234 ACK\r\n",
-            "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
-            "Content-Length: 0\r\n",
-            "\r\n">>,
+  Req = <<"ACK sip:tt@hh SIP/2.0\r\n",
+          "To: sip:tt@hh\r\n",
+          "From: sip:ev@erlyvideo.ru\r\n",
+          "CSeq: 1234 ACK\r\n",
+          "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
+          "Content-Length: 0\r\n",
+          "\r\n">>,
   ?assertEqual({ok,{sip,ack,"sip:tt@hh",
                     [{'Content-Length',0},
                      {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
@@ -323,13 +319,13 @@ decode_sip_ack_test() ->
                decode(Req)).
 
 decode_sip_bye_test() ->
-    Req = <<"BYE sip:tt@hh SIP/2.0\r\n",
-            "To: sip:tt@hh\r\n",
-            "From: sip:ev@erlyvideo.ru\r\n",
-            "CSeq: 1234 BYE\r\n",
-            "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
-            "Content-Length: 0\r\n",
-            "\r\n">>,
+  Req = <<"BYE sip:tt@hh SIP/2.0\r\n",
+          "To: sip:tt@hh\r\n",
+          "From: sip:ev@erlyvideo.ru\r\n",
+          "CSeq: 1234 BYE\r\n",
+          "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
+          "Content-Length: 0\r\n",
+          "\r\n">>,
   ?assertEqual({ok,{sip,bye,"sip:tt@hh",
                     [{'Content-Length',0},
                      {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
@@ -340,13 +336,13 @@ decode_sip_bye_test() ->
                decode(Req)).
 
 decode_sip_cancel_test() ->
-    Req = <<"CANCEL sip:tt@hh SIP/2.0\r\n",
-            "To: sip:tt@hh\r\n",
-            "From: sip:ev@erlyvideo.ru\r\n",
-            "CSeq: 1234 CANCEL\r\n",
-            "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
-            "Content-Length: 0\r\n",
-            "\r\n">>,
+  Req = <<"CANCEL sip:tt@hh SIP/2.0\r\n",
+          "To: sip:tt@hh\r\n",
+          "From: sip:ev@erlyvideo.ru\r\n",
+          "CSeq: 1234 CANCEL\r\n",
+          "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
+          "Content-Length: 0\r\n",
+          "\r\n">>,
   ?assertEqual({ok,{sip,cancel,"sip:tt@hh",
                     [{'Content-Length',0},
                      {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
