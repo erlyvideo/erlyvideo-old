@@ -62,8 +62,9 @@ start() ->
 	application:start(crypto),
 	application:start(os_mon),
 	application:start(rtmp),
+	application:start(ertp),
 	application:start(rtsp),
-	%%application:start(esip),
+	application:start(esip),
 
 	application:load(erlyvideo),
 	load_config(),
@@ -74,8 +75,9 @@ start() ->
 
   start_http(),
   start_rtmp(),
+  start_ertp(),
   start_rtsp(),
-  %%start_esip(),
+  start_esip(),
 	start_modules(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
@@ -116,6 +118,9 @@ start_esip() ->
       esip:start_server(ESIP, esip_listener1, ems_esip)
   end.
 
+start_ertp() ->
+  ertp:start_server(ertp_server1).
+
 
 
 %%--------------------------------------------------------------------
@@ -130,6 +135,8 @@ stop() ->
 	ems_script:stop(),
 	application:stop(erlyvideo),
 	application:unload(erlyvideo),
+	application:stop(ertp),
+	application:unload(ertp),
 	application:stop(rtsp),
 	application:unload(rtsp),
 	application:stop(rtmp),
