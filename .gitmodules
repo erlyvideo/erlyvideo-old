@@ -12,10 +12,10 @@
 	url = git://github.com/erlyvideo/erlydtl
 [submodule "deps/erlmedia"]
 	path = deps/erlmedia
-	url = git://github.com/erlyvideo/erlmedia
+	url = git@github.com:erlyvideo/erlmedia.git
 [submodule "deps/ertsp"]
 	path = deps/ertsp
-	url = git://github.com/erlyvideo/ertsp
+	url = git@github.com:erlyvideo/ertsp.git
 [submodule "deps/shoutcast"]
 	path = deps/shoutcast
 	url = git://github.com/erlyvideo/shoutcast
@@ -30,4 +30,7 @@
 	url = git://github.com/erlyvideo/erlyplayer
 [submodule "deps/ertp"]
 	path = deps/ertp
-	url = git://github.com/erlyvideo/ertp.git
+	url = git@github.com:erlyvideo/ertp.git
+[submodule "deps/esip"]
+	path = deps/esip
+	url = git@github.com:erlyvideo/esip.git
