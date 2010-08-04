@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlang-rtsp.
-%%% 
+%%%
 %%% erlang-rtsp is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -23,4 +23,4 @@
 %%%---------------------------------------------------------------------------------------
 
 -define(D(X), ems_log:debug(3, ertsp, "~p:~p ~p",[?MODULE, ?LINE, X])).
-
+-define(DBG(F,A), io:format("DBG(~w:~b): " ++ F ++ "~n", [?MODULE, ?LINE] ++ A)).

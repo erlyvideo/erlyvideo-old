@@ -25,7 +25,8 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 
--include("../include/sdp.hrl").
+-include("../include/rtsp.hrl").
+-include_lib("ertp/include/sdp.hrl").
 -include("log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
@@ -51,6 +52,7 @@
   sdp_config = [],
   options,
   rtp_streams = {undefined,undefined,undefined,undefined},
+  sdp,                                          % FIXME
   consumer,
   consumer_ref,
   state,
@@ -277,28 +279,35 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}]);
     ok ->
-      SDP = <<"v=0
-o=- 1275067839203788 1 IN IP4 0.0.0.0
-s=Session streamed by Erlyvideo
-i=h264
-t=0 0
-a=tool:LIVE555 Streaming Media v2008.04.09
-a=type:broadcast
-a=control:*
-a=range:npt=0-
-m=video 0 RTP/AVP 96
-b=AS:50000
-c=IN IP4 0.0.0.0
-a=rtpmap:96 H264/90000
-a=control:trackID=1
-a=framerate:25.000000
-m=audio 0 RTP/AVP 97
-b=AS:32
-a=control:trackID=2
-a=rtpmap:97 mpeg4-generic/16000/1
-a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;
-">>,
-    reply(State, "200 OK", [{'Cseq', seq(Headers)}], SDP)
+      SDP =
+        <<"v=0\n",
+          "o=- 1275067839203788 1 IN IP4 0.0.0.0\n",
+          "s=Session streamed by Erlyvideo\n",
+          "i=h264\n",
+          "t=0 0\n",
+          "c=IN IP4 0.0.0.0\n"
+          "a=tool:LIVE555 Streaming Media v2008.04.09\n",
+          "a=type:broadcast\n",
+          "a=control:*\n",
+          "a=range:npt=0-\n",
+          "m=video 0 RTP/AVP 96\n",
+          "b=AS:50000\n",
+          "a=rtpmap:96 H264/90000\n",
+          "a=control:trackID=1\n",
+          "a=framerate:25.000000\n",
+          "m=audio 0 RTP/AVP 97\n",
+          "b=AS:32\n",
+          "a=control:trackID=2\n",
+          "a=rtpmap:97 mpeg4-generic/16000/1\n",
+          "a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;\n">>,
+      reply(State#rtsp_socket{sdp = sdp:decode(SDP)}, "200 OK",
+            [
+             {'Server', "Erlyvideo"},
+             {'Cseq', seq(Headers)},
+             {'Content-Type', "application/sdp"},
+             {'Content-Length', size(SDP)},
+             {'Cache-Control', "no-cache"}
+            ], SDP)
   end;
 
 handle_request({request, 'PLAY', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
@@ -311,7 +320,13 @@ handle_request({request, 'PLAY', URL, Headers, Body}, #rtsp_socket{callback = Ca
   end;
 
 handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
-  reply(State, "200 OK", [{'Cseq', seq(Headers)}, {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, RECORD, OPTIONS, DESCRIBE"}]);
+  reply(State, "200 OK",
+        [
+         {'Server', "Erlyvideo"},
+         {'Content-Length', 0},
+         {'Cseq', seq(Headers)},
+         {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, DESCRIBE"}
+        ]);
 
 handle_request({request, 'ANNOUNCE', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
   case Callback:announce(URL, Headers, Body) of
@@ -334,19 +349,34 @@ handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = 
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
 
-handle_request({request, 'SETUP', URL, Headers, _}, State) ->
+handle_request({request, 'SETUP', URL, Headers, _}, #rtsp_socket{sdp = SDP} = State) ->
   OldTransport = proplists:get_value('Transport', Headers),
   Date = httpd_util:rfc1123_date(),
 
-  {ok, Re} = re:compile("trackID=(\\d+)$"),
-  Transport = case re:run(URL, Re, [{capture, all, list}]) of
-    {match, [_, TrackID_S]} ->
-      TrackID = (list_to_integer(TrackID_S) - 1)*2,
-      list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
-    _ -> OldTransport
-  end,
-  % Transport = OldTransport,
-  ReplyHeaders = [{'Transport', Transport},{'Cseq', seq(Headers)}, {'Date', Date}, {'Expires', Date}, {'Cache-Control', "no-cache"}],
+  {ok, Re} = re:compile("trackID=(\\d+)"),
+  Transport =
+    case re:run(URL, Re, [{capture, all, list}]) of
+      {match, [_, TrackID_S]} ->
+        ?DBG("SDP:~n~p", [SDP]),
+        %% Extract media_desc from SDP
+        case lists:keyfind("trackID="++TrackID_S, #media_desc.track_control, SDP) of
+          #media_desc{} = Stream ->
+            Media = self(),
+            rtp_server:start_link(Media, Stream);
+          false ->
+            fail
+        end,
+        TrackID = (list_to_integer(TrackID_S) - 1)*2,
+        list_to_binary("RTP/AVP/TCP;unicast;interleaved="++integer_to_list(TrackID)++"-"++integer_to_list(TrackID+1));
+      _ -> OldTransport
+    end,
+  %% Transport = OldTransport,
+  ReplyHeaders = [
+                  {'Server', "Erlyvideo"},
+                  {'Transport', Transport},
+                  {'Cseq', seq(Headers)},
+                  {'Cache-Control', "no-cache"}
+                 ],
   reply(State, "200 OK", ReplyHeaders);
 
 handle_request({request, 'TEARDOWN', _URL, Headers, _Body}, #rtsp_socket{consumer = Consumer} = State) ->
@@ -371,7 +401,7 @@ reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers,
     undefined -> <<>>;
     _ -> Body
   end]),
-  io:format("[RTSP] ~s", [Reply]),
+  io:format("[RTSP]~n~s", [Reply]),
   gen_tcp:send(Socket, Reply),
   State.
 
