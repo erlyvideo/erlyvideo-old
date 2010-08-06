@@ -23,4 +23,4 @@
 %%%---------------------------------------------------------------------------------------
 
 -define(D(X), ems_log:debug(3, ertp, "~p:~p ~p",[?MODULE, ?LINE, X])).
-
+-define(DBG(F,A), io:format("DBG(~w:~b): " ++ F ++ "~n", [?MODULE, ?LINE] ++ A)).

@@ -92,15 +92,100 @@
 -define(YEARS_70, 2208988800).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
 %% External API
--export([start_link/2]).
+-export([
+         start_consumer/2
+        ]).
+
+%% API
+-export([
+         start_link/2,
+         play/2,
+         add_stream/5,
+         stop/2
+        ]).
 
 %% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2,
+         handle_info/2, terminate/2, code_change/3]).
+
 
 -export([video/2, audio/2, rtcp_sr/2]).
 -export([decode/3, init/2, get_socket/3, wait_data/1]).
 -export([configure/2, configure/3, presync/2]).
 
 -export([encode/2]).
+
+-export([data_sender/1]).
+
+-record(state, {
+          producer        :: pid(),
+          consumer        :: pid()
+         }).
+
+%% Gen server process does control RTP-stream.
+start_link(Type, Args) ->
+    gen_server:start_link(?MODULE, [Type, Args], []).
+
+init([Type, Args]) ->
+    case Type of
+        producer ->
+            case Args of
+                {Stream, Proto, Addr, {Port0, Port1}} ->
+                    {ok, Pid} = start_producer(Stream, Proto, Addr, {Port0, Port1}),
+                    {ok, #state{producer = Pid}};
+                _ ->
+                    {stop, bad_producer_args}
+            end;
+        consumer ->
+            case Args of
+                {Media, Stream} ->
+                    {ok, Pid, {_RTP, _RTCP}} = start_consumer(Media, Stream),
+                    {ok, #state{consumer = Pid}};
+                _ ->
+                    {stop, bad_consumer_args}
+            end
+    end.
+
+handle_call({play, Fun}, _From, #state{producer = SPid} = State) ->
+    SPid ! {play, Fun},
+    %% FIXME: return self() or SPid for monitoring by toplevel process?
+    {reply, {ok, self()}, State};
+handle_call({add_stream, Stream, Proto, Addr, {Port0, Port1}}, _From, #state{producer = SPid} = State) ->
+    ?DBG("Add Stream: ~p", [Stream]),
+    SPid ! {add_stream, {Stream, Proto, Addr, {Port0, Port1}}},
+    {reply, {ok, self()}, State};
+handle_call({stop, Pid}, _From, #state{producer = SPid} = State) ->
+    ?DBG("Stop RTP Producer ~p", [SPid]),
+    SPid ! {stop, Pid},
+    {stop, normal, ok, State};
+handle_call(_Request, _From, State) ->
+    Reply = pass,
+    {reply, Reply, State}.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(Info, State) ->
+    ?DBG("RTP Controller Info: ~p", [Info]),
+    {noreply, State}.
+
+terminate(Reason, _State) ->
+    ?DBG("RTP Controller terminates: ~p", [Reason]),
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%% API
+play(Pid, Fun) ->
+    gen_server:call(Pid, {play, Fun}).
+
+add_stream(Pid, Stream, Proto, Addr, {Port0, Port1}) ->
+    gen_server:call(Pid, {add_stream, Stream, Proto, Addr, {Port0, Port1}}).
+
+stop(Pid, Arg) ->
+    gen_server:call(Pid, {stop, Arg}).
+
 
 %%--------------------------------------------------------------------
 %% @spec (Media::any(), Stream::media_desc()) -> {ok, Pid} | {error, Reason}
@@ -109,8 +194,9 @@
 %% @end
 %%----------------------------------------------------------------------
 
-start_link(Media, #media_desc{type = Type} = Stream)  ->
+start_consumer(Media, #media_desc{type = Type} = Stream)  ->
   {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
+  ?DBG("Start RTP server (~p): ~p, ~p, ~p, ~p", [Type, RTP, RTPSocket, RTCP, RTCPSocket]),
   Pid = spawn_link(?MODULE, get_socket, [Type, init(Stream, Media), Media]),
   link(Pid),
   gen_udp:controlling_process(RTPSocket, Pid),
@@ -118,6 +204,88 @@ start_link(Media, #media_desc{type = Type} = Stream)  ->
   Pid ! {socket, RTPSocket, RTCPSocket},
   {ok, Pid, {RTP, RTCP}}.
 
+
+
+-record(desc, {
+          proto,
+          addr,
+          port_rtp,
+          port_rtcp,
+          socket_rtp,
+          socket_rtcp
+         }).
+
+-record(sender, {
+          audio,
+          video
+         }).
+
+start_producer(#media_desc{} = Stream,
+               Proto, Addr, {PortRTP, PortRTCP})  ->
+  SState = #sender{},
+  Pid = spawn_link(?MODULE, data_sender, [SState]),
+  ?DBG("Start Producer: ~p", [Pid]),
+  link(Pid),
+  Pid ! {add_stream, {Stream, Proto, Addr, {PortRTP, PortRTCP}}},
+  {ok, Pid}.
+
+%% data_sender(_Media, _Type, RTP, _Proto, Addr, {PortRTP, PortRTCP}) ->
+%%   receive
+%%     play ->
+%%       ?DBG("Connect to ~p:~p", [Addr, PortRTP]),
+%%       {ok, RTPSocket} = gen_tcp:connect(Addr, PortRTP, [binary]),
+%%       gen_tcp:controlling_process(RTPSocket, RTP),
+%%       send_rtp(RTPSocket)
+%%   after
+%%     10000 ->
+%%       ?DBG("RTP sender timeout", []),
+%%       timeout
+%%   end.
+
+%% ATTENTION: There is one audio stream and one video stream.
+data_sender(#sender{audio = AudioDesc, video = VideoDesc} = State) ->
+    receive
+        {play, Fun} ->
+            Fun(),
+            data_sender(State);
+        {add_stream, {#media_desc{type = Type}, Proto, Addr, {PortRTP, PortRTCP}}} ->
+            ?DBG("Connect to ~p:~p", [Addr, PortRTP]),
+            {RTP, RTPSocket, RTCP, RTCPSocket} = open_ports(Type),
+            gen_udp:controlling_process(RTPSocket, self()),
+            gen_udp:controlling_process(RTCPSocket, self()),
+            NewState =
+                case Type of
+                    audio ->
+                        #sender{audio = #desc{proto = Proto, addr = Addr,
+                                              port_rtp = PortRTP, port_rtcp = PortRTCP,
+                                              socket_rtp = RTPSocket, socket_rtcp = RTCPSocket}};
+                    video ->
+                        #sender{video = #desc{proto = Proto, addr = Addr,
+                                              port_rtp = PortRTP, port_rtcp = PortRTCP,
+                                              socket_rtp = RTPSocket, socket_rtcp = RTCPSocket}}
+                end,
+            data_sender(NewState);
+        {stop, _CPid} ->
+            ?DBG("Stop Sender Process", []),
+            stop;
+        #video_frame{content = audio, body = Body} = Frame ->
+            ?DBG("Audio Frame(~p):~n~p", [self(), Frame]),
+            %% Send Audio
+            #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} = AudioDesc,
+            gen_udp:send(RTPSocket, Addr, PortRTP, Body),
+            data_sender(State);
+        #video_frame{content = video} = Frame ->
+            ?DBG("Vide Frame(~p):~n~p", [self(), Frame]),
+            %% Send Audio
+            data_sender(State);
+        OtherMsg ->
+            ?DBG("OtherMsg: ~p", [OtherMsg]),
+            data_sender(State)
+    after
+        10000 ->
+            ?DBG("RTP sender timeout", []),
+            timeout
+    end.
 
 configure(Body, RTPStreams) ->
   configure(Body, RTPStreams, self()).
