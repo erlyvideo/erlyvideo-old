@@ -212,7 +212,12 @@ some_random_sdp() ->
   <<"v=0
 o=- 234234 546456 IN IP4 10.11.12.13
 s=Test
-c=IP4 10.11.12.13
+t=0 0
+c=IN IP4 10.11.12.13
+a=tool:LIVE555 Streaming Media v2008.04.09
+a=type:broadcast
+a=control:*
+a=range:npt=0-
 m=video 1500 RTP/AVP 8
 a=control:trackID=1
 a=rtpmap:8 PCMA/90000
@@ -228,11 +233,16 @@ encoder_test() ->
                   originator = #sdp_o{username = <<"-">>,
                                       sessionid = <<"234234">>,
                                       version = <<"546456">>,
-                                      nettype = <<"IN">>,
-                                      addrtype = inet4,
+                                      netaddrtype = inet4,
                                       address = "10.11.12.13"},
                   name = <<"Test">>,
-                  connect = {inet4,"10.11.12.13"}},
+                  connect = {inet4,"10.11.12.13"},
+                  attrs = [
+                           {tool, "LIVE555 Streaming Media v2008.04.09"},
+                           {type, "broadcast"},
+                           {control, "*"},
+                           {range, "npt=0-"}
+                          ]},
   MediaV =
     #media_desc{type = video,
                 connect = {inet4, "10.11.12.13"},

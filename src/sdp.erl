@@ -188,22 +188,48 @@ encode(#session_desc{connect = GConnect} = Session,
 encode_session(S) ->
   encode_session(S, <<>>).
 
-encode_session(#session_desc{version = V,
+encode_session(#session_desc{version = Ver,
                              originator = #sdp_o{username = UN,
                                                  sessionid = SI,
                                                  version = OV,
-                                                 nettype = NT,
-                                                 addrtype = AT,
+                                                 netaddrtype = NAT,
                                                  address = AD},
                              name = N,
-                             connect = {_Type, Addr}
+                             connect = Connect,
+                             time = Time,
+                             attrs = Attrs
                             } = D, A) ->
-  ATb = at2bin(AT),
-  SV = << <<"v=">>/binary, V/binary, ?LSEP/binary>>,
-  SO = << <<"o=">>/binary,UN/binary,$ ,SI/binary,$ ,OV/binary,$ ,NT/binary,$ ,ATb/binary,$ ,(list_to_binary(AD))/binary, ?LSEP/binary>>,
-  SN = << <<"s=">>/binary, N/binary, ?LSEP/binary>>,
-  SC = << <<"c=">>/binary,ATb/binary,$ ,(list_to_binary(Addr))/binary, ?LSEP/binary>>,
-  <<SV/binary,SO/binary,SN/binary,SC/binary>>.
+  SV = ["v=", Ver, ?LSEP],
+  SO = ["o=", UN, $ , SI, $ , OV, $ , at2bin(NAT), $ , AD, ?LSEP],
+  SN = ["s=", N, ?LSEP],
+  SC =
+    case Connect of
+      {Type, Addr} when (is_atom(Type)
+                         andalso (is_list(Addr) or is_binary(Addr))) ->
+        ["c=", at2bin(Type), $ , Addr, ?LSEP];
+      _ -> []
+    end,
+  AttrL = [begin
+             ResB =
+               case KV of
+                 {K, V} when (is_atom(K)
+                              andalso (is_list(V) or is_binary(V))) ->
+                   [atom_to_list(K), $:, V];
+                 _ when is_atom(KV) ->
+                   atom_to_list(KV);
+                 Other ->
+                   ?DBG("Err: ~p", [KV]),
+                   ""
+               end,
+             ["a=", ResB, ?LSEP]
+           end || KV <- Attrs],
+  TimeB =
+    case Time of
+      {TimeStart, TimeStop} when is_integer(TimeStart), is_integer(TimeStop) ->
+        ["t=", integer_to_list(TimeStart), $ , integer_to_list(TimeStop), ?LSEP];
+      _ -> []
+    end,
+  iolist_to_binary([SV, SO, SN, TimeB, SC, AttrL]).
 
 %%  encode(D#session_desc{version = undefined}, <<A/binary,S/binary,?LSEP/binary>>);
 
@@ -237,14 +263,13 @@ encode_media(#media_desc{type = Type,
                          track_control = TControl
                         }, GConnect, A) ->
   Tb = type2bin(Type),
-  M = << <<"m=">>/binary,Tb/binary,$ ,(list_to_binary(integer_to_list(Port)))/binary,
-         $ ,<<"RTP/AVP">>/binary, $ ,(list_to_binary(integer_to_list(PayLoad)))/binary, ?LSEP/binary>>,
-  AC = << <<"a=">>/binary,<<"control:">>/binary, TControl/binary, ?LSEP/binary>>,
+  M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ , integer_to_list(PayLoad), ?LSEP],
+  AC = ["a=", "control:", TControl, ?LSEP],
   %% TODO: support of several payload types
   Codecb = codec2bin(Codec),
   CMapb = clockmap2bin(ClockMap),
-  AR = << <<"a=">>/binary,<<"rtpmap:">>/binary, (list_to_binary(integer_to_list(PayLoad)))/binary,$ ,Codecb/binary,$/,CMapb/binary, ?LSEP/binary>>,
-  <<M/binary,AC/binary,AR/binary>>.
+  AR = ["a=", "rtpmap:", integer_to_list(PayLoad), $ , Codecb, $/, CMapb, ?LSEP],
+  iolist_to_binary([M, AC, AR]).
 
 type2bin(T) ->
   case T of
@@ -254,8 +279,8 @@ type2bin(T) ->
 
 at2bin(AT) ->
   case AT of
-    inet4 -> <<"IP4">>;
-    inet6 -> <<"IP6">>
+    inet4 -> <<"IN IP4">>;
+    inet6 -> <<"IN IP6">>
   end.
 
 codec2bin(C) ->
