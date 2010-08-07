@@ -236,14 +236,14 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, Body} = _Response, Rest} ->
-      io:format("--------------------------~n[RTSP]~n~p ~s~n~p~n", [_Code, _Message, Headers]),
+      io:format("--------------------------~n[RTSP Response]~n~p ~s~n~p~n", [_Code, _Message, Headers]),
       Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
       Socket2 = extract_session(Socket1, Headers),
       Socket3 = sync_rtp(Socket2, Headers),
       Socket4 = reply_pending(Socket3),
       handle_packet(Socket4);
     {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
-      io:format("--------------------------~n[RTSP]~n~s ~s~n~p~n", [_Method, _URL, Headers]),
+      io:format("--------------------------~n[RTSP Request]~n~s ~s~n~p~n", [_Method, _URL, Headers]),
       Socket1 = handle_request(Request, Socket),
       Socket2 = configure_rtp(Socket1#rtsp_socket{buffer = Rest}, Headers, Body),
       handle_packet(Socket2)
@@ -290,32 +290,63 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}]);
     ok ->
-      SDP =
-        <<"v=0\n",
-          "o=- 1275067839203788 1 IN IP4 0.0.0.0\n",
-          "s=Session streamed by Erlyvideo\n",
-          "i=h264\n",
-          "t=0 0\n",
-          "c=IN IP4 0.0.0.0\n"
-          "a=tool:LIVE555 Streaming Media v2008.04.09\n",
-          "a=type:broadcast\n",
-          "a=control:*\n",
-          "a=range:npt=0-\n",
-          "m=video 0 RTP/AVP 96\n",
-          %%"b=AS:50000\n",
-          "b=RR:0\n",
-          %%"a=rtpmap:96 H264/90000\n",
-          "a=rtpmap:96 MPV/90000\n",
-          "a=control:trackID=1\n",
-          "a=framerate:25.000000\n",
-          "m=audio 0 RTP/AVP 97\n",
-          %%"b=AS:32\n",
-          "b=RR:0\n",
-          "a=control:trackID=2\n",
-          %%"a=rtpmap:97 mpeg4-generic/16000/1\n",
-          "a=rtpmap:97 MPA/90000\n"
-          %%"a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;\n"
-        >>,
+      SessionDesc =
+        #session_desc{version = "0",
+                      originator = #sdp_o{username = "-",
+                                          sessionid = "1275067839203788",
+                                          version = "1",
+                                          netaddrtype = inet4,
+                                          address = "0.0.0.0"},
+                      name = "Test",
+                      connect = {inet4, "0.0.0.0"},
+                      attrs = [
+                               {tool, "LIVE555 Streaming Media v2008.04.09"},
+                               {type, "broadcast"},
+                               {control, "*"},
+                               {range, "npt=0-"}
+                              ]},
+       MediaVideo =
+        #media_desc{type = video,
+                    port = 0,
+                    payload = 96,
+                    clock_map = 90,
+                    track_control = "trackID=1",
+                    codec = h264},
+       MediaAudio =
+        #media_desc{type = audio,
+                    port = 0,
+                    payload = 97,
+                    clock_map = 16,
+                    track_control = "trackID=2",
+                    codec = aac},
+
+
+      SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
+      ?DBG("SDP:~n~p", [SDP]),
+      %% SDP =
+      %%   <<"v=0\n",
+      %%     "o=- 1275067839203788 1 IN IP4 0.0.0.0\n",
+      %%     "s=Session streamed by Erlyvideo\n",
+      %%     "i=h264\n",
+      %%     "t=0 0\n",
+      %%     "c=IN IP4 0.0.0.0\n"
+      %%     "a=tool:LIVE555 Streaming Media v2008.04.09\n",
+      %%     "a=type:broadcast\n",
+      %%     "a=control:*\n",
+      %%     "a=range:npt=0-\n",
+      %%     "m=video 0 RTP/AVP 96\n",
+      %%     %%"b=AS:50000\n",
+      %%     "b=RR:0\n",
+      %%     "a=rtpmap:96 H264/90000\n",
+      %%     "a=control:trackID=1\n",
+      %%     "a=framerate:25.000000\n",
+      %%     "m=audio 0 RTP/AVP 97\n",
+      %%     %%"b=AS:32\n",
+      %%     "b=RR:0\n",
+      %%     "a=control:trackID=2\n",
+      %%     "a=rtpmap:97 mpeg4-generic/16000/1\n",
+      %%     %%"a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;\n"
+      %%   >>,
       reply(State#rtsp_socket{sdp = sdp:decode(SDP)}, "200 OK",
             [
              {'Server', "Erlyvideo"},
@@ -482,7 +513,7 @@ reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers,
     undefined -> <<>>;
     _ -> Body
   end]),
-  io:format("[RTSP]~n~s", [Reply]),
+  io:format("[RTSP Response to Client]~n~s", [Reply]),
   gen_tcp:send(Socket, Reply),
   State.
 
