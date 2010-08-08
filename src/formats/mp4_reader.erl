@@ -221,7 +221,7 @@ video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
 
 init(Reader, Options) -> 
   Info1 = #mp4_reader{reader = Reader, audio_codec = aac, video_codec = h264, lang = proplists:get_value("lang", Options)},
-  ?D({"Going to read header", Options}),
+  % ?D({"Going to read header", Options}),
   % eprof:start(),
   % eprof:start_profiling([self()]),
   {Time, {ok, Info2}} = timer:tc(?MODULE, read_header, [Info1]),
