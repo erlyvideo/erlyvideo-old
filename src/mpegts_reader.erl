@@ -80,7 +80,7 @@
 -export([handle_pat/4, pmt/4, pes/1]).
 
 -export([pat/1]).
-
+-export([extract_nal/1]).
 
 -export([start_link/1, init/1, synchronizer/1]).
 
@@ -413,9 +413,8 @@ normalize_timestamp(Stream) ->
 
 
 % <<18,16,6>>
-decode_aac(#stream{send_audio_config = false, dts = DTS, pts = PTS, consumer = Consumer} = Stream) ->
-  % Config = <<16#A:4, 3:2, 1:1, 1:1, 0>>,
-  Config = <<18,16>>,
+decode_aac(#stream{send_audio_config = false, es_buffer = AAC, dts = DTS, pts = PTS, consumer = Consumer} = Stream) ->
+  Config = aac:config(AAC),
   AudioConfig = #video_frame{       
    	content = audio,
    	flavor  = config,
@@ -426,7 +425,6 @@ decode_aac(#stream{send_audio_config = false, dts = DTS, pts = PTS, consumer = C
 	  sound	  = {stereo, bit16, rate44}
 	},
 	Consumer ! AudioConfig,
-  % ?D({"Send audio config", AudioConfig}),
 	decode_aac(Stream#stream{send_audio_config = true});
   
 
