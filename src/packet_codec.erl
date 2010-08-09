@@ -94,7 +94,7 @@ parse(State, Data) ->
 parse_sip(Method, Request) ->
   case erlang:decode_packet(line, Request, []) of
       {ok, R, Rest} ->
-          {ok, Re} = re:compile("([^ ]+)\s+SIP/2\.0.*"),
+          {ok, Re} = re:compile("([^ ]+)\s+SIP/2\\.0.*"),
           {match, [_, URI]} = re:run(R, Re, [{capture, all, list}]),
           {ok, {sip, Method, URI}, Rest}
   end.
