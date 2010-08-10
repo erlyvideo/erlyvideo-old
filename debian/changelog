@@ -1,3 +1,9 @@
+erlyvideo (2.0.8) karmic; urgency=low
+
+  Added rtmp source. Added explicit media stop
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 10 Aug 2010 15:38:18 +0400
+
 erlyvideo (2.0.7) karmic; urgency=low
 
   Added paths support in config and a better handling of metadata

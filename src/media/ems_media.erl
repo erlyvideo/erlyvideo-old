@@ -57,7 +57,7 @@
 -include("../include/ems.hrl").
 
 %% External API
--export([start_link/2, start_custom/2]).
+-export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
 -export([metadata/1, info/1, setopts/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
@@ -119,6 +119,15 @@ play(Media, Options) ->
 %%----------------------------------------------------------------------
 stop(Media) ->
   unsubscribe(Media).
+
+%%--------------------------------------------------------------------
+%% @spec (Media::pid()) -> ok
+%%
+%% @doc stops stream. Called by source, when going to leave
+%% @end
+%%----------------------------------------------------------------------
+stop_stream(Media) ->
+  gen_server:call(Media, stop).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Options::list()) -> ok
@@ -395,6 +404,10 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
     {noreply, Media1} ->
       DefaultSubscribe(ok, Media1)
   end;
+
+handle_call(stop, _From, Media) ->
+  {stop, normal, Media};
+
   
 handle_call({stop, Client}, _From, Media) ->
   unsubscribe_client(Client, Media);
