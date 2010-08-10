@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlyvideo is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -33,11 +33,11 @@ hostpath(URL) ->
   {ems:host(HostPort), Path}.
 
 
-announce(URL, Headers, _Body) -> 
+announce(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
   ?D({"ANNOUNCE", Host, Path, Headers}),
   {Module, Function} = ems:check_app(Host, auth, 3),
-  
+
   case Module:Function(Host, rtsp, proplists:get_value('Authorization', Headers)) of
     undefined ->
       {error, authentication};
@@ -52,7 +52,7 @@ record(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
   ?D({"RECORD", Host, Path, Headers}),
   {Module, Function} = ems:check_app(Host, auth, 3),
-  
+
   case Module:Function(Host, rtsp, proplists:get_value('Authorization', Headers)) of
     undefined ->
       {error, authentication};
@@ -66,9 +66,9 @@ describe(_URL, _Headers, _Body) ->
 
 play(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
-  ?D({"RECORD", Host, Path, Headers}),
+  ?D({"PLAY", Host, Path, Headers}),
   % {Module, Function} = ems:check_app(Host, auth, 3),
   ems_log:access(Host, "RTSP PLAY ~s ~s", [Host, Path]),
   {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}]),
   {ok, Media}.
-  
+
