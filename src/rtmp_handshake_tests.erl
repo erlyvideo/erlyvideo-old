@@ -46,7 +46,7 @@ key_generation_test() ->
   ok.
 
 rtmpe_handshake_test() ->
-  {crypted, _, KeyIn, KeyOut} = rtmp_handshake:server(<<6, (example_c1_crypt())/binary>>),
+  {crypted, _, KeyIn, _KeyOut} = rtmp_handshake:server(<<6, (example_c1_crypt())/binary>>),
   ?assertEqual(example_rc4_key_in(), KeyIn).
   
 example_shared() ->
