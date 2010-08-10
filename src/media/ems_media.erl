@@ -258,7 +258,7 @@ info(Media) ->
 %% send_audio : boolean() - send audio or not
 %% @end
 %%----------------------------------------------------------------------
-setopts(Media, Options) ->
+setopts(_Media, _Options) ->
   %TODO add options
   ok.
   
@@ -278,7 +278,7 @@ publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
 %%%------------------------------------------------------------------------
 
 %% @hidden
-format_status(Reason, [_Dict, #ems_media{} = Media]) ->
+format_status(_Reason, [_Dict, #ems_media{} = Media]) ->
   Media#ems_media{storage = storage}.
 
 
@@ -298,7 +298,7 @@ format_status(Reason, [_Dict, #ems_media{} = Media]) ->
 
 
 init([Module, Options]) ->
-  ?D({init,Module,Options}),
+  % ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
   URL = proplists:get_value(url, Options),
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
@@ -697,7 +697,7 @@ handle_info(Message, #ems_media{module = M} = Media) ->
 
 
 transcode(#video_frame{content = audio, codec = Codec} = Frame) when Codec == pcma orelse 
-                                                                     Codec == pcm orelse
+                                                                     % Codec == pcm orelse
                                                                      Codec == g726_16 orelse
                                                                      % Codec == pcm_le orelse
                                                                      % Codec == mp3 orelse

@@ -31,6 +31,7 @@
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 
+
 -export([edoc/0, edoc/1]).
 
 
@@ -229,32 +230,32 @@ load_file_config() ->
   end.
 
 
-load_persistent_config() ->
-  load_persistent_config(["priv", "/var/lib/erlyvideo"]).
-
-load_persistent_config([]) ->
-  [];
-
-load_persistent_config([Path|Paths]) ->
-  case file:read_file_info(Path) of
-    {ok, _FileInfo} ->
-      case dets:is_dets_file(Path) of
-        true ->
-          {ok, Config} = dets:open_file("erlyvideo_config", [{file, Path}]),
-          [Entry || [Entry] <- dets:match(Config, '$1')];
-        false ->
-          []
-      end;
-    {error, _} ->
-      load_persistent_config(Paths)
-  end.
-
-deep_merge(List1, List2) ->
-  deep_merge(lists:ukeysort(1, List1), lists:ukeysort(1, List2), []).
-
-% TODO: implement real deep merge for erlyvideo
-deep_merge(List1, _, _) ->
-  List1.
+% load_persistent_config() ->
+%   load_persistent_config(["priv", "/var/lib/erlyvideo"]).
+%
+% load_persistent_config([]) ->
+%   [];
+%
+% load_persistent_config([Path|Paths]) ->
+%   case file:read_file_info(Path) of
+%     {ok, _FileInfo} ->
+%       case dets:is_dets_file(Path) of
+%         true ->
+%           {ok, Config} = dets:open_file("erlyvideo_config", [{file, Path}]),
+%           [Entry || [Entry] <- dets:match(Config, '$1')];
+%         false ->
+%           []
+%       end;
+%     {error, _} ->
+%       load_persistent_config(Paths)
+%   end.
+%
+% deep_merge(List1, List2) ->
+%   deep_merge(lists:ukeysort(1, List1), lists:ukeysort(1, List2), []).
+%
+% % TODO: implement real deep merge for erlyvideo
+% deep_merge(List1, _, _) ->
+%   List1.
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
