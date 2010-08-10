@@ -63,7 +63,8 @@ start() ->
 	application:start(crypto),
 	application:start(os_mon),
 	application:start(snmp),
-	os_mon_mib:load(snmp_master_agent),
+  % os_mon_mib:load(snmp_master_agent),
+	snmpa:load_mibs(snmp_master_agent, ["snmp/ERLYVIDEO-MIB"]),
 	application:start(rtmp),
 	application:start(rtsp),
 	

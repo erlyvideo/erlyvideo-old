@@ -1,0 +1,1 @@
+{diskStatsTable, {snmp_generic, table_func, [diskStatsTable]}}.

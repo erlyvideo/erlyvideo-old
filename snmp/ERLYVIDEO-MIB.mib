@@ -1,0 +1,93 @@
+ERLYVIDEO-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+        MODULE-IDENTITY, OBJECT-TYPE, Gauge32, enterprises FROM SNMPv2-SMI
+
+        OBJECT-GROUP FROM SNMPv2-CONF
+
+        DisplayString, TruthValue FROM SNMPv2-TC;
+        
+        demo    MODULE-IDENTITY
+                LAST-UPDATED "201008100000Z"
+                ORGANIZATION "erlyvideo"
+                CONTACT-INFO
+                        "e-mail:	 info@erlyvideo.org"
+                DESCRIPTION
+                        "Erlyvideo SNMP"
+                REVISION		 "201008100000Z"
+                DESCRIPTION
+                        "v1.0"
+                ::= { enterprises 35458}
+
+demoGroups OBJECT IDENTIFIER ::= { demo 1 }
+staticOid OBJECT IDENTIFIER ::= { demo 2 }
+dynamicOid OBJECT IDENTIFIER ::= { demo 3 }
+
+--
+-- Static OID members
+--
+nodeName
+    OBJECT-TYPE
+        SYNTAX DisplayString
+        MAX-ACCESS read-only
+        STATUS current
+        DESCRIPTION "Node name"
+        ::= { staticOid 1 }
+
+gaugeValue
+    OBJECT-TYPE
+        SYNTAX Gauge32
+        MAX-ACCESS read-only
+        STATUS current
+        DESCRIPTION "Gauge value"
+        ::= { staticOid 2 }
+
+--
+-- Dynamic OID members
+--
+diskStatsTable OBJECT-TYPE
+        SYNTAX SEQUENCE OF DiskStatsEntry
+        MAX-ACCESS not-accessible
+        STATUS current
+        DESCRIPTION "Disk stats table"
+        ::= { dynamicOid 1 }
+
+diskStatsTableEntry OBJECT-TYPE
+        SYNTAX DiskStatsEntry
+        MAX-ACCESS not-accessible
+        STATUS current
+        DESCRIPTION "Disk stats entry"
+        INDEX { mountPoint }
+        ::= { diskStatsTable 1 }
+
+DiskStatsEntry ::= SEQUENCE {
+        mountPoint DisplayString,
+        usePercent Gauge32
+}
+
+mountPoint OBJECT-TYPE
+        SYNTAX DisplayString
+        MAX-ACCESS read-only
+        STATUS current
+        DESCRIPTION "Disk mount point"
+        ::= { diskStatsTableEntry 1 }
+
+usePercent OBJECT-TYPE
+        SYNTAX Gauge32
+        MAX-ACCESS read-only
+        STATUS current
+        DESCRIPTION "Disk usage in percent"
+        ::= { diskStatsTableEntry 2 }
+
+--
+-- Global Group
+--
+demoGroup OBJECT-GROUP
+        OBJECTS {
+                nodeName, gaugeValue, mountPoint, usePercent
+        }
+        STATUS current
+        DESCRIPTION "Demo group"
+        ::= { demoGroups 1 }
+
+END
