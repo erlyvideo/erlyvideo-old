@@ -467,9 +467,9 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
   end.
 
 
-collect_statistics(#rtmp_session{socket = Socket}) ->
-  Stats = rtmp_socket:getstat(Socket),
-  Stats.
+% collect_statistics(#rtmp_session{socket = Socket}) ->
+%   Stats = rtmp_socket:getstat(Socket),
+%   Stats.
 
 %%-------------------------------------------------------------------------
 %% Func: terminate/3
