@@ -109,6 +109,10 @@ video_codec(?FLV_VIDEO_CODEC_AVC) -> h264.
 frame_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
 frame_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
 frame_type(disposable) -> ?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME;
+frame_type(generated) -> ?FLV_VIDEO_FRAME_TYPE_GENERATED;
+frame_type(command) -> ?FLV_VIDEO_FRAME_TYPE_COMMAND;
+frame_type(?FLV_VIDEO_FRAME_TYPE_COMMAND) -> command;
+frame_type(?FLV_VIDEO_FRAME_TYPE_GENERATED) -> generated;
 frame_type(?FLV_VIDEO_FRAME_TYPEDISP_INTER_FRAME) -> disposable;
 frame_type(?FLV_VIDEO_FRAME_TYPEINTER_FRAME) -> frame;
 frame_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
@@ -218,7 +222,7 @@ decode_audio_tag(<<CodecId:4, Rate:2, Bitsize:1, Channels:1, Body/binary>>) ->
 decode_meta_tag(Metadata) when is_binary(Metadata) ->
   decode_list(Metadata);
 
-decode_meta_tag(Metadata) ->
+decode_meta_tag({object, Metadata}) ->
   Metadata.
 
 decode_tag(#flv_tag{type = video, body = VideoTag} = Tag) ->
@@ -312,7 +316,7 @@ encode_video_tag(#flv_video_tag{flavor = Flavor,
 encode_meta_tag(Metadata) when is_binary(Metadata) ->
   Metadata;
 
-encode_meta_tag(Metadata) ->
+encode_meta_tag(Metadata) when is_list(Metadata) ->
   encode_list(Metadata).
 
 	

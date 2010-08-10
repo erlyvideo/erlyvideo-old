@@ -32,7 +32,7 @@
   samples_per_frame
 }).
 
--export([decode_config/1, decode/1, encode/2, config/1]).
+-export([decode_config/1, encode_config/1, decode/1, encode/2, config/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary(), Config::aac_config()) -> ADTS::binary()
@@ -112,6 +112,22 @@ decode_config(<<ObjectType:5, FrequencyIndex:4, ChannelConfig:4, FrameLength:1, 
   
 unpack_config(ObjectType, Frequency, ChannelConfig, FrameLength) ->
   #aac_config{samples_per_frame = samples_per_frame(FrameLength), type = object_type(ObjectType), frequency = frequency(Frequency), channels = channels(ChannelConfig)}.
+
+
+%%--------------------------------------------------------------------
+%% @spec (Config::aac_config()) -> Body::binary()
+%% @doc Encode #aac_config{} to binary AAC config
+%% @end 
+%%--------------------------------------------------------------------
+encode_config(Config) ->
+  {ObjectType, FrequencyIndex, ChannelConfig, FrameLength} = pack_config(Config),
+  DependsCore = 0,
+  Extension = 0,
+  <<ObjectType:5, FrequencyIndex:4, ChannelConfig:4, FrameLength:1, DependsCore:1, Extension:1>>.
+
+pack_config(#aac_config{samples_per_frame = FrameLength, type = ObjectType, frequency = Frequency, channels = ChannelConfig}) ->
+  {object_type(ObjectType), frequency(Frequency), channels(ChannelConfig), samples_per_frame(FrameLength)}.
+  
 
 
 %%--------------------------------------------------------------------
