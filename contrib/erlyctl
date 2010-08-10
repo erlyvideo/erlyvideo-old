@@ -45,8 +45,8 @@ start()
 
 run()
 {
-  if [ -f "priv/development.config" ] ; then
-    CONFIG="-config priv/development.config"
+  if [ -f "priv/dev.config" ] ; then
+    CONFIG="-config priv/dev.config"
   else
     CONFIG=""
   fi

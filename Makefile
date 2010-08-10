@@ -76,6 +76,7 @@ install: compile
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
+	cp snmp $(DESTROOT)/var/lib/erlyvideo/
 
 
 debian: all
