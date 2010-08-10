@@ -76,6 +76,8 @@ package {
 		  this.file = loaderInfo.parameters.file;
 		  
 		  ExternalInterface.addCallback("play", handlePlay);
+		  ExternalInterface.addCallback("seek", handleSeek);
+		  ExternalInterface.addCallback("stop", handleStop);
 		  connectTimer = new Timer(3000, 0);
 		  connectTimer.addEventListener(TimerEvent.TIMER_COMPLETE, connect);
       ExternalInterface.call("erlyvideo.init");
@@ -137,6 +139,20 @@ package {
 		  }
 		  this.file = file;
 		  play();
+		}
+		
+		private function handleStop():void {
+		  if(this.stream) {
+		    stream.play(null);
+		    stream.close();
+		  }
+		  this.stream = null;
+		}
+		
+		private function handleSeek(offset:Number):void {
+		  if(this.stream) {
+		    stream.seek(offset);
+		  }
 		}
   }
 }
