@@ -113,7 +113,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
         g726_16 -> 8000;
         _ -> list_to_integer(ClockMap1)
       end,
-      Stream#media_desc{clock_map = ClockMap/1000, codec = Codec};
+      Stream#media_desc{clock_map = ClockMap, codec = Codec};
     "control" ->
       Stream#media_desc{track_control = Value};
     "fmtp" ->
@@ -268,7 +268,7 @@ encode_media(#media_desc{type = Type,
   AC = ["a=", "control:", TControl, ?LSEP],
   %% TODO: support of several payload types
   Codecb = codec2bin(Codec),
-  CMapb = clockmap2bin(ClockMap),
+  CMapb = integer_to_list(ClockMap),
   AR = ["a=", "rtpmap:", integer_to_list(PayLoad), $ , Codecb, $/, CMapb, ?LSEP],
   iolist_to_binary([M, AC, AR]).
 
@@ -294,9 +294,6 @@ codec2bin(C) ->
     mp4 -> <<"MP4A-LATM">>;
     pcm -> <<"L16">>
   end.
-
-clockmap2bin(CM) ->
-  list_to_binary(integer_to_list(CM*1000)).
 
 
 % Example of SDP:

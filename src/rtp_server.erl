@@ -716,7 +716,7 @@ encode(rtp, BaseRTP, Data) ->
   %%       16#dd, 16#dd, 16#dd, 16#d2, 16#c4, 16#c5, 16#da, 16#db, 16#c4, 16#c4, 16#c5, 16#da, 16#c3, 16#c0, 16#c1, 16#c6,
   %%       16#c3, 16#c0, 16#c1, 16#c6, 16#cb, 16#c9, 16#ce, 16#cf, 16#f5, 16#ca, 16#c8, 16#c9, 16#f6, 16#f7, 16#f4, 16#f5>>,
   %%Pack = make_rtp(Version, Padding, Extension, CSRC, Marker, PayloadType, Sequence, Timestamp, SSRC, PCM),
-  {NewBaseRTP, Packs} = split_rtp(BaseRTP, Data),
+  {NewBaseRTP, Packs} = split_rtp(BaseRTP, l2b(Data)),
   %%?DBG("Pack sizes: ~p", [[size(P) || P <- Packs]]),
   {NewBaseRTP, Packs}.
 
@@ -750,6 +750,13 @@ split_rtp(#base_rtp{sequence = Sequence} = Base, Data, Acc) ->
   Pack = make_rtp(Base, Data),
   split_rtp(Base#base_rtp{sequence = Sequence+1}, <<>>, [Pack | Acc]).
 
+l2b(Bin) ->
+    l2b(Bin, []).
+
+l2b(<<>>, Acc) ->
+    iolist_to_binary(lists:reverse(Acc));
+l2b(<<A:2/little-unit:8,Rest/binary>>, Acc) ->
+    l2b(Rest, [<<A:2/big-unit:8>> | Acc]).
 
 
 encode(receiver_report, State) ->
