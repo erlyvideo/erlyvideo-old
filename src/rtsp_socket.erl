@@ -316,12 +316,13 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
         #media_desc{type = audio,
                     port = 0,
                     payload = 97,
-                    clock_map = 16,
+                    clock_map = 44,
                     track_control = "trackID=2",
-                    codec = aac},
+                    codec = pcm},
 
 
-      SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
+      %%SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
+      SDP = sdp:encode(SessionDesc, [MediaAudio]),
       ?DBG("SDP:~n~p", [SDP]),
       %% SDP =
       %%   <<"v=0\n",
@@ -440,25 +441,29 @@ handle_request({request, 'SETUP', URL, Headers, _},
                 Proto = tcp,                    % FIXME
                 {Port0, Port1} = {list_to_integer(Port0s), list_to_integer(Port1s)},
                 if is_pid(ProducerCtl) ->
-                        %% There is an ProducerCtl, operate with him
-                        rtp_server:add_stream(ProducerCtl, Stream, Proto, Addr, {Port0, Port1}),
-                        NewState = State;
+                    ProdCtlPid = ProducerCtl,
+                    NewState = State;
                    true ->
-                        {ok, NewProducerCtl} =
-                            rtp_server:start_link(producer,
-                                                  {Stream, Proto,
-                                                   Addr, {Port0, Port1}}),
-                        ProducerRef = erlang:monitor(process, NewProducerCtl),
-                        NewState = State#rtsp_socket{producer = NewProducerCtl,
-                                                     producer_ref = ProducerRef}
-                end;
+                    {ok, ProdCtlPid} =
+                      rtp_server:start_link(producer, {Stream}),
+                    ProducerRef = erlang:monitor(process, ProdCtlPid),
+                    NewState = State#rtsp_socket{producer = ProdCtlPid,
+                                                 producer_ref = ProducerRef}
+                end,
+
+                ?DBG("Add Stream: ~p", [{Stream, Proto, Addr, {Port0, Port1}}]),
+                {ok, {SRTPPort, SRTCPPort}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {Port0, Port1}),
+                ?DBG("Server Ports: ~p", [{SRTPPort, SRTCPPort}]),
+                ServerPorts = [";server_port=", integer_to_list(SRTPPort), "-", integer_to_list(SRTCPPort)];
               false ->
+                ServerPorts = [],
                 NewState = State
             end;
           _ ->
+            ServerPorts = [],
             NewState = State
         end,
-        list_to_binary("RTP/AVP;unicast;client_port="++Port0s++"-"++Port1s);
+        iolist_to_binary(["RTP/AVP;unicast;client_port=", Port0s, "-", Port1s, ServerPorts]);
       _ ->
         NewState = State,
         OldTransport
