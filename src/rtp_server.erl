@@ -113,7 +113,7 @@
 -export([decode/3, init/2, get_socket/3, wait_data/1]).
 -export([configure/2, configure/3, presync/2]).
 
--export([encode/2, encode/3]).
+-export([encode/2, encode/4]).
 
 -export([data_sender/1]).
 
@@ -302,7 +302,7 @@ data_sender(#sender{audio = AudioDesc,
       %%?DBG("DS: Audio Frame(~p):~n~p", [self(), Frame]),
       %% Send Audio
       #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} = AudioDesc,
-      {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Body),
+      {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Codec, Body),
       %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, size(RTP), RTP]),
       [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
       data_sender(State#sender{audio = AudioDesc#desc{state = NewBaseRTP}});
@@ -703,21 +703,13 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
 %%----------------------------------------------------------------------
 
 
-encode(rtp, BaseRTP, Data) ->
-  %% io:format("PCM~w~n", [Data]),
-  %% B = <<16#70, 16#71, 16#76, 16#77, 16#7d, 16#72, 16#70, 16#71, 16#7f, 16#7c, 16#7d, 16#72, 16#79, 16#7e, 16#7f, 16#7d,
-  %%       16#7b, 16#79, 16#7e, 16#7c, 16#7b, 16#79, 16#7e, 16#7f, 16#78, 16#7e, 16#7f, 16#7c, 16#78, 16#79, 16#7f, 16#7c,
-  %%       16#7b, 16#79, 16#7e, 16#7f, 16#7a, 16#78, 16#79, 16#7f, 16#7a, 16#78, 16#79, 16#7e, 16#7a, 16#7b, 16#79, 16#7e,
-  %%       16#7a, 16#7b, 16#79, 16#7e, 16#78, 16#79, 16#7e, 16#7c, 16#7b, 16#78, 16#7e, 16#7f, 16#78, 16#7e, 16#7f, 16#7c,
-  %%       16#7e, 16#7f, 16#7c, 16#7d, 16#7f, 16#7c, 16#7d, 16#72, 16#7f, 16#7d, 16#72, 16#73, 16#7d, 16#72, 16#73, 16#70,
-  %%       16#7d, 16#73, 16#70, 16#71, 16#72, 16#73, 16#70, 16#71, 16#72, 16#73, 16#70, 16#71, 16#76, 16#77, 16#74, 16#75,
-  %%       16#76, 16#77, 16#77, 16#74, 16#4c, 16#42, 16#43, 16#40, 16#41, 16#46, 16#47, 16#44, 16#44, 16#45, 16#5a, 16#5b,
-  %%       16#53, 16#50, 16#50, 16#50, 16#50, 16#51, 16#51, 16#51, 16#d6, 16#d6, 16#d6, 16#d6, 16#df, 16#df, 16#dc, 16#dc,
-  %%       16#dd, 16#dd, 16#dd, 16#d2, 16#c4, 16#c5, 16#da, 16#db, 16#c4, 16#c4, 16#c5, 16#da, 16#c3, 16#c0, 16#c1, 16#c6,
-  %%       16#c3, 16#c0, 16#c1, 16#c6, 16#cb, 16#c9, 16#ce, 16#cf, 16#f5, 16#ca, 16#c8, 16#c9, 16#f6, 16#f7, 16#f4, 16#f5>>,
-  %%Pack = make_rtp(Version, Padding, Extension, CSRC, Marker, PayloadType, Sequence, Timestamp, SSRC, PCM),
-  {NewBaseRTP, Packs} = split_rtp(BaseRTP, l2b(Data)),
-  %%?DBG("Pack sizes: ~p", [[size(P) || P <- Packs]]),
+encode(rtp, BaseRTP, Codec, Data) ->
+  case Codec of
+    pcm_le ->
+      {NewBaseRTP, Packs} = split_rtp(BaseRTP, l2b(Data));
+    _ ->
+      {NewBaseRTP, Packs} = split_rtp(BaseRTP, l2b(Data)) % STUB
+  end,
   {NewBaseRTP, Packs}.
 
 make_rtp(#base_rtp{codec = PayloadType,
