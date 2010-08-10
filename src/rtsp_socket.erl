@@ -309,14 +309,14 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
         #media_desc{type = video,
                     port = 0,
                     payload = 96,
-                    clock_map = 90,
+                    clock_map = 90000,
                     track_control = "trackID=1",
                     codec = h264},
        MediaAudio =
         #media_desc{type = audio,
                     port = 0,
-                    payload = 97,
-                    clock_map = 44,
+                    payload = 11,
+                    clock_map = 44100,
                     track_control = "trackID=2",
                     codec = pcm},
 
