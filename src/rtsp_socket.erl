@@ -366,10 +366,16 @@ handle_request({request, 'PLAY', URL, Headers, Body},
   ?DBG("PLAY: ~p", [ProducerCtl]),
   case rtp_server:play(ProducerCtl,
                        fun() -> Callback:play(URL, Headers, Body) end) of
-    {ok, Media} ->
+    {ok, Info, Media} ->
       erlang:monitor(process, Media),
       %% Save Pid of producer here or in SETUP?
-      reply(State#rtsp_socket{}, "200 OK", [{'Cseq', seq(Headers)}]);
+      Infos = [binary_to_list(URL) ++ "/" ++ Track ++ ";seq=" ++ integer_to_list(Seq) ||
+                {Track, Seq} <- Info],
+      reply(State#rtsp_socket{}, "200 OK",
+            [
+             {'Cseq', seq(Headers)},
+             {'RTP-Info', string:join(Infos, ",")}
+            ]);
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
