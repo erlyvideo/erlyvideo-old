@@ -85,7 +85,7 @@ parse_announce([{m, Info} | Announce], Streams, undefined, Connect) ->
   parse_announce(Announce, Streams, #media_desc{type = Type,
                                                 connect = Connect,
                                                 port = PortS,
-                                                payload = PayloadType,
+                                                payload = list_to_integer(PayloadType),
                                                 track_control = "trackID="++integer_to_list(length(Streams)+1)}, Connect);
 
 parse_announce([{b, _Bitrate} | Announce], Streams, #media_desc{} = Stream, Connect) ->
@@ -106,6 +106,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
         "PCMA" -> pcma;
         "PCMU" -> pcmu;
         "G726-16" -> g726_16;
+        "L16" -> pcm;
         Other -> Other
       end,
       ClockMap = case Codec of
@@ -290,7 +291,8 @@ codec2bin(C) ->
     pcma -> <<"PCMA">>;
     pcmu -> <<"PCMU">>;
     g726_16 -> <<"G726-16">>;
-    mp4 -> <<"MP4A-LATM">>
+    mp4 -> <<"MP4A-LATM">>;
+    pcm -> <<"L16">>
   end.
 
 clockmap2bin(CM) ->
