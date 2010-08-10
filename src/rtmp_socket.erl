@@ -282,6 +282,9 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(
 %% @private  
 -spec(wait_for_socket_on_client(Message::any(), Socket::rtmp_socket()) -> no_return()).
 
+wait_for_socket_on_client(timeout, State) ->
+  {stop, normal, State};
+
 wait_for_socket_on_client({socket, Socket}, #rtmp_socket{} = State) ->
   inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
   {ok, {IP, Port}} = inet:peername(Socket),
@@ -514,7 +517,6 @@ handle_info({tcp, Socket, CryptedData}, loop, #rtmp_socket{socket=Socket, buffer
     undefined -> {undefined, CryptedData};
     _ -> rtmpe:crypt(KeyIn, CryptedData)
   end,
-  % ?D({decrypt, Data, CryptedData == element(2, rtmpe:crypt(KeyIn, Data))}),
   {next_state, loop, handle_rtmp_data(State1#rtmp_socket{bytes_read = BytesRead + size(Data), bytes_unack = BytesUnack + size(Data), key_in = NewKeyIn, buffer = <<Buffer/binary, Data/binary>>}), ?RTMP_TIMEOUT};
 
 handle_info({tcp_closed, Socket}, _StateName, #rtmp_socket{socket = Socket, consumer = Consumer} = StateData) ->
@@ -563,12 +565,8 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
   {NewKeyOut, Crypt} = case {Codec, KeyOut} of
     {undefined,undefined} -> {undefined, Data};
     {undefined,_} -> rtmpe:crypt(KeyOut, Data);
-    _ -> erlang:error(not_implemented_rtmpe_codec)
+    _ -> erlang:error(not_implemented_rtmp_codec)
   end,
-  % case KeyOut of
-  %   undefined -> ?D({raw_send, iolist_size(Data)});
-  %   _ -> ?D({encrypt, iolist_size(Data), element(1, split_binary(KeyOut, 10)), element(1, split_binary(NewKeyOut, 10)), Data, Crypt, iolist_to_binary(Data) == element(2, rtmpe:crypt(KeyOut, Crypt))})
-  % end,
   if
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
@@ -588,10 +586,6 @@ handle_rtmp_data(#rtmp_socket{bytes_unack = Bytes, window_size = Window} = State
   handle_rtmp_data(State1);
 
 handle_rtmp_data(#rtmp_socket{buffer = Data} = State) ->
-  % case rtmp:decode(State, Data) of
-  %   {_, M, _} -> ?D({in, M});
-  %   _ -> ?D(more)
-  % end,
   got_rtmp_message(rtmp:decode(State, Data)).
 
 
@@ -628,6 +622,10 @@ handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) 
 handle_rtmp_message({#rtmp_socket{socket=Socket} = State, Rest}) -> 
   activate_socket(Socket),
   State#rtmp_socket{buffer = Rest}.
+
+rtmp_message_sent(#rtmp_socket{active = true,socket = Socket} = State) ->
+  activate_socket(Socket),
+  handle_rtmp_data(State);
 
 rtmp_message_sent(#rtmp_socket{active = _} = State) ->
   handle_rtmp_data(State);
