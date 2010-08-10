@@ -149,9 +149,20 @@ init([Type, Args, Parent]) ->
     end.
 
 handle_call({play, Fun}, _From, #state{producer = SPid} = State) ->
-    SPid ! {play, Fun},
+    Media = self(),
+    Ref = make_ref(),
+    SPid ! {play, Fun, {self(), Ref}},
+    receive
+      {rtp_info, Info, Ref} ->
+        Reply = {ok, Info, Media};
+      _ ->
+        Reply = {error, no_ports}
+    after
+      1000 ->
+        Reply = {error, no_ports}
+    end,
     %% FIXME: return self() or SPid for monitoring by toplevel process?
-    {reply, {ok, self()}, State};
+    {reply, Reply, State};
 
 handle_call({add_stream, Stream, Proto, Addr, {Port0, Port1}}, From, #state{producer = SPid} = State) ->
     ?DBG("Add Stream: ~p", [Stream]),
@@ -227,6 +238,7 @@ start_consumer(Media, #media_desc{type = Type} = Stream)  ->
           port_rtcp,
           socket_rtp,
           socket_rtcp,
+          track_control,
           state
          }).
 
@@ -262,12 +274,16 @@ data_sender(#sender{audio = AudioDesc,
                     video = VideoDesc,
                     parent = Parent} = State) ->
   receive
-    {play, Fun} ->
+    {play, Fun, {From, Ref}} ->
       ?DBG("DS: Play", []),
+      Info = [{Track, Seq} || #desc{track_control = Track,
+                                    state = #base_rtp{sequence = Seq}} <- [AudioDesc, VideoDesc]],
+      From ! {rtp_info, Info, Ref},
       Fun(),
       %%{ok, TRef} = timer:send_interval(5000, {rtcp, sr}),
       data_sender(State);
-    {add_stream, {#media_desc{type = Type, payload = PayloadType}, Proto, Addr, {PortRTP, PortRTCP}}, {From, Ref}} ->
+    {add_stream, {#media_desc{type = Type, payload = PayloadType, track_control = TCtl},
+                  Proto, Addr, {PortRTP, PortRTCP}}, {From, Ref}} ->
       ?DBG("DS: Add Stream", []),
       ?DBG("Connect to ~p:~p", [Addr, PortRTP]),
       OP = open_ports(Type),
@@ -278,18 +294,18 @@ data_sender(#sender{audio = AudioDesc,
       gen_udp:controlling_process(RTCPSocket, self()),
       ?DBG("PayloadType: ~p", [PayloadType]),
       BaseRTP = #base_rtp{codec = PayloadType,           % FIXME: PCM
-                          sequence = 1,
+                          sequence = init_rnd_seq(),
                           timecode = begin {_, A1, A2} = now(), (A1*1000) + trunc(A2/1000) end,
-                          stream_id = random:uniform(16#FFFFFFFF)},
+                          stream_id = init_rnd_ssrc()},
       NewState =
         case Type of
           audio ->
-            #sender{audio = #desc{proto = Proto, addr = Addr,
+            #sender{audio = #desc{proto = Proto, addr = Addr, track_control = TCtl,
                                   port_rtp = PortRTP, port_rtcp = PortRTCP,
                                   socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
                                   state = BaseRTP}};
           video ->
-            #sender{video = #desc{proto = Proto, addr = Addr,
+            #sender{video = #desc{proto = Proto, addr = Addr, track_control = TCtl,
                                   port_rtp = PortRTP, port_rtcp = PortRTCP,
                                   socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
                                   state = BaseRTP}}
@@ -396,12 +412,13 @@ presync(Streams, [RTP | Info], N, Now) ->
   RTPSeq = proplists:get_value("seq", RTP),
   RTPTime = proplists:get_value("rtptime", RTP),
   % ?D({"Presync", RTPSeq, RTPTime}),
-  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 2),
-  Stream2 = setelement(#base_rtp.base_timecode, Stream1, list_to_integer(RTPTime)),
-  Stream3 = setelement(#base_rtp.timecode, Stream2, list_to_integer(RTPTime)),
-  Stream4 = setelement(#base_rtp.synced, Stream3, true),
-  Stream5 = setelement(#base_rtp.wall_clock, Stream4, Now),
-  presync(setelement(N, Streams, {Type, Stream5}), Info, N+2, Now).
+  Stream1 =
+    Stream#base_rtp{sequence = list_to_integer(RTPSeq) - 2,
+                    base_timecode = list_to_integer(RTPTime),
+                    timecode = list_to_integer(RTPTime),
+                    synced = true,
+                    wall_clock = Now},
+  presync(setelement(N, Streams, {Type, Stream1}), Info, N+2, Now).
 
 config_media(Streams) -> config_media(Streams, [], []).
 
@@ -736,11 +753,20 @@ split_rtp(#base_rtp{sequence = Sequence} = Base, Data, Acc)
   %%?DBG("Chunk ~b", [?RTP_SIZE]),
   <<P:?RTP_SIZE/binary,Rest/binary>> = Data,
   Pack = make_rtp(Base, P),
-  split_rtp(Base#base_rtp{sequence = Sequence+1}, Rest, [Pack | Acc]);
+  split_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, Rest, [Pack | Acc]);
 split_rtp(#base_rtp{sequence = Sequence} = Base, Data, Acc) ->
   %%?DBG("Chunk ~b", [size(Data)]),
   Pack = make_rtp(Base, Data),
-  split_rtp(Base#base_rtp{sequence = Sequence+1}, <<>>, [Pack | Acc]).
+  split_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, <<>>, [Pack | Acc]).
+
+init_rnd_seq() ->
+  random:uniform(16#FFFF).
+
+init_rnd_ssrc() ->
+  random:uniform(16#FFFFFFFF).
+
+inc_seq(S) ->
+  (S+1) band 16#FFFF.
 
 l2b(Bin) ->
     l2b(Bin, []).
