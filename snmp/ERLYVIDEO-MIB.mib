@@ -7,7 +7,7 @@ IMPORTS
 
         DisplayString, TruthValue FROM SNMPv2-TC;
         
-        demo    MODULE-IDENTITY
+        erlyvideo    MODULE-IDENTITY
                 LAST-UPDATED "201008100000Z"
                 ORGANIZATION "erlyvideo"
                 CONTACT-INFO
@@ -17,11 +17,11 @@ IMPORTS
                 REVISION		 "201008100000Z"
                 DESCRIPTION
                         "v1.0"
-                ::= { enterprises 35458}
+                ::= { enterprises 35459}
 
-demoGroups OBJECT IDENTIFIER ::= { demo 1 }
-staticOid OBJECT IDENTIFIER ::= { demo 2 }
-dynamicOid OBJECT IDENTIFIER ::= { demo 3 }
+demoGroups OBJECT IDENTIFIER ::= { erlyvideo 1 }
+staticOid OBJECT IDENTIFIER ::= { erlyvideo 2 }
+dynamicOid OBJECT IDENTIFIER ::= { erlyvideo 3 }
 
 --
 -- Static OID members
