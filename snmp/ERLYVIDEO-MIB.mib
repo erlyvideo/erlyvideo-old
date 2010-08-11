@@ -20,7 +20,7 @@ IMPORTS
                 ::= { enterprises 35459}
 
 demoGroups OBJECT IDENTIFIER ::= { erlyvideo 1 }
-staticOid OBJECT IDENTIFIER ::= { erlyvideo 2 }
+staticInfo OBJECT IDENTIFIER ::= { erlyvideo 2 }
 dynamicOid OBJECT IDENTIFIER ::= { erlyvideo 3 }
 
 --
@@ -32,7 +32,7 @@ nodeName
         MAX-ACCESS read-only
         STATUS current
         DESCRIPTION "Node name"
-        ::= { staticOid 1 }
+        ::= { staticInfo 1 }
 
 gaugeValue
     OBJECT-TYPE
@@ -40,7 +40,8 @@ gaugeValue
         MAX-ACCESS read-only
         STATUS current
         DESCRIPTION "Gauge value"
-        ::= { staticOid 2 }
+        ::= { staticInfo 2 }
+
 
 --
 -- Dynamic OID members
@@ -79,12 +80,50 @@ usePercent OBJECT-TYPE
         DESCRIPTION "Disk usage in percent"
         ::= { diskStatsTableEntry 2 }
 
+
+
+
+
+virtualHostsTable OBJECT-TYPE
+        SYNTAX SEQUENCE OF VirtualHostEntry
+        MAX-ACCESS not-accessible
+        STATUS current
+        DESCRIPTION "virtual hosts table"
+        ::= { dynamicOid 2 }
+
+virtualHostsTableEntry OBJECT-TYPE
+        SYNTAX VirtualHostEntry
+        MAX-ACCESS not-accessible
+        STATUS current
+        DESCRIPTION "virtual hosts entry"
+        INDEX { vhostName }
+        ::= { virtualHostsTable 1 }
+
+VirtualHostEntry ::= SEQUENCE {
+        vhostName DisplayString,
+        vhostAliases DisplayString
+}
+
+vhostName OBJECT-TYPE
+        SYNTAX DisplayString
+        MAX-ACCESS read-only
+        STATUS current
+        DESCRIPTION "virtual host name"
+        ::= { virtualHostsTableEntry 1 }
+
+vhostAliases OBJECT-TYPE
+        SYNTAX DisplayString
+        MAX-ACCESS read-only
+        STATUS current
+        DESCRIPTION "Disk usage in percent"
+        ::= { virtualHostsTableEntry 2 }
+
 --
 -- Global Group
 --
 demoGroup OBJECT-GROUP
         OBJECTS {
-                nodeName, gaugeValue, mountPoint, usePercent
+                nodeName, gaugeValue, mountPoint, usePercent, vhostName, vhostAliases
         }
         STATUS current
         DESCRIPTION "Demo group"
