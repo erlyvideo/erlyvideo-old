@@ -22,7 +22,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(media_detector).
 -author('Max Lapshin <max@maxidoors.ru>').
--export([rewrite/3, http/3, rtsp/3, ts_file/3, file/3, livestream/3]).
+-export([rewrite/3, http/3, rtsp/3, ts_file/3, file/3, livestream/3, check_path/2]).
 
 
 rewrite(Host, Name, Opts) when is_binary(Name) -> 
@@ -54,7 +54,7 @@ rtsp(_Host, Name, _Opts) ->
 
 ts_file(Host, Name, _Opts) ->
   case {check_path(Host, Name), mpegts_file_media:can_open_file(Name)} of
-    {true, true} -> [{type, mpegts_file},{life_timeout,0}];
+    {{true, Path}, true} -> [{type, mpegts_file},{life_timeout,0},{url,Path}];
     _ -> false
   end.
 
@@ -110,7 +110,7 @@ check_path(Host, Name) ->
     undefined -> false;
     Dir -> 
       Path = filename:join([Dir, Name]), 
-      case filelib:is_regular(filename:join([Dir, Name])) of
+      case filelib:is_regular(Path) of
         true -> {true, Path};
         false -> false
       end  

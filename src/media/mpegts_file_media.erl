@@ -59,7 +59,7 @@ can_open_file(Name) ->
 init(Media, Options) ->
   Host = proplists:get_value(host, Options),
   Name = proplists:get_value(url, Options),
-  FileName = filename:join([file_media:file_dir(Host), binary_to_list(Name)]), 
+  FileName = filename:join([file_media:file_dir(Host), Name]), 
   {ok, Reader} = ems_sup:start_mpegts_file_reader(FileName, [{consumer,self()}]),
   link(Reader),
   ems_media:set_source(self(), Reader),
