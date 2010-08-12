@@ -105,7 +105,7 @@ handle_info(timeout, #rtmp_monitor{timeout = Timeout, threshold = Threshold} = S
   Sockets = [Pid || {undefined,Pid,worker,_} <- supervisor:which_children(rtmp_socket_sup)],
   BrutalKill = lists:filter(fun(Pid) ->
     try element(2,process_info(Pid, message_queue_len)) of
-      Length when Length > Threshold -> true;
+      Length when is_number(Length) andalso is_number(Threshold) andalso Length > Threshold -> true;
       _Length -> false
     catch
       _Class:_Error -> false
