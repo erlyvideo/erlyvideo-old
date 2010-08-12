@@ -4,7 +4,9 @@ ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/li
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-http-file
 
-all:
+all: compile
+
+compile:
 	erl -make
 
 clean:
@@ -17,6 +19,9 @@ test:
 install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
 	install -c -m 644 ebin/*.beam ebin/*.app $(DESTROOT)$(ERLDIR)/ebin/
+
+archive: compile
+	erl -pa ebin -hidden -noshell -s http_file archive -s init stop
 
 
 debian:
