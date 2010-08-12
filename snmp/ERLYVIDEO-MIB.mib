@@ -5,7 +5,7 @@ IMPORTS
 
         OBJECT-GROUP FROM SNMPv2-CONF
 
-        DisplayString, TruthValue FROM SNMPv2-TC;
+        DisplayString FROM SNMPv2-TC;
         
         erlyvideo    MODULE-IDENTITY
                 LAST-UPDATED "201008100000Z"
@@ -17,7 +17,7 @@ IMPORTS
                 REVISION		 "201008100000Z"
                 DESCRIPTION
                         "v1.0"
-                ::= { enterprises 35459}
+                ::= { enterprises 36342 }
 
 demoGroups OBJECT IDENTIFIER ::= { erlyvideo 1 }
 staticInfo OBJECT IDENTIFIER ::= { erlyvideo 2 }
