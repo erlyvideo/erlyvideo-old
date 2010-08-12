@@ -64,13 +64,30 @@ read_header(Mp4Media, {Module, Device} = Reader, Pos) ->
 
 read_atom_header({Module, Device}, Pos) ->
   case Module:pread(Device, Pos, 8) of
+    {ok, <<0:32, AtomName/binary>>} ->
+      {atom, binary_to_atom(AtomName, utf8), Pos + 8, all_file};
+    {ok, <<1:32, AtomName/binary>>} ->
+      case Module:pread(Device, Pos+4, 12) of
+        {ok, <<AtomName:4/binary, AtomLength:64>>} when AtomLength >= 12 -> 
+          {atom, binary_to_atom(AtomName, utf8), Pos + 16, AtomLength - 16};
+        eof ->
+          eof;
+        {ok, Bin} ->
+          ?D({invalid_atom, Bin}),
+          {error, {invalid_atom, Bin}};
+        {error, Error} ->
+          {error, Error}
+      end;
     {ok, <<AtomLength:32, AtomName/binary>>} when AtomLength >= 8 ->
       % ?D({"Atom", binary_to_atom(AtomName, latin1), Pos, AtomLength}),
       {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8};
     eof ->
       eof;
-    Else -> 
-      {error, Else}
+    {ok, Bin} ->
+      ?D({invalid_atom, Bin}),
+      {error, {invalid_atom, Bin}};
+    {error, Error} ->
+      {error, Error}
   end.
 
 
