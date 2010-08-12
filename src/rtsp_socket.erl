@@ -40,6 +40,8 @@
 -define(FRAMES_BUFFER, 15).
 -define(REORDER_FRAMES, 10).
 
+-define(SERVER_NAME, "Erlyvideo").
+
 -record(rtsp_socket, {
   callback,
   buffer = <<>>,
@@ -311,18 +313,22 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
                     payload = 96,
                     clock_map = 90000,
                     track_control = "trackID=1",
-                    codec = h264},
+                    codec = mp4v,
+                    config = "profile-level-id=3; config=000001b001000001b58913000001000000012000c48d88007d0a041e1463;"},
        MediaAudio =
         #media_desc{type = audio,
                     port = 0,
-                    payload = 11,
-                    clock_map = 44100,
+                    %%payload = 11,
+                    payload = 14,
+                    %%clock_map = 44100,
+                    clock_map = 90000,
                     track_control = "trackID=2",
-                    codec = pcm},
+                    %%codec = pcm
+                    codec = mpa},
 
 
-      %%SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
-      SDP = sdp:encode(SessionDesc, [MediaAudio]),
+      SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
+      %%SDP = sdp:encode(SessionDesc, [MediaAudio]),
       ?DBG("SDP:~n~p", [SDP]),
       %% SDP =
       %%   <<"v=0\n",
@@ -350,16 +356,14 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
       %%   >>,
       reply(State#rtsp_socket{sdp = sdp:decode(SDP)}, "200 OK",
             [
-             {'Server', "Erlyvideo"},
+             {'Server', ?SERVER_NAME},
              {'Cseq', seq(Headers)},
-             {'Content-Type', "application/sdp"},
-             {'Content-Length', size(SDP)},
              {'Cache-Control', "no-cache"}
             ], SDP)
   end;
 
 handle_request({request, 'PLAY', URL, Headers, Body},
-               #rtsp_socket{callback = Callback, producer = ProducerCtl} = State) ->
+               #rtsp_socket{callback = Callback, session = Session, producer = ProducerCtl} = State) ->
   %% Callback:play sets up self() as consumer of #video_frame-s:
   %% Callback:play -> media_provider:play -> ems_media:play
   %%case Callback:play(URL, Headers, Body) of
@@ -383,7 +387,7 @@ handle_request({request, 'PLAY', URL, Headers, Body},
 handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
   reply(State, "200 OK",
         [
-         {'Server', "Erlyvideo"},
+         {'Server', ?SERVER_NAME},
          {'Content-Length', 0},
          {'Cseq', seq(Headers)},
          {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, DESCRIBE"}
@@ -469,7 +473,7 @@ handle_request({request, 'SETUP', URL, Headers, _},
             ServerPorts = [],
             NewState = State
         end,
-        iolist_to_binary(["RTP/AVP;unicast;client_port=", Port0s, "-", Port1s, ServerPorts]);
+        iolist_to_binary(["RTP/AVP/UDP;unicast;client_port=", Port0s, "-", Port1s, ServerPorts]);
       _ ->
         NewState = State,
         OldTransport
@@ -483,7 +487,7 @@ handle_request({request, 'SETUP', URL, Headers, _},
         Session
     end,
   ReplyHeaders = [
-                  {'Server', "Erlyvideo"},
+                  {'Server', ?SERVER_NAME},
                   {'Transport', Transport},
                   {'Cseq', seq(Headers)},
                   {'Session', NewSession},
@@ -512,7 +516,7 @@ reply(State, Code, Headers) ->
 reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers, Body) ->
   Headers2 = case SessionId of
     undefined -> Headers;
-    _ -> [{'Session', SessionId} | Headers]
+    _ -> [{'Session', integer_to_list(SessionId) ++ ";timeout=5"} | Headers]
   end,
   Headers3 = case Body of
     undefined -> Headers2;
