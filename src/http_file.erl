@@ -249,7 +249,7 @@ handle_info(start_download, #http_file{url = URL} = State) ->
   Ref = erlang:monitor(process, FirstRequest),
   {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = list_to_integer(Length)}};
 
-handle_info({'DOWN', _,process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
+handle_info({'DOWN', _, process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
     {value, _Entry, NewStreams} ->
       stop_if_no_clients(State#http_file{streams = NewStreams});
@@ -269,13 +269,15 @@ handle_info(Message, State) ->
   {noreply, State}.
 
 
-stop_if_no_clients(#http_file{file_cached = true, clients = []} = State) ->
+stop_if_no_clients(#http_file{clients = []} = State) ->
   {stop, normal, State};
-  
+
 stop_if_no_clients(State) ->
   {noreply, State}.
   
-terminate(_Reason, _State) ->
+terminate(_Reason, #http_file{path = Path, temp_path = TempPath} = _State) ->
+  (catch file:delete(Path)),
+  (catch file:delete(TempPath)),
   ok.
   
 code_change(_Old, State, _Extra) ->
