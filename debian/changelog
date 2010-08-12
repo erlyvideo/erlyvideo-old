@@ -1,3 +1,9 @@
+erlang-http-file (1.1) testing; urgency=low
+
+  * Deleting closed files
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 13 Aug 2010 00:56:36 +0400
+
 erlang-http-file (1.0) karmic; urgency=low
 
   First working release
