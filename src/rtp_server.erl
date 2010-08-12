@@ -300,33 +300,47 @@ data_sender(#sender{audio = AudioDesc,
       NewState =
         case Type of
           audio ->
-            #sender{audio = #desc{proto = Proto, addr = Addr, track_control = TCtl,
-                                  port_rtp = PortRTP, port_rtcp = PortRTCP,
-                                  socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
-                                  state = BaseRTP}};
+            State#sender{audio = #desc{proto = Proto, addr = Addr, track_control = TCtl,
+                                       port_rtp = PortRTP, port_rtcp = PortRTCP,
+                                       socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
+                                       state = BaseRTP}};
           video ->
-            #sender{video = #desc{proto = Proto, addr = Addr, track_control = TCtl,
-                                  port_rtp = PortRTP, port_rtcp = PortRTCP,
-                                  socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
-                                  state = BaseRTP}}
+            State#sender{video = #desc{proto = Proto, addr = Addr, track_control = TCtl,
+                                       port_rtp = PortRTP, port_rtcp = PortRTCP,
+                                       socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
+                                       state = BaseRTP}}
         end,
+      ?DBG("NewState:~n~p", [NewState]),
       data_sender(NewState);
     {stop, _CPid} ->
       ?DBG("Stop Sender Process", []),
       stop;
     #video_frame{content = audio, codec = Codec, sound = {Channel, Size, Rate}, body = Body} = Frame ->
-      %%?DBG("DS: Audio Frame(~p):~n~p", [self(), Frame]),
-      %% Send Audio
-      #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} = AudioDesc,
-      {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Codec, Body),
-      %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, size(RTP), RTP]),
-      [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
-      data_sender(State#sender{audio = AudioDesc#desc{state = NewBaseRTP}});
-    #video_frame{content = video} = Frame ->
-      %%?DBG("DS: Video Frame(~p):~n~p", [self(), Frame]),
-      %%?DBG("Video Frame(~p):~n~p", [self(), Frame]),
-      %% Send Audio
-      data_sender(State);
+      case AudioDesc of
+        #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
+          %%?DBG("DS: Audio Frame(~p):~n~p", [self(), Frame]),
+          %% Send Audio
+          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Codec, Body),
+          %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, size(RTP), RTP]),
+          [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
+          data_sender(State#sender{audio = AudioDesc#desc{state = NewBaseRTP}});
+        _ ->
+          data_sender(State)
+      end;
+    #video_frame{content = video, codec = Codec, body = Body} = Frame ->
+      case VideoDesc of
+        #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
+          %%?DBG("DS: Video Frame(~p):~n~p", [self(), Frame]),
+          %%?DBG("VideoDesc: ~p", [VideoDesc]),
+          %%?DBG("Video Frame(~p):~n~p", [self(), Frame]),
+          %% Send Video
+          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Codec, Body),
+          %%?DBG("RTPs to ~p:~p~n~p", [Addr, PortRTP, RTPs]),
+          [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
+          data_sender(State#sender{video = VideoDesc#desc{state = NewBaseRTP}});
+        _ ->
+          data_sender(State)
+      end;
     {udp, SSocket, SAddr, SPort, Data} ->
       ?DBG("Received: ~p, ~p, ~p~n~p", [SSocket, SAddr, SPort, Data]),
 
@@ -719,45 +733,70 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
 %% @end
 %%----------------------------------------------------------------------
 
+-define(RTP_SIZE, 1100).
 
 encode(rtp, BaseRTP, Codec, Data) ->
   case Codec of
     pcm_le ->
-      {NewBaseRTP, Packs} = split_rtp(BaseRTP, l2b(Data));
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, l2b(Data), ?RTP_SIZE);
+    mp3 ->
+      Size = size(Data),
+      %% Add support of frames with size more than 14 bit
+      %% (set continuating flag, split to several RTP: http://tools.ietf.org/html/rfc5219#section-4.2)
+      ADU =
+        if Size < 16#40 ->                           % more than 6 bit
+            <<0:1,0:1,Size:6>>;
+           Size < 16#4000 ->
+            <<0:1,1:1,Size:14>>;
+           true ->
+            ?DBG("Error: big frame", []),
+            <<>>
+        end,
+      MP3 = <<ADU/binary, Data/binary>>,
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MP3);
+    aac ->
+      MPEG = <<0:16,0:16,Data/binary>>,
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MPEG);
+    mpeg4 ->
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, Data, 1388);
     _ ->
-      {NewBaseRTP, Packs} = split_rtp(BaseRTP, l2b(Data)) % STUB
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, Data) % STUB
   end,
   {NewBaseRTP, Packs}.
 
-make_rtp(#base_rtp{codec = PayloadType,
-                   sequence = Sequence,
-                   timecode = Timestamp,
-                   stream_id = SSRC}, Payload) ->
+make_rtp_pack(#base_rtp{codec = PayloadType,
+                        sequence = Sequence,
+                        timecode = Timestamp,
+                        stream_id = SSRC}, Marker, Payload) ->
   Version = 2,
   Padding = 0,
   Extension = 0,
   CSRC = 0,
-  Marker = 1,
   <<Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, SSRC:32, Payload/binary>>.
 
-split_rtp(Base, PCM) ->
-  split_rtp(Base, PCM, []).
 
--define(RTP_SIZE, 1100).
+%% Compose one RTP-packet from whole Data
+compose_rtp(Base, Data) ->
+  compose_rtp(Base, Data, undefined, []).
 
-split_rtp(Base, <<>>, Acc) -> % Return new Sequence ID and list of RTP-binaries
+%% Compose number of RTP-packets from splitten Data to Size
+compose_rtp(Base, Data, Size)
+  when is_integer(Size) ->
+  compose_rtp(Base, Data, Size, []).
+
+compose_rtp(Base, <<>>, _, Acc) -> % Return new Sequence ID and list of RTP-binaries
   %%?DBG("New Sequence: ~p", [Sequence]),
   {Base, lists:reverse(Acc)};
-split_rtp(#base_rtp{sequence = Sequence} = Base, Data, Acc)
-  when size(Data) > ?RTP_SIZE ->
+compose_rtp(#base_rtp{sequence = Sequence} = Base, Data, Size, Acc)
+  when (is_integer(Size) andalso (size(Data) > Size)) ->
   %%?DBG("Chunk ~b", [?RTP_SIZE]),
-  <<P:?RTP_SIZE/binary,Rest/binary>> = Data,
-  Pack = make_rtp(Base, P),
-  split_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, Rest, [Pack | Acc]);
-split_rtp(#base_rtp{sequence = Sequence} = Base, Data, Acc) ->
+  <<P:Size/binary,Rest/binary>> = Data,
+  Pack = make_rtp_pack(Base, 0, P),
+  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, Rest, Size, [Pack | Acc]);
+compose_rtp(#base_rtp{sequence = Sequence} = Base, Data, Size, Acc) ->
   %%?DBG("Chunk ~b", [size(Data)]),
-  Pack = make_rtp(Base, Data),
-  split_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, <<>>, [Pack | Acc]).
+  Pack = make_rtp_pack(Base, 1, Data),
+  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, <<>>, Size, [Pack | Acc]).
 
 init_rnd_seq() ->
   random:uniform(16#FFFF).

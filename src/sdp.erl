@@ -103,6 +103,10 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
       Codec = case CodecCode of
         "H264" -> h264;
         "mpeg4-generic" -> aac;
+        "MPA" -> mpa;
+        "mpa-robust" -> mp3;
+        "MP4A-LATM" -> mp4a;
+        "MP4V-ES" -> mp4v;
         "PCMA" -> pcma;
         "PCMU" -> pcmu;
         "G726-16" -> g726_16;
@@ -145,9 +149,13 @@ parse_fmtp(#media_desc{type = video} = Stream, Opts) ->
   % LevelIdc = erlang:list_to_integer(string:sub_string(ProfileLevelId, 5, 6), 16),
   % Opts3 = lists:keymerge(1, Opts2, [{profile, ProfileId}, {level, LevelIdc}]),
 
-  Sprop = proplists:get_value("sprop-parameter-sets", Opts),
-  [SPS, PPS] = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
-  Stream#media_desc{pps = PPS, sps = SPS};
+  %% Sprop = proplists:get_value("sprop-parameter-sets", Opts),
+  %% [SPS, PPS] = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
+  %% Stream#media_desc{pps = PPS, sps = SPS};
+  Stream;
+
+
+
 
 parse_fmtp(#media_desc{type = audio} = Stream, Opts) ->
   ?D(Opts),
@@ -261,7 +269,8 @@ encode_media(#media_desc{type = Type,
                          payload = PayLoad,
                          clock_map = ClockMap,
                          codec = Codec,
-                         track_control = TControl
+                         track_control = TControl,
+                         config = Config
                         }, GConnect, A) ->
   Tb = type2bin(Type),
   M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ , integer_to_list(PayLoad), ?LSEP],
@@ -270,7 +279,14 @@ encode_media(#media_desc{type = Type,
   Codecb = codec2bin(Codec),
   CMapb = integer_to_list(ClockMap),
   AR = ["a=", "rtpmap:", integer_to_list(PayLoad), $ , Codecb, $/, CMapb, ?LSEP],
-  iolist_to_binary([M, AC, AR]).
+  ACfg = case Config of
+           _ when (is_list(Config) or
+                   is_binary(Config)) ->
+             ["a=", "fmtp:", integer_to_list(PayLoad), $ , Config, ?LSEP];
+           _ ->
+             []
+         end,
+  iolist_to_binary([M, AC, AR, ACfg]).
 
 type2bin(T) ->
   case T of
@@ -291,7 +307,10 @@ codec2bin(C) ->
     pcma -> <<"PCMA">>;
     pcmu -> <<"PCMU">>;
     g726_16 -> <<"G726-16">>;
-    mp4 -> <<"MP4A-LATM">>;
+    mpa -> <<"MPA">>;
+    mp4a -> <<"MP4A-LATM">>;
+    mp4v -> <<"MP4V-ES">>;
+    mp3 -> <<"mpa-robust">>;
     pcm -> <<"L16">>
   end.
 
