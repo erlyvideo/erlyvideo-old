@@ -1,3 +1,9 @@
+erlyvideo (2.0.9) karmic; urgency=low
+
+  Snmp first support, fix for avchat, fixes in mp4
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 14 Aug 2010 00:38:07 +0400
+
 erlyvideo (2.0.8) karmic; urgency=low
 
   Added rtmp source. Added explicit media stop
