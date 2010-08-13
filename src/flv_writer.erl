@@ -69,6 +69,9 @@ start_link(FileName) ->
   {ok, spawn_link(?MODULE, init, [[FileName]])}.
 
 %% @hidden
+init(Writer) when is_function(Writer) ->
+  init([Writer]);
+
 init([Writer]) when is_function(Writer) ->
 	Writer(flv:header()),
 	?MODULE:writer(#flv_file_writer{writer = Writer});
@@ -112,11 +115,8 @@ writer(#flv_file_writer{} = FlvWriter) ->
     #video_frame{} = Frame ->
       {ok, FlvWriter1} = write_frame(Frame, FlvWriter),
       ?MODULE:writer(FlvWriter1);
-    stop ->
-      ok;
-    Else ->
-      ?D({"flv_writer", Else}),
-    	?MODULE:writer(FlvWriter)
+    Message ->
+      Message
   end.
   
 %%-------------------------------------------------------------------------
