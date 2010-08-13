@@ -1,2 +1,3 @@
 erlyvideo.conf
 log4erl.conf
+*.plt
