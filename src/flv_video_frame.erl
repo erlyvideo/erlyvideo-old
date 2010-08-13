@@ -34,6 +34,9 @@
 
 
 
+encode(#video_frame{codec = empty}) ->
+  <<>>;
+
 encode(#video_frame{content = audio} = VideoFrame) ->
   flv:encode_audio_tag(video_frame_to_tag(VideoFrame));
 
@@ -107,6 +110,9 @@ decode(#video_frame{content = video, dts = DTS} = Frame, Data) ->
   #flv_video_tag{codec = Codec, flavor = Flavor, composition_time = CTime, body = Body} = flv:decode_video_tag(Data),
   Frame#video_frame{flavor = Flavor, codec = Codec, pts = DTS + CTime, body = Body};
 
+
+decode(#video_frame{content = audio} = Frame, <<>>) ->
+  Frame#video_frame{codec = empty, flavor = frame, body = <<>>};
 
 decode(#video_frame{content = audio} = Frame, Data) ->
   #flv_audio_tag{codec = Codec, rate = Rate, bitsize = Bitsize, channels = Channels, flavor = Flavor, body = Body} = flv:decode_audio_tag(Data),
