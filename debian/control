@@ -1,7 +1,7 @@
 Source: erlang-rtmp
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), ruby, erlang-nox (>= 1:13.b.4)
+Build-Depends: debhelper (>= 7), ruby, erlang-nox (>= 1:13.b.4) | erlang (>= 1:13.b.4)
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/rtmp
@@ -9,6 +9,6 @@ Homepage: http://erlyvideo.org/rtmp
 Package: erlang-rtmp
 Section: net
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-nox (>= 1:13.b.4)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-nox (>= 1:13.b.4) | erlang (>= 1:13.b.4)
 Description: Erlang RTMP library
  Erlang library that handles RTMP protocol
