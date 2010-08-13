@@ -35,6 +35,18 @@
 -export([extract_language/1]).
 
 
+
+-record(esds, {
+  object_type,
+  stream_type,
+  upstream,
+  buffer_size,
+  max_bitrate,
+  avg_bitrate,
+  specific
+}).
+
+
 -export([mp4_desc_length/1, read_header/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
 
 -define(FRAMESIZE, 32).
@@ -327,10 +339,12 @@ samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
   Mp4Track#mp4_track{data_format = speex}.
 
   
-% ESDS atom
-esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{data_format = aac} = Mp4Track) when Version == 0 ->
+%%%%%%%%%%%%%%%%%%    ESDS     %%%%%%%%%%%%%%
+esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) when Version == 0 ->
   ?D({"Extracted audio config", DecoderConfig}),
-  Mp4Track#mp4_track{decoder_config = config_from_esds_tag(DecoderConfig)}.
+  ESDS = config_from_esds_tag(DecoderConfig),
+  ?D(ESDS),
+  Mp4Track#mp4_track{decoder_config = ESDS#esds.specific, data_format = ESDS#esds.object_type}.
 
 % avcC atom
 avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
@@ -339,6 +353,65 @@ avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
 
 btrt(<<_BufferSize:32, MaxBitRate:32, AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
   Mp4Track#mp4_track{max_bitrate = MaxBitRate, bitrate = AvgBitRate}.
+
+
+%% FIXME: Code here must be relocated in some more generic place and way. 
+%% Here goes not some esds tag, but IOD (Initial Object Description)
+%% Look how to parse it at vlc/modules/demux/ts.c:2400
+%%
+
+config_from_esds_tag(Data) ->
+  config_from_esds_tag(Data, #esds{}).
+
+config_from_esds_tag(Data, ESDS) ->
+  case mp4_read_tag(Data) of
+    {?MP4ESDescrTag, <<_ID1:16, _Priority1, Description/binary>>, <<>>} ->
+      config_from_esds_tag(Description, ESDS);
+    {?MP4DecConfigDescrTag, <<ObjectType, StreamType, BufferSize:24, MaxBitrate:32, AvgBitrate:32, Rest1/binary>>, Rest2} ->
+      ESDS1 = config_from_esds_tag(Rest1, ESDS#esds{
+        object_type = mp4_object_type(ObjectType), stream_type = StreamType, buffer_size = BufferSize,
+        max_bitrate = MaxBitrate, avg_bitrate = AvgBitrate}),
+      config_from_esds_tag(Rest2, ESDS1);
+    {?MP4DecSpecificDescrTag, Config, _} ->
+      ESDS#esds{specific = Config};
+    {?MP4Unknown6Tag, _Body, Rest} ->
+      config_from_esds_tag(Rest, ESDS);
+    {_Tag, _Data, Rest} ->
+      ?D({"Unknown esds tag. Send this line to max@maxidoors.ru: ", _Tag, _Data}),
+      config_from_esds_tag(Rest, ESDS);
+    undefined ->
+      ESDS
+  end.
+
+mp4_object_type(107) -> mp3;
+mp4_object_type(32) -> mp3;
+mp4_object_type(64) -> aac;
+mp4_object_type(ObjectType) -> ObjectType.
+
+mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
+  {Rest, Rest2};
+
+mp4_desc_length(<<1:1, Length1:7, 0:1, Length:7, Rest/binary>>) ->
+  TagLength = Length1 * 128 + Length,
+  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
+  {Rest1, Rest2};
+
+mp4_desc_length(<<1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7, Rest/binary>>)  ->
+  TagLength = (Length2 bsl 14 + Length1 bsl 7 + Length),
+  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
+  {Rest1, Rest2};
+
+mp4_desc_length(<<1:1, Length3:7, 1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7, Rest/binary>>)  ->
+  TagLength = (Length3 bsl 21 + Length2 bsl 14 + Length1 bsl 7 + Length),
+  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
+  {Rest1, Rest2}.
+
+mp4_read_tag(<<>>) ->
+  undefined;
+
+mp4_read_tag(<<Tag, Data/binary>>) ->
+  {Body, Rest} = mp4_desc_length(Data),
+  {Tag, Body, Rest}.
 
 
 %%%%%%%%%%%%%%%%%%    STSZ  %%%%%%%%%%%%%%%%
@@ -466,7 +539,7 @@ append_track(#mp4_media{video_tracks = Tracks} = MediaInfo,
 
 append_track(#mp4_media{audio_tracks = Tracks} = MediaInfo, 
              #mp4_track{data_format = AudioCodec} = Track) 
-             when AudioCodec == aac orelse AudioCodec == speex orelse AudioCodec == pcm_le ->
+             when AudioCodec == aac orelse AudioCodec == speex orelse AudioCodec == pcm_le orelse AudioCodec == mp3 ->
   MediaInfo#mp4_media{audio_tracks = [clean_track(Track)|Tracks]};
 
 append_track(MediaInfo, #mp4_track{data_format = Format}) ->
@@ -585,59 +658,7 @@ fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [
   fill_track(<<Frames/binary, FKeyframe:1, Size:63, Offset:64, FDTS:64/float, FPTS:64/float>>,
              SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Id+1, FDTS).
 
-mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
-  {Rest, Rest2};
 
-mp4_desc_length(<<1:1, Length1:7, 0:1, Length:7, Rest/binary>>) ->
-  TagLength = Length1 * 128 + Length,
-  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
-  {Rest1, Rest2};
-
-mp4_desc_length(<<1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7, Rest/binary>>)  ->
-  TagLength = (Length2 bsl 14 + Length1 bsl 7 + Length),
-  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
-  {Rest1, Rest2};
-
-mp4_desc_length(<<1:1, Length3:7, 1:1, Length2:7, 1:1, Length1:7, 0:1, Length:7, Rest/binary>>)  ->
-  TagLength = (Length3 bsl 21 + Length2 bsl 14 + Length1 bsl 7 + Length),
-  <<Rest1:TagLength/binary, Rest2/binary>> = Rest,
-  {Rest1, Rest2}.
-
-mp4_read_tag(<<>>) ->
-  undefined;
-  
-mp4_read_tag(<<Tag, Data/binary>>) ->
-  {Body, Rest} = mp4_desc_length(Data),
-  {Tag, Body, Rest}.
-
-%% FIXME: Code here must be relocated in some more generic place and way. 
-%% Here goes not some esds tag, but IOD (Initial Object Description)
-%% Look how to parse it at vlc/modules/demux/ts.c:2400
-%%
-
-config_from_esds_tag(Data) ->
-  case mp4_read_tag(Data) of
-    {?MP4ESDescrTag, <<_ID1:16, _Priority1, Description/binary>>, <<>>} ->
-      config_from_esds_tag(Description);
-    {?MP4DecConfigDescrTag, <<_ObjectType, _StreamType, _BufferSize:24, _MaxBitrate:32, _AvgBitrate:32>>, Rest} ->
-      config_from_esds_tag(Rest);
-    {?MP4DecConfigDescrTag, <<_:13/binary, Rest1/binary>>, Rest2} when size(Rest1) > 0 ->
-      case config_from_esds_tag(Rest1) of
-        undefined ->
-          config_from_esds_tag(Rest2);
-        Config ->
-          Config
-      end;
-    {?MP4DecSpecificDescrTag, Config, _} ->
-      Config;
-    {?MP4Unknown6Tag, _Body, Rest} ->
-      config_from_esds_tag(Rest);
-    {_Tag, _Data, Rest} ->
-      ?D({"Unknown esds tag. Send this line to max@maxidoors.ru: ", _Tag, _Data}),
-      config_from_esds_tag(Rest);
-    undefined ->
-      undefined
-  end.
 
   
 %%
