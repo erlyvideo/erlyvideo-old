@@ -1,3 +1,9 @@
+erlyvideo (2.0.10) karmic; urgency=low
+
+  snmp fix
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 14 Aug 2010 07:56:24 +0400
+
 erlyvideo (2.0.9) karmic; urgency=low
 
   Snmp first support, fix for avchat, fixes in mp4
