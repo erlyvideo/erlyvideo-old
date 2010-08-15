@@ -219,11 +219,14 @@ decode_audio_tag(<<CodecId:4, Rate:2, Bitsize:1, Channels:1, Body/binary>>) ->
                  flavor = frame, rate	= flv:audio_rate(Rate), body= Body}.
 
 
+decode_meta_tag(Metadata) when is_list(Metadata) ->
+  Metadata;
+
 decode_meta_tag(Metadata) when is_binary(Metadata) ->
   decode_list(Metadata);
 
 decode_meta_tag({object, Metadata}) ->
-  Metadata.
+  [Metadata].
 
 decode_tag(#flv_tag{type = video, body = VideoTag} = Tag) ->
   Tag#flv_tag{body = decode_video_tag(VideoTag)};

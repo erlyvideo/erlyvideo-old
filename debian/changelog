@@ -1,3 +1,9 @@
+erlmedia (1.6.4) karmic; urgency=low
+
+  Huge fixed in mp4 reading
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 14 Aug 2010 00:34:18 +0400
+
 erlmedia (1.6.3) karmic; urgency=low
 
   Fixes in metadata, extending aac
