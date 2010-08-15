@@ -9,12 +9,20 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: compile doc
+all: snmp compile doc
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	[ -d deps/rtmp ] && for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && $(MAKE) -f Makefile) ; done; true
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps $(MAKE) -C $$plugin; done
+
+snmp: include/ERLYVIDEO-MIB.hrl
+
+include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
+	erlc -o include snmp/ERLYVIDEO-MIB.bin
+
+snmp/ERLYVIDEO-MIB.bin: snmp/ERLYVIDEO-MIB.mib
+	erlc -o snmp snmp/ERLYVIDEO-MIB.mib
 
 doc:
 	mkdir -p doc/html
@@ -76,6 +84,7 @@ install: compile
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
+	cp -r snmp $(DESTROOT)/var/lib/erlyvideo/
 
 
 debian: all
@@ -86,5 +95,5 @@ debian: all
 	(cd $(DEBIANREPO); ../update)
 
 
-.PHONY: doc debian compile
+.PHONY: doc debian compile snmp
 

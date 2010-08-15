@@ -58,7 +58,7 @@ stream(Name) ->
 command(Name,Command) ->
   case stream(Name) of
     undefined -> undefined;
-    {ok, Pid} -> Pid ! Command
+    {ok, Pid, Client} -> Pid ! {Command, Client}
   end.
 
 

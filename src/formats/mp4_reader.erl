@@ -241,9 +241,11 @@ read_header(#mp4_reader{reader = Reader} = MediaInfo) ->
 
 
 track_by_language([Track|_], undefined) -> {Track, mp4:frame_count(Track)};
-track_by_language([#mp4_track{language = Lang} = Track|_], Lang) -> ?D({"Selected track", Lang}), {Track, mp4:frame_count(Track)};
-track_by_language([_|Tracks], Lang) -> track_by_language(Tracks, Lang);
-track_by_language([], _Lang) -> {undefined, 0}.
+track_by_language([Track|_] = Tracks, Language) -> track_by_language(Tracks, Language, Track).
+
+track_by_language([#mp4_track{language = Lang} = Track|_], Lang, _Default) -> ?D({"Selected track", Lang}), {Track, mp4:frame_count(Track)};
+track_by_language([_|Tracks], Lang, Default) -> track_by_language(Tracks, Lang, Default);
+track_by_language([], _Lang, Default) -> {Default, mp4:frame_count(Default)}.
 
 
 build_index_table(#mp4_reader{video_tracks = VTs, audio_tracks = ATs, lang = Lang} = MediaInfo) ->

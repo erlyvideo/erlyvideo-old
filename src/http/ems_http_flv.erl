@@ -29,21 +29,24 @@
 
 
 
-http(Host, 'GET', ["flv" | Name], Req) ->
+http(Host, 'GET', ["flv" | Name] = Path, Req) ->
+  ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
   Query = Req:parse_qs(),
-  Seek = list_to_integer(proplists:get_value("start", Query, "0")),
+  Seek = case proplists:get_value("start", Query) of
+    undefined -> [];
+    S -> [{seek, {before, list_to_integer(S)}}]
+  end,
   Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), [{stream_id, 1}, {seek, {before, Seek}}]) of
-    {ok, PlayerPid} ->
-      link(PlayerPid),
-      link(Req:socket_pid()),
+  case media_provider:play(Host, string:join(Name, "/"), Seek) of
+    {ok, Stream} ->
+      erlang:monitor(process, Stream),
+      erlang:monitor(process, Req:socket_pid()),
       case proplists:get_value("session_id", Query) of
         undefined -> ok;
-        SessionId -> ems_flv_streams:register({Host,SessionId}, PlayerPid)
+        SessionId -> ems_flv_streams:register({Host,SessionId}, {Stream, self()})
       end,
-      PlayerPid ! start,
-      flv_writer:init([fun(Data) -> Req:stream(Data) end]),
-      PlayerPid ! stop,
+      flv_writer:init(fun(Data) -> Req:stream(Data) end),
+      ems_media:stop(Stream),
       Req:stream(close),
       ok;
     {notfound, Reason} ->

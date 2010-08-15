@@ -1,3 +1,10 @@
 [{sasl, [
-	{sasl_error_logger, {file, "/var/log/erlyvideo/error.log"}}
-]}].
+	{sasl_error_logger, {file, "log/error.log"}}
+]},
+{snmp, [
+	{agent, [
+		{config, [{dir, "/var/lib/erlyvideo/snmp/agent/conf/"}]},
+		{db_dir, "/var/lib/erlyvideo/snmp/agent/db/"}
+	]}
+]}
+].
