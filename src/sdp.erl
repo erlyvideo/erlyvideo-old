@@ -149,13 +149,17 @@ parse_fmtp(#media_desc{type = video} = Stream, Opts) ->
   % LevelIdc = erlang:list_to_integer(string:sub_string(ProfileLevelId, 5, 6), 16),
   % Opts3 = lists:keymerge(1, Opts2, [{profile, ProfileId}, {level, LevelIdc}]),
 
-  %% Sprop = proplists:get_value("sprop-parameter-sets", Opts),
-  %% [SPS, PPS] = lists:map(fun(S) -> base64:decode(S) end, string:tokens(Sprop, ",")),
-  %% Stream#media_desc{pps = PPS, sps = SPS};
-  Stream;
-
-
-
+  case proplists:get_value("sprop-parameter-sets", Opts) of
+    Sprop when is_list(Sprop) ->
+      case [base64:decode(S) || S <- string:tokens(Sprop, ",")] of
+        [SPS, PPS] ->
+          Stream#media_desc{pps = PPS, sps = SPS};
+        _ ->
+          Stream
+      end;
+    _ ->
+      Stream
+  end;
 
 parse_fmtp(#media_desc{type = audio} = Stream, Opts) ->
   ?D(Opts),

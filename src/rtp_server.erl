@@ -47,7 +47,8 @@
   synced = false,
   stream_id,
   last_sr,
-  codec
+  codec,
+  marker    :: undefined | true | false
 }).
 
 -record(video, {
@@ -253,21 +254,7 @@ start_producer(#media_desc{} = Stream)  ->
   Pid = spawn_link(?MODULE, data_sender, [SState]),
   ?DBG("Start Producer: ~p", [Pid]),
   link(Pid),
-  %%Pid ! {add_stream, {Stream, Proto, Addr, {PortRTP, PortRTCP}}}, % TEMPORARY HACK
   {ok, Pid}.
-
-%% data_sender(_Media, _Type, RTP, _Proto, Addr, {PortRTP, PortRTCP}) ->
-%%   receive
-%%     play ->
-%%       ?DBG("Connect to ~p:~p", [Addr, PortRTP]),
-%%       {ok, RTPSocket} = gen_tcp:connect(Addr, PortRTP, [binary]),
-%%       gen_tcp:controlling_process(RTPSocket, RTP),
-%%       send_rtp(RTPSocket)
-%%   after
-%%     10000 ->
-%%       ?DBG("RTP sender timeout", []),
-%%       timeout
-%%   end.
 
 %% ATTENTION: There is one audio stream and one video stream.
 data_sender(#sender{audio = AudioDesc,
@@ -295,7 +282,7 @@ data_sender(#sender{audio = AudioDesc,
       ?DBG("PayloadType: ~p", [PayloadType]),
       BaseRTP = #base_rtp{codec = PayloadType,           % FIXME: PCM
                           sequence = init_rnd_seq(),
-                          timecode = begin {_, A1, A2} = now(), (A1*1000) + trunc(A2/1000) end,
+                          timecode = ntp_date(),
                           stream_id = init_rnd_ssrc()},
       NewState =
         case Type of
@@ -315,28 +302,49 @@ data_sender(#sender{audio = AudioDesc,
     {stop, _CPid} ->
       ?DBG("Stop Sender Process", []),
       stop;
-    #video_frame{content = audio, codec = Codec, sound = {Channel, Size, Rate}, body = Body} = Frame ->
+    #video_frame{content = audio, flavor = frame,
+                 codec = Codec, sound = {Channel, Size, Rate}, body = Body} = Frame ->
       case AudioDesc of
         #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
-          %%?DBG("DS: Audio Frame(~p):~n~p", [self(), Frame]),
+          %%?DBG("DS: Audio Frame(~p) (pl ~p):~n~p", [self(), iolist_size(Body), Frame]),
           %% Send Audio
-          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Codec, Body),
-          %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, size(RTP), RTP]),
+          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP#base_rtp{timecode = ntp_date()}, Codec, Body),
+          %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, RTPs]),
           [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
           data_sender(State#sender{audio = AudioDesc#desc{state = NewBaseRTP}});
         _ ->
           data_sender(State)
       end;
-    #video_frame{content = video, codec = Codec, body = Body} = Frame ->
+    #video_frame{content = video, flavor = Flavor, codec = Codec, body = Body} = Frame ->
       case VideoDesc of
         #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
           %%?DBG("DS: Video Frame(~p):~n~p", [self(), Frame]),
           %%?DBG("VideoDesc: ~p", [VideoDesc]),
           %%?DBG("Video Frame(~p):~n~p", [self(), Frame]),
           %% Send Video
-          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP, Codec, Body),
+          case Flavor of
+            config ->
+              case h264:unpack_config(Body) of
+                {FrameLength, [SPS, PPS]} ->    % TODO: store FrameLength into State
+                  Data = {config, [SPS, PPS]};
+                _ ->
+                  <<_:64,Data/binary>> = Body
+              end;
+            keyframe ->
+              Data = {keyframe, Body};
+            frame ->
+              Data = {frame, Body}
+          end,
+
+          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP#base_rtp{timecode = ntp_date()}, Codec, Data),
           %%?DBG("RTPs to ~p:~p~n~p", [Addr, PortRTP, RTPs]),
-          [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
+          [begin
+             if is_list(R) ->
+                 [gen_udp:send(RTPSocket, Addr, PortRTP, Rr) || Rr <- R];
+                true ->
+                 gen_udp:send(RTPSocket, Addr, PortRTP, R)
+             end
+           end || R <- RTPs],
           data_sender(State#sender{video = VideoDesc#desc{state = NewBaseRTP}});
         _ ->
           data_sender(State)
@@ -376,6 +384,8 @@ data_sender(#sender{audio = AudioDesc,
       end,
 
       data_sender(State);
+    {ems_stream, _, play_complete, _} ->
+      ok;
     OtherMsg ->
       ?DBG("OtherMsg: ~p", [OtherMsg]),
       data_sender(State)
@@ -720,6 +730,9 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
   end,
   {Video#video{synced = true, buffer = []}, Frames2}.
 
+ntp_date() ->
+  {_A1, A2, A3} = now(),
+  A2*1000000 + A3.
 
 
 %%----------------------------------------------------------------------
@@ -754,15 +767,52 @@ encode(rtp, BaseRTP, Codec, Data) ->
         end,
       MP3 = <<ADU/binary, Data/binary>>,
       {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MP3);
+    %% mp3 ->
+    %%   MPEG = <<0:16,0:16,Data/binary>>,
+    %%   {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MPEG);
     aac ->
-      MPEG = <<0:16,0:16,Data/binary>>,
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MPEG);
+      AH = 16#00,
+      ASsize = 16#10,                           % TODO: size of > 16#ff
+      DataSize = bit_size(Data),
+      Size = <<DataSize:2/big-integer-unit:8>>,
+      AS = <<ASsize:8, Size/binary>>,
+      Header = <<AH:8,AS/binary>>,
+      AAC = <<Header/binary,Data/binary>>,
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP#base_rtp{marker = true}, AAC);
+    h264 ->
+      case Data of
+        {config, [SPS, PPS]} ->
+          {BR1, [Pack1]} = compose_rtp(BaseRTP, SPS),
+          {BR2, [Pack2]} = compose_rtp(BR1#base_rtp{marker = true}, PPS),
+          {NewBaseRTP, Packs} = {BR2, [Pack1, Pack2]};
+        {KF, Frame} when KF =:= frame;
+                         KF =:= keyframe ->
+          {BaseRTP1, RevPacks} =
+            lists:foldl(fun({M, F}, {BR, Acc}) ->
+                            {NewBR, Ps} = compose_rtp(BR#base_rtp{marker = M}, F),
+                            {NewBR, [Ps | Acc]}
+                        end, {BaseRTP, []},
+                        split_h264_frame(Frame)),
+          NewBaseRTP = BaseRTP1#base_rtp{marker = false},
+          Packs = lists:reverse(RevPacks)
+      end;
     mpeg4 ->
       {NewBaseRTP, Packs} = compose_rtp(BaseRTP, Data, 1388);
     _ ->
       {NewBaseRTP, Packs} = compose_rtp(BaseRTP, Data) % STUB
   end,
   {NewBaseRTP, Packs}.
+
+split_h264_frame(Frame) ->
+  split_h264_frame(Frame, []).
+
+split_h264_frame(<<>>, Acc) ->
+  lists:reverse(Acc);
+split_h264_frame(<<Size:32, FrameRest/binary>>, Acc) ->
+  <<D:Size/binary-unit:8, Rest/binary>> = FrameRest,
+  M = (Rest =:= <<>>),
+  split_h264_frame(Rest, [{M, D} | Acc]).
+
 
 make_rtp_pack(#base_rtp{codec = PayloadType,
                         sequence = Sequence,
@@ -787,15 +837,24 @@ compose_rtp(Base, Data, Size)
 compose_rtp(Base, <<>>, _, Acc) -> % Return new Sequence ID and list of RTP-binaries
   %%?DBG("New Sequence: ~p", [Sequence]),
   {Base, lists:reverse(Acc)};
-compose_rtp(#base_rtp{sequence = Sequence} = Base, Data, Size, Acc)
+compose_rtp(#base_rtp{sequence = Sequence, marker = Marker} = Base, Data, Size, Acc)
   when (is_integer(Size) andalso (size(Data) > Size)) ->
   %%?DBG("Chunk ~b", [?RTP_SIZE]),
   <<P:Size/binary,Rest/binary>> = Data,
-  Pack = make_rtp_pack(Base, 0, P),
+  %% if Marker -> M = 1;
+  %%    true -> M = 0
+  %% end,
+  M = 0,
+  Pack = make_rtp_pack(Base, M, P),
   compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, Rest, Size, [Pack | Acc]);
-compose_rtp(#base_rtp{sequence = Sequence} = Base, Data, Size, Acc) ->
+compose_rtp(#base_rtp{sequence = Sequence, marker = Marker} = Base, Data, Size, Acc) ->
   %%?DBG("Chunk ~b", [size(Data)]),
-  Pack = make_rtp_pack(Base, 1, Data),
+  %% if not Marker -> M = 0;
+  %%    true -> M = 1
+  %% end,
+  %%M = 1,
+  if Marker -> M = 1; true -> M = 0 end,
+  Pack = make_rtp_pack(Base, M, Data),
   compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, <<>>, Size, [Pack | Acc]).
 
 init_rnd_seq() ->
