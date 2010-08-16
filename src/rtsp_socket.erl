@@ -313,18 +313,22 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
                     payload = 96,
                     clock_map = 90000,
                     track_control = "trackID=1",
-                    codec = mp4v,
-                    config = "profile-level-id=3; config=000001b001000001b58913000001000000012000c48d88007d0a041e1463;"},
+                    codec = h264,
+                    %%config = "profile-level-id=3; config=000001b001000001b58913000001000000012000c48d88007d0a041e1463;"
+                    config = "packetization-mode=1;profile-level-id=64001e;sprop-parameter-sets=Z2QAHqw07A1D2hAAAD6QAAu4CPFi04A=,aO6yyLA="
+                   },
        MediaAudio =
         #media_desc{type = audio,
                     port = 0,
                     %%payload = 11,
-                    payload = 14,
-                    %%clock_map = 44100,
-                    clock_map = 90000,
+                    payload = 97,
+                    clock_map = 44100,
+                    %%clock_map = 90000,
                     track_control = "trackID=2",
                     %%codec = pcm
-                    codec = mpa},
+                    codec = aac,
+                    config = "streamtype=5; profile-level-id=15; mode=AAC-hbr; config=1210; SizeLength=13;IndexLength=3; IndexDeltaLength=3; Profile=1;"
+                   },
 
 
       SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
@@ -516,7 +520,7 @@ reply(State, Code, Headers) ->
 reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers, Body) ->
   Headers2 = case SessionId of
     undefined -> Headers;
-    _ -> [{'Session', integer_to_list(SessionId) ++ ";timeout=5"} | Headers]
+    _ -> [{'Session', integer_to_list(SessionId)} | Headers]
   end,
   Headers3 = case Body of
     undefined -> Headers2;
