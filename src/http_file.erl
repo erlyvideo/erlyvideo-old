@@ -185,11 +185,26 @@ handle_call({close, Client, Ref}, _From, #http_file{clients = Clients, file_cach
   end;
 
 
-handle_call({bin, Bin, Offset, Stream}, _From, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
+
+
+
+  
+handle_call(Unknown, _From, File) ->
+  % ?D({"Unknown call:", Unknown, From, File}),
+  {stop, {error, unknown_call, Unknown}, File}.
+  
+
+handle_cast(_, State) ->
+  {noreply, State}.  
+
+
+
+handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
   case lists:keyfind(Stream, #stream.pid, Streams) of
-    false -> 
+    false ->
       % ?D({"Got message from dead process", {bin, size(Bin), Offset, Stream}}),
-      {reply, stop, State};
+      Stream ! stop,
+      {noreply, State};
     _ -> 
       ok = file:pwrite(Cache, Offset, Bin),
       % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
@@ -222,23 +237,11 @@ handle_call({bin, Bin, Offset, Stream}, _From, #http_file{cache_file = Cache, st
       case {FileCached, State#http_file.clients} of
         {true, []} ->
           % ?D({"All is ready, exit"}),
-          {stop, normal, stop, State1};
+          {stop, normal, State1};
         _ ->
-          {reply, ok, State1}
+          {noreply, State1}
       end
   end;
-
-
-
-
-  
-handle_call(Unknown, _From, File) ->
-  % ?D({"Unknown call:", Unknown, From, File}),
-  {stop, {error, unknown_call, Unknown}, File}.
-  
-
-handle_cast(_, State) ->
-  {noreply, State}.  
 
 
 handle_info(start_download, #http_file{url = URL} = State) ->

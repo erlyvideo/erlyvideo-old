@@ -72,17 +72,13 @@ handle_info({http, Socket, http_eoh}, File) ->
   
 
 handle_info({tcp, Socket, Bin}, #http_file_request{offset = Offset, file = Origin} = File) ->
-  case gen_server:call(Origin, {bin, Bin, Offset, self()}) of
-    stop ->
-      {stop, normal, File};
-    _ ->
-    receive
-      stop -> {stop, normal, File}
-    after
-      0 -> 
-        inet:setopts(Socket, [{active, once}]),
-        {noreply, File#http_file_request{offset = Offset + size(Bin)}}
-    end
+  Origin ! {bin, Bin, Offset, self()},
+  receive
+    stop -> {stop, normal, File}
+  after
+    0 -> 
+      inet:setopts(Socket, [{active, once}]),
+      {noreply, File#http_file_request{offset = Offset + size(Bin)}}
   end;
 
 handle_info({tcp_closed, _Socket}, Request) ->
