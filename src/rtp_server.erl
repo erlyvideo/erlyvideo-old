@@ -48,7 +48,9 @@
   stream_id,
   last_sr,
   codec,
-  marker    :: undefined | true | false
+  marker       :: undefined | true | false,
+  packets = 0  :: integer(),
+  bytes   = 0  :: integer()
 }).
 
 -record(video, {
@@ -251,6 +253,7 @@ start_consumer(Media, #media_desc{type = Type} = Stream)  ->
 
 start_producer(#media_desc{} = Stream)  ->
   SState = #sender{parent = self()},
+  random:seed(now()),
   Pid = spawn_link(?MODULE, data_sender, [SState]),
   ?DBG("Start Producer: ~p", [Pid]),
   link(Pid),
@@ -268,8 +271,11 @@ data_sender(#sender{audio = AudioDesc,
       From ! {rtp_info, Info, Ref},
       Fun(),
       %%{ok, TRef} = timer:send_interval(5000, {rtcp, sr}),
+      timer:send_interval(2000, {send_sr, audio}),
+      timer:send_interval(2000, {send_sr, video}),
       data_sender(State);
-    {add_stream, {#media_desc{type = Type, payload = PayloadType, track_control = TCtl},
+    {add_stream, {#media_desc{type = Type, payload = PayloadType,
+                              clock_map = ClockMap, track_control = TCtl},
                   Proto, Addr, {PortRTP, PortRTCP}}, {From, Ref}} ->
       ?DBG("DS: Add Stream", []),
       ?DBG("Connect to ~p:~p", [Addr, PortRTP]),
@@ -280,9 +286,16 @@ data_sender(#sender{audio = AudioDesc,
       gen_udp:controlling_process(RTPSocket, self()),
       gen_udp:controlling_process(RTCPSocket, self()),
       ?DBG("PayloadType: ~p", [PayloadType]),
+      WallClock = get_wall_clock(),
+      Timecode = init_rnd_timecode(),
       BaseRTP = #base_rtp{codec = PayloadType,           % FIXME: PCM
+                          media = Type,
+                          clock_map = ClockMap,
                           sequence = init_rnd_seq(),
-                          timecode = ntp_date(),
+                          base_timecode = Timecode,
+                          timecode = Timecode,
+                          base_wall_clock = WallClock,
+                          wall_clock = WallClock,
                           stream_id = init_rnd_ssrc()},
       NewState =
         case Type of
@@ -302,13 +315,35 @@ data_sender(#sender{audio = AudioDesc,
     {stop, _CPid} ->
       ?DBG("Stop Sender Process", []),
       stop;
+    {send_sr, Type} ->
+      case Type of
+        audio ->
+          case AudioDesc of
+            #desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP, state = BaseRTP} ->
+              {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
+              gen_udp:send(RTCPSocket, Addr, PortRTCP, RTCP),
+              NewState = State#sender{audio = AudioDesc#desc{state = NewBaseRTP}};
+            _ ->
+              NewState = State
+          end;
+        video ->
+          case VideoDesc of
+            #desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP, state = BaseRTP} ->
+              {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
+              gen_udp:send(RTCPSocket, Addr, PortRTCP, RTCP),
+              NewState = State#sender{video = VideoDesc#desc{state = NewBaseRTP}};
+            _ ->
+              NewState = State
+          end
+      end,
+      data_sender(NewState);
     #video_frame{content = audio, flavor = frame,
                  codec = Codec, sound = {Channel, Size, Rate}, body = Body} = Frame ->
       case AudioDesc of
         #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
           %%?DBG("DS: Audio Frame(~p) (pl ~p):~n~p", [self(), iolist_size(Body), Frame]),
           %% Send Audio
-          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP#base_rtp{timecode = ntp_date()}, Codec, Body),
+          {NewBaseRTP, RTPs} = encode(rtp, inc_timecode(BaseRTP), Codec, Body),
           %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, RTPs]),
           [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs],
           data_sender(State#sender{audio = AudioDesc#desc{state = NewBaseRTP}});
@@ -336,7 +371,7 @@ data_sender(#sender{audio = AudioDesc,
               Data = {frame, Body}
           end,
 
-          {NewBaseRTP, RTPs} = encode(rtp, BaseRTP#base_rtp{timecode = ntp_date()}, Codec, Data),
+          {NewBaseRTP, RTPs} = encode(rtp, inc_timecode(BaseRTP), Codec, Data),
           %%?DBG("RTPs to ~p:~p~n~p", [Addr, PortRTP, RTPs]),
           [begin
              if is_list(R) ->
@@ -582,11 +617,11 @@ decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Se
 
 
 convert_timecode(State) ->
-  Timecode = element(#base_rtp.timecode, State),
-  ClockMap = element(#base_rtp.clock_map, State),
-  BaseTimecode = element(#base_rtp.base_timecode, State),
-  WallClock = element(#base_rtp.wall_clock, State),
-  _BaseWallClock = element(#base_rtp.base_wall_clock, State),
+  Timecode = State#base_rtp.timecode,
+  ClockMap = State#base_rtp.clock_map,
+  BaseTimecode = State#base_rtp.base_timecode,
+  WallClock = State#base_rtp.wall_clock,
+  _BaseWallClock = State#base_rtp.base_wall_clock,
   % ?D({"TC", WallClock, Timecode, BaseTimecode, ClockMap}),
   WallClock + (Timecode - BaseTimecode)/ClockMap.
 
@@ -597,11 +632,12 @@ convert_timecode(State) ->
 %% or google:  RTCP Sender Report
 rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  _ClockMap = element(#base_rtp.clock_map, State),
-  State1 = case element(#base_rtp.base_wall_clock, State) of
-    undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
-    _ -> State
-  end,
+  _ClockMap = State#base_rtp.clock_map,
+  State1 =
+    case State#base_rtp.base_wall_clock of
+      undefined -> State#base_rtp{base_wall_clock = WallClock - 2000};
+      _ -> State
+    end,
   State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
   State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
   State4 = case element(#base_rtp.base_timecode, State) of
@@ -730,10 +766,6 @@ send_video(#video{media = _Media, buffer = Frames, timecode = _Timecode, h264 = 
   end,
   {Video#video{synced = true, buffer = []}, Frames2}.
 
-ntp_date() ->
-  {_A1, A2, A3} = now(),
-  A2*1000000 + A3.
-
 
 %%----------------------------------------------------------------------
 %% @spec (receiver_report, RtpState) -> Data::binary()
@@ -837,7 +869,8 @@ compose_rtp(Base, Data, Size)
 compose_rtp(Base, <<>>, _, Acc) -> % Return new Sequence ID and list of RTP-binaries
   %%?DBG("New Sequence: ~p", [Sequence]),
   {Base, lists:reverse(Acc)};
-compose_rtp(#base_rtp{sequence = Sequence, marker = Marker} = Base, Data, Size, Acc)
+compose_rtp(#base_rtp{sequence = Sequence, marker = Marker,
+                      packets = Packets, bytes = Bytes} = Base, Data, Size, Acc)
   when (is_integer(Size) andalso (size(Data) > Size)) ->
   %%?DBG("Chunk ~b", [?RTP_SIZE]),
   <<P:Size/binary,Rest/binary>> = Data,
@@ -846,8 +879,11 @@ compose_rtp(#base_rtp{sequence = Sequence, marker = Marker} = Base, Data, Size, 
   %% end,
   M = 0,
   Pack = make_rtp_pack(Base, M, P),
-  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, Rest, Size, [Pack | Acc]);
-compose_rtp(#base_rtp{sequence = Sequence, marker = Marker} = Base, Data, Size, Acc) ->
+  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence),
+                            packets = inc_packets(Packets, 1),
+                            bytes = inc_bytes(Bytes, size(Pack))}, Rest, Size, [Pack | Acc]);
+compose_rtp(#base_rtp{sequence = Sequence, marker = Marker,
+                      packets = Packets, bytes = Bytes} = Base, Data, Size, Acc) ->
   %%?DBG("Chunk ~b", [size(Data)]),
   %% if not Marker -> M = 0;
   %%    true -> M = 1
@@ -855,7 +891,9 @@ compose_rtp(#base_rtp{sequence = Sequence, marker = Marker} = Base, Data, Size, 
   %%M = 1,
   if Marker -> M = 1; true -> M = 0 end,
   Pack = make_rtp_pack(Base, M, Data),
-  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence)}, <<>>, Size, [Pack | Acc]).
+  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence),
+                            packets = inc_packets(Packets, 1),
+                            bytes = inc_bytes(Bytes, size(Pack))}, <<>>, Size, [Pack | Acc]).
 
 init_rnd_seq() ->
   random:uniform(16#FFFF).
@@ -863,8 +901,35 @@ init_rnd_seq() ->
 init_rnd_ssrc() ->
   random:uniform(16#FFFFFFFF).
 
+init_rnd_timecode() ->
+  Range = 1000000000,
+  random:uniform(Range) + Range.
+
+get_wall_clock() ->
+  now().
+
+get_date() ->
+  {A1, A2, A3} = now(),
+  {(A1*1000*1000) + A2 + ?YEARS_70, A3*1000}.
+
+inc_timecode(#base_rtp{base_wall_clock = _BWC,
+                       wall_clock = WC,
+                       timecode = TC,
+                       media = Type,
+                       clock_map = ClockMap} = State) ->
+  NewWC = now(),
+  Inc = trunc(ClockMap * timer:now_diff(NewWC, WC)/(1000*1000)),
+  NewTC = TC + Inc,
+  State#base_rtp{timecode = NewTC, wall_clock = NewWC}.
+
 inc_seq(S) ->
   (S+1) band 16#FFFF.
+
+inc_packets(S, V) ->
+  (S+V) band 16#FFFFFFFF.
+
+inc_bytes(S, V) ->
+  (S+V) band 16#FFFFFFFF.
 
 l2b(Bin) ->
     l2b(Bin, []).
@@ -889,4 +954,17 @@ encode(receiver_report, State) ->
   LSR = element(#base_rtp.last_sr, State),
   DLSR = 0,
   % ?D({rr, StreamId, MaxSeq, LSR}),
-  <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
+  {State, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>};
+
+encode(sender_report, #base_rtp{stream_id = StreamId,
+                                media = Type,
+                                timecode = Timestamp,
+                                packets = SPC,
+                                bytes = SOC} = State) ->
+  Count = 0,
+  {MSW, LSW} = get_date(),
+  ?DBG("SR:~p TS: ~p, Date: ~p, SPC ~p, SOC ~p", [Type, Timestamp, {MSW, LSW}, SPC, SOC]),
+  Packet = <<StreamId:32, MSW:32, LSW:32, Timestamp:32, SPC:32, SOC:32>>,
+  Length = trunc(size(Packet)/4),
+  Header = <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16>>,
+  {State, <<Header/binary,Packet/binary>>}.
