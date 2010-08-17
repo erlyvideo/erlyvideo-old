@@ -266,8 +266,10 @@ data_sender(#sender{audio = AudioDesc,
   receive
     {play, Fun, {From, Ref}} ->
       ?DBG("DS: Play", []),
-      Info = [{Track, Seq} || #desc{track_control = Track,
-                                    state = #base_rtp{sequence = Seq}} <- [AudioDesc, VideoDesc]],
+      Info = [{Track, Seq, RtpTime} ||
+               #desc{track_control = Track,
+                     state = #base_rtp{sequence = Seq,
+                                       timecode = RtpTime}} <- [AudioDesc, VideoDesc]],
       From ! {rtp_info, Info, Ref},
       Fun(),
       %%{ok, TRef} = timer:send_interval(5000, {rtcp, sr}),
@@ -963,7 +965,6 @@ encode(sender_report, #base_rtp{stream_id = StreamId,
                                 bytes = SOC} = State) ->
   Count = 0,
   {MSW, LSW} = get_date(),
-  ?DBG("SR:~p TS: ~p, Date: ~p, SPC ~p, SOC ~p", [Type, Timestamp, {MSW, LSW}, SPC, SOC]),
   Packet = <<StreamId:32, MSW:32, LSW:32, Timestamp:32, SPC:32, SOC:32>>,
   Length = trunc(size(Packet)/4),
   Header = <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16>>,
