@@ -377,8 +377,10 @@ handle_request({request, 'PLAY', URL, Headers, Body},
     {ok, Info, Media} ->
       erlang:monitor(process, Media),
       %% Save Pid of producer here or in SETUP?
-      Infos = [binary_to_list(URL) ++ "/" ++ Track ++ ";seq=" ++ integer_to_list(Seq) ||
-                {Track, Seq} <- Info],
+      Infos = [binary_to_list(URL) ++ "/" ++ Track
+               ++ ";seq=" ++ integer_to_list(Seq)
+               ++ ";rtptime=" ++ integer_to_list(RtpTime) ||
+                {Track, Seq, RtpTime} <- Info],
       reply(State#rtsp_socket{}, "200 OK",
             [
              {'Cseq', seq(Headers)},
