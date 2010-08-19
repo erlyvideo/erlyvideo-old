@@ -597,6 +597,10 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
 %% @private
 %%-------------------------------------------------------------------------
 
+handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source, source_timeout = shutdown} = Media) ->
+  ?D({"ems_media lost source with source_timeout=shutdown", Source, _Reason}),
+  {stop, normal, Media};
+
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->
   ?D({"ems_media lost source", Source, _Reason}),
   case M:handle_control({source_lost, Source}, Media) of
