@@ -434,7 +434,7 @@ handle_call({start, Client}, From, Media) ->
   handle_call({resume, Client}, From, Media);
 
 handle_call(decoder_config, _From, #ems_media{video_config = undefined, audio_config = undefined} = Media) ->
-  Media1 = try_found_config(Media),
+  Media1 = try_find_config(Media),
   {reply, {ok, [{audio,Media1#ems_media.audio_config},{video,Media1#ems_media.video_config}]}, Media1};
 
 handle_call(decoder_config, _From, #ems_media{video_config = V, audio_config = A} = Media) ->
@@ -728,8 +728,10 @@ handle_info(Message, #ems_media{module = M} = Media) ->
   end.
 
 
+try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = undefined} = Media) ->
+  Media;
 
-try_found_config(#ems_media{audio_config = undefined, video_config = undefined, format = Format} = Media) 
+try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = Format} = Media) 
   when Format =/= undefined ->
 
   try_n_frames(Media, 10, undefined).
