@@ -174,7 +174,8 @@ decode_headers(Data, Headers, BodyLength) ->
 %% @doc Called by {@link rtsp_socket. to encode outcoming RTSP/RTP/RTCP data}
 %% @end
 %%----------------------------------------------------------------------
-encode({rtcp, Channel, Bin}) ->
+encode({Type, Channel, Bin}) when Type =:= rtp;
+                                  Type =:= rtcp ->
   <<$$, Channel, (size(Bin)):16, Bin/binary>>.
 
 %%
