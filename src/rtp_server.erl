@@ -243,7 +243,7 @@ start_consumer(Media, #media_desc{type = Type} = Stream)  ->
          }).
 
 -record(interleaved_desc, {
-          parent          :: pid(),
+          socket_owner    :: pid(),
           channel_rtp     :: integer(),
           channel_rtcp    :: integer()
          }).
@@ -305,10 +305,12 @@ data_sender(#sender{audio = AudioDesc,
             socket_rtp = RTPSocket, socket_rtcp = RTCPSocket
            };
         interleaved ->
-          {Parent, ChanRTP, ChanRTCP} = Params,
+          {SocketOwner, ChanRTP, ChanRTCP} = Params,
           From ! {Method, Type, ok, Ref},
-          MethodDesc = #interleaved_desc{channel_rtp = ChanRTP,
-                                         channel_rtcp = ChanRTCP}
+          MethodDesc = #interleaved_desc{
+            socket_owner = SocketOwner,
+            channel_rtp = ChanRTP,
+            channel_rtcp = ChanRTCP}
       end,
      ?DBG("PayloadType: ~p", [PayloadType]),
       WallClock = get_wall_clock(),
@@ -342,18 +344,28 @@ data_sender(#sender{audio = AudioDesc,
       case Type of
         audio ->
           case AudioDesc of
-            #desc{method = #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP}, state = BaseRTP} ->
+            #desc{method = MDesc, state = BaseRTP} ->
               {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
-              gen_udp:send(RTCPSocket, Addr, PortRTCP, RTCP),
+              case MDesc of
+                #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
+                  send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
+                #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
+                  send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
+              end,
               NewState = State#sender{audio = AudioDesc#desc{state = NewBaseRTP}};
             _ ->
               NewState = State
           end;
         video ->
           case VideoDesc of
-            #desc{method = #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP}, state = BaseRTP} ->
+            #desc{method = MDesc, state = BaseRTP} ->
               {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
-              gen_udp:send(RTCPSocket, Addr, PortRTCP, RTCP),
+              case MDesc of
+                #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
+                  send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
+                #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
+                  send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
+              end,
               NewState = State#sender{video = VideoDesc#desc{state = NewBaseRTP}};
             _ ->
               NewState = State
@@ -370,9 +382,9 @@ data_sender(#sender{audio = AudioDesc,
           case MDesc of
             #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
               %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, RTPs]),
-              [gen_udp:send(RTPSocket, Addr, PortRTP, R) || R <- RTPs];
-            #interleaved_desc{parent = Parent, channel_rtp = ChanRTP, channel_rtcp = ChanRTCP} ->
-              Parent ! {interleaved, ChanRTP, RTPs}
+              send_udp(RTPSocket, Addr, PortRTP, RTPs);
+            #interleaved_desc{socket_owner = SocketOwner, channel_rtp = ChanRTP, channel_rtcp = ChanRTCP} ->
+              send_interleaved(SocketOwner, ChanRTP, {rtp, RTPs})
           end,
           data_sender(State#sender{audio = AudioDesc#desc{state = NewBaseRTP}});
         _ ->
@@ -403,15 +415,9 @@ data_sender(#sender{audio = AudioDesc,
           case MDesc of
             #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
               %%?DBG("RTPs to ~p:~p~n~p", [Addr, PortRTP, RTPs]),
-              [begin
-                 if is_list(R) ->
-                     [gen_udp:send(RTPSocket, Addr, PortRTP, Rr) || Rr <- R];
-                    true ->
-                     gen_udp:send(RTPSocket, Addr, PortRTP, R)
-                 end
-               end || R <- RTPs];
-            #interleaved_desc{parent = Parent, channel_rtp = ChanRTP, channel_rtcp = ChanRTCP} ->
-                  Parent ! {interleaved, ChanRTP, RTPs}
+              send_udp(RTPSocket, Addr, PortRTP, RTPs);
+            #interleaved_desc{socket_owner = SocketOwner, channel_rtp = ChanRTP, channel_rtcp = ChanRTCP} ->
+              send_interleaved(SocketOwner, ChanRTP, {rtp, RTPs})
           end,
           data_sender(State#sender{video = VideoDesc#desc{state = NewBaseRTP}});
         _ ->
@@ -452,6 +458,15 @@ data_sender(#sender{audio = AudioDesc,
       end,
 
       data_sender(State);
+
+    {interleaved, rtp, RTP} ->
+      ?DBG("Interleaved RTP: ~p", [RTP]),
+      data_sender(State);
+
+    {interleaved, rtcp, RTCP} ->
+      ?DBG("Interleaved RTCP: ~p", [RTCP]),
+      data_sender(State);
+
     {ems_stream, _, play_complete, _} ->
       ok;
     OtherMsg ->
@@ -462,6 +477,31 @@ data_sender(#sender{audio = AudioDesc,
       ?DBG("RTP sender timeout", []),
       timeout
   end.
+
+
+send_udp(Socket, Addr, Port, RTPs) ->
+  F = fun(P) ->
+          gen_udp:send(Socket, Addr, Port, P)
+      end,
+  send_rtp(F, RTPs).
+
+send_interleaved(SockOwner, Channel, {Type, RTPs}) ->
+  F = fun(P) ->
+          SockOwner ! {interleaved, Channel, {Type, P}}
+      end,
+  send_rtp(F, RTPs).
+
+send_rtp(F, RTP) when is_binary(RTP) ->
+  F(RTP);
+send_rtp(F, RTPs) when is_list(RTPs) ->
+  [begin
+     if is_list(R) ->
+         [F(Rr) || Rr <- R];
+        true ->
+         F(R)
+     end
+   end || R <- RTPs].
+
 
 configure(Body, RTPStreams) ->
   configure(Body, RTPStreams, self()).
