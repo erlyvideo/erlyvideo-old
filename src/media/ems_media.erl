@@ -61,6 +61,7 @@
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
 -export([metadata/1, info/1, setopts/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
+-export([decoder_config/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, format_status/2]).
@@ -281,6 +282,19 @@ setopts(_Media, _Options) ->
 publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
   Media ! Frame.
 
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> proplist()
+%%
+%% @doc Returns decoder config, extracted from media. Important: it can block for some time
+%% or return undefined, when there may be config.
+%% @end
+%%----------------------------------------------------------------------
+decoder_config(Media) when is_pid(Media) ->
+  Timeout = 4000,
+  gen_server:call(Media, decoder_config, Timeout).
+
+
   
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -418,6 +432,13 @@ handle_call({unsubscribe, Client}, _From, Media) ->
 
 handle_call({start, Client}, From, Media) ->
   handle_call({resume, Client}, From, Media);
+
+handle_call(decoder_config, _From, #ems_media{video_config = undefined, audio_config = undefined} = Media) ->
+  Media1 = try_found_config(Media),
+  {reply, {ok, [{audio,Media1#ems_media.audio_config},{video,Media1#ems_media.video_config}]}, Media1};
+
+handle_call(decoder_config, _From, #ems_media{video_config = V, audio_config = A} = Media) ->
+  {reply, {ok, [{audio,A},{video,V}]}, Media};
   
 handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ets:lookup(Clients, Client) of
@@ -706,6 +727,34 @@ handle_info(Message, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
+
+
+try_found_config(#ems_media{audio_config = undefined, video_config = undefined, format = Format} = Media) 
+  when Format =/= undefined ->
+
+  try_n_frames(Media, 10, undefined).
+
+
+try_n_frames(#ems_media{audio_config = A, video_config = V} = Media, _, _) 
+  when A =/= undefined andalso V =/= undefined ->
+  Media;
+
+try_n_frames(Media, _, eof) ->
+  Media;
+  
+try_n_frames(Media, 0, _) -> 
+  Media;
+
+try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
+  Frame = Format:read_frame(Storage, Key),
+  case Frame of
+    #video_frame{content = video, flavor = config, next_id = Next} -> 
+      try_n_frames(Media#ems_media{video_config = Frame}, N-1, Next);
+    #video_frame{content = audio, flavor = config, next_id = Next} -> 
+      try_n_frames(Media#ems_media{audio_config = Frame}, N-1, Next);
+    #video_frame{next_id = Next} -> 
+      try_n_frames(Media, N+1, Next)
+  end.
 
 
 
