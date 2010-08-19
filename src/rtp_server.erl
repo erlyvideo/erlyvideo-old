@@ -167,19 +167,19 @@ handle_call({play, Fun}, _From, #state{producer = SPid} = State) ->
     %% FIXME: return self() or SPid for monitoring by toplevel process?
     {reply, Reply, State};
 
-handle_call({add_stream, Stream, Proto, Addr, {Port0, Port1}}, From, #state{producer = SPid} = State) ->
+handle_call({add_stream, Stream, Proto, Addr, {Method, {Val0, Val1}}}, From, #state{producer = SPid} = State) ->
     ?DBG("Add Stream: ~p", [Stream]),
     %% May be remove additional sender process and use current?
     Ref = make_ref(),
-    SPid ! {add_stream, {Stream, Proto, Addr, {Port0, Port1}}, {self(), Ref}},
+    SPid ! {add_stream, {Stream, Proto, Addr, {Method, {Val0, Val1}}}, {self(), Ref}},
     receive
-      {ports, Type, Ports, Ref} ->
-        Reply = {ok, Ports};
+      {Method, Type, Result, Ref} ->
+        Reply = {ok, {Method, Result}};
       _ ->
-        Reply = {error, no_ports}
+        Reply = {error, bad_result}
     after
       1000 ->
-        Reply = {error, no_ports}
+        Reply = {error, bad_result}
     end,
     {reply, Reply, State};
 handle_call({stop, Pid}, _From, #state{producer = SPid} = State) ->
@@ -208,8 +208,8 @@ code_change(_OldVsn, State, _Extra) ->
 play(Pid, Fun) ->
     gen_server:call(Pid, {play, Fun}).
 
-add_stream(Pid, Stream, Proto, Addr, {Port0, Port1}) ->
-    gen_server:call(Pid, {add_stream, Stream, Proto, Addr, {Port0, Port1}}).
+add_stream(Pid, Stream, Proto, Addr, {Method, {Val0, Val1}}) ->
+    gen_server:call(Pid, {add_stream, Stream, Proto, Addr, {Method, {Val0, Val1}}}).
 
 stop(Pid, Arg) ->
     gen_server:call(Pid, {stop, Arg}).
@@ -233,14 +233,22 @@ start_consumer(Media, #media_desc{type = Type} = Stream)  ->
   {ok, Pid, {RTP, RTCP}}.
 
 
-
--record(desc, {
+-record(ports_desc, {
           proto,
           addr,
           port_rtp,
           port_rtcp,
           socket_rtp,
-          socket_rtcp,
+          socket_rtcp
+         }).
+
+-record(interleaved_desc, {
+          channel_rtp,
+          channel_rtcp
+         }).
+
+-record(desc, {
+          method    ::  #ports_desc{} | #interleaved_desc{},
           track_control,
           state
          }).
@@ -278,16 +286,28 @@ data_sender(#sender{audio = AudioDesc,
       data_sender(State);
     {add_stream, {#media_desc{type = Type, payload = PayloadType,
                               clock_map = ClockMap, track_control = TCtl},
-                  Proto, Addr, {PortRTP, PortRTCP}}, {From, Ref}} ->
+                  Proto, Addr, {Method, {ValRTP, ValRTCP}}}, {From, Ref}} ->
       ?DBG("DS: Add Stream", []),
-      ?DBG("Connect to ~p:~p", [Addr, PortRTP]),
-      OP = open_ports(Type),
-      ?DBG("OP: ~p", [OP]),
-      {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
-      From ! {ports, Type, {RTP, RTCP}, Ref},
-      gen_udp:controlling_process(RTPSocket, self()),
-      gen_udp:controlling_process(RTCPSocket, self()),
-      ?DBG("PayloadType: ~p", [PayloadType]),
+      case Method of
+        ports ->
+          ?DBG("Connect to ~p:~p", [Addr, ValRTP]),
+          OP = open_ports(Type),
+          ?DBG("OP: ~p", [OP]),
+          {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
+          From ! {Method, Type, {RTP, RTCP}, Ref},
+          gen_udp:controlling_process(RTPSocket, self()),
+          gen_udp:controlling_process(RTCPSocket, self()),
+          MethodDesc = #ports_desc{
+            proto = Proto, addr = Addr,
+            port_rtp = ValRTP, port_rtcp = ValRTCP,
+            socket_rtp = RTPSocket, socket_rtcp = RTCPSocket
+           };
+        interleaved ->
+          From ! {Method, Type, ok, Ref},
+          MethodDesc = #interleaved_desc{channel_rtp = ValRTP,
+                                         channel_rtcp = ValRTCP}
+      end,
+     ?DBG("PayloadType: ~p", [PayloadType]),
       WallClock = get_wall_clock(),
       Timecode = init_rnd_timecode(),
       BaseRTP = #base_rtp{codec = PayloadType,           % FIXME: PCM
@@ -302,14 +322,12 @@ data_sender(#sender{audio = AudioDesc,
       NewState =
         case Type of
           audio ->
-            State#sender{audio = #desc{proto = Proto, addr = Addr, track_control = TCtl,
-                                       port_rtp = PortRTP, port_rtcp = PortRTCP,
-                                       socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
+            State#sender{audio = #desc{method = MethodDesc,
+                                       track_control = TCtl,
                                        state = BaseRTP}};
           video ->
-            State#sender{video = #desc{proto = Proto, addr = Addr, track_control = TCtl,
-                                       port_rtp = PortRTP, port_rtcp = PortRTCP,
-                                       socket_rtp = RTPSocket, socket_rtcp = RTCPSocket,
+            State#sender{video = #desc{method = MethodDesc,
+                                       track_control = TCtl,
                                        state = BaseRTP}}
         end,
       ?DBG("NewState:~n~p", [NewState]),
@@ -321,7 +339,7 @@ data_sender(#sender{audio = AudioDesc,
       case Type of
         audio ->
           case AudioDesc of
-            #desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP, state = BaseRTP} ->
+            #desc{method = #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP}, state = BaseRTP} ->
               {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
               gen_udp:send(RTCPSocket, Addr, PortRTCP, RTCP),
               NewState = State#sender{audio = AudioDesc#desc{state = NewBaseRTP}};
@@ -330,7 +348,7 @@ data_sender(#sender{audio = AudioDesc,
           end;
         video ->
           case VideoDesc of
-            #desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP, state = BaseRTP} ->
+            #desc{method = #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP}, state = BaseRTP} ->
               {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
               gen_udp:send(RTCPSocket, Addr, PortRTCP, RTCP),
               NewState = State#sender{video = VideoDesc#desc{state = NewBaseRTP}};
@@ -342,7 +360,7 @@ data_sender(#sender{audio = AudioDesc,
     #video_frame{content = audio, flavor = frame,
                  codec = Codec, sound = {Channel, Size, Rate}, body = Body} = Frame ->
       case AudioDesc of
-        #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
+        #desc{method = #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP}, state = BaseRTP} ->
           %%?DBG("DS: Audio Frame(~p) (pl ~p):~n~p", [self(), iolist_size(Body), Frame]),
           %% Send Audio
           {NewBaseRTP, RTPs} = encode(rtp, inc_timecode(BaseRTP), Codec, Body),
@@ -354,7 +372,7 @@ data_sender(#sender{audio = AudioDesc,
       end;
     #video_frame{content = video, flavor = Flavor, codec = Codec, body = Body} = Frame ->
       case VideoDesc of
-        #desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP, state = BaseRTP} ->
+        #desc{method = #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP}, state = BaseRTP} ->
           %%?DBG("DS: Video Frame(~p):~n~p", [self(), Frame]),
           %%?DBG("VideoDesc: ~p", [VideoDesc]),
           %%?DBG("Video Frame(~p):~n~p", [self(), Frame]),
@@ -391,13 +409,13 @@ data_sender(#sender{audio = AudioDesc,
 
       {AudioRTCPSock, AudioRTPSock} =
         if is_record(AudioDesc, desc) ->
-            {AudioDesc#desc.socket_rtcp, AudioDesc#desc.socket_rtp};
+            {(AudioDesc#desc.method)#ports_desc.socket_rtcp, (AudioDesc#desc.method)#ports_desc.socket_rtp};
          true ->
           {undefined, undefined}
       end,
       {VideoRTCPSock, VideoRTPSock} =
         if is_record(VideoDesc, desc) ->
-            {VideoDesc#desc.socket_rtcp, VideoDesc#desc.socket_rtp};
+            {(VideoDesc#desc.method)#ports_desc.socket_rtcp, (VideoDesc#desc.method)#ports_desc.socket_rtp};
          true ->
           {undefined, undefined}
       end,
