@@ -422,6 +422,9 @@ handle_info(#rtmp_message{} = Message, StateName, State) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, StateName, State};
 
+handle_info(exit, StateName, StateData) ->
+  {stop, normal, StateData};
+
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
   {next_state, StateName, StateData}.
