@@ -39,36 +39,46 @@
   ?D({"FCpublish", Name}),
   State.
 
-'FCUnpublish'(State, #rtmp_funcall{args = Args} = AMF) ->
-  ?D({"FCunpublish", Args}),
-  apps_streaming:stop(State, AMF).
+'FCUnpublish'(State, #rtmp_funcall{args = [null, FullName]} = AMF) ->
+  {RawName, _Args1} = http_uri2:parse_path_query(FullName),
+  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
+  ?D({"FCunpublish", Name}),
+  % apps_streaming:stop(State, AMF).
   % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
-  % State.
-
-publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF) -> 
-  ?D({"Publish - Action - record",Name}),
-  {ok, Recorder} = media_provider:create(Host, Name, [{type, record}]),
-  State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)};
+  State.
 
 
-publish(State, #rtmp_funcall{args = [null,Name,<<"append">>]} = _AMF) -> 
-  ?D({"Publish - Action - append",Name}),
-  gen_fsm:send_event(self(), {publish, append, Name}),
-  State;
+real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, FullName, Type, StreamId) ->
 
-
-publish(State, #rtmp_funcall{args = [null,URL,<<"LIVE">>]} = AMF) ->
-  ?D({"publish LIVE rewriting to live", URL}),
-  publish(State, AMF#rtmp_funcall{args = [null,URL,<<"live">>]});
-
-publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null,URL,<<"live">>], stream_id = StreamId} = _AMF) -> 
-  [Name | _Params] = string:tokens(binary_to_list(URL), "?"),
-  ?D({"LIVE", _AMF#rtmp_funcall.stream_id}),
-  ems_log:access(Host, "RECORD LIVE ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-  {ok, Recorder} = media_provider:create(Host, Name, [{type, live}]),
+  {RawName, Args1} = http_uri2:parse_path_query(FullName),
+  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
+  Options1 = extract_publish_args(Args1),
+  Options = lists:ukeymerge(1, [{type,live}], Options1),
+  
+  ems_log:access(Host, "RECORD ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
+  {ok, Recorder} = media_provider:create(Host, Name, Options),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
-  State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)};
+  State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)}.
+  
+extract_publish_args([]) -> [];
+extract_publish_args({"source_timeout", "infinity"}) -> {source_timeout, infinity};
+extract_publish_args({"source_timeout", "shutdown"}) -> {source_timeout, shutdown};
+extract_publish_args({"source_timeout", Timeout}) -> {source_timeout, list_to_integer(Timeout)};
+extract_publish_args({Key, Value}) -> {Key, Value};
+extract_publish_args(List) -> [extract_publish_args(Arg) || Arg <- List].
+
+publish(State, #rtmp_funcall{args = [null,Name, <<"record">>], stream_id = StreamId} = _AMF) -> 
+  real_publish(State, Name, record, StreamId);
+
+publish(State, #rtmp_funcall{args = [null,Name,<<"append">>], stream_id = StreamId} = _AMF) -> 
+  real_publish(State, Name, append, StreamId);
+
+publish(State, #rtmp_funcall{args = [null,Name,<<"LIVE">>], stream_id = StreamId} = _AMF) ->
+  real_publish(State, Name, live, StreamId);
+
+publish(State, #rtmp_funcall{args = [null,Name,<<"live">>], stream_id = StreamId} = _AMF) -> 
+  real_publish(State, Name, live, StreamId);
 
 publish(State, #rtmp_funcall{args = [null, false]} = AMF) ->
   apps_streaming:stop(State, AMF);
@@ -79,8 +89,6 @@ publish(State, #rtmp_funcall{args = [null, null]} = AMF) ->
 publish(State, #rtmp_funcall{args = [null, <<"null">>]} = AMF) ->
   apps_streaming:stop(State, AMF);
   
-publish(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null,Name], stream_id = StreamId} = _AMF) -> 
-  ems_log:access(Host, "LIVE ~s ~p ~s", [State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-  {ok, Recorder} = media_provider:create(Host, Name, [{type, live}]),
-  State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)}.
+publish(State, #rtmp_funcall{args = [null,Name], stream_id = StreamId} = _AMF) -> 
+  real_publish(State, Name, live, StreamId).
 
