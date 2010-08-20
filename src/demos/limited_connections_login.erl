@@ -63,7 +63,7 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
     undefined -> ok;
     Limit ->
       Count = length(supervisor:which_children(rtmp_session_sup)),
-      true = (Count < Limit)
+      true = (Count =< Limit)
   end,
   case ems:get_var(connection_timer, Host, undefined) of
     undefined -> ok;
