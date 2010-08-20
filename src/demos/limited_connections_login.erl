@@ -26,7 +26,7 @@
 
 -include("../../include/rtmp_session.hrl").
 
--export([connect/2, auth/3]).
+-export([connect/2, play/2, auth/3]).
 
 auth(_Host, http, undefined) ->
   [];
@@ -51,6 +51,14 @@ auth(_Host, http, Header) ->
 auth(_Host, _Protocol, _Session) ->
   [].
 
+
+play(#rtmp_session{host = Host} = State, Funcall) ->
+  case ems:get_var(connection_timer, Host, undefined) of
+    undefined -> ok;
+    Timer -> ?D({"Timer started", Timer}), {ok, _Ref} = timer:send_after(Timer, self(), exit)
+  end,
+  apps_streaming:play(State, Funcall).
+
 %%-------------------------------------------------------------------------
 %% @spec connect(Session::rtmp_session(), Funcall::rtmp_funcall()) -> NewState::rtmp_session()
 %% @doc Function always accept client, trusting all client information. 
@@ -64,10 +72,6 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
     Limit ->
       Count = length(supervisor:which_children(rtmp_session_sup)),
       true = (Count =< Limit)
-  end,
-  case ems:get_var(connection_timer, Host, undefined) of
-    undefined -> ok;
-    Timer -> ?D({"Timer started", Timer}), {ok, _Ref} = timer:send_after(Timer, self(), exit)
   end,
   
   ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~p ~s", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo), [], ?MODULE]),
