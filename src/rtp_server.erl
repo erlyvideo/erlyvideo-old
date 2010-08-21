@@ -342,8 +342,6 @@ handle_info(#video_frame{content = video, flavor = Flavor,
 handle_info({udp, SSocket, SAddr, SPort, Data},
             #state{audio = AudioDesc,
                    video = VideoDesc} = State) ->
-  ?DBG("Received: ~p, ~p, ~p~n~p", [SSocket, SAddr, SPort, Data]),
-
   {AudioRTCPSock, AudioRTPSock} =
     if is_record(AudioDesc, desc) ->
         {(AudioDesc#desc.method)#ports_desc.socket_rtcp, (AudioDesc#desc.method)#ports_desc.socket_rtp};
