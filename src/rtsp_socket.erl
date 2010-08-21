@@ -55,6 +55,7 @@
   options,
   rtp_streams = {undefined,undefined,undefined,undefined},
   sdp,                                          % FIXME
+  media         :: pid(),
   rtp           :: pid(),
   rtp_ref       :: reference(),
   state,
@@ -224,7 +225,7 @@ handle_info({interleaved, Channel, {Type, RTP}}, #rtsp_socket{socket = Sock} = S
   {noreply, Socket};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
-  %%?D({"Unknown message", Message}),
+  ?D({"Unknown message", Message}),
   {noreply, Socket}.
 
 
@@ -290,7 +291,10 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
   case Callback:describe(URL, Headers, Body) of
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}]);
-    ok ->
+    {ok, Media} ->
+      {ok, MediaParams} = ems_media:decoder_config(Media),
+      ?DBG("Describe INFO (~p): ~p", [self(), MediaParams]),
+
       SessionDesc =
         #session_desc{version = "0",
                       originator = #sdp_o{username = "-",
@@ -357,7 +361,7 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
       %%     "a=rtpmap:97 mpeg4-generic/16000/1\n",
       %%     %%"a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;\n"
       %%   >>,
-      reply(State#rtsp_socket{sdp = sdp:decode(SDP)}, "200 OK",
+      reply(State#rtsp_socket{sdp = sdp:decode(SDP), media = Media}, "200 OK",
             [
              {'Server', ?SERVER_NAME},
              {'Cseq', seq(Headers)},
@@ -366,15 +370,16 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
   end;
 
 handle_request({request, 'PLAY', URL, Headers, Body},
-               #rtsp_socket{callback = Callback, session = Session, rtp = ProducerCtl} = State) ->
+               #rtsp_socket{callback = Callback, session = Session,
+                            media = Media, rtp = ProducerCtl} = State) ->
   %% Callback:play sets up self() as consumer of #video_frame-s:
   %% Callback:play -> media_provider:play -> ems_media:play
   %%case Callback:play(URL, Headers, Body) of
   ?DBG("PLAY: ~p", [ProducerCtl]),
   case rtp_server:play(ProducerCtl,
-                       fun() -> Callback:play(URL, Headers, Body) end) of
-    {ok, Info, Media} ->
-      erlang:monitor(process, Media),
+                       fun() -> Callback:play(URL, Headers, Body) end, Media) of
+    {ok, Info} ->
+      %%erlang:monitor(process, Media),
       %% Save Pid of producer here or in SETUP?
       Infos = [binary_to_list(URL) ++ "/" ++ Track
                ++ ";seq=" ++ integer_to_list(Seq)
@@ -402,7 +407,7 @@ handle_request({request, 'ANNOUNCE', URL, Headers, Body}, #rtsp_socket{callback 
   case Callback:announce(URL, Headers, Body) of
     {ok, Media} ->
       erlang:monitor(process, Media),
-      reply(State#rtsp_socket{session = "42", rtp = Media}, "200 OK", [{'Cseq', seq(Headers)}]);
+      reply(State#rtsp_socket{session = "42", media = Media}, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
@@ -422,7 +427,8 @@ handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = 
 handle_request({request, 'SETUP', URL, Headers, _},
                #rtsp_socket{addr = Addr, port = OPort,
                             sdp = SDP, session = Session,
-                            rtp = ProducerCtl} = State) ->
+                            rtp = ProducerCtl,
+                            media = Media} = State) ->
   ?DBG("Addr: ~p, OPort: ~p", [Addr, OPort]),
   OldTransport = proplists:get_value('Transport', Headers),
 
@@ -482,8 +488,9 @@ handle_request({request, 'SETUP', URL, Headers, _},
                   ProdCtlPid = ProducerCtl,
                   NewState = State;
                  true ->
+                  ?DBG("Start RTP process with media ~p", [Media]),
                   {ok, ProdCtlPid} =
-                    rtp_server:start_link(producer, {Stream}),
+                    rtp_server:start_link(Media),
                   ProducerRef = erlang:monitor(process, ProdCtlPid),
                   NewState = State#rtsp_socket{rtp = ProdCtlPid,
                                                rtp_ref = ProducerRef}
@@ -531,7 +538,7 @@ handle_request({request, 'TEARDOWN', _URL, Headers, _Body},
                #rtsp_socket{rtp = RTPProc} = State) ->
   if is_pid(RTPProc) ->
       ?DBG("Stop RTP Proc ~p", [RTPProc]),
-          rtp_server:stop(RTPProc, self());
+          rtp_server:stop(RTPProc);
      true -> pass
   end,
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]).
