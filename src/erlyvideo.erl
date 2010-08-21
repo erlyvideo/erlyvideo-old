@@ -66,7 +66,6 @@ start() ->
   % os_mon_mib:load(snmp_master_agent),
   % snmpa:load_mibs(snmp_master_agent, ["snmp/ERLYVIDEO-MIB"]),
 	application:start(rtmp),
-	application:start(ertp),
 	application:start(rtsp),
 	application:start(esip),
 
@@ -79,7 +78,6 @@ start() ->
 
   start_http(),
   start_rtmp(),
-  start_ertp(),
   start_rtsp(),
   start_esip(),
 	start_modules(),
@@ -122,10 +120,6 @@ start_esip() ->
       esip:start_server(ESIP, esip_listener1, ems_esip)
   end.
 
-start_ertp() ->
-  ertp:start_server(ertp_server1).
-
-
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -139,8 +133,6 @@ stop() ->
 	ems_script:stop(),
 	application:stop(erlyvideo),
 	application:unload(erlyvideo),
-	application:stop(ertp),
-	application:unload(ertp),
 	application:stop(rtsp),
 	application:unload(rtsp),
 	application:stop(rtmp),

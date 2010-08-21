@@ -56,7 +56,7 @@
 	uuid
   ]},
   {registered,   []},
-  {applications, [kernel,stdlib,crypto,ertp,rtsp,rtmp,esip,log4erl]},
+  {applications, [kernel,stdlib,crypto,rtsp,rtmp,esip,log4erl]},
   {mod, {erlyvideo, []}},
   {env, []}
  ]
