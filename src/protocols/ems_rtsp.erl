@@ -61,8 +61,17 @@ record(URL, Headers, _Body) ->
       ok
   end.
 
-describe(_URL, _Headers, _Body) ->
-  ok.
+describe(URL, Headers, _Body) ->
+  {Host, Path} = hostpath(URL),
+  ?D({"DESCRIBE", Host, Path, Headers}),
+  {Module, Function} = ems:check_app(Host, auth, 3),
+  case Module:Function(Host, rtsp, proplists:get_value('Authorization', Headers)) of
+    undefined ->
+      {error, authentication};
+    _Session ->
+      {ok, Media} = media_provider:open(Host, Path),
+      {ok, Media}
+  end.
 
 play(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
