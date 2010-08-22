@@ -94,7 +94,7 @@ parse(State, Data) ->
 parse_sip(Method, Request) ->
   case erlang:decode_packet(line, Request, []) of
     {ok, R, Rest} ->
-      {ok, Re} = re:compile("([^ ]+)\s+SIP/2\.0.*"),
+      {ok, Re} = re:compile("([^ ]+)\s+SIP/2\\.0.*"),
       {match, [_, URI]} = re:run(R, Re, [{capture, all, list}]),
       {ok, {sip, Method, URI}, Rest}
   end.
@@ -176,7 +176,8 @@ decode_headers(Data, Headers, BodyLength) ->
 %% @doc Called by {@link rtsp_socket. to encode outcoming RTSP/RTP/RTCP data}
 %% @end
 %%----------------------------------------------------------------------
-encode({rtcp, Channel, Bin}) ->
+encode({Type, Channel, Bin}) when Type =:= rtp;
+                                  Type =:= rtcp ->
   <<$$, Channel, (size(Bin)):16, Bin/binary>>.
 
 %%
