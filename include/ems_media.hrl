@@ -9,6 +9,8 @@
   audio_config,
   metadata,
   clients,
+  waiting_for_config = [],
+  frame_number = 0,
   source,
   source_ref,
   storage,

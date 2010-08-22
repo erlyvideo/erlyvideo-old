@@ -68,6 +68,7 @@
 
 
 -define(LIFE_TIMEOUT, 60000).
+-define(WAIT_FOR_CONFIG, 20).
 
 -export([behaviour_info/1]).
 
@@ -291,7 +292,7 @@ publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 decoder_config(Media) when is_pid(Media) ->
-  Timeout = 4000,
+  Timeout = 8000,
   gen_server:call(Media, decoder_config, Timeout).
 
 
@@ -433,7 +434,13 @@ handle_call({unsubscribe, Client}, _From, Media) ->
 handle_call({start, Client}, From, Media) ->
   handle_call({resume, Client}, From, Media);
 
-handle_call(decoder_config, _From, #ems_media{video_config = undefined, audio_config = undefined} = Media) ->
+handle_call(decoder_config, From, #ems_media{video_config = undefined, audio_config = undefined, storage = undefined,
+            frame_number = Number, waiting_for_config = Waiting} = Media) when Number < ?WAIT_FOR_CONFIG ->
+  ?D({"No decoder config in live stream, waiting"}),
+  {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}};
+
+handle_call(decoder_config, _From, #ems_media{video_config = undefined, audio_config = undefined, 
+            storage = Storage} = Media) when Storage =/= undefined ->
   Media1 = try_find_config(Media),
   {reply, {ok, [{audio,Media1#ems_media.audio_config},{video,Media1#ems_media.video_config}]}, Media1};
 
@@ -655,7 +662,7 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
       {stop, Reason, Media2}
   end;
 
-handle_info(#video_frame{} = Frame, #ems_media{} = Media) ->
+handle_info(#video_frame{} = Frame, Media) ->
   % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
   case transcode(Frame) of
     undefined ->
@@ -838,11 +845,26 @@ shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delt
   % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
   handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
 
-handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format, storage = Storage} = Media) ->
-  % ?D({Frame#video_frame.type, Frame#video_frame.frame_type, Frame#video_frame.dts}),
+handle_shifted_frame(#video_frame{dts = DTS} = Frame, 
+  #ems_media{format = Format, storage = Storage, frame_number = Number} = Media) ->
+  % ?D({Frame#video_frame.content, Number, Frame#video_frame.flavor, Frame#video_frame.dts}),
   start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
-  handle_config(Frame, Media#ems_media{storage = Storage1, last_dts = DTS}).
+  handle_config(Frame, Media#ems_media{storage = Storage1, last_dts = DTS, frame_number = Number + 1}).
+
+reply_with_decoder_config(#ems_media{frame_number = Number, audio_config = A, video_config = V,
+  waiting_for_config = Waiting} = Media) 
+  when length(Waiting) > 0 andalso ((A =/= undefined andalso V =/= undefined) orelse (Number >= ?WAIT_FOR_CONFIG)) ->
+  ?D({"Received live config replying to", Number, Waiting}),
+  Reply = {ok, [{audio,A},{video,V}]},
+  [gen_server:reply(From, Reply) || From <- Waiting],
+  Media#ems_media{waiting_for_config = []};
+
+reply_with_decoder_config(Media) ->
+  % ?D({ignoring, Media#ems_media.frame_number}),
+  Media.
+  
+
 
 handle_config(#video_frame{content = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
   {noreply, Media, ?TIMEOUT};
@@ -850,7 +872,7 @@ handle_config(#video_frame{content = video, body = Config}, #ems_media{video_con
 handle_config(#video_frame{content = audio, body = Config}, #ems_media{audio_config = #video_frame{body = Config}} = Media) -> 
   {noreply, Media, ?TIMEOUT};
 
-handle_config(#video_frame{content = video, flavor = config} = Config, #ems_media{} = Media) -> 
+handle_config(#video_frame{content = video, flavor = config} = Config, #ems_media{} = Media) ->
   handle_frame(Config, Media#ems_media{video_config = Config});
 
 handle_config(#video_frame{content = audio, flavor = config} = Config, #ems_media{} = Media) -> 
@@ -859,19 +881,21 @@ handle_config(#video_frame{content = audio, flavor = config} = Config, #ems_medi
 handle_config(Frame, Media) ->
   handle_frame(Frame, Media).
 
+
 handle_frame(#video_frame{content = Content} = Frame, #ems_media{module = M, clients = Clients} = Media) ->
-  case M:handle_frame(Frame, Media) of
-    {reply, F, Media1} ->
+  Media1 = reply_with_decoder_config(Media),
+  case M:handle_frame(Frame, Media1) of
+    {reply, F, Media2} ->
       case Content of
         audio -> send_frame(F, Clients, starting);
         _ -> ok
       end,
       send_frame(F, Clients, active),
-      {noreply, Media1, ?TIMEOUT};
-    {noreply, Media1} ->
-      {noreply, Media1, ?TIMEOUT};
-    {stop, Reason, Media1} ->
-      {stop, Reason, Media1}
+      {noreply, Media2, ?TIMEOUT};
+    {noreply, Media2} ->
+      {noreply, Media2, ?TIMEOUT};
+    {stop, Reason, Media2} ->
+      {stop, Reason, Media2}
   end.
 
 
