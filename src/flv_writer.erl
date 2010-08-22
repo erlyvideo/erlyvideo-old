@@ -57,6 +57,8 @@
 
 -record(flv_file_writer, {
   writer,
+  buffer_size = 50,
+  buffer = [],
   base_dts
 }).
 
@@ -110,25 +112,60 @@ init_file(FileName) ->
   end.
 
 %% @hidden	
-writer(#flv_file_writer{} = FlvWriter) ->
+writer(FlvWriter) ->
   receive
-    #video_frame{} = Frame ->
-      {ok, FlvWriter1} = write_frame(Frame, FlvWriter),
-      ?MODULE:writer(FlvWriter1);
-    Message ->
-      Message
+    Message -> handle_message(Message, FlvWriter)
   end.
+
+
+write_frame(#video_frame{} =  Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
+  store_message(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}).
+
+  
+handle_message(#video_frame{} = Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
+  {ok, FlvWriter1} = store_message(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}),
+  ?MODULE:writer(FlvWriter1);
+  
+handle_message(Message, FlvWriter) ->
+  flush_messages(FlvWriter, hard),
+  Message.
+  
+store_message(#flv_file_writer{buffer = Buffer, buffer_size = Size} = FlvWriter) when length(Buffer) >= Size ->
+  FlvWriter1 = flush_messages(FlvWriter, soft),
+  {ok, FlvWriter1};
+
+store_message(FlvWriter) ->
+  {ok, FlvWriter}.
+
+flush_messages(#flv_file_writer{buffer = Buffer} = FlvWriter, How) ->
+  Sorted = lists:ukeysort(#video_frame.dts, Buffer),
+  % case Sorted of
+  %   Buffer -> ?D({"Frames in order", length(Sorted)}), ok;
+  %   _ -> ?D({"Frame reordering work", length(Sorted)}), ok
+  % end,
+  
+  {Disk,Mem} = case How of 
+    soft -> lists:split(length(Buffer) div 2, Sorted);
+    hard -> {Sorted, []}
+  end,
+  FlvWriter1 = lists:foldl(fun(Frame, Writer) ->
+    {ok, Writer1} = dump_frame_in_file(Frame, Writer),
+    Writer1
+  end, FlvWriter, Disk),
+  FlvWriter1#flv_file_writer{buffer = Mem}.
+  
+
   
 %%-------------------------------------------------------------------------
 %% @spec (Frame, Writer) -> {ok, NewWriter}
 %% @doc  Writes one flv frame
 %% @end
 %%-------------------------------------------------------------------------
-write_frame(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined, writer = Writer} = FlvWriter) ->
+dump_frame_in_file(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined, writer = Writer} = FlvWriter) ->
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = 0, pts = 0})),
   {ok, FlvWriter#flv_file_writer{base_dts = DTS}};
   
-write_frame(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
+dump_frame_in_file(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS, pts = PTS - BaseDTS})),
   {ok, FlvWriter}.
 
