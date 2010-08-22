@@ -66,6 +66,7 @@
   stream_id,
   last_sr,
   codec,
+  offset_f,
   h264 = #h264{},
   broken = false,
   buffer = []
@@ -83,6 +84,7 @@
   stream_id,
   last_sr,
   codec,
+  offset_f,
   audio_rate,
   audio_headers = <<>>,
   audio_data = <<>>
@@ -248,33 +250,31 @@ handle_info({send_sr, Type},
     audio ->
       case AudioDesc of
         #desc{method = MDesc, state = BaseRTP} ->
-          {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
+          RTCP = encode(sender_report, BaseRTP),
           case MDesc of
             #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
               send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
             #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
               send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
-          end,
-          NewState = State#state{audio = AudioDesc#desc{state = NewBaseRTP}};
+          end;
         _ ->
-          NewState = State
+          pass
       end;
     video ->
       case VideoDesc of
         #desc{method = MDesc, state = BaseRTP} ->
-          {NewBaseRTP, RTCP} = encode(sender_report, BaseRTP),
+          RTCP = encode(sender_report, BaseRTP),
           case MDesc of
             #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
               send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
             #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
               send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
-          end,
-          NewState = State#state{video = VideoDesc#desc{state = NewBaseRTP}};
+          end;
         _ ->
-          NewState = State
+          pass
       end
   end,
-  {noreply, NewState};
+  {noreply, State};
 
 handle_info(#video_frame{content = audio, flavor = frame,
                          codec = Codec, sound = {_Channel, _Size, _Rate},
@@ -298,6 +298,15 @@ handle_info(#video_frame{content = audio, flavor = frame,
   end,
   {noreply, NewState};
 
+handle_info(#video_frame{content = audio, flavor = config},
+            #state{} = State) ->
+  %% Ignore
+  {noreply, State};
+
+handle_info(#video_frame{content = metadata},
+            #state{} = State) ->
+  %% Ignore
+  {noreply, State};
 
 handle_info(#video_frame{content = video, flavor = Flavor,
                          codec = Codec, body = Body},
@@ -462,19 +471,19 @@ presync(Streams, [], _N, _Now) ->
 presync(Streams, [_RTP | Info], N, Now) when element(N, Streams) == undefined ->
   presync(Streams, Info, N+2, Now);
 
+
 presync(Streams, [RTP | Info], N, Now) ->
   {Type, Stream} = element(N, Streams),
 
   RTPSeq = proplists:get_value("seq", RTP),
   RTPTime = proplists:get_value("rtptime", RTP),
   % ?D({"Presync", RTPSeq, RTPTime}),
-  Stream1 =
-    Stream#base_rtp{sequence = list_to_integer(RTPSeq) - 2,
-                    base_timecode = list_to_integer(RTPTime),
-                    timecode = list_to_integer(RTPTime),
-                    synced = true,
-                    wall_clock = Now},
-  presync(setelement(N, Streams, {Type, Stream1}), Info, N+2, Now).
+  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 2),
+  Stream2 = setelement(#base_rtp.base_timecode, Stream1, list_to_integer(RTPTime)),
+  Stream3 = setelement(#base_rtp.timecode, Stream2, list_to_integer(RTPTime)),
+  Stream4 = setelement(#base_rtp.synced, Stream3, true),
+  Stream5 = setelement(#base_rtp.wall_clock, Stream4, Now),
+  presync(setelement(N, Streams, {Type, Stream5}), Info, N+2, Now).
 
 config_media(Streams) -> config_media(Streams, [], []).
 
@@ -614,14 +623,13 @@ decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Se
 
 
 convert_timecode(State) ->
-  Timecode = State#base_rtp.timecode,
-  ClockMap = State#base_rtp.clock_map,
-  BaseTimecode = State#base_rtp.base_timecode,
-  WallClock = State#base_rtp.wall_clock,
-  _BaseWallClock = State#base_rtp.base_wall_clock,
+  Timecode = element(#base_rtp.timecode, State),
+  ClockMap = element(#base_rtp.clock_map, State),
+  BaseTimecode = element(#base_rtp.base_timecode, State),
+  WallClock = element(#base_rtp.wall_clock, State),
+  _BaseWallClock = element(#base_rtp.base_wall_clock, State),
   % ?D({"TC", WallClock, Timecode, BaseTimecode, ClockMap}),
   WallClock + (Timecode - BaseTimecode)/ClockMap.
-
 
 %%
 %% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
@@ -629,12 +637,11 @@ convert_timecode(State) ->
 %% or google:  RTCP Sender Report
 rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  _ClockMap = State#base_rtp.clock_map,
-  State1 =
-    case State#base_rtp.base_wall_clock of
-      undefined -> State#base_rtp{base_wall_clock = WallClock - 2000};
-      _ -> State
-    end,
+  _ClockMap = element(#base_rtp.clock_map, State),
+  State1 = case element(#base_rtp.base_wall_clock, State) of
+    undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
+    _ -> State
+  end,
   State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
   State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
   State4 = case element(#base_rtp.base_timecode, State) of
@@ -954,16 +961,16 @@ encode(receiver_report, State) ->
   LSR = element(#base_rtp.last_sr, State),
   DLSR = 0,
   % ?D({rr, StreamId, MaxSeq, LSR}),
-  {State, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>};
+  <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>;
 
 encode(sender_report, #base_rtp{stream_id = StreamId,
                                 media = _Type,
                                 timecode = Timestamp,
                                 packets = SPC,
-                                bytes = SOC} = State) ->
+                                bytes = SOC}) ->
   Count = 0,
   {MSW, LSW} = get_date(),
   Packet = <<StreamId:32, MSW:32, LSW:32, Timestamp:32, SPC:32, SOC:32>>,
   Length = trunc(size(Packet)/4),
   Header = <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16>>,
-  {State, <<Header/binary,Packet/binary>>}.
+  <<Header/binary,Packet/binary>>.
