@@ -24,9 +24,10 @@
 -module(sdp).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--export([decode/1, encode/2]).
+-export([decode/1, encode/2, prep_media_config/2]).
 -include("../include/sdp.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 -include("log.hrl").
 
 %%----------------------------------------------------------------------
@@ -318,6 +319,51 @@ codec2bin(C) ->
     pcm -> <<"L16">>
   end.
 
+prep_media_config({video,
+                   #video_frame{content = video,
+                                flavor = config,
+                                codec = h264 = Codec,
+                                body = Body}}, Opts) ->
+  {_, [SPS, PPS]} = h264:unpack_config(Body),
+  #media_desc{type = video,
+              port = 0,
+              payload = 96,
+              clock_map = 90000,
+              track_control = proplists:get_value(video, Opts, "1"),
+              codec = Codec,
+              config = ["packetization-mode=1;"
+                        "profile-level-id=64001e;"
+                        "sprop-parameter-sets=",
+                        base64:encode(SPS), $,, base64:encode(PPS)]};
+prep_media_config({audio,
+                   #video_frame{content = audio,
+                                flavor = config,
+                                codec = aac = Codec,
+                                sound = {Channs, Size, Rate},
+                                body = Body}}, Opts) ->
+  <<ConfigVal:2/big-integer-unit:8>> = Body,
+  #media_desc{type = audio,
+              port = 0,
+              payload = 97,
+              clock_map = rate2num(Rate),
+              track_control = proplists:get_value(audio, Opts, "2"),
+              codec = Codec,
+              config = ["streamtype=5;"
+                        "profile-level-id=15;"
+                        "mode=AAC-hbr;"
+                        "config=",
+                        erlang:integer_to_list(ConfigVal, 16) ++ ";",
+                        "SizeLength=13;"
+                        "IndexLength=3;"
+                        "IndexDeltaLength=3;"
+                        "Profile=1;"]}.
+
+rate2num(Rate) ->
+  case Rate of
+    rate11 -> 11025;
+    rate22 -> 22050;
+    rate44 -> 44100
+  end.
 
 % Example of SDP:
 %
