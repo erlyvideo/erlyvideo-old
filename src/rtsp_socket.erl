@@ -310,57 +310,11 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
                                {control, "*"},
                                {range, "npt=0-"}
                               ]},
-       MediaVideo =
-        #media_desc{type = video,
-                    port = 0,
-                    payload = 96,
-                    clock_map = 90000,
-                    track_control = "trackID=1",
-                    codec = h264,
-                    %%config = "profile-level-id=3; config=000001b001000001b58913000001000000012000c48d88007d0a041e1463;"
-                    config = "packetization-mode=1;profile-level-id=64001e;sprop-parameter-sets=Z2QAHqw07A1D2hAAAD6QAAu4CPFi04A=,aO6yyLA="
-                   },
-       MediaAudio =
-        #media_desc{type = audio,
-                    port = 0,
-                    %%payload = 11,
-                    payload = 97,
-                    clock_map = 44100,
-                    %%clock_map = 90000,
-                    track_control = "trackID=2",
-                    %%codec = pcm
-                    codec = aac,
-                    config = "streamtype=5; profile-level-id=15; mode=AAC-hbr; config=1210; SizeLength=13;IndexLength=3; IndexDeltaLength=3; Profile=1;"
-                   },
-
-
-      SDP = sdp:encode(SessionDesc, [MediaVideo, MediaAudio]),
-      %%SDP = sdp:encode(SessionDesc, [MediaAudio]),
+      Opts = [{video, "trackID=1"},{audio, "trackID=2"}],
+      MediaConfig = [sdp:prep_media_config(F, Opts) || F <- MediaParams],
+      ?DBG("MediaConfig:~n~p", [MediaConfig]),
+      SDP = sdp:encode(SessionDesc, MediaConfig),
       ?DBG("SDP:~n~p", [SDP]),
-      %% SDP =
-      %%   <<"v=0\n",
-      %%     "o=- 1275067839203788 1 IN IP4 0.0.0.0\n",
-      %%     "s=Session streamed by Erlyvideo\n",
-      %%     "i=h264\n",
-      %%     "t=0 0\n",
-      %%     "c=IN IP4 0.0.0.0\n"
-      %%     "a=tool:LIVE555 Streaming Media v2008.04.09\n",
-      %%     "a=type:broadcast\n",
-      %%     "a=control:*\n",
-      %%     "a=range:npt=0-\n",
-      %%     "m=video 0 RTP/AVP 96\n",
-      %%     %%"b=AS:50000\n",
-      %%     "b=RR:0\n",
-      %%     "a=rtpmap:96 H264/90000\n",
-      %%     "a=control:trackID=1\n",
-      %%     "a=framerate:25.000000\n",
-      %%     "m=audio 0 RTP/AVP 97\n",
-      %%     %%"b=AS:32\n",
-      %%     "b=RR:0\n",
-      %%     "a=control:trackID=2\n",
-      %%     "a=rtpmap:97 mpeg4-generic/16000/1\n",
-      %%     %%"a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;\n"
-      %%   >>,
       reply(State#rtsp_socket{sdp = sdp:decode(SDP), media = Media}, "200 OK",
             [
              {'Server', ?SERVER_NAME},
