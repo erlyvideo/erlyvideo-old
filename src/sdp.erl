@@ -118,7 +118,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
         g726_16 -> 8000;
         _ -> list_to_integer(ClockMap1)
       end,
-      Stream#media_desc{clock_map = ClockMap, codec = Codec};
+      Stream#media_desc{clock_map = ClockMap/1000, codec = Codec};
     "control" ->
       Stream#media_desc{track_control = Value};
     "fmtp" ->
