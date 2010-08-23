@@ -22,6 +22,7 @@
 {"deps/mpegts/src/*", [debug_info, {outdir, "deps/mpegts/ebin"}, {i, "deps/mpegts/src"}, {i, "deps"}]}.
 {"deps/rtmp/src/*", [debug_info, {outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"},{i,"deps"}]}.
 {"deps/ertsp/src/*", [debug_info, {outdir, "deps/ertsp/ebin"}, {i, "deps/ertsp/src"}, {i, "deps"}]}.
+{"deps/ertp/src/*", [debug_info, {outdir, "deps/ertp/ebin"}, {i, "deps/ertp/src"}, {i, "deps/ertp/include"}, {i, "deps"}]}.
 {"deps/log4erl/src/*", [debug_info, {outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.
 {"deps/erlydtl/src/erlydtl/*", [debug_info, {outdir, "deps/erlydtl/ebin"}, {i, "deps/erlydtl/include"}]}.
 % , bin_opt_info, 
