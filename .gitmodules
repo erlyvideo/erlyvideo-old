@@ -31,6 +31,3 @@
 [submodule "deps/ertp"]
 	path = deps/ertp
 	url = git@github.com:erlyvideo/ertp.git
-[submodule "deps/esip"]
-	path = deps/esip
-	url = git@github.com:erlyvideo/esip.git
