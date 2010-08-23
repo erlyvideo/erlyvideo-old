@@ -26,8 +26,8 @@
 -include("../include/ems.hrl").
 -behaviour(supervisor).
 
--export ([init/1,start_link/0]).
--export ([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
+-export([init/1,start_link/0]).
+-export([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
           start_http_server/1, start_ticker/3]).
 
