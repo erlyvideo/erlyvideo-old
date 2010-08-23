@@ -134,7 +134,7 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
     [] -> "";
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
   end,
-  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, rtp = Consumer, rtp_ref = Ref, socket = Socket, auth = Auth}};
+  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, socket = Socket, auth = Auth}};
 
 handle_call({consume, Consumer}, _From, #rtsp_socket{rtp_ref = OldRef} = RTSP) ->
   (catch erlang:demonitor(OldRef)),
@@ -265,7 +265,7 @@ reply_pending(#rtsp_socket{pending = From} = Socket) ->
 configure_rtp(Socket, _Headers, undefined) ->
   Socket;
 
-configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, rtp = Consumer} = Socket, Headers, Body) ->
+configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, media = Consumer} = Socket, Headers, Body) ->
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       io:format("~s~n", [Body]),
@@ -323,6 +323,9 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
             ], SDP)
   end;
 
+handle_request({request, 'PLAY', _URL, Headers, _Body}, #rtsp_socket{rtp = undefined} = State) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+
 handle_request({request, 'PLAY', URL, Headers, Body},
                #rtsp_socket{callback = Callback, session = Session,
                             media = Media, rtp = ProducerCtl} = State) ->
@@ -360,8 +363,9 @@ handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
 handle_request({request, 'ANNOUNCE', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
   case Callback:announce(URL, Headers, Body) of
     {ok, Media} ->
+      ?D({"Announced to", Media}),
       erlang:monitor(process, Media),
-      reply(State#rtsp_socket{session = "42", media = Media}, "200 OK", [{'Cseq', seq(Headers)}]);
+      reply(State#rtsp_socket{session = 42, media = Media}, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
@@ -587,7 +591,7 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
 reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FRAMES_BUFFER ->
   Socket;
 
-reorder_frames(#rtsp_socket{frames = Frames, rtp = Consumer} = Socket) ->
+reorder_frames(#rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
   Ordered = lists:sort(fun frame_sort/2, Frames),
   % case Ordered of
   %   Frames -> ok;
