@@ -67,7 +67,6 @@ start() ->
   % snmpa:load_mibs(snmp_master_agent, ["snmp/ERLYVIDEO-MIB"]),
 	application:start(rtmp),
 	application:start(rtsp),
-	application:start(esip),
 
 	application:load(erlyvideo),
 	load_config(),
@@ -79,7 +78,6 @@ start() ->
   start_http(),
   start_rtmp(),
   start_rtsp(),
-  start_esip(),
 	start_modules(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
@@ -112,14 +110,6 @@ start_rtsp() ->
       rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
   end.
 
-start_esip() ->
-  case ems:get_var(sip_port, undefined) of
-    undefined ->
-      ok;
-    ESIP when is_integer(ESIP) ->
-      esip:start_server(ESIP, esip_listener1, ems_esip)
-  end.
-
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -137,8 +127,6 @@ stop() ->
 	application:unload(rtsp),
 	application:stop(rtmp),
 	application:unload(rtmp),
-	application:stop(esip),
-	application:unload(esip),
   ems_log:stop(),
 	ok.
 
@@ -158,7 +146,6 @@ reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   RTSP = ems:get_var(rtsp_port, undefined),
   HTTP = ems:get_var(http_port, undefined),
-  SIP = ems:get_var(sip_port, undefined),
   ems_vhosts:stop(),
   load_config(),
   ems_vhosts:start(),
@@ -189,15 +176,6 @@ reconfigure() ->
       supervisor:terminate_child(rtsp_sup, rtsp_listener1),
       supervisor:delete_child(rtsp_sup, rtsp_listener1),
       {ok, _} = start_rtsp()
-  end,
-  case {SIP, ems:get_var(sip_port, undefined)} of
-    {undefined, undefined} -> ok;
-    {SIP, SIP} -> ok;
-    {undefined, _} -> {ok, _} = start_esip();
-    _ ->
-      supervisor:terminate_child(esip_sup, esip_listener1),
-      supervisor:delete_child(esip_sup, esip_listener1),
-      {ok, _} = start_esip()
   end,
   ok.
 
