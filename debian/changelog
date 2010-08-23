@@ -1,4 +1,4 @@
-log4erl (0.8.6-3) karmic; urgency=low
+log4erl (0.8.6-3) lucid; urgency=low
 
   Changed dependency to erlang-nox
 
