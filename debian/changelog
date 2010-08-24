@@ -1,4 +1,10 @@
-erlang-shoutcast (1.2.1) karmic; urgency=low
+erlang-shoutcast (1.2.2) lucid; urgency=low
+
+  erlang dependency
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:23:51 +0400
+
+erlang-shoutcast (1.2.1) lucid; urgency=low
 
   Changed erlang dependency
 
