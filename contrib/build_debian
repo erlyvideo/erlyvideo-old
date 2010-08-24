@@ -116,7 +116,7 @@ EOF
   end
   
   def build_debian
-    `(cd #{path}; debuild -us -uc)`
+    `(cd #{path}; debuild --no-tgz-check -us -uc)`
   end
   
   def upload_launchpad
