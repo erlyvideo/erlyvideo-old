@@ -1,9 +1,7 @@
-VERSION:=`head -1 debian/changelog | sed -e 's/.*\(([^\)]+)\).*/\1/'`
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/log4erl-$(VERSION)
-BEAMDIR=$(RTMPDIR)/ebin/
-SRCDIR=$(RTMPDIR)/src/
-INCLUDEDIR=$(RTMPDIR)/include/
-DEBIANREPO=/apps/erlyvideo/debian/public
+include debian/version.mk
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR=$(ERLANG_ROOT)/lib/log4erl-$(VERSION)
+
 DESTROOT=$(CURDIR)/debian/log4erl
 
 SRC = src
@@ -33,14 +31,6 @@ install:
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
-debian:
-	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
-	dput erly ../log4erl_$(VERSION)_source.changes
-	debuild -us -uc
-	cp ../log4erl_$(VERSION)*.deb $(DEBIANREPO)/binary/
-	rm ../log4erl_$(VERSION)*
-	(cd $(DEBIANREPO)/..; ./update)
 
-
-.PHONY: doc debian
+.PHONY: doc
 
