@@ -1,7 +1,7 @@
-VERSION=`head -1 debian/changelog | sed -e 's/.*\(([^\)]+)\).*/\1/'`
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/shoutcast-$(VERSION)
+include debian/version.mk
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR=$(ERLANG_ROOT)/lib/shoutcast-$(VERSION)
 
-DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-shoutcast
 
 all:
@@ -18,14 +18,6 @@ install:
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin/
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
 
-debian:
-	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
-	dput erly ../erlang-shoutcast_$(VERSION)_source.changes
-	debuild -us -uc
-	cp ../erlang-shoutcast_$(VERSION)*.deb $(DEBIANREPO)/binary/
-	rm ../erlang-shoutcast_$(VERSION)*
-	(cd $(DEBIANREPO)/..; ./update)
-	
 
 .PHONY: debian
 
