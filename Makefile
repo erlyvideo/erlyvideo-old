@@ -1,9 +1,11 @@
-VERSION := `head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
+include debian/version.mk
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR=$(ERLANG_ROOT)/lib/mpegts-$(VERSION)
+
 NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
-ERLDIR := `erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/mpegts-$(VERSION)
 NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
-DEBIANREPO=/apps/erlyvideo/debian/public
+
 DESTROOT=$(CURDIR)/debian/erlang-mpegts
 
 
@@ -34,13 +36,6 @@ install:
 	install -c -m 644 ebin/*.so $(DESTROOT)$(ERLDIR)/ebin/
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
 
-debian:
-	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
-	dput erly ../erlang-mpegts_$(VERSION)_source.changes
-	(debuild -us -uc; cp ../erlang-mpegts_$(VERSION)*.deb $(DEBIANREPO)/binary/; true)
-	rm ../erlang-mpegts_$(VERSION)*
-	(cd $(DEBIANREPO)/..; ./update)
-	
 test:
 	ERL_LIBS=.. erl -pa ebin -s mpegts_reader test -s init stop -noinput -noshell
 
