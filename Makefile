@@ -1,8 +1,6 @@
-VERSION := `head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
-RTMPDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlydtl-$(VERSION)
-BEAMDIR=$(RTMPDIR)/ebin/
-SRCDIR=$(RTMPDIR)/src/
-DEBIANREPO=/apps/erlyvideo/debian/public
+include debian/version.mk
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+PACKAGE_DIR = $(ERLANG_ROOT)/lib/erlydtl-$(VERSION)
 DESTROOT=$(CURDIR)/debian/erlydtl
 
 ERL=erl
@@ -38,22 +36,14 @@ clean:
 	rm -fv erl_crash.dump $(PARSER).erl
 
 install:
-	mkdir -p $(DESTROOT)$(BEAMDIR)
-	mkdir -p $(DESTROOT)$(SRCDIR)/erlydtl
-	mkdir -p $(DESTROOT)$(SRCDIR)/tests
-	install -c -m 644 ebin/*.beam $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 src/erlydtl/*.app $(DESTROOT)$(BEAMDIR)
-	install -c -m 644 src/erlydtl/* $(DESTROOT)$(SRCDIR)erlydtl/
-	install -c -m 644 src/tests/* $(DESTROOT)$(SRCDIR)tests/
-
-debian:
-	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
-	dput erly ../erlydtl_$(VERSION)_source.changes
-	debuild -us -uc
-	cp ../erlydtl_$(VERSION)*.deb $(DEBIANREPO)/binary/
-	rm ../erlydtl_$(VERSION)*
-	(cd $(DEBIANREPO)/..; ./update)
+	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/ebin
+	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/src/erlydtl
+	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/src/tests
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(PACKAGE_DIR)/ebin
+	install -c -m 644 src/erlydtl/*.app $(DESTROOT)$(PACKAGE_DIR)/ebin
+	install -c -m 644 src/erlydtl/* $(DESTROOT)$(PACKAGE_DIR)/src/erlydtl/
+	install -c -m 644 src/tests/* $(DESTROOT)$(PACKAGE_DIR)/src/tests/
 
 
-.PHONY: doc debian
+.PHONY: doc
 
