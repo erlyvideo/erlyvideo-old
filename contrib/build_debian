@@ -6,6 +6,10 @@ class Repository
   
   attr_reader :path
   
+  def repo_path
+    "/apps/erlyvideo/debian/public"
+  end
+  
   def initialize(path)
     @path = path
   end
@@ -14,6 +18,10 @@ class Repository
     tag = `(cd #{path}; git tag -n1 -l| sort -V | tail -1)`.strip
     tag =~ /v([^\ ]+) [\ ]*(.*)/
     [$1, $2]
+  end
+  
+  def version
+    @version ||= last_version.first
   end
   
   def changes
@@ -42,7 +50,7 @@ EOF
   end
   
   def name
-    changelog.first.name
+    @name ||= changelog.first.name
   end
   
   def repository
@@ -102,18 +110,53 @@ EOF
   end
   
   def commit_debian
-    version, log = last_version
     `(cd #{path}; git checkout master; git pull; git add debian; git commit -m 'debian #{version}'; git push; git push --tags)`
   end
   
-  def make_debian
+  def build_debian
+    `(cd #{path}; debuild -us -uc)`
+  end
+  
+  def upload_launchpad
+    `dput erly #{path}/../#{name}_#{version}_source.changes` if File.exists?(File.expand_path("~/.dput.cf"))
+  end
+  
+  def upload_erlyvideo
+    return unless File.exists?(repo_path)
+    Dir["#{path}/../#{name}_#{version}_*.deb"].each do |deb|
+      FileUtils.cp(deb, "#{repo_path}/binary/")
+    end
+    Dir["#{path}/../#{name}_#{version}.*"].each do |deb|
+      FileUtils.cp(deb, "#{repo_path}/source/")
+    end
+    `(cd #{repo_path}/..; ./update)`
+  end
+  
+  def cleanup
+    Dir["#{path}/../#{name}_#{version}*"] {|file| File.unlink(file)}
+  end
+  
+  def debianize
+    new_version = false
     if prepend_changelog
       commit_debian
-      `(cd #{path}; make debian)`
+      new_version = true
+    end
+    build_debian
+    upload_launchpad if new_version
+    upload_erlyvideo
+    cleanup
+  end
+  
+  def self.debianize_all
+    root = File.dirname(__FIlE__)+"/../"
+    deps = %w(amf erlmedia erlydtl ertp ertsp log4erl mpegts rtmp shoutcast)
+    ([root] + deps.map {|dep| "#{root}/deps/#{dep}"}).each do |repo|
+      Repository.new(repo).debianize
     end
   end
 end
 
 repo = Repository.new(ARGV[0])
-repo.send(ARGV[1].to_sym)
+repo.send(ARGV[1] ? ARGV[1].to_sym : :debianize)
 
