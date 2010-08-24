@@ -1,3 +1,9 @@
+log4erl (0.8.6-4) lucid; urgency=low
+
+  change debian build
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:29:15 +0400
+
 log4erl (0.8.6-3) lucid; urgency=low
 
   Changed dependency to erlang-nox
