@@ -1,4 +1,10 @@
-erlang-rtmp (1.7.4) karmic; urgency=low
+erlang-rtmp (1.7.5) lucid; urgency=low
+
+  Change debian dependency
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:25:20 +0400
+
+erlang-rtmp (1.7.4) lucid; urgency=low
 
   Better rtmp_mon check
 
