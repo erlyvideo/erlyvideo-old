@@ -1,4 +1,10 @@
-erlydtl (0.5.3-4) karmic; urgency=low
+erlydtl (0.5.3-5) lucid; urgency=low
+
+  update debian build
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:33:16 +0400
+
+erlydtl (0.5.3-4) lucid; urgency=low
 
   changed dependency to erlang-nox
 
