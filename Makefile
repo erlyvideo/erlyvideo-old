@@ -1,8 +1,7 @@
-VERSION := $(shell head -1 debian/changelog | sed -e 's/.*\(([^)]+)\).*/\1/')
+include debian/version.mk
 ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 ERLDIR=$(ERLANG_ROOT)/lib/erlmedia-$(VERSION)
 
-DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlmedia
 
 all:
@@ -21,14 +20,6 @@ install:
 	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
-debian:
-	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
-	dput erly ../erlmedia_$(VERSION)_source.changes
-	debuild -us -uc
-	cp ../erlmedia_$(VERSION)*.deb $(DEBIANREPO)/binary/
-	rm ../erlmedia_$(VERSION)*
-	(cd $(DEBIANREPO)/..; ./update)
-	
 
 .PHONY: debian
 
