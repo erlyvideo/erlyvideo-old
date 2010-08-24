@@ -1,7 +1,7 @@
-VERSION=`head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/ertsp-$(VERSION)
+include debian/version.mk
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR=$(ERLANG_ROOT)/lib/ertsp-$(VERSION)
 
-DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlang-rtsp
 
 all: compile doc
@@ -28,14 +28,4 @@ install:
 doc: src/*.erl
 	erl -pa ebin -s rtsp edoc -s init stop -noinput -noshell
 
-debian:
-	dpkg-buildpackage -rfakeroot -D -i -I -S -sa
-	dput erly ../erlang-rtsp_$(VERSION)_source.changes
-	debuild -us -uc
-	cp ../erlang-rtsp_$(VERSION)*.deb $(DEBIANREPO)/binary/
-	rm ../erlang-rtsp_$(VERSION)*
-	(cd $(DEBIANREPO)/..; ./update)
-	
-
-.PHONY: debian
-
+.PHONY: doc
