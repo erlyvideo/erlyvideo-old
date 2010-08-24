@@ -1,18 +1,18 @@
-VERSION:=$(shell head -1 debian/changelog | ruby -e 'puts STDIN.readlines.first[/\(([\d\.]+)\)/,1]')
-REQUIRED_ERLANG:=R14
-ERLANG_VERSION:=$(shell erl -eval 'io:format("~s", [erlang:system_info(otp_release)])' -s init stop -noshell)
-ERLDIR:=$(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)/lib/erlyvideo-$(VERSION)
-DEBIANREPO:=/apps/erlyvideo/debian/public
+include debian/version.mk
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
 ERL_LIBS:=deps:lib:plugins:..
 
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: snmp compile doc
+all: snmp compile plugins doc
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
+
+plugins:
 	[ -d deps/rtmp ] && for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && $(MAKE) -f Makefile) ; done; true
 	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps $(MAKE) -C $$plugin; done
 
@@ -28,10 +28,6 @@ doc:
 	mkdir -p doc/html
 	cp -f doc/*.png doc/html/
 	erl -pa ebin -s erlyvideo edoc -s init stop -noinput -noshell
-
-erlang_version:
-	@[ "$(ERLANG_VERSION)" '<' "$(REQUIRED_ERLANG)" ] && (echo "You are using too old erlang: $(ERLANG_VERSION), upgrade to $(REQUIRED_ERLANG)"; exit 1) || true
-
 
 archive: ../erlyvideo-$(VERSION).tgz
 
@@ -85,14 +81,6 @@ install: compile
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
 	cp -r snmp $(DESTROOT)/var/lib/erlyvideo/
-
-
-debian: all
-	dpkg-buildpackage -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog -S -sa
-	dput erly ../erlyvideo_$(VERSION)_source.changes
-	(debuild -us -uc; cp ../erlyvideo_$(VERSION)*.deb  $(DEBIANREPO)/binary/; true)
-	rm ../erlyvideo_$(VERSION)*
-	(cd $(DEBIANREPO); ../update)
 
 
 .PHONY: doc debian compile snmp

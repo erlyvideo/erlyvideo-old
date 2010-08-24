@@ -1,3 +1,9 @@
+erlyvideo (2.1.0) karmic; urgency=low
+
+  Output RTP
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:52:41 +0400
+
 erlyvideo (2.0.12) karmic; urgency=low
 
   Proper flv writing. source_timeout=shutdown option
