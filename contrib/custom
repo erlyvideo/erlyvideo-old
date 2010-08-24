@@ -1,8 +1,11 @@
 #!/bin/bash
 
-cd /apps/erlyvideo/debian/public
-dpkg-scanpackages -m binary > binary/Packages
-cd binary
+Package()
+{
+echo $1
+cd $1
+dpkg-scanpackages -m $2 > $2/Packages
+cd $2
 #dpkg-scansources . > Sources
 gzip -9c Packages > Packages.gz
 #gzip -c Sources > Sources.gz
@@ -13,7 +16,7 @@ Label: Erlyvideo
 Archive: stable
 Architectures: i386 amd64 all source
 Components: net
-Suite: binary
+Suite: $2
 Version: 9.10
 Description: Erlyvideo streaming server http://erlyvideo.org/
 MD5Sum:" > Release
@@ -30,4 +33,7 @@ rm -f Release.tmp
 
 rm -f Release.gpg
 gpg -sbao Release.gpg Release
+}
+
+Package /apps/erlyvideo/debian/public $1
 
