@@ -1,5 +1,6 @@
-VERSION=`head -1 debian/changelog | sed -e 's/.*\(([^)]+)\).*/\1/'`
-ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/erlmedia-$(VERSION)
+VERSION := $(shell head -1 debian/changelog | sed -e 's/.*\(([^)]+)\).*/\1/')
+ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
+ERLDIR=$(ERLANG_ROOT)/lib/erlmedia-$(VERSION)
 
 DEBIANREPO=/apps/erlyvideo/debian/public
 DESTROOT=$(CURDIR)/debian/erlmedia
