@@ -52,7 +52,7 @@ clean-doc:
 	rm -fv doc/*.css
 
 
-run: erlang_version priv/erlyvideo.conf priv/log4erl.conf
+run: priv/erlyvideo.conf priv/log4erl.conf
 	contrib/erlyctl run
 
 priv/log4erl.conf: priv/log4erl.conf.sample
@@ -61,7 +61,7 @@ priv/log4erl.conf: priv/log4erl.conf.sample
 priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 	
-start: erlang_version priv/erlyvideo.conf
+start: priv/erlyvideo.conf
 	contrib/erlyctl start
 
 install: compile
