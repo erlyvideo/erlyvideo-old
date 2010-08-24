@@ -1,4 +1,10 @@
-erlang-mpegts (2.3.2) karmic; urgency=low
+erlang-mpegts (2.3.3) lucid; urgency=low
+
+  updated debian
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:26:41 +0400
+
+erlang-mpegts (2.3.2) lucid; urgency=low
 
   Fixed huge bug with AAC extraction
 
