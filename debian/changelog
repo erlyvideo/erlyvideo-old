@@ -1,4 +1,10 @@
-erlmedia (1.6.4) karmic; urgency=low
+erlmedia (1.7.0) lucid; urgency=low
+
+  Updated writer. Added rtsp parser
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 24 Aug 2010 11:38:03 +0400
+
+erlmedia (1.6.4) lucid; urgency=low
 
   Huge fixed in mp4 reading
 
