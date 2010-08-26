@@ -39,7 +39,7 @@
   ?D({"FCpublish", Name}),
   State.
 
-'FCUnpublish'(State, #rtmp_funcall{args = [null, FullName]} = AMF) ->
+'FCUnpublish'(State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
   {RawName, _Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   ?D({"FCunpublish", Name}),
@@ -53,9 +53,10 @@ real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = St
   {RawName, Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   Options1 = extract_publish_args(Args1),
-  Options = lists:ukeymerge(1, [{type,live}], Options1),
+  Options = lists:ukeymerge(1, Options1, [{type,Type}]),
   
-  ems_log:access(Host, "RECORD ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
+  ems_log:access(Host, "PUBLISH ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
+  ?D(Options),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
