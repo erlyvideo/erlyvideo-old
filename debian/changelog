@@ -1,3 +1,9 @@
+erlyvideo (2.1.1) karmic; urgency=low
+
+  Password publish example
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 26 Aug 2010 11:10:47 +0400
+
 erlyvideo (2.1.0) karmic; urgency=low
 
   Output RTP
