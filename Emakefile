@@ -8,6 +8,7 @@
 {"src/mediators/*", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/auth/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/demos/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+{"src/examples/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/formats/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/protocols/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/shared_objects/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
