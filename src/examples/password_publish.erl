@@ -1,16 +1,6 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
 %%% @doc        password protected publish
-%%% This is what you need in erlyvideo.conf
-%%% {vhosts, [
-%%%   {default, [
-%%%     {publish_login, "alex"},
-%%%     {publish_password, "123"},
-%%%     {modules, [trusted_login, password_publish, apps_streaming]}
-%%%   }]
-%%% ]}
-%%%
-%%% Then publish stream, named "livestream?login=vasya&password=123"
 %%% @reference  
 %%% @end
 %%%
@@ -39,11 +29,6 @@
 -export([publish/2]).
 
 
-%%-------------------------------------------------------------------------
-%% @spec publish(Session::rtmp_session(), Funcall::rtmp_funcall()) -> NewState::rtmp_session()
-%% @doc Function checks, where login&password have been provided in publish() call
-%% @end
-%%-------------------------------------------------------------------------
 	
 real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, FullName, Type, StreamId) ->
 

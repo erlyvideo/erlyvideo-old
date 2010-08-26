@@ -116,7 +116,7 @@ EOF
   end
   
   def build_debian
-    `(cd #{path}; debuild --no-tgz-check -us -uc -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog -S -sa)`
+    `(cd #{path}; debuild --no-tgz-check -us -uc -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog)`
   end
   
   def upload_launchpad
