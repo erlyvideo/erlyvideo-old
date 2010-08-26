@@ -54,6 +54,10 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
 
 parse(ready, <<"INVITE ", Request/binary>> = Data) ->
   parse_sip(invite, Request);
+parse(ready, <<"SUBSCRIBE ", Request/binary>> = Data) ->
+  parse_sip(subscribe, Request);
+parse(ready, <<"OPTIONS ", Request/binary>> = Data) ->
+  parse_sip(options, Request);
 parse(ready, <<"ACK ", Request/binary>> = Data) ->
   parse_sip(ack, Request);
 parse(ready, <<"BYE ", Request/binary>> = Data) ->
