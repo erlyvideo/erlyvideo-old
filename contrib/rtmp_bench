@@ -17,7 +17,10 @@ main([URL, CountS, DebugS]) ->
   application:start(rtmp),
   Count = list_to_integer(CountS),
   Debug = case DebugS of
-    "-d" -> true;
+    "-d" -> 
+      code:add_path("../erlmedia/ebin"),
+      code:add_path("../amf/ebin"),
+      true;
     _ -> false
   end,
   Spawner = rtmp_bench:init(URL, Count, Debug),

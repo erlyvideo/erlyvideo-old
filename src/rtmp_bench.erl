@@ -145,8 +145,8 @@ read_frame(#reader{count = Count, delta = Delta, last_dts = DTS} = Reader) when 
   end,
   read_frame(Reader#reader{count = Count+1});
 
-read_frame(#reader{socket = RTMP, last_dts = DTS, debug = true} = Reader) when DTS >= 200 andalso DTS =< 300 ->
-  Seek = 100000,
+read_frame(#reader{socket = RTMP, last_dts = DTS, debug = true} = Reader) when DTS >= 20000 andalso DTS =< 30000 ->
+  Seek = 10000,
   io:format("Make seek to ~p~n", [Seek]),
   rtmp_lib:seek(RTMP, 1, Seek),
   read_frame(Reader);
