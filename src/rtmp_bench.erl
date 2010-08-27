@@ -62,7 +62,9 @@ init(URL, Count, Debug) ->
 			Port = 1935
 	end,
 	[App | PathRest] = string:tokens(Path, "/"),
-  #spawner{server = Server, port = Port, app = list_to_binary(App), path = list_to_binary(string:join(PathRest,"/")), count = Count, debug = Debug}.
+	RealPath = list_to_binary(string:join(PathRest,"/")),
+	io:format("~p:~p ~p ~p~n", [Server, Port, App, RealPath]),
+  #spawner{server = Server, port = Port, app = list_to_binary(App), path = RealPath, count = Count, debug = Debug}.
 
 
 start_spawner(Spawner) ->

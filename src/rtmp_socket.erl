@@ -499,8 +499,8 @@ handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, buffe
   {next_state, handshake_s1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
 handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active} = State) ->
-  <<?HS_UNCRYPTED, _S1:?HS_BODY_LEN/binary, S2:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
-  send_data(State, rtmp_handshake:c2(S2)),
+  <<?HS_UNCRYPTED, S1:?HS_BODY_LEN/binary, _S2:?HS_BODY_LEN/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
+  send_data(State, rtmp_handshake:c2(S1)),
   Consumer ! {rtmp, self(), connected},
   case Active of
     true -> inet:setopts(Socket, [{active, true}]);

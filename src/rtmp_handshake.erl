@@ -87,10 +87,11 @@ client_scheme_version(C1) ->
   end.
 
 c1() ->
-  [?HS_UNCRYPTED, lists:duplicate(?HS_BODY_LEN, 0)].
+  [?HS_UNCRYPTED, <<0:32, 0:32>>, crypto:rand_bytes(?HS_BODY_LEN - 8)].
   
-c2(_) ->
-  lists:duplicate(?HS_BODY_LEN, 0).
+c2(<<Time:32, V1,V2,V3,V4, _Rand/binary>> = S1) ->
+  io:format("Server: ~p, ~p.~p.~p.~p~n", [Time, V1, V2, V3, V4]),
+  S1.
 
 
 % server(<<?HS_UNCRYPTED, C1:?HS_BODY_LEN/binary>>) ->
