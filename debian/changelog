@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.6) lucid; urgency=low
+
+  Better debug and client connection
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 27 Aug 2010 13:26:13 +0400
+
 erlang-rtmp (1.7.5) lucid; urgency=low
 
   Change debian dependency
