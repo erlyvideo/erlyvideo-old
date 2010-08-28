@@ -47,30 +47,21 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
     {ok, Line, Rest} ->
       {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
       {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
-      {ok, {response, list_to_integer(binary_to_list(Code)), Message}, Rest};
+      {ok, {rtsp_response, list_to_integer(binary_to_list(Code)), Message}, Rest};
     _ ->
       {more, ready, Data}
   end;
 
-parse(ready, <<"INVITE ", Request/binary>> = Data) ->
-  parse_sip(invite, Request);
-parse(ready, <<"SUBSCRIBE ", Request/binary>> = Data) ->
-  parse_sip(subscribe, Request);
-parse(ready, <<"OPTIONS ", Request/binary>> = Data) ->
-  parse_sip(options, Request);
-parse(ready, <<"ACK ", Request/binary>> = Data) ->
-  parse_sip(ack, Request);
-parse(ready, <<"BYE ", Request/binary>> = Data) ->
-  parse_sip(bye, Request);
-parse(ready, <<"CANCEL ", Request/binary>> = Data) ->
-  parse_sip(cancel, Request);
-
 parse(ready, Data) ->
   case erlang:decode_packet(line, Data, []) of
     {ok, Line, Rest} ->
-      {ok, Re} = re:compile("([^ ]+) ([^ ]+) RTSP/1.0"),
-      {match, [_, Method, URL]} = re:run(Line, Re, [{capture, all, binary}]),
-      {ok, {request, binary_to_atom(Method, latin1), URL}, Rest};
+      {ok, Re} = re:compile("([^ ]+)\s+([^ ]+)\s+(RTSP/1\\.0|SIP/2\\.0)"),
+      case re:run(Line, Re, [{capture, [1,2,3], binary}]) of
+        {match, [Method, URI, <<"RTSP/1.0">>]} ->
+          {ok, {rtsp_request, binary_to_atom(Method, latin1), URI}, Rest};
+        {match, [Method, URI, <<"SIP/2.0">>]} ->
+          {ok, {sip_request, binary_to_atom(Method, latin1), URI}, Rest}
+      end;
     _ ->
       {more, ready, Data}
   end;
@@ -95,14 +86,6 @@ parse(header, Data) ->
 parse(State, Data) ->
   {error, State, Data}.
 
-parse_sip(Method, Request) ->
-  case erlang:decode_packet(line, Request, []) of
-    {ok, R, Rest} ->
-      {ok, Re} = re:compile("([^ ]+)\s+SIP/2\\.0.*"),
-      {match, [_, URI]} = re:run(R, Re, [{capture, all, list}]),
-      {ok, {sip, Method, URI}, Rest}
-  end.
-
 
 %%----------------------------------------------------------------------
 %% @spec (Data::binary()) -> {more, Data::binary()} |
@@ -118,7 +101,7 @@ decode(Data) ->
   case parse(ready, Data) of
     {more, ready, Data} ->
       {more, Data};
-    {ok, {request, Method, URL}, Rest} ->
+    {ok, {rtsp_request, Method, URL}, Rest} ->
       case decode_headers(Rest, [], undefined) of
         more ->
           {more, Data};
@@ -127,14 +110,14 @@ decode(Data) ->
       end;
     {ok, {rtp, _Channel, _Packet}, _Rest} = Reply ->
       Reply;
-    {ok, {response, Code, Status}, Rest} ->
+    {ok, {rtsp_response, Code, Status}, Rest} ->
       case decode_headers(Rest, [], undefined) of
         more ->
           {more, Data};
         {ok, Headers, Body, Rest1} ->
           {ok, {response, Code, Status, Headers, Body}, Rest1}
       end;
-    {ok, {sip, Method, URI}, Rest} ->
+    {ok, {sip_request, Method, URI}, Rest} ->
       case decode_headers(Rest, [], undefined) of
         {ok, Headers, Body, _Other} ->
           {ok, {sip, Method, URI, Headers, Body}};
