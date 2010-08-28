@@ -1,11 +1,15 @@
+-record(payload, {
+          num,
+          codec,
+          clock_map
+         }).
+
 -record(media_desc, {
   type,
   connect,
   port,
-  payload,
-  clock_map,
+  payloads       = []    :: [#payload{}],
   track_control,
-  codec,
   pps,
   sps,
   config

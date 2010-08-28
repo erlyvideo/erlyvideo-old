@@ -47,10 +47,10 @@ decode(Announce) ->
   parse_announce(Announce, [], undefined, undefined).
 
 
-parse_announce([], Streams, undefined, Connect) ->
+parse_announce([], Streams, undefined, _Connect) ->
   lists:reverse(Streams);
 
-parse_announce([], Streams, Stream, Connect) ->
+parse_announce([], Streams, Stream, _Connect) ->
   lists:reverse([Stream | Streams]);
 
 parse_announce([{v, _} | Announce], Streams, Stream, Connect) ->
@@ -81,26 +81,30 @@ parse_announce([{m, Info} | Announce], Streams, #media_desc{} = Stream, Connect)
   parse_announce([{m, Info} | Announce], [Stream | Streams], undefined, Connect);
 
 parse_announce([{m, Info} | Announce], Streams, undefined, Connect) ->
-  [TypeS, PortS, "RTP/AVP", PayloadType] = string:tokens(Info, " "),
+  [TypeS, PortS, "RTP/AVP" | PayloadTypes] = string:tokens(Info, " "), % TODO: add support of multiple payload
   Type = binary_to_existing_atom(list_to_binary(TypeS), utf8),
   parse_announce(Announce, Streams, #media_desc{type = Type,
                                                 connect = Connect,
-                                                port = PortS,
-                                                payload = list_to_integer(PayloadType),
+                                                port = list_to_integer(PortS),
+                                                payloads = [#payload{num = list_to_integer(PT)} || PT <- PayloadTypes],
                                                 track_control = "trackID="++integer_to_list(length(Streams)+1)}, Connect);
 
 parse_announce([{b, _Bitrate} | Announce], Streams, #media_desc{} = Stream, Connect) ->
   parse_announce(Announce, Streams, Stream, Connect);
 
 parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Connect) ->
-  Pos = string:chr(Attribute, $:),
-  Key = string:substr(Attribute, 1, Pos - 1),
-  Value = string:substr(Attribute, Pos + 1),
+  case string:chr(Attribute, $:) of
+    0 -> Key = Attribute, Value = undefined;
+    Pos when Pos > 0 ->
+      Key = string:substr(Attribute, 1, Pos - 1),
+      Value = string:substr(Attribute, Pos + 1)
+  end,
 
   Stream1 = case Key of
     "rtpmap" ->
-      {ok, Re} = re:compile("\\d+ ([^/]+)/([\\d]+)"),
-      {match, [_, CodecCode, ClockMap1]} = re:run(Value, Re, [{capture, all, list}]),
+      {ok, Re} = re:compile("(\\d+) ([^/]+)/([\\d]+)"),
+      {match, [_, PayLoadNum, CodecCode, ClockMap1]} = re:run(Value, Re, [{capture, all, list}]),
+      Pt0 = Stream#media_desc.payloads,
       Codec = case CodecCode of
         "H264" -> h264;
         "mpeg4-generic" -> aac;
@@ -118,15 +122,22 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
         g726_16 -> 8000;
         _ -> list_to_integer(ClockMap1)
       end,
-      Stream#media_desc{clock_map = ClockMap/1000, codec = Codec};
+      Pt1 = #payload{num = list_to_integer(PayLoadNum), codec = Codec, clock_map = ClockMap/1000},
+      NewPt = lists:keystore(Pt1#payload.num, #payload.num, Pt0, Pt1),
+      Stream#media_desc{payloads = NewPt};
     "control" ->
       Stream#media_desc{track_control = Value};
     "fmtp" ->
       {ok, Re} = re:compile("([^=]+)=(.*)"),
+      ?DBG("Value: ~p", [Value]),
       [_ | OptList] = string:tokens(Value, " "),
       Opts = lists:map(fun(Opt) ->
-        {match, [_, Key1, Value1]} = re:run(Opt, Re, [{capture, all, list}]),
-        {string:to_lower(Key1), Value1}
+        ?DBG("Opt: ~p", [Opt]),
+        case re:run(Opt, Re, [{capture, all, list}]) of
+          {match, [_, Key1, Value1]} ->
+            {string:to_lower(Key1), Value1};
+          _ -> Opt
+        end
       end, string:tokens(string:join(OptList, ""), ";")),
       parse_fmtp(Stream, Opts);
     _Else ->
@@ -212,7 +223,7 @@ encode_session(#session_desc{version = Ver,
                              connect = Connect,
                              time = Time,
                              attrs = Attrs
-                            } = D, A) ->
+                            } = _D, _A) ->
   SV = ["v=", Ver, ?LSEP],
   SO = ["o=", UN, $ , SI, $ , OV, $ , at2bin(NAT), $ , AD, ?LSEP],
   SN = ["s=", N, ?LSEP],
@@ -231,7 +242,7 @@ encode_session(#session_desc{version = Ver,
                    [atom_to_list(K), $:, V];
                  _ when is_atom(KV) ->
                    atom_to_list(KV);
-                 Other ->
+                 _Other ->
                    ?DBG("Err: ~p", [KV]),
                    ""
                end,
@@ -269,25 +280,26 @@ encode_media(M, GConnect) ->
   encode_media(M, GConnect, <<>>).
 
 encode_media(#media_desc{type = Type,
-                         connect = Connect,
+                         connect = _Connect,
                          port = Port,
-                         payload = PayLoad,
-                         clock_map = ClockMap,
-                         codec = Codec,
+                         payloads = PayLoads,
                          track_control = TControl,
                          config = Config
-                        }, GConnect, A) ->
+                        }, _GConnect, _A) ->
   Tb = type2bin(Type),
-  M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ , integer_to_list(PayLoad), ?LSEP],
-  AC = ["a=", "control:", TControl, ?LSEP],
+  M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ ,
+       [integer_to_list(PTnum) || #payload{num = PTnum} <- PayLoads], ?LSEP],
+  AC = case TControl of undefined -> []; _ -> ["a=", "control:", TControl, ?LSEP] end,
   %% TODO: support of several payload types
-  Codecb = codec2bin(Codec),
-  CMapb = integer_to_list(ClockMap),
-  AR = ["a=", "rtpmap:", integer_to_list(PayLoad), $ , Codecb, $/, CMapb, ?LSEP],
+  AR = [begin
+          Codecb = codec2bin(Codec),
+          CMapb = integer_to_list(ClockMap),
+          ["a=", "rtpmap:", integer_to_list(PTnum), $ , Codecb, $/, CMapb, ?LSEP]
+        end || #payload{num = PTnum, codec = Codec, clock_map = ClockMap} <- PayLoads],
   ACfg = case Config of
            _ when (is_list(Config) or
                    is_binary(Config)) ->
-             ["a=", "fmtp:", integer_to_list(PayLoad), $ , Config, ?LSEP];
+             [["a=", "fmtp:", integer_to_list(PTnum), $ , Config, ?LSEP] || #payload{num = PTnum} <- PayLoads];
            _ ->
              []
          end,
@@ -326,11 +338,9 @@ prep_media_config({video,
                                 body = Body}}, Opts) ->
   {_, [SPS, PPS]} = h264:unpack_config(Body),
   #media_desc{type = video,
-              port = 0,
-              payload = 96,
-              clock_map = 90000,
+              port = proplists:get_value(video_port, Opts, 0),
+              payloads = [#payload{num = 96, codec = Codec, clock_map = 90000}],
               track_control = proplists:get_value(video, Opts, "1"),
-              codec = Codec,
               config = ["packetization-mode=1;"
                         "profile-level-id=64001e;"
                         "sprop-parameter-sets=",
@@ -339,15 +349,13 @@ prep_media_config({audio,
                    #video_frame{content = audio,
                                 flavor = config,
                                 codec = aac = Codec,
-                                sound = {Channs, Size, Rate},
+                                sound = {_Channs, _Size, Rate},
                                 body = Body}}, Opts) ->
   <<ConfigVal:2/big-integer-unit:8>> = Body,
   #media_desc{type = audio,
-              port = 0,
-              payload = 97,
-              clock_map = rate2num(Rate),
+              port = proplists:get_value(audio_port, Opts, 0),
+              payloads = [#payload{num = 97, codec = Codec, clock_map = rate2num(Rate)}],
               track_control = proplists:get_value(audio, Opts, "2"),
-              codec = Codec,
               config = ["streamtype=5;"
                         "profile-level-id=15;"
                         "mode=AAC-hbr;"

@@ -178,8 +178,10 @@ handle_call({play, Fun, Media}, _From,
   {reply, {ok, Info}, State};
 
 handle_call({add_stream,
-             #media_desc{type = Type, payload = PayloadType,
-                         clock_map = ClockMap, track_control = TCtl},
+             #media_desc{type = Type, payloads = [#payload{num = PTnum,
+                                                           codec = Codec,
+                                                           clock_map = ClockMap}],
+                         track_control = TCtl},
              Proto, Addr, {Method, Params}}, _From,
             #state{} = State) ->
   ?DBG("DS: Add Stream", []),
@@ -206,10 +208,9 @@ handle_call({add_stream,
         channel_rtp = ChanRTP,
         channel_rtcp = ChanRTCP}
   end,
-  ?DBG("PayloadType: ~p", [PayloadType]),
   WallClock = get_wall_clock(),
   Timecode = init_rnd_timecode(),
-  BaseRTP = #base_rtp{codec = PayloadType,           % FIXME: PCM
+  BaseRTP = #base_rtp{codec = PTnum,
                       media = Type,
                       clock_map = ClockMap,
                       sequence = init_rnd_seq(),
@@ -488,11 +489,11 @@ presync(Streams, [RTP | Info], N, Now) ->
 config_media(Streams) -> config_media(Streams, [], []).
 
 config_media([], Output, Frames) -> {lists:reverse(Output), Frames};
-config_media([#media_desc{codec = Codec} | Streams], Output, Frames) when not is_atom(Codec) ->
+config_media([#media_desc{payloads = [#payload{codec = Codec}]} | Streams], Output, Frames) when not is_atom(Codec) ->
   ?D({"Unknown rtp codec", Codec}),
   config_media(Streams, [undefined | Output], Frames);
 
-config_media([#media_desc{type = video, codec = h264, pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
+config_media([#media_desc{type = video, payloads = [#payload{codec = h264}], pps = PPS, sps = SPS} = Stream | Streams], Output, Frames) ->
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {H264_2, _} = h264:decode_nal(PPS, H264),
   Configs = case h264:video_config(H264_2) of
@@ -501,7 +502,7 @@ config_media([#media_desc{type = video, codec = h264, pps = PPS, sps = SPS} = St
   end,
   config_media(Streams, [Stream#media_desc{config = H264_2} | Output], Configs ++ Frames);
 
-config_media([#media_desc{type = audio, codec = aac, config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
+config_media([#media_desc{type = audio, payloads = [#payload{codec = aac}], config = Config} = Stream | Streams], Output, Frames) when is_binary(Config) ->
   AudioConfig = #video_frame{
    	content = audio,
    	flavor  = config,
@@ -518,10 +519,10 @@ config_media([#media_desc{} = Stream | Streams], Output, Frames) ->
 
 
 
-init(#media_desc{type = video, clock_map = ClockMap, config = H264, codec = Codec}, Media) ->
+init(#media_desc{type = video, payloads = [#payload{codec = Codec, clock_map = ClockMap}], config = H264}, Media) ->
   #video{media = Media, clock_map = ClockMap, h264 = H264, codec = Codec};
 
-init(#media_desc{type = audio, clock_map = ClockMap, codec = Codec}, Media) ->
+init(#media_desc{type = audio, payloads = [#payload{codec = Codec, clock_map = ClockMap}]}, Media) ->
   #audio{media = Media, clock_map = ClockMap, codec = Codec};
 
 init(undefined, _Media) ->
