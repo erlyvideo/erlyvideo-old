@@ -1,6 +1,15 @@
 
+h1. Usage with Erlyvideo
 
-Steps:
 
-1) make reenterable http_file:open
+edit priv/erlyvideo.conf
+
+In vhost section add file_access variable:
+
+{vhosts, [
+  {default, [
+    {file_access, http_file},
+    ...
+  ]}
+}.
 
