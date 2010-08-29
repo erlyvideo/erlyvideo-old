@@ -1,3 +1,9 @@
+erlmedia (1.7.1) lucid; urgency=low
+
+  Again fixes in flv_writer
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 27 Aug 2010 13:29:30 +0400
+
 erlmedia (1.7.0) lucid; urgency=low
 
   Updated writer. Added rtsp parser
