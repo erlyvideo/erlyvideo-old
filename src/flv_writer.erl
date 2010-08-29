@@ -51,7 +51,7 @@
 -include("../include/video_frame.hrl").
 -include("log.hrl").
 
--export([start_link/1, init/1, writer/1]).
+-export([start_link/1, init/2, writer/1, writer_no_timeout/1]).
 
 -export([init_file/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
@@ -68,27 +68,23 @@
 %% @end
 %%-------------------------------------------------------------------------
 start_link(FileName) ->
-  {ok, spawn_link(?MODULE, init, [[FileName]])}.
+  {ok, spawn(?MODULE, init, [FileName, self()])}.
 
 %% @hidden
-init(Writer) when is_function(Writer) ->
-  init([Writer]);
-
-init([Writer]) when is_function(Writer) ->
+init(Writer, Owner) when is_function(Writer) ->
 	Writer(flv:header()),
+	erlang:monitor(process, Owner),
 	?MODULE:writer(#flv_file_writer{writer = Writer});
 
-init([FileName]) when is_list(FileName) or is_binary(FileName) ->
+init(FileName, Owner) when is_list(FileName) or is_binary(FileName) ->
   case init_file(FileName) of
     {ok, State} ->
+      erlang:monitor(process, Owner),
       ?MODULE:writer(State);
 		Error ->
 		  error_logger:error_msg("Failed to start recording stream to ~p because of ~p", [FileName, Error]),
 			exit({flv_file_writer, Error})
-  end;
-  
-init(FileName) when is_list(FileName) or is_binary(FileName)  ->
-  init([FileName]).
+  end.
 
 
 %%-------------------------------------------------------------------------
@@ -115,27 +111,42 @@ init_file(FileName) ->
 writer(FlvWriter) ->
   receive
     Message -> handle_message(Message, FlvWriter)
+  after
+    1000 ->
+      ?MODULE:writer_no_timeout(flush_messages(FlvWriter, hard))
   end.
 
+writer_no_timeout(FlvWriter) ->
+  receive
+    Message -> handle_message(Message, FlvWriter)
+  end.
 
-write_frame(#video_frame{} =  Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
-  store_message(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}).
+write_frame(#video_frame{} = Frame, FlvWriter) when is_pid(FlvWriter) ->
+  FlvWriter ! Frame,
+  {ok, FlvWriter};
+
+write_frame(#video_frame{} = Frame, #flv_file_writer{} = FlvWriter) ->
+  store_message(Frame, FlvWriter).
 
   
-handle_message(#video_frame{} = Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
-  {ok, FlvWriter1} = store_message(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}),
+handle_message(#video_frame{} = Frame, #flv_file_writer{} = FlvWriter) ->
+  {ok, FlvWriter1} = store_message(Frame, FlvWriter),
   ?MODULE:writer(FlvWriter1);
   
 handle_message(Message, FlvWriter) ->
   flush_messages(FlvWriter, hard),
   Message.
   
-store_message(#flv_file_writer{buffer = Buffer, buffer_size = Size} = FlvWriter) when length(Buffer) >= Size ->
-  FlvWriter1 = flush_messages(FlvWriter, soft),
+store_message(#video_frame{codec = empty}, FlvWriter) ->
+  {ok, FlvWriter};
+  
+store_message(Frame, #flv_file_writer{buffer = Buffer, buffer_size = Size} = FlvWriter) when length(Buffer) >= Size ->
+  FlvWriter1 = flush_messages(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}, soft),
   {ok, FlvWriter1};
 
-store_message(FlvWriter) ->
-  {ok, FlvWriter}.
+store_message(Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
+  {ok, FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}}.
+  
 
 flush_messages(#flv_file_writer{buffer = Buffer} = FlvWriter, How) ->
   Sorted = lists:keysort(#video_frame.dts, Buffer),
