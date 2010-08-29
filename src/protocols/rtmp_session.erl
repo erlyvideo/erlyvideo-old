@@ -90,7 +90,7 @@ reject_connection(#rtmp_session{socket = Socket} = Session) ->
   StatusObj = [{level, <<"status">>}, 
                {code, <<?NC_CONNECT_REJECTED>>},
                {description, <<"Connection rejected.">>}],
-  reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+  fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   gen_fsm:send_event(self(), exit),
   Session;
   
@@ -106,6 +106,8 @@ reply(Socket, AMF) when is_pid(Socket) ->
 
 
 fail(#rtmp_session{socket = Socket}, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke});
+fail(Socket, AMF) when is_pid(Socket) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
 
 
@@ -298,9 +300,15 @@ call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args 
 
   {Module, Function} = ems:check_app(NewState1#rtmp_session.host, connect, 2),
 
-	Module:Function(NewState1, AMF);
+  try Module:Function(NewState1, AMF)
+  catch
+    throw:Reason ->
+      error_logger:error_msg("Client not authorized: ~p ~p ~p ~p~n", [State#rtmp_session.addr, Host, Module, Reason]),
+      reject_connection(NewState1)
+  end;
+      
 
-call_function({Module, Function}, State, AMF) ->
+call_function({Module, Function}, #rtmp_session{} = State, AMF) ->
 	Module:Function(State, AMF).
   % try
   %   App:Command(AMF, State)
@@ -422,7 +430,7 @@ handle_info(#rtmp_message{} = Message, StateName, State) ->
   rtmp_socket:send(State#rtmp_session.socket, Message),
   {next_state, StateName, State};
 
-handle_info(exit, StateName, StateData) ->
+handle_info(exit, _StateName, StateData) ->
   {stop, normal, StateData};
 
 handle_info(_Info, StateName, StateData) ->

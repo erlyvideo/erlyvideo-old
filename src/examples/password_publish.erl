@@ -1,8 +1,7 @@
-%%%---------------------------------------------------------------------------------------
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2009 Max Lapshin
-%%% @doc        RTMP functions, that support recording
-%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
+%%% @copyright  2010 Max Lapshin
+%%% @doc        password protected publish
+%%% @reference  
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
@@ -21,42 +20,29 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(apps_recording).
+-module(password_publish).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
+-include_lib("../../include/ems.hrl").
+
 -include("../../include/rtmp_session.hrl").
--include_lib("erlmedia/include/video_frame.hrl").
 
 -export([publish/2]).
--export(['FCPublish'/2, 'FCUnpublish'/2]).
 
 
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
-
-'FCPublish'(State, #rtmp_funcall{args = [null, Name]} = _AMF) -> 
-  ?D({"FCpublish", Name}),
-  State.
-
-'FCUnpublish'(State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
-  {RawName, _Args1} = http_uri2:parse_path_query(FullName),
-  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
-  ?D({"FCunpublish", Name}),
-  % apps_streaming:stop(State, AMF).
-  % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
-  State.
-
-
+	
 real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, FullName, Type, StreamId) ->
 
   {RawName, Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   Options1 = extract_publish_args(Args1),
-  Options = lists:ukeymerge(1, Options1, [{type,Type}]),
+  Options = lists:ukeymerge(1, [{type,live}], Options1),
   
-  ems_log:access(Host, "PUBLISH ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-  ?D(Options),
+  Login = ems:get_var(publish_login, Host, undefined),
+  Password = ems:get_var(publish_password, Host, undefined),
+  Login = proplists:get_value("login", Options),
+  Password = proplists:get_value("password", Options),
+  
+  ems_log:access(Host, "RECORD ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
@@ -92,4 +78,3 @@ publish(State, #rtmp_funcall{args = [null, <<"null">>]} = AMF) ->
   
 publish(State, #rtmp_funcall{args = [null,Name], stream_id = StreamId} = _AMF) -> 
   real_publish(State, Name, live, StreamId).
-

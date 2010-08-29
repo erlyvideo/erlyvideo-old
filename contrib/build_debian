@@ -7,8 +7,17 @@ class Repository
   
   attr_reader :path
   
+
   def repo_path
-    "/apps/erlyvideo/debian/public"
+    "/apps/erlyvideo/debian/#{public? ? "public" : "closed"}"
+  end
+
+  def closed?
+    File.exists?("#{path}/.erlang.crypt")
+  end
+
+  def public?
+    !closed?
   end
   
   def initialize(path)
@@ -116,10 +125,11 @@ EOF
   end
   
   def build_debian
-    `(cd #{path}; debuild --no-tgz-check -us -uc)`
+    `(cd #{path}; debuild --no-tgz-check -us -uc -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog)`
   end
   
   def upload_launchpad
+    return if closed?
     `dput erly #{path}/../#{name}_#{version}_source.changes` if File.exists?(File.expand_path("~/.dput.cf"))
   end
   
