@@ -13,3 +13,5 @@ In vhost section add file_access variable:
   ]}
 }.
 
+
+Then go to http://localhost:8082/?file=http://localhost/video.mp4
