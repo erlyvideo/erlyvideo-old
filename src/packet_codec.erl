@@ -52,6 +52,16 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
       {more, ready, Data}
   end;
 
+parse(ready, <<"SIP/2.0 ", Response/binary>> = Data) ->
+  case erlang:decode_packet(line, Response, []) of
+    {ok, Line, Rest} ->
+      {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
+      {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
+      {ok, {sip_response, list_to_integer(binary_to_list(Code)), Message}, Rest};
+    _ ->
+      {more, ready, Data}
+  end;
+
 parse(ready, Data) ->
   case erlang:decode_packet(line, Data, []) of
     {ok, Line, Rest} ->
@@ -120,7 +130,14 @@ decode(Data) ->
     {ok, {sip_request, Method, URI}, Rest} ->
       case decode_headers(Rest, [], undefined) of
         {ok, Headers, Body, _Other} ->
-          {ok, {sip, Method, URI, Headers, Body}};
+          {ok, {sip_request, Method, URI, Headers, Body}};
+        more ->
+          {more, Data}
+      end;
+    {ok, {sip_response, Code, Status}, Rest} ->
+      case decode_headers(Rest, [], undefined) of
+        {ok, Headers, Body, _Other} ->
+          {ok, {sip_response, Code, Status, Headers, Body}};
         more ->
           {more, Data}
       end
@@ -132,15 +149,19 @@ decode_headers(Data, Headers, BodyLength) ->
     {ok, {header, 'Content-Length', Length}, Rest} ->
       NewLength = list_to_integer(binary_to_list(Length)),
       decode_headers(Rest, [{'Content-Length', NewLength} | Headers], NewLength);
-    {ok, {header, <<"Cseq">>, CSeq}, Rest} ->
-      decode_headers(Rest, [{'Cseq', CSeq} | Headers], BodyLength);
-    {ok, {header, <<"Transport">>, Value}, Rest} ->
-      decode_headers(Rest, [{'Transport', Value} | Headers], BodyLength);
-    {ok, {header, <<"Session">>, Value}, Rest} ->
-      decode_headers(Rest, [{'Session', Value} | Headers], BodyLength);
-    {ok, {header, Key, Value}, Rest} ->
-      decode_headers(Rest, [{Key, Value} | Headers], BodyLength);
-
+    {ok, {header, HKey, HVal}, Rest} ->
+      NewPair =
+        case HKey of
+          <<"Cseq">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"Transport">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"Session">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"Call-Id">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"To">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"Subject">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"Contact">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          _ -> {HKey, HVal}
+        end,
+      decode_headers(Rest, [NewPair | Headers], BodyLength);
 
     {ok, header_end, Rest} when BodyLength == undefined ->
       {ok, Headers, undefined, Rest};
