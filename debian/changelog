@@ -1,3 +1,9 @@
+erlyvideo (2.1.5) karmic; urgency=low
+
+  Flv_writer issues. Now seems to be ok.
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 30 Aug 2010 12:39:02 +0400
+
 erlyvideo (2.1.4) karmic; urgency=low
 
   Updated writer bug in erlmedia
