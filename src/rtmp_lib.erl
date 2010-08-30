@@ -183,7 +183,7 @@ play_start(RTMP, StreamId, DTS) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(metadata, StreamId), stream_id = StreamId,
     body = [<<"|RtmpSampleAccess">>, true, true], timestamp = DTS, ts_type = delta}),
     
-  rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, timestamp = DTS, channel_id = channel_id(audio, StreamId)}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, timestamp = DTS, channel_id = channel_id(audio, StreamId), stream_id = StreamId}),
     
   Notify = rtmp_socket:prepare_notify(StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]),
   rtmp_socket:send(RTMP, Notify#rtmp_message{channel_id = channel_id(metadata, StreamId), timestamp = DTS}),
@@ -235,31 +235,36 @@ seek_failed(RTMP, StreamId) ->
   
 
 play_complete(RTMP, StreamId, Options) ->
+
   Duration = case proplists:get_value(duration, Options) of
     undefined -> 0;
     Else -> Else
   end,
 
+  rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, ts_type = new, stream_id = StreamId,
+    timestamp = Duration, channel_id = channel_id(audio, StreamId)}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0, ts_type = new}),
+
   PlayComplete1Arg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}, {duration, Duration/1000},{bytes,0}]},
-  PlayComplete1 = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
-                body = [<<"onPlayStatus">>, PlayComplete1Arg], timestamp = same},
+  PlayComplete1 = #rtmp_message{type = metadata, channel_id = channel_id(metadata, StreamId), stream_id = StreamId, 
+                body = [<<"onPlayStatus">>, PlayComplete1Arg], timestamp = Duration, ts_type = new},
   rtmp_socket:send(RTMP, PlayComplete1),
 
 
 
-  PlayCompleteArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}, {duration, Duration/1000},{bytes,0}]},
-  PlayComplete = #rtmp_message{type = metadata, channel_id = channel_id(video, StreamId), stream_id = StreamId, 
-                body = [<<"onMetaData">>, PlayCompleteArg], timestamp = same},
-  rtmp_socket:send(RTMP, PlayComplete),
+  % PlayCompleteArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}, {duration, Duration/1000},{bytes,0}]},
+  % PlayComplete = #rtmp_message{type = metadata, channel_id = channel_id(metadata, StreamId), stream_id = StreamId, 
+  %               body = [<<"onMetaData">>, PlayCompleteArg], timestamp = same},
+  % rtmp_socket:send(RTMP, PlayComplete),
   
 
   
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0, ts_type = new}),
 
   
 
-  PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Stop">>},{description,"file end"}]},
-  PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(video, StreamId), timestamp = 0, stream_id = StreamId, 
+  PlayStopArg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Stop">>},{description,<<"file end">>}]},
+  PlayStop = #rtmp_message{type = invoke, channel_id = channel_id(metadata, StreamId), timestamp = Duration, ts_type = new, stream_id = StreamId, 
                 body = #rtmp_funcall{command = onStatus, id = 0, stream_id = StreamId, args = [null, PlayStopArg]}},
   rtmp_socket:send(RTMP, PlayStop),
   % rtmp_socket:status(RTMP, StreamId, <<"NetStream.Play.Stop">>).
