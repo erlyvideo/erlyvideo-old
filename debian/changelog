@@ -1,3 +1,9 @@
+erlmedia (1.7.2) lucid; urgency=low
+
+  Again flv writer issues
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 30 Aug 2010 12:37:29 +0400
+
 erlmedia (1.7.1) lucid; urgency=low
 
   Again fixes in flv_writer
