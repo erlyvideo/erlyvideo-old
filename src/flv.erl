@@ -175,6 +175,9 @@ read_tag_header(Device, Offset) ->
 %%--------------------------------------------------------------------
 read_tag({Module,Device} = Reader, Offset) ->
   case read_tag_header(Reader, Offset) of
+    #flv_tag{type = audio, size = 0} = Tag ->
+      Tag#flv_tag{body = #flv_audio_tag{codec = empty, body = <<>>, flavor = frame}, flavor = frame};
+      
     #flv_tag{type = Type, size = Size} = Tag ->
       {ok, Body} = Module:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
       
