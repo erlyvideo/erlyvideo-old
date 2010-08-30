@@ -156,7 +156,7 @@ subscribe(Media, Options) ->
 %%----------------------------------------------------------------------
 unsubscribe(Media) ->
   gen_server:call(Media, {unsubscribe, self()}).
-  
+
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> ok
 %%
@@ -790,7 +790,7 @@ transcode(Frame) ->
 
 
 
-unsubscribe_client(Client, #ems_media{clients = Clients, module = M, clients_timeout = Timeout} = Media) ->
+unsubscribe_client(Client, #ems_media{clients = Clients, module = M} = Media) ->
   case ets:lookup(Clients, Client) of
     [#client{ref = Ref, ticker = Ticker, ticker_ref = TickerRef}] ->
       case M:handle_control({unsubscribe, Client}, Media) of
@@ -805,15 +805,7 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M, clients_tim
           erlang:demonitor(Ref, [flush]),
           ets:delete(Clients, Client),
 
-          Count = client_count(Media1),
-          {ok, TimeoutRef} = case Count of
-            0 when is_number(Timeout) -> 
-              ?D({"No clients, sending delayed graceful", Timeout}), 
-              timer:send_after(Timeout, no_clients);
-            _ -> 
-              {ok, undefined}
-          end,
-          {reply, ok, Media1#ems_media{clients_timeout_ref = TimeoutRef}, ?TIMEOUT};
+          {reply, ok, check_no_clients(Media1), ?TIMEOUT};
         {reply, Reply, Media1} ->
           {reply, Reply, Media1, ?TIMEOUT};
 
@@ -822,9 +814,20 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M, clients_tim
       end;    
 
     [] ->
-      {reply, {error, no_client}, Media, ?TIMEOUT}
+      {reply, {error, no_client}, check_no_clients(Media), ?TIMEOUT}
   end.
 
+
+check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
+  Count = client_count(Media),
+  {ok, TimeoutRef} = case Count of
+    0 when is_number(Timeout) -> 
+      ?D({"No clients, sending delayed graceful", Timeout}), 
+      timer:send_after(Timeout, no_clients);
+    _ -> 
+      {ok, undefined}
+  end,
+  Media#ems_media{clients_timeout_ref = TimeoutRef}.
 
 mark_clients_as_starting(#ems_media{clients = Clients}) ->
   MS = ets:fun2ms(fun(#client{state = active, consumer = Client}) -> Client end),
