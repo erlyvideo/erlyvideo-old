@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.7) lucid; urgency=low
+
+  Proper stream end
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 30 Aug 2010 12:38:01 +0400
+
 erlang-rtmp (1.7.6) lucid; urgency=low
 
   Better debug and client connection
