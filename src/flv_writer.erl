@@ -57,7 +57,7 @@
 
 -record(flv_file_writer, {
   writer,
-  buffer_size = 50,
+  buffer_size = 5,
   buffer = [],
   base_dts
 }).
@@ -112,7 +112,8 @@ writer(FlvWriter) ->
   receive
     Message -> handle_message(Message, FlvWriter)
   after
-    1000 ->
+    500 ->
+      ?D({flush,on_timeout}),
       ?MODULE:writer_no_timeout(flush_messages(FlvWriter, hard))
   end.
 
@@ -137,9 +138,6 @@ handle_message(Message, FlvWriter) ->
   flush_messages(FlvWriter, hard),
   Message.
   
-store_message(#video_frame{codec = empty}, FlvWriter) ->
-  {ok, FlvWriter};
-  
 store_message(Frame, #flv_file_writer{buffer = Buffer, buffer_size = Size} = FlvWriter) when length(Buffer) >= Size ->
   FlvWriter1 = flush_messages(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}, soft),
   {ok, FlvWriter1};
@@ -148,17 +146,20 @@ store_message(Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
   {ok, FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}}.
   
 
-flush_messages(#flv_file_writer{buffer = Buffer} = FlvWriter, How) ->
+flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
+  Buffer = lists:reverse(Buf1),
   Sorted = lists:keysort(#video_frame.dts, Buffer),
   % case Sorted of
   %   Buffer -> ?D({"Frames in order", length(Sorted)}), ok;
   %   _ -> ?D({"Frame reordering work", length(Sorted)}), ok
   % end,
   
-  {Disk,Mem} = case How of 
-    soft -> lists:split(length(Buffer) div 2, Sorted);
-    hard -> {Sorted, []}
-  end,
+  % {Disk,Mem} = case How of 
+  %   soft -> lists:split(length(Buffer) div 2, Sorted);
+  %   hard -> {Sorted, []}
+  % end,
+  Disk = Buffer,
+  Mem = [],
   FlvWriter1 = lists:foldl(fun(Frame, Writer) ->
     {ok, Writer1} = dump_frame_in_file(Frame, Writer),
     Writer1
