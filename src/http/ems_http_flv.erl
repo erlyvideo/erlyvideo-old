@@ -39,13 +39,12 @@ http(Host, 'GET', ["flv" | Name] = Path, Req) ->
   Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Seek) of
     {ok, Stream} ->
-      erlang:monitor(process, Stream),
       erlang:monitor(process, Req:socket_pid()),
       case proplists:get_value("session_id", Query) of
         undefined -> ok;
         SessionId -> ems_flv_streams:register({Host,SessionId}, {Stream, self()})
       end,
-      flv_writer:init(fun(Data) -> Req:stream(Data) end),
+      flv_writer:init(fun(Data) -> Req:stream(Data) end, Stream),
       ems_media:stop(Stream),
       Req:stream(close),
       ok;

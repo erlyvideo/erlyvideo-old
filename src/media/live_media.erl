@@ -69,7 +69,7 @@ init(Media, Options) ->
     	FileName = filename:join([file_media:file_dir(Host), binary_to_list(URL)]),
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:init_file(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName),
       {ok, Media1#ems_media{format = flv_writer, storage = Writer}}
   end.
 
