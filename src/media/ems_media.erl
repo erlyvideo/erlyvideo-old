@@ -765,8 +765,14 @@ try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
       try_n_frames(Media#ems_media{video_config = Frame}, N-1, Next);
     #video_frame{content = audio, flavor = config, next_id = Next} -> 
       try_n_frames(Media#ems_media{audio_config = Frame}, N-1, Next);
+    #video_frame{content = audio, codec = Codec, next_id = Next} when Codec =/= aac -> 
+      try_n_frames(Media#ems_media{audio_config = none}, N-1, Next);
+    #video_frame{content = video, codec = Codec, next_id = Next} when Codec =/= h264 -> 
+      try_n_frames(Media#ems_media{video_config = none}, N-1, Next);
     #video_frame{next_id = Next} -> 
       try_n_frames(Media, N+1, Next)
+    eof ->
+      Media
   end.
 
 
