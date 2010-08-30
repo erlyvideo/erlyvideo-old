@@ -1,7 +1,9 @@
 -record(payload, {
           num,
           codec,
-          clock_map
+          clock_map,
+          ms      :: undefined | mono | stereo,
+          config = []
          }).
 
 -record(media_desc, {

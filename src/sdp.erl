@@ -116,6 +116,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
         "PCMU" -> pcmu;
         "G726-16" -> g726_16;
         "L16" -> pcm;
+        "speex" -> speex;
         Other -> Other
       end,
       ClockMap = case Codec of
@@ -254,7 +255,7 @@ encode_session(#session_desc{version = Ver,
         ["t=", integer_to_list(TimeStart), $ , integer_to_list(TimeStop), ?LSEP];
       _ -> []
     end,
-  iolist_to_binary([SV, SO, SN, TimeB, SC, AttrL]).
+  iolist_to_binary([SV, SO, SN, SC, TimeB, AttrL]).
 
 %%  encode(D#session_desc{version = undefined}, <<A/binary,S/binary,?LSEP/binary>>);
 
@@ -288,17 +289,25 @@ encode_media(#media_desc{type = Type,
                         }, _GConnect, _A) ->
   Tb = type2bin(Type),
   M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ ,
-       [integer_to_list(PTnum) || #payload{num = PTnum} <- PayLoads], ?LSEP],
+       string:join([integer_to_list(PTnum) || #payload{num = PTnum} <- PayLoads], " "), ?LSEP],
   AC = case TControl of undefined -> []; _ -> ["a=", "control:", TControl, ?LSEP] end,
   %% TODO: support of several payload types
   AR = [begin
           Codecb = codec2bin(Codec),
           CMapb = integer_to_list(ClockMap),
-          ["a=", "rtpmap:", integer_to_list(PTnum), $ , Codecb, $/, CMapb, ?LSEP]
-        end || #payload{num = PTnum, codec = Codec, clock_map = ClockMap} <- PayLoads],
+          MSb = ms2bin(MS),
+          if is_list(PTConfig) ->
+              PTC = [["a=", "fmtp:", integer_to_list(PTnum), $ , C, ?LSEP] || C <- PTConfig];
+             true ->
+              PTC = []
+          end,
+          [["a=", "rtpmap:", integer_to_list(PTnum), $ , Codecb, $/, CMapb, MSb, ?LSEP], PTC]
+        end || #payload{num = PTnum, codec = Codec, clock_map = ClockMap, ms = MS, config = PTConfig} <- PayLoads],
   ACfg = case Config of
-           _ when (is_list(Config) or
-                   is_binary(Config)) ->
+           %% _ when (is_list(Config) or
+           %%         is_binary(Config)) ->
+           _ when ((is_list(Config) and (length(Config) > 0))
+                   or (is_binary(Config) and (size(Config) > 0))) ->
              [["a=", "fmtp:", integer_to_list(PTnum), $ , Config, ?LSEP] || #payload{num = PTnum} <- PayLoads];
            _ ->
              []
@@ -328,7 +337,15 @@ codec2bin(C) ->
     mp4a -> <<"MP4A-LATM">>;
     mp4v -> <<"MP4V-ES">>;
     mp3 -> <<"mpa-robust">>;
-    pcm -> <<"L16">>
+    pcm -> <<"L16">>;
+    speex -> <<"speex">>
+  end.
+
+ms2bin(MS) ->
+  case MS of
+    undefined -> <<>>;
+    mono -> <<$/,$1>>;
+    stereo -> <<$/,$2>>
   end.
 
 prep_media_config({video,
@@ -339,12 +356,13 @@ prep_media_config({video,
   {_, [SPS, PPS]} = h264:unpack_config(Body),
   #media_desc{type = video,
               port = proplists:get_value(video_port, Opts, 0),
-              payloads = [#payload{num = 96, codec = Codec, clock_map = 90000}],
-              track_control = proplists:get_value(video, Opts, "1"),
-              config = ["packetization-mode=1;"
-                        "profile-level-id=64001e;"
-                        "sprop-parameter-sets=",
-                        base64:encode(SPS), $,, base64:encode(PPS)]};
+              payloads = [#payload{num = 96, codec = Codec, clock_map = 90000,
+                                   config = [iolist_to_binary(["packetization-mode=1;"
+                                                               "profile-level-id=64001e;"
+                                                               "sprop-parameter-sets=",
+                                                               base64:encode(SPS), $,, base64:encode(PPS)])]}],
+              track_control = proplists:get_value(video, Opts, "1")
+             };
 prep_media_config({audio,
                    #video_frame{content = audio,
                                 flavor = config,
@@ -354,23 +372,37 @@ prep_media_config({audio,
   <<ConfigVal:2/big-integer-unit:8>> = Body,
   #media_desc{type = audio,
               port = proplists:get_value(audio_port, Opts, 0),
-              payloads = [#payload{num = 97, codec = Codec, clock_map = rate2num(Rate)}],
-              track_control = proplists:get_value(audio, Opts, "2"),
-              config = ["streamtype=5;"
-                        "profile-level-id=15;"
-                        "mode=AAC-hbr;"
-                        "config=",
-                        erlang:integer_to_list(ConfigVal, 16) ++ ";",
-                        "SizeLength=13;"
-                        "IndexLength=3;"
-                        "IndexDeltaLength=3;"
-                        "Profile=1;"]}.
+              payloads = [#payload{num = 97, codec = Codec, clock_map = rate2num(Rate),
+                                   config = [iolist_to_binary(["streamtype=5;"
+                                                               "profile-level-id=15;"
+                                                               "mode=AAC-hbr;"
+                                                               "config=",
+                                                               erlang:integer_to_list(ConfigVal, 16) ++ ";",
+                                                               "SizeLength=13;"
+                                                               "IndexLength=3;"
+                                                               "IndexDeltaLength=3;"
+                                                               "Profile=1;"])]}],
+              track_control = proplists:get_value(audio, Opts, "2")
+             };
+prep_media_config({audio,
+                   #video_frame{content = audio,
+                                flavor = config,
+                                codec = speex = Codec,
+                                sound = {_Channs, _Size, Rate},
+                                body = _Body}}, Opts) ->
+  #media_desc{type = audio,
+              port = proplists:get_value(audio_port, Opts, 0),
+              payloads = [#payload{num = 111, codec = Codec,
+                                   clock_map = rate2num(Rate), ms = mono,
+                                   config = ["vbr=on"]}],
+              track_control = undefined}.
 
 rate2num(Rate) ->
   case Rate of
     rate11 -> 11025;
     rate22 -> 22050;
-    rate44 -> 44100
+    rate44 -> 44100;
+    R when is_integer(R) -> R
   end.
 
 % Example of SDP:

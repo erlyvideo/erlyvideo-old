@@ -180,7 +180,7 @@ handle_call({play, Fun, Media}, _From,
 handle_call({add_stream,
              #media_desc{type = Type, payloads = [#payload{num = PTnum,
                                                            codec = Codec,
-                                                           clock_map = ClockMap}],
+                                                           clock_map = ClockMap}|_],
                          track_control = TCtl},
              Proto, Addr, {Method, Params}}, _From,
             #state{} = State) ->
