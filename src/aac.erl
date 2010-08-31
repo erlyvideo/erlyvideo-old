@@ -32,7 +32,7 @@
   samples_per_frame
 }).
 
--export([decode_config/1, encode_config/1, decode/1, encode/2, config/1]).
+-export([decode_config/1, encode_config/1, decode/1, encode/2, config/1, pack_config/1, channels/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary(), Config::aac_config()) -> ADTS::binary()
