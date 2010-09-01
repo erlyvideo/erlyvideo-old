@@ -783,7 +783,12 @@ transcode(#video_frame{content = audio, codec = Codec} = Frame) when Codec == pc
                                                                      % Codec == pcm_le orelse
                                                                      % Codec == mp3 orelse
                                                                      Codec == pcmu ->
-  ems_sound:adapt_sound(Frame);
+  case erlang:function_exported(ems_sound, adapt_sound, 1) of
+    true -> 
+      ems_sound:adapt_sound(Frame);
+    _ ->
+      undefined
+  end;  
 
 transcode(Frame) ->
   Frame.
