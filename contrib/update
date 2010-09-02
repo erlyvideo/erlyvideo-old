@@ -5,12 +5,17 @@ Package()
 echo $1
 cd $1
 dpkg-scanpackages -m binary > binary/Packages
-cd binary
-#dpkg-scansources . > Sources
-gzip -9c Packages > Packages.gz
-#gzip -c Sources > Sources.gz
+dpkg-scansources source > source/Sources
+gzip -9c binary/Packages > binary/Packages.gz
+gzip -c source/Sources > source/Sources.gz
 
+Sign binary Packages
+Sign source Sources
 
+}
+
+Sign() {
+cd $1
 echo "Origin: Erlyvideo repositories
 Label: Erlyvideo
 Archive: stable
@@ -22,7 +27,7 @@ Description: Erlyvideo streaming server http://erlyvideo.org/
 MD5Sum:" > Release
 
 #ls Packages* Sources* Release | while read ln
-ls Packages* Release | while read ln
+ls $2* Release | while read ln
 do
 md=`md5sum $ln |awk {' print $1 '}`
 sz=`du -sb $ln`
@@ -33,6 +38,7 @@ rm -f Release.tmp
 
 rm -f Release.gpg
 gpg -sbao Release.gpg Release
+cd ..
 }
 
 Package /apps/erlyvideo/debian/public
