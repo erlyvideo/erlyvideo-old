@@ -1,3 +1,9 @@
+log4erl (0.8.6-5) lucid; urgency=low
+
+  debian build
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 03 Sep 2010 03:50:18 +0400
+
 log4erl (0.8.6-4) lucid; urgency=low
 
   change debian build
