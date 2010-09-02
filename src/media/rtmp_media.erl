@@ -50,13 +50,8 @@
 
 init(Media, Options) ->
   URL = proplists:get_value(url, Options),
-  {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
-  ?D({rtmp_connect, Host, Port}),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
-  {ok, RTMP} = rtmp_socket:connect(Socket),
-  rtmp_socket:setopts(RTMP, [{active, true}]),
-  ems_media:set_source(self(), RTMP),
-  {ok, Media#ems_media{state = #rtmp{socket = Socket, demuxer = RTMP, url = URL}}}.
+  self() ! start,
+  {ok, Media#ems_media{state = #rtmp{url = URL}}}.
 
 
 %%----------------------------------------------------------------------
@@ -125,6 +120,17 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info(start, #ems_media{state = #rtmp{url = URL}} = State) ->
+  {rtmp, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  ?D({rtmp_connect, Host, Port}),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
+  {ok, RTMP} = rtmp_socket:connect(Socket),
+  rtmp_socket:setopts(RTMP, [{active, true}]),
+  ems_media:set_source(self(), RTMP),
+  ?D({rtmp_connected,URL}),
+  {noreply, State#ems_media{state = State#rtmp{socket = Socket, demuxer = RTMP}}};
+  
+
 handle_info({rtmp, RTMP, connected}, #ems_media{state = #rtmp{url = URL}} = State) ->
   ?D({"Connected to RTMP source", URL}),
   {rtmp, _UserInfo, _Host, _Port, FullPath, _Query} = http_uri2:parse(URL),
