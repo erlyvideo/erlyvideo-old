@@ -12,7 +12,7 @@ public function init()  : void
   
   nc = new NetConnection();
   nc.addEventListener(NetStatusEvent.NET_STATUS, handleStatus);
-  nc.connect("rtmp://localhost/phone");
+  nc.connect(Application.application.parameters.server+"/phone");
 }
 
 private function handleStatus(evt:NetStatusEvent) : void

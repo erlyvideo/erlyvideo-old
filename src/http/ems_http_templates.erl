@@ -75,6 +75,13 @@ http(Host, 'GET', ["admin"], Req) ->
   {ok, Index} = admin_template:render([{entries, Entries}]),
   Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
+http(Host, 'GET', ["phone"], Req) ->
+  ok = erlydtl:compile(ems_http:wwwroot(Host) ++ "/phone/index.html", phone_template),
+  {ok, Index} = phone_template:render([
+    {hostname, <<"rtmp://", (Req:host())/binary>>}
+  ]),
+  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
+
 http(Host, 'GET', ["chat.html"], Req) ->
   erlydtl:compile(ems_http:wwwroot(Host) ++ "/chat.html", chat_template),
   Secret = ems:get_var(secret_key, Host, undefined),
