@@ -1,3 +1,9 @@
+erlang-mpegts (2.3.4) lucid; urgency=low
+
+  debian build
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 03 Sep 2010 03:07:36 +0400
+
 erlang-mpegts (2.3.3) lucid; urgency=low
 
   updated debian
