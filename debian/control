@@ -3,7 +3,7 @@ Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Standards-Version: 3.8.3
 Section: net
-Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4) | erlang-nox (>= 1:13.b.4), ruby, log4erl (>= 0.8.6-2)
+Build-Depends: debhelper (>= 7), erlang (>= 1:13.b.4) | erlang-nox (>= 1:13.b.4), erlang-dev, ruby, log4erl (>= 0.8.6-2)
 Homepage: http://erlyvideo.org/
 
 Package: erlmedia
