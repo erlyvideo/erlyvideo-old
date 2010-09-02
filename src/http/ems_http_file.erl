@@ -36,7 +36,12 @@ http(Host, 'GET', Path, Req) ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:file(FileName);
     false ->
-      unhandled
+      case filelib:is_regular(FileName ++ "/index.html") of
+        true ->
+          Req:file(FileName ++ "/index.html");
+        false ->  
+          unhandled
+      end
   end;
 
 
