@@ -29,7 +29,7 @@
 -export([init/1,start_link/0]).
 -export([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
-          start_http_server/1, start_ticker/3]).
+          start_http_server/1, start_ticker/3, start_mjpeg_reader/2]).
 
 -export([static_streams/0,start_static_streams/0]).
 
@@ -55,6 +55,9 @@ start_mpegts_file_reader(Path, Options) ->
 
 start_shoutcast_reader(Consumer) ->
   supervisor:start_child(shoutcast_reader_sup, [Consumer]).
+
+start_mjpeg_reader(URL, Consumer) ->
+  supervisor:start_child(mjpeg_reader_sup, [URL, Consumer]).
 
 start_media(_Name, file,          Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
 start_media(_Name, mpegts,        Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
@@ -160,6 +163,21 @@ init([shoutcast_reader]) ->
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
                   []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([mjpeg_reader]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {mjpeg_reader,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [mjpeg_reader]                                       % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -306,6 +324,13 @@ init([]) ->
     },
     {   shoutcast_reader_sup,
         {supervisor,start_link,[{local, shoutcast_reader_sup}, ?MODULE, [shoutcast_reader]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   mjpeg_reader_sup,
+        {supervisor,start_link,[{local, mjpeg_reader_sup}, ?MODULE, [mjpeg_reader]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
