@@ -10,7 +10,8 @@
   video_tracks = [],
   width,
   height,
-  frames
+  frames,
+  additional = []
 }).
 
 -record(mp4_track, {

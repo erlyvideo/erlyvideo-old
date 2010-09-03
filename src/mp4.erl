@@ -55,7 +55,7 @@ read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
 
 
-read_header(Mp4Media, {Module, Device} = Reader, Pos) -> 
+read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = Reader, Pos) -> 
   case read_atom_header(Reader, Pos) of
     eof -> {ok, Mp4Media};
     {error, Reason} -> {error, Reason};
@@ -66,9 +66,14 @@ read_header(Mp4Media, {Module, Device} = Reader, Pos) ->
     {atom, AtomName, Offset, Length} -> 
       ?D({"Root atom", AtomName, Length}),
       {ok, AtomData} = Module:pread(Device, Offset, Length),
-      NewMedia = case erlang:function_exported(mp4, AtomName, 2) of
-        true -> mp4:AtomName(AtomData, Mp4Media);
-        false -> ?D({"Unknown atom", AtomName}), Mp4Media
+      NewMedia = case atom_to_binary(AtomName, utf8) of
+        <<"EV", _/binary>> ->
+          Mp4Media#mp4_media{additional = [{AtomName,AtomData}| Additional]};
+        _ ->
+          case erlang:function_exported(mp4, AtomName, 2) of
+            true -> mp4:AtomName(AtomData, Mp4Media);
+            false -> ?D({"Unknown atom", AtomName}), Mp4Media
+          end
       end,
       read_header(NewMedia, Reader, Offset + Length)
   end.
