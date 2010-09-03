@@ -1,3 +1,15 @@
+erlmedia (1.8.1) lucid; urgency=low
+
+  debian build
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 03 Sep 2010 03:52:20 +0400
+
+erlmedia (1.8.0) lucid; urgency=low
+
+  Added mp4_writer
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 03 Sep 2010 03:00:22 +0400
+
 erlmedia (1.7.2) lucid; urgency=low
 
   Again flv writer issues
