@@ -1,3 +1,9 @@
+erlyvideo (2.1.8) karmic; urgency=low
+
+  mp4 custom tags
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 04 Sep 2010 01:51:15 +0400
+
 erlyvideo (2.1.7) karmic; urgency=low
 
   debian build
