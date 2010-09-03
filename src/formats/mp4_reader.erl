@@ -45,7 +45,8 @@
   frames,
   reader,
   header,
-  lang
+  lang,
+  additional = []
 }).
 
 
@@ -233,9 +234,10 @@ init(Reader, Options) ->
 
 read_header(#mp4_reader{reader = Reader} = MediaInfo) -> 
   {ok, Mp4Media} = mp4:read_header(Reader),
-  #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, seconds = Seconds} = Mp4Media,
+  #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, 
+             seconds = Seconds, additional = Additional} = Mp4Media,
   ?D({"Opened mp4 file with following video tracks:", [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs], "and audio tracks", [Language || #mp4_track{language = Language} <- ATs]}),
-  Info1 = MediaInfo#mp4_reader{header = Mp4Media, width = Width, height = Height,            
+  Info1 = MediaInfo#mp4_reader{header = Mp4Media, width = Width, height = Height, additional = Additional,          
                        audio_tracks = ATs, video_tracks = VTs, duration = Seconds},
   {ok, Info1}.
 
@@ -283,7 +285,9 @@ build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index,
   end.
 
 
-properties(#mp4_reader{width = Width, height = Height, duration = Duration, audio_tracks = ATs, video_tracks = VTs}) -> 
+properties(#mp4_reader{width = Width, height = Height, duration = Duration, 
+                       audio_tracks = ATs, video_tracks = VTs,
+                       additional = Additional}) -> 
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs],
   Languages = [list_to_binary(Language) || #mp4_track{language = Language} <- ATs],
   [{width, Width}, 
@@ -291,7 +295,7 @@ properties(#mp4_reader{width = Width, height = Height, duration = Duration, audi
    {type, file},
    {duration, Duration/1000},
    {bitrates, Bitrates},
-   {languages, Languages}].
+   {languages, Languages}] ++ Additional.
 
 
 decoder_config(video, #mp4_reader{video_config = DecoderConfig}) -> DecoderConfig;
