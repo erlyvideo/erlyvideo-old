@@ -2,7 +2,7 @@ Source: erlyvideo
 Priority: extra
 Author: Max Lapshin <max@maxidoors.ru>
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), erlang (>= 1:13) | erlang-nox (>= 1:13), erlang-dev, erlmedia, erlang-rtmp, erlang-amf, erlydtl, log4erl, erlang-rtsp, erlang-rtp, erlang-mpegts, erlang-shoutcast
+Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13) | erlang (>= 1:13), erlang-dev, erlmedia, erlang-rtmp, erlang-amf, erlydtl, log4erl, erlang-rtsp, erlang-rtp, erlang-mpegts, erlang-shoutcast
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/
@@ -13,6 +13,6 @@ Author: Max Lapshin <max@maxidoors.ru>
 Homepage: http://erlyvideo.org/
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.7.7), erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.6-4), erlang (>= 1:13) | erlang-nox (>= 1:13), erlmedia (>= 1.7.2), erlang-rtsp (>= 1.6.0), erlang-rtp (>= 0.2), erlang-mpegts (>= 2.3.3), erlang-shoutcast (>= 1.2.2)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.7.7), erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.6-4), erlang-nox (>= 1:13) | erlang (>= 1:13), erlmedia (>= 1.7.2), erlang-rtsp (>= 1.6.0), erlang-rtp (>= 0.2), erlang-mpegts (>= 2.3.3), erlang-shoutcast (>= 1.2.2)
 Description: Erlang video server
  Erlang server, capable to read many sources like files, RTSP or MPEG TS streams and deliver them to RTMP clients
