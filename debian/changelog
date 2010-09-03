@@ -1,3 +1,9 @@
+erlmedia (1.8.2) lucid; urgency=low
+
+  mp4 export custom tags
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 04 Sep 2010 01:50:58 +0400
+
 erlmedia (1.8.1) lucid; urgency=low
 
   debian build
