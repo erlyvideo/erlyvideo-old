@@ -108,7 +108,7 @@ start_custom(Module, Options) ->
 %% @doc Subscribe caller to stream and starts playing. Look {@link subscribe/2.} for options.
 %% @end
 %%----------------------------------------------------------------------
-play(Media, Options) ->
+play(Media, Options) when is_pid(Media) andalso is_list(Options) ->
   ok = subscribe(Media, Options),
   gen_server:call(Media, {start, self()}),
   ok.
@@ -119,7 +119,7 @@ play(Media, Options) ->
 %% @doc The same as {@link unsubscribe/2.}
 %% @end
 %%----------------------------------------------------------------------
-stop(Media) ->
+stop(Media) when is_pid(Media) ->
   unsubscribe(Media).
 
 %%--------------------------------------------------------------------
@@ -128,7 +128,7 @@ stop(Media) ->
 %% @doc stops stream. Called by source, when going to leave
 %% @end
 %%----------------------------------------------------------------------
-stop_stream(Media) ->
+stop_stream(Media) when is_pid(Media) ->
   gen_server:call(Media, stop).
 
 %%----------------------------------------------------------------------
@@ -145,7 +145,7 @@ stop_stream(Media) ->
 %% </dl>
 %% @end
 %%----------------------------------------------------------------------
-subscribe(Media, Options) ->
+subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
   gen_server:call(Media, {subscribe, self(), Options}).
 
 %%----------------------------------------------------------------------
@@ -154,7 +154,7 @@ subscribe(Media, Options) ->
 %% @doc Unsubscribe caller from stream
 %% @end
 %%----------------------------------------------------------------------
-unsubscribe(Media) ->
+unsubscribe(Media) when is_pid(Media) ->
   gen_server:call(Media, {unsubscribe, self()}).
 
 %%----------------------------------------------------------------------
@@ -163,7 +163,7 @@ unsubscribe(Media) ->
 %% @doc Resume stream for calling client
 %% @end
 %%----------------------------------------------------------------------
-resume(Media) ->
+resume(Media) when is_pid(Media) ->
   gen_server:call(Media, {resume, self()}).
 
 %%----------------------------------------------------------------------
@@ -172,7 +172,7 @@ resume(Media) ->
 %% @doc Pauses stream for calling client
 %% @end
 %%----------------------------------------------------------------------
-pause(Media) ->
+pause(Media) when is_pid(Media) ->
   gen_server:call(Media, {pause, self()}).
 
 %%----------------------------------------------------------------------
@@ -181,7 +181,7 @@ pause(Media) ->
 %% @doc Sets new source of frames for media. Media can work only with one source
 %% @end
 %%----------------------------------------------------------------------
-set_source(Media, Source) ->
+set_source(Media, Source) when is_pid(Media) ->
   gen_server:cast(Media, {set_source, Source}).
 
 %%----------------------------------------------------------------------
@@ -192,7 +192,7 @@ set_source(Media, Source) ->
 %% submodule. For example, PUT mpegts requires it.
 %% @end
 %%----------------------------------------------------------------------
-set_socket(Media, Socket) ->
+set_socket(Media, Socket) when is_pid(Media) ->
   gen_tcp:controlling_process(Socket, Media),
   gen_server:cast(Media, {set_socket, Socket}).
   
@@ -523,18 +523,29 @@ handle_call({seek, Client, BeforeAfter, DTS} = Seek, _From, #ems_media{module = 
 
 
 %% It is information seek, required for outside needs.
-handle_call({seek_info, BeforeAfter, DTS}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
-  {reply, Format:seek(Storage, BeforeAfter, DTS), Media, ?TIMEOUT};
-
+handle_call({seek_info, BeforeAfter, DTS} = SeekInfo, _From, 
+  #ems_media{format = Format, storage = Storage, module = M} = Media) ->
+  case M:handle_control(SeekInfo, Media) of
+    {noreply, Media1} ->
+      {reply, Format:seek(Storage, BeforeAfter, DTS), Media1, ?TIMEOUT};
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1};
+    {reply, Reply, Media1} ->
+      {reply, Reply, Media1, ?TIMEOUT}
+  end;
 
 handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
-  Frame = Format:read_frame(Storage, Key),
+  {Storage1, Frame} = case Format:read_frame(Storage, Key) of
+    #video_frame{} = F -> {Storage, F};
+    {S, #video_frame{} = F} -> {S, F};
+    Else -> {Storage, Else}
+  end,
   Media1 = case Frame of
     #video_frame{content = video, flavor = config} -> Media#ems_media{video_config = Frame};
     #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
     _ -> Media
   end,
-  {reply, Frame, Media1, ?TIMEOUT};
+  {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
 handle_call(metadata, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media), Media, ?TIMEOUT};
@@ -983,7 +994,7 @@ terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
   ok;
 
 terminate(_Reason, _State) ->
-  ?D({"ems_media exit", _Reason}),
+  ?D({"ems_media exit"}),
   ok.
 
 %%-------------------------------------------------------------------------

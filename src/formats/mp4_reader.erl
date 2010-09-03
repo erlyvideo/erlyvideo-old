@@ -170,6 +170,9 @@ read_data(#mp4_reader{reader = {M, Dev}} = MediaInfo, Offset, Size) ->
 
 seek(#mp4_reader{} = Media, before, Timestamp) when Timestamp == 0 ->
   {first(Media), 0};
+
+seek(#mp4_reader{duration = Duration}, _, Timestamp) when Timestamp > Duration ->
+  undefined;
   
 seek(#mp4_reader{video_track = VT, frames = Frames} = Media, Direction, Timestamp) ->
   case mp4:seek(VT, Direction, Timestamp) of

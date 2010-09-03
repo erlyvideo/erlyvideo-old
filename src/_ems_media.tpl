@@ -71,10 +71,20 @@ handle_control({unsubscribe, _Client}, #ems_media{} = State) ->
   {noreply, State};
 
 handle_control({seek, _Client, _BeforeAfter, _DTS}, #ems_media{} = State) ->
+  %% seek is a destructive call, that changes state of Client: it is moved from stream to file
+  %% and state of media_ticker is changed
   %% seek returns:
   %% {reply, {NewPos, NewDTS}, State} => media knows how to seek in storage
   %% {stop, Reason, State}  => stop with Reason
   %% {noreply, State}       => default action is to seek in storage.
+  {noreply, State};
+
+handle_control({seek, _Client, _BeforeAfter, _DTS}, #ems_media{} = State) ->
+  %% seek_info is used by media ticker to know, where to start from.
+  %% It should be non-destructive if possible. returns:
+  %% {reply, {NewPos, NewDTS}, State} => media knows how to seek in storage
+  %% {stop, Reason, State}  => stop with Reason
+  %% {noreply, State}       => default action is to seek in storage and go to Format:seek.
   {noreply, State};
 
 handle_control({source_lost, _Source}, #ems_media{} = State) ->
