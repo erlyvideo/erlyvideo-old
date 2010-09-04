@@ -3,6 +3,7 @@
           codec,
           clock_map,
           ms      :: undefined | mono | stereo,
+          ptime   :: integer(),
           config = []
          }).
 

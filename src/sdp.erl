@@ -301,8 +301,15 @@ encode_media(#media_desc{type = Type,
              true ->
               PTC = []
           end,
-          [["a=", "rtpmap:", integer_to_list(PTnum), $ , Codecb, $/, CMapb, MSb, ?LSEP], PTC]
-        end || #payload{num = PTnum, codec = Codec, clock_map = ClockMap, ms = MS, config = PTConfig} <- PayLoads],
+          if is_integer(PTime) ->
+              PTimeS = ["a=", "ptime:", integer_to_list(PTime), ?LSEP];
+             true ->
+              PTimeS = []
+          end,
+          [["a=", "rtpmap:", integer_to_list(PTnum), $ , Codecb, $/, CMapb, MSb, ?LSEP], PTC, PTimeS]
+        end || #payload{num = PTnum, codec = Codec,
+                        clock_map = ClockMap, ms = MS,
+                        ptime = PTime, config = PTConfig} <- PayLoads],
   ACfg = case Config of
            %% _ when (is_list(Config) or
            %%         is_binary(Config)) ->
@@ -373,6 +380,7 @@ prep_media_config({audio,
   #media_desc{type = audio,
               port = proplists:get_value(audio_port, Opts, 0),
               payloads = [#payload{num = 97, codec = Codec, clock_map = rate2num(Rate),
+                                   ptime = proplists:get_value(audio_ptime, Opts),
                                    config = [iolist_to_binary(["streamtype=5;"
                                                                "profile-level-id=15;"
                                                                "mode=AAC-hbr;"
@@ -394,7 +402,7 @@ prep_media_config({audio,
               port = proplists:get_value(audio_port, Opts, 0),
               payloads = [#payload{num = 111, codec = Codec,
                                    clock_map = rate2num(Rate), ms = mono,
-                                   config = ["vbr=on"]}],
+                                   config = ["vbr=vad"]}],
               track_control = undefined}.
 
 rate2num(Rate) ->

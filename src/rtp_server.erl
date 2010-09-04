@@ -179,7 +179,7 @@ handle_call({play, Fun, Media}, _From,
 
 handle_call({add_stream,
              #media_desc{type = Type, payloads = [#payload{num = PTnum,
-                                                           codec = Codec,
+                                                           codec = _Codec,
                                                            clock_map = ClockMap}|_],
                          track_control = TCtl},
              Proto, Addr, {Method, Params}}, _From,
@@ -283,8 +283,7 @@ handle_info(#video_frame{content = audio, flavor = frame,
             #state{audio = AudioDesc} = State) ->
   case AudioDesc of
     #desc{method = MDesc, state = BaseRTP} ->
-      %%?DBG("DS: Audio Frame(~p) (pl ~p):~n~p", [self(), iolist_size(Body), Frame]),
-      %% Send Audio
+      %%?DBG("DS: Audio Frame(~p) (pl ~p):~n~p", [self(), iolist_size(Body), Body]),
       {NewBaseRTP, RTPs} = encode(rtp, inc_timecode(BaseRTP), Codec, Body),
       case MDesc of
         #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
@@ -349,7 +348,7 @@ handle_info(#video_frame{content = video, flavor = Flavor,
   end,
   {noreply, NewState};
 
-handle_info({udp, SSocket, SAddr, SPort, Data},
+handle_info({udp, SSocket, _SAddr, _SPort, _Data},
             #state{audio = AudioDesc,
                    video = VideoDesc} = State) ->
   {AudioRTCPSock, AudioRTPSock} =
@@ -817,6 +816,9 @@ encode(rtp, BaseRTP, Codec, Data) ->
       Header = <<AH:8,AS/binary>>,
       AAC = <<Header/binary,Data/binary>>,
       {NewBaseRTP, Packs} = compose_rtp(BaseRTP#base_rtp{marker = true}, AAC);
+    speex ->
+      SPEEX = <<Data/binary, 16#7f:8 >>,        % Padding?
+      {NewBaseRTP, Packs} = compose_rtp(BaseRTP#base_rtp{marker = false}, SPEEX);
     h264 ->
       case Data of
         {config, [SPS, PPS]} ->
