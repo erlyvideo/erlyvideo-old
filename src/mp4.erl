@@ -64,7 +64,7 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
     {atom, _AtomName, Offset, 0} -> 
       read_header(Mp4Media, Reader, Offset);
     {atom, AtomName, Offset, Length} -> 
-      ?D({"Root atom", AtomName, Length}),
+      % ?D({"Root atom", AtomName, Length}),
       {ok, AtomData} = Module:pread(Device, Offset, Length),
       NewMedia = case atom_to_binary(AtomName, utf8) of
         <<"EV", _/binary>> ->
@@ -173,7 +173,7 @@ parse_atom(<<0:32>>, Mp4Parser) ->
   
 % FTYP atom
 ftyp(<<_Major:4/binary, _Minor:4/binary, _CompatibleBrands/binary>>, MediaInfo) ->
-  ?D({"File", _Major, _Minor, ftyp(_CompatibleBrands, [])}),
+  % ?D({"File", _Major, _Minor, ftyp(_CompatibleBrands, [])}),
   % NewParser = Mp4Parser#mp4_header{file_type = binary_to_list(Major), file_types = decode_atom(ftyp, CompatibleBrands, [])},
   MediaInfo;
 
