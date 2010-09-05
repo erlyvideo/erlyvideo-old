@@ -674,7 +674,7 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
   end;
 
 handle_info(#video_frame{} = Frame, Media) ->
-  % ?D({Frame#video_frame.content, Frame#video_frame.flavor, Frame#video_frame.dts}),
+  % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
   case transcode(Frame) of
     undefined ->
       {noreply, Media, ?TIMEOUT};
