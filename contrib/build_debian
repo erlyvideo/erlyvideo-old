@@ -23,9 +23,20 @@ class Repository
   def initialize(path)
     @path = path
   end
+
+  def tag_version(tag)
+    if tag =~ /v(\d+)\.(\d+)\.(\d+)/
+      $1.to_i*100_00 + $2.to_i*100 + $3.to_i
+    else
+      0
+    end
+  end
   
   def last_version
-    tag = `(cd #{path}; git tag -n1 -l)`.split(/\n/).sort.reverse[0].strip
+    tag = `(cd #{path}; git tag -n1 -l)`.split(/\n/).sort do |t1,t2|
+      tag_version(t1) <=> tag_version(t2)
+    end.reverse[0].strip
+    puts tag.inspect
     tag =~ /v([^\ ]+) [\ ]*(.*)/
     [$1, $2]
   end
