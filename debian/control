@@ -2,7 +2,7 @@ Source: erlyvideo
 Priority: extra
 Author: Max Lapshin <max@maxidoors.ru>
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13) | erlang (>= 1:13), erlang-dev, erlmedia, erlang-rtmp, erlang-amf, erlydtl, log4erl, erlang-rtsp, erlang-rtp, erlang-mpegts, erlang-shoutcast
+Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13) | erlang (>= 1:13), erlang-dev, erlmedia (>= 1.8.3), erlang-rtmp, erlang-amf, erlydtl, log4erl, erlang-rtsp, erlang-rtp, erlang-mpegts, erlang-shoutcast
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/
