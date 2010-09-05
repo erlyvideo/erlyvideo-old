@@ -34,7 +34,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([read/2, connect/3, describe/2, setup/2, play/2]).
+-export([read/2, connect/3, describe/2, setup/3, play/2]).
 
 
 -define(FRAMES_BUFFER, 15).
@@ -60,6 +60,7 @@
   rtp_ref       :: reference(),
   state,
   pending,
+  pending_reply = ok,
   seq,
   session
 }).
@@ -74,8 +75,8 @@ read(URL, Options) ->
 read_raw(URL, Options) ->
   {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
   ok = rtsp_socket:connect(RTSP, URL, Options),
-  ok = rtsp_socket:describe(RTSP, Options),
-  ok = rtsp_socket:setup(RTSP, Options),
+  {ok, Streams} = rtsp_socket:describe(RTSP, Options),
+  [ok = rtsp_socket:setup(RTSP, Stream, Options) || Stream <- Streams],
   ok = rtsp_socket:play(RTSP, Options),
   {ok, RTSP}.
 
@@ -84,9 +85,9 @@ describe(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
   gen_server:call(RTSP, {request, describe}, Timeout).
 
-setup(RTSP, Options) ->
+setup(RTSP, Stream, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
-  gen_server:call(RTSP, {request, setup}, Timeout).
+  gen_server:call(RTSP, {request, setup, Stream}, Timeout).
 
 play(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
@@ -148,18 +149,19 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
-handle_call({request, setup}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
-
-  Setup = fun(#media_desc{track_control = Control}, Num) ->
-    Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n", [append_trackid(URL, Control), Seq + Num + 1, Num*2, Num*2 + 1]),
-    gen_tcp:send(Socket, Call),
-    io:format("~s~n", [Call]),
-    Num + 1;
-             (undefined, Num) ->
-               Num
+handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
+  #media_desc{track_control = Control} = lists:nth(Num, Streams),
+  
+  Sess = case RTSP#rtsp_socket.session of
+    undefined -> "";
+    Session -> "Session: "++Session++"\r\n"
   end,
-  NewSeq = lists:foldl(Setup, 0, Streams),
-  {noreply, RTSP#rtsp_socket{pending = From, seq = NewSeq}};
+  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Sess++
+        "Transport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n", 
+        [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
+  gen_tcp:send(Socket, Call),
+  io:format("~s~n", [Call]),
+  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq+1}};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
@@ -214,7 +216,7 @@ handle_info({'DOWN', _, process, Consumer, _Reason},
   {stop, normal, Socket#rtsp_socket{rtp = undefined,
                                     rtp_ref = undefined}};
 
-handle_info(#video_frame{content = Content} = Frame, #rtsp_socket{socket = Sock} = Socket) ->
+handle_info(#video_frame{content = Content} = _Frame, #rtsp_socket{socket = _Sock} = Socket) ->
   ?DBG("Media Frame (~p): ~p", [self(), Content]),
   {noreply, Socket};
 
@@ -258,9 +260,9 @@ reply_pending(#rtsp_socket{pending = undefined} = Socket) ->
 reply_pending(#rtsp_socket{state = {Method, Count}} = Socket) when Count > 1 ->
   Socket#rtsp_socket{state = {Method, Count - 1}};
 
-reply_pending(#rtsp_socket{pending = From} = Socket) ->
-  gen_server:reply(From, ok),
-  Socket#rtsp_socket{pending = undefined}.
+reply_pending(#rtsp_socket{pending = From, pending_reply = Reply} = Socket) ->
+  gen_server:reply(From, Reply),
+  Socket#rtsp_socket{pending = undefined, pending_reply = ok}.
 
 configure_rtp(Socket, _Headers, undefined) ->
   Socket;
@@ -270,12 +272,13 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, media = Consumer} = Socket,
     <<"application/sdp">> ->
       io:format("~s~n", [Body]),
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
+      StreamNums = lists:seq(1, size(RtpStreams1) div 2),
 
       lists:foreach(fun(Frame) ->
         Consumer ! Frame#video_frame{dts = undefined, pts = undefined}
       end, Frames),
 
-      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1};
+      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1, pending_reply = {ok, StreamNums}};
     undefined ->
       Socket;
     Else ->
@@ -327,7 +330,7 @@ handle_request({request, 'PLAY', _URL, Headers, _Body}, #rtsp_socket{rtp = undef
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 
 handle_request({request, 'PLAY', URL, Headers, Body},
-               #rtsp_socket{callback = Callback, session = Session,
+               #rtsp_socket{callback = Callback, session = _Session,
                             media = Media, rtp = ProducerCtl} = State) ->
   %% Callback:play sets up self() as consumer of #video_frame-s:
   %% Callback:play -> media_provider:play -> ems_media:play
@@ -568,6 +571,7 @@ sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
   end.
 
 handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} = Socket, {rtp, Channel, Packet}) ->
+  % ?D({rtp,Channel,Streams}),
   {Streams1, NewFrames} =
     case element(Channel+1, Streams) of
       {rtcp, RTPNum} ->
