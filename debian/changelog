@@ -1,3 +1,9 @@
+erlang-rtsp (1.6.2) lucid; urgency=low
+
+  Fix in handling camera with audio
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 06 Sep 2010 00:22:46 +0400
+
 erlang-rtsp (1.6.1) lucid; urgency=low
 
   debian build
