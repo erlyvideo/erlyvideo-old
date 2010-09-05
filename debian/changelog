@@ -1,3 +1,9 @@
+erlyvideo (2.1.10) karmic; urgency=low
+
+  debian update
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 06 Sep 2010 01:19:05 +0400
+
 erlyvideo (2.1.9) karmic; urgency=low
 
   mp4 one track issues
