@@ -26,15 +26,15 @@
 
 
 %% External API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([out_bytes/2, stats/0]).
 
-start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Options) ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []).
 
 -record(state, {
   total_bytes,
@@ -75,12 +75,14 @@ stats() ->
 %%----------------------------------------------------------------------
 
 
-init([]) ->
-  timer:send_interval(5000, flush),
+init([Options]) ->
+  Depth = proplists:get_value(depth, Options, 100),
+  Timer = proplists:get_value(timer, Options, 5000),
+  timer:send_interval(Timer, flush),
   {ok, #state{
     total_bytes = 0,
     stats = queue:new(),
-    depth = 100,
+    depth = Depth,
     current_speed = 0,
     previous_time = erlang:now(),
     current_bytes = 0

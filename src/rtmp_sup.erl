@@ -109,7 +109,7 @@ init([]) ->
       []                                       % Modules  = [Module] | dynamic
     },
     {rtmp_stat_collector_sup,
-      {rtmp_stat_collector,start_link,[]},
+      {rtmp_stat_collector,start_link,[[{depth,100},{timer,5000}]]},
       permanent,                               % Restart  = permanent | transient | temporary
       infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
       supervisor,                              % Type     = worker | supervisor
