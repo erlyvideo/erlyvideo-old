@@ -1,3 +1,15 @@
+erlyvideo (2.1.9) karmic; urgency=low
+
+  mp4 one track issues
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 06 Sep 2010 00:27:05 +0400
+
+erlyvideo (2.1.8) karmic; urgency=low
+
+  mp4 custom tags
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 04 Sep 2010 01:51:15 +0400
+
 erlyvideo (2.1.7) karmic; urgency=low
 
   debian build

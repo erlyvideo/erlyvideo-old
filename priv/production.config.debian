@@ -1,5 +1,5 @@
 [{sasl, [
-	{sasl_error_logger, {file, "log/error.log"}}
+	{sasl_error_logger, {file, "/var/log/erlyvideo/error.log"}}
 ]},
 {snmp, [
 	{agent, [
