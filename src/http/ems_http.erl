@@ -66,13 +66,6 @@ try_handler([Handler|Chain], Host, Method, Path, Req) ->
 
 wwwroot(Host) ->
   ems:get_var(wwwroot, Host, ems:get_var(wwwroot, "wwwroot")).
-
-  
-http(Host, 'GET', ["stats.json"], Req) ->
-  Stats = lists:map(fun({Name, Clients}) ->
-    {Name, {struct, [{clients, length(Clients)}]}}
-  end, media_provider:entries(Host)),
-  Req:respond(200, [{"Content-Type", "application/json"}], [mochijson2:encode({struct, Stats}), "\n"]);
   
 
 % handle the 404 page not found
