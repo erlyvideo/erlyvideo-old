@@ -76,7 +76,7 @@ stats() ->
 
 
 init([]) ->
-  timer:send_interval(1000, flush),
+  timer:send_interval(5000, flush),
   {ok, #state{
     total_bytes = 0,
     stats = queue:new(),
@@ -99,7 +99,7 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_call(stats, _From, #state{stats = Stats} = State) ->
-  {reply, queue:to_list(Stats), State};
+  {reply, dump_stats(Stats), State};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -175,3 +175,9 @@ flush_bytes(#state{current_bytes = Bytes, previous_time = Prev, stats = Stats,
     _ -> Stats1
   end,
   State#state{current_bytes = 0, previous_time = Now, stats = Stats2, total_bytes = Total + Bytes}.
+
+dump_stats(Stats) ->
+  [[{time,Time},{bytes,Bytes},{speed,Speed}] || 
+    #entry{time = Time, bytes = Bytes, speed = Speed} <- lists:reverse(queue:to_list(Stats))].
+
+

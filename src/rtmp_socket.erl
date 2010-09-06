@@ -567,6 +567,7 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     {undefined,_} -> rtmpe:crypt(KeyOut, Data);
     _ -> erlang:error(not_implemented_rtmp_codec)
   end,
+  (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
   if
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
