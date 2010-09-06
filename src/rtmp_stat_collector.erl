@@ -167,8 +167,8 @@ append_bytes(Bytes, #state{current_bytes = Current} = State) ->
 flush_bytes(#state{current_bytes = Bytes, previous_time = Prev, stats = Stats, 
                    total_bytes = Total, depth = Depth} = State) ->
   Now = erlang:now(),
-  Delta = timer:now_diff(Now, Prev) div 1000,
-  Speed = Bytes * 8 div Delta, % Bytes per millisecond * 8 = kbits / second
+  Delta = timer:now_diff(Now, Prev),
+  Speed = Bytes * 8000 div Delta, % Bytes per millisecond * 8 = kbits / second
   {M,S,_Mu} = Now,
   Time = M*10000000+S,
   Stats1 = queue:in(#entry{time = Time, bytes = Bytes, speed = Speed}, Stats),
