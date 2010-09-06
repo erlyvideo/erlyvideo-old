@@ -108,6 +108,13 @@ init([]) ->
       supervisor,                              % Type     = worker | supervisor
       []                                       % Modules  = [Module] | dynamic
     },
+    {rtmp_stat_collector_sup,
+      {rtmp_stat_collector,start_link,[]},
+      permanent,                               % Restart  = permanent | transient | temporary
+      infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+      supervisor,                              % Type     = worker | supervisor
+      [rtmp_stat_collector]                                       % Modules  = [Module] | dynamic
+    },
     {rtmp_monitor_sup,                         % Id       = internal id
       {rtmp_monitor,start_link,[[{timeout,1000},{threshold,80*60}]]},            % StartFun = {M, F, A}
       permanent,                               % Restart  = permanent | transient | temporary
