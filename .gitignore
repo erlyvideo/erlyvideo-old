@@ -8,6 +8,7 @@ plugins
 *.cookie
 log
 movies
+*~
 
 # XCode noise
 *.swp
