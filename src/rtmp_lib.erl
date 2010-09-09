@@ -183,7 +183,7 @@ play_start(RTMP, StreamId, DTS) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(metadata, StreamId), stream_id = StreamId,
     body = [<<"|RtmpSampleAccess">>, true, true], timestamp = DTS, ts_type = delta}),
     
-  rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, timestamp = DTS, channel_id = channel_id(audio, StreamId), stream_id = StreamId}),
+  % rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, timestamp = DTS, channel_id = channel_id(audio, StreamId), stream_id = StreamId}),
     
   Notify = rtmp_socket:prepare_notify(StreamId, <<"onStatus">>, [{code, <<"NetStream.Data.Start">>}]),
   rtmp_socket:send(RTMP, Notify#rtmp_message{channel_id = channel_id(metadata, StreamId), timestamp = DTS}),
@@ -216,12 +216,10 @@ seek_notify(RTMP, StreamId, DTS) ->
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(metadata, StreamId), stream_id = StreamId,
     body = [<<"|RtmpSampleAccess">>, true, true], timestamp = DTS, ts_type = delta}),
 
-  rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, timestamp = DTS, channel_id = channel_id(audio, StreamId)}),
   
   % rtmp_socket:send(RTMP, #rtmp_message{type = metadata, channel_id = channel_id(audio, StreamId), stream_id = StreamId,
   %   timestamp = same, body = [<<"|RtmpSampleAccess">>, true, true]}),
     
-  % rtmp_socket:send(RTMP, #rtmp_message{type = audio, channel_id = channel_id(audio, StreamId), timestamp = Timestamp, stream_id = StreamId, body = <<>>}),
   % DataNotify = rtmp_socket:prepare_notify(StreamId, ),
   rtmp_socket:send(RTMP, #rtmp_message{type = metadata, timestamp = DTS, channel_id = channel_id(metadata, StreamId), ts_type = new, body = [<<"onStatus">>, {object, [{code, <<"NetStream.Data.Start">>}]}]}),
   rtmp_socket:send(RTMP, #rtmp_message{type = video, channel_id = channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,0>>, ts_type = new}),
@@ -241,8 +239,8 @@ play_complete(RTMP, StreamId, Options) ->
     Else -> Else
   end,
 
-  rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, ts_type = new, stream_id = StreamId,
-    timestamp = Duration, channel_id = channel_id(audio, StreamId)}),
+  % rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, ts_type = new, stream_id = StreamId,
+  %   timestamp = Duration, channel_id = channel_id(audio, StreamId)}),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0, ts_type = new}),
 
   PlayComplete1Arg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}, {duration, Duration/1000},{bytes,0}]},

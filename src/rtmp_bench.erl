@@ -51,20 +51,18 @@
 -export([start_spawner/1, init/3]).
 
 init(URL, Count, Debug) ->
-  {ok, Re1} = re:compile("([^:]+)://([^/]+):(\\d+)/(.*)"),
-  {ok, Re2} = re:compile("([^:]+)://([^/]+)/(.*)"),
+  {ok, Re1} = re:compile("([^:]+)://([^/]+):(\\d+)/([^/]+)/(.*)"),
+  {ok, Re2} = re:compile("([^:]+)://([^/]+)/([^/]+)/(.*)"),
   process_flag(trap_exit, true),
 	case re:run(URL, Re1, [{capture, all, list}]) of
-	  {match, [_, _Protocol, Server, PortS, Path]} ->
+	  {match, [_, _Protocol, Server, PortS, App, Path]} ->
 			Port = list_to_integer(PortS);
 		_ ->
-			{match, [_, _Protocol, Server, Path]} = re:run(URL, Re2, [{capture, all, list}]),
+			{match, [_, _Protocol, Server, App, Path]} = re:run(URL, Re2, [{capture, all, list}]),
 			Port = 1935
 	end,
-	[App | PathRest] = string:tokens(Path, "/"),
-	RealPath = list_to_binary(string:join(PathRest,"/")),
-	io:format("~p:~p ~p ~p~n", [Server, Port, App, RealPath]),
-  #spawner{server = Server, port = Port, app = list_to_binary(App), path = RealPath, count = Count, debug = Debug}.
+	io:format("~p:~p ~p ~p~n", [Server, Port, App, Path]),
+  #spawner{server = Server, port = Port, app = list_to_binary(App), path = Path, count = Count, debug = Debug}.
 
 
 start_spawner(Spawner) ->

@@ -121,6 +121,7 @@
   amf_version = 0   ::integer(),
 	channels          ::tuple(),
 	out_channels      ::tuple(),
+	sent_audio_notify = false ::boolean(),
 	debug = false     ::boolean(),
 	address           ::tuple(),
 	port              ::integer(),

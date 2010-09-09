@@ -557,6 +557,14 @@ activate_socket(Socket) when is_port(Socket) ->
 activate_socket(Socket) when is_pid(Socket) ->
   ok.
 
+send_data(#rtmp_socket{sent_audio_notify = false} = Socket, #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId} = Message) ->
+  Audio = #rtmp_message{type = audio, body = <<>>, timestamp = DTS, stream_id = StreamId, channel_id = rtmp_lib:channel_id(audio, StreamId)},
+  State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, Audio),
+  send_data(State1, Message);
+  
+send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
+  send_data(Socket#rtmp_socket{sent_audio_notify = false}, Message);
+
 send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
   {NewState, Data} = case Message of
     #rtmp_message{} -> rtmp:encode(State, Message);
