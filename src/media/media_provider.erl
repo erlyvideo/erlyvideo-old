@@ -262,11 +262,13 @@ handle_call(host, _From, #media_provider{host = Host} = MediaProvider) ->
   {reply, Host, MediaProvider};
 
 handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Info = [{Name, Pid, (catch ems_media:status(Pid))} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
+  Info1 = [{Name, Pid, (catch ems_media:status(Pid))} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
+  Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
   {reply, Info, MediaProvider};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
+
 
 
 find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
