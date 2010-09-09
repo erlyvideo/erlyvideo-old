@@ -1,3 +1,9 @@
+erlang-rtp (0.3.0) lucid; urgency=low
+
+  Merge of sip requirements
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 09 Sep 2010 14:40:06 +0400
+
 erlang-rtp (0.2.1) lucid; urgency=low
 
   debian build
