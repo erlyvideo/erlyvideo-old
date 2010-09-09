@@ -150,6 +150,7 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
 
 handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
+  ?D({"Setup", Num, Streams}),
   #media_desc{track_control = Control} = lists:nth(Num, Streams),
   
   Sess = case RTSP#rtsp_socket.session of
@@ -272,12 +273,13 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, media = Consumer} = Socket,
     <<"application/sdp">> ->
       io:format("~s~n", [Body]),
       {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
-      StreamNums = lists:seq(1, size(RtpStreams1) div 2),
+      StreamNums = lists:seq(1, length([Desc || Desc <- tuple_to_list(RtpStreams1), element(1, Desc) == audio orelse element(1,Desc) == video])),
 
       lists:foreach(fun(Frame) ->
         Consumer ! Frame#video_frame{dts = undefined, pts = undefined}
       end, Frames),
 
+      ?D({"Streams", RtpStreams1, StreamNums}),
       Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1, pending_reply = {ok, StreamNums}};
     undefined ->
       Socket;
