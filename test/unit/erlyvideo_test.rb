@@ -3,7 +3,7 @@ require 'test_helper'
 class ErlmediaTest < Test::Unit::TestCase
   
   def run_test(name)
-    output = `ERL_LIBS=#{File.dirname(__FILE__)+"/../../deps"} #{File.dirname(__FILE__)}/erlyvideo_test.erl #{name} 2>&1`
+    output = `ERL_LIBS=#{File.dirname(__FILE__)+"/../../deps"} #{File.dirname(__FILE__)}/erlyvideo_test #{name} 2>&1`
     assert output =~ /(tests|Test) passed/, "erlmedia test #{name} should pass: #{output}"
   end
   
