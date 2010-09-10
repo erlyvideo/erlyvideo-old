@@ -99,12 +99,14 @@ audio_rate(rate11) -> ?FLV_AUDIO_RATE_11;
 audio_rate(rate22) -> ?FLV_AUDIO_RATE_22;
 audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
 
+video_codec(mjpeg) -> ?FLV_VIDEO_CODEC_JPEG;
 video_codec(h264) -> ?FLV_VIDEO_CODEC_AVC;
 video_codec(sorensen) -> ?FLV_VIDEO_CODEC_SORENSEN;
 video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
 video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
 video_codec(?FLV_VIDEO_CODEC_SORENSEN) -> sorensen;
-video_codec(?FLV_VIDEO_CODEC_AVC) -> h264.
+video_codec(?FLV_VIDEO_CODEC_AVC) -> h264;
+video_codec(?FLV_VIDEO_CODEC_JPEG) -> mjpeg.
 
 frame_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
 frame_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
