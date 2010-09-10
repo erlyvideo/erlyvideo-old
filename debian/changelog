@@ -1,3 +1,9 @@
+erlmedia (1.8.4) lucid; urgency=low
+
+  Added gen_listener to the only erlyvideo dependency
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 10 Sep 2010 12:56:30 +0400
+
 erlmedia (1.8.3) lucid; urgency=low
 
   one track mp4 fix
