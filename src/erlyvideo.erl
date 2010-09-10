@@ -88,7 +88,7 @@ start_http() ->
   case ems:get_var(http_port, 8082) of
     undefined ->
       ok;
-    HTTP when is_integer(HTTP) ->
+    HTTP ->
       ems_sup:start_http_server(HTTP)
   end.
 
@@ -97,7 +97,7 @@ start_rtmp() ->
   case ems:get_var(rtmp_port, 1935) of
     undefined ->
       ok;
-    RTMP when is_integer(RTMP) ->
+    RTMP ->
       rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
   end.
 
@@ -106,7 +106,7 @@ start_rtsp() ->
   case ems:get_var(rtsp_port, undefined) of
     undefined ->
       ok;
-    RTSP when is_integer(RTSP) ->
+    RTSP ->
       rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
   end.
 

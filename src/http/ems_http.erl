@@ -29,7 +29,13 @@
   
 % start misultin http server
 start_link(Port) ->
-	misultin:start_link([{port, Port}, {loop, fun handle_http/1}]).
+  Opts = case Port of
+    _ when is_integer(Port) -> [{port,Port}];
+    _ when is_list(Port) ->
+      [Addr, PortS] = string:tokens(Port, ":"),
+      [{ip,Addr},{port,list_to_integer(PortS)}]
+  end,
+	misultin:start_link([{loop, fun handle_http/1}|Opts]).
 
 % stop misultin
 stop() ->
