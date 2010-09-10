@@ -1,3 +1,9 @@
+erlyvideo (2.1.12) karmic; urgency=low
+
+  Added gen_listener and http verification example
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 10 Sep 2010 13:33:14 +0400
+
 erlyvideo (2.1.10) karmic; urgency=low
 
   debian update
