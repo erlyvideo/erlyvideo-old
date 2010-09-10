@@ -378,7 +378,7 @@ handle_call({subscribe, Client, Options}, From, #ems_media{clients_timeout_ref =
 handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
 
-  DefaultSubscribe = fun(Reply, #ems_media{audio_config = A, last_dts = DTS} = Media1) ->
+  DefaultSubscribe = fun(Reply, #ems_media{} = Media1) ->
     Ref = erlang:monitor(process,Client),
     RequireTicker = case Reply of
       tick -> true;
@@ -391,18 +391,6 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
         ets:insert(Clients, Entry);
       false ->
-        % case V of
-        %   undefined -> ok;
-        %   _ -> Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
-        % end,
-        case A of
-          undefined -> ok;
-          _ -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
-        end,
-        case metadata_frame(Media1) of
-          undefined -> ok;
-          Meta -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
-        end,
         ets:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
     end,
     {reply, ok, Media1, ?TIMEOUT}
@@ -933,11 +921,18 @@ save_frame(Format, Storage, Frame) ->
     _ -> Storage
   end.
 
-start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, #ems_media{clients = Clients, video_config = V} = M) ->
+start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
+                  #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
   MS = ets:fun2ms(fun(#client{state = starting, consumer = Client, stream_id = StreamId}) -> {Client,StreamId} end),
   Starting = ets:select(Clients, MS),
   [begin 
-    (catch Client ! V#video_frame{dts = DTS, stream_id = StreamId}),
+    case metadata_frame(M) of
+      undefined -> ok;
+      Meta -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
+    end,
+
+    (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
+    (catch Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
     ets:update_element(Clients, Client, {#client.state, active}) 
   end || {Client,StreamId} <- Starting],
   M;
