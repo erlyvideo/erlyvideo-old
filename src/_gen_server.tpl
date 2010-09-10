@@ -1,5 +1,5 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2009 Max Lapshin
+%%% @copyright  2009-2010 Max Lapshin
 %%% @doc        Example of gen_server
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
