@@ -163,6 +163,7 @@ handle_call({client_data, Bin}, _From, #rtmpt{consumer = Upstream} = State) when
   {reply, ok, State, ?RTMPT_TIMEOUT};
 
 handle_call({set_consumer, Upstream}, _From, #rtmpt{consumer = undefined} = State) ->
+  erlang:monitor(process, Upstream),
   {reply, ok, State#rtmpt{consumer = Upstream}, ?RTMPT_TIMEOUT};
 
 handle_call(timeout, _From, #rtmpt{consumer = _Consumer} = State) ->
@@ -206,6 +207,9 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+
+handle_info({'DOWN', _, process, Client, _Reason}, Server) ->
+  {stop, normal, Server};
 
 handle_info(timeout, State) ->
   {noreply, State};
