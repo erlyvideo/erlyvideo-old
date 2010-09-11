@@ -94,7 +94,7 @@ connect(Socket) ->
   setopts(Pid, [{consumer,self()}]),
   {ok,Pid}.
 
-%% @spec (Consumer::pid(), Type::accept|connect, Socket::port) -> {ok, RTMP::pid()}
+%% @spec (Type::accept|connect, Socket::port) -> {ok, RTMP::pid()}
 %% @doc Starts RTMP socket with provided consumer and inititiate server or client connection
 %% @end
 -spec(start_socket(Type::connect|accept, Socket::port()) -> {ok, RTMP::pid()}).
