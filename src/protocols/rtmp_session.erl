@@ -395,27 +395,6 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info({ems_stream, StreamId, start_play}, StateName, #rtmp_session{socket = Socket} = State) ->
-  Player = element(StreamId, State#rtmp_session.streams),
-  F = fun(Pid) ->
-    S = pid_to_list(Pid),
-    {ok, Re} = re:compile("<(\\d+)\\.(\\d+)\\.(\\d+)"),
-    {match, [_, A, B, C]} = re:run(S, Re, [{capture, all, list}]),
-    "pid("++A++","++B++","++C++")"
-  end,  
-  PidList = lists:map(F, [Socket, self(), Player]),
-  io:format("eprof:start_profiling([~s,~s,~s]).~n", PidList),
-  rtmp_lib:play_start(Socket, StreamId),
-  {next_state, StateName, State};
-
-handle_info({ems_stream, StreamId, {notfound, _Reason}}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_socket:status(Socket, StreamId, ?NS_PLAY_STREAM_NOT_FOUND),
-  {next_state, StateName, State};
-  
-handle_info({ems_stream, _StreamId, play_stats, PlayStat}, StateName, #rtmp_session{play_stats = Stats} = State) ->
-  ?D({"Play", PlayStat}),
-  {next_state, StateName, State#rtmp_session{play_stats = [PlayStat | Stats]}};
-
 handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
   rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
   {next_state, StateName, State};

@@ -93,7 +93,7 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+play(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   Options1 = extract_play_args(Args),
 
   {RawName, Args2} = http_uri2:parse_path_query(FullName),
@@ -109,6 +109,8 @@ play(#rtmp_session{host = Host, streams = Streams} = State, #rtmp_funcall{args =
   
   case media_provider:play(Host, Name, [{stream_id,StreamId}|Options]) of
     {notfound, _Reason} -> 
+      rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
+      ems_log:access(Host, "NOT_FOUND ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       State;
     {ok, Media} ->
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
