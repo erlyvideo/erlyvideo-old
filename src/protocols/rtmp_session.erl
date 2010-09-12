@@ -202,9 +202,8 @@ send(Session, Message) ->
 
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
-    {unhandled} ->
-		  ?D({"Ignoring message:", Message}),
-      {next_state, 'WAIT_FOR_DATA', State};
+    {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
+    unhandled -> {next_state, 'WAIT_FOR_DATA', State};
     Reply -> Reply
   end.
 
@@ -412,6 +411,14 @@ handle_info(#rtmp_message{} = Message, StateName, State) ->
 
 handle_info(exit, _StateName, StateData) ->
   {stop, normal, StateData};
+
+handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
+  case ems:try_method_chain(Host, handle_info, [Message, State]) of
+    {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
+    unhandled -> {next_state, 'WAIT_FOR_DATA', State};
+    Reply -> Reply
+  end;
+
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
