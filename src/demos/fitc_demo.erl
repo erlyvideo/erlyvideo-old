@@ -48,7 +48,7 @@ connect(#rtmp_session{host = Host, addr = Address, socket = Socket, player_info 
 	NewState = State#rtmp_session{session_id = SessionId},
 
 	ems_log:access(Host, "CONNECT ~p ~s ~p ~s ~p", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), self()]),
-  rtmp_session:accept_connection(NewState, AMF),
+  rtmp_session:accept_connection(NewState),
   rtmp_socket:invoke(Socket, #rtmp_funcall{command = 'setId', args = [null, UserId]}),
   NewState.
 	
