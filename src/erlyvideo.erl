@@ -30,6 +30,7 @@
 -export([load_config/0, reconfigure/0]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
+-export([stats/1]).
 
 
 -export([edoc/0, edoc/1]).
@@ -109,6 +110,15 @@ start_rtsp() ->
     RTSP ->
       rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
   end.
+
+
+stats(Host) ->
+  EntryClients = [{Name, proplists:get_value(client_count, Options)} || {Name, _Pid, Options} <- media_provider:entries(Host)],
+  CPULoad = {object, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
+  RTMPTraf = rtmp_stat_collector:stats(),
+  Stats = [{clients,EntryClients},{cpu,CPULoad},{rtmp,RTMPTraf}],
+  {object, Stats}.
+  
 
 
 %%--------------------------------------------------------------------

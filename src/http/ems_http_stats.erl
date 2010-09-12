@@ -30,11 +30,8 @@
 
 
 http(Host, 'GET', ["stats.json"], Req) ->
-  EntryClients = [{Name, proplists:get_value(client_count, Options)} || {Name, _Pid, Options} <- media_provider:entries(Host)],
-  CPULoad = {struct, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
-  RTMPTraf = rtmp_stat_collector:stats(),
-  Stats = [{clients,EntryClients},{cpu,CPULoad},{rtmp,RTMPTraf}],
-  Req:respond(200, [{"Content-Type", "application/json"}], [mochijson2:encode({struct, Stats}), "\n"]);
+  Stats = erlyvideo:stats(Host),
+  Req:respond(200, [{"Content-Type", "application/json"}], [mochijson2:encode(Stats), "\n"]);
 
 http(_Host, _Method, _Path, _Req) ->
   unhandled.
