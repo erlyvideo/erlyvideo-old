@@ -1,0 +1,104 @@
+import flash.events.MouseEvent;
+import flash.net.NetConnection;
+import flash.net.NetStream;
+import mx.collections.*;
+import mx.utils.ObjectUtil;
+
+private var startTime:uint = 1283427840;
+private var server:String = "rtmp://localhost/rtmp";
+private var stream:String = "cam0_view";
+
+[Bindable]
+public var entries:Array;
+
+[Bindable]
+public var common_stats:ArrayCollection;
+
+[Bindable]
+public var entry_count_text:String = "Hi";
+
+private var nc:NetConnection;
+private var ns:NetStream;
+
+private var seekTo:uint;
+private var interval:uint; 
+
+internal function completeCreation():void
+{
+  callConnect();
+}
+  
+private function callConnect():void
+{
+  nc = new NetConnection();
+	nc.addEventListener(NetStatusEvent.NET_STATUS, netStatus);
+	nc.connect(server);
+}
+    
+private function netStatus(event:NetStatusEvent):void {
+  if (event.info.code == 'NetConnection.Connect.Success') {
+		var responder:Responder = new Responder(onEntriesLoaded, null);
+		
+		nc.call("entries", responder);
+		
+		ns = new NetStream(nc);
+		ns.client = this;
+		ns.bufferTime = 2;
+		
+		interval = setInterval(mon,1000);
+		setInterval(showTime,50);
+}  
+}
+
+public function onEntriesLoaded(result:Object):void {
+  var info:Array = [
+    {Param : 'avg1', Value: result.cpu.avg1},
+    {Param : 'avg5', Value: result.cpu.avg5},
+    {Param : 'avg15', Value: result.cpu.avg15}
+  ];
+  entry_count_text = "Length: "+result.entries.length;
+  common_stats = new ArrayCollection(info);
+  entries = result.entries;
+}
+
+public function onPlayStatus(info:Object):void {
+	
+}
+
+public function onLastSecond(info:Object):void {
+	
+}
+
+public function onMetaData(info:Object):void {
+	trace("metadata: duration=" + info.duration + " width=" + info.width + " height=" + info.height +
+		" framerate=" + info.framerate); 
+}
+
+public function onCuePoint(info:Object):void {
+	trace("cuepoint: time=" + info.time + " name=" + info.name + " type=" + info.type);
+}
+
+public function mon():void {
+	trace("Buffer length: " + ns.bufferLength + " Time: " + ns.time);
+	//trace("FPS:"+ns.currentFPS);
+}
+
+public function showTime():void {
+}
+
+protected function button_resume(event:MouseEvent):void
+{
+	ns.resume();
+}
+
+protected function button_pause(event:MouseEvent):void
+{
+	ns.pause();
+}
+
+protected function button_seek(time:Number):void
+{	
+	seekTo = startTime + ns.time + time; 
+	ns.seek(seekTo);
+	trace("seek to: " + seekTo);
+}

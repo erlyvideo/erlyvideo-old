@@ -1,0 +1,16 @@
+<html><head>
+
+<script type="text/javascript" src="/js/swfobject.js"></script>
+<script type="text/javascript" src="/js/jquery.js"></script>
+</head>
+<body>
+  <div id="erly_stat"></div>
+  <script type="text/javascript">
+  $(function() {
+    swfobject.embedSWF("/stats/stats.swf", "erly_stat", "800", "600", "10.0", "expressInstall.swf",
+      {server :"{{hostname}}",
+       app : "rtmp"});
+  });
+  </script>
+</body>
+</html>

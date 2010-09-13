@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application creationComplete="completeCreation()" xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" width="800" height="600">
+  <mx:TabNavigator borderStyle="solid" width="100%" height="100%">
+    <mx:VBox label="Common" width="100%" height="100%">
+      <mx:DataGrid id="common_info" dataProvider="{common_stats}" width="100%" height="100%"/>
+    </mx:VBox>
+    <mx:VBox label="Entries" width="100%" height="100%">
+      <mx:Label id="entry_count" text="{entry_count_text}"/>
+      <mx:List id="entries_list" dataProvider="{entries}" width="100%" height="100%">
+        <mx:itemRenderer>
+          <mx:Component>
+            <mx:Label text="{data.name}" />
+          </mx:Component>
+        </mx:itemRenderer>
+      </mx:List>
+    </mx:VBox>
+  </mx:TabNavigator>
+	<mx:Script source="stats.as" />
+</mx:Application>
