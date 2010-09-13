@@ -195,8 +195,8 @@ play_start(RTMP, StreamId, DTS) ->
   
 
 pause_notify(RTMP, StreamId) ->
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_maybe_seek, stream_id = StreamId}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
+  % rtmp_socket:send(RTMP, #rtmp_message{type = stream_maybe_seek, stream_id = StreamId}),
+  % rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId}),
   rtmp_socket:status(RTMP, StreamId, <<"NetStream.Pause.Notify">>),
   ok.
   
