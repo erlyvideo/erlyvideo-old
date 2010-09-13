@@ -113,10 +113,10 @@ start_rtsp() ->
 
 
 stats(Host) ->
-  EntryClients = [{Name, proplists:get_value(client_count, Options)} || {Name, _Pid, Options} <- media_provider:entries(Host)],
+  EntryClients = [{object, [{name,Name}, {count, proplists:get_value(client_count, Options)}]} || {Name, _Pid, Options} <- media_provider:entries(Host)],
   CPULoad = {object, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
-  RTMPTraf = rtmp_stat_collector:stats(),
-  Stats = [{clients,EntryClients},{cpu,CPULoad},{rtmp,RTMPTraf}],
+  RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
+  Stats = [{entries,EntryClients},{cpu,CPULoad},{rtmp,RTMPTraf}],
   {object, Stats}.
   
 
