@@ -15,7 +15,13 @@ public var entries:Array;
 public var common_stats:ArrayCollection;
 
 [Bindable]
+public var entries_label:String = "Entries";
+
+[Bindable]
 public var entry_count_text:String = "Hi";
+
+[Bindable]
+public var rtmp_trafic:ArrayCollection;
 
 private var nc:NetConnection;
 private var ns:NetStream;
@@ -34,12 +40,17 @@ private function callConnect():void
 	nc.addEventListener(NetStatusEvent.NET_STATUS, netStatus);
 	nc.connect(server);
 }
+
+private function loadStats():void
+{
+	var responder:Responder = new Responder(onEntriesLoaded, null);
+	
+	nc.call("entries", responder);
+}
     
 private function netStatus(event:NetStatusEvent):void {
   if (event.info.code == 'NetConnection.Connect.Success') {
-		var responder:Responder = new Responder(onEntriesLoaded, null);
-		
-		nc.call("entries", responder);
+		loadStats();
 		
 		ns = new NetStream(nc);
 		ns.client = this;
@@ -59,6 +70,10 @@ public function onEntriesLoaded(result:Object):void {
   entry_count_text = "Length: "+result.entries.length;
   common_stats = new ArrayCollection(info);
   entries = result.entries;
+  
+  rtmp_trafic = new ArrayCollection(result.rtmp);
+  
+  entries_label = "Entries ("+entries.length+")";
 }
 
 public function onPlayStatus(info:Object):void {

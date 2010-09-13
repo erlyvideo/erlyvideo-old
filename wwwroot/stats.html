@@ -7,7 +7,7 @@
   <div id="erly_stat"></div>
   <script type="text/javascript">
   $(function() {
-    swfobject.embedSWF("/stats/stats.swf", "erly_stat", "800", "600", "10.0", "expressInstall.swf",
+    swfobject.embedSWF("/stats/stats.swf?time="+(Number(new Date())), "erly_stat", "800", "600", "10.0", "expressInstall.swf",
       {server :"{{hostname}}",
        app : "rtmp"});
   });
