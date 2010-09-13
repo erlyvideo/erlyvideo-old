@@ -18,6 +18,7 @@
 	ems_log,
 	ems_media,
 	ems_media_clients,
+	ems_media_frame,
 	ems_rtsp,
 	ems_script,
 	ems_sup,

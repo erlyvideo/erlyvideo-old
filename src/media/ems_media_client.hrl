@@ -7,3 +7,4 @@
   state = paused
 }).
 
+-define(WAIT_FOR_CONFIG, 20).
