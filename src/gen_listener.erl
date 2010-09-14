@@ -140,7 +140,7 @@ handle_info({inet_async, ListenSock, Ref, {ok, CliSocket}},
             #listener{socket = ListenSock, ref = Ref, callback = Callback, args = Args} = State) ->
   case set_sockopt(ListenSock, CliSocket) of
     ok ->
-      case (catch Callback:accept(CliSocket, Args)) of
+      case Callback:accept(CliSocket, Args) of
         ok -> ok;
         _Else -> gen_tcp:close(CliSocket)
       end,
