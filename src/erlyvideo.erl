@@ -68,7 +68,7 @@ start() ->
   % snmpa:load_mibs(snmp_master_agent, ["snmp/ERLYVIDEO-MIB"]),
 	application:start(rtmp),
 
-	ok = application:load(erlyvideo),
+	application:load(erlyvideo),
 	load_config(),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
   media_provider:init_names(),
@@ -283,7 +283,7 @@ call_modules(Function, Args, [Module|Modules]) ->
 %% @doc Shutdown all modules
 %% @end
 %%--------------------------------------------------------------------
-stop_modules() -> call_modules(stop, []).
+stop_modules() -> io:format("Stopping modules: ~p~n", [ems:get_var(modules, [])]), call_modules(stop, []).
 
 
 
