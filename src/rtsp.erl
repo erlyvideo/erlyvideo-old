@@ -27,7 +27,7 @@
 -include("log.hrl").
 
 
--export([start/0, start/2, stop/1, config_change/3, test_all/0]).
+-export([start/0, stop/0, start/2, stop/1, config_change/3, test_all/0]).
 -export([start_server/3, behaviour_info/1]).
 
 -export([edoc/1, edoc/0]).
@@ -35,6 +35,9 @@
 
 start() ->
   ems_rtsp:start().
+
+stop() ->
+  ems_rtsp:stop().
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
