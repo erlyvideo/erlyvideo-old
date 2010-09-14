@@ -23,23 +23,29 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_http).
--export([start_link/1, stop/0, handle_http/1, http/4, wwwroot/1]).
+-export([start_listener/1, start_link/1, accept/2, stop/0, handle_http/1, http/4, wwwroot/1]).
 -include("../include/ems.hrl").
 
   
 % start misultin http server
-start_link(Port) ->
-  Opts = case Port of
-    _ when is_integer(Port) -> [{port,Port}];
-    _ when is_list(Port) ->
-      [Addr, PortS] = string:tokens(Port, ":"),
-      [{ip,Addr},{port,list_to_integer(PortS)}]
-  end,
-	misultin:start_link([{loop, fun handle_http/1}|Opts]).
+start_listener(BindSpec) ->
+  gen_listener:start_link(BindSpec, ems_http, []).
+  
+  
+accept(Socket, []) ->
+  inet:setopts(Socket, [{packet,http}]),
+  {ok, Worker} = ems_sup:start_http_worker(Socket),
+  gen_tcp:controlling_process(Socket, Worker),
+  Worker ! socket,
+  ok.
 
 % stop misultin
 stop() ->
 	misultin:stop().
+	
+	
+start_link(ClientSocket) ->
+  misultin_socket:start_link(ClientSocket, fun handle_http/1).
 
 % callback on request received
 handle_http(Req) ->

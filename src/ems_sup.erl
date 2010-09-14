@@ -29,7 +29,7 @@
 -export([init/1,start_link/0]).
 -export([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
-          start_http_server/1, start_ticker/3, start_mjpeg_reader/2]).
+          start_http_server/1, start_http_worker/1, start_ticker/3, start_mjpeg_reader/2]).
 
 -export([static_streams/0,start_static_streams/0]).
 
@@ -46,6 +46,9 @@ start_rtmp_session(RTMPSocket) ->
 
 -spec start_rtsp_session() -> {'error',_} | {'ok',pid()}.
 start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
+
+start_http_worker(ClientSocket) ->
+  supervisor:start_child(ems_http_worker_sup, [ClientSocket]).
 
 start_mpegts_reader(Consumer) ->
   supervisor:start_child(mpegts_reader_sup, [Consumer]).
@@ -82,7 +85,7 @@ start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_obj
 start_http_server(Port) ->
   % EMS HTTP
   Listener = {ems_http_sup,                         % Id       = internal id
-      {ems_http,start_link,[Port]},             % StartFun = {M, F, A}
+      {ems_http,start_listener,[Port]},             % StartFun = {M, F, A}
       permanent,                               % Restart  = permanent | transient | temporary
       2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
       worker,                                  % Type     = worker | supervisor
@@ -129,6 +132,21 @@ init([mpegts_reader]) ->
               % TCP Client
               {   undefined,                               % Id       = internal id
                   {mpegts_reader,start_link,[]},                  % StartFun = {M, F, A}
+                  temporary,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  []                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([ems_http_worker]) ->
+    {ok,
+        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
+            [
+              % TCP Client
+              {   undefined,                               % Id       = internal id
+                  {ems_http,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
@@ -317,6 +335,13 @@ init([]) ->
     },
     {   mpegts_file_reader_sup,
         {supervisor,start_link,[{local, mpegts_file_reader_sup}, ?MODULE, [mpegts_file_reader]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   ems_http_worker_sup,
+        {supervisor,start_link,[{local, ems_http_worker_sup}, ?MODULE, [ems_http_worker]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor

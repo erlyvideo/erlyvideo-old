@@ -34,13 +34,10 @@
 -vsn('0.3').
 
 % API
--export([start_link/4]).
-
-% callbacks
--export([listener/4]).
+-export([start_link/2]).
 
 % internale
--export([socket_loop/1, request/2, headers/3, headers/4, body/2]).
+-export([socket_loop/1, accept/3, request/2, headers/3, headers/4, body/2]).
 
 % macros
 -define(MAX_HEADERS_COUNT, 100).
@@ -61,39 +58,30 @@
 
 % Function: {ok,Pid} | ignore | {error, Error}
 % Description: Starts the socket.
-start_link(ListenSocket, ListenPort, Loop, RecvTimeout) ->
-	proc_lib:spawn_link(?MODULE, listener, [ListenSocket, ListenPort, Loop, RecvTimeout]).
+start_link(ClientSocket, Loop) ->
+	proc_lib:start_link(?MODULE, accept, [self(), ClientSocket, Loop]).
 
 % Function: {ok,Pid} | ignore | {error, Error}
 % Description: Starts the socket.
-listener(ListenSocket, ListenPort, Loop, RecvTimeout) ->
-	case catch gen_tcp:accept(ListenSocket) of
-		{ok, Sock} ->
-			?DEBUG(debug, "accepted an incoming TCP connection, spawning controlling process", []),
-			Pid = spawn(fun () ->
-				receive
-					set ->
-						inet:setopts(Sock, [{active, once}]),
-						?DEBUG(debug, "activated controlling process", [])
-				after 60000 ->
-					exit({error, controlling_failed})
-				end,
-				% build connection record
-				{ok, {Addr, Port}} = inet:peername(Sock),
-				C = #c{sock = Sock, port = ListenPort, loop = Loop, recv_timeout = RecvTimeout},
-				% jump to state 'request'
-				?DEBUG(debug, "jump to state request", []),
-				?MODULE:request(C, #req{peer_addr = Addr, peer_port = Port})
-			end),
-			% set controlling process
-			gen_tcp:controlling_process(Sock, Pid),
-			Pid ! set,
-			% get back to accept loop
-			?MODULE:listener(ListenSocket, ListenPort, Loop, RecvTimeout);
-		_Else ->
-			?DEBUG(error, "accept failed error: ~p", [_Else]),
-			exit({error, accept_failed})
-	end.
+accept(Parent, Sock, Loop) ->
+  RecvTimeout = 6000,
+  proc_lib:init_ack(Parent, {ok, self()}),
+  receive
+    socket ->
+      inet:setopts(Sock, [{active, once}]),
+      ?DEBUG(debug, "activated controlling process", [])
+  after 60000 ->
+    exit({error, controlling_failed})
+  end,
+  % build connection record
+  {ok, {Addr, Port}} = inet:peername(Sock),
+  ListenPort = inet:port(Sock),
+  C = #c{sock = Sock, port = ListenPort, loop = Loop, recv_timeout = RecvTimeout},
+  % jump to state 'request'
+  ?DEBUG(debug, "jump to state request", []),
+  ?MODULE:request(C, #req{peer_addr = Addr, peer_port = Port}).
+  
+	
 
 % ============================ /\ API ======================================================================
 
