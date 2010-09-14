@@ -16,13 +16,9 @@ clean:
 
 install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
-	mkdir -p $(DESTROOT)$(ERLDIR)/src
 	mkdir -p $(DESTROOT)$(ERLDIR)/include
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin/
 	install -c -m 644 ebin/*.app $(DESTROOT)$(ERLDIR)/ebin/
-	install -c -m 644 src/* $(DESTROOT)$(ERLDIR)/src/
-	install -c -m 644 Emakefile $(DESTROOT)$(ERLDIR)/Emakefile
-	install -c -m 644 Makefile $(DESTROOT)$(ERLDIR)/Makefile
 	install -c -m 644 include/* $(DESTROOT)$(ERLDIR)/include/
 
 
