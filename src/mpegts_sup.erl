@@ -27,10 +27,29 @@
 
 -export([start_reader/1, start_file_reader/2]).
 
--export([init/1]).
+-export([init/1, start/0, stop/0, start/2, stop/1, start_link/0]).
 
 -define(MAX_RESTART, 10).
 -define(MAX_TIME, 100).
+
+
+start() ->
+  application:start(mpegts),
+  ok.
+
+start(_Type, _Args) ->
+  mpegts_sup:start_link().
+
+stop() ->
+  application:stop(mpegts),
+  application:unload(mpegts),
+  ok.
+
+stop(_S) ->
+  ok.
+  
+start_link() ->
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_reader(Consumer) ->
   supervisor:start_child(mpegts_reader_sup, [Consumer]).

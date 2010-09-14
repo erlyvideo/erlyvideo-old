@@ -32,6 +32,9 @@
 -include("mpegts.hrl").
 
 -export([init/0, init/1, encode/2, pad_continuity_counters/1, continuity_counters/1]).
+-export([start/0, stop/0]).
+
+
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
 -define(PMT_PID, 66).
@@ -41,6 +44,12 @@
 -define(PAT_TABLEID, 0).
 -define(PMT_TABLEID, 2).
 
+
+start() ->
+  mpegts_sup:start().
+  
+stop() ->
+  mpegts_sup:stop().
 
 -record(streamer, {
   pat_counter = 0,

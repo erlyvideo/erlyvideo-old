@@ -61,7 +61,7 @@ init(Media, Options) ->
   Name = proplists:get_value(url, Options),
   FileName = filename:join([file_media:file_dir(Host), Name]), 
   {ok, Reader} = mpegts_sup:start_file_reader(FileName, [{consumer,self()}]),
-  link(Reader),
+  erlang:monitor(process, Reader),
   ems_media:set_source(self(), Reader),
   {ok, Media#ems_media{source_timeout = 1, clients_timeout = file_media:default_timeout()}}.
 
