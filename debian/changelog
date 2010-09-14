@@ -1,3 +1,9 @@
+erlang-mpegts (2.4.0) lucid; urgency=low
+
+  Erlyvideo plugin
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 15 Sep 2010 02:25:10 +0400
+
 erlang-mpegts (2.3.4) lucid; urgency=low
 
   debian build
