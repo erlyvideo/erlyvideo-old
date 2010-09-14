@@ -5,13 +5,20 @@ Package()
 echo $1
 cd $1
 dpkg-scanpackages -m binary > binary/Packages
-dpkg-scansources source > source/Sources
 gzip -9c binary/Packages > binary/Packages.gz
-gzip -c source/Sources > source/Sources.gz
-
 Sign binary Packages
+
+dpkg-scanpackages -m testing-binary > testing-binary/Packages
+gzip -9c testing-binary/Packages > testing-binary/Packages.gz
+Sign testing-binary Packages
+
+dpkg-scansources source > source/Sources
+gzip -c source/Sources > source/Sources.gz
 Sign source Sources
 
+dpkg-scansources testing-source > testing-source/Sources
+gzip -c testing-source/Sources > testing-source/Sources.gz
+Sign testing-source Sources
 }
 
 Sign() {

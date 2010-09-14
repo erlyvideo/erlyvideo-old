@@ -146,11 +146,12 @@ EOF
   
   def upload_erlyvideo
     return unless File.exists?(repo_path)
+    testing = ENV["testing"] == "false" ? "" : "testing-"
     Dir["#{path}/../#{name}_#{version}_*.deb"].each do |deb|
-      FileUtils.cp(deb, "#{repo_path}/binary/")
+      FileUtils.cp(deb, "#{repo_path}/#{testing}binary/")
     end
     Dir["#{path}/../#{name}_#{version}.*"].each do |deb|
-      FileUtils.cp(deb, "#{repo_path}/source/")
+      FileUtils.cp(deb, "#{repo_path}/#{testing}source/")
     end
     `(cd #{repo_path}/..; ./update)`
   end
