@@ -32,7 +32,7 @@
 -include("mpegts.hrl").
 
 -export([init/0, init/1, encode/2, pad_continuity_counters/1, continuity_counters/1]).
--export([start/0, stop/0]).
+-export([autostart/0, start/0, stop/0]).
 
 
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
@@ -44,6 +44,12 @@
 -define(PAT_TABLEID, 0).
 -define(PMT_TABLEID, 2).
 
+
+autostart() ->
+  case whereis(mpegts_sup) of
+    undefined -> start();
+    _ -> ok
+  end.
 
 start() ->
   mpegts_sup:start().
