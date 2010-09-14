@@ -3,7 +3,7 @@
 {http_port, 8082}.
 {iphone_segment_size, 10000}.
 {rtmp_default_wait, false}.
-{modules,[]}.
+{modules,[rtsp,mpegts]}.
 {paths, ["/var/lib/erlyvideo/plugins", "/usr/local/lib/erlyvideo/plugins"]}.
 {file_formats,[mp4_reader,flv_reader,mp3_reader]}.
 {vhosts, [
@@ -11,7 +11,7 @@
 	{file_access, file},
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
+    {modules, [referer_check, {auth_users_limit, 10}, {check_play_web, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
     {secret_key, "123"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},

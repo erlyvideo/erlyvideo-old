@@ -11,9 +11,9 @@ logger{
     level = debug,
     file = debug,
     type = size,
-    max = 100000,
+    max = 10000000,
     suffix = log,
-    rotation = 5,
+    rotation = 30,
     format = '%j %T %l%n'
   }
 
@@ -22,9 +22,9 @@ logger{
     level = info,
     file = erlyvideo,
     type = size,
-    max = 100000,
+    max = 10000000,
     suffix = log,
-    rotation = 5,
+    rotation = 30,
     format = '%L %j %T %l%n'
   }
 

@@ -3,15 +3,15 @@
 {http_port, 8082}.
 {iphone_segment_size, 10000}.
 {rtmp_default_wait, false}.
-{modules,[]}.
+{modules,[rtsp,mpegts]}.
 {paths, ["/var/lib/erlyvideo/plugins", "/usr/local/lib/erlyvideo/plugins"]}.
 {file_formats,[mp4_reader,flv_reader,mp3_reader]}.
 {vhosts, [
   {default, [
-  	{file_access, file},
-  	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
+    {file_access, file},
+    {detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
+    {modules, [referer_check, {auth_users_limit, 10}, {check_play_web, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording, apps_shared_objects]},
     {secret_key, "123"},
     {file_dir, "/var/lib/erlyvideo/movies"},
     {wwwroot, "/var/lib/erlyvideo/wwwroot"},
@@ -19,12 +19,6 @@
     {rewrite, [
       {"stream/vlc.ts", mpegts, "http://localhost:8080", [{timeshift, 60000}]}
     ]}
-  ]},
-  {production, [
-    {hostname, ["production.local"]},
-    {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_rtmp, apps_shared_objects]},
-    {secret_key, "fddbb018f51cb867a2e6d10b9eea7bd5eaec2d9ee1b814856251776f08e8acdef49154b0317b432ff6dfbd7c7e0e74d5db53287cc991e8cf46da8d6a27fc5ae8"},
-    {file_dir, "/tmp"}
   ]}
 ]}.
 
