@@ -41,7 +41,7 @@
 'WAIT_FOR_DATA'(_Message, #rtmp_session{} =_State) -> {unhandled}.
 
 
-connect(#rtmp_session{host = Host, addr = Address, socket = Socket, player_info = PlayerInfo} = State, AMF) ->
+connect(#rtmp_session{host = Host, addr = Address, socket = Socket, player_info = PlayerInfo} = State, _AMF) ->
   UserId = random:uniform(10000000),
   Channels = [10],
   {ok, SessionId} = ems_users:login(Host, UserId, Channels),

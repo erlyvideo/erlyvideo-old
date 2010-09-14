@@ -227,7 +227,7 @@ send(Session, Message) ->
 handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #rtmp_funcall{command = CommandBin} = AMF,
   Command = binary_to_atom(CommandBin, utf8),
-  call_function(ems:check_app(State#rtmp_session.host, Command, 2), State, AMF#rtmp_funcall{command = Command});
+  call_function(State, AMF#rtmp_funcall{command = Command});
   
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
@@ -273,17 +273,13 @@ find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} =
       {State, Object}
   end.
 
-call_function(unhandled, #rtmp_session{host = Host, addr = IP} = State, #rtmp_funcall{command = Command, args = Args}) ->
-  ems_log:error(Host, "Client ~p requested unknown function ~p(~p)~n", [IP, Command, Args]),
-  State;
-
-call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
+call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
   URL = proplists:get_value(tcUrl, PlayerInfo),
   {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
   {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
   Host = ems:host(HostName),
   
-  ?D({"Client connected", HostName, Host, AMF#rtmp_funcall.args}),
+  ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
 
   AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
     {objectEncoding, 0.0} -> 0;
@@ -297,29 +293,50 @@ call_function(_, #rtmp_session{} = State, #rtmp_funcall{command = connect, args 
   
 
 	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion},
+	
+	call_function(Host, NewState1, AMF);
 
-  {Module, Function} = ems:check_app(NewState1#rtmp_session.host, connect, 2),
 
-  try Module:Function(NewState1, AMF)
-  catch
-    throw:Reason ->
-      error_logger:error_msg("Client not authorized: ~p ~p ~p ~p~n", [State#rtmp_session.addr, Host, Module, Reason]),
-      reject_connection(NewState1)
+call_function(#rtmp_session{host = Host} = State, AMF) ->
+  call_function(Host, State, AMF).
+  
+  
+call_function([], State, AMF) ->
+  ?D({"Failed funcall", AMF#rtmp_funcall.command}),
+  rtmp_session:fail(State, AMF),
+  State;
+  
+call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) ->
+  case code:is_loaded(mod_name(Module)) of
+    false -> code:load_file(mod_name(Module));
+    _ -> ok
+  end,
+  % ?D({"Checking", Module, Command, mod_has_function(Module, Command)}),
+  case mod_has_function(Module, Command) of
+    true ->
+      case Module:Command(State, AMF) of
+        unhandled ->
+          call_function(Modules, State, AMF);
+        NewState ->
+          NewState
+      end;
+    false ->
+      call_function(Modules, State, AMF)
   end;
-      
+  
+call_function(Host, State, AMF) ->
+  call_function(ems:get_var(modules, Host, [trusted_login]), State, AMF).
 
-call_function({Module, Function}, #rtmp_session{} = State, AMF) ->
-	Module:Function(State, AMF).
-  % try
-  %   App:Command(AMF, State)
-  % catch
-  %   _:login_failed ->
-  %     throw(login_failed);
-  %   What:Error ->
-  %     error_logger:error_msg("Command failed: ~p:~p(~p, ~p):~n~p:~p~n~p~n", [App, Command, AMF, State, What, Error, erlang:get_stacktrace()]),
-  %     % apps_rtmp:fail(Id, [null, lists:flatten(io_lib:format("~p", [Error]))]),
-  %     State
-  % end.
+
+mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
+mod_name(Mod) -> Mod.
+
+mod_has_function(Module, Command) when is_tuple(Module) -> 
+  erlang:function_exported(mod_name(Module), Command, 2 + size(Module) - 1);
+  
+mod_has_function(Module, Command) ->
+  erlang:function_exported(mod_name(Module), Command, 2).
+  
 
 	
 %%-------------------------------------------------------------------------
@@ -471,7 +488,7 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_session{socket=Socket, host = Host,
+terminate(_Reason, _StateName, #rtmp_session{host = Host,
   addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId} = State) ->
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p", [Addr, Host, UserId, Recv, Sent]),
   ems_event:user_disconnected(State#rtmp_session.host, [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId}|PlayStats]),

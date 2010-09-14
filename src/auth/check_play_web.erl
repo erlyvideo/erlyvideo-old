@@ -21,20 +21,16 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(check_play_web).
+-module(check_play_web, [URL]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -export([play/2]).
 
-play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> apps_streaming:play(State, AMF);
-play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> apps_streaming:play(State, AMF);
-
-play(#rtmp_session{host = VHost, addr = IP} = State, #rtmp_funcall{args = [null, FullName | _Args]} = AMF) ->
+play(#rtmp_session{addr = IP}, #rtmp_funcall{args = [null, FullName | _Args]}) when is_binary(FullName) ->
   {RawName, _Args2} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
-  URL = ems:get_var(http_verify, VHost, undefined),
   {http, _UserInfo, Host, Port, Path, _Query} = http_uri2:parse(URL),
   
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary]),
@@ -45,7 +41,8 @@ play(#rtmp_session{host = VHost, addr = IP} = State, #rtmp_funcall{args = [null,
     {http, Socket, {http_response, _, Code, _Status}} ->
       Code = 200,
       gen_tcp:close(Socket),
-      apps_streaming:play(State, AMF)
+      ?D({"URL accepted play", URL, FullName, Name}),
+      unhandled
   after
     3000 ->
       erlang:error(http_verify_timeout)

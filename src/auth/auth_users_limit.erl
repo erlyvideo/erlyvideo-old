@@ -1,8 +1,7 @@
-%%%---------------------------------------------------------------------------------------
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
-%%% @doc        Authorization with checking allowed referer
-%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
+%%% @doc        check connected users limit
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
@@ -21,20 +20,22 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(referer_check).
+-module(auth_users_limit, [Limit]).
+-author('Max Lapshin <max@maxidoors.ru>').
+
 -include("../../include/rtmp_session.hrl").
+-include("../../include/ems.hrl").
+
 -export([connect/2]).
 
-connect(#rtmp_session{host = Host, player_info = PlayerInfo} = State, _Funcall) ->
-  PageUrl = proplists:get_value(pageUrl, PlayerInfo),
-  {http,_,Hostname,_Port,_Path,_QueryString} = http_uri:parse(binary_to_list(PageUrl)),
-  Accepted = lists:member(Hostname, ems:get_var(hostname, Host, [])),
-  case Accepted of
-    true ->
+connect(#rtmp_session{} = State, _AMF) ->
+  ?D({"Checking limit", Limit,length(supervisor:which_children(rtmp_session_sup)) }),
+  case length(supervisor:which_children(rtmp_session_sup)) of
+    Count when Count =< Limit ->
       unhandled;
-    false -> 
-      ems_log:access(Host, "REJECT ~s ~s referer_check", [Host, PageUrl]),
-      rtmp_session:reject_connection(State),
+    Count ->
+      ems_log:error("Connection limit ~p~n", [Count]),  
+    	rtmp_session:reject_connection(State),
       State
   end.
-
+  
