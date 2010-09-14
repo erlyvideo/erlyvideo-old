@@ -27,7 +27,7 @@
 -behaviour(supervisor).
 
 -export([init/1,start_link/0]).
--export([start_rtmp_session/1, start_rtsp_session/0, start_media/3, start_shared_object/3,
+-export([start_rtmp_session/1, start_media/3, start_shared_object/3,
           start_mpegts_reader/1, start_mpegts_file_reader/2, start_shoutcast_reader/1,
           start_http_server/1, start_http_worker/1, start_ticker/3, start_mjpeg_reader/2]).
 
@@ -43,9 +43,6 @@ start_rtmp_session(RTMPSocket) ->
   {ok, Pid} = supervisor:start_child(rtmp_session_sup, []),
   rtmp_session:set_socket(Pid, RTMPSocket),
   {ok, Pid}.
-
--spec start_rtsp_session() -> {'error',_} | {'ok',pid()}.
-start_rtsp_session() -> supervisor:start_child(rtsp_session_sup, []).
 
 start_http_worker(ClientSocket) ->
   supervisor:start_child(ems_http_worker_sup, [ClientSocket]).
@@ -102,21 +99,6 @@ init([rtmp_session]) ->
               % TCP Client
               {   undefined,                               % Id       = internal id
                   {rtmp_session,start_link,[]},                  % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  []                                       % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
-init([rtsp_session]) ->
-    {ok,
-        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % TCP Client
-              {   undefined,                               % Id       = internal id
-                  {rtsp_session,start_link,[]},                  % StartFun = {M, F, A}
                   temporary,                               % Restart  = permanent | transient | temporary
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor

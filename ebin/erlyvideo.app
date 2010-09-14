@@ -19,7 +19,6 @@
 	ems_media,
 	ems_media_clients,
 	ems_media_frame,
-	ems_rtsp,
 	ems_script,
 	ems_sup,
 	ems_users,
@@ -38,7 +37,6 @@
 	live_media,
 	media_provider,
 	media_ticker,
-	misultin,
 	misultin_req,
 	misultin_socket,
 	mochijson2,
@@ -51,14 +49,13 @@
 	rtmp_media,
 	rtmp_publish,
 	rtmp_session,
-	rtsp_media,
 	shared_object,
 	shared_objects,
 	trusted_login,
 	uuid
   ]},
   {registered,   []},
-  {applications, [kernel,stdlib,crypto,rtsp,rtmp,log4erl]},
+  {applications, [kernel,stdlib,crypto]},
   {mod, {erlyvideo, []}},
   {env, []}
  ]

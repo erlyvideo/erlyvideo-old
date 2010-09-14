@@ -62,23 +62,21 @@ start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   ems_log:start(),
 	application:start(crypto),
-	application:start(os_mon),
+	% application:start(os_mon),
   % application:start(snmp),
   % os_mon_mib:load(snmp_master_agent),
   % snmpa:load_mibs(snmp_master_agent, ["snmp/ERLYVIDEO-MIB"]),
 	application:start(rtmp),
-	application:start(rtsp),
 
-	application:load(erlyvideo),
+	ok = application:load(erlyvideo),
 	load_config(),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
   media_provider:init_names(),
 
 	application:start(erlyvideo),
-
+	
   start_http(),
   start_rtmp(),
-  start_rtsp(),
 	start_modules(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
@@ -103,13 +101,6 @@ start_rtmp() ->
   end.
 
 
-start_rtsp() ->
-  case ems:get_var(rtsp_port, undefined) of
-    undefined ->
-      ok;
-    RTSP ->
-      rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp)
-  end.
 
 
 stats(Host) ->
@@ -133,8 +124,6 @@ stop() ->
 	ems_script:stop(),
 	application:stop(erlyvideo),
 	application:unload(erlyvideo),
-	application:stop(rtsp),
-	application:unload(rtsp),
 	application:stop(rtmp),
 	application:unload(rtmp),
   ems_log:stop(),
@@ -154,7 +143,6 @@ restart() ->
 
 reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
-  RTSP = ems:get_var(rtsp_port, undefined),
   HTTP = ems:get_var(http_port, undefined),
   ems_vhosts:stop(),
   load_config(),
@@ -177,15 +165,6 @@ reconfigure() ->
     {HTTP, HTTP} -> ok;
     _ ->
       ems_http:stop()
-  end,
-  case {RTSP, ems:get_var(rtsp_port, undefined)} of
-    {undefined, undefined} -> ok;
-    {RTSP, RTSP} -> ok;
-    {undefined, _} -> {ok, _} = start_rtsp();
-    _ ->
-      supervisor:terminate_child(rtsp_sup, rtsp_listener1),
-      supervisor:delete_child(rtsp_sup, rtsp_listener1),
-      {ok, _} = start_rtsp()
   end,
   ok.
 
