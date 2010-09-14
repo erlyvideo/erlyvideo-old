@@ -312,7 +312,7 @@ call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) -
     _ -> ok
   end,
   % ?D({"Checking", Module, Command, mod_has_function(Module, Command)}),
-  case mod_has_function(Module, Command) of
+  case ems:respond_to(Module, Command, 2) of
     true ->
       case Module:Command(State, AMF) of
         unhandled ->
@@ -331,12 +331,6 @@ call_function(Host, State, AMF) ->
 mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
 mod_name(Mod) -> Mod.
 
-mod_has_function(Module, Command) when is_tuple(Module) -> 
-  erlang:function_exported(mod_name(Module), Command, 2 + size(Module) - 1);
-  
-mod_has_function(Module, Command) ->
-  erlang:function_exported(mod_name(Module), Command, 2).
-  
 
 	
 %%-------------------------------------------------------------------------

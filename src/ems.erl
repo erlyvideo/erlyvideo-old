@@ -102,12 +102,18 @@ get_var(Key, Host, Default) ->
   end.
 
 
+respond_to(Module, Command, Arity) when is_tuple(Module) -> 
+  case code:ensure_loaded(erlang:element(1, Module)) of
+    false -> false;
+    _ -> erlang:function_exported(erlang:element(1,Module), Command, Arity + size(Module) - 1)
+  end;
+
 respond_to(Module, Command, Arity) ->
   case code:ensure_loaded(Module) of
-		{module, Module} -> 
-		  lists:member({Command, Arity}, Module:module_info(exports));
-		_ -> false
-	end.
+    false -> false;
+    _ -> erlang:function_exported(Module, Command, Arity)
+  end.
+  
   
   
 host(Hostname) when is_binary(Hostname) -> host(binary_to_list(Hostname));
