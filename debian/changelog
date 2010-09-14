@@ -1,3 +1,9 @@
+erlmedia (1.8.5) lucid; urgency=low
+
+  better listener
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 15 Sep 2010 01:42:40 +0400
+
 erlmedia (1.8.4) lucid; urgency=low
 
   Added gen_listener to the only erlyvideo dependency
