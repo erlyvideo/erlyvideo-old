@@ -40,8 +40,7 @@
 -define(DESCRIPTOR_CA, 9).
 -define(DESCRIPTOR_SL, 31).
 
-
--define(D(X), ems_log:debug(3, mpegts, "~p:~p ~p",[?MODULE, ?LINE, X])).
+-include("log.hrl").
 
 
 -record(mpegts_pat, {
