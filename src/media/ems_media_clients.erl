@@ -31,6 +31,10 @@
 
 -export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, select/3, send_frame/3, mass_update/4]).
 
+-define(EMS_MEDIA_ETS,1).
+
+-ifdef(EMS_MEDIA_ETS).
+
 init() ->
   ets:new(clients, [set,  {keypos,#client.consumer}]).
 
@@ -83,5 +87,54 @@ mass_update(Clients, Pos, From, To) ->
   [ets:update_element(Clients, Client, {Pos, To}) || Client <- Starting],
   Clients.
   
+-else.
+
+init() ->
+  [].
+
+insert(Clients, #client{consumer = Pid} = Entry) ->
+  lists:keystore(Pid, #client.consumer, Clients, Entry).
+
+find(Clients, Pid) ->
+  case lists:keyfind(Clients, #client.consumer, Pid) of
+    false -> undefined;
+    Entry -> Entry
+  end.
+  
+find(Clients, Value, Pos) ->
+  case lists:keyfind(Clients, Pos, Value) of
+    false -> undefined;
+    Entry -> Entry
+  end.
 
 
+count(Clients) ->
+  length(Clients).
+
+update(Clients, Client, Pos, Value) ->
+  case find(Clients, Client) of
+    undefined -> Clients;
+    Entry -> insert(Clients, element(Pos, Entry, Value))
+  end.
+
+update(Clients, _Client, Entry) ->
+  insert(Clients, Entry).
+
+delete(Clients, Client) ->
+  lists:keydelete(Client, #client.consumer, Clients).
+  
+select(Clients, Pos, Value) ->
+  [Entry || Entry <- Clients, element(Pos, Entry) == Value].
+  
+
+send_frame(Frame, Clients, State) ->
+  [Pid ! Frame#video_frame{stream_id = StreamId} || #client{consumer = Pid, stream_id = StreamId, state = S} <- List, S == State].
+
+
+mass_update(Clients, Pos, From, To) ->
+  lists:map(fun
+    (#client{} = Entry) when element(Pos, Entry) == From -> setelement(Pos, Entry, To);
+    (Entry) -> Entry
+  end, Clients).
+
+-endif.
