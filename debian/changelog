@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.10) lucid; urgency=low
+
+  No source in deploy
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 15 Sep 2010 02:29:19 +0400
+
 erlang-rtmp (1.7.9) lucid; urgency=low
 
   gen_listener
