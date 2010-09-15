@@ -100,7 +100,12 @@ get_int(Key, Meta, Coeff) ->
     {undefined, _} -> undefined;
     {{object, []}, _} -> undefined;
     {Value, Coeff} when is_number(Coeff) andalso is_number(Value) -> Value*Coeff;
-    {Value, {M, F}} -> M:F(round(Value))
+    {Value, {M, F}} -> 
+      try M:F(round(Value)) of
+        Int -> Int
+      catch
+        _:_ -> undefined
+      end
   end.
 
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
