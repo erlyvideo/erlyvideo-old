@@ -3,7 +3,6 @@
 {"src/core/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/apps/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/media/ems_media.erl", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/formats/gen_format.erl", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/media/*", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/auth/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/demos/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
