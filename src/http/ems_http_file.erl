@@ -21,7 +21,7 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_http_file).
+-module(ems_http_file, [DocRoot]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/ems.hrl").
 
@@ -30,7 +30,7 @@
 
 
 http(Host, 'GET', Path, Req) ->
-  FileName = filename:absname(filename:join([ems_http:wwwroot(Host) | Path])),
+  FileName = filename:absname(filename:join([DocRoot, Path])),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
