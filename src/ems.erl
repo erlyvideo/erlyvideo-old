@@ -105,7 +105,7 @@ get_var(Key, Host, Default) ->
 respond_to(Module, Command, Arity) when is_tuple(Module) -> 
   case code:ensure_loaded(erlang:element(1, Module)) of
     false -> false;
-    _ -> erlang:function_exported(erlang:element(1,Module), Command, Arity + size(Module) - 1)
+    _ -> erlang:function_exported(erlang:element(1,Module), Command, Arity + 1)
   end;
 
 respond_to(Module, Command, Arity) ->

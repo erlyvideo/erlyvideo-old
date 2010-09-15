@@ -5,13 +5,12 @@
 {"src/media/ems_media.erl", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/formats/gen_format.erl", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/media/*", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/mediators/*", [debug_info, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/auth/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/demos/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/examples/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/formats/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/protocols/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/shared_objects/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+{"src/rtmp/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+{"src/rtmp/shared_objects/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/plugins/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/test/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/http/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.

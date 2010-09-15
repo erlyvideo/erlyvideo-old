@@ -311,7 +311,7 @@ call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) -
     false -> code:load_file(mod_name(Module));
     _ -> ok
   end,
-  % ?D({"Checking", Module, Command, mod_has_function(Module, Command)}),
+  % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
   case ems:respond_to(Module, Command, 2) of
     true ->
       case Module:Command(State, AMF) of
