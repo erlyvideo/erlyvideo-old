@@ -4,14 +4,29 @@ Package()
 {
 echo $1
 cd $1
+if [ -d binary ] ; then
 dpkg-scanpackages -m binary > binary/Packages
-dpkg-scansources source > source/Sources
 gzip -9c binary/Packages > binary/Packages.gz
-gzip -c source/Sources > source/Sources.gz
-
 Sign binary Packages
-Sign source Sources
+fi
 
+if [ -d testing-binary ] ; then
+dpkg-scanpackages -m testing-binary > testing-binary/Packages
+gzip -9c testing-binary/Packages > testing-binary/Packages.gz
+Sign testing-binary Packages
+fi
+
+if [ -d source ] ; then
+dpkg-scansources source > source/Sources
+gzip -c source/Sources > source/Sources.gz
+Sign source Sources
+fi
+
+if [ -d testing-source ] ; then
+dpkg-scansources testing-source > testing-source/Sources
+gzip -c testing-source/Sources > testing-source/Sources.gz
+Sign testing-source Sources
+fi
 }
 
 Sign() {
