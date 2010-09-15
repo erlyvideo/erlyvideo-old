@@ -59,7 +59,7 @@ can_open_file(Name) when is_binary(Name) ->
   can_open_file(binary_to_list(Name));
 
 can_open_file(Name) ->
-  filename:extension(Name) == ".mp4".
+  lists:member(filename:extension(Name), [".mp4", ".f4v"]).
 
 write_frame(_Device, _Frame) -> 
   erlang:error(unsupported).
