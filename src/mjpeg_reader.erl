@@ -25,6 +25,8 @@
 -behaviour(gen_server).
 -include("log.hrl").
 
+-define(TIMEOUT, 10000).
+
 
 %% External API
 -export([start_link/2]).
