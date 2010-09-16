@@ -28,13 +28,13 @@
 
 -export([play/2]).
 
-play(#rtmp_session{addr = IP}, #rtmp_funcall{args = [null, FullName | _Args]}) when is_binary(FullName) ->
+play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId}, #rtmp_funcall{args = [null, FullName | _Args]}) when is_binary(FullName) ->
   {RawName, _Args2} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   {http, _UserInfo, Host, Port, Path, _Query} = http_uri2:parse(URL),
   
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary]),
-  Req = io_lib:format("GET ~s?ip=~s&camera=~s HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, IP, Name, Host]),
+  Req = io_lib:format("GET ~s?ip=~s&file=~s&user_id=~p&session_id=~p HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, IP, Name, Host, UserId, SessionId]),
   ok = gen_tcp:send(Socket, Req),
   inet:setopts(Socket, [{packet,http},{active,once}]),
   receive
