@@ -2,7 +2,7 @@
 
 {sub_dirs, ["rel"]}.
 
-{erl_opts, [debug_info, fail_on_warning]}.
+{erl_opts, [debug_info]}.
 
 {deps, [
         {amf,         ".*", {git, "git://github.com/erlyvideo/erlang-amf", "master"}},
