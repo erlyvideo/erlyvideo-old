@@ -7,7 +7,8 @@
             ertp,
             ertp_sup,
             rtp_server,
-            sdp
+            sdp,
+            sdp_tests
            ]},
  {registered,[]},
  {applications, [kernel,stdlib]},
