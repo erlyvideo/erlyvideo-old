@@ -458,47 +458,10 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
       ?D({"No client to pause", Client}),
       {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
-      
-handle_call({seek, Client, BeforeAfter, DTS} = Seek, _From, #ems_media{module = M} = Media) ->
-  
-  DefaultReply = fun({NewPos, NewDTS}, #ems_media{clients = Clients} = Media1) ->
-    case ems_media_clients:find(Clients, Client) of
-      #client{ticker = Ticker, state = passive} ->
-        media_ticker:seek(Ticker, NewPos, NewDTS),
-        {reply, {seek_success, NewDTS}, Media1, ?TIMEOUT};
-    
-      #client{stream_id = StreamId} = Entry ->
-        {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
-        TickerRef = erlang:monitor(process,Ticker),
-        media_ticker:seek(Ticker, NewPos, NewDTS),
-        Clients1 = ems_media_clients:update(Clients, Client, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
-        {reply, {seek_success, NewDTS}, Media1#ems_media{clients = Clients1}, ?TIMEOUT};
-    
-      [] ->
-        {reply, seek_failed, Media1, ?TIMEOUT}
-    end
-  end,
-  
-  DefaultSeek = fun(#ems_media{format = undefined} = Media1) ->
-    {reply, seek_failed, Media1, ?TIMEOUT};
-                   (#ems_media{format = Format, storage = Storage} = Media1) ->
-    case Format:seek(Storage, BeforeAfter, DTS) of
-      {NewPos, NewDTS} ->
-        DefaultReply({NewPos, NewDTS}, Media1);
-      undefined ->
-        {reply, seek_failed, Media1, ?TIMEOUT}
-    end
-  end,
-  
-  case M:handle_control(Seek, Media) of
-    {noreply, Media1} ->
-      DefaultSeek(Media1);
-    {stop, Reason, Media1} ->
-      {stop, Reason, Media1};
-    {reply, Reply, Media1} ->
-      DefaultReply(Reply, Media1)
-  end;
 
+handle_call({seek, _Client, _BeforeAfter, _DTS} = Seek, _From, #ems_media{} = Media) ->
+  handle_seek(Seek, Media);
+      
 
 %% It is information seek, required for outside needs.
 handle_call({seek_info, BeforeAfter, DTS} = SeekInfo, _From, 
@@ -764,6 +727,50 @@ try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
 
 
 
+handle_seek({seek, Client, _BeforeAfter, _DTS} = Seek, #ems_media{module = M} = Media) ->
+
+  case M:handle_control(Seek, Media) of
+    {noreply, Media1} ->
+      default_ems_media_seek(Seek, Media1);
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1};
+    {reply, Reply, Media1} ->
+      default_seek_reply(Client, Reply, Media1)
+  end.
+
+
+default_ems_media_seek(_, #ems_media{format = undefined} = Media) ->
+  ?D("no format"),
+  {reply, seek_failed, Media, ?TIMEOUT};
+  
+default_ems_media_seek({seek, Client, BeforeAfter, DTS}, #ems_media{format = Format, storage = Storage} = Media) ->
+  case Format:seek(Storage, BeforeAfter, DTS) of
+    {NewPos, NewDTS} ->
+      default_seek_reply(Client, {NewPos, NewDTS}, Media);
+    undefined ->
+      ?D({"no flv seek"}),
+      {reply, seek_failed, Media, ?TIMEOUT}
+  end.
+
+
+default_seek_reply(Client, {NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
+  case ems_media_clients:find(Clients, Client) of
+    #client{ticker = Ticker, state = passive} ->
+      media_ticker:seek(Ticker, NewPos, NewDTS),
+      {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
+
+    #client{stream_id = StreamId} = Entry ->
+      {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
+      TickerRef = erlang:monitor(process,Ticker),
+      media_ticker:seek(Ticker, NewPos, NewDTS),
+      Clients1 = ems_media_clients:update(Clients, Client, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
+      {reply, {seek_success, NewDTS}, Media#ems_media{clients = Clients1}, ?TIMEOUT};
+
+    _ ->
+      ?D("Client requested seek not in list"),
+      {reply, seek_failed, Media, ?TIMEOUT}
+  end.
+
 
 
 unsubscribe_client(Client, #ems_media{clients = Clients, module = M} = Media) ->
@@ -806,7 +813,7 @@ check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
   Media#ems_media{clients_timeout_ref = TimeoutRef}.
 
 mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
-  Clients1 = mass_ems_media_clients:mass_update(Clients, #client.state, active, starting),
+  Clients1 = ems_media_clients:mass_update(Clients, #client.state, active, starting),
   Media#ems_media{clients = Clients1}.
 
 

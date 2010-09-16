@@ -38,7 +38,8 @@
   client_buffer,
   timer_start,
   playing_from,
-  playing_till
+  playing_till,
+  paused = false
 }).
 
 start(Ticker) ->
@@ -63,7 +64,7 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
-  % ?D({media_ticker,Options}),
+  ?D({media_ticker,Options}),
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 10000),
   {Pos, DTS} = case proplists:get_value(start, Options) of
@@ -120,16 +121,23 @@ handle_message(stop, Ticker) ->
   notify_about_stop(Ticker),
   ok;
 
+handle_message(resume, Ticker) ->
+  self() ! tick,
+  ?MODULE:loop(Ticker#ticker{paused = false});
+
 handle_message(start, Ticker) ->
   self() ! tick,
-  ?MODULE:loop(Ticker);
+  ?MODULE:loop(Ticker#ticker{paused = false});
   
 handle_message(pause, Ticker) ->
   flush_tick(),
-  ?MODULE:loop(Ticker);
+  ?MODULE:loop(Ticker#ticker{paused = true});
   
-handle_message({seek, Pos, DTS}, #ticker{} = Ticker) ->
-  self() ! tick,
+handle_message({seek, Pos, DTS}, #ticker{paused = Paused} = Ticker) ->
+  case Paused of
+    true -> ok;
+    false -> self() ! tick
+  end,
   ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, frame = undefined});
 
 handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
@@ -154,13 +162,13 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
       % ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
-      ok;
+      ?MODULE:loop(Ticker);
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
       % ?D({play_complete, DTS}),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
-      ok;
+      ?MODULE:loop(Ticker);
       
     #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
       Timeout = tick_timeout(NewDTS, PlayingFrom, TimerStart, ClientBuffer),

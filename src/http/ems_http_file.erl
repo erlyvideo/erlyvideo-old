@@ -31,7 +31,6 @@
 
 http(Host, 'GET', Path, Req) ->
   FileName = filename:absname(filename:join([DocRoot | Path])),
-  ?D(FileName),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
