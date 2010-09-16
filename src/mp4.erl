@@ -29,9 +29,9 @@
 -include("log.hrl").
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
--export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, smhd/2, minf/2, ctts/2]).
+-export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2]).
 -export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2]).
--export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2]). % , '.mp3'/2
+-export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
 -export([extract_language/1]).
 
 
@@ -295,7 +295,6 @@ dref(<<0:32, _Count:32, Atom/binary>> = _Dref, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 'url '(URL, Mp4Track) ->
-  ?D({url, URL}),
   Mp4Track.
 
 % Sample table box
@@ -314,6 +313,10 @@ mp4a(<<_Reserved:6/binary, _RefIndex:16, _Unknown:8/binary, _ChannelsCount:32,
   
 mp4v(_T, Mp4Track) ->
   Mp4Track#mp4_track{data_format = mpeg4}.
+
+
+'.mp3'(_, Mp4Track) ->
+  Mp4Track#mp4_track{data_format = mp3}.
 
 avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
       HorizRes:16, _:16, VertRes:16, _:16, _FrameCount:16, _CompressorName:32/binary,
@@ -515,7 +518,7 @@ read_stsc(<<ChunkId:32, SamplesPerChunk:32, _SampleId:32, Rest/binary>>, EntryCo
 
 
 
-%%%%%%%%%%%%%%%%%%%%%% STCO atom %%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%% STCO/CO64 atom %%%%%%%%%%%%%%%%%%%%
 % sample table chunk offset
 %%
 stco(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, Mp4Track) ->
@@ -526,6 +529,17 @@ read_stco(_, 0, #mp4_track{chunk_offsets = ChunkOffsets} = Mp4Track) ->
 
 read_stco(<<Offset:32, Rest/binary>>, OffsetCount, #mp4_track{chunk_offsets = ChunkOffsets} = Mp4Track) ->
   read_stco(Rest, OffsetCount - 1, Mp4Track#mp4_track{chunk_offsets = [Offset | ChunkOffsets]}).
+
+
+co64(<<0:8, _Flags:3/binary, OffsetCount:32, Offsets/binary>>, Mp4Track) ->
+  ?D({co64,OffsetCount}),
+  read_co64(Offsets, OffsetCount, Mp4Track).
+
+read_co64(<<>>, 0, #mp4_track{chunk_offsets = ChunkOffsets} = Mp4Track) ->
+  Mp4Track#mp4_track{chunk_offsets = lists:reverse(ChunkOffsets)};
+
+read_co64(<<Offset:64, Rest/binary>>, OffsetCount, #mp4_track{chunk_offsets = ChunkOffsets} = Mp4Track) ->
+  read_co64(Rest, OffsetCount - 1, Mp4Track#mp4_track{chunk_offsets = [Offset | ChunkOffsets]}).
 
 
 
