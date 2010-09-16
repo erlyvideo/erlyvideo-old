@@ -7,7 +7,10 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: snmp compile plugins doc
+all: update_deps snmp compile plugins doc
+
+update_deps:
+	./rebar get-deps
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
