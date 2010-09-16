@@ -31,3 +31,6 @@
 [submodule "deps/ertp"]
 	path = deps/ertp
 	url = git://github.com/erlyvideo/ertp.git
+[submodule "doc"]
+	path = doc
+	url = git://github.com/erlyvideo/doc
