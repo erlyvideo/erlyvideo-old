@@ -156,12 +156,17 @@ tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
 %% @end 
 %%--------------------------------------------------------------------
 read_tag_header({Module,Device}, Offset) ->
-	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH) of
-		{ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary>>} ->
+	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH+1) of
+		{ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} ->
       % io:format("Frame ~p ~p ~p~n", [Type, TimeStamp, Size]),
       FlvTag = tag_header(Bin),
-      FlvTag#flv_tag{offset = Offset + ?FLV_TAG_HEADER_LENGTH,
-       next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + FlvTag#flv_tag.size + ?FLV_PREV_TAG_SIZE_LENGTH};
+      FlvTag1 = FlvTag#flv_tag{offset = Offset + ?FLV_TAG_HEADER_LENGTH,
+       next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + FlvTag#flv_tag.size + ?FLV_PREV_TAG_SIZE_LENGTH},
+      Flavor = case {FlvTag1#flv_tag.type, VideoFlavor} of
+        {video, ?FLV_VIDEO_FRAME_TYPE_KEYFRAME} -> keyframe;
+        _ -> frame
+      end,
+      FlvTag1#flv_tag{flavor = Flavor};
     eof -> eof;
     {error, Reason} -> {error, Reason}
   end;

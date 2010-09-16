@@ -68,7 +68,7 @@
 %% @end
 %%-------------------------------------------------------------------------
 start_link(FileName) ->
-  {ok, spawn(?MODULE, init, [FileName, self()])}.
+  {ok, proc_lib:spawn_link(?MODULE, init, [FileName, self()])}.
 
 %% @hidden
 init(Writer, Owner) when is_function(Writer) ->
@@ -117,19 +117,25 @@ writer(FlvWriter) ->
       ?MODULE:writer_no_timeout(flush_messages(FlvWriter, hard))
   end.
 
+%% @hidden
+% Called after timeout appeared to block forever till next message
 writer_no_timeout(FlvWriter) ->
   receive
     Message -> handle_message(Message, FlvWriter)
   end.
 
+%% External interface for spawned writer
 write_frame(#video_frame{} = Frame, FlvWriter) when is_pid(FlvWriter) ->
   FlvWriter ! Frame,
   {ok, FlvWriter};
 
+%% And for embedded writer
 write_frame(#video_frame{} = Frame, #flv_file_writer{} = FlvWriter) ->
   store_message(Frame, FlvWriter).
 
-  
+
+%% @hidden
+%% Handle message is for inside writer
 handle_message(#video_frame{} = Frame, #flv_file_writer{} = FlvWriter) ->
   {ok, FlvWriter1} = store_message(Frame, FlvWriter),
   ?MODULE:writer(FlvWriter1);

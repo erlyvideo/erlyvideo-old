@@ -34,7 +34,7 @@
   reader,
   frames,
   header,
-  metadata,
+  metadata = [],
   duration,
   height,
   width,
@@ -65,9 +65,7 @@ init({_Module,_Device} = Reader, _Options) ->
   MediaInfo = #media_info{reader = Reader},
   case flv:read_header(Reader) of
     {#flv_header{} = Header, Offset} -> 
-      read_frame_list(MediaInfo#media_info{
-          frames = ets:new(frames, [ordered_set, private]),
-          header = Header}, Offset);
+      read_frame_list(MediaInfo#media_info{header = Header, frames = ets:new(frames, [ordered_set, private])}, Offset);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
@@ -76,21 +74,31 @@ init({_Module,_Device} = Reader, _Options) ->
 first(_) ->
   flv:data_offset().
 
-properties(#media_info{metadata = undefined}) -> [];
 properties(#media_info{metadata = Meta}) -> Meta.
 
-read_frame_list(#media_info{reader = Reader} = MediaInfo, Offset) ->
+read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Metadata} = MediaInfo, Offset) ->
   {Module,Device} = Reader,
   % We need to bypass PreviousTagSize and read header.
 	case flv:read_tag_header(Reader, Offset)	of
-	  #flv_tag{type = metadata, size = Length, offset = BodyOffset} ->
+	  #flv_tag{type = metadata, size = Length, offset = BodyOffset, next_tag_offset = NextOffset} ->
 			{ok, MetaBody} = Module:pread(Device, BodyOffset, Length),
 			Meta = rtmp:decode_list(MetaBody),
-			{ok, parse_metadata(MediaInfo, Meta)};
-		#flv_tag{next_tag_offset = NextOffset} ->
-			read_frame_list(MediaInfo, NextOffset);
-    eof -> 
-      {ok, MediaInfo};
+			?D({"Got metadata", Meta}),
+			case parse_metadata(MediaInfo, Meta) of
+			  {MediaInfo1, true} ->	{ok, MediaInfo1};
+			  {MediaInfo1, false} ->
+			    read_frame_list(MediaInfo1, NextOffset)
+			end;
+  	#flv_tag{type = video, flavor = keyframe, timestamp = DTS, next_tag_offset = NextOffset} ->
+  	  ets:insert(FrameTable, {DTS, Offset}),
+			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset);
+		#flv_tag{next_tag_offset = NextOffset, timestamp = DTS}->
+			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset);
+    eof ->
+      ?D({duration, MediaInfo#media_info.duration, Offset}),
+      {ok, MediaInfo#media_info{
+        metadata = lists:ukeymerge(1, [{duration, MediaInfo#media_info.duration / 1000}], Metadata)
+      }};
     {error, Reason} -> 
       {error, Reason}
   end.
@@ -109,7 +117,6 @@ get_int(Key, Meta, Coeff) ->
   end.
 
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
-  ?D(Meta),
   Meta1 = lists:keydelete(<<"keyframes">>, 1, Meta),
   Meta2 = lists:keydelete(<<"times">>, 1, Meta1),
   Meta3 = lists:map(fun({Key,Value}) ->
@@ -134,13 +141,14 @@ parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
     {object, Keyframes} ->
       Offsets = proplists:get_value(filepositions, Keyframes),
       Times = proplists:get_value(times, Keyframes),
-      insert_keyframes(MediaInfo1, Offsets, Times);
-    _ -> MediaInfo1
+      ets:delete_all_objects(MediaInfo1#media_info.frames),
+      {insert_keyframes(MediaInfo1, Offsets, Times), true};
+    _ -> {MediaInfo1, false}
   end;
 
 parse_metadata(MediaInfo, Meta) ->
   ?D({"Unknown metadata", Meta}),
-  MediaInfo.
+  {MediaInfo, false}.
 
 
 insert_keyframes(MediaInfo, [], _) -> MediaInfo;
@@ -150,12 +158,21 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   insert_keyframes(MediaInfo, Offsets, Times).
 
 
+seek(#media_info{} = Media, _BeforeAfter, TS) when TS == 0 ->
+  {first(Media), 0};
+
+seek(#media_info{frames = undefined} = Media, BeforeAfter, Timestamp) ->
+  erlang:error(flv_file_should_have_frame_table),
+  find_frame_in_file(Media, BeforeAfter, Timestamp, 0, first(Media), first(Media));
+
 seek(#media_info{frames = FrameTable}, before, Timestamp) ->
   TimestampInt = round(Timestamp),
   Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Offset, FrameTimestamp}
   end)),
-
+  
+  % ?D({zz, ets:tab2list(FrameTable)}),
+  
   case lists:reverse(Ids) of
     [Item | _] -> Item;
     _ -> undefined
@@ -170,6 +187,30 @@ seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
   case Ids of
     [Item | _] -> Item;
     _ -> undefined
+  end.
+
+find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Offset) ->
+  case read_frame(Media, Offset) of
+    #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
+      {PrevOffset, PrevTS};
+    #video_frame{flavor = keyframe, dts = DTS, next_id = Next} -> 
+      find_frame_in_file(Media, before, Timestamp, DTS, Offset, Next);
+    #video_frame{next_id = Next} ->
+      find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Next);
+    eof when PrevTS == undefined -> 
+      undefined;
+    eof ->  
+      {PrevOffset, PrevTS}
+  end;
+    
+find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Offset) ->
+  case read_frame(Media, Offset) of
+    #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
+      {Offset, DTS};
+    #video_frame{next_id = Next} ->
+      find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Next);
+    eof -> 
+      undefined
   end.
 
 
