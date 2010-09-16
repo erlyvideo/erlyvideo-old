@@ -24,3 +24,4 @@ build-stamp
 configure-stamp
 shared_objects
 rebar.config
+deps

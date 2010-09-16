@@ -7,7 +7,7 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: update_deps snmp compile plugins doc
+all: update_deps snmp compile plugins 
 
 update_deps: rebar.config
 	./rebar get-deps
@@ -30,10 +30,6 @@ include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
 snmp/ERLYVIDEO-MIB.bin: snmp/ERLYVIDEO-MIB.mib
 	erlc -o snmp snmp/ERLYVIDEO-MIB.mib
 
-doc:
-	mkdir -p doc/html
-	cp -f doc/*.png doc/html/
-	erl -pa ebin -s erlyvideo edoc -s init stop -noinput -noshell
 
 archive: ../erlyvideo-$(VERSION).tgz
 
