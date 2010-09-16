@@ -567,8 +567,11 @@ send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = 
 
 send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
   {NewState, Data} = case Message of
-    #rtmp_message{} -> rtmp:encode(State, Message);
-    _ -> {State, Message}
+    #rtmp_message{} ->
+      % ?D({Socket,Message#rtmp_message.type, Message#rtmp_message.timestamp, Message#rtmp_message.ts_type}),
+      rtmp:encode(State, Message);
+    _ -> 
+      {State, Message}
   end,
   {NewKeyOut, Crypt} = case {Codec, KeyOut} of
     {undefined,undefined} -> {undefined, Data};
