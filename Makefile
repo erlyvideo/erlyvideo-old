@@ -9,8 +9,11 @@ APP_NAME=ems
 
 all: update_deps snmp compile plugins doc
 
-update_deps:
+update_deps: rebar.config
 	./rebar get-deps
+
+rebar.config:
+	cp rebar.config.sample rebar.config
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
