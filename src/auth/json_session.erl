@@ -23,8 +23,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(json_session).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
+-include("../../include/ems.hrl").
 -export([decode/2, encode/2, connect/2, binary_to_hexbin/1, auth/3]).
 
 
@@ -39,8 +39,9 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
       rtmp_session:accept_connection(NewState),
       NewState
   catch
-    _:_ ->
+    Class:Error ->
     	ems_log:access(Host, "REJECT ~s ~s ~p ~s json_session", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
+    	?D({Class,Error,erlang:get_stacktrace()}),
       rtmp_session:reject_connection(State),
       State
   end.
@@ -63,7 +64,7 @@ decode(Cookie, Secret) when is_list(Cookie) ->
 decode(Cookie, Secret) when is_binary(Cookie) ->
   {Session64, Sign} = split_cookie(Cookie),
   verify_signature(Session64, Sign, Secret),
-  {struct, Session} = mochijson2:decode(base64:decode(Session64)),
+  {object, Session} = mochijson2:decode(base64:decode(Session64)),
   Session.
   
 
