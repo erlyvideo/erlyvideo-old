@@ -30,7 +30,23 @@
 
 
 http(Host, 'GET', Path, Req) ->
-  FileName = filename:absname(filename:join([DocRoot | Path])),
+  Root = if
+    is_list(DocRoot) -> DocRoot;
+    is_atom(DocRoot) -> code:lib_dir(DocRoot, wwwroot);
+    true -> undefined
+  end,
+  
+  if 
+    is_list(Root) -> serve_file(Host, Root, Path, Req);
+    true -> unhandled
+  end;    
+
+http(_Host, _Method, _Path, _Req) ->
+  unhandled.
+
+
+serve_file(Host, Root, Path, Req) ->
+  FileName = filename:absname(filename:join([Root | Path])),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
@@ -43,8 +59,5 @@ http(Host, 'GET', Path, Req) ->
         false ->  
           unhandled
       end
-  end;
-
-
-http(_Host, _Method, _Path, _Req) ->
-  unhandled.
+  end.
+  
