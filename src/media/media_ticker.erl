@@ -64,9 +64,8 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
-  ?D({media_ticker,Options}),
   StreamId = proplists:get_value(stream_id, Options),
-  ClientBuffer = proplists:get_value(client_buffer, Options, 10000),
+  ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
   {Pos, DTS} = case proplists:get_value(start, Options) of
     undefined -> {undefined, undefined};
     {BeforeAfter, Start} -> ems_media:seek_info(Media, BeforeAfter, Start);
@@ -91,7 +90,6 @@ init(Media, Consumer, Options) ->
           end
       end
   end,
-  % ?D({media_ticker,{Pos,DTS}, PlayingTill, ClientBuffer}),
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill}).
   
