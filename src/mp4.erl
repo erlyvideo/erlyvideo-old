@@ -294,7 +294,7 @@ dinf(Atom, Mp4Track) ->
 dref(<<0:32, _Count:32, Atom/binary>> = _Dref, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
-'url '(URL, Mp4Track) ->
+'url '(_URL, Mp4Track) ->
   Mp4Track.
 
 % Sample table box
@@ -703,6 +703,8 @@ unpack_sample_offsets_test() ->
   ?assertEqual(Mp4Track2, Mp4Track1).
   
 
-esds_tag_test() ->
-  ?assertEqual(undefined, config_from_esds_tag(<<3,21,0,2,0,4,13,64,21,0,0,0,0,0,100,239,0,0,0,0,6,1,2>>)),
-  ?assertEqual(<<18,16>>, config_from_esds_tag(<<3,25,0,0,0,4,17,64,21,0,1,172,0,2,33,88,0,1,142,56,5,2,18,16,6,1,2>>)).
+esds_tag1_test() ->
+  ?assertEqual(#esds{object_type = aac, stream_type = 21, buffer_size = 0, max_bitrate = 25839, avg_bitrate = 0}, config_from_esds_tag(<<3,21,0,2,0,4,13,64,21,0,0,0,0,0,100,239,0,0,0,0,6,1,2>>)).
+
+esds_tag2_test() ->
+  ?assertEqual(#esds{object_type = aac, stream_type = 21, buffer_size = 428, max_bitrate = 139608, avg_bitrate = 101944, specific = <<18,16>>}, config_from_esds_tag(<<3,25,0,0,0,4,17,64,21,0,1,172,0,2,33,88,0,1,142,56,5,2,18,16,6,1,2>>)).

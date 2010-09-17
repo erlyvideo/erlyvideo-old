@@ -116,7 +116,7 @@ decode(Data) ->
         more ->
           {more, Data};
         {ok, Headers, Body, Rest1} ->
-          {ok, {request, Method, URL, Headers, Body}, Rest1}
+          {ok, {request, Method, URL, lists:ukeysort(1,Headers), Body}, Rest1}
       end;
     {ok, {rtp, _Channel, _Packet}, _Rest} = Reply ->
       Reply;
@@ -125,19 +125,19 @@ decode(Data) ->
         more ->
           {more, Data};
         {ok, Headers, Body, Rest1} ->
-          {ok, {response, Code, Status, Headers, Body}, Rest1}
+          {ok, {response, Code, Status, lists:ukeysort(1,Headers), Body}, Rest1}
       end;
     {ok, {sip_request, Method, URI}, Rest} ->
       case decode_headers(Rest, [], undefined) of
         {ok, Headers, Body, _Other} ->
-          {ok, {sip_request, Method, URI, Headers, Body}};
+          {ok, {sip_request, Method, URI, lists:ukeysort(1,Headers), Body}};
         more ->
           {more, Data}
       end;
     {ok, {sip_response, Code, Status}, Rest} ->
       case decode_headers(Rest, [], undefined) of
         {ok, Headers, Body, _Other} ->
-          {ok, {sip_response, Code, Status, Headers, Body}};
+          {ok, {sip_response, Code, Status, lists:ukeysort(1,Headers), Body}};
         more ->
           {more, Data}
       end
@@ -152,13 +152,13 @@ decode_headers(Data, Headers, BodyLength) ->
     {ok, {header, HKey, HVal}, Rest} ->
       NewPair =
         case HKey of
-          <<"Cseq">> -> {list_to_atom(binary_to_list(HKey)), HVal};
-          <<"Transport">> -> {list_to_atom(binary_to_list(HKey)), HVal};
-          <<"Session">> -> {list_to_atom(binary_to_list(HKey)), HVal};
-          <<"Call-Id">> -> {list_to_atom(binary_to_list(HKey)), HVal};
-          <<"To">> -> {list_to_atom(binary_to_list(HKey)), HVal};
-          <<"Subject">> -> {list_to_atom(binary_to_list(HKey)), HVal};
-          <<"Contact">> -> {list_to_atom(binary_to_list(HKey)), HVal};
+          <<"Cseq">> -> {'Cseq', HVal};
+          <<"Transport">> -> {'Transport', HVal};
+          <<"Session">> -> {'Session', HVal};
+          <<"Call-Id">> -> {'Call-Id', HVal};
+          <<"To">> -> {'To', HVal};
+          <<"Subject">> -> {'Subject', HVal};
+          <<"Contact">> -> {'Contact', HVal};
           _ -> {HKey, HVal}
         end,
       decode_headers(Rest, [NewPair | Headers], BodyLength);
@@ -202,13 +202,13 @@ parse_rtp_test() ->
 parse_request_test() ->
   ?assertEqual({more, ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>},
                parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0">>)),
-  ?assertEqual({ok, {request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1\r\nSession: 5\r\n\r\naa">>},
+  ?assertEqual({ok, {rtsp_request, 'PLAY', <<"rtsp://erlyvideo.org/video">>}, <<"CSeq: 1\r\nSession: 5\r\n\r\naa">>},
                parse(ready, <<"PLAY rtsp://erlyvideo.org/video RTSP/1.0\r\nCSeq: 1\r\nSession: 5\r\n\r\naa">>)).
 
 parse_response_test() ->
   ?assertEqual({more, ready, <<"RTSP/1.0 200 OK">>},
                parse(ready, <<"RTSP/1.0 200 OK">>)),
-  ?assertEqual({ok, {response, 200, <<"OK">>}, <<"Session: 10\r\nCSeq: 4\r\n\r\n">>},
+  ?assertEqual({ok, {rtsp_response, 200, <<"OK">>}, <<"Session: 10\r\nCSeq: 4\r\n\r\n">>},
                parse(ready, <<"RTSP/1.0 200 OK\r\nSession: 10\r\nCSeq: 4\r\n\r\n">>)).
 
 
@@ -245,10 +245,10 @@ decode_request_test() ->
   ?assertEqual({ok, {response, 200, <<"OK">>, [{'Cseq', <<"2">>}], undefined}, <<"">>},
                decode(<<"RTSP/1.0 200 OK\r\nCseq: 2\r\n\r\n">>)),
   ?assertEqual({ok, {response, 200, <<"OK">>, [
+                                               {'Cseq', <<"2">>},
                                                {'Date', <<"Thu, 18 Feb 2010 06:21:00 GMT">>},
-                                               {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>},
                                                {'Session', <<"94544680; timeout=60">>},
-                                               {'Cseq', <<"2">>}
+                                               {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>}
                                               ], undefined}, <<>>},
                decode(<<"RTSP/1.0 200 OK\r\nCSeq: 2\r\nSession: 94544680; timeout=60\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"\r\nDate: Thu, 18 Feb 2010 06:21:00 GMT\r\n\r\n">>)).
 
@@ -288,26 +288,28 @@ decode_sip_invite_test() ->
           "Content-Length: ",(list_to_binary(integer_to_list(size(SDP))))/binary,"\r\n",
           "\r\n",
           SDP/binary>>,
-
-  ?assertEqual({ok,{sip,invite,"sip:ev@erlyvideo.ru",
+  
+  _MediaDesc = [{media_desc,video,
+    {inet4,"0.0.0.0"},
+    "0","96",90.0,"trackID=1",h264,
+    <<104,222,60,128>>,
+    <<103,66,192,22,150,116,15,5,255,46,0,129,0,0,11,187,0,2,
+      191,32,180,96,12,56,4,151,123,223,7,132,66,53>>,
+    undefined},
+   {media_desc,audio,
+    {inet4,"0.0.0.0"},
+    "0","97",48.0,"trackID=2","MP4A-LATM",undefined,
+    undefined,
+    <<64,0,35,32,63,192>>}],
+  ?assertEqual({ok,{sip_request,'INVITE',<<"sip:ev@erlyvideo.ru">>,
                     [{'Content-Length',628},
                      {'Content-Type',<<"application/sdp">>},
-                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'Cseq',<<"1234 INVITE">>},
+                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'From',<<"sip:tt@hh">>},
-                     {<<"To">>,<<"sip:ev@erlyvideo.ru">>}],
-                    [{media_desc,video,
-                      {inet4,"0.0.0.0"},
-                      "0","96",90.0,"trackID=1",h264,
-                      <<104,222,60,128>>,
-                      <<103,66,192,22,150,116,15,5,255,46,0,129,0,0,11,187,0,2,
-                        191,32,180,96,12,56,4,151,123,223,7,132,66,53>>,
-                      undefined},
-                     {media_desc,audio,
-                      {inet4,"0.0.0.0"},
-                      "0","97",48.0,"trackID=2","MP4A-LATM",undefined,
-                      undefined,
-                      <<64,0,35,32,63,192>>}]}},
+                     {'To',<<"sip:ev@erlyvideo.ru">>}],
+                    % MediaDesc}},
+                    SDP}},
                decode(Req)).
 
 decode_sip_ack_test() ->
@@ -318,12 +320,12 @@ decode_sip_ack_test() ->
           "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
           "Content-Length: 0\r\n",
           "\r\n">>,
-  ?assertEqual({ok,{sip,ack,"sip:tt@hh",
+  ?assertEqual({ok,{sip_request,'ACK',<<"sip:tt@hh">>,
                     [{'Content-Length',0},
-                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'Cseq',<<"1234 ACK">>},
+                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'From',<<"sip:ev@erlyvideo.ru">>},
-                     {<<"To">>,<<"sip:tt@hh">>}],
+                     {'To',<<"sip:tt@hh">>}],
                     <<>>}},
                decode(Req)).
 
@@ -335,12 +337,12 @@ decode_sip_bye_test() ->
           "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
           "Content-Length: 0\r\n",
           "\r\n">>,
-  ?assertEqual({ok,{sip,bye,"sip:tt@hh",
+  ?assertEqual({ok,{sip_request,'BYE',<<"sip:tt@hh">>,
                     [{'Content-Length',0},
-                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'Cseq',<<"1234 BYE">>},
+                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'From',<<"sip:ev@erlyvideo.ru">>},
-                     {<<"To">>,<<"sip:tt@hh">>}],
+                     {'To',<<"sip:tt@hh">>}],
                     <<>>}},
                decode(Req)).
 
@@ -352,11 +354,11 @@ decode_sip_cancel_test() ->
           "Date: Tue, 3 Aug 2010 16:00:00 NOVST\r\n"
           "Content-Length: 0\r\n",
           "\r\n">>,
-  ?assertEqual({ok,{sip,cancel,"sip:tt@hh",
+  ?assertEqual({ok,{sip_request,'CANCEL',<<"sip:tt@hh">>,
                     [{'Content-Length',0},
-                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'Cseq',<<"1234 CANCEL">>},
+                     {'Date',<<"Tue, 3 Aug 2010 16:00:00 NOVST">>},
                      {'From',<<"sip:ev@erlyvideo.ru">>},
-                     {<<"To">>,<<"sip:tt@hh">>}],
+                     {'To',<<"sip:tt@hh">>}],
                     <<>>}},
                decode(Req)).

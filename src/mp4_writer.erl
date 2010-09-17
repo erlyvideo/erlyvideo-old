@@ -481,12 +481,12 @@ mp4_serialize1_test_() ->
   ?_assertEqual(<<16:32, "ftyp", 5:32, 100:32>>, iolist_to_binary(mp4_serialize({ftyp, [5, 100]})))].
 
 pack_durations_test() ->
-  Frames = [#video_frame{dts = 2}, #video_frame{dts = 1}, #video_frame{dts = 0}],
-  ?assertEqual(<<0:32, 3:32, 1:32, 0:32, 1:32, 90:32, 1:32, 90:32>>, iolist_to_binary(pack_durations(Frames))).
+  Frames = [#video_frame{dts = 2, content = video}, #video_frame{dts = 1, content = video}, #video_frame{dts = 0, content = video}],
+  ?assertEqual(<<0:32, 3:32, 1:32, 0:32, 1:32, 24:32, 1:32, 24:32>>, iolist_to_binary(pack_durations(Frames))).
 
 pack_glue_durations_test() ->
-  Frames = [#video_frame{dts = 2}, #video_frame{dts = 2}, #video_frame{dts = 0}],
-  ?assertEqual(<<0:32, 3:32, 1:32, 0:32, 1:32, 90:32, 1:32, 90:32>>, iolist_to_binary(pack_durations(Frames))).
+  Frames = [#video_frame{dts = 2, content = video}, #video_frame{dts = 2, content = video}, #video_frame{dts = 0, content = video}],
+  ?assertEqual(<<0:32, 3:32, 1:32, 0:32, 1:32, 24:32, 1:32, 24:32>>, iolist_to_binary(pack_durations(Frames))).
 
 
 pack_keyframes_test() ->
