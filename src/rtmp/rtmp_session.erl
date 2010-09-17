@@ -24,7 +24,7 @@
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -behaviour(gen_fsm).
@@ -61,7 +61,7 @@ create_client(Socket) ->
   {ok, Pid}.
 
 
-accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion} = Session) ->
+accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
   Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
   % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
@@ -79,7 +79,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
                {objectEncoding, AMFVersion}],
   reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
-  ems_event:user_connected(Host, self()),
+  ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
   Session;
   
 accept_connection(Session) when is_pid(Session) ->
@@ -486,7 +486,7 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 terminate(_Reason, _StateName, #rtmp_session{host = Host,
   addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId, session_id = SessionId} = State) ->
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p", [Addr, Host, UserId, Recv, Sent]),
-  ems_event:user_disconnected(State#rtmp_session.host, [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats]),
+  ems_event:user_disconnected(State#rtmp_session.host, self(), [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats]),
   (catch erlyvideo:call_modules(logout, [State])),
   ok.
 

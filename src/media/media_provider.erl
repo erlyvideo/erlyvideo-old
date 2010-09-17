@@ -32,7 +32,7 @@
 
 -module(media_provider).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).
@@ -120,13 +120,15 @@ play(Host, Name, Options) ->
     {notfound, Reason} -> 
       {notfound, Reason};
     {ok, Stream} ->
-      ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
+      ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1},{host,Host}])),
+      ems_event:user_play(Host, self(), Stream, [{name,Name}|Options]),
       {ok, Stream}
   end.
 
 
 play(Stream, Options) when is_pid(Stream) andalso is_list(Options) ->
   ems_media:play(Stream, lists:ukeymerge(1, lists:ukeysort(1, Options), [{stream_id,1}])),
+  % ems_event:user_play(Host, self(), Stream, [{name,Name}|Options]),
   {ok, Stream}.
   
 

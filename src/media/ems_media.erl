@@ -804,7 +804,7 @@ default_seek_reply(Client, {NewPos, NewDTS}, #ems_media{clients = Clients} = Med
 
 
 
-unsubscribe_client(Client, #ems_media{clients = Clients, module = M} = Media) ->
+unsubscribe_client(Client, #ems_media{options = Options, clients = Clients, module = M} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{ref = Ref, ticker = Ticker, ticker_ref = TickerRef} ->
       case M:handle_control({unsubscribe, Client}, Media) of
@@ -817,7 +817,12 @@ unsubscribe_client(Client, #ems_media{clients = Clients, module = M} = Media) ->
           end,
         
           erlang:demonitor(Ref, [flush]),
+          Entry = ems_media_clients:find(Clients, Client),
+          Host = proplists:get_value(host, Options),
+          Stats = [{bytes_sent, Entry#client.bytes}],
           Clients1 = ems_media_clients:delete(Clients, Client),
+
+          ems_event:user_stop(Host, Client, self(), Stats),
 
           {reply, ok, check_no_clients(Media1#ems_media{clients = Clients1}), ?TIMEOUT};
         {reply, Reply, Media1} ->
