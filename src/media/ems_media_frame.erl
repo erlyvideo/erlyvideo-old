@@ -31,7 +31,7 @@
 -export([transcode/2, send_frame/2]).
 
 
-transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) ->
+transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) when Transcoder =/= undefined ->
   {ok, Frames, State1} = Transcoder:transcode(Frame, State),
   {Media#ems_media{trans_state = State1}, Frames};
   
@@ -136,17 +136,18 @@ save_frame(Format, Storage, Frame) ->
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
-  Starting = ems_media_clients:select(Clients, #client.state, starting),
-  Clients2 = lists:foldl(fun(#client{consumer = Client, stream_id = StreamId}, Clients1) ->
-    case ems_media:metadata_frame(M) of
+  Starting = ems_media_clients:select_by_state(Clients, starting),
+  Meta = ems_media:metadata_frame(M),
+  lists:foreach(fun(#client{consumer = Client, stream_id = StreamId}) ->
+    case Meta of
       undefined -> ok;
-      Meta -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
+      _ -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
     end,
 
     (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
-    (catch Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
-    ems_media_clients:update(Clients1, Client, #client.state, active)
-  end, Clients, Starting),
+    (catch Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId})
+  end, Starting),
+  Clients2 = ems_media_clients:mass_update_state(Clients, starting, active),
   M#ems_media{clients = Clients2};
 
 

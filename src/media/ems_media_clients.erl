@@ -23,118 +23,86 @@
 -module(ems_media_clients).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--include_lib("stdlib/include/ms_transform.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/ems_media.hrl").
 -include("../include/ems.hrl").
 -include("ems_media_client.hrl").
 
--export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, select/3, send_frame/3, mass_update/4]).
-
--define(EMS_MEDIA_ETS,1).
-
--ifdef(EMS_MEDIA_ETS).
+-export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, select_by_state/2, send_frame/3, mass_update_state/3]).
 
 init() ->
-  ets:new(clients, [set,  {keypos,#client.consumer}]).
+  Clients = ets:new(clients, [set,  {keypos,#client.consumer}, private]),
+  Index = ets:new(index, [duplicate_bag, {keypos, #client.state}, private]),
+  {Clients, Index}.
 
-insert(Clients, Entry) ->
+insert({Clients, Index}, Entry) ->
   ets:insert(Clients, Entry),
-  Clients.
+  ets:insert(Index, Entry),
+  {Clients, Index}.
 
-find(Clients, Client) ->
+find({Clients, _Index}, Client) ->
   case ets:lookup(Clients, Client) of
     [Entry] -> Entry;
     _ -> undefined
   end.
   
-find(Clients, Value, Pos) ->
+find({Clients, _Index}, Value, Pos) ->
   case ets:select(Clients, ets:fun2ms(fun(#client{} = Entry) when element(Pos, Entry) == Value -> Entry end)) of
     [Entry] -> Entry;
     _ -> undefined
   end.
 
 
-count(Clients) ->
+count({Clients, _Index}) ->
   ets:info(Clients, size).
 
-update(Clients, Client, Pos, Value) ->
-  ets:update_element(Clients, Client, {Pos, Value}),
-  Clients.
+update({Clients, Index}, Client, Pos, Value) ->
+  case ets:lookup(Clients, Client) of
+    [Entry] ->
+      ets:update_element(Clients, Client, {Pos, Value}),
+      ets:delete_object(Index, Entry),
+      ets:insert(Index, setelement(Pos, Entry, Value));
+    _ ->
+      undefined
+  end,
+  {Clients, Index}.
 
-update(Clients, _Client, Entry) ->
-  ets:insert(Clients, Entry),
-  Clients.
+update({Clients, Index}, Client, NewEntry) ->
+  case ets:lookup(Clients, Client) of
+    [Entry] ->
+      ets:insert(Clients, NewEntry),
+      ets:delete_object(Index, Entry),
+      ets:insert(Index, NewEntry);
+    _ ->
+      undefined
+  end, 
+  {Clients, Index}.
 
-delete(Clients, Client) ->
-  ets:delete(Clients, Client),
-  Clients.
+delete({Clients, Index}, Client) ->
+  case ets:lookup(Clients, Client) of
+    [Entry] ->
+      ets:delete(Clients, Client),
+      ets:delete_object(Clients, Entry);
+    _ ->
+      undefined
+  end, 
+  {Clients, Index}.
   
-select(Clients, Pos, Value) ->
-  MS = ets:fun2ms(fun(#client{} = Entry) when element(Pos, Entry) == Value -> Entry end),
-  ets:select(Clients, MS).
-  
-
-send_frame(Frame, Clients, State) ->
-  MS = ets:fun2ms(fun(#client{state = S, consumer = Client, stream_id = StreamId}) when S == State -> {Client, StreamId} end),
-  List = ets:select(Clients, MS),
-  [Pid ! Frame#video_frame{stream_id = StreamId} || {Pid,StreamId} <- List].
-
-
-mass_update(Clients, Pos, From, To) ->
-  MS = ets:fun2ms(fun(#client{consumer = Client} = Entry) when element(Pos, Entry) == From -> Client end),
-  Starting = ets:select(Clients, MS),
-  [ets:update_element(Clients, Client, {Pos, To}) || Client <- Starting],
-  Clients.
-  
--else.
-
-init() ->
-  [].
-
-insert(Clients, #client{consumer = Pid} = Entry) ->
-  lists:keystore(Pid, #client.consumer, Clients, Entry).
-
-find(Clients, Pid) ->
-  case lists:keyfind(Clients, #client.consumer, Pid) of
-    false -> undefined;
-    Entry -> Entry
-  end.
-  
-find(Clients, Value, Pos) ->
-  case lists:keyfind(Clients, Pos, Value) of
-    false -> undefined;
-    Entry -> Entry
-  end.
-
-
-count(Clients) ->
-  length(Clients).
-
-update(Clients, Client, Pos, Value) ->
-  case find(Clients, Client) of
-    undefined -> Clients;
-    Entry -> insert(Clients, element(Pos, Entry, Value))
-  end.
-
-update(Clients, _Client, Entry) ->
-  insert(Clients, Entry).
-
-delete(Clients, Client) ->
-  lists:keydelete(Client, #client.consumer, Clients).
-  
-select(Clients, Pos, Value) ->
-  [Entry || Entry <- Clients, element(Pos, Entry) == Value].
+select_by_state({_Clients,Index}, Value) ->
+  ets:lookup(Index, Value).
   
 
 send_frame(Frame, Clients, State) ->
-  [Pid ! Frame#video_frame{stream_id = StreamId} || #client{consumer = Pid, stream_id = StreamId, state = S} <- List, S == State].
+  List = select_by_state(Clients, State),
+  [Pid ! Frame#video_frame{stream_id = StreamId} || #client{consumer = Pid, stream_id = StreamId} <- List].
 
 
-mass_update(Clients, Pos, From, To) ->
-  lists:map(fun
-    (#client{} = Entry) when element(Pos, Entry) == From -> setelement(Pos, Entry, To);
-    (Entry) -> Entry
-  end, Clients).
-
--endif.
+mass_update_state({Clients,Index}, From, To) ->
+  List = ets:lookup(Index, From),
+  ets:delete(Index, From),
+  NewList = [setelement(#client.state, Entry, To) || Entry <- List],
+  ets:insert(Index, NewList),
+  ets:insert(Clients, NewList),
+  {Clients, Index}.
+  

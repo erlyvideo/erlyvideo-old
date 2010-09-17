@@ -448,7 +448,7 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
       {State, ems:element(StreamId, StreamsDTS), false}
   end,
     
-  % ?D({Type,Frame#video_frame.flavor,round(DTS)}),
+  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS)}),
   Message = #rtmp_message{
     channel_id = rtmp_lib:channel_id(Type, StreamId), 
     timestamp = DTS - BaseDts,

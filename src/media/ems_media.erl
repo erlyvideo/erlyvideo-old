@@ -831,7 +831,7 @@ check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
   Media#ems_media{clients_timeout_ref = TimeoutRef}.
 
 mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
-  Clients1 = ems_media_clients:mass_update(Clients, #client.state, active, starting),
+  Clients1 = ems_media_clients:mass_update_state(Clients, active, starting),
   Media#ems_media{clients = Clients1}.
 
 
