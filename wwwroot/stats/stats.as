@@ -21,6 +21,9 @@ public var entries_label:String = "Entries";
 public var entry_count_text:String = "Hi";
 
 [Bindable]
+public var debug_text:String = "Hi";
+
+[Bindable]
 public var rtmp_trafic:ArrayCollection;
 
 private var nc:NetConnection;
@@ -49,16 +52,26 @@ private function loadStats():void
 }
     
 private function netStatus(event:NetStatusEvent):void {
-  if (event.info.code == 'NetConnection.Connect.Success') {
-		loadStats();
+  switch(event.info.code) {
+    case 'NetConnection.Connect.Success': {
+  		loadStats();
+  		nc.call("subscribeStats", null)
 		
-		ns = new NetStream(nc);
-		ns.client = this;
-		ns.bufferTime = 2;
+  		ns = new NetStream(nc);
+  		ns.client = this;
+  		ns.bufferTime = 2;
 		
-		interval = setInterval(mon,1000);
-		setInterval(showTime,50);
-}  
+  		interval = setInterval(mon,1000);
+  		setInterval(showTime,50);
+  		break;
+    };
+    case 'NetConnection.Message': {
+      var info:XML = new XML(event.info.description);
+      debug_text = info;
+      loadStats();
+      break;
+    }
+  }
 }
 
 public function onEntriesLoaded(result:Object):void {
