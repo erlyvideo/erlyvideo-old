@@ -323,7 +323,7 @@ init([Module, Options]) ->
       Media3 = init_timeouts(Media2, Options),
       Media4 = init_transcoder(Media3, Options),
       ?D({"Started", Module,Options}),
-      {ok, Media3, ?TIMEOUT};
+      {ok, Media4, ?TIMEOUT};
     {stop, Reason} ->
       ?D({"ems_media failed to initialize",Module,Reason}),
       {stop, Reason}
@@ -334,7 +334,7 @@ init_timeshift(#ems_media{format = Format} = Media, Options) ->
   case proplists:get_value(timeshift, Options) of
     undefined -> 
       Media;
-    Timeshift when is_number(Timeshift) andalso Timeshift > 0 and Format =/= undefined ->
+    Timeshift when is_number(Timeshift) andalso Timeshift > 0 andalso Format =/= undefined ->
       erlang:error({initialized_timeshift_and_storage, Format, Timeshift});
     Timeshift when is_number(Timeshift) andalso Timeshift > 0 ->
       case array_timeshift:init(Options, []) of
@@ -347,9 +347,9 @@ init_timeshift(#ems_media{format = Format} = Media, Options) ->
   
 init_timeouts(Media, Options) ->
   Media#ems_media{
-    source_timeout = or_time(proplists:get_value(source_timeout, Options), Media2#ems_media.source_timeout),
-    clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout),
-    retry_limit = or_time(proplists:get_value(retry_limit, Options), Media2#ems_media.retry_limit)
+    source_timeout = or_time(proplists:get_value(source_timeout, Options), Media#ems_media.source_timeout),
+    clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media#ems_media.clients_timeout),
+    retry_limit = or_time(proplists:get_value(retry_limit, Options), Media#ems_media.retry_limit)
   }.
   
   

@@ -31,6 +31,11 @@
 -export([transcode/2, send_frame/2]).
 
 
+transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) ->
+  {ok, Frames, State1} = Transcoder:transcode(Frame, State),
+  {Media#ems_media{trans_state = State1}, Frames};
+  
+
 transcode(#video_frame{content = audio, codec = Codec} = Frame, Media) when Codec == pcma orelse 
                                                                      % Codec == pcm orelse
                                                                      Codec == g726_16 orelse
