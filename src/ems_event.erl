@@ -24,6 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_event).
 -include("ems.hrl").
+-include("jsonerl.hrl").
 -include("../include/erlyvideo.hrl").
 
 %% External API
@@ -31,6 +32,8 @@
 
 -export([user_connected/3, user_disconnected/3, user_play/4, user_stop/4]).
 -export([stream_started/4, stream_source_lost/3, stream_stopped/3]).
+
+-export([to_json/1, to_xml/1]).
 
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
@@ -41,6 +44,58 @@ start_link() ->
   gen_event:add_handler(?MODULE, ?MODULE, []),
   {ok, Pid}.
 
+
+%%--------------------------------------------------------------------
+%% @spec (Event::any()) -> ok
+%%
+%% @doc Convert event to JSON
+%% @end
+%%----------------------------------------------------------------------
+to_json(Event) ->
+  Map = fun
+    (V) when is_pid(V) -> erlang:pid_to_list(V);
+    (V) when is_reference(V) -> erlang:ref_to_list(V);
+    (V) -> V
+  end,
+  Clean = [{K,Map(V)} || {K,V} <- tuple_to_list(?record_to_struct(erlyvideo_event, Event))],
+  JSON = mochijson2:encode(Clean),
+  iolist_to_binary(JSON).
+
+to_xml(Event) ->
+  Content = xmlize(tuple_to_list(?record_to_struct(erlyvideo_event, Event)), []),
+  XML = xmerl:export_simple([{event, [], Content}], xmerl_xml),
+  iolist_to_binary(XML).
+
+xmlize([{K,V}|Attr], Acc) when is_binary(K) ->
+  xmlize([{binary_to_atom(K,utf8),V}|Attr], Acc);
+
+
+xmlize([{K,undefined}|Attr], Acc) ->
+  xmlize(Attr, [{K, [], ["null"]}|Acc]);
+
+xmlize([{K,V}|Attr], Acc) when is_atom(V) ->
+  xmlize(Attr, [{K, [], [atom_to_list(V)]}|Acc]);
+
+xmlize([{K,V}|Attr], Acc) when is_binary(V) ->
+  xmlize(Attr, [{K, [], [io_lib:format("~s", [V])]}|Acc]);
+
+xmlize([{K,V}|Attr], Acc) when is_number(V) ->
+  xmlize(Attr, [{K, [], [io_lib:format("~p", [V])]}|Acc]);
+
+xmlize([{K,V}|Attr], Acc) when is_pid(V) ->
+  xmlize(Attr, [{K, [], [erlang:pid_to_list(V)]}|Acc]);
+
+xmlize([{K,V}|Attr], Acc) when is_reference(V) ->
+  xmlize(Attr, [{K, [], [erlang:ref_to_list(V)]}|Acc]);
+
+xmlize([{K,[{_,_}|_] = V}|Attr], Acc) ->
+  xmlize(Attr, [{K, [], xmlize(V, [])}|Acc]);
+
+xmlize([{K,V}|Attr], Acc) ->
+  xmlize(Attr, [{K, [], [V]}|Acc]);
+  
+xmlize([], Acc) ->
+  lists:reverse(Acc).
 
 %%--------------------------------------------------------------------
 %% @spec (Event::any()) -> ok
@@ -140,7 +195,7 @@ user_stop(Host, User, Stream, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_started(Host, Name, Stream, Options) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_started, host = Host, name = Name, stream = Stream, options = Options}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_started, host = Host, stream_name = Name, stream = Stream, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -149,7 +204,7 @@ stream_started(Host, Name, Stream, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_source_lost(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_lost, host = Host, name = Name, stream = Stream}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_lost, host = Host, stream_name = Name, stream = Stream}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -158,7 +213,7 @@ stream_source_lost(Host, Name, Stream) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_stopped(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_stopped, host = Host, name = Name, stream = Stream}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_stopped, host = Host, stream_name = Name, stream = Stream}).
 
 
 
