@@ -69,9 +69,9 @@ shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delt
 handle_shifted_frame(#video_frame{dts = DTS} = Frame, 
   #ems_media{format = Format, storage = Storage, frame_number = Number} = Media) ->
   % ?D({Frame#video_frame.content, Number, Frame#video_frame.flavor, Frame#video_frame.dts}),
-  start_on_keyframe(Frame, Media),
+  Media1 = start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
-  handle_config(Frame, Media#ems_media{storage = Storage1, last_dts = DTS, frame_number = Number + 1}).
+  handle_config(Frame, Media1#ems_media{storage = Storage1, last_dts = DTS, frame_number = Number + 1}).
 
 reply_with_decoder_config(#ems_media{frame_number = Number, audio_config = A, video_config = V,
   waiting_for_config = Waiting} = Media) 

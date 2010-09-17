@@ -16,6 +16,9 @@
   storage,
   format,
   
+  transcoder,
+  trans_state,
+  
   last_dts = 0,
   ts_delta,
   

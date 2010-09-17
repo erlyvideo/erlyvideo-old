@@ -319,30 +319,48 @@ init([Module, Options]) ->
                      clients = ems_media_clients:init()},
   case Module:init(Media, Options) of
     {ok, Media1} ->
-      Media2 = case proplists:get_value(timeshift, Options) of
-        undefined -> 
-          Media1;
-        Timeshift when is_number(Timeshift) andalso Timeshift > 0 ->
-          case array_timeshift:init(Options, []) of
-            {ok, TSData} ->
-              Media1#ems_media{format = array_timeshift, storage = TSData};
-            _ ->
-              Media1
-          end
-      end,
+      Media2 = init_timeshift(Media1, Options),
+      Media3 = init_timeouts(Media2, Options),
+      Media4 = init_transcoder(Media3, Options),
       ?D({"Started", Module,Options}),
-      Media3 = Media2#ems_media{
-        source_timeout = or_time(proplists:get_value(source_timeout, Options), Media2#ems_media.source_timeout),
-        clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout),
-        retry_limit = or_time(proplists:get_value(retry_limit, Options), Media2#ems_media.retry_limit)
-      },
-      
       {ok, Media3, ?TIMEOUT};
     {stop, Reason} ->
       ?D({"ems_media failed to initialize",Module,Reason}),
       {stop, Reason}
   end.
 
+
+init_timeshift(#ems_media{format = Format} = Media, Options) ->
+  case proplists:get_value(timeshift, Options) of
+    undefined -> 
+      Media;
+    Timeshift when is_number(Timeshift) andalso Timeshift > 0 and Format =/= undefined ->
+      erlang:error({initialized_timeshift_and_storage, Format, Timeshift});
+    Timeshift when is_number(Timeshift) andalso Timeshift > 0 ->
+      case array_timeshift:init(Options, []) of
+        {ok, TSData} ->
+          Media#ems_media{format = array_timeshift, storage = TSData};
+        _ ->
+          Media
+      end
+  end.
+  
+init_timeouts(Media, Options) ->
+  Media#ems_media{
+    source_timeout = or_time(proplists:get_value(source_timeout, Options), Media2#ems_media.source_timeout),
+    clients_timeout = or_time(proplists:get_value(clients_timeout, Options), Media2#ems_media.clients_timeout),
+    retry_limit = or_time(proplists:get_value(retry_limit, Options), Media2#ems_media.retry_limit)
+  }.
+  
+  
+init_transcoder(Media, Options) ->
+  case proplists:get_value(transcoder, Options) of
+    undefined ->
+      Media;
+    {Transcoder, TransArgs} ->
+      {ok, TransState} = erlang:apply(Transcoder, init, TransArgs),
+      Media#ems_media{transcoder = Transcoder, trans_state = TransState}
+  end.
 
 or_time(undefined, undefined) -> ?LIFE_TIMEOUT;
 or_time(undefined, Timeout) -> Timeout;
