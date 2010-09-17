@@ -2,65 +2,41 @@ require 'test_helper'
 
 class ErlmediaTest < Test::Unit::TestCase
   
+  #  ack eunit  |grep .erl | sed -n -e 's/.*\/\([^\/\.]*\)\.erl.*/\1/p'
+  
   def run_test(name)
     output = `ERL_LIBS=#{File.dirname(__FILE__)+"/../../deps"} #{File.dirname(__FILE__)}/erlyvideo_test #{name} 2>&1`
     assert output =~ /(tests|Test) passed/, "erlmedia test #{name} should pass: #{output}"
   end
   
-  def test_aac
-    run_test("aac")
+  def self.build_test(mod)
+    class_eval <<-EOF
+    def test_#{mod}
+      run_test("#{mod}")
+    end
+    EOF
   end
-
-  def test_gen_cache
-    run_test("gen_cache")
-  end
-
-  def test_ems_media
-    run_test("ems_media")
-  end
-
-  def test_ems
-    run_test("ems")
-  end
-
-  def test_h264
-    run_test("h264")
-  end
-
-  def test_mpegts_reader
-    run_test("mpegts_reader")
-  end
-
-  def test_mpeg2_crc32
-    run_test("mpeg2_crc32")
-  end
-
-  def test_http_uri2
-    run_test("http_uri2")
-  end
-
-  def test_media_ticker
-    run_test("media_ticker")
-  end
-
-  def test_flv_video_frame
-    run_test("flv_video_frame")
-  end
-
-  def test_mp4
-    run_test("mp4")
+    
+  %w(aac
+  flv_video_frame
+  h264
+  http_uri2
+  mp4
+  mp4_writer
+  packet_codec
+  sdp
+  mpeg2_crc32
+  mpegts_reader
+  rtmp
+  rtmp_handshake
+  rtsp_socket
+  gen_cache
+  ems
+  media_ticker).each do |mod|
+    build_test mod
   end
   
-  def test_sdp
-    run_test("sdp")
-  end
+  # build_test :ems_media
   
-  def test_rtsp
-    run_test("rtsp")
-  end
-  
-  def test_rtsp_socket
-    run_test("rtsp_socket")
-  end
 end
 

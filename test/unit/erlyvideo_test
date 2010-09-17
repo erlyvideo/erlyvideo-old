@@ -10,4 +10,5 @@ main(["ems_media"]) ->
 
 main([Name]) ->
   Module = list_to_atom(Name),
+  application:start(log4erl),
   Module:test().

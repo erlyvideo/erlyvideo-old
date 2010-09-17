@@ -298,11 +298,11 @@ nonset_and_fetch4_test_() ->
 
 nonset_and_fetch4_fun_test_() ->
   {spawn,{setup,
-  fun() -> gen_cache:start_link([{local,some_cache7}]) end,
+  fun() -> gen_cache:start_link([{local,some_cache8}]) end,
   fun({ok, Pid}) -> erlang:exit(Pid, kill) end,
   fun() ->
-    ?assertEqual(v, gen_cache:fetch(some_cache7, k, fun() -> v end)),
-    ?assertEqual(v, gen_cache:get(some_cache7, k))
+    ?assertEqual(v, gen_cache:fetch(some_cache8, k, fun() -> v end)),
+    ?assertEqual(v, gen_cache:get(some_cache8, k))
   end
   }}.
 
