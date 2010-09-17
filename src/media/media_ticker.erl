@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(media_ticker).
 -include_lib("erlmedia/include/video_frame.hrl").
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 
 -export([start_link/3, init/3, loop/1, handle_message/2]).
 -export([start/1, pause/1, resume/1, seek/3, stop/1]).
@@ -139,7 +139,7 @@ handle_message({seek, Pos, DTS}, #ticker{paused = Paused} = Ticker) ->
   ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, frame = undefined});
 
 handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
-  Frame = ems_media:read_frame(Media, Pos),
+  Frame = ems_media:read_frame(Media, Consumer, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
   Metadata = ems_media:metadata(Media),
   % ?D({tick, NewDTS, NewPos}),

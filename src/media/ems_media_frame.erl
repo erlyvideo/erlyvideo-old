@@ -25,7 +25,7 @@
 
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/ems_media.hrl").
--include("../include/ems.hrl").
+-include("../ems.hrl").
 -include("ems_media_client.hrl").
 
 -export([transcode/2, send_frame/2]).

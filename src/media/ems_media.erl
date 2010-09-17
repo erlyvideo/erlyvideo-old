@@ -54,13 +54,13 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/ems_media.hrl").
 -include("ems_media_client.hrl").
--include("../include/ems.hrl").
+-include("../ems.hrl").
 
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
 -export([metadata/1, info/1, setopts/2, seek_info/3, status/1]).
--export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, publish/2]).
+-export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 -export([decoder_config/1, metadata_frame/1]).
 
 %% gen_server callbacks
@@ -196,7 +196,19 @@ set_socket(Media, Socket) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 read_frame(Media, Key) ->
-  gen_server:call(Media, {read_frame, Key}, 10000).
+  gen_server:call(Media, {read_frame, self(), Key}, 10000).
+
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Client::pid(), Key::any()) -> Frame::video_frame() |
+%%                                     eof
+%%
+%% @doc The same as read_frame/2, but specify client for accounting meanings.
+%%
+%% @end
+%%----------------------------------------------------------------------
+read_frame(Media, Client, Key) ->
+  gen_server:call(Media, {read_frame, Client, Key}, 10000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> ok |
@@ -493,7 +505,7 @@ handle_call({seek_info, BeforeAfter, DTS} = SeekInfo, _From,
       {reply, Reply, Media1, ?TIMEOUT}
   end;
 
-handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Storage} = Media) ->
+handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storage = Storage, clients = Clients} = Media) ->
   {Storage1, Frame} = case Format:read_frame(Storage, Key) of
     #video_frame{} = F -> {Storage, F};
     {S, #video_frame{} = F} -> {S, F};
@@ -504,7 +516,8 @@ handle_call({read_frame, Key}, _From, #ems_media{format = Format, storage = Stor
     #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
     _ -> Media
   end,
-  {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
+  Clients1 = ems_media_clients:increment_bytes(Clients, Client, iolist_size(Frame#video_frame.body)),
+  {reply, Frame, Media1#ems_media{storage = Storage1, clients = Clients1}, ?TIMEOUT};
 
 handle_call(metadata, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media), Media, ?TIMEOUT};

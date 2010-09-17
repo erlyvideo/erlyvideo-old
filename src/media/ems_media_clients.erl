@@ -26,10 +26,11 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/ems_media.hrl").
--include("../include/ems.hrl").
+-include("../ems.hrl").
 -include("ems_media_client.hrl").
 
--export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, select_by_state/2, send_frame/3, mass_update_state/3]).
+-export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, 
+         select_by_state/2, send_frame/3, mass_update_state/3, increment_bytes/3]).
 
 init() ->
   Clients = ets:new(clients, [set,  {keypos,#client.consumer}, private]),
@@ -93,9 +94,13 @@ select_by_state({_Clients,Index}, Value) ->
   ets:lookup(Index, Value).
   
 
-send_frame(Frame, Clients, State) ->
+send_frame(Frame, {C,_Index} = Clients, State) ->
   List = select_by_state(Clients, State),
-  [Pid ! Frame#video_frame{stream_id = StreamId} || #client{consumer = Pid, stream_id = StreamId} <- List].
+  Bytes = erlang:iolist_size(Frame#video_frame.body),
+  [begin
+    Pid ! Frame#video_frame{stream_id = StreamId},
+    ets:update_counter(C, Pid, {#client.bytes, Bytes})
+  end || #client{consumer = Pid, stream_id = StreamId} <- List].
 
 
 mass_update_state({Clients,Index}, From, To) ->
@@ -106,3 +111,6 @@ mass_update_state({Clients,Index}, From, To) ->
   ets:insert(Clients, NewList),
   {Clients, Index}.
   
+increment_bytes({Clients, Index}, Client, Bytes) ->
+  ets:update_counter(Clients, Client, {#client.bytes, Bytes}),
+  {Clients, Index}.
