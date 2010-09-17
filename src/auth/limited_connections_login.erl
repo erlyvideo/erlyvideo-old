@@ -28,7 +28,7 @@
 
 
 
-play(State, Funcall) ->
+play(_State, _Funcall) ->
   {ok, _Ref} = timer:send_after(Timer, self(), exit),
   unhandled.
 

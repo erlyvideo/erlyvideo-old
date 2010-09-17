@@ -31,7 +31,7 @@
 http(Host, 'GET', ["stats"], Req) ->
   erlydtl:compile(ems_http:wwwroot(Host) ++ "/stats.html", stats_template),
   
-  Query = Req:parse_qs(),
+  _Query = Req:parse_qs(),
   ems_log:access(Host, "GET ~p ~s /stats", [Req:get(peer_addr), "-"]),
   
   {ok, Index} = stats_template:render([

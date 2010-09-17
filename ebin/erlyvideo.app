@@ -52,6 +52,8 @@
     rtmp_media,
     rtmp_publish,
     rtmp_session,
+    shared_object,
+    shared_objects,
     test_media,
     trusted_login,
     uuid]},
