@@ -23,12 +23,13 @@
 -module(ems_event).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_event).
--include("../include/ems.hrl").
+-include("ems.hrl").
+-include("../include/erlyvideo.hrl").
 
 %% External API
--export([start_link/0, notify/1, add_handler/2, add_sup_handler/2, remove_handler/1]).
+-export([start_link/0, notify/1, add_handler/2, subscribe_to_events/1, add_sup_handler/2, remove_handler/1]).
 
--export([user_connected/2, user_disconnected/2, user_play/3, user_stop/4]).
+-export([user_connected/3, user_disconnected/3, user_play/4, user_stop/4]).
 -export([stream_started/4, stream_source_lost/3, stream_stopped/3]).
 
 %% gen_event callbacks
@@ -66,6 +67,15 @@ add_handler(Handler, Args) ->
 %% @doc Subscribe to ems_event
 %% @end
 %%----------------------------------------------------------------------
+subscribe_to_events(Pid) ->
+  add_sup_handler(ems_event_consumer, [Pid]).
+
+%%--------------------------------------------------------------------
+%% @spec (Handler::any(), Args::[any()]) -> ok
+%%
+%% @doc Subscribe to ems_event
+%% @end
+%%----------------------------------------------------------------------
 add_sup_handler(Handler, Args) ->
   gen_event:add_sup_handler(?MODULE, Handler, Args).
   
@@ -84,8 +94,11 @@ remove_handler(Handler) ->
 %% @doc send event that user has connected
 %% @end
 %%----------------------------------------------------------------------
-user_connected(Host, Session) ->
-  gen_event:notify(?MODULE, {user_connected, Host, Session}).
+user_connected(Host, Session, Stats) ->
+  UserId = proplists:get_value(user_id, Stats),
+  SessionId = proplists:get_value(session_id, Stats),
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user_connected, host = Host, stats = Stats,
+                                             user = Session, user_id = UserId, session_id = SessionId}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Session) -> ok
@@ -93,8 +106,11 @@ user_connected(Host, Session) ->
 %% @doc send event that user has disconnected
 %% @end
 %%----------------------------------------------------------------------
-user_disconnected(Host, Session) ->
-  gen_event:notify(?MODULE, {user_disconnected, Host, Session}).
+user_disconnected(Host, Session, Stats) ->
+  UserId = proplists:get_value(user_id, Stats),
+  SessionId = proplists:get_value(session_id, Stats),
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user_disconnected, host = Host, stats = Stats,
+                                             user = Session, user_id = UserId, session_id = SessionId}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, User, Name) -> ok
@@ -102,8 +118,10 @@ user_disconnected(Host, Session) ->
 %% @doc send event that user has started playing
 %% @end
 %%----------------------------------------------------------------------
-user_play(Host, User, Name) ->
-  gen_event:notify(?MODULE, {user_play, Host, User, Name}).
+user_play(Host, User, Stream, Options) ->
+  Name = proplists:get_value(name, Options),
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user_play, host = Host, user = User, 
+                                             stream_name = Name, stream = Stream, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, User, Name, Stats) -> ok
@@ -111,8 +129,9 @@ user_play(Host, User, Name) ->
 %% @doc send event that user has finished playing
 %% @end
 %%----------------------------------------------------------------------
-user_stop(Host, User, Name, Stats) ->
-  gen_event:notify(?MODULE, {user_stop, Host, User, Name, Stats}).
+user_stop(Host, User, Stream, Options) ->
+  Name = proplists:get_value(name, Options),
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user_stop, host = Host, user = User, stream = Stream, stream_name = Name, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream, Options) -> ok
@@ -121,7 +140,7 @@ user_stop(Host, User, Name, Stats) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_started(Host, Name, Stream, Options) ->
-  gen_event:notify(?MODULE, {stream_started, Host, Name, Stream, Options}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_started, host = Host, name = Name, stream = Stream, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -130,7 +149,7 @@ stream_started(Host, Name, Stream, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_source_lost(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, {stream_source_lost, Host, Name, Stream}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_lost, host = Host, name = Name, stream = Stream}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -139,7 +158,7 @@ stream_source_lost(Host, Name, Stream) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_stopped(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, {stream_stopped, Host, Name, Stream}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_stopped, host = Host, name = Name, stream = Stream}).
 
 
 
