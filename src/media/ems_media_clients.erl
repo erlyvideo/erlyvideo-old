@@ -57,12 +57,17 @@ find({Clients, _Index}, Value, Pos) ->
 
 count({Clients, _Index}) ->
   ets:info(Clients, size).
+  
+delete_from_index(Index, Client) ->
+  MS = ets:fun2ms(fun(#client{consumer = Consumer}) when Consumer == Client -> true end),
+  ets:select_delete(Index, MS).
 
 update({Clients, Index}, Client, Pos, Value) ->
   case ets:lookup(Clients, Client) of
     [Entry] ->
       ets:update_element(Clients, Client, {Pos, Value}),
-      ets:delete_object(Index, Entry),
+      % ets:delete_object(Index, Entry),
+      delete_from_index(Index, Client),
       ets:insert(Index, setelement(Pos, Entry, Value));
     _ ->
       undefined
@@ -71,9 +76,10 @@ update({Clients, Index}, Client, Pos, Value) ->
 
 update({Clients, Index}, Client, NewEntry) ->
   case ets:lookup(Clients, Client) of
-    [Entry] ->
+    [_Entry] ->
+      % ets:delete_object(Index, Entry),
+      delete_from_index(Index, Client),
       ets:insert(Clients, NewEntry),
-      ets:delete_object(Index, Entry),
       ets:insert(Index, NewEntry);
     _ ->
       undefined
@@ -84,7 +90,7 @@ delete({Clients, Index}, Client) ->
   case ets:lookup(Clients, Client) of
     [Entry] ->
       ets:delete(Clients, Client),
-      ets:delete_object(Clients, Entry);
+      ets:delete_object(Index, Entry);
     _ ->
       undefined
   end, 
