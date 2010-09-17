@@ -291,8 +291,9 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
     _ -> 0
   end,
   
+  SessionId = timer:now_diff(erlang:now(),{0,0,0}),
 
-	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion},
+	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion, session_id = SessionId},
 	
 	call_function(Host, NewState1, AMF);
 
@@ -483,9 +484,9 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _StateName, #rtmp_session{host = Host,
-  addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId} = State) ->
+  addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId, session_id = SessionId} = State) ->
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p", [Addr, Host, UserId, Recv, Sent]),
-  ems_event:user_disconnected(State#rtmp_session.host, [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId}|PlayStats]),
+  ems_event:user_disconnected(State#rtmp_session.host, [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats]),
   (catch erlyvideo:call_modules(logout, [State])),
   ok.
 
