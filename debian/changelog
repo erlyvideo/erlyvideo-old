@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.11) lucid; urgency=low
+
+  app file and tests
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 17:23:13 +0400
+
 erlang-rtmp (1.7.10) lucid; urgency=low
 
   No source in deploy
