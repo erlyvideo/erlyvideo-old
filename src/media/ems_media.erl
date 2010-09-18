@@ -519,10 +519,12 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   Media1 = case Frame of
     #video_frame{content = video, flavor = config} -> Media#ems_media{video_config = Frame};
     #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
+    #video_frame{} ->
+      Clients1 = ems_media_clients:increment_bytes(Clients, Client, iolist_size(Frame#video_frame.body)),
+      Media#ems_media{clients = Clients1};
     _ -> Media
   end,
-  Clients1 = ems_media_clients:increment_bytes(Clients, Client, iolist_size(Frame#video_frame.body)),
-  {reply, Frame, Media1#ems_media{storage = Storage1, clients = Clients1}, ?TIMEOUT};
+  {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
 handle_call(metadata, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media), Media, ?TIMEOUT};
@@ -682,16 +684,16 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
 handle_info(no_clients, #ems_media{module = M} = Media) ->
   case client_count(Media) of
     0 ->
-      ?D("graceful received, handling"),
+      ?D({"graceful received, handling", self(), Media#ems_media.name}),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
           ?D({"ems_media is stopping", M, Media#ems_media.name}),
           {stop, normal, Media1};
         {stop, Reason, Media1} ->
-          ?D({"ems_media is stopping after graceful", M, Reason}),
+          ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name}),
           {stop, Reason, Media1};
         {reply, ok, Media1} ->
-          ?D({M, "rejected stopping of ems_media due to 0 clients"}),
+          ?D({M, "rejected stopping of ems_media due to 0 clients", self(), Media#ems_media.name}),
           {noreply, Media1#ems_media{clients_timeout_ref = undefined}, ?TIMEOUT}
       end;
     _ -> {noreply, Media, ?TIMEOUT}
@@ -846,7 +848,7 @@ check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
   Count = client_count(Media),
   {ok, TimeoutRef} = case Count of
     0 when is_number(Timeout) -> 
-      ?D({"No clients, sending delayed graceful", Timeout}), 
+      ?D({"No clients, sending delayed graceful", Timeout, self(), Media#ems_media.name}), 
       timer:send_after(Timeout, no_clients);
     _ -> 
       {ok, undefined}
@@ -905,8 +907,8 @@ terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
   erlang:exit(Source, shutdown),
   ok;
 
-terminate(_Reason, _State) ->
-  ?D({"ems_media exit"}),
+terminate(_Reason, Media) ->
+  ?D({"ems_media exit", self(), Media#ems_media.name}),
   ok.
 
 %%-------------------------------------------------------------------------

@@ -13,6 +13,7 @@
     check_play_web,
     directory_playlist,
     ems,
+    ems_debub,
     ems_encoding,
     ems_event,
     ems_flv_streams,
