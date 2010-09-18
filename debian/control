@@ -8,7 +8,7 @@ Homepage: http://erlyvideo.org/
 
 Package: erlang-rtp
 Section: net
-Architecture: any
+Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.6.1), erlang-nox (>= 1:13) | erlang (>= 1:13)
 Description: Erlang media library
  Erlang library that handles some of common formats
