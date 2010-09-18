@@ -519,8 +519,8 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   Media1 = case Frame of
     #video_frame{content = video, flavor = config} -> Media#ems_media{video_config = Frame};
     #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
-    #video_frame{} ->
-      Clients1 = ems_media_clients:increment_bytes(Clients, Client, iolist_size(Frame#video_frame.body)),
+    #video_frame{content = C, body = Body} when C == audio orelse C == video ->
+      Clients1 = ems_media_clients:increment_bytes(Clients, Client, iolist_size(Body)),
       Media#ems_media{clients = Clients1};
     _ -> Media
   end,
