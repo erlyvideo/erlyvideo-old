@@ -23,6 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(erlyvideo).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("ems.hrl").
 
 
 -export([start/2, stop/1]).
@@ -107,7 +108,17 @@ stats(Host) ->
   Streams = [{object, [{name,Name}, {count, proplists:get_value(client_count, Options)}]} || {Name, _Pid, Options} <- media_provider:entries(Host)],
   CPULoad = {object, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
   RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
-  Users = [{object, Stat} || {_Pid, Stat} <- rtmp_session:collect_stats(Host)],
+  FixStats = fun(List) ->
+    [begin
+      {Key, if
+        Value == undefined -> null;
+        is_atom(Value) -> atom_to_binary(Value, utf8);
+        is_list(Value) -> list_to_binary(Value);
+        true -> Value
+      end}
+    end || {Key,Value} <- List]
+  end,
+  Users = [{object, FixStats(Stat)} || {_Pid, Stat} <- rtmp_session:collect_stats(Host)],
   Stats = [{streams,Streams},{cpu,CPULoad},{rtmp,RTMPTraf},{users,Users}],
   {object, Stats}.
   
