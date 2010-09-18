@@ -1,3 +1,9 @@
+erlang-shoutcast (1.2.3) lucid; urgency=low
+
+  app file
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 16:25:52 +0400
+
 erlang-shoutcast (1.2.2) lucid; urgency=low
 
   erlang dependency
