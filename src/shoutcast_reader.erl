@@ -25,8 +25,9 @@
 -export([start_link/1]).
 -behaviour(gen_server).
 
--define(D(X), ems_log:debug(3, shoutcast, "~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-define(D(X), ems_log:debug(3, shoutcast, "~p:~p ~p",[?MODULE, ?LINE, X])).
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/aac.hrl").
 
 -record(shoutcast, {
   consumer,
@@ -36,6 +37,7 @@
   format = aac,
   buffer = <<>>,
   timestamp,
+  sample_rate = 44100,
   headers = [],
   byte_counter = 0
 }).
@@ -187,17 +189,20 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
           decode(State#shoutcast{buffer = Rest, sync_count = SyncCount + 1});
         {ok, _, _} ->
           ?D({"Synced AAC"}),
+          AACConfig = aac:config(Second),
           AudioConfig = #video_frame{       
            	content          = audio,
            	flavor = config,
         		dts           = 0,
         		pts           = 0,
-        		body          = aac:config(Second),
+        		body          = AACConfig,
         	  codec	    = aac,
         	  sound	  = {stereo, bit16, rate44}
         	},
+        	Config = aac:decode_config(AACConfig),
+        	SampleRate = Config#aac_config.frequency / 1000,
         	send_frame(AudioConfig, State),
-          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0})
+          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0, sample_rate = SampleRate})
       end;
     {more, undefined} ->
       ?D({"Want more AAC for first frame"}),
@@ -214,14 +219,14 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
 decode(#shoutcast{state = unsynced_body, buffer = <<>>} = State) ->
   State;
 
-decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp} = State) ->
+decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp, sample_rate = SampleRate} = State) ->
   % ?D({"Decode"}),
   case aac:decode(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
         content          = audio,
-        dts           = Timestamp,
-        pts           = Timestamp,
+        dts           = Timestamp / SampleRate,
+        pts           = Timestamp / SampleRate,
         body          = Packet,
     	  codec      = aac,
     	  sound	  = {stereo, bit16, rate44}
