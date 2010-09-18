@@ -9,6 +9,6 @@ Homepage: http://erlyvideo.org/shoutcast
 Package: erlang-shoutcast
 Section: net
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.6.1), erlang-nox (>= 1:13) | erlang (>= 1:13)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlmedia (>= 1.9.0), erlang-nox (>= 1:13) | erlang (>= 1:13)
 Description: Erlang shoutcast library
  Erlang library that decodes shoutcast protocol
