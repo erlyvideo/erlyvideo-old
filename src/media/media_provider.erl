@@ -331,12 +331,18 @@ start_new_media_entry(Host, Name, Opts) ->
     {ok, Pid} ->
       case proplists:get_value(public, Opts, true) of
         true ->
-          register(Host, Name, Pid, Opts);
+          case register(Host, Name, Pid, Opts) of
+            {ok, _} -> {ok, Pid};
+            {error, {already_set, Name, OldPid}} ->
+              %% This means, that several clients simultaneously requested one media and someone was first to register.
+              %% Shutdown duplicate and use old.
+              erlang:exit(Pid, shutdown),
+              {ok, OldPid}
+          end;
         _ ->
           ?D({"Skip registration of", Type, URL}),
-          ok
-      end,
-      {ok, Pid};
+          {ok, Pid}
+      end;
     _ ->
       ?D({"Error opening", Type, Name}),
       {notfound, <<"Failed to open ", Name/binary>>}

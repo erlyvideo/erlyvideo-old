@@ -118,5 +118,8 @@ mass_update_state({Clients,Index}, From, To) ->
   {Clients, Index}.
   
 increment_bytes({Clients, Index}, Client, Bytes) ->
-  ets:update_counter(Clients, Client, {#client.bytes, Bytes}),
+  case ets:lookup(Clients, Client) of
+    [_Entry] -> ets:update_counter(Clients, Client, {#client.bytes, Bytes});
+    _ -> ?D({error, Client, ets:tab2list(Clients), ets:tab2list(Index)}),  ok
+  end,
   {Clients, Index}.
