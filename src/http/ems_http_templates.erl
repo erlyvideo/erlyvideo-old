@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_http_templates).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 
 -export([http/4]).
 

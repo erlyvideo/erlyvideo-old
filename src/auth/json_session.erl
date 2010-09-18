@@ -24,7 +24,7 @@
 -module(json_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../../include/rtmp_session.hrl").
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 -export([decode/2, encode/2, connect/2, binary_to_hexbin/1, auth/3]).
 
 

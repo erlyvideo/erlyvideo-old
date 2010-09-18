@@ -23,7 +23,7 @@
 -module(rtmp_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../../include/ems_media.hrl").
 

@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(apps_recording).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 -include("../../include/rtmp_session.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 

@@ -22,7 +22,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(password_publish, [Login, Password]).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("../../include/ems.hrl").
+-include_lib("../ems.hrl").
 
 -include("../../include/rtmp_session.hrl").
 

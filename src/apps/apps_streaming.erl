@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(apps_streaming).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/ems.hrl").
+-include("../ems.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
