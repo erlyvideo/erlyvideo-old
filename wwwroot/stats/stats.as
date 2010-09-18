@@ -21,6 +21,12 @@ public var entries_label:String = "Entries";
 public var entry_count_text:String = "Hi";
 
 [Bindable]
+public var users_label:String = "Users";
+
+[Bindable]
+public var users:ArrayCollection;
+
+[Bindable]
 public var debug_text:String = "Hi";
 
 [Bindable]
@@ -80,13 +86,17 @@ public function onEntriesLoaded(result:Object):void {
     {Param : 'avg5', Value: result.cpu.avg5},
     {Param : 'avg15', Value: result.cpu.avg15}
   ];
-  entry_count_text = "Length: "+result.entries.length;
+  entry_count_text = "Length: "+result.streams.length;
   common_stats = new ArrayCollection(info);
-  entries = result.entries;
+  entries = result.streams;
   
   rtmp_trafic = new ArrayCollection(result.rtmp);
   
-  entries_label = "Entries ("+entries.length+")";
+  entries_label = "Streams ("+entries.length+")";
+  
+  
+  users = result.users;
+  users_label = "Users ("+users.length+")";
 }
 
 public function onPlayStatus(info:Object):void {

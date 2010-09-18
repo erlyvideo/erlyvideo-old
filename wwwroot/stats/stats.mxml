@@ -17,6 +17,15 @@
           </mx:itemRenderer>
         </mx:List>
       </mx:VBox>
+      <mx:VBox label="{users_label}" width="100%" height="100%">
+        <mx:List id="users_list" dataProvider="{users}" width="100%" height="100%">
+          <mx:itemRenderer>
+            <mx:Component>
+              <mx:Label text="{data.name}" />
+            </mx:Component>
+          </mx:itemRenderer>
+        </mx:List>
+      </mx:VBox>
       <mx:VBox label="RTMP trafic" width="100%" height="100%">
         <mx:LineChart id="rtmp_chart" dataProvider="{rtmp_trafic}" width="100%" height="100%">
           <mx:horizontalAxis>
