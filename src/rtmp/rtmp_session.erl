@@ -463,14 +463,16 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   {State1, BaseDts, _Starting} = case ems:element(StreamId, Started) of
     undefined ->
       rtmp_lib:play_start(Socket, StreamId, 0),
+      % put(stream_start, erlang:now()),
       {State#rtmp_session{
         streams_started = ems:setelement(StreamId, Started, true),
         streams_dts = ems:setelement(StreamId, StreamsDTS, DTS)}, DTS, true};
     _ ->
       {State, ems:element(StreamId, StreamsDTS), false}
   end,
-    
-  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS)}),
+  
+  % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
+  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
   Message = #rtmp_message{
     channel_id = rtmp_lib:channel_id(Type, StreamId), 
     timestamp = DTS - BaseDts,
