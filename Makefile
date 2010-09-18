@@ -13,8 +13,9 @@ update: update_deps
 
 update_deps: rebar.config
 	git pull
+	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
 	./rebar get-deps
-	for i in deps/* ; do (cd $$i; git pull) ; done
+	for i in wwwroot/player deps/* ; do (cd $$i; git pull) ; done
 
 rebar.config:
 	cp rebar.config.sample rebar.config
