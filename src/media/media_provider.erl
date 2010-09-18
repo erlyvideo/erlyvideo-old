@@ -255,7 +255,7 @@ handle_call({register, Name, Pid, Options}, _From, #media_provider{host = Host, 
     undefined ->
       Ref = erlang:monitor(process, Pid),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
-      ems_event:stream_started(Host, Name, Pid, Options),
+      ems_event:stream_created(Host, Name, Pid, Options),
       ?D({"Registering", Name, Pid}),
       {reply, {ok, {Name, Pid}}, MediaProvider}
   end;

@@ -31,7 +31,7 @@
 -export([start_link/0, notify/1, add_handler/2, subscribe_to_events/1, add_sup_handler/2, remove_handler/1]).
 
 -export([user_connected/3, user_disconnected/3, user_play/4, user_stop/4]).
--export([stream_started/4, stream_source_lost/3, stream_stopped/3]).
+-export([stream_created/4, stream_started/4, stream_source_lost/3, stream_stopped/3]).
 
 -export([to_json/1, to_xml/1]).
 
@@ -191,7 +191,16 @@ user_stop(Host, User, Stream, Options) ->
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream, Options) -> ok
 %%
-%% @doc send event that stream has started
+%% @doc send event that stream has been created
+%% @end
+%%----------------------------------------------------------------------
+stream_created(Host, Name, Stream, Options) ->
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_created, host = Host, stream_name = Name, stream = Stream, options = Options}).
+
+%%--------------------------------------------------------------------
+%% @spec (Host, Name, Stream, Options) -> ok
+%%
+%% @doc send event that stream has been really started. Maybe sent many times per stream, as soon as source is appearing.
 %% @end
 %%----------------------------------------------------------------------
 stream_started(Host, Name, Stream, Options) ->

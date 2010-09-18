@@ -600,7 +600,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source
 
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->
   ?D({"ems_media lost source", Source, _Reason}),
-  ems_event:stream_source_lost(proplist:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
+  ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
   case M:handle_control({source_lost, Source}, Media) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
