@@ -1,4 +1,4 @@
-Source: erlyvideo
+Source: erlyvideo-base
 Priority: extra
 Author: Max Lapshin <max@maxidoors.ru>
 Maintainer: Max Lapshin <max@maxidoors.ru>
@@ -7,12 +7,12 @@ Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/
 
-Package: erlyvideo
+Package: erlyvideo-base
 Section: net
 Author: Max Lapshin <max@maxidoors.ru>
 Homepage: http://erlyvideo.org/
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.7.10), erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.6-4), erlang-nox (>= 1:13) | erlang (>= 1:13), erlmedia (>= 1.8.6), erlang-rtsp (>= 1.7.0), erlang-rtp (>= 0.3.0), erlang-mpegts (>= 2.4.0), erlang-shoutcast (>= 1.2.2)
-Description: Erlang video server
- Erlang server, capable to read many sources like files, RTSP or MPEG TS streams and deliver them to RTMP clients
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.7.10), erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.6-4), erlang-nox (>= 1:13) | erlang (>= 1:13), erlmedia (>= 1.8.6), erlang-shoutcast (>= 1.2.2)
+Description: Base package of erlang video server
+ Erlang server, capable to handle RTMP and media. MPEG-TS and RTSP are with erlyvideo package

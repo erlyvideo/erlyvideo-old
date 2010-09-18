@@ -1,4 +1,10 @@
-erlyvideo (2.2.0) karmic; urgency=low
+erlyvideo-base (2.2.1) karmic; urgency=low
+
+  Now erlyvideo is erlyvideo-base and with statistics panel
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 17:38:30 +0400
+
+erlyvideo-base (2.2.0) karmic; urgency=low
 
   Extracting RTSP and MPEGTS outside. HTTP refactoring and license client
 
