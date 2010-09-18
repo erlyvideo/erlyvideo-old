@@ -36,7 +36,6 @@ class Repository
     tag = `(cd #{path}; git tag -n1 -l)`.split(/\n/).sort do |t1,t2|
       tag_version(t1) <=> tag_version(t2)
     end.reverse[0].strip
-    puts tag.inspect
     tag =~ /v([^\ ]+) [\ ]*(.*)/
     [$1, $2]
   end
@@ -136,11 +135,11 @@ EOF
   end
   
   def build_debian
-    `(cd #{path}; debuild --no-tgz-check -us -uc -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog)`
+    `(cd #{path}; dpkg-buildpackage -S -us -uc -rfakeroot -D -i -I.git -Icontrib/ErlyVideo -Iwwwroot/player/.git -Imovies -Ideps -Imnesia-data -Iplugins -Ilog)`
   end
   
   def upload_launchpad
-    return if closed?
+    return #if closed?
     `dput erly #{path}/../#{name}_#{version}_source.changes` if File.exists?(File.expand_path("~/.dput.cf"))
   end
   
@@ -149,7 +148,7 @@ EOF
     testing = ENV["testing"] == "false" ? "" : "testing-"
     Dir["#{path}/../#{name}_#{version}_*.deb"].each do |deb|
       FileUtils.cp(deb, "#{repo_path}/#{testing}binary/")
-    end
+    end if false
     Dir["#{path}/../#{name}_#{version}.*"].each do |deb|
       FileUtils.cp(deb, "#{repo_path}/#{testing}source/")
     end
