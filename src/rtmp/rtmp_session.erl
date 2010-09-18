@@ -46,7 +46,7 @@
 
 -export([create_client/1]).
 -export([accept_connection/1, reject_connection/1]).
--export([message/4]).
+-export([message/4, collect_stats/1]).
 
 -export([reply/2, fail/2]).
 
@@ -59,6 +59,18 @@
 create_client(Socket) ->
   {ok, Pid} = ems_sup:start_rtmp_session(Socket),
   {ok, Pid}.
+
+
+%%-------------------------------------------------------------------------
+%% @spec collect_stats(Host)  -> Stats::proplist
+%% @doc Asynchronously asks all rtmp clients to tell about their info
+%% @end
+%%-------------------------------------------------------------------------
+collect_stats(_Host) ->
+  Pids = [Pid || {_, Pid, _, _} <- supervisor:which_children(rtmp_session_sup), Pid =/= self()],
+  ems:multicall(Pids, info, 1000).
+  
+
 
 
 accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
@@ -209,8 +221,8 @@ send(Session, Message) ->
 
 %% Sync event
 
-'WAIT_FOR_DATA'(info, _From, #rtmp_session{addr = {IP1, IP2, IP3, IP4}, port = Port} = State) ->
-  {reply, {io_lib:format("~p.~p.~p.~p", [IP1, IP2, IP3, IP4]), Port, self()}, 'WAIT_FOR_DATA', State};
+'WAIT_FOR_DATA'(info, _From, #rtmp_session{} = State) ->
+  {reply, session_stats(State), 'WAIT_FOR_DATA', State};
 
   
 'WAIT_FOR_DATA'(Data, _From, State) ->
@@ -423,6 +435,16 @@ handle_info(#rtmp_message{} = Message, StateName, State) ->
 
 handle_info(exit, _StateName, StateData) ->
   {stop, normal, StateData};
+  
+handle_info({'$gen_call', From, Request}, StateName, StateData) ->
+  case ?MODULE:StateName(Request, From, StateData) of
+    {reply, Reply, NewStateName, NewState} ->
+      gen:reply(From, Reply),
+      {next_state, NewStateName, NewState};
+    {next_state, NewStateName, NewState} ->
+      {next_state, NewStateName, NewState}
+  end;
+
 
 handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of
@@ -430,7 +452,6 @@ handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
     Reply -> Reply
   end;
-
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
@@ -483,12 +504,16 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_session{host = Host,
-  addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId, session_id = SessionId} = State) ->
-  ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p", [Addr, Host, UserId, Recv, Sent]),
-  ems_event:user_disconnected(State#rtmp_session.host, self(), [{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats]),
+terminate(_Reason, _StateName, #rtmp_session{host = Host, addr = Addr, user_id = UserId, session_id = SessionId, bytes_recv = Recv, bytes_sent = Sent} = State) ->
+  ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p ~p", [Addr, Host, UserId, SessionId, Recv, Sent]),
+  ems_event:user_disconnected(State#rtmp_session.host, self(), session_stats(State)),
   (catch erlyvideo:call_modules(logout, [State])),
   ok.
+
+
+
+session_stats(#rtmp_session{host = Host, addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId, session_id = SessionId}) ->
+  [{host,Host},{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats].
 
 
 %%-------------------------------------------------------------------------
