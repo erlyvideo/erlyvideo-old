@@ -88,9 +88,9 @@ update({Clients, Index}, Client, NewEntry) ->
 
 delete({Clients, Index}, Client) ->
   case ets:lookup(Clients, Client) of
-    [Entry] ->
+    [_Entry] ->
       ets:delete(Clients, Client),
-      ets:delete_object(Index, Entry);
+      delete_from_index(Index, Client);
     _ ->
       undefined
   end, 
