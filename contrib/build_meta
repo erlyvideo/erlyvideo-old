@@ -4,9 +4,7 @@
 cd contrib
 dpkg --build erlyvideo
 VERSION=`grep Version: erlyvideo/DEBIAN/control | sed -n -e 's/Version: \(.*\)/\1/p'`
-cp erlyvideo.deb /apps/erlyvideo/debian/public/binary/erlyvideo_${VERSION}_i386.deb
-cp erlyvideo.deb /apps/erlyvideo/debian/public/binary/erlyvideo_${VERSION}_amd64.deb
-rm erlyvideo.deb
+mv erlyvideo.deb /apps/erlyvideo/debian/public/binary/erlyvideo_${VERSION}_all.deb
 cd /apps/erlyvideo/debian
 ./update
 
