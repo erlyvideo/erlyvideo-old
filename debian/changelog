@@ -1,3 +1,9 @@
+erlang-shoutcast (1.2.4) unstable; urgency=low
+
+  Fixes timestamp bug
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 20:29:10 +0400
+
 erlang-shoutcast (1.2.3) unstable; urgency=low
 
   app file
