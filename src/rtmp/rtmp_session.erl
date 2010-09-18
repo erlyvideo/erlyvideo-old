@@ -459,7 +459,7 @@ handle_info(_Info, StateName, StateData) ->
 
 
 handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
-             #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started} = State) ->
+             #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started, bytes_sent = Sent} = State) ->
   {State1, BaseDts, Starting} = case ems:element(StreamId, Started) of
     undefined ->
       rtmp_lib:play_start(Socket, StreamId, 0),
@@ -478,11 +478,12 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame#video_frame{dts = DTS - BaseDts, pts = PTS - BaseDts})},
 	rtmp_socket:send(Socket, Message),
-	case {Starting, Frame} of
-	  {true, #video_frame{content = video, flavor = config}} -> rtmp_socket:send(Socket, Message);
-	  _ -> ok
-	end,
-  State1.
+	Size = try iolist_size(Frame#video_frame.body) of
+	  S -> S
+	catch
+	  _:_ -> 0
+	end,    
+  State1#rtmp_session{bytes_sent = Sent + Size}.
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive

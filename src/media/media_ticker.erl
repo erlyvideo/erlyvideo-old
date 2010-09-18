@@ -155,7 +155,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
                              playing_from = PlayingFrom, timer_start = TimerStart, 
                              playing_till = PlayingTill, client_buffer = ClientBuffer} = Ticker) ->
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
-  case ems_media:read_frame(Media, Pos) of
+  case ems_media:read_frame(Media, Consumer, Pos) of
     eof ->
       % ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
