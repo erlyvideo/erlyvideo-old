@@ -395,7 +395,7 @@ handle_call({subscribe, Client, Options}, From, #ems_media{clients_timeout_ref =
   handle_call({subscribe, Client, Options}, From, Media#ems_media{clients_timeout_ref = undefined});
 
 
-handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients} = Media) ->
+handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients, audio_config = A, last_dts = DTS} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
 
   DefaultSubscribe = fun(Reply, #ems_media{} = Media1) ->
@@ -411,6 +411,11 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
         ems_media_clients:insert(Clients, Entry);
       false ->
+        %
+        % It is very important to understand, that we need to send audio config here, because client starts receiving music
+        % right after subscribing, but it will wait for video till keyframe
+        %
+        (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
         ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}

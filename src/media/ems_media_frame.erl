@@ -135,7 +135,7 @@ save_frame(Format, Storage, Frame) ->
   end.
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
-                  #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
+                  #ems_media{clients = Clients, video_config = V} = M) ->
   Starting = ems_media_clients:select_by_state(Clients, starting),
   Meta = ems_media:metadata_frame(M),
   lists:foreach(fun(#client{consumer = Client, stream_id = StreamId}) ->
@@ -143,8 +143,9 @@ start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = 
       undefined -> ok;
       _ -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
     end,
-
-    (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
+    
+    %
+    % We need to send video config only here, because audio config is sent earlier
     (catch Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId})
   end, Starting),
   Clients2 = ems_media_clients:mass_update_state(Clients, starting, active),
