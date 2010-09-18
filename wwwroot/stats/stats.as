@@ -95,8 +95,8 @@ public function onEntriesLoaded(result:Object):void {
   entries_label = "Streams ("+entries.length+")";
   
   
-  users = result.users;
-  users_label = "Users ("+users.length+")";
+  users_label = "Users ("+result.users.length+")";
+  users = new ArrayCollection(result.users);
 }
 
 public function onPlayStatus(info:Object):void {
