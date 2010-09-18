@@ -7,7 +7,9 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: update_deps snmp compile plugins 
+all: snmp compile plugins 
+
+update: update_deps
 
 update_deps: rebar.config
 	./rebar get-deps
