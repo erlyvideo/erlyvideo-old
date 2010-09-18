@@ -32,7 +32,6 @@ test:
 	
 clean:
 	rm -fv ebin/*.beam
-	rm -fv ebin/$(APP)
 	rm -fv erl_crash.dump $(PARSER).erl
 
 install:
@@ -40,7 +39,6 @@ install:
 	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/src/erlydtl
 	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/src/tests
 	install -c -m 644 ebin/*.beam $(DESTROOT)$(PACKAGE_DIR)/ebin
-	install -c -m 644 src/erlydtl/*.app $(DESTROOT)$(PACKAGE_DIR)/ebin
 	install -c -m 644 src/erlydtl/* $(DESTROOT)$(PACKAGE_DIR)/src/erlydtl/
 	install -c -m 644 src/tests/* $(DESTROOT)$(PACKAGE_DIR)/src/tests/
 
