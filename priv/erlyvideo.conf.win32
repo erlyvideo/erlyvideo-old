@@ -14,7 +14,7 @@
     {modules, [trusted_login, apps_push, apps_streaming, apps_recording]},
     {secret_key, "123"},
     {file_dir, "movies"},
-    {www_handlers, [ems_http_templates, ems_http_rtmpt, ems_http_push, ems_http_mpegts, ems_http_flv, {ems_http_file,"/var/lib/erlyvideo/wwwroot"}]},
+    {www_handlers, [ems_http_templates, ems_http_rtmpt, ems_http_push, ems_http_mpegts, ems_http_flv, {ems_http_file,"wwwroot"}]},
     {rewrite, [
       {"stream/vlc.ts", mpegts, "http://localhost:8080", [{timeshift, 60000}]}
     ]}

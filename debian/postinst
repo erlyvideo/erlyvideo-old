@@ -40,8 +40,6 @@ update-rc.d erlyvideo defaults 20
 
 case "$1" in
     configure)
-    /usr/bin/erlyctl start
-    /usr/bin/erlyctl reload
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
