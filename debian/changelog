@@ -1,3 +1,9 @@
+erlyvideo-base (2.2.2) karmic; urgency=low
+
+  modules -> rtmp_handlers
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 20:48:40 +0400
+
 erlyvideo-base (2.2.1) karmic; urgency=low
 
   Now erlyvideo is erlyvideo-base and with statistics panel
