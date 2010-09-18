@@ -23,7 +23,7 @@
 -module(flv_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
--include("../erlmedia/include/flv.hrl").
+-include("../include/flv.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
 
