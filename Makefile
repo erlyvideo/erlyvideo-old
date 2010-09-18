@@ -11,6 +11,7 @@ all: update_deps snmp compile plugins
 
 update_deps: rebar.config
 	./rebar get-deps
+	for i in deps/* ; do (cd $$i; git pull) ; done
 
 rebar.config:
 	cp rebar.config.sample rebar.config
