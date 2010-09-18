@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_sup).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../include/ems.hrl").
+-include("ems.hrl").
 -behaviour(supervisor).
 
 -export([init/1,start_link/0]).

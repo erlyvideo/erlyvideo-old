@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(reverse_mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../include/ems.hrl").
+-include("ems.hrl").
 
 -export([start/2, loop/2]).
 
