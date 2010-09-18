@@ -22,12 +22,13 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("ems.hrl").
 
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([host/1]).
 
 -export([expand_tuple/2, tuple_find/2, element/2, setelement/3]).
--export([str_split/2]).
+-export([str_split/2, multicall/3]).
 
 -export([rebuild/0, restart/0]).
 
@@ -195,6 +196,61 @@ str_split(String, Delim, Acc) ->
     0 -> lists:reverse([String|Acc]);
     N -> 
       str_split(string:substr(String, N+1), Delim, [string:substr(String,1,N-1)|Acc])
+  end.
+
+
+multicall(Pids, What, Timeout) ->
+  Parent = self(),
+  Caller = proc_lib:spawn(fun() -> multicall_helper(Parent, Pids, What) end),
+  Ref = erlang:monitor(process, Caller),
+  ok = receive
+    {multicall_ready, Caller} -> ok;
+    {'DOWN', Ref, process, Caller, normal} -> ok;
+    {'DOWN', Ref, process, Caller, Reason} -> {error, {caller_down, Reason}}
+  after
+    Timeout ->  erlang:exit(Caller, shutdown), ok
+  end,
+  erlang:demonitor(Ref, [flush]),
+  collect_multicall_replies(Pids, []).
+
+collect_multicall_replies([], Acc) ->
+  lists:reverse(Acc);
+
+collect_multicall_replies([Pid|Pids], Acc) ->
+  receive
+    {multicall_reply, Pid, Reply} -> collect_multicall_replies(Pids, [{Pid,Reply}|Acc])
+  after
+    0 -> collect_multicall_replies(Pids, Acc)
+  end.
+
+multicall_helper(Parent, Pids, Request) ->
+  erlang:monitor(process, Parent),
+  Refs = send_multicalls(Pids, Request, []),
+  collect_multicalls(Parent, Refs).
+
+
+send_multicalls([], _Request, Refs) ->
+  Refs;
+
+send_multicalls([Pid|Pids], Request, Refs) ->
+  Ref = make_ref(),
+  erlang:send(Pid, {'$gen_call', {self(), Ref}, Request}),
+  send_multicalls(Pids, Request, [{Ref,Pid}|Refs]).
+
+collect_multicalls(Parent, []) ->
+  Parent ! {multicall_ready, self()};
+
+collect_multicalls(Parent, Refs) ->
+  receive
+    {'DOWN', _Ref, process, Parent, _Reason} -> ok;
+    {Ref, Reply} ->
+      Refs1 = case lists:keytake(Ref, 1, Refs) of
+        false -> Refs;
+        {value, {Ref, Pid}, Refs1_} ->
+          Parent ! {multicall_reply, Pid, Reply},
+          Refs1_
+      end,
+      collect_multicalls(Parent, Refs1)
   end.
 
 
