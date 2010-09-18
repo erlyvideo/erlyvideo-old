@@ -24,13 +24,7 @@
 -module(aac).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
-
--record(aac_config, {
-  type,
-  frequency,
-  channels,
-  samples_per_frame
-}).
+-include("../include/aac.hrl").
 
 -export([decode_config/1, encode_config/1, decode/1, encode/2, config/1, pack_config/1, channels/1]).
 
