@@ -32,16 +32,19 @@ fi
 Sign() {
 cd $1
 if [ "`echo $1 | grep source`" == "" ] ; then
+  ARCH=source
+else
+  ARCH="i386 amd64 all"
+fi
 echo "Origin: Erlyvideo repositories
 Label: Erlyvideo
 Archive: stable
-Architectures: i386 amd64 all source
+Architectures: $ARCH
 Components: net
 Suite: binary
 Version: 9.10
 Description: Erlyvideo streaming server http://erlyvideo.org/
 MD5Sum:" > Release
-fi
 
 #ls Packages* Sources* Release | while read ln
 ls $2* Release | while read ln
