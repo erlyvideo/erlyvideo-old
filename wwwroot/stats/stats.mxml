@@ -8,14 +8,7 @@
         <mx:DataGrid id="common_info" dataProvider="{common_stats}" width="100%" height="100%"/>
       </mx:VBox>
       <mx:VBox label="{entries_label}" width="100%" height="100%">
-        <mx:Label id="entry_count" text="{entry_count_text}"/>
-        <mx:List id="entries_list" dataProvider="{entries}" width="100%" height="100%">
-          <mx:itemRenderer>
-            <mx:Component>
-              <mx:Label text="{data.name}" />
-            </mx:Component>
-          </mx:itemRenderer>
-        </mx:List>
+        <mx:DataGrid id="entries_list" dataProvider="{entries}" width="100%" height="100%"/>
       </mx:VBox>
       <mx:VBox label="{users_label}" width="100%" height="100%">
         <mx:DataGrid id="users_list" dataProvider="{users}" width="100%" height="100%"/>

@@ -9,7 +9,7 @@ private var server:String = "rtmp://localhost/rtmp";
 private var stream:String = "cam0_view";
 
 [Bindable]
-public var entries:Array;
+public var entries:ArrayCollection;
 
 [Bindable]
 public var common_stats:ArrayCollection;
@@ -88,7 +88,7 @@ public function onEntriesLoaded(result:Object):void {
   ];
   entry_count_text = "Length: "+result.streams.length;
   common_stats = new ArrayCollection(info);
-  entries = result.streams;
+  entries = new ArrayCollection(result.streams);
   
   rtmp_trafic = new ArrayCollection(result.rtmp);
   
