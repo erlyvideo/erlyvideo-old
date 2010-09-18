@@ -181,7 +181,7 @@ check_app([Module | Applications], Command, Arity) ->
 
 
 check_app(Host, Command, Arity) ->
-  Modules = ems:get_var(modules, Host, [trusted_login]),
+  Modules = ems:get_var(rtmp_handlers, Host, [trusted_login]),
   check_app(Modules, Command, Arity).
 
 
