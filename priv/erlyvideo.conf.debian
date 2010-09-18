@@ -11,7 +11,7 @@
     {file_access, file},
     {detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {modules, [referer_check, {auth_users_limit, 10}, {check_play_web, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
+    {rtmp_handlers, [referer_check, {auth_users_limit, 10}, {check_play_web, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
     {secret_key, "123"},
     {file_dir, "/var/lib/erlyvideo/movies"},
     {www_handlers, [ems_http_templates, ems_http_stats, ems_http_rtmpt, ems_http_push, ems_http_mpegts, ems_http_flv, {ems_http_file,"/var/lib/erlyvideo/wwwroot"}]},

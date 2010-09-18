@@ -136,7 +136,7 @@ host(FullHostname) ->
 %%--------------------------------------------------------------------
 
 try_method_chain(Host, Method, Args) when is_atom(Host) ->
-  try_method_chain(ems:get_var(modules, Host, [trusted_login]), Method, Args);
+  try_method_chain(ems:get_var(rtmp_handlers, Host, [trusted_login]), Method, Args);
 
 try_method_chain([], _Method, _Args) ->
   {unhandled};

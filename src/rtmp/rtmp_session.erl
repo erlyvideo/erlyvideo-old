@@ -338,7 +338,7 @@ call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) -
   end;
   
 call_function(Host, State, AMF) ->
-  call_function(ems:get_var(modules, Host, [trusted_login]), State, AMF).
+  call_function(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
 
 
 mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
@@ -460,7 +460,7 @@ handle_info(_Info, StateName, StateData) ->
 
 handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
              #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started, bytes_sent = Sent} = State) ->
-  {State1, BaseDts, Starting} = case ems:element(StreamId, Started) of
+  {State1, BaseDts, _Starting} = case ems:element(StreamId, Started) of
     undefined ->
       rtmp_lib:play_start(Socket, StreamId, 0),
       {State#rtmp_session{
