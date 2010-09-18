@@ -1,3 +1,9 @@
+erlmedia (1.9.1) unstable; urgency=low
+
+  extract aac.hrl
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 20:30:53 +0400
+
 erlmedia (1.9.0) unstable; urgency=low
 
   Mjpeg, flv seek, app file and preliminary f4v
