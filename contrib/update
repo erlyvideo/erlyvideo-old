@@ -19,27 +19,22 @@ fi
 if [ -d source ] ; then
 dpkg-scansources source > source/Sources
 gzip -c source/Sources > source/Sources.gz
-Sign source Sources
+#Sign source Sources
 fi
 
 if [ -d testing-source ] ; then
 dpkg-scansources testing-source > testing-source/Sources
 gzip -c testing-source/Sources > testing-source/Sources.gz
-Sign testing-source Sources
+#Sign testing-source Sources
 fi
 }
 
 Sign() {
 cd $1
-if [ "`echo $1 | grep source`" == "" ] ; then
-  ARCH=source
-else
-  ARCH="i386 amd64 all"
-fi
 echo "Origin: Erlyvideo repositories
 Label: Erlyvideo
 Archive: stable
-Architectures: $ARCH
+Architectures: i386 amd64 all source
 Components: net
 Suite: binary
 Version: 9.10
