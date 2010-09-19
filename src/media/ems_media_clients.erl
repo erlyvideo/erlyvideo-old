@@ -100,9 +100,13 @@ select_by_state({_Clients,Index}, Value) ->
   ets:lookup(Index, Value).
   
 
-send_frame(Frame, {C,_Index} = Clients, State) ->
+send_frame(#video_frame{} = Frame, {C,_Index} = Clients, State) ->
   List = select_by_state(Clients, State),
-  Bytes = erlang:iolist_size(Frame#video_frame.body),
+  Bytes = try erlang:iolist_size(Frame#video_frame.body) of
+    Size -> Size
+  catch
+    _:_ -> 0
+  end,
   [begin
     Pid ! Frame#video_frame{stream_id = StreamId},
     ets:update_counter(C, Pid, {#client.bytes, Bytes})

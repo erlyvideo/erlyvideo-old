@@ -520,7 +520,12 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
     #video_frame{content = video, flavor = config} -> Media#ems_media{video_config = Frame};
     #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
     #video_frame{content = C, body = Body} when C == audio orelse C == video ->
-      Clients1 = ems_media_clients:increment_bytes(Clients, Client, iolist_size(Body)),
+      Bytes = try erlang:iolist_size(Body) of
+        Size -> Size
+      catch
+        _:_ -> 0
+      end,  
+      Clients1 = ems_media_clients:increment_bytes(Clients, Client, Bytes),
       Media#ems_media{clients = Clients1};
     _ -> Media
   end,

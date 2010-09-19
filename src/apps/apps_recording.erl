@@ -56,8 +56,9 @@ real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = St
   Options = lists:ukeymerge(1, Options1, [{type,Type}]),
   
   ems_log:access(Host, "PUBLISH ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
-  ?D(Options),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
+  erlang:monitor(process, Recorder),
+  ?D({"publish",Type,Options,Recorder}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
   State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)}.

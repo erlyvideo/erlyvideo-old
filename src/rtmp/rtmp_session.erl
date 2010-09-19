@@ -409,6 +409,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_sessio
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
     {StreamId, PlayerPid} ->
+      ?D({"Failed played stream", StreamId, PlayerPid}),
       rtmp_lib:play_complete(Socket, StreamId, [{duration, 0}]),
       NewStreams = setelement(StreamId, Streams, undefined),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}
