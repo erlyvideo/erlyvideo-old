@@ -1,3 +1,9 @@
+erlyvideo-base (2.2.4) karmic; urgency=low
+
+  Fixed bug with rtmp_handlers and fixed events
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 19 Sep 2010 23:33:51 +0400
+
 erlyvideo-base (2.2.3) karmic; urgency=low
 
   Race condition in ems_media, lost shared objects
