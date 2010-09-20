@@ -33,4 +33,4 @@ sorted_procs(Sort) ->
     {Sort, Val2} = process_info(Pid2, Sort),
     Val1 > Val2
   end, processes()),
-  lists:sublist([ [{pid,Pid}|process_info(Pid, [memory,message_queue_len,total_heap_size,heap_size,stack_size])] || Pid <- Pids], 10).
+  lists:sublist([ [{pid,Pid}|process_info(Pid, [memory,message_queue_len,total_heap_size,heap_size,stack_size,dictionary,current_function])] || Pid <- Pids], 10).
