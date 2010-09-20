@@ -114,13 +114,6 @@ init([]) ->
       infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
       supervisor,                              % Type     = worker | supervisor
       [rtmp_stat_collector]                                       % Modules  = [Module] | dynamic
-    },
-    {rtmp_monitor_sup,                         % Id       = internal id
-      {rtmp_monitor,start_link,[[{timeout,1000},{threshold,80*60}]]},            % StartFun = {M, F, A}
-      permanent,                               % Restart  = permanent | transient | temporary
-      2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-      worker,                                  % Type     = worker | supervisor
-      [rtmp_monitor]                           % Modules  = [Module] | dynamic
     }
   ],
   
