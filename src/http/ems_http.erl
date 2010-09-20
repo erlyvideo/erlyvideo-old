@@ -36,6 +36,7 @@ accept(Socket, []) ->
   inet:setopts(Socket, [{packet,http}]),
   {ok, Worker} = ems_sup:start_http_worker(Socket),
   gen_tcp:controlling_process(Socket, Worker),
+  ems_network_lag_monitor:watch(Worker),
   Worker ! socket,
   ok.
 

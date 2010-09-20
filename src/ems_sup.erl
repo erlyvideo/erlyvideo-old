@@ -223,6 +223,13 @@ init([]) ->
 
 
   Supervisors1 = [
+    {ems_network_lag_monitor_sup,                         % Id       = internal id
+        {ems_network_lag_monitor,start_link,[[{timeout,1000},{threshold,80*60}]]},            % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_network_lag_monitor]                % Modules  = [Module] | dynamic
+    },
     {   rtmp_session_sup,
         {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
         permanent,                               % Restart  = permanent | transient | temporary

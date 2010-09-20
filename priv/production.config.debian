@@ -1,5 +1,5 @@
 [{sasl, [
-	{error_logger, false}
+	{sasl_error_logger, false}
 ]},
 {snmp, [
 	{agent, [

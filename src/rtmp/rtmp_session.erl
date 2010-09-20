@@ -180,6 +180,7 @@ send(Session, Message) ->
     _ -> lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP)))
   end,
   erlang:monitor(process, RTMP),
+  ems_network_lag_monitor:watch(RTMP),
   {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 
 
