@@ -343,8 +343,8 @@ start_new_media_entry(Host, Name, Opts) ->
           ?D({"Skip registration of", Type, URL}),
           {ok, Pid}
       end;
-    _ ->
-      ?D({"Error opening", Type, Name}),
+    Else ->
+      ?D({"Error opening", Type, Name, Else}),
       {notfound, <<"Failed to open ", Name/binary>>}
   end.
   

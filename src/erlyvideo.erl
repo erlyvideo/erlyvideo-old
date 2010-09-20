@@ -82,6 +82,7 @@ start() ->
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
   error_logger:delete_report_handler(sasl_report_tty_h),
+  error_logger:delete_report_handler(sasl_report_file_h),
 	ok.
 
 start_http() ->
