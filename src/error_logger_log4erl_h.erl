@@ -66,14 +66,14 @@ handle_event({info_msg, _GLeader, {_PID, Msg, Data}}, #elogger_l4e_mappings{info
 handle_event({warning_msg, _GLeader, {_PID, Msg, Data}}, #elogger_l4e_mappings{warning_msg=L} = State) ->
     R = log4erl:log(L, Msg, Data),
     {R, State};
-handle_event({error_report, _GLeader, {_PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
-    R = log4erl:log(L, "~s", [io_lib_pretty_limited:print({Msg, Data}, 10000)]),
+handle_event({error_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
+    R = log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)]),
     {R, State};
-handle_event({info_report, _GLeader, _}, #elogger_l4e_mappings{error_report=L} = State) ->
-    R = log4erl:log(L, "~s", [io_lib_pretty_limited:print({Msg, Data}, 10000)]),
+handle_event({info_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
+    R = log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)]),
     {R, State};
-handle_event({warning_report, _GLeader, _}, #elogger_l4e_mappings{error_report=L} = State) ->
-    R = log4erl:log(L, "~s", [io_lib_pretty_limited:print({Msg, Data}, 10000)]),
+handle_event({warning_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
+    R = log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)]),
     {R, State}.
 
 handle_call(_Request, State) ->
