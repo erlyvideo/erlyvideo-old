@@ -69,10 +69,19 @@ handle_event({warning_msg, _GLeader, {_PID, Msg, Data}}, #elogger_l4e_mappings{w
 handle_event({error_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
     R = log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)]),
     {R, State};
-handle_event({info_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
-    R = log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)]),
+handle_event({info_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{info_report=L} = State) ->
+    R = case {Msg,Data} of
+      {progress, [{application,Name}|_]} ->
+        log4erl:log(info, "===================== Started application: ~p =====================", [Name]);
+      {progress, [{supervisor,{local,Sup}},{started,Opts}]} ->
+        Name = proplists:get_value(name,Opts),
+        Pid = proplists:get_value(pid,Opts),
+        log4erl:log(info, "Starting ~p:~p ~p", [Sup,Name,Pid]);
+      _ ->  
+        log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)])
+    end,
     {R, State};
-handle_event({warning_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{error_report=L} = State) ->
+handle_event({warning_report, _GLeader, {PID, Msg, Data}}, #elogger_l4e_mappings{warning_report=L} = State) ->
     R = log4erl:log(L, "~p ~s", [PID, io_lib_pretty_limited:print({Msg, Data}, 10000)]),
     {R, State}.
 
