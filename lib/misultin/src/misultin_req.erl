@@ -31,7 +31,7 @@
 % NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 % POSSIBILITY OF SUCH DAMAGE.
 % ==========================================================================================================
--module(misultin_req, [Req, SocketPid]).
+-module(misultin_req, [Req]).
 -vsn('0.3').
 -include_lib("kernel/include/file.hrl").
 
@@ -46,7 +46,7 @@
 % API
 -export([raw/0]).
 -export([ok/1, ok/2, ok/3, respond/2, respond/3, respond/4, stream/1, stream/2, stream/3]).
--export([get/1, host/0, socket/0, parse_qs/0, parse_post/0, file/1, file/2, resource/1, socket_pid/0]).
+-export([get/1, host/0, socket/0, parse_qs/0, parse_post/0, file/1, file/2, resource/1]).
 
 % includes
 -include("../include/misultin.hrl").
@@ -77,18 +77,36 @@ respond(HttpCode, Headers, Template, Vars) when is_list(Template) =:= true ->
 	
 % Description: Start stream.
 stream(close) ->
-	SocketPid ! stream_close;
+  gen_tcp:close(Req#req.socket);
 stream(head) ->
 	stream(head, 200, []);
 stream(Template) ->
-	SocketPid ! {stream_data, Template}.
+  gen_tcp:send(Req#req.socket, Template).
+  
 stream(head, Headers) ->
 	stream(head, 200, Headers);
-stream(Template, Vars) when is_list(Template) =:= true ->
-	SocketPid ! {stream_data, io_lib:format(Template, Vars)}.
-stream(head, HttpCode, Headers) ->
-	SocketPid ! {stream_head, HttpCode, Headers}.
+stream(Template, Vars) when is_list(Template) ->
+	stream(io_lib:format(Template, Vars)).
 	
+stream(head, HttpCode, Headers) ->
+  Enc_headers = enc_headers(Headers),
+	Resp = ["HTTP/1.1 ", integer_to_list(HttpCode), " OK\r\n", Enc_headers, <<"\r\n">>],
+  gen_tcp:send(Req#req.socket, Resp).
+
+
+enc_headers([{Tag, Val}|T]) when is_atom(Tag) ->
+	[atom_to_list(Tag), ": ", enc_header_val(Val), "\r\n"|enc_headers(T)];
+enc_headers([{Tag, Val}|T]) when is_list(Tag) ->
+	[Tag, ": ", enc_header_val(Val), "\r\n"|enc_headers(T)];
+enc_headers([]) ->
+	[].
+enc_header_val(Val) when is_atom(Val) ->
+	atom_to_list(Val);
+enc_header_val(Val) when is_integer(Val) ->
+	integer_to_list(Val);
+enc_header_val(Val) ->
+	Val.
+
 % Description: Sends a file to the browser.
 file(FilePath) ->
   {ok, FileInfo} = file:read_file_info(FilePath),
@@ -141,8 +159,6 @@ host() ->
 socket() ->
   Req#req.socket.
   
-socket_pid() -> 
-  SocketPid.
 
 % Description: Parse QueryString
 parse_qs() ->

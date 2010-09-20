@@ -37,7 +37,7 @@
 -export([start_link/2]).
 
 % internale
--export([socket_loop/1, accept/3, request/2, headers/3, headers/4, body/2]).
+-export([accept/3, request/2, headers/3, headers/4, body/2]).
 
 % macros
 -define(MAX_HEADERS_COUNT, 100).
@@ -94,14 +94,9 @@ request(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 	receive
 		{http, Sock, {http_request, Method, Path, Version}} ->
 			?DEBUG(debug, "received full headers of a new HTTP packet", []),
-			?MODULE:headers(C, Req#req{vsn = Version, method = Method, uri = Path, connection = default_connection(Version)}, []);
-		{http, Sock, {http_error, "\r\n"}} ->
-			?MODULE:request(C, Req);
-		{http, Sock, {http_error, "\n"}} ->
-			?MODULE:request(C, Req);
-		{http, Sock, _Other} ->
-			?DEBUG(debug, "tcp normal error treating request: ~p", [_Other]),
-			exit(normal)	
+			?MODULE:headers(C, Req#req{vsn = Version, method = Method, uri = Path, connection = close}, []);
+		{http, Sock, {http_error, Error}} ->
+		  exit({http_error, Error})
 	after RecvTimeout ->
 		?DEBUG(debug, "request timeout, sending error", []),
 		send(Sock, ?REQUEST_TIMEOUT_408)
@@ -114,105 +109,55 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 	inet:setopts(Sock, [{active, once}]),
 	receive
 		{http, Sock, {http_header, _, 'Content-Length', _, Val}} ->
-			?MODULE:headers(C, Req#req{content_length = Val}, [{'Content-Length', Val}|H], HeaderCount + 1);
-		{http, Sock, {http_header, _, 'Connection', _, Val}} ->
-			KeepAlive = keep_alive(Req#req.vsn, Val),
-			?MODULE:headers(C, Req#req{connection = KeepAlive}, [{'Connection', Val}|H], HeaderCount + 1);
+			?MODULE:headers(C, Req#req{content_length = list_to_integer(Val)}, [{'Content-Length', list_to_integer(Val)}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, 'Host', _, Val}} ->
 		  Host = list_to_binary(hd(string:tokens(Val, ":"))),
 			?MODULE:headers(C, Req#req{host = Host}, [{'Host', Host}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, Header, _, Val}} ->
 			?MODULE:headers(C, Req, [{Header, Val}|H], HeaderCount + 1);
-		{http, Sock, {http_error, "\r\n"}} ->
-			?MODULE:headers(C, Req, H, HeaderCount);
-		{http, Sock, {http_error, "\n"}} ->
-			?MODULE:headers(C, Req, H, HeaderCount);
+		{http, Sock, {http_error, Error}} ->
+		  erlang:exit({http_error, Error});
 		{http, Sock, http_eoh} ->
-			?MODULE:body(C, Req#req{headers = lists:reverse(H)});
-		{http, Sock, _Other} ->
-			?DEBUG(debug, "tcp normal error treating headers: ~p", [_Other]),
-			exit(normal)
+			?MODULE:body(C, Req#req{headers = lists:reverse(H), socket = Sock})
 	after RecvTimeout ->
 		?DEBUG(debug, "headers timeout, sending error", []),
 		send(Sock, ?REQUEST_TIMEOUT_408)
 	end;
-headers(C, Req, H, _HeaderCount) ->
-	?MODULE:body(C, Req#req{headers = lists:reverse(H)}).
-
-% default connection
-default_connection({1,1}) -> keep_alive;
-default_connection(_) -> close.
-
-% Shall we keep the connection alive? Default case for HTTP/1.1 is yes, default for HTTP/1.0 is no.
-keep_alive({1,1}, "close")		-> close;
-keep_alive({1,1}, "Close")		-> close;
-% string:to_upper is used only as last resort.
-keep_alive({1,1}, Head) ->
-	case string:to_upper(Head) of
-		"CLOSE" -> close;
-		_		-> keep_alive
-	end;
-keep_alive({1,0}, "Keep-Alive") -> keep_alive;
-keep_alive({1,0}, Head) ->
-	case string:to_upper(Head) of
-		"KEEP-ALIVE"	-> keep_alive;
-		_				-> close
-	end;
-keep_alive({0,9}, _)			-> close;
-keep_alive(_Vsn, _KA)			-> close.
+headers(_C, _Req, _H, _HeaderCount) ->
+  erlang:exit(too_much_headers).
 
 % BODY: collect the body of the HTTP request if there is one, and lookup and call the implementation callback.
 % Depending on whether the request is persistent transition back to state request to await the next request or exit.
-body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
+body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, #req{content_length = ContentLength} = Req) ->
 	case Req#req.method of
 		'GET' ->
-			Close = handle_get(C, Req),
-			case Close of
-				close ->
-					gen_tcp:close(Sock);
-				keep_alive ->
-					% TODO: REMOVE inet:setopts(Sock, [{packet, http}]),
-					% inet:setopts(Sock, [{active, false}, {packet, 0}]),
-					?MODULE:request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
-			end;
+			handle_get(C, Req);
 		'POST' ->
-			case catch list_to_integer(Req#req.content_length) of 
-				{'EXIT', _} ->
-					% TODO: provide a fallback when content length is not or wrongly specified
-					?DEBUG(debug, "specified content length is not a valid integer number: ~p", [Req#req.content_length]),
-					send(Sock, ?CONTENT_LENGTH_REQUIRED_411),
-					exit(normal);
-				Len ->
+			case ContentLength of 
+				_ when is_number(ContentLength) andalso ContentLength < 10*1024*1024 ->
 					inet:setopts(Sock, [{packet, raw}, {active, false}]),
-					case gen_tcp:recv(Sock, Len, RecvTimeout) of
+					case gen_tcp:recv(Sock, ContentLength, RecvTimeout) of
 						{ok, Bin} ->
-							Close = handle_post(C, Req#req{body = Bin}),
-							case Close of
-								close ->
-									gen_tcp:close(Sock);
-								keep_alive ->
-									inet:setopts(Sock, [{packet, http}]),
-									?MODULE:request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
-							end;
+							handle_post(C, Req#req{body = Bin});
 						{error, timeout} ->
 							?DEBUG(debug, "request timeout, sending error", []),
 							send(Sock, ?REQUEST_TIMEOUT_408);	
 						_Other ->
 							?DEBUG(debug, "tcp normal error treating post: ~p", [_Other]),
 							exit(normal)
-					end
+					end;
+  			_ when is_number(ContentLength) ->
+					send(Sock, ?REQUEST_TOO_LARGE_413),
+					exit(normal);
+				_ ->
+					% TODO: provide a fallback when content length is not or wrongly specified
+					?DEBUG(debug, "specified content length is not a valid integer number: ~p", [Req#req.content_length]),
+					send(Sock, ?CONTENT_LENGTH_REQUIRED_411),
+					exit(normal)
 			end;
 		'PUT' ->
 		  inet:setopts(Sock, [{packet, raw}, {active, false}]),
-			Close = handle_get(C, Req#req{socket = Sock}),
-			case Close of
-				close ->
-					gen_tcp:close(Sock);
-				keep_alive ->
-					% TODO: REMOVE inet:setopts(Sock, [{packet, http}]),
-					% inet:setopts(Sock, [{active, false}, {packet, 0}]),
-					request(C, #req{peer_addr = Req#req.peer_addr, peer_port = Req#req.peer_port})
-			end;
+			handle_get(C, Req);
 		_Other ->
 			?DEBUG(debug, "method not implemented: ~p", [_Other]),
 			send(Sock, ?NOT_IMPLEMENTED_501),
@@ -262,11 +207,10 @@ handle_post(C, #req{connection = Conn} = Req) ->
 	end.
 
 % Description: Main dispatcher
-call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
+call_mfa(#c{sock = Sock, loop = Loop} = _C, Request) ->
 	% spawn listening process for Request messages [only used to support stream requests]
-	SocketPid = spawn(?MODULE, socket_loop, [C]),
 	% create request
-	Req = misultin_req:new(Request, SocketPid),
+	Req = misultin_req:new(Request),
 	% call loop
 	try Loop(Req) of
 	  {HttpCode, Headers0, Body} ->
@@ -276,29 +220,18 @@ call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 			BodyBinary = convert_to_binary(Body),
 			% provide response
 			Headers = add_content_length(Headers0, BodyBinary),
-			Enc_headers = enc_headers(Headers),
-			Resp = ["HTTP/1.1 ", integer_to_list(HttpCode), " OK\r\n", Enc_headers, <<"\r\n">>, BodyBinary],
-			send(Sock, Resp),
-			% kill listening socket
-			SocketPid ! shutdown;
+			Req:stream(head, HttpCode, Headers),
+			Req:stream(BodyBinary);
 		{raw, Body} ->
 			send(Sock, Body);
 		_ ->
 			% loop exited normally, kill listening socket
-			SocketPid ! shutdown
+			ok
 	catch	
-		exit:leave ->
-		  exit(normal);
 		_Class:_Error ->
 			?DEBUG(error, "worker crash: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
       error_logger:error_msg("FAIL ~p ~p~n~p:~p:~p", [Req:get(method), Req:get(uri), _Class, _Error, erlang:get_stacktrace()]),
-			% kill listening socket
-			SocketPid ! shutdown,
-			% send response
-      % send(Sock, [[?INTERNAL_SERVER_ERROR_500], io_lib:format("~p:~p", [_Class:_Error])]),
-      send(Sock, [?INTERNAL_SERVER_ERROR_500, io_lib:format("~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()])]),
-			% force exit
-			exit(normal)
+      send(Sock, [?INTERNAL_SERVER_ERROR_500, io_lib:format("~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()])])
 	end.
 
 % Description: Ensure Body is binary.
@@ -308,29 +241,6 @@ convert_to_binary(Body) when is_binary(Body) ->
 	Body;
 convert_to_binary(Body) when is_atom(Body) ->
 	list_to_binary(atom_to_list(Body)).
-
-% Description: Socket loop for stream responses
-socket_loop(#c{sock = Sock} = C) ->
-	receive
-		{stream_head, HttpCode, Headers} ->
-			?DEBUG(debug, "sending stream head", []),
-			Enc_headers = enc_headers(Headers),
-			Resp = ["HTTP/1.1 ", integer_to_list(HttpCode), " OK\r\n", Enc_headers, <<"\r\n">>],
-			send(Sock, Resp),
-			?MODULE:socket_loop(C);
-		{stream_data, Body} ->
-			?DEBUG(debug, "sending stream data", []),
-			send(Sock, Body),
-			?MODULE:socket_loop(C);
-		stream_close ->
-			?DEBUG(debug, "closing stream", []),
-			close(Sock);
-		shutdown ->
-			?DEBUG(debug, "shutting down socket loop", []),
-			shutdown;
-		Other ->
-		  io:format("Unknown message to misultin socket loop: ~p~n", [Other])
-	end.
 
 % Description: Add content length
 add_content_length(Headers, Body) ->
@@ -342,18 +252,6 @@ add_content_length(Headers, Body) ->
 	end.
 
 % Description: Encode headers
-enc_headers([{Tag, Val}|T]) when is_atom(Tag) ->
-	[atom_to_list(Tag), ": ", enc_header_val(Val), "\r\n"|enc_headers(T)];
-enc_headers([{Tag, Val}|T]) when is_list(Tag) ->
-	[Tag, ": ", enc_header_val(Val), "\r\n"|enc_headers(T)];
-enc_headers([]) ->
-	[].
-enc_header_val(Val) when is_atom(Val) ->
-	atom_to_list(Val);
-enc_header_val(Val) when is_integer(Val) ->
-	integer_to_list(Val);
-enc_header_val(Val) ->
-	Val.
 
 % Split the path at the ?
 split_at_q_mark([$?|T], Acc) ->
@@ -373,15 +271,5 @@ send(Sock, Data) ->
 			exit(normal)
 	end.
 
-% TCP close
-close(Sock) ->
-	?DEBUG(debug, "closing socket", []),
-	case gen_tcp:close(Sock) of
-		ok ->
-			ok;
-		{error, _Reason} ->
-			?DEBUG(debug, "could not close socket: ~p", [_Reason]),
-			exit(normal)
-	end.
 	
 % ============================ /\ INTERNAL FUNCTIONS =======================================================
