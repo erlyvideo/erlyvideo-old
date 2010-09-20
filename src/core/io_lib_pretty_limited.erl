@@ -18,7 +18,7 @@ print_term(Out, Bin, _Limit) when is_binary(Bin) ->
   <<Out/binary, (list_to_binary(io_lib_pretty:print(Bin)))/binary>>;
 
 print_term(Out, Term, _Limit) when 
-  is_atom(Term) orelse is_reference(Term) orelse is_port(Term) orelse is_function(Term) orelse is_number(Term) ->
+  is_atom(Term) orelse is_reference(Term) orelse is_port(Term) orelse is_function(Term) orelse is_number(Term) orelse is_pid(Term) ->
   <<Out/binary, (list_to_binary(io_lib_pretty:print(Term)))/binary>>;
 
 print_term(Out, Atom, _Limit) when is_atom(Atom) ->

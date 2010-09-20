@@ -404,7 +404,7 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{host = Host, o
       {noreply, MediaProvider};
     [Name] ->
       ets:delete(OpenedMedia, Name),
-      ?D({"Stream died", Media, Name, _Reason}),
+      ?D({"Stream died", Media, Name}),
       ems_event:stream_stopped(Host, Name, Media),
       {noreply, MediaProvider}
   end;

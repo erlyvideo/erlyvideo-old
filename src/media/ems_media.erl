@@ -64,7 +64,7 @@
 -export([decoder_config/1, metadata_frame/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, format_status/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
 
 
 -define(LIFE_TIMEOUT, 60000).
@@ -83,11 +83,11 @@ behaviour_info(_Other) -> undefined.
 
 %% @private
 start_link(Module, Options) ->
-  gen_server:start_link(?MODULE, [Module, Options], []).
+  gen_server_ems:start_link(?MODULE, [Module, Options], []).
 
 %% @private
 start_custom(Module, Options) ->
-  gen_server:start_link(Module, [Options], []).
+  gen_server_ems:start_link(Module, [Options], []).
 
 
 
@@ -304,8 +304,8 @@ decoder_config(Media) when is_pid(Media) ->
 %%%------------------------------------------------------------------------
 
 %% @hidden
-format_status(_Reason, [_Dict, #ems_media{} = Media]) ->
-  Media#ems_media{storage = storage}.
+% format_status(_Reason, [_Dict, #ems_media{} = Media]) ->
+%   Media#ems_media{storage = storage}.
 
 
 %%----------------------------------------------------------------------

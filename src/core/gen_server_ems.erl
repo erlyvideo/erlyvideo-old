@@ -744,13 +744,14 @@ error_info(Reason, Name, Msg, State, Debug) ->
 	    _ ->
 		Reason
 	end,
-	  Reason2 = io_lib_pretty_limited:print(Reason1, 10000),
-	  State1 = io_lib_pretty_limited:print(State, 10000),
+	  Reason2 = io_lib_pretty_limited:print(Reason1, 5000),
+	  State1 = io_lib_pretty_limited:print(State, 5000),
+	  Msg1 = io_lib_pretty_limited:print(Msg, 5000),
     format("** Generic server ~p terminating \n"
-           "** Last message in was ~p~n"
+           "** Last message in was ~s~n"
            "** When Server state == ~s~n"
            "** Reason for termination == ~n** ~s~n",
-	   [Name, Msg, State1, Reason2]),
+	   [Name, Msg1, State1, Reason2]),
     sys:print_log(Debug),
     ok.
 
