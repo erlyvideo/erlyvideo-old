@@ -80,6 +80,9 @@ try_handler([Handler|Chain], Host, Method, Path, Req) ->
 wwwroot(Host) ->
   ems:get_var(wwwroot, Host, ems:get_var(wwwroot, "wwwroot")).
   
+  
+http(_Host, _, ["a"], Req) ->
+  Req:respond(302, [{"Location", "video.mp4"}], "Redirect to real file");
 
 % handle the 404 page not found
 http(_Host, _, Path, Req) ->

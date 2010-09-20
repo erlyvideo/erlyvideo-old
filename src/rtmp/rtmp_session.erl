@@ -331,6 +331,8 @@ call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) -
       case Module:Command(State, AMF) of
         unhandled ->
           call_function(Modules, State, AMF);
+        {unhandled, NewState, NewAMF} ->
+          call_function(Modules, NewState, NewAMF);
         NewState ->
           NewState
       end;
