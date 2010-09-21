@@ -37,7 +37,7 @@
   format = aac,
   buffer = <<>>,
   timestamp,
-  sample_rate = 44100,
+  sample_rate = 44.1,
   headers = [],
   byte_counter = 0
 }).
@@ -160,8 +160,8 @@ decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3} =
 decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = aac} = State) when SyncCount == 50 ->
   decode(State#shoutcast{format = aac});
 
-decode(#shoutcast{state = unsynced_body, sync_count = SyncCount}) when SyncCount == 100 ->
-  error;
+decode(#shoutcast{state = unsynced_body, format = Format, sync_count = SyncCount}) when SyncCount == 10000 ->
+  erlang:error({shoutcast_unsynced, Format, SyncCount});
 
 decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3, buffer = <<_, Rest/binary>>} = State) ->
   case mp3:decode(State#shoutcast.buffer) of
@@ -242,14 +242,14 @@ decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timesta
       State
   end;
 
-decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timestamp} = State) ->
+decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timestamp, sample_rate = SampleRate} = State) ->
   % ?D({"Decode"}),
   case mp3:decode(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
         content          = audio,
-        dts           = Timestamp,
-        pts           = Timestamp,
+        dts           = Timestamp / SampleRate,
+        pts           = Timestamp / SampleRate,
         body          = Packet,
     	  codec	    = mp3,
     	  sound	  = {stereo, bit16, rate44}
