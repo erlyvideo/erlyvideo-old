@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.12) unstable; urgency=low
+
+  Using global network monitor
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 21 Sep 2010 15:09:54 +0400
+
 erlang-rtmp (1.7.11) lucid; urgency=low
 
   app file and tests
