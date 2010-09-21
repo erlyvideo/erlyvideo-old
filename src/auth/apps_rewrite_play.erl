@@ -52,6 +52,9 @@ play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State,
 
 fetch_headers(State, #rtmp_funcall{args = [null, _OldName | Args]} = AMF) ->
   receive
+    {http, Socket, {http_header, _, "X-Location", _, Path}} ->
+      gen_tcp:close(Socket),
+      {unhandled, State, AMF#rtmp_funcall{args = [null, list_to_binary(Path) | Args]}};
     {http, Socket, {http_header, _, 'Location', _, Path}} ->
       gen_tcp:close(Socket),
       {unhandled, State, AMF#rtmp_funcall{args = [null, list_to_binary(Path) | Args]}};
