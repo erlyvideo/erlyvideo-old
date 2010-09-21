@@ -1,3 +1,9 @@
+log4erl (0.8.7) unstable; urgency=low
+
+  Can replace SASL logger
+
+ --  <max@maxidoors.ru> Tue, 21 Sep 2010 14:34:37 +0400
+
 log4erl (0.8.6-6) lucid; urgency=low
 
   log4erl.app
