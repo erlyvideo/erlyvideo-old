@@ -1,6 +1,0 @@
-erlyvideo (2.2.1) unstable; urgency=low
-
-  First build of metapackage. Erlyvideo with new events, extracted MPEG-TS and RTSP
-
- -- Max Lapshin <max@maxidoors.ru>  Sat, 18 Sep 2010 17:38:30 +0400
-
