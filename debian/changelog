@@ -1,3 +1,9 @@
+erlang-rtsp (1.7.1) unstable; urgency=low
+
+  Using global network monitor
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 21 Sep 2010 15:17:28 +0400
+
 erlang-rtsp (1.7.0) lucid; urgency=low
 
   Erlyvideo plugin
