@@ -97,7 +97,7 @@ load_nif(false) ->
   
 
 start_link(Consumer) ->
-  {ok, spawn_link(?MODULE, init, [[Consumer]])}.
+  {ok, proc_lib:spawn_link(?MODULE, init, [[Consumer]])}.
 
 
 init([Consumer]) ->
@@ -243,7 +243,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, consumer = Consumer, h264 = #h264{}}]),
+        Handler = proc_lib:spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, consumer = Consumer, h264 = #h264{}}]),
         ?D({"Starting PID", Pid, Handler}),
         erlang:monitor(process, Handler),
         #stream_out{pid = Pid, handler = Handler};
