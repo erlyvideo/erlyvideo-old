@@ -1,9 +1,9 @@
 Package: erlyvideo
 Section: net
-Version: 2.2.4
+Version: 2.2.5
 Homepage: http://erlyvideo.org/
 Maintainer: Max Lapshin <max@maxidoors.ru>
 Architecture: all
-Depends: erlyvideo-base (>= 2.2.4), erlang-rtsp (>= 1.7.0), erlang-mpegts (>= 2.4.0)
+Depends: erlyvideo-base (>= 2.2.5), erlang-rtsp (>= 1.7.1), erlang-mpegts (>= 2.4.0)
 Description: Base package of erlang video server
  Erlang server, capable to handle RTMP and media. MPEG-TS and RTSP are with erlyvideo package
