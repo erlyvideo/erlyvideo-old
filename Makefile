@@ -1,7 +1,7 @@
 include debian/version.mk
 ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
-DESTROOT:=$(CURDIR)/debian/erlyvideo-base
+DESTROOT:=$(CURDIR)/debian/erlyvideo
 ERL_LIBS:=deps:lib:plugins:..
 
 ERL=erl +A 4 +K true
