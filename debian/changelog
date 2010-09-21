@@ -1,3 +1,9 @@
+erlyvideo-base (2.2.5) unstable; urgency=low
+
+  No more SASL logger. Global network monitor
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 21 Sep 2010 15:14:42 +0400
+
 erlyvideo-base (2.2.4) karmic; urgency=low
 
   Fixed bug with rtmp_handlers and fixed events
