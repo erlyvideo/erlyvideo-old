@@ -201,11 +201,13 @@ handle_info({tcp, Socket, Bin}, #ems_media{source = Reader} = Media) when Reader
 
 handle_info({tcp_closed, _Socket}, #ems_media{type = mpegts_passive, state = State} = Media) ->
   ?D({"MPEG-TS passive lost socket"}),
+  ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
   State1 = State#mpegts{socket = undefined},
   {noreply, Media#ems_media{state = State1}};
 
 
 handle_info({tcp_closed, _Socket}, #ems_media{} = Media) ->
+  ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
   self() ! make_request,
   {noreply, Media};
 
