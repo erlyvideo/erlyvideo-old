@@ -1,3 +1,9 @@
+erlang-rtsp (1.7.2) unstable; urgency=low
+
+  Again erlyvideo dependency
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 21 Sep 2010 17:42:41 +0400
+
 erlang-rtsp (1.7.1) unstable; urgency=low
 
   Using global network monitor
