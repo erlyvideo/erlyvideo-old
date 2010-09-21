@@ -24,7 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include("../../include/rtmp_session.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
 
 -export([connect/2]).
 

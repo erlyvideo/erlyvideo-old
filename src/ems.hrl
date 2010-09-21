@@ -1,8 +1,3 @@
-% luke: "is it possilbe to use lowercase names? 
-% uppercase breaks the syntax highlighting in textmate"
-
--include_lib("rtmp/include/rtmp.hrl").
--define(D(X), ems_log:debug(3, main, "~p:~p ~p",[?MODULE, ?LINE, X])).
 
 
 -define(MAX_RESTART,      5).
@@ -14,9 +9,6 @@
 -define(RTMP_PREF_CHUNK_SIZE, (1024*1024)).
 
 -define(CONTENT_TYPE, "application/x-fcs").
--define(SERVER_HEADER, {"Server", "Erlyvideo 1.9"}).
-
--define(DEFAULT_FLV_DIR, "/tmp").
 
 
 
@@ -42,7 +34,6 @@
 -define(NS_INVALID_ARG, "NetStream.InvalidArg").
 -define(NS_CLEAR_SUCCESS, "NetStream.Clear.Success").
 -define(NS_CLEAR_FAILED, "NetStream.Clear.Failed").
--define(NS_PUBLISH_START, "NetStream.Publish.Start").
 -define(NS_PUBLISH_BAD_NAME, "NetStream.Publish.BadName").
 -define(NS_FAILED, "NetStream.Failed").
 -define(NS_UNPUBLISHED_SUCCESS, "NetStream.Unpublish.Success").
@@ -53,7 +44,7 @@
 -define(NS_PLAY_INSUFFICIENT_BW, "NetStream.Play.InsufficientBW").
 -define(NS_PLAY_START, "NetStream.Play.Start").
 -define(NS_PLAY_STREAM_NOT_FOUND, "NetStream.Play.StreamNotFound").
--define(NS_PLAY_STOP, "NetStream.Play.Stop").
+-define(NS_PLAY_STOP, "").
 -define(NS_PLAY_FAILED, "NetStream.Play.Failed").
 -define(NS_PLAY_RESET, "NetStream.Play.Reset").
 -define(NS_PLAY_PUBLISH_NOTIFY, "NetStream.Play.PublishNotify").

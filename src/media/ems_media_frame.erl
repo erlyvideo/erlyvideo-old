@@ -25,11 +25,12 @@
 
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/ems_media.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
 -include("ems_media_client.hrl").
 
 -export([transcode/2, send_frame/2]).
 
+-define(TIMEOUT, 1000).
 
 transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) when Transcoder =/= undefined ->
   {ok, Frames, State1} = Transcoder:transcode(Frame, State),

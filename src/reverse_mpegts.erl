@@ -23,11 +23,12 @@
 %%%---------------------------------------------------------------------------------------
 -module(reverse_mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("ems.hrl").
+-include("log.hrl").
 
 -export([start/2, loop/2]).
 
 -define(COUNTER, 100).
+-define(TIMEOUT, 1000).
 
 -record(pusher, {
   from_url,

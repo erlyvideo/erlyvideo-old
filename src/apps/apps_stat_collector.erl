@@ -1,6 +1,7 @@
 -module(apps_stat_collector).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/erlyvideo.hrl").
 -include("../../include/rtmp_session.hrl").
 

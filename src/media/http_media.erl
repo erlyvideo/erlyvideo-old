@@ -24,7 +24,7 @@
 -module(http_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -export([start_link/2]).
--include("../ems.hrl").
+-include("../log.hrl").
 
 %% gen_server callbacks
 start_link(URL, Opts) when is_binary(URL) ->

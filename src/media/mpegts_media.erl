@@ -25,7 +25,7 @@
 -behaviour(ems_media).
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlyvideo/include/ems_media.hrl").
--include("log.hrl").
+-include("../log.hrl").
 
 
 -define(TIMEOUT_RESTART, 1000).

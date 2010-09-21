@@ -23,7 +23,10 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_http_rtmpt).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
+
+-define(SERVER_HEADER, {"Server", "Erlyvideo RTMPT"}).
+-define(CONTENT_TYPE, "application/x-fcs").
 
 -export([http/4]).
 

@@ -23,7 +23,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(apps_push).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -export(['WAIT_FOR_DATA'/2]).

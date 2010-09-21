@@ -23,8 +23,9 @@
 %%%---------------------------------------------------------------------------------------
 -module(apps_streaming).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
 -include("../../include/rtmp_session.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
@@ -233,7 +234,7 @@ stop(#rtmp_session{host = Host, socket = Socket, streams = Streams} = State, #rt
     Player when is_pid(Player) ->
       ems_media:stop(Player),
       ems_log:access(Host, "STOP ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, StreamId]),
-      rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_STOP>>),
+      rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
       % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       State;
     _ -> State

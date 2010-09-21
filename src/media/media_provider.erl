@@ -32,7 +32,7 @@
 
 -module(media_provider).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -behaviour(gen_server).

@@ -54,7 +54,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("../include/ems_media.hrl").
 -include("ems_media_client.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
 
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
@@ -68,6 +68,7 @@
 
 
 -define(LIFE_TIMEOUT, 60000).
+-define(TIMEOUT, 1000).
 
 -export([behaviour_info/1]).
 

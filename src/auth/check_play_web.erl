@@ -23,7 +23,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(check_play_web, [URL]).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -export([play/2]).

@@ -23,7 +23,7 @@
 -module(ems_event).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_event).
--include("ems.hrl").
+-include("log.hrl").
 -include("jsonerl.hrl").
 -include("../include/erlyvideo.hrl").
 

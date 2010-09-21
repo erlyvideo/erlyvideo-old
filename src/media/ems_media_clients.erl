@@ -26,7 +26,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/ems_media.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
 -include("ems_media_client.hrl").
 
 -export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, 

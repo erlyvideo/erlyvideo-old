@@ -24,7 +24,9 @@
 -module(ems_script).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
--include("ems.hrl").
+-include("log.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
+-include("../include/rtmp_session.hrl").
 
 
 %% External API
@@ -35,7 +37,6 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--include("../include/rtmp_session.hrl").
 % -export([rtmp_method_missing/2]).
 
 start_link() ->

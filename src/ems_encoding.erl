@@ -30,7 +30,7 @@
 %%%---------------------------------------------------------------------------------------
 
 -module(ems_encoding).
--include("ems.hrl").
+-include("log.hrl").
 -export([encode/2, status/1]).
 
 -behaviour(gen_fsm).

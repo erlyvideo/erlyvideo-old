@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(media_ticker).
 -include_lib("erlmedia/include/video_frame.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
 
 -export([start_link/3, init/3, loop/1, handle_message/2]).
 -export([start/1, pause/1, resume/1, seek/3, stop/1]).

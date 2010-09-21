@@ -23,8 +23,9 @@
 %%%---------------------------------------------------------------------------------------
 -module(apps_recording).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../ems.hrl").
+-include("../log.hrl").
 -include("../../include/rtmp_session.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
 -export([publish/2]).
@@ -60,7 +61,7 @@ real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = St
   erlang:monitor(process, Recorder),
   ?D({"publish",Type,Options,Recorder}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:status(Socket, StreamId, ?NS_PUBLISH_START),
+  rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Start">>),
   State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)}.
   
 extract_publish_args([]) -> [];

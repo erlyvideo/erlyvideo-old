@@ -24,12 +24,17 @@
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
+-include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
 
 -behaviour(gen_fsm).
 
 -export([start_link/0, set_socket/2]).
+
+-define(RTMP_WINDOW_SIZE, 2500000).
+-define(NC_CONNECT_REJECTED, "NetConnection.Connect.Rejected").
+
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).

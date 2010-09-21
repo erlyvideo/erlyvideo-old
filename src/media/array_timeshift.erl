@@ -26,7 +26,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
--include("../ems.hrl").
+-include("../log.hrl").
 
 -behaviour(gen_format).
 

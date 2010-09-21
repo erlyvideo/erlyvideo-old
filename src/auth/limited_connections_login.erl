@@ -22,7 +22,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(limited_connections_login, [Timer]).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("../ems.hrl").
+-include_lib("../log.hrl").
 
 -export([play/2]).
 
