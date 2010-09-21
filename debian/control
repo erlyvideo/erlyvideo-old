@@ -1,7 +1,7 @@
 Source: erlang-rtsp
 Priority: extra
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13) |erlang (>= 1:13), erlang-dev, erlang-rtp, erlmedia (>= 1.6.1), erlyvideo-base
+Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13) |erlang (>= 1:13), erlang-dev, erlang-rtp, erlmedia (>= 1.6.1)
 Standards-Version: 3.8.3
 Section: net
 Homepage: http://erlyvideo.org/
