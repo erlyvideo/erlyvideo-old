@@ -1,3 +1,9 @@
+erlang-mpegts (2.4.1) unstable; urgency=low
+
+  Back external to erlyvideo
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 21 Sep 2010 17:40:02 +0400
+
 erlang-mpegts (2.4.0) lucid; urgency=low
 
   Erlyvideo plugin
