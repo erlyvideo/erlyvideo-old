@@ -146,7 +146,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   Consumer ! Metadata#video_frame{dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   self() ! tick,
   
-  TimerStart = element(1, erlang:statistics(wall_clock)),
+  TimerStart = os:timestamp(),
   
   ?MODULE:loop(Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame,
                timer_start = TimerStart, playing_from = NewDTS});
@@ -183,12 +183,12 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
 
 
 tick_timeout(DTS, PlayingFrom, TimerStart, ClientBuffer) ->
-  {Now, _} = erlang:statistics(wall_clock),
+  Now = os:timestamp(),
   tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer).
 
 tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer) ->
   NextTime = DTS - PlayingFrom,   %% Time from PlayingFrom in video timeline in which next frame should be seen
-  RealTime = Now - TimerStart,    %% Wall clock from PlayingFrom
+  RealTime = timer:now_diff(Now, TimerStart) div 1000,    %% Wall clock from PlayingFrom
   Sleep = NextTime - RealTime - ClientBuffer,    %% Delta between next show time and current wall clock delta
   if
     Sleep < 0 -> 0;                %% This case means, that frame was too late. show it immediately
