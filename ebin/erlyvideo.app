@@ -10,7 +10,7 @@
     apps_streaming,
     array_timeshift,
     auth_users_limit,
-    check_play_web,
+    auth_rewrite_play,
     directory_playlist,
     ems,
     ems_debub,

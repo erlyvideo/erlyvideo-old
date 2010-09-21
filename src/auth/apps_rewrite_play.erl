@@ -38,6 +38,9 @@ play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State,
   ok = gen_tcp:send(Socket, Req),
   inet:setopts(Socket, [{packet,http},{active,once}]),
   receive
+    {http, Socket, {http_response, _, 200, _Status}} ->
+      gen_tcp:close(Socket),
+      unhandled;
     {http, Socket, {http_response, _, 302, _Status}} ->
       inet:setopts(Socket, [{active,once}]),
       fetch_headers(State, AMF)
