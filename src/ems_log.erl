@@ -47,9 +47,9 @@ start() ->
           log4erl:add_console_appender(default_logger, app1, {info, "%j %T %l%n"})
       end
   end,
+  log4erl:error_logger_handler(), %% to get all error_logger
   error_logger:delete_report_handler(error_logger), %% to disable error_logger file output
   error_logger:tty(false), %% to disable console output
-  log4erl:error_logger_handler(), %% to get all error_logger
   ok.
   
 %%-------------------------------------------------------------------------
