@@ -1,3 +1,9 @@
+erlyvideo-base (2.2.6) unstable; urgency=low
+
+  Remove erlyvideo-base
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 21 Sep 2010 17:45:44 +0400
+
 erlyvideo-base (2.2.5) unstable; urgency=low
 
   No more SASL logger. Global network monitor
