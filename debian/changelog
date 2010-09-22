@@ -1,3 +1,9 @@
+erlyvideo (2.2.8) unstable; urgency=low
+
+  Working back RTSP, MPEG-TS. Loop in directory_playlist
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 22 Sep 2010 08:53:08 +0400
+
 erlyvideo (2.2.7) unstable; urgency=low
 
   Fixes in apps_rewrite
