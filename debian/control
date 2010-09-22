@@ -15,6 +15,6 @@ Maintainer: Max Lapshin <max@maxidoors.ru>
 Replaces: erlyvideo-base (<= 2.2.5)
 Breaks: erlyvideo-base (<= 2.2.5)
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.7.12), erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.7), erlang-nox (>= 1:14) | erlang (>= 1:14), erlmedia (>= 1.9.0), erlang-shoutcast (>= 1.2.5), erlang-mpegts (>= 2.4.2), erlang-rtp (>= 0.3.2), erlang-rtsp (>= 1.7.2)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-rtmp (>= 1.7.12), erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.7), erlang-nox (>= 1:14) | erlang (>= 1:14), erlmedia (>= 1.9.0), erlang-shoutcast (>= 1.2.5), erlang-mpegts (>= 2.4.2), erlang-rtp (>= 0.3.2), erlang-rtsp (>= 1.7.3)
 Description: Base package of erlang video server
  Erlang server, capable to handle RTMP and media. MPEG-TS and RTSP are with erlyvideo package

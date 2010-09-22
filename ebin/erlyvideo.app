@@ -56,6 +56,7 @@
     rtmp_media,
     rtmp_publish,
     rtmp_session,
+    rtsp_media,
     shared_object,
     shared_objects,
     test_media,
