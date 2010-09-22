@@ -1,3 +1,9 @@
+erlang-rtsp (1.7.3) unstable; urgency=low
+
+  cleanup from rtsp_media
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 22 Sep 2010 11:58:29 +0400
+
 erlang-rtsp (1.7.2) unstable; urgency=low
 
   Again erlyvideo dependency
