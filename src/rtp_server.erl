@@ -884,26 +884,18 @@ compose_rtp(Base, Data, Size)
 compose_rtp(Base, <<>>, _, Acc) -> % Return new Sequence ID and list of RTP-binaries
   %%?DBG("New Sequence: ~p", [Sequence]),
   {Base, lists:reverse(Acc)};
-compose_rtp(#base_rtp{sequence = Sequence, marker = _Marker,
+compose_rtp(#base_rtp{sequence = Sequence, marker = Marker,
                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc)
   when (is_integer(Size) andalso (size(Data) > Size)) ->
   %%?DBG("Chunk ~b", [?RTP_SIZE]),
   <<P:Size/binary,Rest/binary>> = Data,
-  %% if Marker -> M = 1;
-  %%    true -> M = 0
-  %% end,
-  M = 0,
+  if Marker -> M = 1; true -> M = 0 end,
   Pack = make_rtp_pack(Base, M, P),
   compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence),
                             packets = inc_packets(Packets, 1),
                             bytes = inc_bytes(Bytes, size(Pack))}, Rest, Size, [Pack | Acc]);
 compose_rtp(#base_rtp{sequence = Sequence, marker = Marker,
                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc) ->
-  %%?DBG("Chunk ~b", [size(Data)]),
-  %% if not Marker -> M = 0;
-  %%    true -> M = 1
-  %% end,
-  %%M = 1,
   if Marker -> M = 1; true -> M = 0 end,
   Pack = make_rtp_pack(Base, M, Data),
   compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence),
