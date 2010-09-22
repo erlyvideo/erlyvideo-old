@@ -1,3 +1,9 @@
+erlang-mpegts (2.4.2-1) unstable; urgency=low
+
+  fixing build
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 22 Sep 2010 17:57:21 +0400
+
 erlang-mpegts (2.4.2) unstable; urgency=low
 
   Fixed MPEG-TS output
