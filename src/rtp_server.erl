@@ -933,7 +933,7 @@ inc_timecode(#base_rtp{base_wall_clock = _BWC,
                        media = _Type,
                        clock_map = ClockMap} = State) ->
   NewWC = now(),
-  Inc = trunc(ClockMap * timer:now_diff(NewWC, WC)/(1000*1000)),
+  Inc = trunc(ClockMap * timer:now_diff(NewWC, WC)/1000),
   NewTC = TC + Inc,
   State#base_rtp{timecode = NewTC, wall_clock = NewWC}.
 
