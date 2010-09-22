@@ -48,9 +48,7 @@ play(Name, Player, Req, Options) ->
 play(_Name, Player, Req, Options, Counters) ->
   ?D({"Player starting", _Name, Player}),
   link(Player),
-  link(Req:socket_pid()),
   erlang:monitor(process,Player),
-  erlang:monitor(process,Req:socket_pid()),
   Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
   case proplists:get_value(buffered, Options) of
     true -> 
