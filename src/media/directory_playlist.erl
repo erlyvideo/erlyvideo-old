@@ -32,6 +32,7 @@
 -record(playlist, {
   path,
   host,
+  wildcard,
   files = []
 }).
 
@@ -50,13 +51,10 @@
 init(Media, Options) ->
   Path = proplists:get_value(path, Options),
   Host = proplists:get_value(host, Options),
-  AbsPath = filename:join([file_media:file_dir(Host), Path]),
   Wildcard = proplists:get_value(wildcard, Options),
-  Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
-  ?D({AbsPath, Wildcard, Files}),
-  
-  self() ! start_playing,
-  State = #playlist{path = AbsPath, files = Files, host = Host},
+
+  self() ! read_playlist,
+  State = #playlist{wildcard = Wildcard, path = Path, host = Host},
   {ok, Media#ems_media{state = State}}.
 
 %%----------------------------------------------------------------------
@@ -118,6 +116,14 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info(read_playlist, #ems_media{state = #playlist{host = Host, wildcard = Wildcard, path = Path} = State} = Media) ->
+  AbsPath = filename:join([file_media:file_dir(Host), Path]),
+  Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
+  ?D({AbsPath, Wildcard, Files}),
+  
+  self() ! start_playing,
+  {noreply, Media#ems_media{state = State#playlist{files = Files}}};
+
 handle_info(start_playing, #ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
   State = Media#ems_media.state,
   {ok, Stream} = media_provider:play(Host, Name, [{stream_id,1}]),
@@ -137,6 +143,11 @@ handle_info(timeout, State) ->
 handle_info(_Message, State) ->
   ?D({message, _Message}),
   {noreply, State}.
+
+next_file(#ems_media{state = #playlist{host = Host, wildcard = Wildcard, path = Path, files = []} = State} = Media) ->
+  AbsPath = filename:join([file_media:file_dir(Host), Path]),
+  Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
+  next_file(Media#ems_media{state = State#playlist{files = Files}});
 
 next_file(#ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
   State = Media#ems_media.state,
