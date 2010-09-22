@@ -478,7 +478,7 @@ presync(Streams, [RTP | Info], N, Now) ->
   RTPSeq = proplists:get_value("seq", RTP),
   RTPTime = proplists:get_value("rtptime", RTP),
   % ?D({"Presync", RTPSeq, RTPTime}),
-  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 2),
+  Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 1),
   Stream2 = setelement(#base_rtp.base_timecode, Stream1, list_to_integer(RTPTime)),
   Stream3 = setelement(#base_rtp.timecode, Stream2, list_to_integer(RTPTime)),
   Stream4 = setelement(#base_rtp.synced, Stream3, true),
