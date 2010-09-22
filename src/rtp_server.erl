@@ -395,9 +395,14 @@ handle_info(Info, State) ->
   ?DBG("Unknown message: ~p", [Info]),
   {noreply, State}.
 
-terminate(Reason, _State) ->
-    ?DBG("RTP Process ~p terminates: ~p", [self(), Reason]),
-    ok.
+terminate(Reason, #state{audio = AD, video = MD}) ->
+  ?DBG("RTP Process ~p terminates: ~p:~n~p~n~p", [self(), Reason, AD, MD]),
+
+  [fun(#desc{method = #ports_desc{socket_rtp = S1, socket_rtcp = S2}})
+       when is_port(S1), is_port(S2) ->
+       gen_udp:close(S1), gen_udp:close(S2);
+      (_) -> pass
+   end(D) || D <- [AD, MD]].
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
