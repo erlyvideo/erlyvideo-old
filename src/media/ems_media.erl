@@ -68,7 +68,7 @@
 
 
 -define(LIFE_TIMEOUT, 60000).
--define(TIMEOUT, 1000).
+-define(TIMEOUT, 120000).
 
 -export([behaviour_info/1]).
 
