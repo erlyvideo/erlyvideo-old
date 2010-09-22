@@ -94,7 +94,7 @@ play(RTSP, Options) ->
   gen_server:call(RTSP, {request, play}, Timeout).
 
 connect(RTSP, URL, Options) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
+  Timeout = proplists:get_value(timeout, Options, 10000),
   gen_server:call(RTSP, {connect, URL, Options}, Timeout).
 
 start_link(Callback) ->
