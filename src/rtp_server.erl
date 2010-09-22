@@ -97,6 +97,8 @@
 -define(RTCP_SD, 202).
 -define(YEARS_70, 2208988800).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
+-define(RTCP_SR_INTERVAL, 2000).
+
 %% API
 -export([
          start_link/1,
@@ -173,8 +175,7 @@ handle_call({play, Fun, Media}, _From,
                  state = #base_rtp{sequence = Seq,
                                    timecode = RtpTime}} <- [AudioDesc, VideoDesc]],
   Fun(),
-  timer:send_interval(2000, {send_sr, audio}),
-  timer:send_interval(2000, {send_sr, video}),
+  timer:send_interval(?RTCP_SR_INTERVAL, {send_sr, [audio, video]}),
   {reply, {ok, Info}, State};
 
 handle_call({add_stream,
@@ -244,37 +245,21 @@ handle_call(Request, _From, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
-handle_info({send_sr, Type},
+handle_info({send_sr, Types},
             #state{audio = AudioDesc,
-                    video = VideoDesc} = State) ->
-  case Type of
-    audio ->
-      case AudioDesc of
-        #desc{method = MDesc, state = BaseRTP} ->
-          RTCP = encode(sender_report, BaseRTP),
-          case MDesc of
-            #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
-              send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
-            #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
-              send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
-          end;
-        _ ->
-          pass
-      end;
-    video ->
-      case VideoDesc of
-        #desc{method = MDesc, state = BaseRTP} ->
-          RTCP = encode(sender_report, BaseRTP),
-          case MDesc of
-            #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
-              send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
-            #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
-              send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
-          end;
-        _ ->
-          pass
-      end
-  end,
+                   video = VideoDesc} = State) ->
+  AllDescs = [{audio, AudioDesc}, {video, VideoDesc}],
+  [fun(#desc{method = MDesc, state = BaseRTP}) ->
+       RTCP = encode(sender_report, BaseRTP),
+       case MDesc of
+         #ports_desc{addr = Addr, socket_rtcp = RTCPSocket, port_rtcp = PortRTCP} ->
+           send_udp(RTCPSocket, Addr, PortRTCP, RTCP);
+         #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
+           send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
+       end;
+      (_) ->
+       pass
+   end(Desc) || Desc <- [proplists:get_value(T, AllDescs) || T <- Types]],
   {noreply, State};
 
 handle_info(#video_frame{content = audio, flavor = frame,
