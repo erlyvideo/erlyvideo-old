@@ -83,11 +83,14 @@ parse_announce([{m, Info} | Announce], Streams, #media_desc{} = Stream, Connect)
 parse_announce([{m, Info} | Announce], Streams, undefined, Connect) ->
   [TypeS, PortS, "RTP/AVP" | PayloadTypes] = string:tokens(Info, " "), % TODO: add support of multiple payload
   Type = binary_to_existing_atom(list_to_binary(TypeS), utf8),
-  parse_announce(Announce, Streams, #media_desc{type = Type,
-                                                connect = Connect,
-                                                port = list_to_integer(PortS),
-                                                payloads = [#payload{num = list_to_integer(PT)} || PT <- PayloadTypes],
-                                                track_control = "trackID="++integer_to_list(length(Streams)+1)}, Connect);
+  MediaDesc = case Type of
+    _ when Type == video orelse Type == audio ->
+      #media_desc{type = Type, connect = Connect, port = list_to_integer(PortS),
+      payloads = [#payload{num = list_to_integer(PT)} || PT <- PayloadTypes]};
+    data ->
+      undefined
+  end,  
+  parse_announce(Announce, Streams, MediaDesc, Connect);
 
 parse_announce([{b, _Bitrate} | Announce], Streams, #media_desc{} = Stream, Connect) ->
   parse_announce(Announce, Streams, Stream, Connect);

@@ -206,7 +206,7 @@ dlink_dcs_2121_test() ->
 darwinss_test() ->
   ?assertEqual([{media_desc,video,undefined,10000,
                [{payload,96,h264,90.0,undefined,undefined,[]}],
-               "trackID=1",undefined,undefined,undefined}], sdp:decode(<<"v=0\r\no=- 1188340656180883 1 IN IP4 224.1.2.3\r\ns=Session streamed by GStreamer\r\ni=server.sh\r\nt=0 0\r\na=tool:GStreamer\r\na=type:broadcast\r\nm=video 10000 RTP/AVP 96\r\nc=IN IP4 224.1.2.3\r\na=rtpmap:96 H264/90000\r\na=framerate:30">>)).
+               undefined,undefined,undefined,undefined}], sdp:decode(<<"v=0\r\no=- 1188340656180883 1 IN IP4 224.1.2.3\r\ns=Session streamed by GStreamer\r\ni=server.sh\r\nt=0 0\r\na=tool:GStreamer\r\na=type:broadcast\r\nm=video 10000 RTP/AVP 96\r\nc=IN IP4 224.1.2.3\r\na=rtpmap:96 H264/90000\r\na=framerate:30">>)).
 
 darwin_sdp() ->
   <<"v=0
@@ -250,6 +250,38 @@ darwin_test() ->
                [{payload,97,mp4a,48.0,undefined,undefined,[]}],
                "trackID=2",undefined,undefined,
                <<64,0,35,32,63,192>>}], sdp:decode(darwin_sdp())).
+
+
+sanyo_hd2300_sdp() ->
+  <<"v=0
+o=- 15007197427132687974 15007197427562184703 IN IP4 213.88.16.13
+s=Media presentation
+c=IN IP4 0.0.0.0
+b=AS:1950
+t=0 0
+m=video 0 RTP/AVP 100
+b=AS:1950
+a=framerate:25.0
+a=quality:4
+a=control:trackID=1
+a=rtpmap:100 H264/90000
+a=fmtp:100 profile-level-id=42e01e; Reso=640:360; Scanning=0; TVSystem=pal; CameraMode=hd; BitRateMode=vbr; Gop=30; AspectRatio=16:9; packetization-mode=1; sprop-parameter-sets=Z0LwHpGwKAv+XAW4KAgKAAAH0gABhqEIAAAAAAA=,aM44gA==
+m=data 0 RTP/AVP 111
+a=rtpmap:111 octet-stream/1
+a=fmtp:111 Mac=08007b88d4ec; Model=VCC-HD2300P; TargetBitRate=975; FirmVer=010202; CameraSeries=2;
+">>.
+
+  sanyo_hd2300_test() ->
+    ?assertEqual([{media_desc,video,
+                 {inet4,"0.0.0.0"},
+                 0,
+                 [{payload,100,h264,90.0,undefined,undefined,[]}],
+                 "trackID=1",
+                 <<104,206,56,128>>,
+                 <<103,66,240,30,145,176,40,11,254,92,5,184,40,8,10,0,0,7,
+                   210,0,1,134,161,8,0,0,0,0,0>>,
+                 undefined}], sdp:decode(sanyo_hd2300_sdp())).
+    
 
 
 some_random_sdp() ->
