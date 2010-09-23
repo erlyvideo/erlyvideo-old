@@ -37,7 +37,7 @@ frame_length(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleR
          _Private:1, Channels:2, _Joint:2, _Copyright:1, _Original:1, _Emphasise:2, _/binary>>) ->
   Layer = layer(LayerBits),
   Version = version(VsnBits),
-  Length = framelength(bitrate({Version,Layer}, BitRate), samplerate({Version,Layer}, SampleRate), Padding, Channels),
+  Length = framelength(Version, Layer, bitrate({Version,Layer}, BitRate), samplerate({Version,Layer}, SampleRate), Padding),
   true = is_integer(Length),
   Length.
 
@@ -62,12 +62,14 @@ decode(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2,
          _Private:1, Channels:2, _Joint:2, _Copyright:1, _Original:1, _Emphasise:2, _/binary>> = Packet) ->
   Layer = layer(LayerBits),
   Version = version(VsnBits),
-  try framelength(bitrate({Version,Layer}, BitRate), samplerate({Version,Layer}, SampleRate), Padding, Channels) of
+  try framelength(Version, Layer, bitrate({Version,Layer}, BitRate), samplerate({Version,Layer}, SampleRate), Padding) of
     Length when is_integer(Length) ->
       case Packet of
         <<Frame:Length/binary, Rest/binary>> -> {ok, Frame, Rest};
         _ -> {more, undefined}
-      end
+      end;
+    _ ->
+      {error, unknown}
   catch
     Error ->
       io:format("~p~n", [[{error, Error},{version, Version},{layer, Layer},{bitrate, BitRate},{samplerate, SampleRate},{padding,Padding},{channels,Channels}]]),
@@ -99,11 +101,21 @@ bitrate({2,3}, Bitrate) when Bitrate < 16 ->
   element(Bitrate+1, {free, 8000, 16000, 24000, 32000, 40000, 48000, 56000, 64000,
                       80000, 96000, 112000, 128000, 144000, 160000, badbitrate}).
 
-% Support for mono mp3 streams
-framelength(Bitrate, Samplerate, Padding, 3) ->
+framelength(_, _, Bitrate, _, _) when is_atom(Bitrate) ->
+  {error, bitrate, Bitrate};
+framelength(_, _, _, Samplerate, _) when is_atom(Samplerate) ->
+  {error, samplerate, Samplerate};
+% Layer 2.5 and 2 are the same. 
+framelength({2,5}, Layer, Bitrate, Samplerate, Padding) ->
+  framelength(2, Layer, Bitrate, Samplerate, Padding);
+% Layer 1 is always 48
+framelength(_Version, 1, Bitrate, Samplerate, Padding) ->
+  48 * Bitrate div Samplerate + Padding * 4;
+% Version 2, Layer 2 is always 72
+framelength(2, 3, Bitrate, Samplerate, Padding) ->
   72 * Bitrate div Samplerate + Padding;
-% mono * 2
-framelength(Bitrate, Samplerate, Padding, _) ->
+% Everything else is 72.
+framelength(_, _, Bitrate, Samplerate, Padding) ->
   144 * Bitrate div Samplerate + Padding.
 
 samplerate({1,_}, Samplerate) ->
