@@ -147,11 +147,12 @@ handle_message(pause, Ticker) ->
   flush_tick(),
   {noreply, Ticker#ticker{paused = true}};
   
-handle_message({seek, Pos, DTS}, #ticker{paused = Paused} = Ticker) ->
+handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, consumer = Consumer} = Ticker) ->
   case Paused of
     true -> ok;
     false -> self() ! tick
   end,
+  Consumer ! {ems_stream, StreamId, seek_success, DTS},
   {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
 
 handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->

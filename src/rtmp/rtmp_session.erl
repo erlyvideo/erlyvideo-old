@@ -459,6 +459,7 @@ handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of
     {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
+    #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1};
     Reply -> Reply
   end;
 

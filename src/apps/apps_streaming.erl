@@ -30,7 +30,7 @@
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
          getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2]).
--export(['WAIT_FOR_DATA'/2]).
+-export(['WAIT_FOR_DATA'/2, handle_info/2]).
 
 -export([next_stream/1, extract_play_args/1]).
 
@@ -47,7 +47,24 @@
 'WAIT_FOR_DATA'({metadata, Command, AMF}, State) -> 'WAIT_FOR_DATA'({metadata, Command, AMF, 0}, State);
 
 
-'WAIT_FOR_DATA'(_Message, _State) -> {unhandled}.
+'WAIT_FOR_DATA'(_Message, _State) -> unhandled.
+
+handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket, streams_dts = StreamsDTS} = State) ->
+  BaseDTS = ems:element(StreamId, StreamsDTS),
+  
+  ?D({"seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
+  rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
+  State;
+  
+handle_info({ems_stream, StreamId, seek_failed}, #rtmp_session{socket = Socket} = State) ->
+  ?D({"seek failed"}),
+  rtmp_lib:seek_failed(Socket, StreamId),
+  State;
+  
+handle_info(_, _) ->
+  unhandled.
+  
+  
 
 
 %% @private
@@ -210,17 +227,13 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#rtmp_session{streams = Streams, streams_dts = StreamsDTS, socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
+seek(#rtmp_session{socket = Socket, streams = Streams, streams_dts = StreamsDTS} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
   Player = ems:element(StreamId, Streams),
   ?D({"seek", round(Timestamp), Player}),
   BaseDTS = ems:element(StreamId, StreamsDTS),
   case ems_media:seek(Player, before, Timestamp + BaseDTS) of
-    {seek_success, NewTimestamp} ->
-      ?D({"seek to", NewTimestamp, rtmp:justify_ts(NewTimestamp - BaseDTS)}),
-      rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewTimestamp - BaseDTS));
-    seek_failed ->
-      ?D({"seek failed"}),
-      rtmp_lib:seek_failed(Socket, StreamId)
+    seek_failed -> rtmp_lib:seek_failed(Socket, StreamId);
+    _ -> ok
   end,
   State.
   
