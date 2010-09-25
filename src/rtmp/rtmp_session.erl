@@ -482,12 +482,13 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
+  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts)}),
   Message = #rtmp_message{
     channel_id = rtmp_lib:channel_id(Type, StreamId), 
     timestamp = DTS - BaseDts,
     type = Type,
     stream_id = StreamId,
-    body = flv_video_frame:encode(Frame#video_frame{dts = DTS - BaseDts, pts = PTS - BaseDts})},
+    body = flv_video_frame:encode(Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)})},
 	rtmp_socket:send(Socket, Message),
 	Size = try iolist_size(Frame#video_frame.body) of
 	  S -> S

@@ -216,8 +216,8 @@ seek(#rtmp_session{streams = Streams, streams_dts = StreamsDTS, socket = Socket}
   BaseDTS = ems:element(StreamId, StreamsDTS),
   case ems_media:seek(Player, before, Timestamp + BaseDTS) of
     {seek_success, NewTimestamp} ->
-      ?D({"seek to", NewTimestamp}),
-      rtmp_lib:seek_notify(Socket, StreamId, NewTimestamp - BaseDTS);
+      ?D({"seek to", NewTimestamp, rtmp:justify_ts(NewTimestamp - BaseDTS)}),
+      rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewTimestamp - BaseDTS));
     seek_failed ->
       ?D({"seek failed"}),
       rtmp_lib:seek_failed(Socket, StreamId)
