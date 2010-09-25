@@ -95,10 +95,26 @@ init(Media, Consumer, Options) ->
   
 loop(Ticker) ->
   receive
-    Message ->
-      ?MODULE:handle_message(Message, Ticker)
+    Message -> safe_handle_message(Message, Ticker)
   end.
 
+safe_handle_message(Message, Ticker) ->
+  try ?MODULE:handle_message(Message, Ticker) of
+    {stop, _Reason, _Ticker1} -> ok;
+    {noreply, Ticker1} -> ?MODULE:loop(Ticker1);
+    {restart, Message1, Ticker1} -> safe_handle_message(Message1, Ticker1)
+  catch
+    Class:Error ->
+  	  Reason = io_lib_pretty_limited:print({Class,Error}, 5000),
+  	  State = io_lib_pretty_limited:print(Ticker, 5000),
+  	  Msg1 = io_lib_pretty_limited:print(Message, 5000),
+      error_logger:error_report("** Media ticker ~p terminating \n"
+             "** Last message in was ~s~n"
+             "** When Server state == ~s~n"
+             "** Reason for termination == ~n** ~s~n",
+  	   [self(), Msg1, State, Reason]),
+  	  {Class,Error}
+  end.
 
 flush_tick() ->
   receive
@@ -113,30 +129,30 @@ notify_about_stop(#ticker{media = Media, dts = DTS, pos = Pos}) ->
 
 handle_message({'DOWN', _Ref, process, _Pid, _Reason}, Ticker) ->
   notify_about_stop(Ticker),
-  ok;
+  {stop, normal, Ticker};
 
 handle_message(stop, Ticker) ->
   notify_about_stop(Ticker),
-  ok;
+  {stop, normal, Ticker};
 
 handle_message(resume, Ticker) ->
   self() ! tick,
-  ?MODULE:loop(Ticker#ticker{paused = false});
+  {noreply, Ticker#ticker{paused = false}};
 
 handle_message(start, Ticker) ->
   self() ! tick,
-  ?MODULE:loop(Ticker#ticker{paused = false});
+  {noreply, Ticker#ticker{paused = false}};
   
 handle_message(pause, Ticker) ->
   flush_tick(),
-  ?MODULE:loop(Ticker#ticker{paused = true});
+  {noreply, Ticker#ticker{paused = true}};
   
 handle_message({seek, Pos, DTS}, #ticker{paused = Paused} = Ticker) ->
   case Paused of
     true -> ok;
     false -> self() ! tick
   end,
-  ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, frame = undefined});
+  {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
 
 handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
   Frame = ems_media:read_frame(Media, Consumer, Pos),
@@ -148,8 +164,8 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   
   TimerStart = os:timestamp(),
   
-  ?MODULE:loop(Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame,
-               timer_start = TimerStart, playing_from = NewDTS});
+  {noreply, Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame,
+               timer_start = TimerStart, playing_from = NewDTS}};
   
 handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId,
                              playing_from = PlayingFrom, timer_start = TimerStart, 
@@ -160,24 +176,24 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
       % ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
-      ?MODULE:loop(Ticker);
+      {noreply, Ticker};
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
       % ?D({play_complete, DTS}),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
-      ?MODULE:loop(Ticker);
+      {noreply, Ticker};
       
     #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
       Timeout = tick_timeout(NewDTS, PlayingFrom, TimerStart, ClientBuffer),
       Ticker1 = Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame},
       receive
         Message ->
-          ?MODULE:handle_message(Message, Ticker1)
+          {restart, Message, Ticker1}
       after
         Timeout -> 
-          self() ! tick,  
-          ?MODULE:loop(Ticker1)
+          self() ! tick,
+          {noreply, Ticker1}
       end
   end.
 
