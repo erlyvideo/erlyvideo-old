@@ -21,9 +21,6 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(rtmp).
--author('rsaccon@gmail.com').
--author('simpleenigmainc@gmail.com').
--author('luke@codegent.com').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
@@ -32,7 +29,7 @@
 
 -export([encode/2, decode/2]).
 -export([encode_list/1, decode_list/1]).
--export([element/2, setelement/3]).
+-export([element/2, setelement/3, justify_ts/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Socket::rtmp_socket(), Message::rtmp_message()) -> {NewSocket::rtmp_socket(), Packet::binary()}
@@ -193,7 +190,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
     	BinId = encode_id(?RTMP_HDR_SAME_SRC,Id),
     	{Delta, NewTS} = case Timestamp of
     	  same -> {0, PrevTS};
-    	  _ -> {(Timestamp - PrevTS) rem 16#FFFFFFFF, Timestamp}
+    	  _ -> {justify_ts(Timestamp - PrevTS), Timestamp}
     	end,
       % if
       %   Type == 8 orelse Type == 9 -> ok;
@@ -207,10 +204,10 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
     	Bin = [Header | ChunkList],
       {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin};
     new ->
-      TS = case Timestamp of
+      TS = justify_ts(case Timestamp of
         same -> 0;
         _ -> Timestamp
-      end rem 16#FFFFFFFF,
+      end),
       % io:format("n ~p ~p ~p~n",[Id, Type, TS]),
       Channel1 = case Channel of
         undefined -> #channel{id = Id, timestamp = TS, delta = undefined, stream_id = StreamId, type = Type};
@@ -224,6 +221,15 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
       Bin = [Header | ChunkList],
       {State#rtmp_socket{out_channels = rtmp:setelement(Id, Channels, Channel1), bytes_sent = BytesSent + iolist_size(Bin)}, Bin}
   end.
+
+-define(MAX_TS, 16#1000000).
+
+justify_ts(TS) when is_float(TS) -> justify_ts(round(TS));
+justify_ts(TS) when TS < 0 -> justify_ts(TS + ?MAX_TS);
+justify_ts(TS) when TS >= ?MAX_TS -> justify_ts(TS - ?MAX_TS);
+justify_ts(TS) when TS >= 0 andalso TS < ?MAX_TS -> TS.
+
+  
 
 -spec timestamp_type(Socket::rtmp_socket(), Message::rtmp_message()) -> fixed_timestamp_type().
 timestamp_type(_State, #rtmp_message{ts_type = new}) -> new;
