@@ -23,6 +23,7 @@
 -module(mp3_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
+-include("../include/mp3.hrl").
 -include("log.hrl").
 
 -behaviour(gen_format).
@@ -34,7 +35,9 @@
   version,
   header_size = 0,
   format,
-  duration
+  duration,
+  header,
+  samples
 }).
 
 
@@ -67,15 +70,15 @@ read_header(#media_info{reader = {Module,Device}} = Media) ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
       Media1 = Media#media_info{format = id3, version = {Major, Minor}},
       Offset = sync(<<>>, Media1, Size + 10),
-      Media1#media_info{header_size = Offset};
+      read_properties(Media1#media_info{header_size = Offset});
     {ok, <<"ID3", _/binary>>} ->
       ?D({id3,unsupported}),
       erlang:error(unknown_mp3);
     {ok, <<2#11111111111:11, _:5, _/binary>>} ->
-      Media#media_info{format = raw, header_size = 0};
+      read_properties(Media#media_info{format = raw, header_size = 0});
     {ok, Binary} ->
       Offset = sync(Binary, Media, 0),
-      Media#media_info{header_size = Offset}
+      read_properties(Media#media_info{header_size = Offset})
   end.  
 
 
@@ -93,15 +96,49 @@ sync(<<>>, #media_info{reader = {Module, Device}} = Media, Offset) ->
       eof
   end.
     
+read_properties(#media_info{reader = {Module,Device}, header_size = Offset} = Media) ->
+  {ok, Header} = Module:pread(Device, Offset, mp3:header_size()),
+  Length = mp3:frame_length(Header),
+  {ok, Body} = Module:pread(Device, Offset, Length),
+  {ok, MP3, <<>>} = mp3:read(Body),
+  #mp3_frame{samples = Samples} = MP3,
+  Media#media_info{header = MP3#mp3_frame{body = body}, samples = Samples}.
+
+
 
 first(#media_info{header_size = Size}) ->
   {Size,0}.
+  
+  
+duration(Media) ->
+  duration(Media, first(Media), 0).
 
-properties(#media_info{}) -> [].
+duration(Media, Key, DTS) ->
+  case read_frame(Media, Key) of
+    eof -> DTS / 1000;
+    #video_frame{next_id = NextKey, dts = NextDTS} -> duration(Media, NextKey, NextDTS)
+  end.
+
+properties(#media_info{duration = undefined} = Media) -> properties(Media#media_info{duration = duration(Media)});
+properties(#media_info{duration = Duration}) -> [{duration, Duration}].
 
 
-seek(#media_info{}, _BeforeAfter, _Timestamp) ->
-  undefined.
+seek(#media_info{samples = Samples} = Media, _BeforeAfter, Timestamp) ->
+  Max = round(Timestamp*44100 / (Samples*1000)),
+  ?D({"mp3 seek", Max, Timestamp}),
+  find_frame(Media, Max, first(Media)).
+
+find_frame(Media, Max, Key) ->
+  case read_frame(Media, Key) of
+    eof -> 
+      undefined;
+    #video_frame{dts = DTS, next_id = {Offset, M}} when M >= Max ->
+      {{Offset,Max}, DTS};
+    #video_frame{next_id = {_Offset, N} = NextKey} when N < Max ->
+      find_frame(Media, Max, NextKey)
+  end.
+      
+  
 
 
 % Reads a tag from IoDev for position Pos.
@@ -119,9 +156,11 @@ read_frame(#media_info{reader = {Module,Device}} = Media, {Offset, N}) ->
   case Module:pread(Device, Offset, mp3:header_size()) of
     eof -> eof;
     {ok, <<2#11111111111:11, _:5, _/binary>> = Header} ->
-      DTS = N*1000*1024 div 44100,
       Length = mp3:frame_length(Header),
-      {ok, Frame} = Module:pread(Device, Offset, Length),
+      {ok, Body} = Module:pread(Device, Offset, Length),
+      {ok, MP3, <<>>} = mp3:read(Body),
+      DTS = N*1000*MP3#mp3_frame.samples div 44100,
+      % MP3 = mp3:read(Frame),
       #video_frame{
         content  = audio,
         dts      = DTS,
@@ -129,7 +168,7 @@ read_frame(#media_info{reader = {Module,Device}} = Media, {Offset, N}) ->
         codec    = mp3,
         flavor   = frame,
         sound    = {stereo, bit16, rate44},
-        body     = Frame,
+        body     = Body,
         next_id  = {Offset+Length, N+1}
       };
     {ok, Binary} ->

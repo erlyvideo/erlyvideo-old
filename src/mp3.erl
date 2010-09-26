@@ -1,8 +1,9 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @author     Alexander Songe <a@songe.me>
-%%% @copyright  2010 Alexander Songe, 2010 Max Lapshin
+%%% @copyright  2010 Max Lapshin
 %%% @doc        Module to read mp3 files
 %%% http://www.datavoyage.com/mpgscript/mpeghdr.htm
+%%% http://www.hydrogenaudio.org/forums/lofiversion/index.php/t43172.html
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
@@ -34,7 +35,7 @@
 header_size() -> 4.
 
 frame_length(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2, Padding:1, 
-         _Private:1, Channels:2, _Joint:2, _Copyright:1, _Original:1, _Emphasise:2, _/binary>>) ->
+         _Private:1, _Channels:2, _Joint:2, _Copyright:1, _Original:1, _Emphasise:2, _/binary>>) ->
   Layer = layer(LayerBits),
   Version = version(VsnBits),
   Length = framelength(Version, Layer, bitrate({Version,Layer}, BitRate), samplerate({Version,Layer}, SampleRate), Padding),
@@ -50,9 +51,10 @@ read(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2, _
     <<Frame:Length/binary, Rest/binary>> -> 
       BRate = bitrate({Version,Layer}, BitRate),
       SRate = samplerate({Version,Layer}, SampleRate),
-      {ok, #mp3_frame{sample_rate = SRate, bitrate = BRate, channels = Channels, joint = Joint, body = Frame}, Rest};
+      Samples = samples({Version,Layer}),
+      {ok, #mp3_frame{sample_rate = SRate, bitrate = BRate, channels = Channels, joint = Joint, samples = Samples, body = Frame}, Rest};
     _ ->
-      {more, undefined}
+      {more, Length - size(Packet)}
   end.
   
 
@@ -117,6 +119,13 @@ framelength(2, 3, Bitrate, Samplerate, Padding) ->
 % Everything else is 72.
 framelength(_, _, Bitrate, Samplerate, Padding) ->
   144 * Bitrate div Samplerate + Padding.
+  
+samples({0,1}) -> 192;
+samples({0,_}) -> 576;
+samples({1,1}) -> 384;
+samples({1,_}) -> 1152;
+samples({2,1}) -> 96;
+samples({2,_}) -> 288.
 
 samplerate({1,_}, Samplerate) ->
   element(Samplerate+1, {44100, 48000, 32000, reserved});

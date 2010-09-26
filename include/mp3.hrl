@@ -3,5 +3,6 @@
   channels,
   bitrate,
   joint,
-  body
+  body,
+  samples
 }).
