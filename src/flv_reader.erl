@@ -97,7 +97,7 @@ read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Met
     eof ->
       ?D({duration, MediaInfo#media_info.duration, Offset}),
       {ok, MediaInfo#media_info{
-        metadata = lists:ukeymerge(1, [{duration, MediaInfo#media_info.duration / 1000}], Metadata)
+        metadata = lists:ukeymerge(1, [{duration, MediaInfo#media_info.duration}], Metadata)
       }};
     {error, Reason} -> 
       {error, Reason}
