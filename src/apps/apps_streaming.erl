@@ -207,10 +207,21 @@ receiveVideo(#rtmp_session{streams = Streams} = State, #rtmp_funcall{args = [nul
   State.
 
 
-getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, Name | _]} = AMF) ->
-  Info = media_provider:info(Host, Name),
-  Length = proplists:get_value(duration, Info),
-  Type = proplists:get_value(type, Info),
+getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName | _]} = AMF) ->
+  
+  {RawName, Args} = http_uri2:parse_path_query(FullName),
+  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
+  Options = extract_url_args(Args),
+
+  {Length,Type} = case proplists:get_value(duration, Options) of 
+    undefined ->
+      Info = media_provider:info(Host, Name),
+      L = proplists:get_value(duration, Info),
+      T = proplists:get_value(type, Info),
+      {L,T};
+    N when is_number(N) ->
+      {N / 1000, file}
+  end,
   case {Length,Type} of
     {Length, file} when is_number(Length) ->
       ?D({"getStreamLength", Name, Length}),

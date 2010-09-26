@@ -59,9 +59,9 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1, info/1, setopts/2, seek_info/3, status/1]).
+-export([metadata/1, metadata/2, info/1, setopts/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
--export([decoder_config/1, metadata_frame/1]).
+-export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
@@ -250,8 +250,17 @@ status(Media) ->
 %% @doc Returns video_frame, prepared to send into flash
 %% @end
 %%----------------------------------------------------------------------
-metadata(Media) ->
-  gen_server:call(Media, metadata).  
+metadata(Media) when is_pid(Media) ->
+  metadata(Media, []).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
+%%
+%% @doc Returns video_frame, prepared to send into flash
+%% @end
+%%----------------------------------------------------------------------
+metadata(Media, Options) when is_pid(Media) ->
+  gen_server:call(Media, {metadata, Options}).  
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Info::list()
@@ -532,8 +541,8 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   end,
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
-handle_call(metadata, _From, #ems_media{} = Media) ->
-  {reply, metadata_frame(Media), Media, ?TIMEOUT};
+handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
+  {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
 handle_call(info, _From, #ems_media{} = Media) ->
   {reply, storage_properties(Media), Media, ?TIMEOUT};
@@ -871,33 +880,38 @@ client_count(#ems_media{clients = Clients}) ->
   ems_media_clients:count(Clients).
 
 
-storage_properties(#ems_media{format = undefined}) ->
-  [];
+storage_properties(Media) ->
+  storage_properties(Media, []).
 
-storage_properties(#ems_media{format = Format, storage = Storage}) ->
-  Props = Format:properties(Storage),
+storage_properties(#ems_media{format = undefined}, Options) ->
+  Options;
+
+storage_properties(#ems_media{format = Format, storage = Storage}, Options) ->
+  Props = lists:ukeymerge(1, lists:ukeysort(1,Options), lists:ukeysort(1,Format:properties(Storage))),
   case proplists:get_value(duration, Props) of
     undefined -> Props;
-    Duration -> [{length,Duration*1000}|Props]
+    Duration -> lists:ukeymerge(1, [{duration,Duration/1000},{length,Duration}], lists:ukeysort(1,Props))
   end.
 
+metadata_frame(#ems_media{} = Media) ->
+  metadata_frame(Media, []).
 
-metadata_frame(#ems_media{format = undefined} = M) ->
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, video_parameters(M)}]};
+metadata_frame(#ems_media{format = undefined} = M, Options) ->
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, video_parameters(M, Options)}]};
   % undefined;
   
-metadata_frame(#ems_media{} = Media) ->
+metadata_frame(#ems_media{} = Media, Options) ->
   Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
-                      (Else) -> Else end, storage_properties(Media)),
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media))}]}.
+                      (Else) -> Else end, storage_properties(Media, Options)),
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media, Options))}]}.
 
 
 
-video_parameters(#ems_media{video_config = undefined}) ->
-  [{duration,0}];
+video_parameters(#ems_media{video_config = undefined}, Options) ->  
+  [{duration,proplists:get_value(duration, Options, 0)}];
   
-video_parameters(#ems_media{video_config = #video_frame{body = Config}}) ->
-  lists:ukeymerge(1, [{duration,0}], lists:keysort(1, h264:metadata(Config))).
+video_parameters(#ems_media{video_config = #video_frame{body = Config}}, Options) ->
+  lists:ukeymerge(1, [{duration,proplists:get_value(duration, Options, 0)}], lists:keysort(1, h264:metadata(Config))).
   
 
 

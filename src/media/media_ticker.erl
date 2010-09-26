@@ -39,7 +39,8 @@
   timer_start,
   playing_from,
   playing_till,
-  paused = false
+  paused = false,
+  options
 }).
 
 start(Ticker) ->
@@ -88,10 +89,15 @@ init(Media, Consumer, Options) ->
             {_Pos, EndTimestamp} -> EndTimestamp;
             _ -> undefined
           end
+      end;
+    Duration when is_number(Duration) ->
+      case DTS of 
+        undefined -> Duration;
+        _ -> DTS + Duration
       end
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill}).
+                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options}).
   
 loop(Ticker) ->
   receive
@@ -155,10 +161,12 @@ handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, 
   Consumer ! {ems_stream, StreamId, seek_success, DTS},
   {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
 
-handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId} = Ticker) ->
+handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId, options = Options} = Ticker) ->
   Frame = ems_media:read_frame(Media, Consumer, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
-  Metadata = ems_media:metadata(Media),
+  OptKeys = [duration],
+  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys)],
+  Metadata = ems_media:metadata(Media, MetaOptions),
   % ?D({tick, NewDTS, NewPos}),
   Consumer ! Metadata#video_frame{dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   self() ! tick,
