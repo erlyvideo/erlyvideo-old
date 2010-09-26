@@ -89,7 +89,7 @@ parse_announce([{m, Info} | Announce], Streams, undefined, Connect) ->
       payloads = [#payload{num = list_to_integer(PT)} || PT <- PayloadTypes]};
     data ->
       undefined
-  end,  
+  end,
   parse_announce(Announce, Streams, MediaDesc, Connect);
 
 parse_announce([{b, _Bitrate} | Announce], Streams, #media_desc{} = Stream, Connect) ->
@@ -322,7 +322,10 @@ encode_media(#media_desc{type = Type,
            _ ->
              []
          end,
-  iolist_to_binary([M, AC, AR, ACfg]).
+  iolist_to_binary([M, AC, AR, ACfg]);
+encode_media(_, _, _) ->
+  <<>>.
+
 
 type2bin(T) ->
   case T of
@@ -406,7 +409,10 @@ prep_media_config({audio,
               payloads = [#payload{num = 111, codec = Codec,
                                    clock_map = rate2num(Rate), ms = mono,
                                    config = ["vbr=vad"]}],
-              track_control = undefined}.
+              track_control = undefined};
+prep_media_config(_, _) ->
+  undefined.
+
 
 rate2num(Rate) ->
   case Rate of
