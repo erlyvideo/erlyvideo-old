@@ -302,7 +302,7 @@ properties(#mp4_reader{width = Width, height = Height, duration = Duration,
   [{width, Width}, 
    {height, Height},
    {type, file},
-   {duration, Duration/1000},
+   {duration, Duration},
    {bitrates, Bitrates},
    {languages, Languages}] ++ Additional.
 

@@ -115,7 +115,7 @@ duration(Media) ->
 
 duration(Media, Key, DTS) ->
   case read_frame(Media, Key) of
-    eof -> DTS / 1000;
+    eof -> DTS;
     #video_frame{next_id = NextKey, dts = NextDTS} -> duration(Media, NextKey, NextDTS)
   end.
 
