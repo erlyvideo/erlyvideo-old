@@ -80,7 +80,7 @@ read_response(Socket, From) ->
       timer:sleep(500),
       connect_source(From);
     Else -> 
-      ?D({"Unknown", Else})
+      erlang:error({read_response_error, Else})
   after
     ?TIMEOUT -> 
       ?D({"Timeout reading http response"}),

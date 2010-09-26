@@ -69,8 +69,6 @@ try_handler([Handler|Chain], Host, Method, Path, Req) ->
     Else ->
       Else
   catch
-    exit:leave ->
-      exit(leave);
     Class:Error ->
       ems_log:error(Host, "HTTP Error~n~p~n~p:~p:~p~n", [Path, Class, Error, erlang:get_stacktrace()]),
       Req:respond(500, [{"Content-Type", "text/plain"}], "500 Server Error~n~p~n~p:~p:~p~n", 
