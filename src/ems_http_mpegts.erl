@@ -72,7 +72,7 @@ http(Host, 'PUT', ["stream", Name], Req) ->
   ems_log:access(Host, "MPEGTS PUT ~s ~s", [Host, Name]),
   {ok, Stream} = media_provider:open(Host, Name, [{type, mpegts_passive}]),
   ems_media:set_socket(Stream, Req:socket()),
-  exit(leave);
+  ok;
 
 http(_Host, _Method, _Path, _Req) ->
   unhandled.
