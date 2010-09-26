@@ -17,6 +17,11 @@ update_deps: rebar.config
 	./rebar get-deps
 	for i in wwwroot/player deps/* ; do (cd $$i; git pull) ; done
 
+
+push:
+	git push github master
+	for i in deps/* ; do (cd $$i; git push github master) ; done
+
 rebar.config:
 	cp rebar.config.sample rebar.config
 
