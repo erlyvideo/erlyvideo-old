@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.13) unstable; urgency=low
+
+  justify_ts and magic control numbers
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 27 Sep 2010 11:48:24 +0400
+
 erlang-rtmp (1.7.12) unstable; urgency=low
 
   Using global network monitor
