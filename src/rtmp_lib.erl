@@ -29,7 +29,7 @@
 -export([connect/1, connect/2, createStream/1, play/3, seek/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
 -export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/3, pause_notify/2, unpause_notify/2]).
--export([channel_id/2]).
+-export([channel_id/2, empty_audio/2]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -56,6 +56,11 @@ default_connect_options() ->
     {pageUrl,<<"http://localhost:8082/">>},
     {objectEncoding,0.0}
   ].
+
+empty_audio(StreamId, DTS) ->
+  #rtmp_message{type = audio, body = <<>>, timestamp = DTS, ts_type = new, stream_id = StreamId, channel_id = rtmp_lib:channel_id(audio, StreamId)}.
+
+
 
 %% @spec (RTMP::rtmp_socket()) -> any()
 %% @doc Send connect request to server with some predefined params
@@ -241,6 +246,7 @@ play_complete(RTMP, StreamId, Options) ->
 
   % rtmp_socket:send(RTMP, #rtmp_message{type = audio, body = <<>>, ts_type = new, stream_id = StreamId,
   %   timestamp = Duration, channel_id = channel_id(audio, StreamId)}),
+  rtmp_socket:send(RTMP, empty_audio(StreamId, Duration)),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, channel_id = 2, timestamp = 0, ts_type = new}),
 
   PlayComplete1Arg = {object, [{level, <<"status">>}, {code, <<"NetStream.Play.Complete">>}, {duration, Duration/1000},{bytes,0}]},

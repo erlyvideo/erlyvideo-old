@@ -556,10 +556,11 @@ activate_socket(Socket) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}]);
 activate_socket(Socket) when is_pid(Socket) ->
   ok.
+  
 
-send_data(#rtmp_socket{sent_audio_notify = false} = Socket, #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId} = Message) ->
-  Audio = #rtmp_message{type = audio, body = <<>>, timestamp = DTS, stream_id = StreamId, channel_id = rtmp_lib:channel_id(audio, StreamId)},
-  State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, Audio),
+send_data(#rtmp_socket{sent_audio_notify = false} = Socket, 
+          #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId, body = Body} = Message) when size(Body) > 0 ->
+  State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)),
   send_data(State1, Message);
 
 send_data(#rtmp_socket{sent_video_notify = false} = Socket, #rtmp_message{type = video, timestamp = DTS, stream_id = StreamId} = Message) ->
@@ -581,6 +582,10 @@ send_data(#rtmp_socket{sent_video_notify = true} = Socket, #rtmp_message{type = 
   send_data(Socket#rtmp_socket{sent_video_notify = false}, Message);
 
 send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
+  case State#rtmp_socket.debug of
+    true -> print_rtmp_message(out, Message);
+    _ -> ok
+  end,
   {NewState, Data} = case Message of
     #rtmp_message{} ->
       % ?D({Socket,Message#rtmp_message.type, Message#rtmp_message.timestamp, Message#rtmp_message.ts_type}),
@@ -616,13 +621,23 @@ handle_rtmp_data(#rtmp_socket{buffer = Data} = State) ->
   got_rtmp_message(rtmp:decode(State, Data)).
 
 
-got_rtmp_message({#rtmp_socket{debug = true}, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}, _} = Message) ->
+print_rtmp_message(InOut, #rtmp_message{channel_id = Channel, ts_type = TSType, timestamp = TS, type = Type, stream_id = StreamId, body = Body}) ->
   DecodedBody = case Type of
     video when size(Body) > 10 -> erlang:setelement(5, flv:decode_video_tag(Body), size(Body));
     audio when size(Body) > 0 -> erlang:setelement(7, flv:decode_audio_tag(Body), size(Body));
     _ -> Body
   end,
-  io:format("~p ~p ~p ~p ~p ~p~n", [Channel, TSType, TS, Type, StreamId, DecodedBody]),
+  io:format("~p ~p ~p ~p ~p ~p ~p~n", [InOut, Channel, TSType, TS, Type, StreamId, DecodedBody]),
+  ok;
+
+print_rtmp_message(InOut, Msg) ->
+  io:format("~p ~s~n", [InOut, io_lib_pretty_limited:print(Msg, 20)]),
+  ok.
+  
+
+
+got_rtmp_message({#rtmp_socket{debug = true}, Msg, _} = Message) ->
+  print_rtmp_message(in, Msg),
   handle_rtmp_message(Message);
 
 got_rtmp_message(Decoded) ->
