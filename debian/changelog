@@ -1,3 +1,9 @@
+erlang-rtp (0.3.3) unstable; urgency=low
+
+  data stream in SDP
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 27 Sep 2010 11:31:44 +0400
+
 erlang-rtp (0.3.2) unstable; urgency=low
 
   Fixed presync by Rtp-Info
