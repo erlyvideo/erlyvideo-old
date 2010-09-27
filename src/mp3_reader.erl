@@ -159,7 +159,7 @@ read_frame(#media_info{reader = {Module,Device}} = Media, {Offset, N}) ->
       Length = mp3:frame_length(Header),
       {ok, Body} = Module:pread(Device, Offset, Length),
       {ok, MP3, <<>>} = mp3:read(Body),
-      DTS = N*1000*MP3#mp3_frame.samples div 44100,
+      DTS = N*1000*MP3#mp3_frame.samples div MP3#mp3_frame.sample_rate,
       % MP3 = mp3:read(Frame),
       #video_frame{
         content  = audio,
