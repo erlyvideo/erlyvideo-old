@@ -561,9 +561,24 @@ send_data(#rtmp_socket{sent_audio_notify = false} = Socket, #rtmp_message{type =
   Audio = #rtmp_message{type = audio, body = <<>>, timestamp = DTS, stream_id = StreamId, channel_id = rtmp_lib:channel_id(audio, StreamId)},
   State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, Audio),
   send_data(State1, Message);
+
+send_data(#rtmp_socket{sent_video_notify = false} = Socket, #rtmp_message{type = video, timestamp = DTS, stream_id = StreamId} = Message) ->
+  Msg = [
+    #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,0>>, ts_type = new},
+    #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<23,2,0,0,0>>, ts_type = new},
+    #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,1>>, ts_type = delta}
+  ],
+  
+  State2 = lists:foldl(fun(M, State1) ->
+    send_data(State1, M)
+  end, Socket#rtmp_socket{sent_video_notify = true}, Msg),
+  send_data(State2, Message);
   
 send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
   send_data(Socket#rtmp_socket{sent_audio_notify = false}, Message);
+
+send_data(#rtmp_socket{sent_video_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
+  send_data(Socket#rtmp_socket{sent_video_notify = false}, Message);
 
 send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
   {NewState, Data} = case Message of
