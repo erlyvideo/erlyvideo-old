@@ -111,7 +111,8 @@ deleteStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id =
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+play(#rtmp_session{host = Host, streams = Streams, streams_dts = StreamsDTS, streams_started = StreamsStarted, socket = Socket} = State, 
+     #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   Options1 = extract_play_args(Args),
 
   {RawName, Args2} = http_uri2:parse_path_query(FullName),
@@ -133,7 +134,9 @@ play(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, #rt
     {ok, Media} ->
       ems_log:access(Host, "PLAY ~s ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, Name, StreamId]),
       ?D({play, Name, ems:setelement(StreamId, Streams, Media)}),
-      State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media)}
+      State#rtmp_session{streams = ems:setelement(StreamId, Streams, Media), 
+                         streams_dts = ems:setelement(StreamId, StreamsDTS, undefined),
+                         streams_started = ems:setelement(StreamId, StreamsStarted, undefined)}
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
   

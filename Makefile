@@ -20,7 +20,8 @@ update_deps: rebar.config
 
 push:
 	git push github master
-	for i in deps/* ; do (cd $$i; git push github master) ; done
+	git push github master --tags
+	for i in deps/* ; do (cd $$i; git push github master; git push github master --tags) ; done
 
 rebar.config:
 	cp rebar.config.sample rebar.config

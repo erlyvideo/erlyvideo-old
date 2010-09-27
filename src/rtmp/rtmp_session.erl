@@ -186,6 +186,7 @@ send(Session, Message) ->
   end,
   erlang:monitor(process, RTMP),
   ems_network_lag_monitor:watch(RTMP),
+  % rtmp_socket:setopts(RTMP, [{debug,true}]),
   {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 
 
