@@ -544,11 +544,11 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
 handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
-handle_call(info, _From, #ems_media{} = Media) ->
-  {reply, storage_properties(Media), Media, ?TIMEOUT};
+handle_call(info, _From, #ems_media{type = Type, url = URL} = Media) ->
+  {reply, lists:ukeymerge(1, [{url,URL},{type, Type}], storage_properties(Media)), Media, ?TIMEOUT};
 
 handle_call(status, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, [{client_count, client_count(Media)},{type, Type},{url,URL}], Media, ?TIMEOUT};
+  {reply, [{client_count, client_count(Media)},{url,URL},{type, Type}], Media, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.

@@ -165,7 +165,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consum
   Frame = ems_media:read_frame(Media, Consumer, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
   OptKeys = [duration],
-  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys)],
+  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys) andalso is_number(V)],
   Metadata = ems_media:metadata(Media, MetaOptions),
   % ?D({tick, NewDTS, NewPos}),
   Consumer ! Metadata#video_frame{dts = NewDTS, pts = NewDTS, stream_id = StreamId},
