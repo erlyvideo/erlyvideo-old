@@ -109,10 +109,10 @@ synchronizer(#ts_lander{consumer = Consumer, buffer = Buffer} = TSLander) ->
     {'DOWN', _Ref, process, Consumer, normal} ->
       ok;
     {'DOWN', _Ref, process, Consumer, _Reason} ->
-      ?D({"MPEG TS reader lost consumer"}),
+      ?D({"MPEG TS reader lost consumer", Consumer}),
       ok;
     {'DOWN', _Ref, process, _Pid, _Reason} ->
-      ?D({"MPEG TS reader lost pid handler"}),
+      ?D({"MPEG TS reader lost pid handler", _Pid}),
       ok;
     % {data, Bin} when size(Buffer) == 0 ->
     %   ?D({"Rece"})
