@@ -1,3 +1,9 @@
+erlang-mpegts (2.4.3) unstable; urgency=low
+
+  Working network lag monitor
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 27 Sep 2010 11:42:54 +0400
+
 erlang-mpegts (2.4.2-1) unstable; urgency=low
 
   fixing build
