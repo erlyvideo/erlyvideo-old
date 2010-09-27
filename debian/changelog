@@ -1,3 +1,9 @@
+erlmedia (1.9.2) unstable; urgency=low
+
+  mp3 length and seek
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 27 Sep 2010 11:29:19 +0400
+
 erlmedia (1.9.1) unstable; urgency=low
 
   extract aac.hrl
