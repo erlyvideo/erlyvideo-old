@@ -34,6 +34,8 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-export([is_valid_jpeg/1]).
+
 start_link(URL, Consumer) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [URL, Consumer], []).
 
@@ -186,7 +188,10 @@ handle_info({tcp, Socket, Bin}, #reader{buffer = Buffer, state = jpeg, next_leng
   Data = <<Buffer/binary, Bin/binary>>,
   case Data of
     <<JPEG:Length/binary, Rest/binary>> ->
-      Consumer ! {jpeg, self(), JPEG},
+      case is_valid_jpeg(JPEG) of
+        true -> Consumer ! {jpeg, self(), JPEG};
+        false -> ?D({invalid, element(1, erlang:split_binary(JPEG, 10))}), ok
+      end,
       handle_info({tcp, Socket, <<>>}, Reader#reader{buffer = Rest, state = ready});
     _ ->
       inet:setopts(Socket, [{active, once}, {packet, raw}]),
@@ -219,3 +224,35 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+  
+  
+
+is_valid_jpeg(<<16#FF, 16#D8, _JPEG/binary>>) ->
+  true;
+    
+%   ?D(d8),
+%   validate_jpeg(JPEG);
+% 
+% validate_jpeg(<<16#FF, 16#D9, JPEG/binary>>) ->
+%   ?D(d9),
+%   validate_jpeg(JPEG);
+%   
+% validate_jpeg(<<16#FF, 16#D:4, 0:1, _N:3, JPEG/binary>>) ->
+%   ?D({dn,_N}),
+%   validate_jpeg(JPEG);
+%   
+% validate_jpeg(<<16#FF, 16#DD, _:2, JPEG/binary>>) ->
+%   ?D(dd),
+%   validate_jpeg(JPEG);
+% 
+% validate_jpeg(<<16#FF, _Marker, Length:16, _/binary>> = JPEG) when size(JPEG) >= Length + 2 ->
+%   <<16#FF, _Marker, _:Length/binary, Rest/binary>> = JPEG,
+%   ?D({erlang:integer_to_list(_Marker,16),Length, element(1, erlang:split_binary(JPEG, 20))}),
+%   validate_jpeg(Rest);
+% 
+% validate_jpeg(<<>>) ->
+%   true;
+%   
+is_valid_jpeg(_Else) ->
+  false.
+  
