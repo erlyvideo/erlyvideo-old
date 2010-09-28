@@ -470,32 +470,39 @@ handle_info(_Info, StateName, StateData) ->
 
 handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
              #rtmp_session{socket = Socket, streams = Streams, bytes_sent = Sent} = State) ->
-  {State1, BaseDts, _Starting} = case ems:element(StreamId, Streams) of
+  {State1, BaseDts, _Starting, Allow} = case ems:element(StreamId, Streams) of
+    #rtmp_stream{seeking = true} ->
+      {State, undefined, false, false};
     #rtmp_stream{started = false} = Stream ->
       rtmp_lib:play_start(Socket, StreamId, 0),
       % put(stream_start, erlang:now()),
       {State#rtmp_session{
-        streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{started = true, base_dts = DTS})}, DTS, true};
+        streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{started = true, base_dts = DTS})}, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
-      {State, DTS_, false}
+      {State, DTS_, false, true}
   end,
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts)}),
-  Message = #rtmp_message{
-    channel_id = rtmp_lib:channel_id(Type, StreamId), 
-    timestamp = DTS - BaseDts,
-    type = Type,
-    stream_id = StreamId,
-    body = flv_video_frame:encode(Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)})},
-	rtmp_socket:send(Socket, Message),
-	Size = try iolist_size(Frame#video_frame.body) of
-	  S -> S
-	catch
-	  _:_ -> 0
-	end,    
-  State1#rtmp_session{bytes_sent = Sent + Size}.
+  case Allow of
+    true ->
+      Message = #rtmp_message{
+        channel_id = rtmp_lib:channel_id(Type, StreamId), 
+        timestamp = DTS - BaseDts,
+        type = Type,
+        stream_id = StreamId,
+        body = flv_video_frame:encode(Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)})},
+    	rtmp_socket:send(Socket, Message),
+    	Size = try iolist_size(Frame#video_frame.body) of
+    	  S -> S
+    	catch
+    	  _:_ -> 0
+    	end,    
+      State1#rtmp_session{bytes_sent = Sent + Size};
+    false ->
+      State1
+  end.  
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive
