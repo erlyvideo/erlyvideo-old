@@ -417,7 +417,7 @@ pack_video_config(#convertor{video_config = Config}) ->
   [Bin, {avcC, Config}, {uuid, uuid_atom()}].
   
 pack_durations(ReverseFrames) ->	
-	Durations = pack_durations(ReverseFrames, []),
+	Durations = pack_durations(lists:reverse(lists:keysort(#video_frame.dts, ReverseFrames)), []),
 	List = [<<1:32, Duration:32>> || Duration <- Durations],
 	[<<0:32, (length(List)):32>>, List].
 
