@@ -210,10 +210,9 @@ unpause_notify(RTMP, StreamId) ->
   
 
 seek_notify(RTMP, StreamId, DTS) ->
-  io:format("NetStream.Seek.Notify (~p): ~p~n", [StreamId, DTS]),
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_end, stream_id = StreamId, ts_type = new}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId, timestamp = DTS, ts_type = new}),
-  rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId, timestamp = DTS, ts_type = new}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId, timestamp = 0, ts_type = new}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId, timestamp = 0, ts_type = new}),
 
   SeekStatus = rtmp_socket:prepare_status(StreamId, <<"NetStream.Seek.Notify">>),
   rtmp_socket:send(RTMP, SeekStatus#rtmp_message{timestamp = DTS, channel_id = channel_id(metadata, StreamId), ts_type = new}),
@@ -229,7 +228,8 @@ seek_notify(RTMP, StreamId, DTS) ->
   %   timestamp = same, body = [<<"|RtmpSampleAccess">>, true, true]}),
     
   % DataNotify = rtmp_socket:prepare_notify(StreamId, ),
-  rtmp_socket:send(RTMP, #rtmp_message{type = metadata, timestamp = DTS, channel_id = channel_id(metadata, StreamId), ts_type = new, body = [<<"onStatus">>, {object, [{code, <<"NetStream.Data.Start">>}]}]}),
+  rtmp_socket:send(RTMP, #rtmp_message{type = metadata, timestamp = DTS, channel_id = channel_id(metadata, StreamId), ts_type = new,
+                                       body = [<<"onStatus">>, {object, [{code, <<"NetStream.Data.Start">>}]}]}),
   ok.
 
 seek_failed(RTMP, StreamId) ->
