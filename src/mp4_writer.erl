@@ -17,14 +17,10 @@
   mdat_offset,
   duration,
 
-  audio_chunks = [],
   audio_frames = [],
-  audio_frames_count,
   audio_config,
 
-  video_chunks = [],
   video_frames = [],
-  video_frames_count,
   video_config
 }).
 
@@ -97,18 +93,16 @@ handle_frame(#video_frame{next_id = NextOffset, flavor = config, content = audio
   {ok, NextOffset, Convertor#convertor{audio_config = Config}};
 
 handle_frame(#video_frame{next_id = NextOffset, body = Body, content = video} = Frame, 
-             #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, video_frames = Video, video_chunks = VChunks} = Convertor) ->     
+             #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, video_frames = Video} = Convertor) ->     
   ok = file:pwrite(OutMp4, WriteOffset, Body),
   {ok, NextOffset, Convertor#convertor{write_offset = WriteOffset + size(Body), 
-                                 video_chunks = [WriteOffset|VChunks],
-                                 video_frames = [Frame#video_frame{body = size(Body)}|Video]}};
+                                 video_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Video]}};
 
 handle_frame(#video_frame{next_id = NextOffset, body = Body, content = audio} = Frame,
-             #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, audio_frames = Audio, audio_chunks = AChunks} = Convertor) ->
+             #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, audio_frames = Audio} = Convertor) ->
   ok = file:pwrite(OutMp4, WriteOffset, Body),
   {ok, NextOffset, Convertor#convertor{write_offset = WriteOffset + size(Body), 
-                                 audio_chunks = [WriteOffset|AChunks],
-                                 audio_frames = [Frame#video_frame{body = size(Body)}|Audio]}};
+                                 audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}};
 
 handle_frame(#video_frame{next_id = NextOffset}, Convertor) ->
   {ok, NextOffset, Convertor};
@@ -118,9 +112,12 @@ handle_frame(eof, #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, mdat_
   {ok, write_moov(Convertor)}.
   
   
-write_moov(#convertor{out_mp4 = OutMp4, write_offset = WriteOffset, video_frames = Video} = Convertor) ->
+sorted(Frames) ->
+  lists:reverse(lists:keysort(#video_frame.dts, Frames)).
+  
+write_moov(#convertor{out_mp4 = OutMp4, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio} = Convertor) ->
   [#video_frame{dts = DTS}|_] = Video,
-  Moov = {moov, moov(Convertor#convertor{video_frames_count = length(Video), duration = DTS})},
+  Moov = {moov, moov(Convertor#convertor{duration = DTS, video_frames = sorted(Video), audio_frames = sorted(Audio)})},
   {ok, End} = mp4_write(OutMp4, Moov, WriteOffset),
   Convertor#convertor{write_offset = End}.
 
@@ -183,7 +180,7 @@ tracks(Convertor) ->
   video_track(Convertor) ++ audio_track(Convertor).
   
 video_track(#convertor{video_frames = []}) -> [];
-video_track(#convertor{video_frames = RevVideo, video_chunks = VChunks, duration = DTS, url = URL} = Convertor) ->
+video_track(#convertor{video_frames = RevVideo, duration = DTS, url = URL} = Convertor) ->
   Duration = round(DTS*?H264_SCALE),
 	CTime = mp4_now(),
 	MTime = mp4_now(),
@@ -200,8 +197,8 @@ video_track(#convertor{video_frames = RevVideo, video_chunks = VChunks, duration
         {dinf, {dref, [<<0:32, 1:32>>, {'url ', [<<0, 1:24>>, URL]}]}},
         {stbl, [
           {stsd, [<<0:32, 1:32>>, {avc1, pack_video_config(Convertor)}]},
-          {stsc, pack_chunk_sizes(VChunks)},
-          {stco, pack_chunk_offsets(VChunks)},
+          {stsc, pack_chunk_sizes(RevVideo)},
+          {stco, pack_chunk_offsets(RevVideo)},
           {stts, pack_durations(RevVideo)},
           {stsz, pack_sizes(RevVideo)},
           % {ctts, pack_compositions(RevVideo)},
@@ -215,7 +212,7 @@ uuid_atom() ->
   <<16#6b6840f2:32, 16#5f244fc5:32, 16#ba39a51b:32, 16#cf0323f3:32, 0:32>>.
 
 audio_track(#convertor{audio_frames = []}) -> [];
-audio_track(#convertor{audio_frames = RevAudio, audio_chunks = AChunks, duration = DTS} = Convertor) ->
+audio_track(#convertor{audio_frames = RevAudio, duration = DTS} = Convertor) ->
   Duration = round(DTS*?AUDIO_SCALE),
   [ {trak, [
     {tkhd, pack_audio_tkhd(Convertor)},
@@ -227,8 +224,8 @@ audio_track(#convertor{audio_frames = RevAudio, audio_chunks = AChunks, duration
         {dinf, {dref, [<<0:32, 1:32>>, {'url ', <<0, 1:24>>}]}},
         {stbl, [
           {stsd, [<<0:32, 1:32>>, pack_audio_config(Convertor)]},
-          {stsc, pack_chunk_sizes(AChunks)},
-          {stco, pack_chunk_offsets(AChunks)},
+          {stsc, pack_chunk_sizes(RevAudio)},
+          {stco, pack_chunk_offsets(RevAudio)},
           {stts, pack_durations(RevAudio)},
           {stsz, pack_sizes(RevAudio)},
           {stss, pack_keyframes(RevAudio)}
@@ -266,7 +263,7 @@ pack_chunk_sizes(_VChunks) ->
   <<0:32, 1:32, 1:32, 1:32, 1:32>>.
  
 pack_chunk_offsets(VChunks) ->
-  [<<0:32, (length(VChunks)):32>>, [<<Offset:32>> || Offset <- lists:reverse(VChunks)]].
+  [<<0:32, (length(VChunks)):32>>, [<<Offset:32>> || #video_frame{body = {Offset,_}} <- lists:reverse(VChunks)]].
  
 
 next_track_id(#convertor{video_frames = []}) -> 2;
@@ -417,7 +414,7 @@ pack_video_config(#convertor{video_config = Config}) ->
   [Bin, {avcC, Config}, {uuid, uuid_atom()}].
   
 pack_durations(ReverseFrames) ->	
-	Durations = pack_durations(lists:reverse(lists:keysort(#video_frame.dts, ReverseFrames)), []),
+	Durations = pack_durations(ReverseFrames, []),
 	List = [<<1:32, Duration:32>> || Duration <- Durations],
 	[<<0:32, (length(List)):32>>, List].
 
@@ -439,7 +436,7 @@ pack_sizes(ReverseFrames) ->
 pack_sizes(Bin, []) ->
   Bin;
   
-pack_sizes(Bin, [#video_frame{body = BodySize}|Frames]) ->
+pack_sizes(Bin, [#video_frame{body = {_Offset,BodySize}}|Frames]) ->
   pack_sizes(<<Bin/binary, BodySize:32>>, Frames).
 
 
