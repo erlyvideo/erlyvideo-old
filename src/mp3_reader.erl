@@ -123,19 +123,18 @@ properties(#media_info{duration = undefined} = Media) -> properties(Media#media_
 properties(#media_info{duration = Duration}) -> [{duration, Duration}].
 
 
-seek(#media_info{samples = Samples} = Media, _BeforeAfter, Timestamp) ->
-  Max = round(Timestamp*44100 / (Samples*1000)),
-  ?D({"mp3 seek", Max, Timestamp}),
-  find_frame(Media, Max, first(Media)).
+seek(#media_info{} = Media, _BeforeAfter, Timestamp) ->
+  ?D({"mp3 seek", Timestamp}),
+  find_frame(Media, Timestamp, first(Media), undefined).
 
-find_frame(Media, Max, Key) ->
+find_frame(Media, Max, Key, Retval) ->
   case read_frame(Media, Key) of
     eof -> 
-      undefined;
-    #video_frame{dts = DTS, next_id = {Offset, M}} when M >= Max ->
-      {{Offset,Max}, DTS};
-    #video_frame{next_id = {_Offset, N} = NextKey} when N < Max ->
-      find_frame(Media, Max, NextKey)
+      Retval;
+    #video_frame{dts = DTS} when DTS > Max ->
+      Retval;
+    #video_frame{dts = DTS, next_id = NextKey} ->
+      find_frame(Media, Max, NextKey, {Key, DTS})
   end.
       
   
