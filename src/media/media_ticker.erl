@@ -226,16 +226,16 @@ tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer) ->
 
 
 timeout_in_buffer_from_start_test() ->
-  ?assertEqual(0, tick_timeout(232, 0, 8, 10, 3000)).
+  ?assertEqual(0, tick_timeout(232, 0, {0,0,8000}, {0,0,10000}, 3000)).
 
 timeout_in_buffer_after_seek_test() ->
-  ?assertEqual(0, tick_timeout(10232, 10000, 8, 10, 3000)).
+  ?assertEqual(0, tick_timeout(10232, 10000, {0,0,8000}, {0,0,10000}, 3000)).
 
 timeout_right_after_buffer_from_start_test() ->
-  ?assertEqual(40, tick_timeout(3042, 0, 8, 10, 3000)).
+  ?assertEqual(40, tick_timeout(3042, 0, {0,0,8000}, {0,0,10000}, 3000)).
 
 timeout_right_after_buffer_after_seek_test() ->
-  ?assertEqual(40, tick_timeout(13042, 10000, 8, 10, 3000)).
+  ?assertEqual(40, tick_timeout(13042, 10000, {0,0,8000}, {0,0,10000}, 3000)).
 
 
 

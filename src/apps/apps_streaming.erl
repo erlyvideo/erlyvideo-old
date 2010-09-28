@@ -55,7 +55,7 @@ handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket =
   
   ?D({"seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
-  State;
+  State#rtmp_session{streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{seeking = false})};
   
 handle_info({ems_stream, StreamId, seek_failed}, #rtmp_session{socket = Socket} = State) ->
   ?D({"seek failed"}),
@@ -246,10 +246,12 @@ seek(#rtmp_session{socket = Socket, streams = Streams} = State, #rtmp_funcall{ar
   #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream,
   ?D({"seek", round(Timestamp), Player}),
   case ems_media:seek(Player, before, Timestamp + BaseDTS) of
-    seek_failed -> rtmp_lib:seek_failed(Socket, StreamId);
-    _ -> ok
-  end,
-  State.
+    seek_failed -> 
+      rtmp_lib:seek_failed(Socket, StreamId),
+      State;
+    _ ->
+      State#rtmp_session{streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{seeking = true})}
+  end.
   
 
 %%-------------------------------------------------------------------------
