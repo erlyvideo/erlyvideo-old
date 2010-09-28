@@ -161,15 +161,14 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{retry_count = Count, retry_limit = Limit, state = State, url = URL} = Media) ->
+handle_info(make_request, #ems_media{retry_count = Count, host = Host, retry_limit = Limit, state = State, url = URL} = Media) ->
   if
     is_number(Count) andalso is_number(Limit) andalso Count > Limit ->
       {stop, normal, Media};
     State#mpegts.make_request == false ->
       {noreply, Media#ems_media{retry_count = Count + 1, state = State#mpegts{socket = undefined}}};
     true ->  
-      % FIXME
-      % ems_event:stream_source_lost(Media#media_info.host, Media#media_info.name, self()),
+      ems_event:stream_source_requested(Host, URL, []),
       ?D({"Disconnected MPEG-TS/Shoutcast socket in mode", Count, URL}),
       case connect_http(URL, State#mpegts.timeout) of
         {ok, NewSocket} ->

@@ -34,8 +34,9 @@
   restart_count = 0
 }).
 
-connect_rtsp(#ems_media{url = URL, state = #rtsp{timeout = Timeout}}) ->
+connect_rtsp(#ems_media{host = Host, url = URL, state = #rtsp{timeout = Timeout}}) ->
   ?D({"Connecting to RTSP", URL}),
+  ems_event:stream_source_requested(Host, URL, []),
   rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]).
 
 

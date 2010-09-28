@@ -31,7 +31,7 @@
 -export([start_link/0, notify/1, add_handler/2, subscribe_to_events/1, add_sup_handler/2, remove_handler/1]).
 
 -export([user_connected/3, user_disconnected/3, user_play/4, user_stop/4]).
--export([stream_created/4, stream_started/4, stream_source_lost/3, stream_stopped/3]).
+-export([stream_created/4, stream_started/4, stream_source_lost/3, stream_source_requested/3, stream_stopped/3]).
 
 -export([to_json/1, to_xml/1]).
 
@@ -214,6 +214,15 @@ stream_started(Host, Name, Stream, Options) ->
 %%----------------------------------------------------------------------
 stream_source_lost(Host, Name, Stream) ->
   gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_lost, host = Host, stream_name = Name, stream = Stream}).
+
+%%--------------------------------------------------------------------
+%% @spec (Host, Name, Options) -> ok
+%%
+%% @doc send event that stream is trying to restore source
+%% @end
+%%----------------------------------------------------------------------
+stream_source_requested(Host, Name, Options) ->
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_requested, host = Host, stream_name = Name, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
