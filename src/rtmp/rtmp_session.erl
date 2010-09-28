@@ -84,9 +84,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
-  % rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin}),
-  % rtmp_socket:setopts(Socket, [{chunk_size, ?RTMP_PREF_CHUNK_SIZE}]),
-  rtmp_socket:setopts(Socket, [{chunk_size, 128}]),
+  rtmp_socket:setopts(Socket, [{chunk_size, 4096}]),
   
   ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
@@ -250,7 +248,7 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  Recorder = ems:element(StreamId, Streams),
+  #rtmp_stream{pid = Recorder} = ems:element(StreamId, Streams),
   
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
   ems_media:publish(Recorder, Frame),
@@ -265,7 +263,7 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
 
 handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case ems:element(StreamId, Streams) of
-    Player when is_pid(Player) -> ems_media:setopts(Player, [{client_buffer, BufferSize}]);
+    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:setopts(Player, [{client_buffer, BufferSize}]);
     _ -> ok
   end,
   State;
@@ -413,6 +411,7 @@ handle_info({'DOWN', _Ref, process, Socket, _Reason}, _StateName, #rtmp_session{
   {stop,normal,State};
   
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
+  %FIXME: add proper detection of failed stream
   case ems:tuple_find(PlayerPid, Streams) of
     false -> 
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
@@ -470,16 +469,15 @@ handle_info(_Info, StateName, StateData) ->
 
 
 handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
-             #rtmp_session{socket = Socket, streams_dts = StreamsDTS, streams_started = Started, bytes_sent = Sent} = State) ->
-  {State1, BaseDts, _Starting} = case ems:element(StreamId, Started) of
-    undefined ->
+             #rtmp_session{socket = Socket, streams = Streams, bytes_sent = Sent} = State) ->
+  {State1, BaseDts, _Starting} = case ems:element(StreamId, Streams) of
+    #rtmp_stream{started = false} = Stream ->
       rtmp_lib:play_start(Socket, StreamId, 0),
       % put(stream_start, erlang:now()),
       {State#rtmp_session{
-        streams_started = ems:setelement(StreamId, Started, true),
-        streams_dts = ems:setelement(StreamId, StreamsDTS, DTS)}, DTS, true};
-    _ ->
-      {State, ems:element(StreamId, StreamsDTS), false}
+        streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{started = true, base_dts = DTS})}, DTS, true};
+    #rtmp_stream{base_dts = DTS_} ->
+      {State, DTS_, false}
   end,
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,

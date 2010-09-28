@@ -62,7 +62,7 @@ real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = St
   ?D({"publish",Type,Options,Recorder}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Start">>),
-  State#rtmp_session{streams = ems:setelement(StreamId, Streams, Recorder)}.
+  State#rtmp_session{streams = ems:setelement(StreamId, Streams, #rtmp_stream{pid = Recorder})}.
   
 extract_publish_args([]) -> [];
 extract_publish_args({"source_timeout", "infinity"}) -> {source_timeout, infinity};
