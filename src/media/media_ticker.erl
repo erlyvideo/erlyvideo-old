@@ -73,20 +73,20 @@ init(Media, Consumer, Options) ->
     Start -> ems_media:seek_info(Media, before, Start)
   end,
   
+  ?D({media_ticker,Pos,DTS}),
+  
   PlayingTill = case proplists:get_value(duration, Options) of
     undefined -> undefined;
     {BeforeAfterEnd, Duration} ->
-      Length = proplists:get_value(length, media_provider:info(Media)),
-      TotalDuration = case DTS of 
-        undefined -> Duration;
-        _ -> DTS + Duration
-      end,
+      Length = proplists:get_value(length, ems_media:info(Media)),
+      StreamStart = proplists:get_value(start, ems_media:info(Media), 0),
       if
-        TotalDuration > Length -> TotalDuration;
-        % TotalDuration + 1000 > Length -> undefined;
+        Duration > Length ->
+          ?D({"watching to the end", Length, Duration, DTS}),
+          Duration + DTS;
         true ->
-          case ems_media:seek_info(Media, BeforeAfterEnd, TotalDuration) of
-            {_Pos, EndTimestamp} -> EndTimestamp;
+          case ems_media:seek_info(Media, BeforeAfterEnd, Duration + DTS) of
+            {_Pos, EndTimestamp} -> ?D({"Watching till", EndTimestamp}), EndTimestamp;
             _ -> undefined
           end
       end;

@@ -36,7 +36,9 @@
   first = 0,
   last = 0,
   frames,
-  size
+  size,
+  video_config,
+  audio_config
 }).
 
 %%%%%%%%%%%%%%%           Timeshift features         %%%%%%%%%%%%%%%%%%%%%%
@@ -50,10 +52,10 @@ init(Options, _MoreOptions) ->
 can_open_file(_) ->
   false.
 
-properties(#shift{first = First, last = Last, frames = Frames}) when First =/= Last ->
+properties(#shift{first = First, last = Last, frames = Frames, size = Size}) when First =/= Last ->
   #video_frame{dts = FirstDTS} = array:get(First, Frames),
   #video_frame{dts = LastDTS} = array:get((Last-1+array:size(Frames)) rem array:size(Frames), Frames),
-  [{duration,(LastDTS - FirstDTS)},{start,FirstDTS}];
+  [{duration,(LastDTS - FirstDTS)},{start,FirstDTS},{timeshift_size,Size}];
   
 properties(#shift{size = Size}) ->
   [{duration,0},{timeshift_size,Size},{type,stream}];
@@ -62,18 +64,29 @@ properties(_) ->
   [].
 
 
-seek(#shift{first = First, frames = Frames}, _BeforeAfter, Timestamp) when Timestamp =< 0 ->
+seek(#shift{first = First, frames = Frames} = Media, _BeforeAfter, Timestamp) when is_number(Timestamp) andalso Timestamp =< 0 ->
   % ?D({"going to seek", Timestamp}),
   case array:get(First, Frames) of
     undefined -> undefined;
-    #video_frame{dts = DTS} -> {(First + 1) rem array:size(Frames), DTS}
+    #video_frame{dts = DTS} -> append_config_to_seek(Media, {(First + 1) rem array:size(Frames), DTS})
   end;
 
-seek(#shift{first = First, last = Last, frames = Frames}, BeforeAfter, Timestamp) ->
+seek(#shift{first = First, last = Last, frames = Frames} = Media, BeforeAfter, Timestamp) when is_number(Timestamp) ->
   % ?D({"going to seek", Timestamp}),
-  S = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, undefined),
-  % ?D({"Seek in array", First, Last, Timestamp, S}),
+  S1 = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, undefined),
+  S = append_config_to_seek(Media, S1),
+  ?D({"Seek in array", First, Last, Timestamp, S}),
   S.
+  
+append_config_to_seek(#shift{audio_config = A}, {Key, DTS}) when A =/= undefined ->
+  {{audio_config,Key,DTS},DTS};
+
+append_config_to_seek(#shift{video_config = V}, {Key, DTS}) when V =/= undefined ->
+  {{video_config,Key,DTS},DTS};
+  
+append_config_to_seek(_, Seek) ->
+  ?D("no config in array"),
+  Seek.  
   
 seek_in_timeshift(First, First, _Frames, _BeforeAfter, _Timestamp, Key) ->
   Key;
@@ -93,6 +106,18 @@ seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, Key) ->
 read_frame(#shift{first = First} = Shift, undefined) ->
   read_frame(Shift, First);
 
+read_frame(#shift{audio_config = undefined} = Shift, {audio_config,Key,DTS}) ->
+  read_frame(Shift, {video_config,Key,DTS});
+
+read_frame(#shift{audio_config = A}, {audio_config,Key,DTS}) ->
+  A#video_frame{next_id = {video_config,Key,DTS}, dts = DTS, pts = DTS};
+
+read_frame(#shift{video_config = undefined} = Shift, {video_config,Key,_DTS}) ->
+  read_frame(Shift, Key);
+
+read_frame(#shift{video_config = V}, {video_config,Key,DTS}) ->
+  V#video_frame{next_id = Key, dts = DTS, pts = DTS};
+
 read_frame(#shift{frames = Frames}, Key) ->
   % ?D({"Read", Key}),
   case array:get(Key, Frames) of
@@ -101,8 +126,11 @@ read_frame(#shift{frames = Frames}, Key) ->
   end.
 
 
-write_frame(#video_frame{flavor = config}, MediaInfo) ->
-  {ok, MediaInfo};
+write_frame(#video_frame{flavor = config, content = video} = Frame, #shift{} = MediaInfo) ->
+  {ok, MediaInfo#shift{video_config = Frame}};
+
+write_frame(#video_frame{flavor = config, content = audio} = Frame, #shift{} = MediaInfo) ->
+  {ok, MediaInfo#shift{audio_config = Frame}};
 
 write_frame(#video_frame{} = Frame, #shift{first = First, last = Last, frames = Frames} = Shift) ->
   Last1 = (Last + 1) rem array:size(Frames),
