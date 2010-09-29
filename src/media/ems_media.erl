@@ -460,15 +460,15 @@ handle_call({start, Client}, From, Media) ->
 handle_call(decoder_config, From, #ems_media{video_config = undefined, audio_config = undefined, storage = undefined,
             frame_number = Number, waiting_for_config = Waiting} = Media) when Number < ?WAIT_FOR_CONFIG ->
   ?D({"No decoder config in live stream, waiting"}),
-  {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}};
+  {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}, ?TIMEOUT};
 
 handle_call(decoder_config, _From, #ems_media{video_config = undefined, audio_config = undefined, 
             storage = Storage} = Media) when Storage =/= undefined ->
   Media1 = try_find_config(Media),
-  {reply, {ok, [{audio,Media1#ems_media.audio_config},{video,Media1#ems_media.video_config}]}, Media1};
+  {reply, {ok, [{audio,Media1#ems_media.audio_config},{video,Media1#ems_media.video_config}]}, Media1, ?TIMEOUT};
 
 handle_call(decoder_config, _From, #ems_media{video_config = V, audio_config = A} = Media) ->
-  {reply, {ok, [{audio,A},{video,V}]}, Media};
+  {reply, {ok, [{audio,A},{video,V}]}, Media, ?TIMEOUT};
   
 handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
@@ -656,7 +656,7 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
           end;
         undefined -> 
           case M:handle_info(Msg, Media2) of
-            {noreply, Media3} -> {noreply, Media3};
+            {noreply, Media3} -> {noreply, Media3, ?TIMEOUT};
             {stop, Reason, Media3} -> 
               ?D({"ems_media is stopping after handling info", M, Msg, Reason}),
               {stop, normal, Media3}
