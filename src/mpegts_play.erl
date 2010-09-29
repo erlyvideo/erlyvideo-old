@@ -52,7 +52,6 @@ play(_Name, Player, Req, Options, Counters) ->
   case proplists:get_value(buffered, Options) of
     true -> 
       {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
-      ?D({iphone_segment, iolist_size(Buffer)}),
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       Req:stream(lists:reverse(Buffer));
     _ ->
@@ -73,10 +72,6 @@ play(#http_player{streamer = Streamer} = Player) ->
   end.
 
 handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
-  case Req of
-    undefined -> ?D({iphone,Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.dts});
-    _ -> ok
-  end,
   case mpegts:encode(Streamer, Frame) of
     {Streamer1, none} -> 
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
