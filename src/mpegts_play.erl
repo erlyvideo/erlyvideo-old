@@ -49,6 +49,7 @@ play(_Name, Player, Req, Options, Counters) ->
   ?D({"Player starting", _Name, Player}),
   erlang:monitor(process,Player),
   Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
+  MS1 = erlang:now(),
   case proplists:get_value(buffered, Options) of
     true -> 
       {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
@@ -58,8 +59,11 @@ play(_Name, Player, Req, Options, Counters) ->
       Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
       {NextCounters, _} = ?MODULE:play(Streamer#http_player{req = Req})
   end,      
+  MS2 = erlang:now(),
   
   Req:stream(close),
+  MS3 = erlang:now(),
+  ?D({mpegts, _Name, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000}),
   NextCounters.
 
 play(#http_player{streamer = Streamer} = Player) ->

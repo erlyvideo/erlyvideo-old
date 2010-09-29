@@ -149,13 +149,14 @@ timeshift_segments(Info) ->
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
-      ?D({start_iphone_segment, Host, Name, Number}),
-      {MS1, _} = erlang:statistics(wall_clock),
+      MS1 = erlang:now(),
       Counters = iphone_streams:get_counters(Host, Name, Number),
+      MS2 = erlang:now(),
       NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}], Counters),
+      MS3 = erlang:now(),
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
-      {MS2, _} = erlang:statistics(wall_clock),
-      ?D({end_iphone_segment, Name, Number, time, MS2-MS1}),
+      MS4 = erlang:now(),
+      ?D({end_iphone_segment, Name, Number, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000, timer:now_diff(MS4,MS3) div 1000}),
       ok;
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
