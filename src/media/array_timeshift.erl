@@ -75,7 +75,6 @@ seek(#shift{first = First, last = Last, frames = Frames} = Media, BeforeAfter, T
   % ?D({"going to seek", Timestamp}),
   S1 = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, undefined),
   S = append_config_to_seek(Media, S1),
-  ?D({"Seek in array", First, Last, Timestamp, S}),
   S.
   
 append_config_to_seek(#shift{audio_config = A}, {Key, DTS}) when A =/= undefined ->
