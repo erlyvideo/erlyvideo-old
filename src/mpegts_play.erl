@@ -73,6 +73,10 @@ play(#http_player{streamer = Streamer} = Player) ->
   end.
 
 handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+  case Req of
+    undefined -> ?D({iphone,Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.dts});
+    _ -> ok
+  end,
   case mpegts:encode(Streamer, Frame) of
     {Streamer1, none} -> 
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});

@@ -49,8 +49,8 @@ start_link(Options) ->
 find(Host, Name, Number) ->
   {Start, Count, _, Type} = segments(Host, Name),
   Options = case {Start + Count - 1,Type} of
-    {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment doesn't require any end limit
-    {Number,_} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length and buffer
+    {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment of file doesn't require any end limit
+    % {Number,_} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length and buffer
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
   if
@@ -95,6 +95,7 @@ segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
   {_Key, StartDTS} = ems_media:seek_info(Media, 'before', Number * ?STREAM_TIME),
   Info = ems_media:info(Media),
   Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
+  ?D({"Last segment", Number, StartDTS, Duration}),
   Generator(round((Duration - StartDTS)/1000), Name, Number);
   
 
@@ -111,8 +112,17 @@ segment_info(_MediaEntry, Name, Number, _Count, Generator) ->
 
 segments(Host, Name) ->
   Info = media_provider:info(Host, Name),
-  Duration = proplists:get_value(length, Info, 0),
   Type = proplists:get_value(type, Info),
+  
+  case Type of
+    file ->
+      file_segments(Info);
+    _ ->
+      timeshift_segments(Info)
+  end.
+  
+file_segments(Info) ->
+  Duration = proplists:get_value(length, Info, 0),
   Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
   SegmentLength = ?STREAM_TIME div 1000,
   DurationLimit = 2*?STREAM_TIME,
@@ -120,7 +130,20 @@ segments(Host, Name) ->
     Duration > DurationLimit -> round(Duration/?STREAM_TIME);
     true -> 1
   end,
-  {Start,Count,SegmentLength,Type}.
+  {Start,Count,SegmentLength,file}.
+
+
+timeshift_segments(Info) ->
+  Duration = proplists:get_value(length, Info, 0),
+  StartTime = proplists:get_value(start, Info, 0),
+  Start = trunc(StartTime / ?STREAM_TIME) + 1,
+  SegmentLength = ?STREAM_TIME div 1000,
+  DurationLimit = 5*?STREAM_TIME,
+  Count = if
+    Duration < DurationLimit -> 0;
+    true -> trunc((Duration + StartTime)/?STREAM_TIME) - Start
+  end,
+  {Start,Count,SegmentLength,stream}.
   
 
 play(Host, Name, Number, Req) ->
