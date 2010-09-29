@@ -165,7 +165,7 @@ handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_confi
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq+1}};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth} = RTSP) ->
-  Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~pr\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
+  Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
