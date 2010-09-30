@@ -68,6 +68,7 @@ extract_publish_args([]) -> [];
 extract_publish_args({"source_timeout", "infinity"}) -> {source_timeout, infinity};
 extract_publish_args({"source_timeout", "shutdown"}) -> {source_timeout, shutdown};
 extract_publish_args({"source_timeout", Timeout}) -> {source_timeout, list_to_integer(Timeout)};
+extract_publish_args({"timeshift", Timeshift}) -> {timeshift, list_to_integer(Timeshift)};
 extract_publish_args({Key, Value}) -> {Key, Value};
 extract_publish_args(List) -> [extract_publish_args(Arg) || Arg <- List].
 
