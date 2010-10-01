@@ -199,13 +199,22 @@ execute_commands_v1([]) ->
 
 execute_commands_v1([{purge,Module}|Commands]) ->
   error_logger:info_msg("Licence purge ~p", [Module]),
-  code:soft_purge(Module),
+  case erlang:function_exported(Module, ems_client_unload, 0) of
+    true -> (catch Module:ems_client_unload());
+    false -> ok
+  end,
+  
+  case code:is_loaded(Module) of
+    true -> code:purge(Module);
+    false -> ok
+  end,
   execute_commands_v1(Commands);
   
 execute_commands_v1([{load,ModInfo}|Commands]) ->
   Module = proplists:get_value(name, ModInfo),
   Code = proplists:get_value(code, ModInfo),
   error_logger:info_msg("Licence load ~p", [Module]),
+  code:soft_purge(Module),
   code:load_binary(Module, "license"++atom_to_list(Module)++".erl", Code),
   execute_commands_v1(Commands).
 
