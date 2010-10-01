@@ -23,8 +23,13 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_sup).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("ems.hrl").
+-include("log.hrl").
 -behaviour(supervisor).
+
+
+-define(MAX_RESTART,      5).
+-define(MAX_TIME,        10).
+
 
 -export([init/1,start_link/0]).
 -export([start_rtmp_session/1, start_media/3, start_shared_object/3,
@@ -75,17 +80,132 @@ start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_obj
 
 start_http_server(Port) ->
   % EMS HTTP
-  Listener = {ems_http_sup,                         % Id       = internal id
+  Listener = {Port,                         % Id       = internal id
       {ems_http,start_listener,[Port]},             % StartFun = {M, F, A}
       permanent,                               % Restart  = permanent | transient | temporary
       2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
       worker,                                  % Type     = worker | supervisor
       [ems_http]                               % Modules  = [Module] | dynamic
   },
-  supervisor:start_child(?MODULE, Listener).
+  supervisor:start_child(ems_http_sup, Listener).
 
 
--spec(init([]) -> any()).
+
+
+init([ems_license]) ->
+    {ok,
+        {{one_for_one, 1000, 20},
+            [
+              % TCP Client
+              {   ems_license,                               % Id       = internal id
+                  {ems_license_client,start_link,[]},                  % StartFun = {M, F, A}
+                  permanent,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [ems_license]                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([ems_network_lag]) ->
+    {ok,
+        {{one_for_one, 1000, 20},
+            [
+              % TCP Client
+              {   ems_network_lag,                               % Id       = internal id
+                  {ems_network_lag_monitor,start_link,[[{timeout,1000},{threshold,80*60}]]},                  % StartFun = {M, F, A}
+                  permanent,                               % Restart  = permanent | transient | temporary
+                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+                  worker,                                  % Type     = worker | supervisor
+                  [ems_network_lag_monitor]                                       % Modules  = [Module] | dynamic
+              }
+            ]
+        }
+    };
+init([media_providers]) ->
+  MediaProviders = lists:map(fun({Host, _}) ->
+    {   media_provider:name(Host), % Id       = internal id
+        {media_provider,start_link,[Host]},      % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [media_provider]                         % Modules  = [Module] | dynamic
+    }
+  end, ems:get_var(vhosts, [])),
+
+  {ok, {{one_for_one, 1000, 20}, MediaProviders}};
+
+init([erlyvideo_media]) ->
+  {ok,
+    {{one_for_one, 1000, 20},[
+      {   ems_media_sup,
+          {supervisor,start_link,[{local, ems_media_sup}, ?MODULE, [ems_media]]},
+          permanent,                               % Restart  = permanent | transient | temporary
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      },
+      {   media_ticker_sup,
+          {supervisor,start_link,[{local, media_ticker_sup}, ?MODULE, [media_ticker]]},
+          permanent,                               % Restart  = permanent | transient | temporary
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      },
+      {   shoutcast_reader_sup,
+          {supervisor,start_link,[{local, shoutcast_reader_sup}, ?MODULE, [shoutcast_reader]]},
+          permanent,                               % Restart  = permanent | transient | temporary
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      },
+      {   mjpeg_reader_sup,
+          {supervisor,start_link,[{local, mjpeg_reader_sup}, ?MODULE, [mjpeg_reader]]},
+          permanent,                               % Restart  = permanent | transient | temporary
+          infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+          supervisor,                              % Type     = worker | supervisor
+          []                                       % Modules  = [Module] | dynamic
+      }    
+    ]}
+  };
+
+
+
+init([ems_user_sessions]) ->
+  {ok, {{one_for_one, 1000, 20},[
+    {   ems_users_sup,                         % Id       = internal id
+        {ems_users,start_link,[]},             % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_users]                               % Modules  = [Module] | dynamic
+    },
+    {   ems_flv_streams_sup,                         % Id       = internal id
+        {ems_flv_streams,start_link,[]},             % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_flv_streams]                               % Modules  = [Module] | dynamic
+    },
+    {   ems_http_worker_sup,
+        {supervisor,start_link,[{local, ems_http_worker_sup}, ?MODULE, [ems_http_worker]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {   rtmp_session_sup,
+        {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    }
+  
+  ]}};
+
+
+  
 init([rtmp_session]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -116,6 +236,9 @@ init([ems_http_worker]) ->
             ]
         }
     };
+init([http_listener]) ->
+  {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, []}};
+
 init([shoutcast_reader]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -161,6 +284,27 @@ init([ems_media]) ->
             ]
         }
     };
+
+
+init([ems_so]) ->
+  {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, [
+    {   shared_objects_sup,
+        {shared_objects,start_link,[]},          % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [shared_objects]                                       % Modules  = [Module] | dynamic
+    },
+    {   shared_object_sup,
+        {supervisor,start_link,[{local, shared_object_sup}, ?MODULE, [shared_object]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    }
+  ]}};
+    
+    
 init([media_ticker]) ->
     {ok,
         {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
@@ -172,21 +316,6 @@ init([media_ticker]) ->
                   2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
                   worker,                                  % Type     = worker | supervisor
                   [media_ticker]                            % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
-init([shoutcast_media]) ->
-    {ok,
-        {_SupFlags = {simple_one_for_one, ?MAX_RESTART, ?MAX_TIME},
-            [
-              % MediaEntry
-              {   undefined,                               % Id       = internal id
-                  {shoutcast_media,start_link,[]},               % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [shoutcast_media]                              % Modules  = [Module] | dynamic
               }
             ]
         }
@@ -209,47 +338,50 @@ init([shared_object]) ->
 init([]) ->
 
 
-  MediaProviders = lists:map(fun({Host, _}) ->
-    {   media_provider:name(Host), % Id       = internal id
-        {media_provider,start_link,[Host]},      % StartFun = {M, F, A}
-        permanent,                               % Restart  = permanent | transient | temporary
-        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [media_provider]                         % Modules  = [Module] | dynamic
-    }
-  end, ems:get_var(vhosts, [])),
-
-
 
 
   Supervisors1 = [
+    {ems_license_sup,                         % Id       = internal id
+        {supervisor,start_link,[{local, ems_license_sup}, ?MODULE, [ems_license]]},            % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                                  % Type     = worker | supervisor
+        []                % Modules  = [Module] | dynamic
+    },
     {ems_network_lag_monitor_sup,                         % Id       = internal id
-        {ems_license_client,start_link,[]},            % StartFun = {M, F, A}
+        {supervisor,start_link,[{local, ems_network_lag_sup}, ?MODULE, [ems_network_lag]]},            % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [ems_license_client]                % Modules  = [Module] | dynamic
+        supervisor,                                  % Type     = worker | supervisor
+        []                % Modules  = [Module] | dynamic
     },
-    {ems_license_client_sup,                         % Id       = internal id
-        {ems_network_lag_monitor,start_link,[[{timeout,1000},{threshold,80*60}]]},            % StartFun = {M, F, A}
+    {media_providers_sup,                         % Id       = internal id
+        {supervisor,start_link,[{local, media_providers_sup}, ?MODULE, [media_providers]]},            % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [ems_network_lag_monitor]                % Modules  = [Module] | dynamic
+        supervisor,                                  % Type     = worker | supervisor
+        []                % Modules  = [Module] | dynamic
     },
-    {   rtmp_session_sup,
-        {supervisor,start_link,[{local, rtmp_session_sup}, ?MODULE, [rtmp_session]]},
+    {erlyvideo_media_sup,
+        {supervisor,start_link,[{local, erlyvideo_media_sup}, ?MODULE, [erlyvideo_media]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     },
-    {   ems_users_sup,                         % Id       = internal id
-        {ems_users,start_link,[]},             % StartFun = {M, F, A}
+    {ems_user_sessions_sup,
+        {supervisor,start_link,[{local, ems_user_sessions_sup}, ?MODULE, [ems_user_sessions]]},
+        permanent,                               % Restart  = permanent | transient | temporary
+        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+        supervisor,                              % Type     = worker | supervisor
+        []                                       % Modules  = [Module] | dynamic
+    },
+    {ems_http_sup,                         % Id       = internal id
+        {supervisor,start_link,[{local, ems_http_sup}, ?MODULE, [http_listener]]},            % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [ems_users]                               % Modules  = [Module] | dynamic
+        supervisor,                                  % Type     = worker | supervisor
+        []                % Modules  = [Module] | dynamic
     },
     {   ems_event_sup,                         % Id       = internal id
         {ems_event,start_link,[]},             % StartFun = {M, F, A}
@@ -258,63 +390,14 @@ init([]) ->
         worker,                                  % Type     = worker | supervisor
         [ems_event]                               % Modules  = [Module] | dynamic
     },
-    {   ems_flv_streams_sup,                         % Id       = internal id
-        {ems_flv_streams,start_link,[]},             % StartFun = {M, F, A}
-        permanent,                               % Restart  = permanent | transient | temporary
-        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [ems_flv_streams]                               % Modules  = [Module] | dynamic
-    },
-    {   ems_media_sup,
-        {supervisor,start_link,[{local, ems_media_sup}, ?MODULE, [ems_media]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   media_ticker_sup,
-        {supervisor,start_link,[{local, media_ticker_sup}, ?MODULE, [media_ticker]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   ems_http_worker_sup,
-        {supervisor,start_link,[{local, ems_http_worker_sup}, ?MODULE, [ems_http_worker]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   shoutcast_reader_sup,
-        {supervisor,start_link,[{local, shoutcast_reader_sup}, ?MODULE, [shoutcast_reader]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   mjpeg_reader_sup,
-        {supervisor,start_link,[{local, mjpeg_reader_sup}, ?MODULE, [mjpeg_reader]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   shared_objects_sup,
-        {shared_objects,start_link,[]},          % StartFun = {M, F, A}
-        permanent,                               % Restart  = permanent | transient | temporary
-        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-        worker,                                  % Type     = worker | supervisor
-        [shared_objects]                                       % Modules  = [Module] | dynamic
-    },
-    {   shared_object_sup,
-        {supervisor,start_link,[{local, shared_object_sup}, ?MODULE, [shared_object]]},
+    {ems_so_sup,
+        {supervisor,start_link,[{local, ems_so_sup}, ?MODULE, [ems_so]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
         []                                       % Modules  = [Module] | dynamic
     }
-  ] ++ MediaProviders,
+  ],
 
   Supervisors2 = case ems:get_var(scripting, false) of
     true -> [{   ems_script_sup,

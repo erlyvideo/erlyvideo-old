@@ -1,7 +1,5 @@
 
 
--define(MAX_RESTART,      5).
--define(MAX_TIME,        60).
 -define(RTMP_PORT,     1935).
 -define(TIMEOUT,     120000).
 -define(PREPUSH, 3000).
