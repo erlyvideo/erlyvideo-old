@@ -27,7 +27,17 @@
 
 
 make_request() ->
-  License = "123",
+  License = case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
+    {ok, Env, LicensePath} ->
+      error_logger:info_msg("Reading license key from ~s", [LicensePath]),
+      proplists:get_value(license, Env);
+    {error, enoent} ->
+      error_logger:info_msg("No license file found, working in public mode"),
+      "default";
+    {error, Reason} ->
+      error_logger:error_msg("Invalid license key: ~p", [Reason]),
+      "default"
+  end,
   Command = "init",
   LicenseUrl = ems:get_var(license_url, "http://license.erlyvideo.tv/license"),
   {_, _Auth, Host, Port, Path, _Query} = http_uri2:parse(LicenseUrl),
