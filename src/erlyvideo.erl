@@ -32,6 +32,7 @@
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
 -export([stats/1]).
+-export([vhosts/0]).
 
 
 -export([edoc/0, edoc/1]).
@@ -52,6 +53,9 @@ edoc() ->
 edoc(Options) ->
   edoc:application(?MODULE,".",[{packages,false} | Options]).
 
+
+vhosts() ->
+  [Host || {Host, _} <- ems:get_var(vhosts, [])].
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
