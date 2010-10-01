@@ -224,6 +224,13 @@ init([]) ->
 
   Supervisors1 = [
     {ems_network_lag_monitor_sup,                         % Id       = internal id
+        {ems_license_client,start_link,[]},            % StartFun = {M, F, A}
+        permanent,                               % Restart  = permanent | transient | temporary
+        2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+        worker,                                  % Type     = worker | supervisor
+        [ems_license_client]                % Modules  = [Module] | dynamic
+    },
+    {ems_license_client_sup,                         % Id       = internal id
         {ems_network_lag_monitor,start_link,[[{timeout,1000},{threshold,80*60}]]},            % StartFun = {M, F, A}
         permanent,                               % Restart  = permanent | transient | temporary
         2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity

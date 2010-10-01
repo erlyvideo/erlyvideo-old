@@ -22,22 +22,138 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_license_client).
 -author('Max Lapshin <max@maxidoors.ru>').
+-behaviour(gen_server).
 
--export([make_request/0]).
+-include("log.hrl").
+
+-define(TIMEOUT, 20*60000).
+
+%% External API
+-export([start_link/0]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+
+-export([ping/0]).
 
 
-make_request() ->
-  License = case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
+
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+
+ping() ->
+  gen_server:call(?MODULE, ping).
+  
+
+
+%%%------------------------------------------------------------------------
+%%% Callback functions from gen_server
+%%%------------------------------------------------------------------------
+
+%%----------------------------------------------------------------------
+%% @spec (Port::integer()) -> {ok, State}           |
+%%                            {ok, State, Timeout}  |
+%%                            ignore                |
+%%                            {stop, Reason}
+%%
+%% @doc Called by gen_server framework at process startup.
+%%      Create listening socket.
+%% @end
+%%----------------------------------------------------------------------
+
+
+init([]) ->
+  {ok, state, ?TIMEOUT}.
+
+%%-------------------------------------------------------------------------
+%% @spec (Request, From, State) -> {reply, Reply, State}          |
+%%                                 {reply, Reply, State, Timeout} |
+%%                                 {noreply, State}               |
+%%                                 {noreply, State, Timeout}      |
+%%                                 {stop, Reason, Reply, State}   |
+%%                                 {stop, Reason, State}
+%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
+%%      is returned, the server is stopped and `terminate/2' is called.
+%% @end
+%% @private
+%%-------------------------------------------------------------------------
+handle_call(ping, _From, State) ->
+  {reply, make_request_internal(), State, ?TIMEOUT};
+
+handle_call(Request, _From, State) ->
+  {stop, {unknown_call, Request}, State}.
+
+
+%%-------------------------------------------------------------------------
+%% @spec (Msg, State) ->{noreply, State}          |
+%%                      {noreply, State, Timeout} |
+%%                      {stop, Reason, State}
+%% @doc Callback for asyncrous server calls.  If `{stop, ...}' tuple
+%%      is returned, the server is stopped and `terminate/2' is called.
+%% @end
+%% @private
+%%-------------------------------------------------------------------------
+handle_cast(_Msg, State) ->
+  {stop, {unknown_cast, _Msg}, State}.
+
+%%-------------------------------------------------------------------------
+%% @spec (Msg, State) ->{noreply, State}          |
+%%                      {noreply, State, Timeout} |
+%%                      {stop, Reason, State}
+%% @doc Callback for messages sent directly to server's mailbox.
+%%      If `{stop, ...}' tuple is returned, the server is stopped and
+%%      `terminate/2' is called.
+%% @end
+%% @private
+%%-------------------------------------------------------------------------
+handle_info(timeout, State) ->
+  make_request_internal(),
+  {noreply, State, ?TIMEOUT};
+
+handle_info(_Info, State) ->
+  {stop, {unknown_info, _Info}, State}.
+
+%%-------------------------------------------------------------------------
+%% @spec (Reason, State) -> any
+%% @doc  Callback executed on server shutdown. It is only invoked if
+%%       `process_flag(trap_exit, true)' is set by the server process.
+%%       The return value is ignored.
+%% @end
+%% @private
+%%-------------------------------------------------------------------------
+terminate(_Reason, _State) ->
+  ok.
+
+%%-------------------------------------------------------------------------
+%% @spec (OldVsn, State, Extra) -> {ok, NewState}
+%% @doc  Convert process state when code is changed.
+%% @end
+%% @private
+%%-------------------------------------------------------------------------
+code_change(_OldVsn, State, _Extra) ->
+  {ok, State}.
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%% Make license request logic
+
+make_request_internal() ->
+  case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
     {ok, Env, LicensePath} ->
       error_logger:info_msg("Reading license key from ~s", [LicensePath]),
-      proplists:get_value(license, Env);
+      request_licensed(proplists:get_value(license, Env));
     {error, enoent} ->
       error_logger:info_msg("No license file found, working in public mode"),
-      "default";
+      ok;
     {error, Reason} ->
       error_logger:error_msg("Invalid license key: ~p", [Reason]),
-      "default"
-  end,
+      ok
+  end.
+  
+request_licensed(License) ->
   Command = "init",
   LicenseUrl = ems:get_var(license_url, "http://license.erlyvideo.tv/license"),
   {_, _Auth, Host, Port, Path, _Query} = http_uri2:parse(LicenseUrl),
@@ -54,8 +170,15 @@ make_request() ->
   Length = proplists:get_value('Content-Length', Headers),
   {ok, Bin} = gen_tcp:recv(Sock, Length),
   gen_tcp:close(Sock),
-  {reply, _ProtoVersion, Modules} = erlang:binary_to_term(Bin),
-  load_modules(Modules),
+  {reply, Reply} = erlang:binary_to_term(Bin),
+  case proplists:get_value(version, Reply) of
+    1 ->
+      Commands = proplists:get_value(commands, Reply),
+      execute_commands_v1(Commands),
+      handle_loaded_modules_v1(Commands);
+    Version ->
+      erlang:error({unknown_license_version, Version})
+  end,
   ok.
   
 read_headers(Sock, Headers) ->
@@ -71,15 +194,37 @@ read_headers(Sock, Headers) ->
   
   
   
-load_modules([]) -> 
+execute_commands_v1([]) -> 
+  ok;
+
+execute_commands_v1([{purge,Module}|Commands]) ->
+  error_logger:info_msg("Licence purge ~p", [Module]),
+  code:soft_purge(Module),
+  execute_commands_v1(Commands);
+  
+execute_commands_v1([{load,ModInfo}|Commands]) ->
+  Module = proplists:get_value(name, ModInfo),
+  Code = proplists:get_value(code, ModInfo),
+  error_logger:info_msg("Licence load ~p", [Module]),
+  code:load_binary(Module, "license"++atom_to_list(Module)++".erl", Code),
+  execute_commands_v1(Commands).
+
+  
+handle_loaded_modules_v1([]) ->
   ok;
   
-load_modules([{module,Module,Body}|Modules]) ->
-  code:load_binary(Module, atom_to_list(Module)++".erl", Body),
+handle_loaded_modules_v1([{load, ModInfo}|Commands]) ->
+  Module = proplists:get_value(name, ModInfo),
   case erlang:function_exported(Module, ems_client_load, 0) of
     true -> Module:ems_client_load();
     false -> ok
   end,
-  load_modules(Modules).
+  handle_loaded_modules_v1(Commands);
+  
+handle_loaded_modules_v1([_Command|Commands]) ->
+  handle_loaded_modules_v1(Commands).
+
+  
+
 
   
