@@ -37,6 +37,13 @@
     worker,                                  % Type     = worker | supervisor
     [M]                                      % Modules  = [Module] | dynamic
 }).
+-define(STATIC_SERVER(Id,M,A), {Id,                               % Id       = internal id
+    {M,start_link,A},                  % StartFun = {M, F, A}
+    permanent,                               % Restart  = permanent | transient | temporary
+    2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+    worker,                                  % Type     = worker | supervisor
+    [M]                                      % Modules  = [Module] | dynamic
+}).
 -define(SIMPLE_SERVER(M,A), ?NAMED_SERVER(undefined, M, A)).
 
 -define(SUPERVISOR_LINK(Name), {Name,
@@ -110,11 +117,11 @@ start_http_server(Port) ->
 
 %%%%%%%%  License supervisor  %%%%%%%
 init([ems_license_sup]) ->
-  {ok, {{one_for_one, 1000, 20}, [?NAMED_SERVER(ems_license, ems_license_client, [])]}};
+  {ok, {{one_for_one, 1000, 20}, [?STATIC_SERVER(ems_license, ems_license_client, [])]}};
   
 %%%%%%%%  Lagging network clients monitor  %%%%%%%
 init([ems_network_lag_monitor_sup]) ->
-  {ok, {{one_for_one, 1000, 20}, [?NAMED_SERVER(ems_network_lag, ems_network_lag_monitor, [[{timeout,1000},{threshold,80*60}]])]}};
+  {ok, {{one_for_one, 1000, 20}, [?STATIC_SERVER(ems_network_lag, ems_network_lag_monitor, [[{timeout,1000},{threshold,80*60}]])]}};
 
 
 %%%%%%%%  Media provider  %%%%%%%
