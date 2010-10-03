@@ -1,3 +1,9 @@
+erlmedia (1.9.3) unstable; urgency=low
+
+  mp4_writer issues
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 03 Oct 2010 17:01:06 +0400
+
 erlmedia (1.9.2) unstable; urgency=low
 
   mp3 length and seek
