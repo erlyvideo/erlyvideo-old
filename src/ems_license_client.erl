@@ -37,13 +37,18 @@
 -export([ping/0]).
 
 
+-record(client, {
+  license,
+  timeout
+}).
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
 ping() ->
-  gen_server:call(?MODULE, ping).
+  ?MODULE ! timeout,
+  ok.
   
 
 
@@ -65,7 +70,7 @@ ping() ->
 
 init([]) ->
   self() ! timeout,
-  {ok, state, ?TIMEOUT}.
+  {ok, #client{timeout = ?TIMEOUT}, ?TIMEOUT}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -79,9 +84,6 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call(ping, _From, State) ->
-  {reply, make_request_internal(), State, ?TIMEOUT};
-
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
@@ -109,8 +111,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info(timeout, State) ->
-  make_request_internal(),
-  {noreply, State, ?TIMEOUT};
+  make_request_internal(State);
 
 handle_info(_Info, State) ->
   {stop, {unknown_info, _Info}, State}.
@@ -140,23 +141,31 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 %%%%%%%%%%%%%%%%%%% Make license request logic
+make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = State) ->
+  {License, Timeout} = case read_license() of
+    {OldLicense, _} -> {OldLicense,OldTimeout};
+    undefined -> {undefined,OldTimeout};
+    {Env, LicensePath} ->
+      error_logger:info_msg("Reading license key from ~s", [LicensePath]),
+      {Env,proplists:get_value(timeout,Env,OldTimeout)}
+  end,
+  request_licensed(License),
+  {noreply, State#client{license = License, timeout = Timeout}, Timeout}.
 
-make_request_internal() ->
+
+read_license() ->
   case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
     {ok, Env, LicensePath} ->
-      error_logger:info_msg("Reading license key from ~s", [LicensePath]),
-      case proplists:get_value(timeout,Env) of
-        Timeout when is_number(Timeout) -> timer:send_after(Timeout, timeout);
-        _ -> ok
-      end,
-      request_licensed(Env);
+      {Env,LicensePath};
     {error, enoent} ->
-      error_logger:info_msg("No license file found, working in public mode"),
-      ok;
+      undefined;
     {error, Reason} ->
       error_logger:error_msg("Invalid license key: ~p", [Reason]),
-      ok
+      undefined
   end.
+
+request_licensed(undefined) ->
+  ok;
   
 request_licensed(Env) ->
   LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.tv/license"),
@@ -224,21 +233,39 @@ execute_commands_v1([{purge,Module}|Commands]) ->
   execute_commands_v1(Commands);
   
 execute_commands_v1([{load,ModInfo}|Commands]) ->
-  Module = proplists:get_value(name, ModInfo),
   Code = proplists:get_value(code, ModInfo),
-  error_logger:info_msg("Licence load ~p", [Module]),
-  code:soft_purge(Module),
-  code:load_binary(Module, "license"++atom_to_list(Module)++".erl", Code),
+  {ok, {Module, [Version]}} = beam_lib:version(Code),
+  case is_new_version(ModInfo) of
+    false -> ok;
+    true -> 
+      error_logger:info_msg("Licence load ~p(~p)", [Module, Version]),
+      code:soft_purge(Module),
+      code:load_binary(Module, "license/"++atom_to_list(Module)++".erl", Code)
+  end,
   execute_commands_v1(Commands).
+
+
+is_new_version(ModInfo) ->
+  Code = proplists:get_value(code, ModInfo),
+  {ok, {Module, NewVersion}} = beam_lib:version(Code),
+  OldVersion = case code:is_loaded(Module) of
+    false -> undefined;
+    _ -> proplists:get_value(vsn, Module:module_info(attributes))
+  end,
+  OldVersion =/= NewVersion.
 
   
 handle_loaded_modules_v1([]) ->
   ok;
   
 handle_loaded_modules_v1([{load, ModInfo}|Commands]) ->
-  Module = proplists:get_value(name, ModInfo),
-  case erlang:function_exported(Module, ems_client_load, 0) of
-    true -> Module:ems_client_load();
+  case is_new_version(ModInfo) of
+    true ->
+      Module = proplists:get_value(name, ModInfo),
+      case erlang:function_exported(Module, ems_client_load, 0) of
+        true -> Module:ems_client_load();
+        false -> ok
+      end;
     false -> ok
   end,
   handle_loaded_modules_v1(Commands);
