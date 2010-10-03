@@ -1,3 +1,9 @@
+erlang-rtmp (1.7.14) unstable; urgency=low
+
+  stream stop issues
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 03 Oct 2010 18:32:32 +0400
+
 erlang-rtmp (1.7.13) unstable; urgency=low
 
   justify_ts and magic control numbers
