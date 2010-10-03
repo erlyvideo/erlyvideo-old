@@ -435,6 +435,8 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
     {stop, Reason, Media1} ->
       ?D({"ems_media failed to subscribe",Client,M,Reason}),
       {stop, Reason, Media1};
+    {stop, Reason, Reply, Media1} ->
+      {stop, Reason, Reply, Media1};
     {reply, {error, Reason}, Media1} ->
       {reply, {error, Reason}, Media1, ?TIMEOUT};
     {reply, Reply, Media1} ->
@@ -516,6 +518,8 @@ handle_call({seek_info, BeforeAfter, DTS} = SeekInfo, _From,
       {reply, Format:seek(Storage, BeforeAfter, DTS), Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
+    {stop, Reason, Reply, Media1} ->
+      {stop, Reason, Reply, Media1};
     {reply, Reply, Media1} ->
       {reply, Reply, Media1, ?TIMEOUT}
   end;
@@ -852,6 +856,9 @@ unsubscribe_client(Client, #ems_media{options = Options, clients = Clients, modu
         {reply, Reply, Media1} ->
           {reply, Reply, Media1, ?TIMEOUT};
 
+        {stop, Reason, Reply, Media1} ->
+          {stop, Reason, Reply, Media1};
+
         {stop, Reason, Media1} ->
           {stop, Reason, Media1}
       end;    
@@ -928,6 +935,10 @@ video_parameters(#ems_media{}, Options) ->
 terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
   ?D("ems_media exit normal"),
   erlang:exit(Source, shutdown),
+  ok;
+
+terminate(normal, #ems_media{source = undefined}) ->
+  ?D("ems_media exit normal"),
   ok;
 
 terminate(_Reason, Media) ->
