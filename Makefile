@@ -90,6 +90,7 @@ install: compile
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
 	rm -rf $(DESTROOT)/var/lib/erlyvideo/wwwroot/player/.git
 	mkdir -p $(DESTROOT)/var/log/erlyvideo
+	mkdir -p $(DESTROOT)/etc/erlyvideo
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
