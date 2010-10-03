@@ -95,6 +95,7 @@ install: compile
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
 	cp -r snmp $(DESTROOT)/var/lib/erlyvideo/
+	mkdir -p $(DESTROOT)/var/cache/erlyvideo/licensed
 
 
 .PHONY: doc debian compile snmp

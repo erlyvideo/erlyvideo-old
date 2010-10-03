@@ -597,6 +597,8 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
       {noreply, Media1, ?TIMEOUT};
     {reply, _Reply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
+    {stop, Reason, _Reply, Media1} ->
+      {stop, Reason, Media1};
     {stop, Reason, Media1} ->
       ?D({"ems_media failed to cast", M, Cast, Reason}),
       {stop, Reason, Media1}
@@ -623,6 +625,8 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
   case M:handle_control({source_lost, Source}, Media) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
+      {stop, Reason, Media1};
+    {stop, Reason, _Reply, Media1} ->
       {stop, Reason, Media1};
     {noreply, Media1} when is_number(SourceTimeout) andalso SourceTimeout > 0 ->
       ?D({"ems_media lost source and sending graceful", SourceTimeout, round(Media1#ems_media.last_dts)}),
@@ -667,6 +671,8 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
           end
       end;
     {reply, _Reply, Media2, _} -> {noreply, Media2, ?TIMEOUT};
+    {stop, Reason, _Reply, Media1} ->
+      {stop, Reason, Media1};
     {stop, Reason, Media2} -> 
       ?D({"ems_media is stopping after unsubscribe", M, Pid, Reason}),
       {stop, Reason, Media2}
@@ -691,6 +697,8 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
     {noreply, Media1} ->
       ?D({"Media has no source after timeout and exiting", self(), Media#ems_media.name}),
       {stop, normal, Media1};
+    {stop, Reason, _Reply, Media1} ->
+      {stop, Reason, Media1};
     {stop, Reason, Media1} ->
       ?D({"Media has no source after timeout and exiting", self(), Media#ems_media.name}),
       {stop, Reason, Media1};
@@ -709,6 +717,8 @@ handle_info(no_clients, #ems_media{module = M} = Media) ->
         {noreply, Media1} ->
           ?D({"ems_media is stopping", M, Media#ems_media.name}),
           {stop, normal, Media1};
+        {stop, Reason, _Reply, Media1} ->
+          {stop, Reason, Media1};
         {stop, Reason, Media1} ->
           ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name}),
           {stop, Reason, Media1};
@@ -730,6 +740,8 @@ handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Sourc
     {stop, Reason, Media1} ->
       error_logger:error_msg("Source of media doesnt send frames, stopping...~n"),
       {stop, Reason, Media1};
+    {stop, Reason, _Reply, Media1} ->
+      {stop, Reason, Media1};
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {reply, _Reply, Media1} ->
@@ -740,6 +752,8 @@ handle_info(Message, #ems_media{module = M} = Media) ->
   case M:handle_info(Message, Media) of
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
+    {stop, Reason, _Reply, Media1} ->
+      {stop, Reason, Media1};
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping after handle_info", M, Message, Reason}),
       {stop, Reason, Media1}

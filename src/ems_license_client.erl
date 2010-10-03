@@ -196,8 +196,8 @@ send_license_request(Sock, Env) ->
   case proplists:get_value(version, Reply) of
     1 ->
       Commands = proplists:get_value(commands, Reply),
-      execute_commands_v1(Commands),
-      handle_loaded_modules_v1(Commands);
+      Startup = execute_commands_v1(Commands, []),
+      handle_loaded_modules_v1(lists:reverse(Startup));
     Version ->
       erlang:error({unknown_license_version, Version})
   end,
@@ -216,33 +216,48 @@ read_headers(Sock, Headers) ->
   
   
   
-execute_commands_v1([]) -> 
-  ok;
+execute_commands_v1([], Startup) -> 
+  Startup;
 
-execute_commands_v1([{purge,Module}|Commands]) ->
-  error_logger:info_msg("Licence purge ~p", [Module]),
+execute_commands_v1([{purge,Module}|Commands], Startup) ->
   case erlang:function_exported(Module, ems_client_unload, 0) of
     true -> (catch Module:ems_client_unload());
     false -> ok
   end,
   
   case code:is_loaded(Module) of
-    true -> code:purge(Module);
+    true -> error_logger:info_msg("Licence purge ~p", [Module]), code:purge(Module);
     false -> ok
   end,
-  execute_commands_v1(Commands);
+  execute_commands_v1(Commands, Startup);
+
+execute_commands_v1([{save,Info}|Commands], Startup) ->
+  File = proplists:get_value(file, Info),
+  Path = proplists:get_value(path, Info),
+  CacheDir = ems:get_var(license_cache_dir, "tmp"),
+  FullPath = filename:join(CacheDir, Path),
+  code:add_patha(filename:dirname(FullPath)),
+  case file:read_file(FullPath) of
+    {ok, File} -> ok;
+    _ ->
+      filelib:ensure_dir(FullPath),
+      file:write_file(FullPath, File),
+      error_logger:info_msg("License file ~p", [Path])
+  end,
+  execute_commands_v1(Commands, Startup);
   
-execute_commands_v1([{load,ModInfo}|Commands]) ->
+execute_commands_v1([{load,ModInfo}|Commands], Startup) ->
   Code = proplists:get_value(code, ModInfo),
   {ok, {Module, [Version]}} = beam_lib:version(Code),
   case is_new_version(ModInfo) of
-    false -> ok;
+    false -> 
+      execute_commands_v1(Commands, Startup);
     true -> 
       error_logger:info_msg("Licence load ~p(~p)", [Module, Version]),
       code:soft_purge(Module),
-      code:load_binary(Module, "license/"++atom_to_list(Module)++".erl", Code)
-  end,
-  execute_commands_v1(Commands).
+      code:load_binary(Module, "license/"++atom_to_list(Module)++".erl", Code),
+      execute_commands_v1(Commands, [Module|Startup])
+  end.
 
 
 is_new_version(ModInfo) ->
@@ -258,20 +273,13 @@ is_new_version(ModInfo) ->
 handle_loaded_modules_v1([]) ->
   ok;
   
-handle_loaded_modules_v1([{load, ModInfo}|Commands]) ->
-  case is_new_version(ModInfo) of
-    true ->
-      Module = proplists:get_value(name, ModInfo),
-      case erlang:function_exported(Module, ems_client_load, 0) of
-        true -> Module:ems_client_load();
-        false -> ok
-      end;
+handle_loaded_modules_v1([Module|Startup]) ->
+  ?D({start,Module}),
+  case erlang:function_exported(Module, ems_client_load, 0) of
+    true -> Module:ems_client_load();
     false -> ok
   end,
-  handle_loaded_modules_v1(Commands);
-  
-handle_loaded_modules_v1([_Command|Commands]) ->
-  handle_loaded_modules_v1(Commands).
+  handle_loaded_modules_v1(Startup).
 
   
 
