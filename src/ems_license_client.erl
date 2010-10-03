@@ -64,6 +64,7 @@ ping() ->
 
 
 init([]) ->
+  self() ! timeout,
   {ok, state, ?TIMEOUT}.
 
 %%-------------------------------------------------------------------------
@@ -144,7 +145,11 @@ make_request_internal() ->
   case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
     {ok, Env, LicensePath} ->
       error_logger:info_msg("Reading license key from ~s", [LicensePath]),
-      request_licensed(proplists:get_value(license, Env));
+      case proplists:get_value(timeout,Env) of
+        Timeout when is_number(Timeout) -> timer:send_after(Timeout, timeout);
+        _ -> ok
+      end,
+      request_licensed(Env);
     {error, enoent} ->
       error_logger:info_msg("No license file found, working in public mode"),
       ok;
@@ -153,11 +158,19 @@ make_request_internal() ->
       ok
   end.
   
-request_licensed(License) ->
+request_licensed(Env) ->
+  LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.tv/license"),
+  {_, _Auth, Host, Port, _Path, _Query} = http_uri2:parse(LicenseUrl),
+  case gen_tcp:connect(Host, Port, [binary]) of
+    {ok, Sock} -> send_license_request(Sock, Env);
+    {error, Reason} -> error_logger:error_msg("Couldn't connect to license server ~p: ~p", [LicenseUrl, Reason])
+  end.
+  
+send_license_request(Sock, Env) ->
   Command = "init",
-  LicenseUrl = ems:get_var(license_url, "http://license.erlyvideo.tv/license"),
-  {_, _Auth, Host, Port, Path, _Query} = http_uri2:parse(LicenseUrl),
-  {ok, Sock} = gen_tcp:connect(Host, Port, [binary]),
+  LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.tv/license"),
+  License = proplists:get_value(license, Env),
+  {_, _Auth, Host, _Port, Path, _Query} = http_uri2:parse(LicenseUrl),
   inet:setopts(Sock, [{packet,http},{active,false}]),
   Query = io_lib:format("GET ~s?key=~s&command=~s HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, License, Command, Host]),
   gen_tcp:send(Sock, Query),
