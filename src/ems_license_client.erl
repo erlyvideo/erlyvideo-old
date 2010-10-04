@@ -183,11 +183,16 @@ send_license_request(Sock, Env) ->
   inet:setopts(Sock, [{packet,http},{active,false}]),
   Query = io_lib:format("GET ~s?key=~s&command=~s HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, License, Command, Host]),
   gen_tcp:send(Sock, Query),
-  {ok, {http_response, _HTTPVersion, Code, _Status}} = gen_tcp:recv(Sock, 0),
-  case Code of
-    200 -> ok;
-    _ -> erlang:error(unauthenticated_request)
+  Reply = case gen_tcp:recv(Sock, 0) of
+    {ok, {http_response, _HTTPVersion, 200, _Status}} -> 
+      read_license_response(Sock);
+    _ -> 
+      {error, unauthenticated_request}
   end,
+  gen_tcp:close(Sock),
+  Reply.
+  
+read_license_response(Sock) ->
   Headers = read_headers(Sock, []),
   Length = proplists:get_value('Content-Length', Headers),
   {ok, Bin} = gen_tcp:recv(Sock, Length),
@@ -199,9 +204,9 @@ send_license_request(Sock, Env) ->
       Startup = execute_commands_v1(Commands, []),
       handle_loaded_modules_v1(lists:reverse(Startup));
     Version ->
-      erlang:error({unknown_license_version, Version})
-  end,
-  ok.
+      {error,{unknown_license_version, Version}}
+  end.
+  
   
 read_headers(Sock, Headers) ->
   case gen_tcp:recv(Sock, 0) of
