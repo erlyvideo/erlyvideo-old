@@ -1,3 +1,9 @@
+erlyvideo (2.3.1) unstable; urgency=low
+
+  license client fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 04 Oct 2010 22:38:14 +0400
+
 erlyvideo (2.3.0) unstable; urgency=low
 
   now with license client
