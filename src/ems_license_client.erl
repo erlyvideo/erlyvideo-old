@@ -246,6 +246,14 @@ execute_commands_v1([{save,Info}|Commands], Startup) ->
   end,
   execute_commands_v1(Commands, Startup);
   
+execute_commands_v1([{load_app, {application,Name,_Desc} = AppDescr}|Commands], Startup) ->
+  case application:load(AppDescr) of
+    ok -> error_logger:info_msg("License load application ~p", [Name]);
+    _ -> ok
+  end,
+  execute_commands_v1(Commands, Startup);
+  
+  
 execute_commands_v1([{load,ModInfo}|Commands], Startup) ->
   Code = proplists:get_value(code, ModInfo),
   {ok, {Module, [Version]}} = beam_lib:version(Code),
