@@ -282,7 +282,6 @@ handle_loaded_modules_v1([]) ->
   ok;
   
 handle_loaded_modules_v1([Module|Startup]) ->
-  ?D({start,Module}),
   case erlang:function_exported(Module, ems_client_load, 0) of
     true -> Module:ems_client_load();
     false -> ok
