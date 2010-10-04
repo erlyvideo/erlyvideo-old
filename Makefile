@@ -1,4 +1,4 @@
-VERSION=`head -1 debian/changelog | sed -Ee 's/.*\(([^\)]+)\).*/\1/'`
+VERSION=`head -1 debian/changelog | sed -e 's/.*\(([^\)]+)\).*/\1/'`
 ERLDIR=`erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell`/lib/http_file-$(VERSION)
 
 DEBIANREPO=/apps/erlyvideo/debian/closed

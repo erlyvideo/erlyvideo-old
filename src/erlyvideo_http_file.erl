@@ -9,7 +9,7 @@ check(Host, Name, _Opts) ->
   case re:run(Name, Re, [{capture,all,list}]) of
     {match, [_, Path]} -> 
       Cache = filename:join([file_media:file_dir(Host), "cache", Path]),
-      [{type, file},{url,Name},{access,http_file},{cache_file,Cache}];
+      [{type, file},{url,Name},{file_access,http_file},{cache_file,Cache}];
     _ -> 
       false
   end.

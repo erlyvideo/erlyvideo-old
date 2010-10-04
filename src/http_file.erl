@@ -39,7 +39,6 @@
 -define(COVER_LIMIT, 100000).
 
 start() ->
-  inets:start(),
   application:start(http_file).
 
 stop() ->
@@ -245,12 +244,12 @@ handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams =
 
 
 handle_info(start_download, #http_file{url = URL} = State) ->
-  {ok, {_, Headers, _}} = httpc:request(head, {URL, []}, [], []),
+  {ok, Headers} = head_request(URL),
   % ?D(Headers),
-  Length = proplists:get_value("content-length", Headers),
+  Length = proplists:get_value('Content-Length', Headers),
   {ok, FirstRequest} = http_file_sup:start_request(self(), URL, 0),
   Ref = erlang:monitor(process, FirstRequest),
-  {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = list_to_integer(Length)}};
+  {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = Length}};
 
 handle_info({'DOWN', _, process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
@@ -287,7 +286,34 @@ code_change(_Old, State, _Extra) ->
   {ok, State}.
   
 %%%----------------------------
+
+
+head_request(URL) ->
+  {http, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  {ok, Re} = re:compile("http://[^\\/]+/(.+)"),
+  {match, [_, Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active,false}, {packet,http}]),
+  Req = lists:flatten(io_lib:format("HEAD /~s HTTP/1.1\r\nHost: ~s\r\n~s\r\n", [Path, Host, auth(URL, "HEAD")])),
+  gen_tcp:send(Socket, Req),
+  {ok, {http_response, _HTTPVersion, 200, _Status}} = gen_tcp:recv(Socket, 0),
+  Headers = read_headers(Socket, []),
+  gen_tcp:close(Socket),
+  {ok, Headers}.
   
+  
+read_headers(Sock, Headers) ->
+  case gen_tcp:recv(Sock, 0) of
+    {ok, {http_header, _, 'Content-Length' = Header, _, Value}} ->
+      read_headers(Sock, [{Header,list_to_integer(Value)}|Headers]);
+    {ok, {http_header, _, Header, _, Value}} ->
+      read_headers(Sock, [{Header,Value}|Headers]);
+    {ok, http_eoh} ->
+      inet:setopts(Sock, [{packet,raw}]),
+      Headers
+  end.
+  
+auth(_URL, _Verb) ->
+  "".
   
 schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} = File, {_From, Offset, _Limit} = Request) ->
   NewStreams = case has_covering_stream(Streams, Request) of
