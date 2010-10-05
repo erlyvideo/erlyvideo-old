@@ -25,9 +25,9 @@
 -export([start_link/1]).
 -behaviour(gen_server).
 
--define(D(X), ems_log:debug(3, shoutcast, "~p:~p ~p",[?MODULE, ?LINE, X])).
--include_lib("erlmedia/include/video_frame.hrl").
--include_lib("erlmedia/include/aac.hrl").
+-include("../include/video_frame.hrl").
+-include("../include/aac.hrl").
+-include("log.hrl").
 
 -record(shoutcast, {
   consumer,
