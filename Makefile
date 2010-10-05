@@ -7,12 +7,14 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: snmp compile 
+all: deps/amf snmp compile 
 
 update: update_deps
+  git pull
+
+deps/amf: update_deps
 
 update_deps: rebar.config
-	git pull
 	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
 	./rebar get-deps
 

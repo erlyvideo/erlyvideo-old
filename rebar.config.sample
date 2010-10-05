@@ -6,12 +6,6 @@
 
 {deps, [
         {amf,         ".*", {git, "git://github.com/erlyvideo/erlang-amf", "master"}},
-        {erlmedia,    ".*", {git, "git://github.com/erlyvideo/erlmedia", "master"}},
         {erlydtl,     ".*", {git, "git://github.com/erlyvideo/erlydtl", "master"}},
-        {ertp,        ".*", {git, "git://github.com/erlyvideo/ertp", "master"}},
-        {log4erl,     ".*", {git, "git://github.com/erlyvideo/log4erl", "master"}},
-        {mpegts,      ".*", {git, "git://github.com/erlyvideo/mpegts", "master"}},
-        {rtmp,        ".*", {git, "git://github.com/erlyvideo/erlang-rtmp", "master"}},
-        {rtsp,        ".*", {git, "git://github.com/erlyvideo/ertsp", "master"}},
-        {shoutcast,   ".*", {git, "git://github.com/erlyvideo/shoutcast", "master"}}
+        {log4erl,     ".*", {git, "git://github.com/erlyvideo/log4erl", "master"}}
        ]}.
