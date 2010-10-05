@@ -23,5 +23,4 @@ build/
 build-stamp
 configure-stamp
 rebar.config
-deps
 tmp
