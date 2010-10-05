@@ -28,7 +28,7 @@ rebar.config:
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
-	(cd deps/erlydtl && make)
+	[ -d deps/erlydtl ] && (cd deps/erlydtl && make)
 	(cd deps/mpegts && make)
 	
 include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
