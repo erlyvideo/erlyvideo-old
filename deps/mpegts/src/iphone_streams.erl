@@ -47,15 +47,17 @@ start_link(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
-  {_, Count, _, Type} = segments(Host, Name),
-  Options = case {Count - 1,Type} of
-    {Number,stream} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length
-    {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment doesn't require any end limit
+  {Start, Count, _, Type} = segments(Host, Name),
+  Options = case {Start + Count - 1,Type} of
+    {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment of file doesn't require any end limit
+    % {Number,_} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length and buffer
     _ -> [{client_buffer,?STREAM_TIME*2},{duration, {'before', ?STREAM_TIME}}]
   end,
   if
-    Number >= Count -> 
-      {notfound, io_lib:format("Too large segment number: ~p/~p", [Number, Count])};
+    Number < Start ->
+      {notfound, io_lib:format("Too small segment number: ~p/~p", [Number, Start])};
+    Number >= Start + Count -> 
+      {notfound, io_lib:format("Too large segment number: ~p/~p", [Number, Start+Count])};
     true ->
       {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, {'before', Number * ?STREAM_TIME}}|Options])
   end.
@@ -65,19 +67,20 @@ playlist(Host, Name) ->
   playlist(Host, Name, []).
 
 playlist(Host, Name, Options) ->
-  {Start,Count,SegmentLength,Type} = iphone_streams:segments(Host, Name),
+  {Start,Count,SegmentLength,Type} = segments(Host, Name),
   {ok, Media} = media_provider:open(Host, Name),
   Generator = proplists:get_value(generator, Options, fun(Duration, StreamName, Number) ->
     io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [Duration, StreamName, Number])
   end),
+  
   SegmentListDirty = lists:map(fun(N) ->
     segment_info(Media, Name, N, Count, Generator)
   end, lists:seq(Start, Start + Count - 1)),
   SegmentList = lists:filter(fun(undefined) -> false;
                                 (_) -> true end, SegmentListDirty),
   EndList = case Type of
-    stream -> "";
-    file -> "#EXT-X-ENDLIST\n"
+    file -> "#EXT-X-ENDLIST\n";
+    _ -> ""
   end,
   [
     "#EXTM3U\n",
@@ -92,6 +95,7 @@ segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
   {_Key, StartDTS} = ems_media:seek_info(Media, 'before', Number * ?STREAM_TIME),
   Info = ems_media:info(Media),
   Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
+  ?D({"Last segment", Number, StartDTS, Duration}),
   Generator(round((Duration - StartDTS)/1000), Name, Number);
   
 
@@ -108,8 +112,17 @@ segment_info(_MediaEntry, Name, Number, _Count, Generator) ->
 
 segments(Host, Name) ->
   Info = media_provider:info(Host, Name),
-  Duration = proplists:get_value(length, Info, 0),
   Type = proplists:get_value(type, Info),
+  
+  case Type of
+    file ->
+      file_segments(Info);
+    _ ->
+      timeshift_segments(Info)
+  end.
+  
+file_segments(Info) ->
+  Duration = proplists:get_value(length, Info, 0),
   Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
   SegmentLength = ?STREAM_TIME div 1000,
   DurationLimit = 2*?STREAM_TIME,
@@ -117,18 +130,33 @@ segments(Host, Name) ->
     Duration > DurationLimit -> round(Duration/?STREAM_TIME);
     true -> 1
   end,
-  {Start,Count,SegmentLength,Type}.
+  {Start,Count,SegmentLength,file}.
+
+
+timeshift_segments(Info) ->
+  Duration = proplists:get_value(length, Info, 0),
+  StartTime = proplists:get_value(start, Info, 0),
+  Start = trunc(StartTime / ?STREAM_TIME) + 1,
+  SegmentLength = ?STREAM_TIME div 1000,
+  DurationLimit = 5*?STREAM_TIME,
+  Count = if
+    Duration < DurationLimit -> 0;
+    true -> trunc((Duration + StartTime)/?STREAM_TIME) - Start
+  end,
+  {Start,Count,SegmentLength,stream}.
   
 
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
-      {MS1, _} = erlang:statistics(wall_clock),
+      MS1 = erlang:now(),
       Counters = iphone_streams:get_counters(Host, Name, Number),
+      MS2 = erlang:now(),
       NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}], Counters),
+      MS3 = erlang:now(),
       iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
-      {MS2, _} = erlang:statistics(wall_clock),
-      ?D({iphone_segment, Name, Number, MS2-MS1}),
+      MS4 = erlang:now(),
+      ?D({end_iphone_segment, Name, Number, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000, timer:now_diff(MS4,MS3) div 1000}),
       ok;
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
