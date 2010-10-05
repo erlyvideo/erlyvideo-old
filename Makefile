@@ -7,7 +7,7 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: snmp compile plugins 
+all: snmp compile 
 
 update: update_deps
 
@@ -26,13 +26,9 @@ rebar.config:
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
-
-plugins:
-	[ -d deps/rtmp ] && for dep in deps/*/ ; do (cd $$dep; echo $$dep; test -f Makefile && $(MAKE) -f Makefile) ; done; true
-	@# for plugin in plugins/* ; do ERL_LIBS=../../lib:../../deps $(MAKE) -C $$plugin; done
-
-snmp: include/ERLYVIDEO-MIB.hrl
-
+	(cd deps/erlydtl && make)
+	(cd deps/mpegts && make)
+	
 include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
 	erlc -o include snmp/ERLYVIDEO-MIB.bin
 
