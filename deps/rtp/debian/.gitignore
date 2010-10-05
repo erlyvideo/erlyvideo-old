@@ -1,0 +1,5 @@
+*.log
+erlang-rtsp
+files
+erlang-rtsp*
+erlang-rtp*
