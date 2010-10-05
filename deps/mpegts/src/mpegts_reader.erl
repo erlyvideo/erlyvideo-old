@@ -1,0 +1,604 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2010 Max Lapshin
+%%% @doc        MPEG TS demuxer module
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
+%%% @end
+%%%
+%%% This file is part of erlang-mpegts.
+%%% 
+%%% erlang-mpegts is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% erlang-mpegts is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlang-mpegts.  If not, see <http://www.gnu.org/licenses/>.
+%%%
+%%%---------------------------------------------------------------------------------------
+-module(mpegts_reader).
+-author('Max Lapshin <max@maxidoors.ru>').
+
+-include_lib("erlmedia/include/h264.hrl").
+-include("mpegts.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
+
+
+-export([benchmark/0]).
+
+-export([ts/1]).
+
+-on_load(load_nif/0).
+
+
+-record(ts_lander, {
+  buffer = <<>>,
+  pids,
+  consumer,
+  byte_counter = 0
+}).
+
+
+
+-record(stream_out, {
+  pid,
+  handler
+}).
+
+-record(stream, {
+  pid,
+  program_num,
+  demuxer,
+  handler,
+  consumer,
+  type,
+  synced = false,
+  ts_buffer = [],
+  es_buffer = <<>>,
+  counter = 0,
+  pcr,
+  start_dts,
+  dts,
+  pts,
+  video_config = undefined,
+  send_audio_config = false,
+  h264
+}).
+
+-record(ts_header, {
+  payload_start,
+  pid,
+  pcr = undefined,
+  opcr = undefined,
+  payload
+}).
+
+-export([handle_pat/4, pmt/4, pes/1]).
+
+-export([pat/1]).
+-export([extract_nal/1]).
+
+-export([start_link/1, init/1, synchronizer/1]).
+
+load_nif() ->
+  load_nif(erlang:system_info(otp_release) >= "R13B04").
+
+load_nif(true) ->
+  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+  io:format("Load mpegts_reader: ~p~n", [Load]),
+  ok;
+
+load_nif(false) ->
+  ok.
+  
+
+start_link(Consumer) ->
+  {ok, proc_lib:spawn_link(?MODULE, init, [[Consumer]])}.
+
+
+init([Consumer]) ->
+  erlang:monitor(process, Consumer),
+  synchronizer(#ts_lander{consumer = Consumer, pids = [#stream{pid = 0, handler = handle_pat}]}).
+
+synchronizer(#ts_lander{consumer = Consumer, buffer = Buffer} = TSLander) ->
+  receive
+    {'DOWN', _Ref, process, Consumer, normal} ->
+      ok;
+    {'DOWN', _Ref, process, Consumer, _Reason} ->
+      ?D({"MPEG TS reader lost consumer", Consumer}),
+      ok;
+    {'DOWN', _Ref, process, _Pid, _Reason} ->
+      ?D({"MPEG TS reader lost pid handler", _Pid}),
+      ok;
+    % {data, Bin} when size(Buffer) == 0 ->
+    %   ?D({"Rece"})
+    %   synchronizer(Bin, TSLander),
+    %   ?MODULE:synchronizer(TSLander);
+    {data, Bin} ->
+      TSLander1 = synchronizer(<<Buffer/binary, Bin/binary>>, TSLander),
+      ?MODULE:synchronizer(TSLander1);
+    Else ->
+      ?D({"MPEG TS reader", Else}),
+      ok
+  end.    
+    
+    
+
+synchronizer(<<16#47, _:187/binary, 16#47, _/binary>> = Bin, TSLander) ->
+  {Packet, Rest} = split_binary(Bin, 188),
+  Lander = demux(TSLander, Packet),
+  synchronizer(Rest, Lander);
+
+synchronizer(<<_, Bin/binary>>, TSLander) when size(Bin) >= 374 ->
+  synchronizer(Bin, TSLander);
+
+synchronizer(Bin, TSLander) ->
+  TSLander#ts_lander{buffer = Bin}.
+
+
+ts(<<16#47, _TEI:1, PayloadStart:1, _:1, Pid:13, _Opt:4, _Counter:4, _/binary>> = Packet) ->
+  Header = adaptation_field(Packet, #ts_header{payload_start = PayloadStart, pid = Pid}),
+  Header#ts_header{pid = Pid, payload = ts_payload(Packet)}.
+
+
+demux(#ts_lander{pids = Pids} = TSLander, <<16#47, _:1, PayloadStart:1, _:1, Pid:13, _:4, Counter:4, _/binary>> = Packet) ->
+  Header = adaptation_field(Packet, #ts_header{payload_start = PayloadStart, pid = Pid}),
+  case lists:keyfind(Pid, #stream.pid, Pids) of
+    #stream{handler = Handler, counter = _OldCounter} = Stream ->
+      % Counter = (OldCounter + 1) rem 15,
+      % ?D({Handler, Packet}),
+      ?MODULE:Handler(ts_payload(Packet), TSLander, Stream#stream{counter = Counter}, Header);
+    #stream_out{handler = Handler} ->
+      % ?D("ZZZ"),
+      Handler ! {ts_packet, Header, ts_payload(Packet)},
+      receive
+        {ok, Pid} -> ok
+      after
+        1000 -> 
+          error_logger:error_msg("Pid ~p failed to reply", [Pid]),
+          erlang:exit({pid_timeout,Pid})
+      end,
+      TSLander;
+    false ->
+      % ?D({none,Pid,Pids}),
+      TSLander
+  end.
+  
+      
+
+ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 0:1, 1:1, _Counter:4, Payload/binary>>)  -> 
+  Payload;
+
+ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 1:1, 1:1, _Counter:4, 
+              AdaptationLength, _AdaptationField:AdaptationLength/binary, Payload/binary>>) -> 
+  Payload;
+
+ts_payload(<<16#47, _TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 
+              _Adaptation:1, 0:1, _Counter:4, _Payload/binary>>)  ->
+  ?D({"Empty payload on pid", _Pid}),
+  <<>>.
+
+adaptation_field(<<16#47, _:18, 0:1, _:5, _/binary>>, Header) -> Header;
+adaptation_field(<<16#47, _:18, 1:1, _:5, AdaptationLength, AdaptationField:AdaptationLength/binary, _/binary>>, Header) when AdaptationLength > 0 -> 
+  parse_adaptation_field(AdaptationField, Header);
+  
+adaptation_field(_, Header) -> Header.
+
+
+parse_adaptation_field(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, OPCR:1, _Splice:1, _Private:1, _Ext:1, Data/binary>>, Header) ->
+  parse_adaptation_field(Data, PCR, OPCR, Header).
+
+parse_adaptation_field(<<Pcr1:33, Pcr2:9, Rest/bitstring>>, 1, OPCR, Header) ->
+  % ?D({Header#ts_header.pid, round(Pcr1/90 + Pcr2 / 27000)}),
+  parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = Pcr1 / 90 + Pcr2 / 27000});
+
+parse_adaptation_field(<<OPcr1:33, OPcr2:9, _Rest/bitstring>>, 0, 1, Header) ->
+  Header#ts_header{opcr = OPcr1 / 90 + OPcr2 / 27000};
+  
+parse_adaptation_field(_, 0, 0, Field) -> Field.
+
+
+
+%%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
+
+handle_pat(PATBin, #ts_lander{pids = Pids} = TSLander, _, _) ->
+  % ?D({"Full PAT", size(PATBin), PATBin}),
+  PAT = pat(PATBin),
+  #mpegts_pat{descriptors = Descriptors} = PAT,
+  TSLander#ts_lander{pids = lists:ukeymerge(#stream.pid, Pids, Descriptors)}.
+  
+
+pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
+  ProgramCount = round((Length - 5)/4) - 1,
+  % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
+  % ?D({"PAT descriptors", ProgramCount, PAT}),
+  Descriptors = extract_pat(PAT, ProgramCount, []),
+  #mpegts_pat{descriptors = Descriptors}.
+
+
+
+extract_pat(<<_CRC32/binary>>, 0, Descriptors) ->
+  lists:keysort(#stream.pid, Descriptors);
+  
+extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
+  extract_pat(PAT, ProgramCount - 1, [#stream{handler = pmt, pid = Pid, counter = 0, program_num = ProgramNum} | Descriptors]).
+
+
+
+pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
+    ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
+    _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
+    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #ts_lander{pids = Pids, consumer = Consumer} = TSLander, _, _) ->
+  % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
+  PMTLength = round(SectionLength - 13 - ProgramInfoLength),
+  io:format("Program ~p v~p. PCR: ~p~n", [ProgramNum, _Version, _PCRPID]),
+  % io:format("Program info: ~p~n", [ProgramInfo]),
+  ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
+  Descriptors = extract_pmt(PMT, PMTLength, []),
+  % io:format("Streams: ~p~n", [Descriptors]),
+  Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
+    case lists:keyfind(Pid, #stream.pid, Pids) of
+      false ->
+        Handler = proc_lib:spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, consumer = Consumer, h264 = #h264{}}]),
+        ?D({"Starting PID", Pid, Handler}),
+        erlang:monitor(process, Handler),
+        #stream_out{pid = Pid, handler = Handler};
+      Other ->
+        Other
+    end
+  end, Descriptors),
+  % AllPids = [self() | lists:map(fun(A) -> element(#stream_out.handler, A) end, Descriptors1)],
+  % eprof:start(),
+  % eprof:start_profiling(AllPids),
+  % TSLander#ts_lander{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
+  TSLander#ts_lander{pids = Descriptors1}.
+
+extract_pmt(_CRC32, 0, Descriptors) ->
+  % ?D({"Left CRC32", _CRC32}),
+  % io:format("Unknown PMT: ~p~n", [PMT]),
+  lists:keysort(#stream.pid, Descriptors);
+
+extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, PMTLength, Descriptors) ->
+  ?D({"Pid -> Type", Pid, StreamType, _ES, PMTLength}),
+  extract_pmt(Rest, PMTLength - 5 - ESLength, [#stream{handler = pes, counter = 0, pid = Pid, type = stream_type(StreamType)}|Descriptors]).
+  
+
+
+stream_type(?TYPE_VIDEO_H264) -> video;
+stream_type(?TYPE_AUDIO_AAC) -> audio;
+stream_type(?TYPE_AUDIO_AAC2) -> audio;
+stream_type(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
+
+pes(#stream{demuxer = Demuxer, synced = false, pid = Pid} = Stream) ->
+  receive
+    {ts_packet, #ts_header{payload_start = 0}, _} ->
+      ?D({"Not synced pes", Pid}),
+      Demuxer ! {ok, Pid},
+      ?MODULE:pes(Stream);
+    {ts_packet, #ts_header{payload_start = 1}, Packet} ->
+      ?D({"Synced PES", Pid}),
+      stream_timestamp(Packet, Stream),
+      Stream1 = Stream#stream{synced = true, ts_buffer = [Packet]},
+      Demuxer ! {ok, Pid},
+      ?MODULE:pes(Stream1);
+    {ts_packet, #ts_header{}, _} ->
+      % ?D({"Not synced pes", Pid}),
+      Demuxer ! {ok, Pid},
+      ?MODULE:pes(Stream);
+    Other ->
+      ?D({"Undefined message to unsynced pid", Pid, Other})
+  end;
+  
+pes(#stream{demuxer = Demuxer, synced = true, pid = Pid, ts_buffer = Buf} = Stream) ->
+  receive
+    {ts_packet, #ts_header{payload_start = 0} = Header, Packet} ->
+      Stream1 = copy_pcr(Header, Stream#stream{synced = true, ts_buffer = [Packet | Buf]}),
+      Demuxer ! {ok, Pid},
+      ?MODULE:pes(Stream1);
+    {ts_packet, #ts_header{payload_start = 1} = Header, Packet} ->
+      PES = iolist_to_binary(lists:reverse(Buf)),
+      Stream1 = stream_timestamp(Packet, copy_pcr(Header, Stream)),
+      % ?D({Stream1#stream.type, Stream1#stream.pcr, Stream1#stream.dts}),
+      Stream2 = pes_packet(PES, Stream1),
+      Demuxer ! {ok, Pid},
+      ?MODULE:pes(Stream2#stream{ts_buffer = [Packet]});
+    Other ->
+      ?D({"Undefined message to synced pid", Pid, Other})
+  end.
+
+copy_pcr(#ts_header{pcr = undefined}, Stream) -> Stream;
+copy_pcr(#ts_header{pcr = PCR}, Stream) -> Stream#stream{pcr = PCR}.
+      
+pes_packet(_, #stream{type = unhandled} = Stream) -> Stream#stream{ts_buffer = []};
+
+pes_packet(_, #stream{dts = undefined} = Stream) ->
+  ?D({"No PCR or DTS yes"}),
+  Stream#stream{ts_buffer = []};
+
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, #stream{type = audio, es_buffer = Buffer} = Stream) ->
+  % ?D({"Audio", Stream1#stream.pcr, Stream1#stream.dts}),
+  % Stream1;
+  decode_aac(Stream#stream{es_buffer = <<Buffer/binary, Data/binary>>});
+  
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>>, #stream{es_buffer = Buffer, type = video} = Stream) ->
+  % ?D({"Timestamp1", Stream#stream.timestamp, Stream#stream.start_time}),
+  % ?D({"Video", Stream1#stream.pcr, Stream1#stream.dts}),
+  % ?D({avc, Stream#stream.dts, <<Buffer/binary, Rest/binary>>}),
+  decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
+
+
+stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
+  <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
+    2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
+  <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
+  <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
+  % ?D({both, PTS1, DTS1}),
+  PTS = PTS1 / 90,
+  DTS = DTS1 / 90,
+  % case PTS of
+  %   DTS -> ?D({dup_pts, PTS});
+  %   _ -> ?D({bframe, DTS, PTS-DTS})
+  % end,
+  % ?D({"Have DTS & PTS", Stream#stream.pid, round(DTS), round(PTS)}),
+  normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
+  
+
+stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
+  <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, _Rest/binary>> = PESHeader,
+  <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
+  % ?D({pts, PTS1}),
+  PTS = PTS1/90,
+  % ?D({"Have pts", Stream#stream.pid, round(PTS)}),
+  normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
+
+% FIXME!!!
+% Here is a HUGE hack. VLC give me stream, where are no DTS or PTS, only PCR, once a second,
+% thus I increment timestamp counter on each NAL, assuming, that there is 25 FPS.
+% This is very, very wrong, but I really don't know how to calculate it in other way.
+% stream_timestamp(_, #stream{pcr = PCR} = Stream, _) when is_number(PCR) ->
+%   % ?D({"Set DTS to PCR", PCR}),
+%   normalize_timestamp(Stream#stream{dts = PCR, pts = PCR});
+stream_timestamp(_, #stream{dts = DTS, pts = _PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
+  ?D({"Increasing", DTS}),
+  % Stream#stream{dts = DTS + 40, pts = PTS + 40};
+  Stream;
+
+stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
+  ?D({none, PTS, DTS}),
+  % ?D({"Have no timestamps", DTS}),
+  Stream#stream{dts = DTS + 40, pts = PTS + 40};
+
+stream_timestamp(Bin,  #stream{pcr = PCR, start_dts = undefined} = Stream) when is_number(PCR) ->
+  stream_timestamp(Bin,  Stream#stream{start_dts = 0});
+
+stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
+  ?D({no_dts, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts, Stream#stream.start_dts}),
+  ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
+  normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
+  
+stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
+  ?D(none),
+  ?D({"Not timestamps at all"}),
+  Stream.
+
+
+% normalize_timestamp(Stream) -> Stream;
+% normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) -> 
+%   normalize_timestamp(Stream#stream{start_dts = DTS});
+% normalize_timestamp(#stream{start_dts = undefined, pts = PTS} = Stream) when is_number(PTS) -> 
+%   normalize_timestamp(Stream#stream{start_dts = PTS});
+
+% normalize_timestamp(#stream{start_dts = undefined, pcr = PCR} = Stream) when is_number(PCR) -> 
+%   normalize_timestamp(Stream#stream{start_dts = PCR});
+% 
+% normalize_timestamp(#stream{start_dts = undefined, dts = DTS} = Stream) when is_number(DTS) andalso DTS > 0 -> 
+%   normalize_timestamp(Stream#stream{start_dts = DTS});
+% 
+% normalize_timestamp(#stream{start_dts = Start, dts = DTS, pts = PTS} = Stream) when is_number(Start) andalso Start > 0 -> 
+%   % ?D({"Normalize", Stream#stream.pid, round(DTS - Start), round(PTS - Start)}),
+%   Stream#stream{dts = DTS - Start, pts = PTS - Start};
+normalize_timestamp(Stream) ->
+  Stream.
+  
+% normalize_timestamp(#stream{start_pcr = 0, pcr = PCR} = Stream) when is_integer(PCR) andalso PCR > 0 -> 
+%   Stream#stream{start_pcr = PCR, pcr = 0};
+% normalize_timestamp(#stream{start_pcr = Start, pcr = PCR} = Stream) -> 
+%   Stream#stream{pcr = PCR - Start}.
+% normalize_timestamp(Stream) -> Stream.
+
+
+
+% <<18,16,6>>
+decode_aac(#stream{send_audio_config = false, es_buffer = AAC, dts = DTS, pts = PTS, consumer = Consumer} = Stream) ->
+  Config = aac:config(AAC),
+  AudioConfig = #video_frame{       
+   	content = audio,
+   	flavor  = config,
+		dts     = DTS,
+		pts     = PTS,
+		body    = Config,
+	  codec	  = aac,
+	  sound	  = {stereo, bit16, rate44}
+	},
+	Consumer ! AudioConfig,
+	decode_aac(Stream#stream{send_audio_config = true});
+  
+
+decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, 0:1, _Profile:2, _Sampling:4,
+                                 _Private:1, _Channel:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+                                 _FrameLength:13, _ADTS:11, _Count:2, _CRC:16, Rest/binary>>} = Stream) ->
+  send_aac(Stream#stream{es_buffer = Rest});
+
+decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, _ProtectionAbsent:1, _Profile:2, _Sampling:4,
+                                 _Private:1, _Channel:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
+                                 _FrameLength:13, _ADTS:11, _Count:2, Rest/binary>>} = Stream) ->
+  % ?D({"AAC", Syncword, ID, Layer, ProtectionAbsent, Profile, Sampling, Private, Channel, Original, Home,
+  % Copyright, CopyrightStart, FrameLength, ADTS, Count}),
+  % ?D({"AAC", Rest}),
+  send_aac(Stream#stream{es_buffer = Rest}).
+
+send_aac(#stream{es_buffer = Data, consumer = Consumer, dts = DTS, pts = PTS} = Stream) ->
+  % ?D({audio, }),
+  AudioFrame = #video_frame{       
+    content = audio,
+    flavor  = frame,
+    dts     = DTS,
+    pts     = PTS,
+    body    = Data,
+	  codec	  = aac,
+	  sound	  = {stereo, bit16, rate44}
+  },
+  % ?D({audio, Stream#stream.pcr, DTS}),
+  Consumer ! AudioFrame,
+  Stream#stream{es_buffer = <<>>}.
+  
+
+decode_avc(#stream{es_buffer = Data} = Stream) ->
+  case extract_nal(Data) of
+    undefined ->
+      Stream;
+    {ok, NAL, Rest} ->
+      % ?D(NAL),
+      Stream1 = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
+      decode_avc(Stream1)
+  end.
+
+handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
+  Stream;
+
+handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
+  {H264_1, Frames} = h264:decode_nal(NAL, H264),
+  case {h264:has_config(H264), h264:has_config(H264_1)} of
+    {false, true} -> 
+      Config = h264:video_config(H264_1),
+      Consumer ! Config#video_frame{dts = DTS, pts = DTS};
+    _ -> ok
+  end,
+  lists:foreach(fun(Frame) ->
+    % ?D({Frame#video_frame.flavor, round(PTS - DTS)}),
+    Consumer ! Frame#video_frame{dts = DTS, pts = PTS}
+  end, Frames),
+  Stream#stream{h264 = H264_1}.
+
+
+extract_nal(Data) -> extract_nal_erl(Data).
+
+extract_nal_erl(Data) ->
+  extract_nal_erl(Data, 0).
+
+extract_nal_erl(Data, Offset) ->
+  case Data of
+    <<_:Offset/binary>> ->
+      undefined;
+    <<_:Offset/binary, 1:32, _Rest/binary>> ->
+      extract_nal_erl(Data, Offset + 1, 0);
+    <<_:Offset/binary, 1:24, _Rest/binary>> ->
+      extract_nal_erl(Data, Offset, 0);
+    _ ->
+      extract_nal_erl(Data, Offset+1)
+  end.
+
+
+extract_nal_erl(Data, Offset, Length) ->
+  case Data of
+    <<_:Offset/binary, 1:24, NAL:Length/binary, 1:32, _/binary>> ->
+      <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
+      {ok, NAL, Rest};
+    <<_:Offset/binary, 1:24, NAL:Length/binary, 1:24, _/binary>> ->
+      <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
+      {ok, NAL, Rest};
+    <<_:Offset/binary, 1:24, NAL:Length/binary, 0>> ->
+      {ok, NAL, <<>>};
+    <<_:Offset/binary, 1:24, NAL:Length/binary>> ->
+      {ok, NAL, <<>>};
+    <<_:Offset/binary, 1:24, _/binary>> ->
+      extract_nal_erl(Data, Offset, Length+1)
+  end.
+       
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+benchmark() ->
+  extract_nal_erl_bm(),
+  extract_nal_c_bm().
+
+nal_test_bin(large) ->
+  <<0,0,0,1,
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %54
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %104
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %154
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %204
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %254
+    0,0,0,1,
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9, %308
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %358
+    0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,  %408
+    0,0,0,1>>;
+
+nal_test_bin(filler) ->
+  <<0,0,0,1,9,80,
+    0,0,0,1,6,0,1,192,128,
+    0,0,0,1,6,1,1,36,128,
+    0,0,0,1,1,174,15,3,234,95,253,83,176,
+              187,255,13,246,196,189,93,100,111,80,30,30,167,
+              220,41,236,119,135,93,159,204,2,57,132,207,28,
+              91,54,128,228,85,112,81,129,18,140,99,90,53,128,
+    0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,128,
+    0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>;                                                                                            
+  
+nal_test_bin(small) ->
+  <<0,0,0,1,9,224,0,0,1,104,206,50,200>>.
+
+extract_nal_test() ->
+  ?assertEqual({ok, <<9,224>>, <<>>}, extract_nal(<<0,0,1,9,224>>)),
+  ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal(nal_test_bin(small))),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,1,104,206,50,200>>)),
+  ?assertEqual(undefined, extract_nal(<<>>)).
+  
+extract_nal_erl_test() ->  
+  ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal_erl(nal_test_bin(small))),
+  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual(undefined, extract_nal_erl(<<>>)).
+
+extract_real_nal_test() ->
+  Bin = nal_test_bin(filler),
+  {ok, <<9,80>>, Bin1} = extract_nal(Bin),
+  {ok, <<6,0,1,192,128>>, Bin2} = extract_nal(Bin1),
+  {ok, <<6,1,1,36,128>>, Bin3} = extract_nal(Bin2),
+  {ok, <<1,174,15,3,234,95,253,83,176,
+            187,255,13,246,196,189,93,100,111,80,30,30,167,
+            220,41,236,119,135,93,159,204,2,57,132,207,28,
+            91,54,128,228,85,112,81,129,18,140,99,90,53,128>>, Bin4} = extract_nal(Bin3),
+  {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,128>>, Bin5} = extract_nal(Bin4),
+  {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>, <<>>} = extract_nal(Bin5).
+
+
+extract_nal_erl_bm() ->
+  Bin = nal_test_bin(large),
+  erlang:statistics(wall_clock),
+  N = 100000,
+  lists:foreach(fun(_) ->
+    extract_nal_erl(Bin)
+  end, lists:seq(1,N)),
+  {_, Timer} = erlang:statistics(wall_clock),
+  ?D({"Timer erl", N, Timer}).
+
+extract_nal_c_bm() ->
+  Bin = nal_test_bin(large),
+  erlang:statistics(wall_clock),
+  N = 100000,
+  lists:foreach(fun(_) ->
+    extract_nal(Bin)
+  end, lists:seq(1,N)),
+  {_, Timer} = erlang:statistics(wall_clock),
+  ?D({"Timer native", N, Timer}).
+
+
+
+
+
