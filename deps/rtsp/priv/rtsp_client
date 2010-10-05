@@ -1,0 +1,119 @@
+#!/usr/bin/env ruby
+require 'uri'
+require 'socket'
+require 'time'
+require 'date'
+
+def out(str)
+  puts "-"*40
+  str << "CSeq: #{@seq}\r\n" if @seq
+  str << "Session: #{@session}\r\n" if @session
+  @seq += 1 if @seq
+  puts str.split("\r\n").map {|s| "> #{s}"}.join("\n")
+  @socket << str
+  @socket << "\r\n"
+end
+
+def response
+  puts "-"*10
+  r = []
+  while (line = @socket.gets) != "\r\n"
+    puts "< #{line}"
+    r << line
+    if line =~ /Content-Length: (\d+)/
+      body = @socket.read($1.to_i)
+      puts body.split("\r\n").map{|s| "< #{s}"}.join("\n")
+      if body =~ /H264\/(\d+)/
+        @clockmap = $1.to_i / 1000
+      end
+    end
+    if line =~ /Session: ([^;]+)/
+      @session = $1
+    end
+    if line =~ /Rtp-Info: (.*)/i
+      info = $1.split(",").map do |s|
+        s.split(";").inject({}) do |hash, p|
+          p =~ /([^=]+)=(.*)/
+          hash[$1] = $2
+          hash
+        end
+      end
+      if !info.empty?
+        rtp_info = info.shift
+        @rtp_seq = rtp_info["seq"].to_i
+        @rtp_timecode = rtp_info["rtptime"].to_i
+        # @rtp_wallclock = Time.now.to_i*1000 + Time.now.usec/1000
+        # @first_wallclock = @rtp_wallclock
+        # @rtp_wallclock = 0
+      end
+    end
+    if line =~ /Date: (.*)/
+      @rtp_wallclock = Time.parse($1).to_i*1000
+      @first_wallclock = @rtp_wallclock
+    end
+  end
+  r
+end
+
+NTP_DIFF = (53*365+17*366)*24*3600
+
+def rtp_payload
+  
+  while (marker = @socket.getc) == 36
+    channel = @socket.getc
+    length = @socket.read(2).unpack("n")[0]
+    body = @socket.read(length)
+    if channel == 1 # rtcp
+      code, sr, len, stream, ntp1, ntp2, timecode, packets, octets = body.unpack("ccnNNNNN")
+      ntp = (ntp1 << 32) + ntp2
+      ntp = ntp / 0x100000000 - NTP_DIFF
+      
+      if @rtp_timecode && @rtp_wallclock
+        wall_d = ntp - @rtp_wallclock
+        time_d = (timecode - @rtp_timecode)/@clockmap
+        # puts time_d - wall_d
+      end
+
+      # @rtp_timecode = timecode
+      # @rtp_wallclock = ntp
+      puts "> rtcp #{channel} #{timecode} #{Time.at(ntp).strftime("%Y-%m-%d-%H-%M-%S")}"
+    else
+      seq, timecode, stream = body.unpack("xxnNN")
+      if @rtp_timecode
+        time = (timecode - @rtp_timecode)/@clockmap + @rtp_wallclock # - @first_wallclock
+        puts "> rtp #{channel} #{time}"
+      else
+        puts "> rtp #{channel} unsynced"
+      end
+    end
+  end
+  
+  puts "Unknown marker #{marker}"
+  @socket.ungetc(marker)
+end
+
+url = "some-rtsp-cam"
+uri = URI.parse(url)
+
+# url = "rtsp://#{uri.host}#{uri.path}"
+@socket = TCPSocket.new(uri.host, uri.port)
+
+
+@seq = 1
+out "DESCRIBE #{url} RTSP/1.0\r\n"
+response
+
+
+out "SETUP #{url}/trackID=1 RTSP/1.0\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"
+response
+
+out "PLAY #{url} RTSP/1.0\r\n"
+response
+
+loop do
+  rtp_payload
+  puts(@socket.read(40).unpack("C*").inspect)
+  break
+end
+
+

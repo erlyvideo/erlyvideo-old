@@ -1,0 +1,17 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -smp enable -pa ../ebin
+
+-define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
+
+main([]) ->
+  code:add_pathz("ebin"),
+  code:add_pathz("../erlmedia/ebin"),
+  application:start(rtsp),
+  
+  
+  rtsp:start_server(8081, rtsp_listener1, rtsp_example_callback),
+  receive
+    stop -> ok
+  end.
+    

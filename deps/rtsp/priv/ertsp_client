@@ -1,0 +1,24 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -smp enable -pa ebin -pa ../lib -pa deps -env ERL_LIBS "../lib:../deps"
+
+-define(D(X), io:format("DEBUG:~p ~p~n",[?LINE, X])).
+% -include_lib("erlmedia/include/video_frame.hrl").
+
+main([URL]) ->
+  % code:add_pathz("lib/ertsp/ebin"),
+  code:add_pathz("../erlmedia/ebin"),
+  
+  RTSP = rtsp_socket:read(URL, [{consumer, self()},{interleaved,true}]),
+  read_frames(RTSP).
+  
+read_frames(RTSP) ->
+  receive
+    Frame when element(1, Frame) == video_frame ->
+      Type = element(2, Frame),
+      DTS = element(3, Frame),
+      ?D({Type, DTS}),
+      read_frames(RTSP);
+    Else ->
+      ?D({"Unknown", Else})
+  end.
