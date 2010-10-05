@@ -1,0 +1,30 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa ebin -pa ../amf/ebin -pz ../rtmp
+-mode(compile).
+
+main([]) ->
+  io:format("rtmp_bench url [count]~n"),
+  ok;
+
+main([Path]) ->
+  main([Path, "10"]);
+
+main([URL, CountS]) ->
+  main([URL, CountS, ""]);
+  
+main([URL, CountS, DebugS]) ->
+  application:start(rtmp),
+  Count = list_to_integer(CountS),
+  Debug = case DebugS of
+    "-d" -> 
+      code:add_path("../erlmedia/ebin"),
+      code:add_path("../amf/ebin"),
+      true;
+    _ -> false
+  end,
+  Spawner = rtmp_bench:init(URL, Count, Debug),
+  rtmp_bench:start_spawner(Spawner).
+  
+
+  
