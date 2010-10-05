@@ -15,13 +15,11 @@ update_deps: rebar.config
 	git pull
 	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
 	./rebar get-deps
-	for i in wwwroot/player deps/* ; do (cd $$i; git pull) ; done
 
 
 push:
 	git push github master
 	git push github master --tags
-	for i in deps/* ; do (cd $$i; git push github master; git push github master --tags) ; done
 
 rebar.config:
 	cp rebar.config.sample rebar.config
