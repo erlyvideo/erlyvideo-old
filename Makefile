@@ -10,7 +10,7 @@ APP_NAME=ems
 all: deps/amf snmp compile 
 
 update: update_deps
-  git pull
+	git pull
 
 deps/amf: update_deps
 
