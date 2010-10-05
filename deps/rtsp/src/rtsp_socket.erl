@@ -26,7 +26,7 @@
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
--include_lib("ertp/include/sdp.hrl").
+-include_lib("rtp/include/sdp.hrl").
 -include("log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
