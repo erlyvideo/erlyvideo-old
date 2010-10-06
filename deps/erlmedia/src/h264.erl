@@ -32,7 +32,7 @@
 
 -export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
--export([parse_sps/1, init/0]).
+-export([parse_sps/1, to_fmtp/1, init/0]).
 
 
 video_config(H264) ->
@@ -387,6 +387,28 @@ exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
   <<ReadBits:LeadingZeros, Rest/bitstring>> = Data,
   CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
   {CodeNum, Rest}.
+
+%% http://www.rfc-editor.org/rfc/rfc3984.txt
+to_fmtp(Body) ->
+  {_, [SPS, PPS]} = h264:unpack_config(Body),
+  {H264, _} = h264:decode_nal(SPS, #h264{}),
+  {RC, _} = h264:decode_nal(PPS, H264),
+  io:format("RC: ~p", [RC]),
+  PLI =
+    case RC of
+      #h264{profile = Profile,
+            level = Level}
+        when (is_integer(Profile) and is_integer(Level)) ->
+        io_lib:format("profile-level-id=~2.16.0B~2.16.0B~2.16.0B;", [Profile, 16#E0, Level]);
+      _ -> []
+    end,
+  PktMode = ?H264_PKT_NONINT,
+  [
+   "packetization-mode=", PktMode,";",
+   PLI,
+   "sprop-parameter-sets=",
+   base64:encode(SPS), $,, base64:encode(PPS)
+  ].
 
 %%
 %% Tests

@@ -28,6 +28,7 @@
 -include("../include/sdp.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/h264.hrl").
 -include("log.hrl").
 
 %%----------------------------------------------------------------------
@@ -366,15 +367,13 @@ prep_media_config({video,
                                 flavor = config,
                                 codec = h264 = Codec,
                                 body = Body}}, Opts) ->
-  {_, [SPS, PPS]} = h264:unpack_config(Body),
+  AFmtp = h264:to_fmtp(Body),
   #media_desc{type = video,
               port = proplists:get_value(video_port, Opts, 0),
-              payloads = [#payload{num = 96, codec = Codec, clock_map = 90000,
-                                   config = [iolist_to_binary(["packetization-mode=1;"
-                                                               "profile-level-id=64001e;"
-                                                               "sprop-parameter-sets=",
-                                                               base64:encode(SPS), $,, base64:encode(PPS)])]}],
-              track_control = proplists:get_value(video, Opts, "1")
+              payloads = [#payload{num = 97, codec = Codec, clock_map = 90000,
+                                   config = [iolist_to_binary(AFmtp)]
+                                  }],
+              track_control = proplists:get_value(video, Opts, "2")
              };
 prep_media_config({audio,
                    #video_frame{content = audio,
@@ -385,18 +384,27 @@ prep_media_config({audio,
   <<ConfigVal:2/big-integer-unit:8>> = Body,
   #media_desc{type = audio,
               port = proplists:get_value(audio_port, Opts, 0),
-              payloads = [#payload{num = 97, codec = Codec, clock_map = rate2num(Rate),
+              payloads = [#payload{num = 96, codec = Codec, clock_map = rate2num(Rate),
                                    ptime = proplists:get_value(audio_ptime, Opts),
-                                   config = [iolist_to_binary(["streamtype=5;"
-                                                               "profile-level-id=15;"
+                                   config = [iolist_to_binary([
+                                                               %%"streamtype=5;"
+                                                               "profile-level-id=1;"
                                                                "mode=AAC-hbr;"
                                                                "config=",
                                                                erlang:integer_to_list(ConfigVal, 16) ++ ";",
                                                                "SizeLength=13;"
                                                                "IndexLength=3;"
                                                                "IndexDeltaLength=3;"
-                                                               "Profile=1;"])]}],
-              track_control = proplists:get_value(audio, Opts, "2")
+                                                               "Profile=1;"
+
+                                                               %% "profile-level-id=1;"
+                                                               %% "mode=AAC-hbr;"
+                                                               %% "sizelength=13;"
+                                                               %% "indexlength=3;"
+                                                               %% "indexdeltalength=3;"
+                                                               %% "config=", erlang:integer_to_list(ConfigVal, 16) ++ ";"
+                                                              ])]}],
+              track_control = proplists:get_value(audio, Opts, "1")
              };
 prep_media_config({audio,
                    #video_frame{content = audio,

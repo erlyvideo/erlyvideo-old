@@ -152,13 +152,13 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
 handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
   ?D({"Setup", Num, Streams}),
   #media_desc{track_control = Control} = lists:nth(Num, Streams),
-  
+
   Sess = case RTSP#rtsp_socket.session of
     undefined -> "";
     Session -> "Session: "++Session++"\r\n"
   end,
   Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Sess++
-        "Transport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n", 
+        "Transport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n",
         [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
@@ -319,7 +319,7 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
       MediaConfig = [sdp:prep_media_config(F, Opts) || F <- MediaParams],
       ?DBG("MediaConfig:~n~p", [MediaConfig]),
       SDP = sdp:encode(SessionDesc, MediaConfig),
-      ?DBG("SDP:~n~p", [SDP]),
+      %%?DBG("SDP:~n~p", [SDP]),
       reply(State#rtsp_socket{sdp = sdp:decode(SDP), media = Media}, "200 OK",
             [
              {'Server', ?SERVER_NAME},
@@ -580,9 +580,10 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
         %% ?D({rtcp, RTPNum}),
         {Type, RtpState} = element(RTPNum+1, Streams),
         {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
-        RTCP_RR = packet_codec:encode({rtcp, RTPNum, rtp_server:encode(receiver_report, RtpState1)}),
+        {RtpState2, RtcpData} = rtp_server:encode(receiver_report, RtpState1),
+        RTCP_RR = packet_codec:encode({rtcp, RTPNum, RtcpData}),
         gen_tcp:send(Sock, RTCP_RR),
-        {setelement(RTPNum+1, Streams, {Type, RtpState1}), []};
+        {setelement(RTPNum+1, Streams, {Type, RtpState2}), []};
       {Type, RtpState} ->
         %% ?D({"Decode rtp on", Channel, Type, size(Packet), element(1, RtpState)}),
         %% ?D(RtpState),
