@@ -280,6 +280,7 @@ closeStream(#rtmp_session{streams = Streams} = State, #rtmp_funcall{stream_id = 
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, undefined)};
     #rtmp_stream{pid = Player} when is_pid(Player) ->
       ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId),
       State#rtmp_session{streams = ems:setelement(StreamId, Streams, undefined)}
   end.
 

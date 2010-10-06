@@ -39,7 +39,7 @@
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([send/2]).
+-export([send/2, flush_stream/1]).
 
 %% FSM States
 -export([
@@ -420,6 +420,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_sessio
       ?D({"Failed played stream", StreamId, PlayerPid}),
       rtmp_lib:play_complete(Socket, StreamId, [{duration, 0}]),
       NewStreams = setelement(StreamId, Streams, undefined),
+      flush_stream(StreamId),
       {next_state, StateName, State#rtmp_session{streams = NewStreams}}
   end;
 
@@ -479,7 +480,9 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
       {State#rtmp_session{
         streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{started = true, base_dts = DTS})}, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
-      {State, DTS_, false, true}
+      {State, DTS_, false, true};
+    Else ->
+      erlang:error({old_frame, Else,StreamId,Streams})
   end,
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
@@ -535,6 +538,12 @@ terminate(_Reason, _StateName, #rtmp_session{host = Host, addr = Addr, user_id =
 session_stats(#rtmp_session{host = Host, addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId, session_id = SessionId}) ->
   [{host,Host},{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats].
 
+
+flush_stream(StreamId) ->
+  receive
+    #video_frame{stream_id = StreamId} -> flush_stream(StreamId)
+    after 0 -> ok
+  end.
 
 %%-------------------------------------------------------------------------
 %% Func: code_change/4

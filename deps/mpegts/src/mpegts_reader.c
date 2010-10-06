@@ -96,7 +96,7 @@ extract_nal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
   
   if (start < 0 || start > data.size - 1 || end < 0 || end < start || end > data.size) {
     char buf[1024];
-    snprintf(buf, sizeof(buf), "Invalid start1/start2: %d/%d (%d)", start, end, data.size);
+    snprintf(buf, sizeof(buf), "Invalid start1/start2: %d/%d (%lu)", start, end, data.size);
     return enif_make_tuple2(env, 
       enif_make_atom(env, "error"),
       enif_make_string(env, buf, ERL_NIF_LATIN1)
