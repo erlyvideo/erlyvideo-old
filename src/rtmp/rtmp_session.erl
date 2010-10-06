@@ -479,7 +479,9 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
       {State#rtmp_session{
         streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{started = true, base_dts = DTS})}, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
-      {State, DTS_, false, true}
+      {State, DTS_, false, true};
+    undefined ->
+      {State, DTS_, false, false}
   end,
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
