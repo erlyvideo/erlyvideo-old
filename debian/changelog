@@ -1,3 +1,9 @@
+erlyvideo (2.4.5) unstable; urgency=low
+
+  Minor stability fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 08 Oct 2010 02:54:58 +0400
+
 erlyvideo (2.4.4) unstable; urgency=low
 
   maintenance release, need to be older than mpegts
