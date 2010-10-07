@@ -7,7 +7,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([open/2, pread/3, close/1]).
 
--export([cache_path/2, add_client/2]).
+-export([cache_path/2, add_client/2, ems_client_load/0, ems_client_unload/0]).
 
 -export([start/0, stop/0, start_link/2, reload/0, archive/0]).
 
@@ -44,6 +44,13 @@ start() ->
 stop() ->
   application:stop(http_file),
   application:unload(http_file).
+  
+  
+ems_client_load() ->
+  start().
+
+ems_client_unload() ->
+  stop().
   
 
 reload() ->
