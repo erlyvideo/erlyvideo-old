@@ -138,7 +138,7 @@ stop_stream(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:call(Media, {subscribe, self(), Options}).
+  gen_server:call(Media, {subscribe, self(), Options}, 10000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> ok

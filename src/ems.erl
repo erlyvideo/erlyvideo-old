@@ -32,7 +32,7 @@
 
 -export([rebuild/0, restart/0]).
 
--export([list_by/1, top_info/1, top_info/2]).
+-export([list_by/1, top_info/1, top_info/2, now/1]).
 
 rebuild() -> erlyvideo:rebuild().
 restart() -> erlyvideo:restart().
@@ -125,6 +125,14 @@ host(FullHostname) ->
     [{Hostname, Host}] -> Host;
     [] -> default
   end.
+  
+
+now(How) ->
+  Date = case How of
+    utc -> erlang:universaltime();
+    local -> erlang:localtime()
+  end,
+  calendar:datetime_to_gregorian_seconds(Date) - calendar:datetime_to_gregorian_seconds({{1970,1,1}, {0,0,0}}).
   
 
 
