@@ -2,26 +2,32 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
--define(_assertEncode(Term, AMF),  ?_assertEqual(AMF, amf0:encode(Term))).
 -define(assertEncode(Term, AMF),  (AMF == amf0:encode(Term))).
+-define(_assertEncode(Term, AMF),  ?_assertEqual(AMF, amf0:encode(Term))).
+
 -define(assertDecode(Term, AMF),  ({Term,<<>>} == amf0:decode(AMF))).
+-define(_assertDecode(Term, AMF),  ?_assertEqual({Term,<<>>}, amf0:decode(AMF))).
+
 -define(assertEncodeDecode(Term), ({Term,<<>>} == amf0:decode(amf0:encode(Term)))).
+-define(_assertEncodeDecode(Term), ?_assertEqual({Term,<<>>}, amf0:decode(amf0:encode(Term)))).
+
 -define(assertDecodeEncode(AMF),  (AMF == amf0:encode(element(1,amf0:decode(AMF))))).
+-define(_assertDecodeEncode(AMF),  ?_assertEqual(AMF, amf0:encode(element(1,amf0:decode(AMF))))).
 
 -define(a(Term, AMF),   ?assert(?assertEncode(Term, AMF) and 
                                 ?assertDecode(Term, AMF) and 
                                 ?assertEncodeDecode(Term) and 
                                 ?assertDecodeEncode(AMF))).
                                 
--define(_a(Term, AMF), ?_assert(?assertEncode(Term, AMF) and 
-                                ?assertDecode(Term, AMF) and 
-                                ?assertEncodeDecode(Term) and 
-                                ?assertDecodeEncode(AMF))).
+-define(_a(Term, AMF), [?_assertEncode(Term, AMF),
+                        ?_assertDecode(Term, AMF),
+                        ?_assertEncodeDecode(Term),
+                        ?_assertDecodeEncode(AMF)]).
                                 
 number_test_() ->
   [
-    ?_a(10,<<16#00,16#40,16#24,16#00,16#00,16#00,16#00,16#00,16#00>>),
-    ?_a(-500,<<16#00,16#C0,16#7F,16#40,16#00,16#00,16#00,16#00,16#00>>)
+    ?_a(10.0,<<16#00,16#40,16#24,16#00,16#00,16#00,16#00,16#00,16#00>>),
+    ?_a(-500.0,<<16#00,16#C0,16#7F,16#40,16#00,16#00,16#00,16#00,16#00>>)
   ].
   
 true_test() -> ?a(true,<<16#01,16#01>>).
@@ -53,9 +59,7 @@ string_atom_test_() ->
   ].
   
 xmldoc_test_() ->
-  [
-    ?_a({xmldoc,<<"<test>hello</test>">>},<<16#0F,16#00,16#00,16#00,16#12,"<test>hello</test>">>)
-  ].  
+  ?_a({xmldoc,<<"<test>hello</test>">>},<<16#0F,16#00,16#00,16#00,16#12,"<test>hello</test>">>).
   
 avmplus_test_() ->
   [
@@ -64,19 +68,15 @@ avmplus_test_() ->
   ].
   
 array_test_() ->
-  [
-    ?_a([true], <<10,0,0,0,1,1,1>>)
-  ].
+  ?_a([true], <<10,0,0,0,1,1,1>>).
   
 object_test_() ->
-  [
-    ?_assertEncode([{packet,raw},{s,true}], <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>),
-    ?_a({object, [{<<"packet">>,<<"raw">>},{<<"s">>,true}]}, <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>)
-  ].
+  [ ?_assertEncode([{packet,raw},{s,true}], <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>) ] ++
+  ?_a({object, [{<<"packet">>,<<"raw">>},{<<"s">>,true}]}, <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>).
 
 typed_object_test_() ->
+  ?_a({object, 'Socket', [{packet,<<"raw">>},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>) ++
   [
-  ?_a({object, 'Socket', [{packet,<<"raw">>},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>),
   ?_assertEncode({object, <<"Socket">>, [{packet,raw},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>),
   ?_assertEncode({object, "Socket", [{packet,raw},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>)
   ].
@@ -84,7 +84,8 @@ typed_object_test_() ->
 
 references_test_() ->
   [
-    ?_a([{object, [{<<"zz">>,true}]},{object,[{<<"zz">>,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
+    ?_assertDecode([{object, [{<<"zz">>,true}]},{object,[{<<"zz">>,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
+    % ?_a([{object, [{<<"zz">>,true}]},{object,[{<<"zz">>,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
   ].
 
   
