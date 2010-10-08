@@ -35,6 +35,7 @@ date_test() -> ?a({date,1261385577404.0},<<16#0B,16#42,16#72,16#5B,16#07,16#07,1
 string_test_() ->
   [
     ?_a(<<"hello">>,<<16#02,16#00,16#05,"hello">>),
+    ?_a(<<"">>,<<16#02,16#00,16#00>>),
     ?_a(<<"hello world">>,<<16#02,16#00,16#0B,"hello world">>)
   ].  
 
@@ -59,4 +60,30 @@ avmplus_test_() ->
   [
     ?_assertEqual(list_to_binary([16#11,amf3:encode(<<"hello">>)]), amf0:encode({avmplus,<<"hello">>})),
     ?_assertEqual(element(1,amf3:decode(<<16#00>>)), element(2,element(1,amf0:decode(<<16#11,16#00>>))))
-  ].  
+  ].
+  
+array_test_() ->
+  [
+    ?_a([true], <<10,0,0,0,1,1,1>>)
+  ].
+  
+object_test_() ->
+  [
+    ?_a(<<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, [{packet,raw},{s,true}]),
+    ?_a(<<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, [{packet,raw},{s,true}]})
+  ].
+
+typed_object_test_() ->
+  [
+  ?_a(<<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, 'Socket', [{packet,raw},{s,true}]}),
+  ?_a(<<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, <<"Socket">>, [{packet,raw},{s,true}]}),
+  ?_a(<<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, "Socket", [{packet,raw},{s,true}]})
+  ].
+
+
+references_test_() ->
+  [
+    ?_a(<<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>, [{object,[{zz,true}]},{object,[{zz,true}]}])
+  ].
+
+  
