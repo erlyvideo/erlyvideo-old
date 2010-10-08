@@ -15,7 +15,7 @@
 
 -module(amf0).
 -export([decode/1, encode/1]).
-
+-define(D(X), io:format("~p~n", [X])).
 
 %%---------------------------------------
 %% @doc Decode AMF 0 encoded binary data
@@ -91,14 +91,23 @@ read(<<?AVMPLUS_OBJECT, AMF3/binary>>, Objects) ->
     {{avmplus, Object}, Remaining, Objects};
     
 read(<<?STRICT_ARRAY, Size:32, Remaining/binary>>, Objects) ->
-    read_array(Remaining, Size, [], Objects);
+    store_in_refs(fun(Objects1) ->
+      read_array(Remaining, Size, [], Objects1)
+    end, Objects);
 
 read(<<?OBJECT, Remaining/binary>>, Objects) ->
-    read_object(Remaining, [], Objects, undefined);
+    store_in_refs(fun(Objects1) ->
+      read_object(Remaining, [], Objects1, undefined)
+    end, Objects);
 
 read(<<?TYPED_OBJECT, Len:16, Class:Len/binary, Remaining/binary>>, Objects) ->
-    read_object(Remaining, [], Objects, binary_to_atom(Class, utf8)).
+    store_in_refs(fun(Objects1) ->
+      read_object(Remaining, [], Objects1, binary_to_atom(Class, utf8))
+    end, Objects);
 
+read(<<?REFERENCE, Index:16, Remaining/binary>>, Objects) ->
+    ?D({"Read",Index}),
+    {dict:fetch(Index, Objects), Remaining, Objects}.
 
 read_array(Remaining, Size, Array, Objects) when length(Array) == Size ->
     {lists:reverse(Array), Remaining, Objects};
@@ -122,6 +131,13 @@ read_object(<<Len:16, Key:Len/binary, Bin/binary>>, Object, Objects, Class) ->
       _ -> binary_to_atom(Key, utf8)
     end,
     read_object(Remaining, [{K, Val}|Object], Objects1, Class).
+
+store_in_refs(Fun, Objects) ->
+  Index = dict:size(Objects),
+  Objects1 = dict:store(Index, null, Objects),
+  {Val, Remaining, Objects2} = Fun(Objects1),
+  {Val, Remaining, dict:store(Index, Val, Objects2)}.
+
 
 %%---------------------------------------
 %%  Write 
@@ -154,15 +170,15 @@ write({avmplus, Object}, Objects) ->
     Binary = amf3:encode(Object),
     {<<?AVMPLUS_OBJECT, Binary/binary>>, Objects};
 
-write([{_Key,_Value}|_] = Object, Objects) ->
-    write_object(Object, <<?OBJECT>>, Objects);
-
 write({object, Object}, Objects) ->
     write_object(Object, <<?OBJECT>>, Objects);
 
 write({object, Name, Object}, Objects) ->
     NameS = binarize(Name),
     write_object(Object, <<?TYPED_OBJECT, (size(NameS)):16, NameS/binary>>, Objects);
+
+write([{_Key,_Value}|_] = Object, Objects) ->
+    write_object(Object, <<?OBJECT>>, Objects);
 
 write(Array, Objects) when is_list(Array) ->
     write_array(Array, <<?STRICT_ARRAY, (length(Array)):32>>, Objects).

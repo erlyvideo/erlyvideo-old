@@ -84,7 +84,7 @@ typed_object_test_() ->
 
 references_test_() ->
   [
-    ?_a(<<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>, [{object,[{zz,true}]},{object,[{zz,true}]}])
+    ?_a([{object, [{<<"zz">>,true}]},{object,[{<<"zz">>,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
   ].
 
   
