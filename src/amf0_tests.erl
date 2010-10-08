@@ -76,9 +76,9 @@ object_test_() ->
 
 typed_object_test_() ->
   [
-  ?_a(<<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, 'Socket', [{packet,raw},{s,true}]}),
-  ?_a(<<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, <<"Socket">>, [{packet,raw},{s,true}]}),
-  ?_a(<<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, "Socket", [{packet,raw},{s,true}]})
+  ?_a({object, 'Socket', [{packet,<<"raw">>},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>),
+  ?_assertEncode({object, <<"Socket">>, [{packet,raw},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>),
+  ?_assertEncode({object, "Socket", [{packet,raw},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>)
   ].
 
 
