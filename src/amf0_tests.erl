@@ -2,6 +2,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
+-define(_assertEncode(Term, AMF),  ?_assertEqual(AMF, amf0:encode(Term))).
 -define(assertEncode(Term, AMF),  (AMF == amf0:encode(Term))).
 -define(assertDecode(Term, AMF),  ({Term,<<>>} == amf0:decode(AMF))).
 -define(assertEncodeDecode(Term), ({Term,<<>>} == amf0:decode(amf0:encode(Term)))).
@@ -69,8 +70,8 @@ array_test_() ->
   
 object_test_() ->
   [
-    ?_a(<<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, [{packet,raw},{s,true}]),
-    ?_a(<<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1>>, {object, [{packet,raw},{s,true}]})
+    ?_assertEncode([{packet,raw},{s,true}], <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>),
+    ?_a({object, [{<<"packet">>,<<"raw">>},{<<"s">>,true}]}, <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>)
   ].
 
 typed_object_test_() ->

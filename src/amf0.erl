@@ -91,15 +91,26 @@ read(<<?AVMPLUS_OBJECT, AMF3/binary>>, Objects) ->
     {{avmplus, Object}, Remaining, Objects};
     
 read(<<?STRICT_ARRAY, Size:32, Remaining/binary>>, Objects) ->
-  read_array(Remaining, Size, [], Objects).
+    read_array(Remaining, Size, [], Objects);
+
+read(<<?OBJECT, Remaining/binary>>, Objects) ->
+    read_object(Remaining, [], Objects).
 
 
 read_array(Remaining, Size, Array, Objects) when length(Array) == Size ->
-  {lists:reverse(Array), Remaining, Objects};
+    {lists:reverse(Array), Remaining, Objects};
   
 read_array(Bin, Size, Array, Objects) ->
-  {Val, Remaining, Objects1} = read(Bin, Objects),
-  read_array(Remaining, Size, [Val|Array], Objects1).
+    {Val, Remaining, Objects1} = read(Bin, Objects),
+    read_array(Remaining, Size, [Val|Array], Objects1).
+
+
+read_object(<<0:16, ?OBJECT_END, Remaining/binary>>, Object, Objects) ->
+    {{object, lists:reverse(Object)}, Remaining, Objects};
+
+read_object(<<Len:16, Key:Len/binary, Bin/binary>>, Object, Objects) ->
+    {Val, Remaining, Objects1} = read(Bin, Objects),
+    read_object(Remaining, [{Key, Val}|Object], Objects1).
 
 %%---------------------------------------
 %%  Write 
@@ -131,7 +142,13 @@ write({xmldoc, XML}, Objects) ->
 write({avmplus, Object}, Objects) ->
     Binary = amf3:encode(Object),
     {<<?AVMPLUS_OBJECT, Binary/binary>>, Objects};
-    
+
+write([{_Key,_Value}|_] = Object, Objects) ->
+    write_object(Object, <<?OBJECT>>, Objects);
+
+write({object, Object}, Objects) ->
+    write_object(Object, <<?OBJECT>>, Objects);
+
 write(Array, Objects) when is_list(Array) ->
     write_array(Array, <<?STRICT_ARRAY, (length(Array)):32>>, Objects).
 
@@ -144,17 +161,20 @@ write_array([Value|Array], Acc, Objects) ->
     write_array(Array, <<Acc/binary, Bin/binary>>, Objects1).
 
 
-% write_object([{Key,Value}|Array], Acc, Objects) ->
-%     {Bin, Objects1} = write(Value, Objects),
-%     KeyS = binarize(Key),
-%     write_object(Array, <<Acc/binary, (size(KeyS)):16, KeyS/binary, Bin/binary>>, Objects1).
-% 
-% 
-% binarize(S) when is_atom(S) -> atom_to_binary(S, latin1);
-% binarize(S) when is_list(S) -> list_to_binary(S);
-% binarize(S) when is_binary(S) -> S;
-% binarize(S) when is_integer(S) -> binarize(integer_to_list(S)).
-% 
+write_object([], Acc, Objects) ->
+    {<<Acc/binary, 0:16, ?OBJECT_END>>, Objects};
+
+write_object([{Key,Value}|Array], Acc, Objects) ->
+    {Bin, Objects1} = write(Value, Objects),
+    KeyS = binarize(Key),
+    write_object(Array, <<Acc/binary, (size(KeyS)):16, KeyS/binary, Bin/binary>>, Objects1).
+
+
+binarize(S) when is_atom(S) -> atom_to_binary(S, latin1);
+binarize(S) when is_list(S) -> list_to_binary(S);
+binarize(S) when is_binary(S) -> S;
+binarize(S) when is_integer(S) -> binarize(integer_to_list(S)).
+
 
 
 
