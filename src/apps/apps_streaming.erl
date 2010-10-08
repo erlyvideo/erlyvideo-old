@@ -49,9 +49,16 @@
 
 'WAIT_FOR_DATA'(_Message, _State) -> unhandled.
 
+handle_info({ems_stream, StreamId, play_complete, LastDTS}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
+  State;
+
+handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_lib:play_failed(Socket, StreamId),
+  State;
+
 handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
-  Stream = rtmp_session:get_stream(StreamId, State),
-  #rtmp_stream{base_dts = BaseDTS} = Stream,
+  #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   
   ?D({"seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
@@ -72,13 +79,9 @@ handle_info(_, _) ->
 createStream(#rtmp_session{} = State, AMF) -> 
   #rtmp_stream{stream_id = StreamId} = Stream = rtmp_session:alloc_stream(State),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
-  %#rtmp_session{streams = Streams} = State1,
-  % {ok, Stream} = ems_sup:start_rtmp_stream([{consumer, self()}, {stream_id, StreamId}, {host, Host}]),
-  % State1#rtmp_session{streams = setelement(StreamId, Streams, Stream)}.
   rtmp_session:set_stream(Stream, State).
 
 releaseStream(State, _AMF) -> 
-  % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
   State.
 
 
@@ -90,7 +93,6 @@ deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF
     #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:stop(Player);
     _ -> ok
   end,
-  % ?D({"Delete stream", self(), StreamId}),
   rtmp_session:delete_stream(StreamId, State).
 
 
@@ -230,7 +232,7 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) -> 
+seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
   #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   ?D({"seek", round(Timestamp), Player}),
   case ems_media:seek(Player, before, Timestamp + BaseDTS) of

@@ -220,7 +220,6 @@ send(Session, Message) ->
 
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
-    {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
     Reply -> Reply
   end.
@@ -318,14 +317,17 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
 
 call_function(#rtmp_session{host = Host} = State, AMF) ->
   call_function(Host, State, AMF).
+
+call_function(Host, State, AMF) ->
+  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
   
   
-call_function([], State, AMF) ->
+call_mfa([], #rtmp_session{} = State, AMF) ->
   ?D({"Failed funcall", AMF#rtmp_funcall.command}),
   rtmp_session:fail(State, AMF),
   State;
   
-call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) ->
+call_mfa([Module|Modules], #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
   case code:is_loaded(mod_name(Module)) of
     false -> code:load_file(mod_name(Module));
     _ -> ok
@@ -335,18 +337,16 @@ call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) -
     true ->
       case Module:Command(State, AMF) of
         unhandled ->
-          call_function(Modules, State, AMF);
+          call_mfa(Modules, State, AMF);
         {unhandled, NewState, NewAMF} ->
-          call_function(Modules, NewState, NewAMF);
-        NewState ->
+          call_mfa(Modules, NewState, NewAMF);
+        #rtmp_session{} = NewState ->
           NewState
       end;
     false ->
-      call_function(Modules, State, AMF)
-  end;
+      call_mfa(Modules, State, AMF)
+  end.
   
-call_function(Host, State, AMF) ->
-  call_function(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
 
 
 mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
@@ -428,14 +428,6 @@ handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
-  {next_state, StateName, State};
-
-handle_info({ems_stream, StreamId, play_failed}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:play_failed(Socket, StreamId),
-  {next_state, StateName, State};
-  
 handle_info(#video_frame{} = Frame, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
   {next_state, 'WAIT_FOR_DATA', handle_frame(Frame, State)};
 
@@ -460,8 +452,7 @@ handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of
     {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
-    #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1};
-    Reply -> Reply
+    #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1}
   end;
 
 handle_info(_Info, StateName, StateData) ->
@@ -552,20 +543,8 @@ flush_stream(StreamId) ->
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(OldVersion, StateName, #rtmp_session{host = Host} = State, Extra) ->
-  plugins_code_change(OldVersion, StateName, State, Extra, ems:get_var(applications, Host, [])).
-
-plugins_code_change(_OldVersion, StateName, State, _Extra, []) -> {ok, StateName, State};
-
-plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) -> 
-  case ems:respond_to(Module, code_change, 4) of
-    true ->
-      error_logger:info_msg("Code change in module ~p~n", [Module]),
-      {ok, NewStateName, NewState} = Module:code_change(OldVersion, StateName, State, Extra);
-    _ ->
-      {NewStateName, NewState} = {StateName, State}
-  end,
-  plugins_code_change(OldVersion, NewStateName, NewState, Extra, Modules).
+code_change(_OldVersion, _StateName, _State, _Extra) ->
+  ok.
 
 
 find_stream_by_pid(PlayerPid, Streams) -> 

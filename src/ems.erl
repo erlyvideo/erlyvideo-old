@@ -141,20 +141,20 @@ try_method_chain(Host, Method, Args) when is_atom(Host) ->
   try_method_chain(ems:get_var(rtmp_handlers, Host, [trusted_login]), Method, Args);
 
 try_method_chain([], _Method, _Args) ->
-  {unhandled};
+  unhandled;
 
 try_method_chain([Module | Modules], Method, Args) ->
   case respond_to(Module, Method, length(Args)) of
     true -> 
       case apply(Module, Method, Args) of
-        {unhandled} -> try_method_chain(Modules, Method, Args);
+        unhandled -> try_method_chain(Modules, Method, Args);
         Else -> Else
       end;
     false -> 
       case respond_to(Module, rtmp_method_missing, length(Args)) of
         true -> 
           case apply(Module, rtmp_method_missing, Args) of
-            {unhandled} -> try_method_chain(Modules, Method, Args);
+            unhandled -> try_method_chain(Modules, Method, Args);
             Else -> Else
           end;
         false -> try_method_chain(Modules, Method, Args)
