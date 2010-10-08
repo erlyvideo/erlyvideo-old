@@ -169,7 +169,7 @@ parse_fmtp(#media_desc{type = video} = Stream, Opts) ->
     Sprop when is_list(Sprop) ->
       case [base64:decode(S) || S <- string:tokens(Sprop, ",")] of
         [SPS, PPS] -> Stream#media_desc{pps = PPS, sps = SPS};
-        [SPS, PPS|_] ->error_logger:error_msg("SDP with many PPS: ~p", [Sprop]) Stream#media_desc{pps = PPS, sps = SPS};
+        [SPS, PPS|_] -> error_logger:error_msg("SDP with many PPS: ~p", [Sprop]), Stream#media_desc{pps = PPS, sps = SPS};
         _ -> Stream
       end;
     _ ->
