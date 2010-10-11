@@ -29,6 +29,7 @@
 %%%  <li>{@link rtsp_media. grab video from RTSP cameras}</li>
 %%% </ul>
 %%%
+%%%
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
@@ -137,7 +138,7 @@ stop_stream(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:call(Media, {subscribe, self(), Options}).
+  gen_server:call(Media, {subscribe, self(), Options}, 10000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> ok
@@ -426,7 +427,11 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         % right after subscribing, but it will wait for video till keyframe
         %
         (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
-        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
+        ClientState = case proplists:get_value(paused, Options, false) of
+          true -> paused;
+          false -> starting
+        end,
+        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState})
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
   end,

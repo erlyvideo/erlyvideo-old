@@ -87,6 +87,7 @@ start() ->
 	error_logger:info_report("Started Erlyvideo"),
   error_logger:delete_report_handler(sasl_report_tty_h),
   error_logger:delete_report_handler(sasl_report_file_h),
+  inets:start(),
 	ok.
 
 start_http() ->

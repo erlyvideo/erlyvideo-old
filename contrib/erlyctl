@@ -47,8 +47,11 @@ run()
 {
   if [ -f "priv/dev.config" ] ; then
     CONFIG="-config priv/dev.config"
-  else
-    CONFIG=""
+  else if [ -f "/etc/erlyvideo/dev.config" ] ; then
+    CONFIG="-config /etc/erlyvideo/dev.config"
+    else
+      CONFIG=""
+    fi
   fi
 	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin -pa /var/lib/erlyvideo/plugins $CONFIG \
 	-boot start_sasl \

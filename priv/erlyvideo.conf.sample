@@ -11,7 +11,7 @@
 	{file_access, file},
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {rtmp_handlers, [{auth_users_limit, 10}, {check_play_web, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
+    {rtmp_handlers, [{auth_users_limit, 200}, {apps_rewrite_play, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
     {secret_key, "123"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},

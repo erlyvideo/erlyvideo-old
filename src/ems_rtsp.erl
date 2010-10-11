@@ -46,8 +46,7 @@ stop() ->
   ok.
 
 hostpath(URL) ->
-  {ok, Re} = re:compile("rtsp://([^/]+)/(.*)$"),
-  {match, [_, HostPort, Path]} = re:run(URL, Re, [{capture, all, binary}]),
+  {HostPort, [$/|Path]} = http_uri2:extract_path_with_query(URL),
   {ems:host(HostPort), Path}.
 
 

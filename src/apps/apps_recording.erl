@@ -49,20 +49,20 @@
   State.
 
 
-real_publish(#rtmp_session{host = Host, streams = Streams, socket = Socket} = State, FullName, Type, StreamId) ->
+real_publish(#rtmp_session{host = Host, socket = Socket} = State, FullName, Type, StreamId) ->
 
   {RawName, Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   Options1 = extract_publish_args(Args1),
   Options = lists:ukeymerge(1, Options1, [{type,Type}]),
   
-  ems_log:access(Host, "PUBLISH ~p ~s ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, Name]),
+  ems_log:access(Host, "PUBLISH ~p ~s ~p ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name]),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
   erlang:monitor(process, Recorder),
   ?D({"publish",Type,Options,Recorder}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Start">>),
-  State#rtmp_session{streams = ems:setelement(StreamId, Streams, #rtmp_stream{pid = Recorder})}.
+  rtmp_session:set_stream(#rtmp_stream{pid = Recorder, stream_id = StreamId, started = true}, State).
   
 extract_publish_args([]) -> [];
 extract_publish_args({"source_timeout", "infinity"}) -> {source_timeout, infinity};
