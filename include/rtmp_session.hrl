@@ -9,7 +9,7 @@
 	plugin_data,
 	user_id     = undefined,
 	player_info = [],
-	streams      = {},
+	streams1      = [],
 	bytes_recv   = 0,
 	bytes_sent   = 0,
 	play_stats   = [],
@@ -18,6 +18,7 @@
 
 -record(rtmp_stream, {
   pid,
+  stream_id,
   base_dts,
   started = false,
   seeking = false

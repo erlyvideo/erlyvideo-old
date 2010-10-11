@@ -54,6 +54,7 @@
 -export([message/4, collect_stats/1]).
 
 -export([reply/2, fail/2]).
+-export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 
 %%-------------------------------------------------------------------------
 %% @spec create_client(Socket)  -> {ok, Pid}
@@ -219,7 +220,6 @@ send(Session, Message) ->
 
 'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
-    {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
     Reply -> Reply
   end.
@@ -246,9 +246,9 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   Command = binary_to_atom(CommandBin, utf8),
   call_function(State, AMF#rtmp_funcall{command = Command});
   
-handle_rtmp_message(#rtmp_session{streams = Streams} = State, 
+handle_rtmp_message(#rtmp_session{} = State, 
    #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  #rtmp_stream{pid = Recorder} = ems:element(StreamId, Streams),
+  #rtmp_stream{pid = Recorder} = get_stream(StreamId, State),
   
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
   ems_media:publish(Recorder, Frame),
@@ -261,8 +261,8 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
   shared_object:message(Object, SOEvent),
   NewState;
 
-handle_rtmp_message(#rtmp_session{streams = Streams} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
-  case ems:element(StreamId, Streams) of
+handle_rtmp_message(#rtmp_session{} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
+  case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:setopts(Player, [{client_buffer, BufferSize}]);
     _ -> ok
   end,
@@ -317,14 +317,17 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
 
 call_function(#rtmp_session{host = Host} = State, AMF) ->
   call_function(Host, State, AMF).
+
+call_function(Host, State, AMF) ->
+  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
   
   
-call_function([], State, AMF) ->
+call_mfa([], #rtmp_session{} = State, AMF) ->
   ?D({"Failed funcall", AMF#rtmp_funcall.command}),
   rtmp_session:fail(State, AMF),
   State;
   
-call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) ->
+call_mfa([Module|Modules], #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
   case code:is_loaded(mod_name(Module)) of
     false -> code:load_file(mod_name(Module));
     _ -> ok
@@ -334,18 +337,16 @@ call_function([Module|Modules], State, #rtmp_funcall{command = Command} = AMF) -
     true ->
       case Module:Command(State, AMF) of
         unhandled ->
-          call_function(Modules, State, AMF);
+          call_mfa(Modules, State, AMF);
         {unhandled, NewState, NewAMF} ->
-          call_function(Modules, NewState, NewAMF);
-        NewState ->
+          call_mfa(Modules, NewState, NewAMF);
+        #rtmp_session{} = NewState ->
           NewState
       end;
     false ->
-      call_function(Modules, State, AMF)
-  end;
+      call_mfa(Modules, State, AMF)
+  end.
   
-call_function(Host, State, AMF) ->
-  call_function(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
 
 
 mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
@@ -410,32 +411,23 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
 handle_info({'DOWN', _Ref, process, Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
   {stop,normal,State};
   
-handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket, streams = Streams} = State) ->
-  %FIXME: add proper detection of failed stream
-  case ems:tuple_find(PlayerPid, Streams) of
-    false -> 
+handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket} = State) ->
+  %FIXME: add passing down this message to plugins
+  case find_stream_by_pid(PlayerPid, State) of
+    undefined -> 
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
-    {StreamId, PlayerPid} ->
+    #rtmp_stream{stream_id = StreamId} ->
       ?D({"Failed played stream", StreamId, PlayerPid}),
       rtmp_lib:play_complete(Socket, StreamId, [{duration, 0}]),
-      NewStreams = setelement(StreamId, Streams, undefined),
       flush_stream(StreamId),
-      {next_state, StateName, State#rtmp_session{streams = NewStreams}}
+      {next_state, StateName, delete_stream(StreamId, State)}
   end;
 
 handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
   % No-op. Just child program
   {next_state, StateName, State};
 
-handle_info({ems_stream, StreamId, play_complete, LastDTS}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
-  {next_state, StateName, State};
-
-handle_info({ems_stream, StreamId, play_failed}, StateName, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:play_failed(Socket, StreamId),
-  {next_state, StateName, State};
-  
 handle_info(#video_frame{} = Frame, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
   {next_state, 'WAIT_FOR_DATA', handle_frame(Frame, State)};
 
@@ -460,8 +452,7 @@ handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of
     {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
-    #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1};
-    Reply -> Reply
+    #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1}
   end;
 
 handle_info(_Info, StateName, StateData) ->
@@ -469,20 +460,21 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
+
+
 handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
-             #rtmp_session{socket = Socket, streams = Streams, bytes_sent = Sent} = State) ->
-  {State1, BaseDts, _Starting, Allow} = case ems:element(StreamId, Streams) of
+             #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
+  {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
     #rtmp_stream{started = false} = Stream ->
       rtmp_lib:play_start(Socket, StreamId, 0),
       % put(stream_start, erlang:now()),
-      {State#rtmp_session{
-        streams = ems:setelement(StreamId, Streams, Stream#rtmp_stream{started = true, base_dts = DTS})}, DTS, true, true};
+      {set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State), DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
       {State, DTS_, false, true};
     Else ->
-      erlang:error({old_frame, Else,StreamId,Streams})
+      erlang:error({old_frame, Else,StreamId})
   end,
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
@@ -551,21 +543,30 @@ flush_stream(StreamId) ->
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(OldVersion, StateName, #rtmp_session{host = Host} = State, Extra) ->
-  plugins_code_change(OldVersion, StateName, State, Extra, ems:get_var(applications, Host, [])).
-
-plugins_code_change(_OldVersion, StateName, State, _Extra, []) -> {ok, StateName, State};
-
-plugins_code_change(OldVersion, StateName, State, Extra, [Module | Modules]) -> 
-  case ems:respond_to(Module, code_change, 4) of
-    true ->
-      error_logger:info_msg("Code change in module ~p~n", [Module]),
-      {ok, NewStateName, NewState} = Module:code_change(OldVersion, StateName, State, Extra);
-    _ ->
-      {NewStateName, NewState} = {StateName, State}
-  end,
-  plugins_code_change(OldVersion, NewStateName, NewState, Extra, Modules).
+code_change(_OldVersion, _StateName, _State, _Extra) ->
+  ok.
 
 
+find_stream_by_pid(PlayerPid, Streams) -> 
+  lists:keyfind(PlayerPid, #rtmp_stream.pid, Streams).
+
+get_stream(StreamId, #rtmp_session{streams1 = Streams}) ->
+  lists:keyfind(StreamId, #rtmp_stream.stream_id, Streams).
+
+set_stream(#rtmp_stream{stream_id = StreamId} = Stream, #rtmp_session{streams1 = Streams} = State) ->
+  Streams1 = lists:keystore(StreamId, #rtmp_stream.stream_id, Streams, Stream),
+  State#rtmp_session{streams1 = Streams1}.
+  
+alloc_stream(#rtmp_session{streams1 = Streams}) ->
+  alloc_stream(Streams, 1).
+  
+alloc_stream([], N) -> #rtmp_stream{stream_id = N};
+alloc_stream([undefined|_], N) -> #rtmp_stream{stream_id = N};
+alloc_stream([#rtmp_stream{}|Streams], N) -> alloc_stream(Streams, N+1).
 
 
+delete_stream(#rtmp_stream{stream_id = StreamId}, State) ->
+  delete_stream(StreamId, State);
+
+delete_stream(StreamId, #rtmp_session{streams1 = Streams} = State) ->
+  State#rtmp_session{streams1 = lists:keydelete(StreamId, #rtmp_stream.stream_id, Streams)}.

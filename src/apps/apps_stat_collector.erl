@@ -27,6 +27,8 @@ handle_event(#erlyvideo_event{} = Event, Socket) ->
   rtmp_socket:status(Socket, 0, <<"NetConnection.Message">>, XML),
   {ok, Socket}.
 
+handle_info(_, #rtmp_session{}) ->
+  unhandled;
 
 handle_info(_, Socket) ->
   {ok, Socket}.

@@ -27,7 +27,7 @@
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([host/1]).
 
--export([expand_tuple/2, tuple_find/2, element/2, setelement/3]).
+-export([expand_tuple/2, element/2, setelement/3]).
 -export([str_split/2, multicall/3]).
 
 -export([rebuild/0, restart/0]).
@@ -62,12 +62,6 @@ expand_tuple(Tuple, N) when size(Tuple) < N ->
 
 expand_tuple(Tuple, _N) -> Tuple.
 
-tuple_find(Tuple, Term) -> tuple_find(Tuple, Term, 1).
-
-tuple_find(Tuple, _Term, N) when size(Tuple) < N -> false;
-tuple_find(Tuple, Term, N) when erlang:element(N, Tuple) == Term -> {N, Term};
-tuple_find(Tuple, Term, N) -> tuple_find(Tuple, Term, N+1).
-	
 
 element(0, _)	-> undefined;
 element(N, Tuple) when size(Tuple) < N -> undefined;
@@ -147,20 +141,20 @@ try_method_chain(Host, Method, Args) when is_atom(Host) ->
   try_method_chain(ems:get_var(rtmp_handlers, Host, [trusted_login]), Method, Args);
 
 try_method_chain([], _Method, _Args) ->
-  {unhandled};
+  unhandled;
 
 try_method_chain([Module | Modules], Method, Args) ->
   case respond_to(Module, Method, length(Args)) of
     true -> 
       case apply(Module, Method, Args) of
-        {unhandled} -> try_method_chain(Modules, Method, Args);
+        unhandled -> try_method_chain(Modules, Method, Args);
         Else -> Else
       end;
     false -> 
       case respond_to(Module, rtmp_method_missing, length(Args)) of
         true -> 
           case apply(Module, rtmp_method_missing, Args) of
-            {unhandled} -> try_method_chain(Modules, Method, Args);
+            unhandled -> try_method_chain(Modules, Method, Args);
             Else -> Else
           end;
         false -> try_method_chain(Modules, Method, Args)
