@@ -68,7 +68,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
 
 
--export([init_with_options/2, get/2, set/3]).
+-export([init_with_options/2, get/2, set/3, set/2]).
 
 
 -define(LIFE_TIMEOUT, 60000).
@@ -985,9 +985,20 @@ init_with_options(#ems_media{} = Media, [{clients_timeout,T}|Opts]) -> init_with
 init_with_options(#ems_media{} = Media, [{source_timeout,T}|Opts]) -> init_with_options(Media#ems_media{source_timeout = T}, Opts).
 
 
-get(#ems_media{storage = Storage}, storage) -> Storage.
+get(#ems_media{state = State}, state) -> State;
+get(#ems_media{format = Format}, format) -> Format;
+get(#ems_media{storage = Storage}, storage) -> Storage;
+get(#ems_media{clients_timeout = T}, clients_timeout) -> T;
+get(#ems_media{source_timeout = T}, source_timeout) -> T.
 
-set(#ems_media{} = Media, storage, Storage) -> Media#ems_media{storage = Storage}.
+set(#ems_media{} = Media, state, State) -> Media#ems_media{state = State};
+set(#ems_media{} = Media, format, Format) -> Media#ems_media{format = Format};
+set(#ems_media{} = Media, storage, Storage) -> Media#ems_media{storage = Storage};
+set(#ems_media{} = Media, clients_timeout, T) -> Media#ems_media{clients_timeout = T};
+set(#ems_media{} = Media, source_timeout, T) -> Media#ems_media{source_timeout = T}.
+
+set(#ems_media{} = Media, Options) ->
+  lists:foldl(fun({K,V}, M) -> set(M, K, V) end, Media, Options).
 
 %
 %  Tests
