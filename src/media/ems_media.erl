@@ -68,6 +68,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
 
 
+-export([init_with_options/2, get/2, set/3]).
+
+
 -define(LIFE_TIMEOUT, 60000).
 -define(TIMEOUT, 120000).
 
@@ -973,6 +976,18 @@ terminate(_Reason, Media) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+
+init_with_options(#ems_media{} = Media, []) -> Media;
+init_with_options(#ems_media{} = Media, [{state,S}|Opts]) -> init_with_options(Media#ems_media{state = S}, Opts);
+init_with_options(#ems_media{} = Media, [{format,Format}|Opts]) -> init_with_options(Media#ems_media{format = Format}, Opts);
+init_with_options(#ems_media{} = Media, [{storage,Storage}|Opts]) -> init_with_options(Media#ems_media{storage = Storage}, Opts);
+init_with_options(#ems_media{} = Media, [{clients_timeout,T}|Opts]) -> init_with_options(Media#ems_media{clients_timeout = T}, Opts);
+init_with_options(#ems_media{} = Media, [{source_timeout,T}|Opts]) -> init_with_options(Media#ems_media{source_timeout = T}, Opts).
+
+
+get(#ems_media{storage = Storage}, storage) -> Storage.
+
+set(#ems_media{} = Media, storage, Storage) -> Media#ems_media{storage = Storage}.
 
 %
 %  Tests
