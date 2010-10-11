@@ -90,7 +90,9 @@ releaseStream(State, _AMF) ->
 %%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:stop(Player);
+    #rtmp_stream{pid = Player} when is_pid(Player) -> 
+      ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
   rtmp_session:delete_stream(StreamId, State).
@@ -256,6 +258,7 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player} when is_pid(Player) ->
       ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId),
       ems_log:access(Host, "STOP ~p ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
       % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
