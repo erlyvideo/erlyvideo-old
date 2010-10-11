@@ -116,7 +116,10 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
   Options = lists:ukeymerge(1, Options2, Options1),
   
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> ?D({"Unsubscribe from old", OldMedia}), ems_media:stop(OldMedia);
+    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
+      ?D({"Unsubscribe from old", OldMedia}), 
+      ems_media:stop(OldMedia),
+      rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
   
