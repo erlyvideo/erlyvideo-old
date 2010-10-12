@@ -1,3 +1,9 @@
+erlyvideo (2.4.7) unstable; urgency=low
+
+  Registrator is now independent
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 12 Oct 2010 10:52:37 +0400
+
 erlyvideo (2.4.6) unstable; urgency=low
 
   ems_media changes
