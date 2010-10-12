@@ -70,6 +70,10 @@ avmplus_test_() ->
 array_test_() ->
   ?_a([true], <<10,0,0,0,1,1,1>>).
   
+ecma_array_test_() ->
+  ?_a([{<<"key">>,true}], <<8,0,0,0,1,0,3,"key",1,1,0,0,9>>).
+  
+  
 object_test_() ->
   [ ?_assertEncode([{packet,raw},{s,true}], <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>) ] ++
   ?_a({object, [{<<"packet">>,<<"raw">>},{<<"s">>,true}]}, <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>).

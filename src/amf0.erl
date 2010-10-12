@@ -95,6 +95,12 @@ read(<<?STRICT_ARRAY, Size:32, Remaining/binary>>, Objects) ->
       read_array(Remaining, Size, [], Objects1)
     end, Objects);
 
+read(<<?ECMA_ARRAY, _Size:32, Remaining/binary>>, Objects) ->
+    {{object,Val}, Rest, Objects2} = store_in_refs(fun(Objects1) ->
+      read_object(Remaining, [], Objects1, undefined)
+    end, Objects),
+    {Val, Rest, Objects2};
+
 read(<<?OBJECT, Remaining/binary>>, Objects) ->
     store_in_refs(fun(Objects1) ->
       read_object(Remaining, [], Objects1, undefined)
@@ -176,6 +182,10 @@ write({object, Object}, Objects) ->
 write({object, Name, Object}, Objects) ->
     NameS = binarize(Name),
     write_object(Object, <<?TYPED_OBJECT, (size(NameS)):16, NameS/binary>>, Objects);
+
+write([{Key,_Value}|_] = Object, Objects) when is_binary(Key) ->
+    write_object(Object, <<?ECMA_ARRAY, (length(Object)):32>>, Objects);
+
 
 write([{_Key,_Value}|_] = Object, Objects) ->
     write({object, Object}, Objects);
