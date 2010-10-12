@@ -1,5 +1,4 @@
 ERLDIR=$(ERLANG_ROOT)/lib/log4erl-$(VERSION)
-DESTROOT=$(CURDIR)/debian/log4erl
 
 SRC = src
 
