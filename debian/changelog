@@ -1,3 +1,9 @@
+erlyvideo (2.4.8) unstable; urgency=low
+
+  bundled all dependencies. New amf
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 13 Oct 2010 00:44:15 +0400
+
 erlyvideo (2.4.7) unstable; urgency=low
 
   Registrator is now independent
