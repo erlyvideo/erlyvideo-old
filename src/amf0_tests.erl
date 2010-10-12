@@ -76,7 +76,7 @@ ecma_array_test_() ->
   
 object_test_() ->
   [ ?_assertEncode([{packet,raw},{s,true}], <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>) ] ++
-  ?_a({object, [{<<"packet">>,<<"raw">>},{<<"s">>,true}]}, <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>).
+  ?_a({object, [{packet,<<"raw">>},{s,true}]}, <<3,0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>).
 
 typed_object_test_() ->
   ?_a({object, 'Socket', [{packet,<<"raw">>},{s,true}]}, <<16,0,6,"Socket",0,6,"packet",2,0,3,"raw",0,1,"s",1,1,0,0,9>>) ++
@@ -88,7 +88,7 @@ typed_object_test_() ->
 
 references_test_() ->
   [
-    ?_assertDecode([{object, [{<<"zz">>,true}]},{object,[{<<"zz">>,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
+    ?_assertDecode([{object, [{zz,true}]},{object,[{zz,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
     % ?_a([{object, [{<<"zz">>,true}]},{object,[{<<"zz">>,true}]}], <<10,0,0,0,2,3,0,2,"zz",1,1,0,0,9,7,0,1>>)
   ].
 

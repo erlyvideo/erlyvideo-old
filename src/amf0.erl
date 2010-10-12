@@ -97,7 +97,7 @@ read(<<?STRICT_ARRAY, Size:32, Remaining/binary>>, Objects) ->
 
 read(<<?ECMA_ARRAY, _Size:32, Remaining/binary>>, Objects) ->
     {{object,Val}, Rest, Objects2} = store_in_refs(fun(Objects1) ->
-      read_object(Remaining, [], Objects1, undefined)
+      read_object(Remaining, [], Objects1, ecma_array)
     end, Objects),
     {Val, Rest, Objects2};
 
@@ -126,6 +126,7 @@ read_array(Bin, Size, Array, Objects) ->
 read_object(<<0:16, ?OBJECT_END, Remaining/binary>>, Object, Objects, Class) ->
     Val = case Class of
       undefined -> {object, lists:reverse(Object)};
+      ecma_array -> {object, lists:reverse(Object)};
       _ -> {object, Class, lists:reverse(Object)}
     end,
     {Val, Remaining, Objects};
@@ -133,7 +134,7 @@ read_object(<<0:16, ?OBJECT_END, Remaining/binary>>, Object, Objects, Class) ->
 read_object(<<Len:16, Key:Len/binary, Bin/binary>>, Object, Objects, Class) ->
     {Val, Remaining, Objects1} = read(Bin, Objects),
     K = case Class of
-      undefined -> Key;
+      ecma_array -> Key;
       _ -> binary_to_atom(Key, utf8)
     end,
     read_object(Remaining, [{K, Val}|Object], Objects1, Class).
