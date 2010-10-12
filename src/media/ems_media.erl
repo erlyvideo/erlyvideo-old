@@ -487,7 +487,7 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
       {reply, ok, Media, ?TIMEOUT};
 
     #client{state = paused} ->
-      Clients1 = ems_media_clients:update(Clients, Client, #client.state, starting),
+      Clients1 = ems_media_clients:update_state(Clients, Client, starting),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
       
     #client{} ->
@@ -506,7 +506,7 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
     
     #client{} ->
       ?D({"Pausing active client", Client}),
-      Clients1 = ems_media_clients:update(Clients, Client, #client.state, paused),
+      Clients1 = ems_media_clients:update_state(Clients, Client, paused),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
       
     undefined ->
@@ -658,7 +658,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
 handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
   case unsubscribe_client(Pid, Media) of
     {reply, {error, no_client}, Media2, _} ->
-      case ems_media_clients:find(Clients, Pid, #client.ticker)  of
+      case ems_media_clients:find_by_ticker(Clients, Pid)  of
         #client{consumer = Client, stream_id = StreamId} ->
           case ClientReason of 
             normal -> ok;

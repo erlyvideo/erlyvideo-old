@@ -29,7 +29,7 @@
 -include("../log.hrl").
 -include("ems_media_client.hrl").
 
--export([init/0, insert/2, find/2, find/3, count/1, update/3, update/4, delete/2, 
+-export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
          select_by_state/2, send_frame/3, mass_update_state/3, increment_bytes/3]).
 
 init() ->
@@ -48,6 +48,9 @@ find({Clients, _Index}, Client) ->
     _ -> undefined
   end.
   
+find_by_ticker(Storage, Pid) ->
+  find(Storage, Pid, #client.ticker).
+  
 find({Clients, _Index}, Value, Pos) ->
   case ets:select(Clients, ets:fun2ms(fun(#client{} = Entry) when element(Pos, Entry) == Value -> Entry end)) of
     [Entry] -> Entry;
@@ -61,6 +64,10 @@ count({Clients, _Index}) ->
 delete_from_index(Index, Client) ->
   MS = ets:fun2ms(fun(#client{consumer = Consumer}) when Consumer == Client -> true end),
   ets:select_delete(Index, MS).
+
+
+update_state(Storage, Client, State) ->
+  update(Storage, Client, #client.state, State).
 
 update({Clients, Index}, Client, Pos, Value) ->
   case ets:lookup(Clients, Client) of
@@ -127,3 +134,11 @@ increment_bytes({Clients, Index}, Client, Bytes) ->
     _ -> ?D({error, Client, ets:tab2list(Clients), ets:tab2list(Index)}),  ok
   end,
   {Clients, Index}.
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+
+
+
+
