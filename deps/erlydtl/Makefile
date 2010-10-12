@@ -1,7 +1,5 @@
-include debian/version.mk
-ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
-PACKAGE_DIR = $(ERLANG_ROOT)/lib/erlydtl-$(VERSION)
-DESTROOT=$(CURDIR)/debian/erlydtl
+ERLDIR=$(ERLANG_ROOT)/lib/log4erl-$(VERSION)
+DESTROOT=$(CURDIR)/debian/log4erl
 
 ERL=erl
 ERLC=erlc
@@ -35,12 +33,12 @@ clean:
 	rm -fv erl_crash.dump $(PARSER).erl
 
 install:
-	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/ebin
-	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/src/erlydtl
-	mkdir -p $(DESTROOT)$(PACKAGE_DIR)/src/tests
-	install -c -m 644 ebin/*.beam $(DESTROOT)$(PACKAGE_DIR)/ebin
-	install -c -m 644 src/erlydtl/* $(DESTROOT)$(PACKAGE_DIR)/src/erlydtl/
-	install -c -m 644 src/tests/* $(DESTROOT)$(PACKAGE_DIR)/src/tests/
+	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
+	mkdir -p $(DESTROOT)$(ERLDIR)/src/erlydtl
+	mkdir -p $(DESTROOT)$(ERLDIR)/src/tests
+	install -c -m 644 ebin/*.beam $(DESTROOT)$(ERLDIR)/ebin
+	install -c -m 644 src/erlydtl/* $(DESTROOT)$(ERLDIR)/src/erlydtl/
+	install -c -m 644 src/tests/* $(DESTROOT)$(ERLDIR)/src/tests/
 
 
 .PHONY: doc
