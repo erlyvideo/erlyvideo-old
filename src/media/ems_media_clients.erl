@@ -29,117 +29,95 @@
 -include("ems_media_client.hrl").
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
-         select_by_state/2, send_frame/3, mass_update_state/3, increment_bytes/3]).
+         send_frame/3, mass_update_state/3, increment_bytes/3]).
 
--define(CLIENTS_ETS, 1).
-
--ifdef(CLIENTS_ETS).
 -include_lib("stdlib/include/ms_transform.hrl").
 
+-record(clients, {
+  list = [],
+  bytes
+}).
+
 init() ->
-  Clients = ets:new(clients, [set,  {keypos,#client.consumer}, private]),
-  Index = ets:new(index, [duplicate_bag, {keypos, #client.state}, private]),
-  {Clients, Index}.
+  #clients{bytes = ets:new(clients, [set,  private])}.
+  
+  
+insert(#clients{list = List, bytes = Bytes} = Clients, #client{consumer = Client} = Entry) ->
+  ets:insert(Bytes, {Client,0}),
+  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
 
-insert({Clients, Index}, Entry) ->
-  ets:insert(Clients, Entry),
-  ets:insert(Index, Entry),
-  {Clients, Index}.
 
-find({Clients, _Index}, Client) ->
-  case ets:lookup(Clients, Client) of
-    [Entry] -> Entry;
-    _ -> undefined
+find(#clients{bytes = Bytes, list = List}, Client) ->
+  case lists:keyfind(Client, #client.consumer, List) of
+    false -> undefined;
+    Entry -> Entry#client{bytes = ets:lookup_element(Bytes, Client, 2)}
   end.
   
 find_by_ticker(Storage, Pid) ->
   find(Storage, Pid, #client.ticker).
   
-find({Clients, _Index}, Value, Pos) ->
-  case ets:select(Clients, ets:fun2ms(fun(#client{} = Entry) when element(Pos, Entry) == Value -> Entry end)) of
-    [Entry] -> Entry;
-    _ -> undefined
+find(#clients{bytes = Bytes, list = List}, Value, Pos) ->
+  case lists:keyfind(Value, Pos, List) of
+    false -> undefined;
+    #client{consumer = Client} = Entry -> Entry#client{bytes = ets:lookup_element(Bytes, Client, 2)}
   end.
 
 
-count({Clients, _Index}) ->
-  ets:info(Clients, size).
+count(#clients{bytes = Bytes}) ->
+  ets:info(Bytes, size).
   
-delete_from_index(Index, Client) ->
-  MS = ets:fun2ms(fun(#client{consumer = Consumer}) when Consumer == Client -> true end),
-  ets:select_delete(Index, MS).
-
 
 update_state(Storage, Client, State) ->
   update(Storage, Client, #client.state, State).
 
-update({Clients, Index}, Client, Pos, Value) ->
-  case ets:lookup(Clients, Client) of
-    [Entry] ->
-      ets:update_element(Clients, Client, {Pos, Value}),
-      % ets:delete_object(Index, Entry),
-      delete_from_index(Index, Client),
-      ets:insert(Index, setelement(Pos, Entry, Value));
-    _ ->
-      undefined
-  end,
-  {Clients, Index}.
+update(#clients{bytes = Bytes}, Client, #client.bytes, Value) ->
+  ets:insert(Bytes, {Client, Value});
 
-update({Clients, Index}, Client, NewEntry) ->
-  case ets:lookup(Clients, Client) of
-    [_Entry] ->
-      % ets:delete_object(Index, Entry),
-      delete_from_index(Index, Client),
-      ets:insert(Clients, NewEntry),
-      ets:insert(Index, NewEntry);
-    _ ->
-      undefined
-  end, 
-  {Clients, Index}.
-
-delete({Clients, Index}, Client) ->
-  case ets:lookup(Clients, Client) of
-    [_Entry] ->
-      ets:delete(Clients, Client),
-      delete_from_index(Index, Client);
-    _ ->
-      undefined
-  end, 
-  {Clients, Index}.
+update(#clients{list = List} = Clients, Client, Pos, Value) ->
   
-select_by_state({_Clients,Index}, Value) ->
-  ets:lookup(Index, Value).
+  case lists:keytake(Client, #client.consumer, List) of
+    {value, #client{} = Entry, List1} ->
+      Entry1 = setelement(Pos, Entry, Value),
+      Clients#clients{list = [Entry1|List1]};
+    false ->
+      Clients
+  end.
+
+update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B} = NewEntry) ->
+  ets:insert(Bytes, {Client, B}),
+  List1 = lists:keystore(Client, #client.consumer, List, NewEntry),
+  Clients#clients{list = List1}.
+
+delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
+  ets:delete(Bytes, Client),
+  Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
   
 
-send_frame(#video_frame{} = Frame, {C,_Index} = Clients, State) ->
-  List = select_by_state(Clients, State),
-  Bytes = try erlang:iolist_size(Frame#video_frame.body) of
-    Size -> Size
+send_frame(#video_frame{} = Frame, #clients{list = List, bytes = Bytes} = Clients, State) ->
+  Size = try erlang:iolist_size(Frame#video_frame.body) of
+    S -> S
   catch
     _:_ -> 0
   end,
   [begin
     Pid ! Frame#video_frame{stream_id = StreamId},
-    ets:update_counter(C, Pid, {#client.bytes, Bytes})
-  end || #client{consumer = Pid, stream_id = StreamId} <- List].
+    ets:update_counter(Bytes, Pid, Size)
+  end || #client{consumer = Pid, stream_id = StreamId, state = S} <- List, S == State],
+  Clients.
 
 
-mass_update_state({Clients,Index}, From, To) ->
-  List = ets:lookup(Index, From),
-  ets:delete(Index, From),
-  NewList = [setelement(#client.state, Entry, To) || Entry <- List],
-  ets:insert(Index, NewList),
-  ets:insert(Clients, NewList),
-  {Clients, Index}.
+mass_update_state(#clients{list = List} = Clients, From, To) ->
+  Clients#clients{list = [begin
+    S = case State of
+      From -> To;
+      S1 -> S1
+    end,
+    Entry#client{state = S}
+  end || #client{state = State} = Entry <- List]}.
   
-increment_bytes({Clients, Index}, Client, Bytes) ->
-  case ets:lookup(Clients, Client) of
-    [_Entry] -> ets:update_counter(Clients, Client, {#client.bytes, Bytes});
-    _ -> ?D({error, Client, ets:tab2list(Clients), ets:tab2list(Index)}),  ok
-  end,
-  {Clients, Index}.
-
--endif.
+increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
+  ets:update_counter(Bytes, Client, Size),
+  Clients.
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -156,6 +134,22 @@ insert_test_() ->
       Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
       Storage1 = ?MODULE:insert(Storage, Entry),
       ?assertEqual(Entry, ?MODULE:find(Storage1, client_pid))
+    end
+  ].
+
+increment_bytes_test_() ->
+  [
+    fun() ->
+      Storage = ?MODULE:init(),
+      Ticker = ticker_pid,
+      StreamId = 1,
+      Client = client_pid,
+      Ref = make_ref(),
+      TickerRef = make_ref(),
+      Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
+      Storage1 = ?MODULE:insert(Storage, Entry),
+      Storage2 = ?MODULE:increment_bytes(Storage1, client_pid, 100),
+      ?assertEqual(Entry#client{bytes = 100}, ?MODULE:find(Storage2, client_pid))
     end
   ].
 
