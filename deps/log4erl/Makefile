@@ -1,8 +1,5 @@
-include debian/version.mk
-ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
-ERLDIR=$(ERLANG_ROOT)/lib/log4erl-$(VERSION)
-
-DESTROOT=$(CURDIR)/debian/log4erl
+ERLDIR=$(ERLANG_ROOT)/lib/erlmedia-$(VERSION)
+DESTROOT=$(CURDIR)/debian/erlmedia
 
 SRC = src
 
