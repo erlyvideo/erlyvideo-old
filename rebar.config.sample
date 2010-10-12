@@ -1,10 +1,7 @@
 %% -*- mode: Erlang; -*-
-
 {sub_dirs, ["rel"]}.
-
 {erl_opts, [debug_info]}.
-
 {deps, [
-        {erlydtl,     ".*", {git, "git://github.com/erlyvideo/erlydtl", "master"}},
-        {log4erl,     ".*", {git, "git://github.com/erlyvideo/log4erl", "master"}}
-       ]}.
+  {erlydtl,     ".*", {git, "git://github.com/erlyvideo/erlydtl", "master"}},
+  {log4erl,     ".*", {git, "git://github.com/erlyvideo/log4erl", "master"}}
+]}.
