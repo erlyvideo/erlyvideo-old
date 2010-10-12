@@ -24,13 +24,17 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("erlmedia/include/video_frame.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 -include("../include/ems_media.hrl").
 -include("../log.hrl").
 -include("ems_media_client.hrl").
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
          select_by_state/2, send_frame/3, mass_update_state/3, increment_bytes/3]).
+
+-define(CLIENTS_ETS, 1).
+
+-ifdef(CLIENTS_ETS).
+-include_lib("stdlib/include/ms_transform.hrl").
 
 init() ->
   Clients = ets:new(clients, [set,  {keypos,#client.consumer}, private]),
@@ -135,10 +139,25 @@ increment_bytes({Clients, Index}, Client, Bytes) ->
   end,
   {Clients, Index}.
 
+-endif.
 
 -include_lib("eunit/include/eunit.hrl").
 
 
+insert_test_() ->
+  [
+    fun() ->
+      Storage = ?MODULE:init(),
+      Ticker = ticker_pid,
+      StreamId = 1,
+      Client = client_pid,
+      Ref = make_ref(),
+      TickerRef = make_ref(),
+      Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
+      Storage1 = ?MODULE:insert(Storage, Entry),
+      ?assertEqual(Entry, ?MODULE:find(Storage1, client_pid))
+    end
+  ].
 
 
 
