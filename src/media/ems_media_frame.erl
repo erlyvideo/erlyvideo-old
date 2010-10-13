@@ -110,12 +110,12 @@ handle_config(Frame, Media) ->
   handle_frame(Frame, Media).
 
 
-handle_frame(#video_frame{content = Content} = Frame, #ems_media{module = M, clients = Clients} = Media) ->
+handle_frame(#video_frame{content = Content} = Frame, #ems_media{module = M, video_config = V, clients = Clients} = Media) ->
   Media1 = reply_with_decoder_config(Media),
   case M:handle_frame(Frame, Media1) of
     {reply, F, Media2} ->
       case Content of
-        audio -> ems_media_clients:send_frame(F, Clients, starting);
+        audio when V == undefined -> ems_media_clients:send_frame(F, Clients, starting);
         _ -> ok
       end,
       ems_media_clients:send_frame(F, Clients, active),
