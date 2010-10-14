@@ -9,7 +9,7 @@
 
 -export([cache_path/2, add_client/2, ems_client_load/0, ems_client_unload/0]).
 
--export([s3_sign/3, headers/1, head_request/1]).
+-export([s3_sign/3, headers/2, head_request/1]).
 
 -export([start/0, stop/0, start_link/2, reload/0, archive/0]).
 
@@ -258,9 +258,8 @@ handle_info(start_download, #http_file{url = URL} = State) ->
   {ok, Headers} = head_request(URL),
   % ?D(Headers),
   Length = proplists:get_value('Content-Length', Headers),
-  {ok, FirstRequest} = http_file_sup:start_request(self(), URL, 0),
-  Ref = erlang:monitor(process, FirstRequest),
-  {noreply, State#http_file{streams = [#stream{pid = FirstRequest, offset = 0, size = 0, ref = Ref}], size = Length}};
+  State1 = schedule_request(State, {undefined, 0, Length}),
+  {noreply, State1};
 
 handle_info({'DOWN', _, process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
@@ -276,6 +275,13 @@ handle_info({'DOWN', _, process, Stream, _Reason}, #http_file{streams = Streams,
       end
   end;
   
+handle_info({ibrowse_async_headers, Stream, Code, Headers, Code} = Resp, State) ->
+  ?D(Resp),
+  {noreply, State};
+  
+handle_info({ibrowse_async_response, Stream, _Bin}, State) ->
+  ?D({Stream, size(_Bin)}),
+  {noreply, State};
 
 handle_info(Message, State) ->
   ?D({"Some message:", Message}),
@@ -313,20 +319,20 @@ s3_sign(Method, Key, Path) ->
   {Date, Sign}.
 
 
-headers("http://s3.amazonaws.com"++Path) ->
+headers("http://s3.amazonaws.com"++Path, Method) ->
   {ok, Env, _Path} = file:path_consult(["/etc/erlyvideo", "priv", "."], "aws.conf"),
   Secret = proplists:get_value(secret, Env),
   Key = proplists:get_value(key, Env),
-  {Date, Sign} = s3_sign(head, Secret, Path),
+  {Date, Sign} = s3_sign(Method, Secret, Path),
   [{'Date', Date}, {'Content-Type', ""}, {'Authorization', "AWS "++Key++":"++Sign}];
   
-headers(_URL) ->
+headers(_URL, _Method) ->
   [].
 
 
 
 head_request(URL) ->
-  RequestHeaders = headers(URL),
+  RequestHeaders = headers(URL, head),
   {ok, "200", Headers, _Body} = ibrowse:send_req(URL, RequestHeaders, head),
   {ok, Headers}.
 
@@ -336,10 +342,11 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
   NewStreams = case has_covering_stream(Streams, Request) of
     true -> Streams;
     false ->
-      {ok, Stream} = http_file_sup:start_request(self(), URL, Offset),
-      Ref = erlang:monitor(process, Stream),
+      Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
+      Headers = headers(URL, get) ++ [{'Range', Range}],
+      {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,self()},{response_format,binary},{stream_chunk_size,4096}]),
       % ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
-      lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0, ref = Ref}], Streams)
+      lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0}], Streams)
   end,
   File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.
   

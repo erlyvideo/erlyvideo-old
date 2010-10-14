@@ -6,7 +6,7 @@
 
 -export([init/1,start_link/0]).
 
--export([start_request/3, start_file/2]).
+-export([start_file/2]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -18,27 +18,8 @@ start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
-start_request(Consumer, URL, Offset) ->
-  supervisor:start_child(http_file_request_sup, [Consumer, URL, Offset]).
-
 start_file(URL, Options) ->
   supervisor:start_child(http_one_file_sup, [URL, Options]).
-
-init([http_file_request]) ->
-    {ok,
-        {{simple_one_for_one, 3, 10},
-            [
-              % MediaEntry
-              {   undefined,                               % Id       = internal id
-                  {http_file_request,start_link,[]},             % StartFun = {M, F, A}
-                  temporary,                               % Restart  = permanent | transient | temporary
-                  2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-                  worker,                                  % Type     = worker | supervisor
-                  [http_file_request]                            % Modules  = [Module] | dynamic
-              }
-            ]
-        }
-    };
 
 init([http_file]) ->
     {ok,
@@ -69,13 +50,6 @@ init([]) ->
     },
     {   http_one_file_sup,
         {supervisor,start_link,[{local, http_one_file_sup}, ?MODULE, [http_file]]},
-        permanent,                               % Restart  = permanent | transient | temporary
-        infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
-        supervisor,                              % Type     = worker | supervisor
-        []                                       % Modules  = [Module] | dynamic
-    },
-    {   http_file_request_sup,
-        {supervisor,start_link,[{local, http_file_request_sup}, ?MODULE, [http_file_request]]},
         permanent,                               % Restart  = permanent | transient | temporary
         infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
         supervisor,                              % Type     = worker | supervisor
