@@ -9,6 +9,8 @@
 
 -export([cache_path/2, add_client/2, ems_client_load/0, ems_client_unload/0]).
 
+-export([s3_sign/3, headers/1, head_request/1]).
+
 -export([start/0, stop/0, start_link/2, reload/0, archive/0]).
 
 -behaviour(gen_server).
@@ -69,6 +71,7 @@ archive() ->
   zip:create("http_file-"++Version++".ez", ["http_file/ebin"], [{cwd, "../"},{compress,all},{uncompress,[".beam",".app"]},verbose]).
 
 
+
   
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
@@ -76,7 +79,8 @@ archive() ->
 %% @end 
 %%--------------------------------------------------------------------
 
-start(_Type, _Args) -> 
+start(_Type, _Args) ->
+  ibrowse:start(),
   http_file_sup:start_link().
 
 
@@ -295,32 +299,38 @@ code_change(_Old, State, _Extra) ->
 %%%----------------------------
 
 
+
+s3_sign(get, Key, Path) ->
+  s3_sign("GET", Key, Path);
+
+s3_sign(head, Key, Path) ->
+  s3_sign("HEAD", Key, Path);
+
+s3_sign(Method, Key, Path) ->
+  Date = httpd_util:rfc1123_date(),
+  StringToSign = Method++"\n\n\n"++Date++"\n"++Path,
+  Sign = binary_to_list(base64:encode(crypto:sha_mac(Key, StringToSign))),
+  {Date, Sign}.
+
+
+headers("http://s3.amazonaws.com"++Path) ->
+  {ok, Env, _Path} = file:path_consult(["/etc/erlyvideo", "priv", "."], "aws.conf"),
+  Secret = proplists:get_value(secret, Env),
+  Key = proplists:get_value(key, Env),
+  {Date, Sign} = s3_sign(head, Secret, Path),
+  [{'Date', Date}, {'Content-Type', ""}, {'Authorization', "AWS "++Key++":"++Sign}];
+  
+headers(_URL) ->
+  [].
+
+
+
 head_request(URL) ->
-  {http, _UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
-  {ok, Re} = re:compile("http://[^\\/]+/(.+)"),
-  {match, [_, Path]} = re:run(URL, Re, [{capture, all, list}]),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active,false}, {packet,http}]),
-  Req = lists:flatten(io_lib:format("HEAD /~s HTTP/1.1\r\nHost: ~s\r\n~s\r\n", [Path, Host, auth(URL, "HEAD")])),
-  gen_tcp:send(Socket, Req),
-  {ok, {http_response, _HTTPVersion, 200, _Status}} = gen_tcp:recv(Socket, 0),
-  Headers = read_headers(Socket, []),
-  gen_tcp:close(Socket),
+  RequestHeaders = headers(URL),
+  {ok, "200", Headers, _Body} = ibrowse:send_req(URL, RequestHeaders, head),
   {ok, Headers}.
-  
-  
-read_headers(Sock, Headers) ->
-  case gen_tcp:recv(Sock, 0) of
-    {ok, {http_header, _, 'Content-Length' = Header, _, Value}} ->
-      read_headers(Sock, [{Header,list_to_integer(Value)}|Headers]);
-    {ok, {http_header, _, Header, _, Value}} ->
-      read_headers(Sock, [{Header,Value}|Headers]);
-    {ok, http_eoh} ->
-      inet:setopts(Sock, [{packet,raw}]),
-      Headers
-  end.
-  
-auth(_URL, _Verb) ->
-  "".
+
+
   
 schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} = File, {_From, Offset, _Limit} = Request) ->
   NewStreams = case has_covering_stream(Streams, Request) of
