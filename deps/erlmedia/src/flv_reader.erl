@@ -239,18 +239,21 @@ find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Offset) ->
 % @param Pos
 % @return a valid video_frame record type
 
-read_frame(MediaInfo, {audio_config, Pos, DTS}) ->
-  % ?D({"Send audio config", Pos}),
-  Frame = codec_config(audio, MediaInfo),
+read_frame(#media_info{audio_config = undefined} = MediaInfo, {audio_config, Pos, DTS}) ->
+  read_frame(MediaInfo, {video_config, Pos, DTS});
+
+read_frame(#media_info{audio_config = Frame} = MediaInfo, {audio_config, Pos, DTS}) ->
   Next = case MediaInfo#media_info.video_config of
     undefined -> 0;
     _ -> {video_config,Pos, DTS}
   end,
   Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
 
-read_frame(MediaInfo, {video_config,Pos, DTS}) ->
-  % ?D({"Send video config", Pos}),
-  Frame = codec_config(video, MediaInfo),
+
+read_frame(#media_info{video_config = undefined} = MediaInfo, {video_config, Pos, _DTS}) ->
+  read_frame(MediaInfo, Pos);
+
+read_frame(#media_info{video_config = Frame}, {video_config,Pos, DTS}) ->
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
 
 read_frame(_, eof) ->
@@ -262,7 +265,4 @@ read_frame(Media, undefined) ->
 read_frame(#media_info{reader = Reader}, Offset) ->
   flv:read_frame(Reader, Offset).
 
-
-codec_config(video, #media_info{video_config = VideoCodec}) -> VideoCodec;
-codec_config(audio, #media_info{audio_config = AudioCodec}) -> AudioCodec.
 
