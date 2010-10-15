@@ -236,8 +236,9 @@ init(Reader, Options) ->
 
 read_header(#mp4_reader{reader = Reader} = MediaInfo) -> 
   {ok, Mp4Media} = mp4:read_header(Reader),
-  #mp4_media{width = Width, height = Height, audio_tracks = ATs, video_tracks = VTs, 
+  #mp4_media{width = Width, height = Height, tracks = ATs, 
              seconds = Seconds, additional = Additional} = Mp4Media,
+             VTs = ATs,
   ?D({"Opened mp4 file with following video tracks:", [Bitrate || #mp4_track{bitrate = Bitrate} <- VTs], "and audio tracks", [Language || #mp4_track{language = Language} <- ATs], "seconds", Seconds}),
   Info1 = MediaInfo#mp4_reader{header = Mp4Media, width = Width, height = Height, additional = Additional,          
                        audio_tracks = ATs, video_tracks = VTs, duration = Seconds},
@@ -253,45 +254,6 @@ track_by_language([_|Tracks], Lang, Default) -> track_by_language(Tracks, Lang, 
 track_by_language([], _Lang, Default) -> {Default, mp4:frame_count(Default)}.
 
 
-build_index_table(#mp4_reader{video_tracks = VTs, audio_tracks = ATs, lang = Lang} = MediaInfo) ->
-  {Video, VideoCount} = track_by_language(VTs, Lang),
-  {Audio, AudioCount} = track_by_language(ATs, Lang),
-  Index = <<>>,
-  AC = case AudioCount of
-    0 -> undefined;
-    _ -> Audio#mp4_track.decoder_config
-  end,
-  VC = case VideoCount of
-    0 -> undefined;
-    _ -> Video#mp4_track.decoder_config
-  end,
-  BuiltIndex = build_index_table(Video, 0, VideoCount, Audio, 0, AudioCount, Index, 0),
-  {ok, MediaInfo#mp4_reader{frames = BuiltIndex, audio_config = AC, video_config = VC, audio_track = Audio, video_track = Video}}.
-
-
-build_index_table(_Video, VC, VC, _Audio, AC, AC, Index, _ID) ->
-  Index;
-
-build_index_table(Video, VC, VC, Audio, AudioID, AudioCount, Index, ID) ->
-  % ets:insert(Index, {ID, audio, AudioID}),
-  build_index_table(Video, VC, VC, Audio, AudioID+1, AudioCount, <<Index/binary, ID:32, 0:1, AudioID:31>>, ID+1);
-
-build_index_table(Video, VideoID, VideoCount, Audio, AC, AC, Index, ID) ->
-  % ets:insert(Index, {ID, video, VideoID}),
-  build_index_table(Video, VideoID + 1, VideoCount, Audio, AC, AC, <<Index/binary, ID:32, 1:1, VideoID:31>>, ID+1);
-
-
-build_index_table(Video, VideoID, VideoCount, Audio, AudioID, AudioCount, Index, ID) ->
-  AFrame = mp4:read_frame(Audio, AudioID),
-  VFrame = mp4:read_frame(Video, VideoID),
-  case {VFrame#mp4_frame.dts, AFrame#mp4_frame.dts} of
-    {VDTS, ADTS} when VDTS < ADTS ->
-      % ets:insert(Index, {ID, video, VideoID}),
-      build_index_table(Video, VideoID + 1, VideoCount, Audio, AudioID, AudioCount, <<Index/binary, ID:32, 1:1, VideoID:31>>, ID+1);
-    {_VDTS, _ADTS} ->
-      % ets:insert(Index, {ID, audio, AudioID}),
-      build_index_table(Video, VideoID, VideoCount, Audio, AudioID + 1, AudioCount, <<Index/binary, ID:32, 0:1, AudioID:31>>, ID+1)
-  end.
 
 
 properties(#mp4_reader{width = Width, height = Height, duration = Duration, 

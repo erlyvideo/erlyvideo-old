@@ -6,8 +6,7 @@
   seconds,
   file_types = [],
   tracks = [],
-  audio_tracks = [],
-  video_tracks = [],
+  index,
   width,
   height,
   frames,
@@ -16,6 +15,7 @@
 
 -record(mp4_track, {
   data_format,
+  content,
   track_id,
   timescale,
   duration,
