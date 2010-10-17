@@ -203,10 +203,10 @@ moov(Atom, MediaInfo) ->
 mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
       Volume:16, 0:16, _Reserved1:64, Matrix:36/binary, _Reserved2:24/binary, NextTrackId:32>>, #mp4_media{} = Media) ->
         
-  Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
+  _Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
           {volume,Volume},{matrix,Matrix},{next_track,NextTrackId}],
-  ?D(Meta),
-  Media#mp4_media{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
+  % ?D(Meta),
+  Media#mp4_media{timescale = TimeScale, duration = Duration/TimeScale}.
 
 % Track box
 trak(<<>>, MediaInfo) ->
@@ -232,13 +232,13 @@ append_track(#mp4_media{tracks = Tracks} = MediaInfo, #mp4_track{} = Track) ->
 
 fill_track_info(#mp4_media{} = MediaInfo, #mp4_track{} = Track) ->
   {Frames, MaxDTS} = fill_track(Track),
-  Seconds = max_duration(MediaInfo, MaxDTS),
+  Duration = max_duration(MediaInfo, MaxDTS),
   Media1 = append_track(MediaInfo, Track#mp4_track{frames = Frames}),
-  Media1#mp4_media{seconds = Seconds}.
+  Media1#mp4_media{duration = Duration}.
 
-max_duration(#mp4_media{seconds = undefined}, Seconds2) -> Seconds2;
-max_duration(#mp4_media{seconds = Seconds1}, Seconds2) when Seconds2 > Seconds1 -> Seconds2;
-max_duration(#mp4_media{seconds = Seconds1}, _) -> Seconds1.
+max_duration(#mp4_media{duration = undefined}, Duration2) -> Duration2;
+max_duration(#mp4_media{duration = Duration1}, Duration2) when Duration2 > Duration1 -> Duration2;
+max_duration(#mp4_media{duration = Duration1}, _) -> Duration1.
 
   
 
@@ -317,9 +317,9 @@ minf(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 %% Video Media Header Box
-vmhd(<<Version:32, Mode:16, R:16, G:16, B:16>>, Mp4Track) ->
-  _VMHD = {vmhd, Version, Mode, R, G, B},
-  ?D(_VMHD),
+vmhd(<<_Version:32, _Mode:16, _R:16, _G:16, _B:16>>, Mp4Track) ->
+  % _VMHD = {vmhd, Version, Mode, R, G, B},
+  % ?D(_VMHD),
   Mp4Track.
   
 dinf(Atom, Mp4Track) ->
@@ -383,7 +383,7 @@ samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
   
 %%%%%%%%%%%%%%%%%%    ESDS     %%%%%%%%%%%%%%
 esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) when Version == 0 ->
-  ?D({"Extracted audio config", DecoderConfig}),
+  % ?D({"Extracted audio config", DecoderConfig}),
   ESDS = config_from_esds_tag(DecoderConfig),
   ?D(ESDS),
   Mp4Track#mp4_track{decoder_config = ESDS#esds.specific, data_format = ESDS#esds.object_type}.
@@ -665,7 +665,7 @@ fill_track(Mp4Track) ->
     timescale = Timescale
   } = Track,
   {Filled, MaxDTS} = fill_track(Frames, SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, 0, 0),
-  ?D({max_dts, MaxDTS, size(Filled) div ?FRAMESIZE}),
+  % ?D({max_dts, MaxDTS, size(Filled) div ?FRAMESIZE}),
   {Filled, MaxDTS}.
 
 fill_track(Frames, [], [], [], [], [], _, _, DTS) ->

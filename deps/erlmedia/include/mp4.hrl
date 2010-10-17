@@ -3,7 +3,6 @@
   file_type,
   timescale,
   duration,
-  seconds,
   file_types = [],
   tracks = [],
   index,

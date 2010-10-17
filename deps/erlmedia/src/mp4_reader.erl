@@ -51,11 +51,9 @@ init(Reader, Options) ->
   {ok, MP4Media} = mp4:open(Reader),
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
-  Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
-  Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
-  ?D({"Opened mp4. Bitrates:", Bitrates, "Langs:", Languages}),
-  
-  ?D({"ZZ", [Track#mp4_track{frames = frames} || Track <- Tracks]}),
+  % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
+  % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
+  ?D({"MP4", [Track#mp4_track{frames = frames} || Track <- Tracks]}),
 
   {ok, MP4Media#mp4_media{options = Options}}.
 
@@ -97,10 +95,12 @@ find_track(Tracks, Pos, Value, Content) ->
 find_track(Tracks, _Pos, _Value, Index, _Content, Default) when Index > size(Tracks) ->
   Default;
   
-find_track(Tracks, Pos, Value, Index, _Content, _Default) when element(Pos,element(Index,Tracks)) == Value ->
+find_track(Tracks, Pos, Value, Index, Content, _Default) when element(Pos,element(Index,Tracks)) == Value andalso (element(Index,Tracks))#mp4_track.content == Content ->
+  % ?D({got,Pos,Value,Content,Index}),
   Index;
 
 find_track(Tracks, Pos, Value, Index, Content, _Default) when (element(Index,Tracks))#mp4_track.content == Content ->
+  % ?D({default,Content,Index}),
   find_track(Tracks, Pos, Value, Index+1, Content, Index);
 
 find_track(Tracks, Pos, Value, Index, Content, Default) ->
@@ -111,8 +111,9 @@ first(Media) ->
   first(Media, 0, 0).
 
 first(#mp4_media{} = Media, Id, DTS) when is_number(Id) ->
-  Video = track_for_bitrate(Media, undefined),
   Audio = track_for_language(Media, undefined),
+  Video = track_for_bitrate(Media, undefined),
+  % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
   first(Media, {Id,Audio,Video}, DTS);
 
 first(#mp4_media{tracks = Tracks}, {_Id,Audio,Video} = Id, DTS) ->
@@ -162,10 +163,12 @@ read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, {_Id,Audio,Video}
     undefined -> Pos;
     _ -> {video_config,Pos, DTS}
   end,
+  % ?D({audio,Audio,Frame}),
   Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
 
 read_frame(MediaInfo, {video_config, {_Id,_Audio,Video} = Pos, DTS}) ->
   Frame = codec_config({video,Video}, MediaInfo),
+  % ?D({video,Video,Frame}),
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
 
 read_frame(_, eof) ->
@@ -174,6 +177,7 @@ read_frame(_, eof) ->
 read_frame(#mp4_media{} = Media, Id) ->
   #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame = mp4:read_frame(Media, Id),
 
+  % ?D({"read frame", Id, Offset, Size,Content}),
 	case read_data(Media, Offset, Size) of
 		{ok, Data, _} ->
 		  VideoFrame = video_frame(Content, Frame, Data),
