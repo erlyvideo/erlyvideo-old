@@ -53,9 +53,9 @@
 
 
 open(Reader) ->
-  {ok, Mp4Media} = read_header(Reader),
-  Index = build_index(Mp4Media#mp4_media.tracks),
-  {ok, Mp4Media#mp4_media{index = Index}}.
+  {ok, #mp4_media{tracks = Tracks} = Mp4Media} = read_header(Reader),
+  Index = build_index(Tracks),
+  {ok, Mp4Media#mp4_media{index = Index, reader = Reader}}.
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
@@ -114,38 +114,43 @@ read_atom_header({Module, Device}, Pos) ->
   end.
 
 
-seek(#mp4_track{frames = Frames}, BeforeAfter, Timestamp) ->
-  seek(Frames, BeforeAfter, Timestamp);
+seek(#mp4_media{} = Media, TrackId, Timestamp) ->
+  seek(Media, TrackId, Timestamp, 0, undefined).
 
-seek(Frames, before, Timestamp) ->
-  seek(Frames, before, Timestamp, 0, undefined).
+seek(Media, TrackId, Timestamp, Id, Found) ->
+  case read_frame(Media, {Id,undefined,TrackId}) of
+    #mp4_frame{keyframe = true, dts = DTS} when DTS > Timestamp -> Found;
+    #mp4_frame{keyframe = true, dts = DTS} -> seek(Media, TrackId, Timestamp, Id+1, {Id,DTS});
+    #mp4_frame{} -> seek(Media, TrackId, Timestamp, Id+1, Found);
+    eof -> undefined
+  end.
 
-seek(<<1:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, _/binary>>, before, Timestamp, _, {FoundId,FoundDTS}) when DTS > Timestamp ->
-  {FoundId,FoundDTS};
-
-seek(<<1:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, before, Timestamp, Id, _)  ->
-  seek(Frames, before, Timestamp, Id+1, {Id, DTS});
-
-seek(<<_:?FRAMESIZE/binary, Frames/binary>>, Direction, Timestamp, Id, Found) ->
-  seek(Frames, Direction, Timestamp, Id+1, Found);
+read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, {Id,Audio,Video}) ->
+  IndexOffset = Id*4,
   
-seek(<<>>, _, _, _, Found) ->
-  Found.
+  case Index of
+    <<_:IndexOffset/binary, Audio, _:1, AudioId:23, _/binary>> -> 
+      (unpack_frame(element(Audio,Tracks), AudioId))#mp4_frame{next_id = {Id+1,Audio,Video}, content = audio};
+    <<_:IndexOffset/binary, Video, _:1, VideoId:23, _/binary>> -> 
+      (unpack_frame(element(Video,Tracks), VideoId))#mp4_frame{next_id = {Id+1,Audio,Video}, content = video};
+    <<_:IndexOffset/binary>> -> 
+      eof;
+    <<_:IndexOffset/binary, _OtherTrackId, _K:1, _FrameIndex:23, _/binary>> ->
+      read_frame(Media, {Id+1, Audio, Video})
+  end.
   
-read_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
-  Frame = read_frame(Frames, Id),
-  Frame#mp4_frame{codec = Codec};
-
-read_frame(Frames, Id) when Id*?FRAMESIZE < size(Frames) ->
+  
+  
+unpack_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
-  % ?D({read_frame,Id, size(Frames) div ?FRAMESIZE}),
+
   <<_:FrameOffset/binary, FKeyframe:1, Size:63, Offset:64, DTS:64/float, PTS:64/float, _/binary>> = Frames,
   Keyframe = case FKeyframe of
     1 -> true;
     0 -> false
   end,
-  #mp4_frame{id = Id, dts = DTS, pts = PTS, size = Size, offset = Offset, keyframe = Keyframe}.
-  
+  #mp4_frame{id = Id, dts = DTS, pts = PTS, size = Size, offset = Offset, keyframe = Keyframe, codec = Codec}.
+
 
 frame_count(undefined) -> 0;
 frame_count(#mp4_track{frames = Frames}) -> size(Frames) div ?FRAMESIZE;
@@ -191,7 +196,8 @@ ftyp(<<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
   
 % Movie box
 moov(Atom, MediaInfo) ->
-  parse_atom(Atom, MediaInfo).
+  Media = #mp4_media{tracks = Tracks} = parse_atom(Atom, MediaInfo),
+  Media#mp4_media{tracks = list_to_tuple(lists:reverse(Tracks))}.
 
 % MVHD atom
 mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
@@ -267,7 +273,7 @@ extract_language(<<L1:5, L2:5, L3:5>>) ->
 %% Handler Reference Box
 hdlr(<<0:32, 0:32, "vide", 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  Name = case NameNull of
+  _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
@@ -275,7 +281,7 @@ hdlr(<<0:32, 0:32, "vide", 0:96, NameNull/binary>>, Mp4Track) ->
 
 hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  Name = case NameNull of
+  _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
@@ -283,7 +289,7 @@ hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
 
 hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
-  Name = case NameNull of
+  _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
@@ -679,17 +685,16 @@ fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [
 
 
 
-prepare_track_for_index([], Index, _Num) ->
-  Index;
+prepare_track_for_index(<<>>, Index, _Id, _Num) ->
+  lists:reverse(Index);
   
-prepare_track_for_index([#mp4_frame{dts = DTS}|Frames], Index, Num) ->
-  Id = length(Frames),
-  prepare_track_for_index(Frames, [{{DTS, Num}, Id}|Index], Num).
+prepare_track_for_index(<<Keyframe:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, Index, Id, TrackId) ->
+  prepare_track_for_index(Frames, [{{DTS, TrackId, Keyframe}, Id}|Index], Id+1, TrackId).
   
 prepare_tracks_for_index(Tracks) ->
-  Indexes = lists:foldl(fun(Track, IndexTracks) ->
+  Indexes = lists:foldl(fun(#mp4_track{frames = Frames}, IndexTracks) ->
     Num = length(IndexTracks) + 1,
-    T = prepare_track_for_index(lists:reverse(Track), [], Num),
+    T = prepare_track_for_index(Frames, [], 0, Num),
     [T|IndexTracks]
   end, [], Tracks),
   lists:reverse(Indexes).
@@ -698,11 +703,10 @@ prepare_tracks_for_index(Tracks) ->
 build_index(Tracks) when is_list(Tracks) ->
   Indexes = prepare_tracks_for_index(Tracks),
   T = lists:foldl(fun(Track, MergedTracks) -> lists:ukeymerge(1, Track, MergedTracks) end, [], Indexes),
-  lists:foldl(fun({{_DTS, Track}, N}, Bin) -> <<Bin/binary, Track, N:24>> end, <<>>, T);
-  
+  lists:foldl(fun({{_DTS, Track, K}, N}, Bin) -> <<Bin/binary, Track, K:1, N:23>> end, <<>>, T);
 
-
-build_index(I) -> I.
+build_index(Tracks) when is_tuple(Tracks) ->
+  build_index(tuple_to_list(Tracks)).
 
   
 %%

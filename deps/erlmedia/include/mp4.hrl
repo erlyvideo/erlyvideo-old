@@ -10,7 +10,9 @@
   width,
   height,
   frames,
-  additional = []
+  additional = [],
+  reader,
+  options
 }).
 
 -record(mp4_track, {
@@ -42,7 +44,9 @@
   pts,
   keyframe = false,
   offset,
-  codec
+  codec,
+  content,
+  next_id
 }).
 
 -record(mp4_sample_description, {
