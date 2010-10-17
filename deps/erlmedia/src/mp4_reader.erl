@@ -221,7 +221,7 @@ video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
 
 
 
-seek(#mp4_media{} = Media, before, Timestamp) when Timestamp == 0 ->
+seek(#mp4_media{} = Media, before, Timestamp) when Timestamp =< 0 ->
   {first(Media), 0};
 
 seek(#mp4_media{duration = Duration}, _, Timestamp) when Timestamp > Duration ->
@@ -230,6 +230,7 @@ seek(#mp4_media{duration = Duration}, _, Timestamp) when Timestamp > Duration ->
 seek(#mp4_media{} = Media, before, Timestamp) ->
   Video = track_for_bitrate(Media, undefined),
   Audio = track_for_language(Media, undefined),
+  ?D({"Seek", Timestamp}),
   case mp4:seek(Media, Video, Timestamp) of
     {Id, DTS} -> {{Id,Audio,Video}, DTS};
     undefined -> undefined
