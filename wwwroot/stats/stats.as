@@ -18,9 +18,6 @@ public var common_stats:ArrayCollection;
 public var entries_label:String = "Entries";
 
 [Bindable]
-public var entry_count_text:String = "Hi";
-
-[Bindable]
 public var users_label:String = "Users";
 
 [Bindable]
@@ -86,7 +83,7 @@ public function onEntriesLoaded(result:Object):void {
     {Param : 'avg5', Value: result.cpu.avg5},
     {Param : 'avg15', Value: result.cpu.avg15}
   ];
-  entry_count_text = "Length: "+result.streams.length;
+  debug_text = "Got result";
   common_stats = new ArrayCollection(info);
   entries = new ArrayCollection(result.streams);
   
