@@ -90,7 +90,9 @@ releaseStream(State, _AMF) ->
 %%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:stop(Player);
+    #rtmp_stream{pid = Player} when is_pid(Player) -> 
+      ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
   rtmp_session:delete_stream(StreamId, State).
@@ -116,7 +118,10 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
   Options = lists:ukeymerge(1, Options2, Options1),
   
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> ?D({"Unsubscribe from old", OldMedia}), ems_media:stop(OldMedia);
+    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
+      ?D({"Unsubscribe from old", OldMedia}), 
+      ems_media:stop(OldMedia),
+      rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
   
@@ -134,6 +139,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
 extract_url_args([]) -> [];
 extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};
 extract_url_args({"duration", Duration}) -> {duration, list_to_integer(Duration)*1000};
+extract_url_args({"clients_timeout", Timeout}) -> {clients_timeout, list_to_integer(Timeout)*1000};
 extract_url_args({Key, Value}) -> {Key, Value};
 extract_url_args(List) -> [extract_url_args(Arg) || Arg <- List].
 
@@ -175,6 +181,8 @@ pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausin
       {null, _} ->
         State;
       {undefined, _} ->
+        State;
+      {#rtmp_stream{pid = undefined}, _} ->
         State;
       {#rtmp_stream{pid = Player}, true} ->
         ems_media:pause(Player),
@@ -252,6 +260,7 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player} when is_pid(Player) ->
       ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId),
       ems_log:access(Host, "STOP ~p ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
       % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),

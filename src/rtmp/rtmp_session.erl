@@ -55,6 +55,7 @@
 
 -export([reply/2, fail/2]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
+-export([get_socket/1]).
 
 %%-------------------------------------------------------------------------
 %% @spec create_client(Socket)  -> {ok, Pid}
@@ -570,3 +571,6 @@ delete_stream(#rtmp_stream{stream_id = StreamId}, State) ->
 
 delete_stream(StreamId, #rtmp_session{streams1 = Streams} = State) ->
   State#rtmp_session{streams1 = lists:keydelete(StreamId, #rtmp_stream.stream_id, Streams)}.
+
+get_socket(#rtmp_session{socket = Socket}) -> Socket.
+

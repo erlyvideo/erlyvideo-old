@@ -38,8 +38,8 @@
   duration,
   height,
   width,
-  audio_codec,
-  video_codec
+  audio_config,
+  video_config
 }).
 
 
@@ -65,35 +65,57 @@ init({_Module,_Device} = Reader, _Options) ->
   MediaInfo = #media_info{reader = Reader},
   case flv:read_header(Reader) of
     {#flv_header{} = Header, Offset} -> 
-      read_frame_list(MediaInfo#media_info{header = Header, frames = ets:new(frames, [ordered_set, private])}, Offset);
+      read_frame_list(MediaInfo#media_info{header = Header, frames = ets:new(frames, [ordered_set, private])}, Offset, -1);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
 
-first(_) ->
-  flv:data_offset().
+first(Media) ->
+  first(Media, flv:data_offset(), 0).
+
+first(#media_info{audio_config = A}, Id, DTS) when A =/= undefined ->
+  {audio_config, Id, DTS};
+
+first(#media_info{video_config = V}, Id, DTS) when V =/= undefined ->
+  {video_config, Id, DTS};
+
+first(_, Id, _DTS) ->
+  Id.
+
 
 properties(#media_info{metadata = Meta}) -> Meta.
 
-read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Metadata} = MediaInfo, Offset) ->
-  {Module,Device} = Reader,
+
+read_frame_list(#media_info{} = MediaInfo, _Offset, 0) ->
+  {ok, MediaInfo};
+
+read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Metadata} = MediaInfo, Offset, Limit) ->
   % We need to bypass PreviousTagSize and read header.
-	case flv:read_tag_header(Reader, Offset)	of
-	  #flv_tag{type = metadata, size = Length, offset = BodyOffset, next_tag_offset = NextOffset} ->
-			{ok, MetaBody} = Module:pread(Device, BodyOffset, Length),
-			Meta = rtmp:decode_list(MetaBody),
-			?D({"Got metadata", Meta}),
+	case flv:read_frame(Reader, Offset)	of
+	  #video_frame{content = metadata, body = Meta, next_id = NextOffset} ->
 			case parse_metadata(MediaInfo, Meta) of
-			  {MediaInfo1, true} ->	{ok, MediaInfo1};
+			  {MediaInfo1, true} ->	
+			    ?D({"Found metadata, looking 10 frames ahead"}),
+			    read_frame_list(MediaInfo1, NextOffset, 10);
 			  {MediaInfo1, false} ->
-			    read_frame_list(MediaInfo1, NextOffset)
+			    read_frame_list(MediaInfo1, NextOffset, Limit - 1)
 			end;
-  	#flv_tag{type = video, flavor = keyframe, timestamp = DTS, next_tag_offset = NextOffset} ->
+		#video_frame{content = video, flavor = config, next_id = NextOffset} = V ->
+		  ?D({"Save flash video_config"}),
+			read_frame_list(MediaInfo#media_info{video_config = V}, NextOffset, Limit - 1);
+
+		#video_frame{content = audio, flavor = config, next_id = NextOffset} = A ->
+		  ?D({"Save flash audio config"}),
+			read_frame_list(MediaInfo#media_info{audio_config = A}, NextOffset, Limit - 1);
+		  
+  	#video_frame{content = video, flavor = keyframe, dts = DTS, next_id = NextOffset} ->
   	  ets:insert(FrameTable, {DTS, Offset}),
-			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset);
-		#flv_tag{next_tag_offset = NextOffset, timestamp = DTS}->
-			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset);
+			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset, Limit - 1);
+
+		#video_frame{next_id = NextOffset, dts = DTS} ->
+			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset, Limit - 1);
+
     eof ->
       ?D({duration, MediaInfo#media_info.duration, Offset}),
       {ok, MediaInfo#media_info{
@@ -133,8 +155,6 @@ parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
       ElseH -> round(ElseH)
     end,
     duration = get_int(<<"duration">>, Meta, 1000),
-    audio_codec = get_int(<<"audiocodecid">>, Meta, {flv, audio_codec}),
-    video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec}),
     metadata = Meta3
   },
   case proplists:get_value(<<"keyframes">>, Meta) of
@@ -159,7 +179,7 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
 
 
 seek(#media_info{} = Media, _BeforeAfter, TS) when TS == 0 ->
-  {first(Media), 0};
+  {{audio_config, first(Media), 0}, 0};
 
 seek(#media_info{frames = undefined} = Media, BeforeAfter, Timestamp) ->
   erlang:error(flv_file_should_have_frame_table),
@@ -174,7 +194,7 @@ seek(#media_info{frames = FrameTable}, before, Timestamp) ->
   % ?D({zz, ets:tab2list(FrameTable)}),
   
   case lists:reverse(Ids) of
-    [Item | _] -> Item;
+    [{Offset, DTS} | _] -> {{audio_config,Offset,DTS}, DTS};
     _ -> undefined
   end;
 
@@ -192,7 +212,7 @@ seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
 find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Offset) ->
   case read_frame(Media, Offset) of
     #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
-      {PrevOffset, PrevTS};
+      {{audio_config, PrevOffset, PrevTS}, PrevTS};
     #video_frame{flavor = keyframe, dts = DTS, next_id = Next} -> 
       find_frame_in_file(Media, before, Timestamp, DTS, Offset, Next);
     #video_frame{next_id = Next} ->
@@ -200,7 +220,7 @@ find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Offset) ->
     eof when PrevTS == undefined -> 
       undefined;
     eof ->  
-      {PrevOffset, PrevTS}
+      {{audio_config, PrevOffset, PrevTS}, PrevTS}
   end;
     
 find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Offset) ->
@@ -219,9 +239,30 @@ find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Offset) ->
 % @param Pos
 % @return a valid video_frame record type
 
+read_frame(#media_info{audio_config = undefined} = MediaInfo, {audio_config, Pos, DTS}) ->
+  read_frame(MediaInfo, {video_config, Pos, DTS});
+
+read_frame(#media_info{audio_config = Frame} = MediaInfo, {audio_config, Pos, DTS}) ->
+  Next = case MediaInfo#media_info.video_config of
+    undefined -> 0;
+    _ -> {video_config,Pos, DTS}
+  end,
+  Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
+
+
+read_frame(#media_info{video_config = undefined} = MediaInfo, {video_config, Pos, _DTS}) ->
+  read_frame(MediaInfo, Pos);
+
+read_frame(#media_info{video_config = Frame}, {video_config,Pos, DTS}) ->
+  Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
+
+read_frame(_, eof) ->
+  eof;
+
 read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
 read_frame(#media_info{reader = Reader}, Offset) ->
   flv:read_frame(Reader, Offset).
+
 

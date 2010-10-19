@@ -68,6 +68,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
 
 
+-export([get/2, set/3, set/2]).
+
+
 -define(LIFE_TIMEOUT, 60000).
 -define(TIMEOUT, 120000).
 
@@ -484,7 +487,7 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
       {reply, ok, Media, ?TIMEOUT};
 
     #client{state = paused} ->
-      Clients1 = ems_media_clients:update(Clients, Client, #client.state, starting),
+      Clients1 = ems_media_clients:update_state(Clients, Client, starting),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
       
     #client{} ->
@@ -503,7 +506,7 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
     
     #client{} ->
       ?D({"Pausing active client", Client}),
-      Clients1 = ems_media_clients:update(Clients, Client, #client.state, paused),
+      Clients1 = ems_media_clients:update_state(Clients, Client, paused),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
       
     undefined ->
@@ -655,7 +658,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
 handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
   case unsubscribe_client(Pid, Media) of
     {reply, {error, no_client}, Media2, _} ->
-      case ems_media_clients:find(Clients, Pid, #client.ticker)  of
+      case ems_media_clients:find_by_ticker(Clients, Pid)  of
         #client{consumer = Client, stream_id = StreamId} ->
           case ClientReason of 
             normal -> ok;
@@ -973,6 +976,24 @@ terminate(_Reason, Media) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+
+
+get(#ems_media{} = Media, Key) -> 
+  element(index(Key, record_info(fields, ems_media)) + 1, Media).
+  
+
+set(#ems_media{} = Media, Key, Value) ->
+  Pos = index(Key, record_info(fields, ems_media)) + 1,
+  setelement(Pos, Media, Value).
+
+index(Element, List) -> index(Element, List, 1).
+index(Element, [Element|_], N) -> N;
+index(Element, [_|List], N) -> index(Element, List, N+1);
+index(_, [], _) -> undefined.
+
+
+set(#ems_media{} = Media, Options) ->
+  lists:foldl(fun({K,V}, M) -> set(M, K, V) end, Media, Options).
 
 %
 %  Tests

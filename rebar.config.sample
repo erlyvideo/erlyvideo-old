@@ -1,11 +1,3 @@
 %% -*- mode: Erlang; -*-
-
 {sub_dirs, ["rel"]}.
-
 {erl_opts, [debug_info]}.
-
-{deps, [
-        {amf,         ".*", {git, "git://github.com/erlyvideo/erlang-amf", "master"}},
-        {erlydtl,     ".*", {git, "git://github.com/erlyvideo/erlydtl", "master"}},
-        {log4erl,     ".*", {git, "git://github.com/erlyvideo/log4erl", "master"}}
-       ]}.

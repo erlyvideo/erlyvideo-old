@@ -28,7 +28,7 @@ rebar.config:
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
-	[ -d deps/erlydtl ] && (cd deps/erlydtl && make) || true
+	(cd deps/erlydtl && make)
 	(cd deps/mpegts && make)
 	
 include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
@@ -92,7 +92,7 @@ install: compile
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
 	cp -r snmp $(DESTROOT)/var/lib/erlyvideo/
 	mkdir -p $(DESTROOT)/var/cache/erlyvideo/licensed
-	for i in deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
+	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
 .PHONY: doc debian compile snmp

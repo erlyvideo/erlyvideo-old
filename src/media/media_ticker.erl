@@ -147,11 +147,11 @@ handle_message(resume, Ticker) ->
 
 handle_message(start, Ticker) ->
   self() ! tick,
-  {noreply, Ticker#ticker{paused = false}};
+  {noreply, Ticker};
   
 handle_message(pause, Ticker) ->
   flush_tick(),
-  {noreply, Ticker#ticker{paused = true}};
+  {noreply, Ticker#ticker{paused = true, frame = undefined}};
   
 handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, consumer = Consumer} = Ticker) ->
   case Paused of
@@ -161,20 +161,18 @@ handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, 
   Consumer ! {ems_stream, StreamId, seek_success, DTS},
   {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
 
-handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, consumer = Consumer, stream_id = StreamId, options = Options} = Ticker) ->
+handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, paused = Paused, client_buffer = ClientBuffer, consumer = Consumer} = Ticker) ->
   Frame = ems_media:read_frame(Media, Consumer, Pos),
   #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
-  OptKeys = [duration],
-  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys) andalso is_number(V)],
-  Metadata = ems_media:metadata(Media, MetaOptions),
-  % ?D({tick, NewDTS, NewPos}),
-  Consumer ! Metadata#video_frame{dts = NewDTS, pts = NewDTS, stream_id = StreamId},
   self() ! tick,
-  
   TimerStart = os:timestamp(),
   
-  {noreply, Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame,
-               timer_start = TimerStart, playing_from = NewDTS}};
+  PlayingFrom = case Paused of
+    true -> NewDTS - ClientBuffer;
+    false -> send_metadata(Ticker, NewDTS), NewDTS
+  end,
+  {noreply, Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame, timer_start = TimerStart, playing_from = PlayingFrom}};
+  
   
 handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId,
                              playing_from = PlayingFrom, timer_start = TimerStart, 
@@ -207,6 +205,14 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   end.
 
 
+send_metadata(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, options = Options}, DTS) ->
+  OptKeys = [duration],
+  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys) andalso is_number(V)],
+  Metadata = ems_media:metadata(Media, MetaOptions),
+  % ?D({tick, NewDTS, NewPos}),
+  Consumer ! Metadata#video_frame{dts = DTS, pts = DTS, stream_id = StreamId},
+  ok.
+
 tick_timeout(DTS, PlayingFrom, TimerStart, ClientBuffer) ->
   Now = os:timestamp(),
   tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer).
@@ -215,11 +221,13 @@ tick_timeout(DTS, PlayingFrom, TimerStart, Now, ClientBuffer) ->
   NextTime = DTS - PlayingFrom,   %% Time from PlayingFrom in video timeline in which next frame should be seen
   RealTime = timer:now_diff(Now, TimerStart) div 1000,    %% Wall clock from PlayingFrom
   Sleep = NextTime - RealTime - ClientBuffer,    %% Delta between next show time and current wall clock delta
-  if
+  T = if
     Sleep < 0 -> 0;                %% This case means, that frame was too late. show it immediately
     ClientBuffer >= NextTime -> 0; %% We have seen less than buffer size from stream begin
     true -> round(Sleep)           %% Regular situation: we are far from stream begin, feed with frames
-  end.
+  end,
+  % ?D({tick,round(DTS),round(PlayingFrom),RealTime,T}),
+  T.
 
 
 -include_lib("eunit/include/eunit.hrl").

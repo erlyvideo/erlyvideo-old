@@ -47,7 +47,7 @@ private function callConnect():void
 {
   nc = new NetConnection();
 	nc.addEventListener(NetStatusEvent.NET_STATUS, netStatus);
-	nc.connect(server);
+	nc.connect(Application.application.parameters.server || server);
 }
 
 private function loadStats():void

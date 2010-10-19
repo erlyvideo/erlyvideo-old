@@ -1,0 +1,180 @@
+**> log4erl:add_file_appender(Name, Spec) -> ok | {error, E}
+  Name :: atom() name of the appender. This value will be used
+  to uniquely references this file appender and can be used to 
+  change log level and format of the appended file. This appender
+  will be added to the default_logger
+
+  Spec :: tuple() of the form
+       {LogDir, LogFileName, {size, Size}, NumOfRotations, Suffix, LogLevel}
+  or
+       {LogDir, LogFileName, {size, Size}, NumOfRotations, Suffix, LogLevel, Format}
+  This tuple defines the appender's attributes.
+  If Format is not specified, the default format is "[%L] %l%n".
+
+  Example:
+  log4erl:add_file_appender(chat_room1, {"../logs", "room1", {size, 100000}, 4, "txt", warn}).
+  This will directs log4erl to create a file appender and add it to the default
+  logger. all log messages towards default logger will be written to file
+  "../logs/room1.txt". The file will have a size limit of 100000, after which
+  the file will be rotated for 4 times. The log level will be warn, which means
+  info & debug messages will not be written. Format is a list of specifiers. The meanin of these 
+  specifiers can be found in description of log4erl:change_format/2 below.
+
+  After suffeciantly long time, the directory "../logs" will look like this:
+  $> ls -l
+  -rw-rw-r--  1 ahmed ahmed 103845 Jun 25 11:41 logger1_2.elog
+  -rw-rw-r--  1 ahmed ahmed 102095 Jun 25 11:41 logger1_3.elog
+  -rw-rw-r--  1 ahmed ahmed 106435 Jun 25 11:41 logger1_4.elog
+  -rw-rw-r--  1 ahmed ahmed 103390 Jun 25 11:41 logger1_1.elog
+  -rw-rw-r--  1 ahmed ahmed   7385 Jun 25 11:41 logger1.elog  
+
+**> log4erl:add_file_appender(Logger, Appender, SpecFile) -> ok
+  Logger :: atom()
+  Appender :: atom()
+
+  This will create a new appender and associate spec in Spec or in SpecFile to it. Spec and
+  content of SpecFile are the same as in add_file_appender/2
+
+  Example:
+  log4erl:add_file_appender(chat_log, file_logger, "../priv/chat_logs.conf").
+  This will add another logger with the name "chat_log" and use configuration in
+  the file "../priv/chat_logs.conf" for it. To write to this log, you need to specify
+  the name of the logger.
+
+**> log4erl:add_console_appender(Appender, Spec) -> ok
+    log4erl:add_console_appender(Logger, Appender, Spec) -> ok
+  Logger :: atom()
+  Appender :: atom()
+  Spec :: tuple()
+
+  This will create a new console appender to either Logger or default logger and associate spec in Spec to it.
+  Spec is in the form {Level, Format}, which means exactly as it is in file_appender Spec
+
+  Example:
+  log4erl:add_console_appender(cmd_logs, {info, "%j %T [%L] %l%n"}).
+
+**> log4erl:add_smtp_appender(Appender, Spec) -> ok
+    log4erl:add_smtp_appender(Logger, Appender, Spec) -> ok
+  Logger :: atom()
+  Appender :: atom()
+  Spec :: tuple() | list()
+
+  @since version 0.8.4
+
+  This will create a new smtp appender to either Logger of default logger and initialize it to spec in Spec or
+  file named Spec if Spec is a list. Spec is in the below form. MsgFormat is the format of the body of the email
+  has the same meaning as the format of Format in add_file_logger/2,3.
+       {Level, Server, Auth, Msg}
+	       where:
+	       Level = atom()
+	       Server = {Ip, Port} | {Ip} | Ip
+	       Auth = {Username, Passwd} | no_auth
+	       Msg = {From, To, Title, MsgFormat} | {To, Title, MsgFormat} | {To, MsgFormat}
+
+  Example:
+  log4erl:add_smpt_appender(appender1, {warn, {"smtp.domain.com"}, {"name","secret"},
+				       {"My_app", "alarm@domain.com", "Alarm log", "%L - %j %T %n%l%n"}}).
+
+  This will create an smtp_appender called appender1 with level 'warn'. The appender will connect to
+  "smtp.domain.com" email server with default SMTP port (25) and authenticate using username "name" and
+  password "secret". The message will have 'From' field of "My_app", will be sent to 'alarm@domain.com',
+  have a title of "Alarm log" and the body of the email will be formatted according to the MsgFormat
+  "%L - %j %T %n %l%n". An email sent using this appender will be as following:
+  
+  From: <My_app>
+  To: <alarm@domain.com>
+  Title: <Alarm log>
+  Body:
+  <warn - 01-03-2009 12:21:09,818534
+  test smtp appender>
+
+**> log4erl:add_syslog_appender(Appender, Spec) -> ok
+    log4erl:add_syslog_appender(Logger, Appender, Spec) -> ok
+  Logger :: atom()
+  Appender :: atom()
+  Spec :: tuple() | list()
+
+  @since version 0.8.5
+
+  This will create a new syslog appender to either Logger of default logger and initialize it to spec in Spec or
+  file named Spec if Spec is a list. Spec is in the below form. MsgFormat is the format of the message and it
+  has the same meaning as the format of Format in add_file_logger/2,3.
+
+  Note: In for syslog_appender to work, you need to enable syslogd to accept network messages. In linux, you
+  need to use '-r' switch when running syslogd.
+
+  Spec =
+       {Level, Fac} |
+       {Level, Fac, Host} |
+       {Level, Fac, Host, Format} |
+       {Level, Fac, Host, Port, Format}
+	       where:
+	       Level = atom()
+	       Fac = atom()
+	       Host = string() | tuple()
+	       Port = integer()
+	       Format = string()
+
+  Example:
+  log4erl:add_syslog_appender(appender1, {warn, user, "syslog_srvr", "(%L) - %S %l%n"}}).
+
+  This will create a syslog_appender called appender1 with level 'warn' and uses 'user' facility.
+  The appender will connect to host "syslog_srvr" with default port (514). The messages will be
+  formatted according to the format "%L - %j %T %n %l%n".
+
+  Default host is "localhost".
+  Default port is 514.
+  Default Format is the same as default format of file_appender
+
+**> log4erl:add_file_appender(Logger, Appender, SpecFile) -> ok
+  Logger :: atom()
+  Appender :: atom()
+
+  This will create a new appender and associate spec in Spec or in SpecFile to it. Spec and
+  content of SpecFile are the same as in add_file_appender/2
+
+  Example:
+  log4erl:add_file_appender(chat_log, file_logger, "../priv/chat_logs.conf").
+  This will add another logger with the name "chat_log" and use configuration in
+  the file "../priv/chat_logs.conf" for it. To write to this log, you need to specify
+  the name of the logger.
+
+**> log4erl:add_xml_appender(Appender, Spec) -> ok
+    log4erl:add_xml_appender(Logger, Appender, Spec) -> ok
+  Logger :: atom()
+  Appender :: atom()
+  Spec :: tuple()
+
+  @since version 0.8.6
+
+  This will create a new XML Appender with configuration specified in Spec where Spec is
+  {Dir, Fname, {Type, Max}, Rot, Suf, Level} | 
+  {Dir, Fname, {Type, Max}, Rot, Suf, Level, XmlSpecs} 
+
+  All tuple elements are the same as in file_appender except for XmlSpecs. XmlSpecs is as follows
+
+  XmlSpecs :: [XmlSpec]
+  XmlSpec :: {Name, Format, Type}
+  Name :: atom() | string()
+  Format :: string()
+  Type :: att | elem
+
+  Each XmlSpec item represent an attribute or element in xml record for a log. For example:
+  {level, "%L", att} means that this record is going to have an attribute named 'level' with
+  value "%L", which is the level of the message. Therefore, the XmlSpec mentioned in the example
+  will result in a record like
+       <log ... level="warn"..>..</log>
+  However, XmlSpec {level, "%L", elem} will result in the the following:
+       <log ...>...<level>warn</level>...</log>
+
+  All attributes and elements are pre-proccessed to escape XML (i.e. '<' replaced by '&lt;')
+
+  You cannot provide XmlSpecs in file-based configuration yet and default XmlSpecs will be used.
+  If you needed to change XmlSpecs, you'll have to add_xml_appender/2,3 manually.
+
+  The default XmlSpecs if not provided is: 
+      [{level, "%L", att},
+       {date, "%j", att},
+       {time, "%T", att},
+       {message, "%l", elem}]
+
