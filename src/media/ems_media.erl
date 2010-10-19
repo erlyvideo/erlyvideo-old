@@ -29,6 +29,7 @@
 %%%  <li>{@link rtsp_media. grab video from RTSP cameras}</li>
 %%% </ul>
 %%%
+%%%
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
@@ -65,6 +66,9 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
+
+
+-export([get/2, set/3, set/2]).
 
 
 -define(LIFE_TIMEOUT, 60000).
@@ -137,7 +141,7 @@ stop_stream(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:call(Media, {subscribe, self(), Options}).
+  gen_server:call(Media, {subscribe, self(), Options}, 10000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> ok
@@ -426,7 +430,11 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         % right after subscribing, but it will wait for video till keyframe
         %
         (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
-        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = starting})
+        ClientState = case proplists:get_value(paused, Options, false) of
+          true -> paused;
+          false -> starting
+        end,
+        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState})
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
   end,
@@ -479,7 +487,7 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
       {reply, ok, Media, ?TIMEOUT};
 
     #client{state = paused} ->
-      Clients1 = ems_media_clients:update(Clients, Client, #client.state, starting),
+      Clients1 = ems_media_clients:update_state(Clients, Client, starting),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
       
     #client{} ->
@@ -498,7 +506,7 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
     
     #client{} ->
       ?D({"Pausing active client", Client}),
-      Clients1 = ems_media_clients:update(Clients, Client, #client.state, paused),
+      Clients1 = ems_media_clients:update_state(Clients, Client, paused),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
       
     undefined ->
@@ -650,7 +658,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
 handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
   case unsubscribe_client(Pid, Media) of
     {reply, {error, no_client}, Media2, _} ->
-      case ems_media_clients:find(Clients, Pid, #client.ticker)  of
+      case ems_media_clients:find_by_ticker(Clients, Pid)  of
         #client{consumer = Client, stream_id = StreamId} ->
           case ClientReason of 
             normal -> ok;
@@ -968,6 +976,24 @@ terminate(_Reason, Media) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+
+
+get(#ems_media{} = Media, Key) -> 
+  element(index(Key, record_info(fields, ems_media)) + 1, Media).
+  
+
+set(#ems_media{} = Media, Key, Value) ->
+  Pos = index(Key, record_info(fields, ems_media)) + 1,
+  setelement(Pos, Media, Value).
+
+index(Element, List) -> index(Element, List, 1).
+index(Element, [Element|_], N) -> N;
+index(Element, [_|List], N) -> index(Element, List, N+1);
+index(_, [], _) -> undefined.
+
+
+set(#ems_media{} = Media, Options) ->
+  lists:foldl(fun({K,V}, M) -> set(M, K, V) end, Media, Options).
 
 %
 %  Tests

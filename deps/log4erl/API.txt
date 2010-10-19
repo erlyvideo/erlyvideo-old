@@ -1,0 +1,152 @@
+NOTE:
+=====
+Please be informed that the API below as of now is not stable and any of the functions/parameters below
+may be changed without prior notice.
+
+Furthermore, you can find appenders and their configurations in 'Appenders_API.txt' file included in release.
+
+**> log4erl:conf(File) -> ok | {error, E}
+  File :: string()
+
+  File is the name of the configuration file. Please check CONFIGURATION.txt for the format of this file.
+
+**> log4erl:add_logger(Name) -> ok | {error, E}
+  Name :: atom() name of the logger 
+
+  Example:
+  log4erl:add_logger(chat_logger)
+  This will create a new logger with name 'chat_logger"
+
+**> log4erl:change_log_level(Level) -> ok
+    log4erl:change_log_level(Logger, Level) -> ok
+  Level::atom() = {all, debug, info, error, warn, fatal, none}
+  Logger::atom()
+
+  This will change log level for default logger or named logger to the level
+  specified.
+
+  Example:
+  log4erl:change_log_level(info). %% This will change level of default logger to info
+  log4erl:change_log_level(test_log, warn) %% This will change level of test_log logger to warn
+
+**> log4erl:change_level(Appender, Level) -> ok
+    log4erl:change_level(Logger, Appender, Level) -> ok
+    Logger :: atom()
+    Appender :: atom()
+    Level :: atom()
+
+  @since version 0.8.4
+
+  This will change log level for a specific appender, as opposed to change_log_level/2,3 which changes
+  level for all appenders in a logger.
+
+  Example:
+  log4erl:change_level(appender1, all).
+
+**> log4erl:change_format(Appender, Format) -> ok
+    log4erl:change_format(Logger, Appender, Format) -> ok
+  Appender :: atom()
+  Logger :: atom()
+  Format :: string()
+
+  @since version 0.8.3
+
+  This will change the output format to the specified Format. Format is a pattern string similar to
+  PatternLayout in Log4j. patterns is an arbitrary string with specifiers (proceeded by '%').
+  Possible specifiers are below:
+	   d - output date (2008-3-7)
+	   j - output date (2008-03-07)
+	   t - time (2:13:9)
+	   T - time (02:28:01.811637)
+	   y - year in YY format (08)
+	   Y - year in YYYY format (2008)
+	   M - month (2)
+	   b - short name of month (Feb)
+	   B - long name of month (February)
+	   D - day
+	   h - hour
+	   m - minute
+	   s - second
+	   i - milli-seconds
+	   l - the actual log message
+	   I - ISO format with universal GMT time (equivilant to "%jT%TZ").
+	   S - ISO format with local time and time zone offset
+	   Z - timezone (+04:00)
+	   L - log level
+	   n - new line
+	   % - the percentage sign (%)
+
+  Example: 
+  log4erl:change_format(file1, "%j %T [%L] %l%n").
+  Will result in the following output (on log4erl:warn("hello"))
+  
+  27-10-2008 15:28:59,98621 [warn] hello
+
+**> log4erl:log(Level, Log) -> ok
+    Level :: atom()
+    Log :: string()
+
+  This will log the text Log to the default logger with level Level.
+
+  Example:
+  log4erl:log(warn, "Hello there").
+  log4erl:log(test_level, "Hello there").
+
+**> log4erl:log(Level, Log, Data) -> ok
+    Level :: atom()
+    Log :: string()
+    Data :: list()
+
+  This will log the text Log to the default logger with level Level and
+  will use Data to format the log text.
+
+  Example:
+  log4erl:log(info, "received message ~p", [Msg]).
+
+**> log4erl:log(Logger, Level, Log, Data) -> ok
+    Logger :: atom()
+    Level :: atom()
+    Log :: string()
+    Data :: list()
+
+  This will log the (Log, Data) to Logger with level Level
+
+  Example:
+  log4erl:log(chat_log, debug, "user entered chat text: ~p", [Chat]).
+
+**> log4erl:Level(Log) -> ok
+    log4erl:Level(Log, Data) -> ok
+    log4erl:Level(Logger, Data) -> ok
+    log4erl:Level(Logger, Log, Data) -> ok
+
+  Level :: warn | info | error | fatal | debug
+  Logger :: atom()
+  Log :: string()
+  Data :: list()
+
+  Exmaple:
+  log4erl:info("This is an info msg").
+  log4erl:warn("Received error ~p",[Msg]).
+  log4erl:fatal(chat_log, "exception occured").
+  log4erl:debug(chat_log, "message received is ~p", [Msg]).
+  log4erl:error("Error").
+
+**> log4erl:error_logger_handler() -> ok
+    log4erl:error_logger_handler(Mappings) -> ok
+   where
+   Mappings :: [Mapping]
+   Mapping :: {Elevels, level}
+   ELevels :: error | info_msg | warning_msg | error_report | info_report | warning_report
+
+   Mappings basically is a list of mapping between error_logger log levels and log4erl log levels.
+   Currently, report messages are not handled by this error_logger handler. The default Mappings are:
+	      {error=error, info_msg=info, warning_msg=warn,
+	      error_report=error, info_report=info,
+	      warning_report=warn}
+
+   Example:
+   log4erl:error_logger_handler([{error, fatal}, {info_msg, info}]).
+
+   which treats all error messages coming from error_logger as fatal and all info_msg
+   messages coming from error_logger as info.
+   

@@ -1,0 +1,36 @@
+This package was debianized by Max Lapshin <max@maxidoors.ru> on
+Mon, 28 Dec 2009 12:30:07 +0300
+
+It was downloaded from http://erlydtl.googlecode.com/
+
+Upstream Author: Roberto Saccon <rsaccon@gmail.com>, Evan Miller <emmiller@gmail.com>
+
+Copyright (c) 2008 Roberto Saccon, Evan Miller
+
+License:
+
+   The MIT License
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+   THE SOFTWARE.
+
+The Debian packaging is (C) 2009, Max Lapshin <max@maxidoors.ru> and
+is licensed under the MIT, see above.
+
+
+# Please also look if there are files or directories which have a
+# different copyright/license attached and list them here.

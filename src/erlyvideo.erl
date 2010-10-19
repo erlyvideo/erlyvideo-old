@@ -87,6 +87,7 @@ start() ->
 	error_logger:info_report("Started Erlyvideo"),
   error_logger:delete_report_handler(sasl_report_tty_h),
   error_logger:delete_report_handler(sasl_report_file_h),
+  inets:start(),
 	ok.
 
 start_http() ->
@@ -112,7 +113,8 @@ start_rtmp() ->
 stats(Host) ->
   Streams = [{object, [{name,Name}, {count, proplists:get_value(client_count, Options)}]} || {Name, _Pid, Options} <- media_provider:entries(Host)],
   CPULoad = {object, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
-  RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
+  % RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
+  RTMPTraf = [{object, []}],
   FixStats = fun(List) ->
     [begin
       {Key, if

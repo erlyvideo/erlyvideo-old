@@ -11,7 +11,7 @@
 	{file_access, file},
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {rtmp_handlers, [{auth_users_limit, 10}, {apps_rewrite_play, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
+    {rtmp_handlers, [{auth_users_limit, 200}, {apps_rewrite_play, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
     {secret_key, "123"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},
@@ -19,12 +19,6 @@
     {rewrite, [
       {"stream/vlc.ts", mpegts, "http://localhost:8080", [{timeshift, 60000}]}
     ]}
-  ]},
-  {production, [
-    {hostname, ["production.local"]},
-    {modules, [trusted_login, apps_push, apps_streaming, apps_recording, apps_rtmp, apps_shared_objects]},
-    {secret_key, "fddbb018f51cb867a2e6d10b9eea7bd5eaec2d9ee1b814856251776f08e8acdef49154b0317b432ff6dfbd7c7e0e74d5db53287cc991e8cf46da8d6a27fc5ae8"},
-    {file_dir, "/tmp"}
   ]}
 ]}.
 

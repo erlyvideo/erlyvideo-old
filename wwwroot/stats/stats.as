@@ -18,9 +18,6 @@ public var common_stats:ArrayCollection;
 public var entries_label:String = "Entries";
 
 [Bindable]
-public var entry_count_text:String = "Hi";
-
-[Bindable]
 public var users_label:String = "Users";
 
 [Bindable]
@@ -47,7 +44,7 @@ private function callConnect():void
 {
   nc = new NetConnection();
 	nc.addEventListener(NetStatusEvent.NET_STATUS, netStatus);
-	nc.connect(server);
+	nc.connect(Application.application.parameters.server || server);
 }
 
 private function loadStats():void
@@ -86,7 +83,7 @@ public function onEntriesLoaded(result:Object):void {
     {Param : 'avg5', Value: result.cpu.avg5},
     {Param : 'avg15', Value: result.cpu.avg15}
   ];
-  entry_count_text = "Length: "+result.streams.length;
+  debug_text = "Got result";
   common_stats = new ArrayCollection(info);
   entries = new ArrayCollection(result.streams);
   

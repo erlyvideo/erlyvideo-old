@@ -1,0 +1,6 @@
+*~
+ebin
+.project
+.settings
+build-stamp
+configure-stamp

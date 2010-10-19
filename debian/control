@@ -12,9 +12,9 @@ Section: net
 Author: Max Lapshin <max@maxidoors.ru>
 Homepage: http://erlyvideo.org/
 Maintainer: Max Lapshin <max@maxidoors.ru>
-Replaces: erlyvideo-base (<= 2.2.5), erlang-rtmp, erlmedia, erlang-shoutcst, erlang-mpegts, erlang-rtp, erlang-rtsp
-Breaks: erlyvideo-base (<= 2.2.5), erlang-rtmp, erlmedia, erlang-shoutcst, erlang-mpegts, erlang-rtp, erlang-rtsp
+Replaces: erlyvideo-base (<= 2.2.5), erlang-rtmp, erlmedia, erlang-shoutcst, erlang-mpegts, erlang-rtp, erlang-rtsp, erlang-amf, erlydtl, log4erl
+Breaks: erlyvideo-base (<= 2.2.5), erlang-rtmp, erlmedia, erlang-shoutcst, erlang-mpegts, erlang-rtp, erlang-rtsp, erlang-amf, erlydtl, log4erl
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-amf (>= 1.0.1), erlydtl (>= 0.5.3-5), log4erl (>= 0.8.7), erlang-nox (>= 1:14) | erlang (>= 1:14)
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-nox (>= 1:14) | erlang (>= 1:14)
 Description: Base package of erlang video server
  Erlang server, capable to handle RTMP and media. MPEG-TS and RTSP are with erlyvideo package

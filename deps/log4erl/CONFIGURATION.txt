@@ -1,0 +1,99 @@
+					Configuration Guide:
+					====================
+
+TOC:
+====
+* Introduction
+* Loggers
+  - Example
+* Appenders
+  - common properties
+  - file_appender
+  - console_appender
+  - smtp_appender
+  - syslog_appender
+
+Introduction:
+=============
+This document explains the format of log4erl configuarion file. The configuration file is simple
+and easy to write. At any place in the file, any thing you type after '%' is a comment.
+You can find a sample configuration in the file 'log4erl.conf' under 'priv' directory.
+
+* Loggers:
+==========
+ It contains a list of logs with the format below, where
+<name> is any name you'd like to call it. <name> can later on be used with any of the log messages
+in log4erl API (e.g. log4erl:info/2,3,4). If no value for <name> exists or value of "default" suplied,
+then the elements inside '{' and '}' will be applied to the default logger.
+
+logger [<name>] {
+       ...
+}
+
+Example:
+--------
+logger application_logger{
+       ...
+}
+
+%% default logger
+logger {
+       ...
+}
+
+* Appenders:
+============
+Inside each logger, there can be 1 or more appenders. These appenders can be 
+added inside loggers according to the format below.
+
+<appender_type> <name> {
+	...
+}
+
+Example:
+--------
+file_appender file1{
+	...
+}
+
+insider appenders' block, you can add properties for that appender in the format 'property=value'. 
+Multiple properties are seperated by a comman ','Each appender type has different sets of properties,
+which are detailed below.
+
+common properties:
+------------------
+level = <Level>           => level of log (e.g. warn)
+format = <F>		  => format of the output (look at 'Appenders.txt')
+
+file_appender:
+--------------
+dir = <Dir>		  => directory of output (e.g. /var/log/my_app)
+file = <File>		  => name of the log file (e.g. my_app_log)
+type = <Type>             => either size or time. Only size is implemented currently
+max = <Max>		  => Maximum size of each rotation
+suffix = <Suf>		  => Suffix of the log file (e.g. log)
+rotation = <R>		  => number of rotations before over-writing log files
+
+console_appender:
+-----------------
+Nothing more than common properties.
+
+smtp_appender:
+--------------
+ip = <IP>		 => ip of the SMTP server
+port = <Port>		 => SMTP prot [Optional]
+no_auth = true|false	 => if specified, no authentication is performed even if 
+			    username or password below is provided
+username = <U>		 => SMTP username
+password = <P>		 => SMTP password
+from = <From>		 => value of the From field [Optional]
+to = <To>		 => email to send to
+title = <T>		 => title of email [Optional]
+msg = <Format>		 => format of the email message [Optional]
+
+syslog_appender:
+----------------
+facility = <F>		 => Facility to be used (e.g. ftp)
+host = <H>		 => Host to send syslog messages to [Optional]
+port = <P>		 => syslog port [Optioanl]
+

@@ -5,11 +5,10 @@
 -include("../../include/erlyvideo.hrl").
 -include("../../include/rtmp_session.hrl").
 
--export([subscribeStats/2, entries/2, handle_event/2, init/1]).
+-export([subscribeStats/2, entries/2, handle_event/2, handle_info/2, init/1]).
 
 entries(#rtmp_session{host = Host} = State, #rtmp_funcall{} = AMF) -> 
   Entries = erlyvideo:stats(Host),
-  ?D({updatingInfo}),
   rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, Entries]}),
   State.
 
@@ -25,4 +24,10 @@ init([Socket]) ->
 handle_event(#erlyvideo_event{} = Event, Socket) ->
   XML = ems_event:to_xml(Event),
   rtmp_socket:status(Socket, 0, <<"NetConnection.Message">>, XML),
+  {ok, Socket}.
+
+handle_info(_, #rtmp_session{}) ->
+  unhandled;
+
+handle_info(_, Socket) ->
   {ok, Socket}.

@@ -134,7 +134,7 @@ data_offset() -> ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
 %% @end 
 %%--------------------------------------------------------------------
 read_header({Module, Device}) ->  % Always on first bytes
-  case Module:read(Device, ?FLV_HEADER_LENGTH) of
+  case Module:pread(Device, 0, ?FLV_HEADER_LENGTH) of
     {ok, Data} ->
       {header(Data), size(Data) + ?FLV_PREV_TAG_SIZE_LENGTH};
     Else ->

@@ -22,7 +22,7 @@
 
 -module(http_uri2).
 
--export([parse/1, parse_path_query/1]).
+-export([parse/1, parse_path_query/1, extract_path_with_query/1]).
 
 %%%=========================================================================
 %%%  API
@@ -39,6 +39,12 @@ parse(AbsURI) ->
 		    {error, {malformed_url, AbsURI}}    
 	    end
     end.
+
+
+extract_path_with_query(URL) ->
+  {ok, Re} = re:compile("[^:+]://([^/]+)(/.*)$"),
+  {match, [_, HostPort, Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {HostPort, Path}.
 
 %%%========================================================================
 %%% Internal functions

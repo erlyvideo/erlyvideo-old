@@ -1,0 +1,7 @@
+*.beam
+*.dump
+*.html
+*.tmproj
+*.out
+tmp/
+

@@ -31,6 +31,7 @@ private function handleStatus(evt:NetStatusEvent) : void
 			//m.rate = 44;
       m.codec = "Speex";
 			m.gain = 80;
+			m.rate = 8000;
       ns_out.attachAudio(m);
       ns_out.publish(obj.out_stream);
       
