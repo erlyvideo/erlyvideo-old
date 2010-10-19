@@ -647,30 +647,30 @@ timecode_to_dts(State) ->
   BaseTimecode = element(#base_rtp.base_timecode, State),
   WallClock = element(#base_rtp.wall_clock, State),
   _BaseWallClock = element(#base_rtp.base_wall_clock, State),
-  % ?D({"TC", WallClock, Timecode, BaseTimecode, ClockMap}),
-  WallClock + (Timecode - BaseTimecode)/ClockMap.
+  DTS = WallClock + (Timecode - BaseTimecode)/ClockMap,
+  ?D({"->", WallClock, Timecode, BaseTimecode, ClockMap, DTS}),
+  DTS.
+  
 
-dts_to_timecode(DTS, State) ->
-  Timecode = element(#base_rtp.timecode, State),
-  ClockMap = element(#base_rtp.clock_map, State),
-  BaseTimecode = element(#base_rtp.base_timecode, State),
-  BaseDTS = element(#base_rtp.base_wall_clock, State),
+dts_to_timecode(DTS, #base_rtp{timecode = Timecode, clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
 
-  Diff = if BaseDTS == 0 -> 20;
-            BaseDTS == DTS -> 30;
-            true -> DTS - BaseDTS
-         end,
+  Diff = if 
+    BaseDTS == 0 -> 20;
+    BaseDTS == DTS -> 30;
+    true -> DTS - BaseDTS
+   end,
 
   NewTC = round(Diff*ClockMap) + BaseTimecode,
 
-  %%?DBG("TC ~p: ~p", [NewTC, Diff]),
-  State1 = setelement(#base_rtp.timecode, State, NewTC),
-  State2 = setelement(#base_rtp.wall_clock, State1, round(DTS)),
+  ?D({"<-", DTS, BaseDTS, ClockMap, BaseTimecode, NewTC}),
 
-  State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
-  State4 = setelement(#base_rtp.base_wall_clock, State3, round(DTS)),
+  % State1 = setelement(#base_rtp.timecode, State, NewTC),
+  % State2 = setelement(#base_rtp.wall_clock, State1, round(DTS)),
+  % 
+  % State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
+  % State4 = setelement(#base_rtp.base_wall_clock, State3, round(DTS)),
 
-  State4.
+  State#base_rtp{timecode = NewTC, wall_clock = round(DTS)}.
 
 %%
 %% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
@@ -969,14 +969,17 @@ fragment_nal(Data, Nal, S, E) ->
 
 
 init_rnd_seq() ->
-  random:uniform(16#FFFF).
+  % random:uniform(16#FFFF).
+  0.
 
 init_rnd_ssrc() ->
-  random:uniform(16#FFFFFFFF).
+  % random:uniform(16#FFFFFFFF).
+  0.
 
 init_rnd_timecode() ->
-  Range = 1000000000,
-  random:uniform(Range) + Range.
+  % Range = 1000000000,
+  % random:uniform(Range) + Range.
+  0.
 
 inc_seq(S) ->
   (S+1) band 16#FFFF.
