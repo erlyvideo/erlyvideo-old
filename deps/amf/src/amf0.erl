@@ -188,7 +188,7 @@ write([{Key,_Value}|_] = Object, Objects) when is_binary(Key) ->
     write_object(Object, <<?ECMA_ARRAY, (length(Object)):32>>, Objects);
 
 
-write([{_Key,_Value}|_] = Object, Objects) ->
+write([{Key,_Value}|_] = Object, Objects) when Key =/= object ->
     write({object, Object}, Objects);
 
 write(Array, Objects) when is_list(Array) ->
