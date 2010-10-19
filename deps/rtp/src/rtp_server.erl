@@ -480,7 +480,8 @@ configure([#media_desc{} = Stream | Streams], RTPStreams, Media, RTP) ->
 
 
 presync(Streams, Info) ->
-  {Now, _} = erlang:statistics(wall_clock),
+  % {Now, _} = erlang:statistics(wall_clock),
+  Now = 0,
   presync(Streams, Info, 1, Now).
 
 presync(Streams, [], _N, _Now) ->
@@ -495,7 +496,7 @@ presync(Streams, [RTP | Info], N, Now) ->
 
   RTPSeq = proplists:get_value("seq", RTP),
   RTPTime = proplists:get_value("rtptime", RTP),
-  % ?D({"Presync", RTPSeq, RTPTime}),
+  % ?D({"Presync", RTPSeq, RTPTime,Now}),
   Stream1 = setelement(#base_rtp.sequence, Stream, list_to_integer(RTPSeq) - 1),
   Stream2 = setelement(#base_rtp.base_timecode, Stream1, list_to_integer(RTPTime)),
   Stream3 = setelement(#base_rtp.timecode, Stream2, list_to_integer(RTPTime)),
@@ -636,7 +637,7 @@ decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _
 %   % {State, []};
 
 decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
-  % ?D({Type, Sequence, Timecode, element(#base_rtp.base_timecode, State)}),
+  % ?D({Type, Sequence, Timecode, element(#base_rtp.base_timecode, State), element(#base_rtp.wall_clock, State)}),
   ?MODULE:Type(State, {data, Data, Sequence, Timecode}).
 
 
@@ -646,7 +647,7 @@ timecode_to_dts(State) ->
   BaseTimecode = element(#base_rtp.base_timecode, State),
   WallClock = element(#base_rtp.wall_clock, State),
   DTS = WallClock + (Timecode - BaseTimecode)/ClockMap,
-  ?D({"->", WallClock, Timecode, BaseTimecode, ClockMap, DTS}),
+  % ?D({"->", WallClock, Timecode, BaseTimecode, ClockMap, DTS}),
   DTS.
   
 
@@ -654,7 +655,7 @@ dts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecod
 
   NewTC = round((DTS - BaseDTS)*ClockMap) + BaseTimecode,
 
-  ?D({"<-", DTS, BaseDTS, ClockMap, BaseTimecode, NewTC}),
+  % ?D({"<-", DTS, BaseDTS, ClockMap, BaseTimecode, NewTC}),
 
   % State1 = setelement(#base_rtp.timecode, State, NewTC),
   % State2 = setelement(#base_rtp.wall_clock, State1, round(DTS)),
@@ -676,7 +677,6 @@ rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, 
     _ -> State
   end,
   BaseWallClock = element(#base_rtp.base_wall_clock, State1),
-  ?D({sr,BaseWallClock, WallClock}),
   State2 = setelement(#base_rtp.wall_clock, State1, WallClock - BaseWallClock),
   State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
   State4 = case element(#base_rtp.base_timecode, State) of
@@ -905,7 +905,7 @@ make_rtp_pack(#base_rtp{codec = PayloadType,
   Padding = 0,
   Extension = 0,
   CSRC = 0,
-  ?D({rtp,Sequence,PayloadType,Timestamp}),
+  % ?D({rtp,Sequence,PayloadType,Timestamp}),
   <<Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, SSRC:32, Payload/binary>>.
 
 
