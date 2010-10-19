@@ -214,7 +214,7 @@ handle_call({add_stream,
                       sequence = init_rnd_seq(),
                       base_timecode = Timecode,
                       timecode = Timecode,
-                      base_wall_clock = -40,
+                      base_wall_clock = 0,
                       wall_clock = 0,
                       stream_id = init_rnd_ssrc()},
   NewState =
@@ -332,13 +332,12 @@ handle_info(#video_frame{content = video, flavor = Flavor,
               NewState = State#state{video = VideoDesc#desc{acc = NewAcc}}
           end;
         KF when ((KF == keyframe) or (KF == frame)) ->
-          NewDTS = if DTS == 0 -> 20; true -> DTS end,
           if length(Acc) > 0 ->
               Data = [{config, Acc}, {KF, Body}];
              true ->
               Data = {KF, Body}
           end,
-          {NewBaseRTP, RTPs} = encode(rtp, dts_to_timecode(NewDTS, BaseRTP), Codec, Data),
+          {NewBaseRTP, RTPs} = encode(rtp, dts_to_timecode(DTS, BaseRTP), Codec, Data),
           case MDesc of
             #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
               %%?DBG("RTPs to ~p:~p~n~p", [Addr, PortRTP, RTPs]),
@@ -646,21 +645,14 @@ timecode_to_dts(State) ->
   ClockMap = element(#base_rtp.clock_map, State),
   BaseTimecode = element(#base_rtp.base_timecode, State),
   WallClock = element(#base_rtp.wall_clock, State),
-  _BaseWallClock = element(#base_rtp.base_wall_clock, State),
   DTS = WallClock + (Timecode - BaseTimecode)/ClockMap,
   ?D({"->", WallClock, Timecode, BaseTimecode, ClockMap, DTS}),
   DTS.
   
 
-dts_to_timecode(DTS, #base_rtp{timecode = Timecode, clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
+dts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
 
-  Diff = if 
-    BaseDTS == 0 -> 20;
-    BaseDTS == DTS -> 30;
-    true -> DTS - BaseDTS
-   end,
-
-  NewTC = round(Diff*ClockMap) + BaseTimecode,
+  NewTC = round((DTS - BaseDTS)*ClockMap) + BaseTimecode,
 
   ?D({"<-", DTS, BaseDTS, ClockMap, BaseTimecode, NewTC}),
 
@@ -683,7 +675,9 @@ rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, 
     undefined -> setelement(#base_rtp.base_wall_clock, State, WallClock - 2000);
     _ -> State
   end,
-  State2 = setelement(#base_rtp.wall_clock, State1, WallClock - element(#base_rtp.base_wall_clock, State1)),
+  BaseWallClock = element(#base_rtp.base_wall_clock, State1),
+  ?D({sr,BaseWallClock, WallClock}),
+  State2 = setelement(#base_rtp.wall_clock, State1, WallClock - BaseWallClock),
   State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
   State4 = case element(#base_rtp.base_timecode, State) of
     undefined -> State3;
@@ -911,6 +905,7 @@ make_rtp_pack(#base_rtp{codec = PayloadType,
   Padding = 0,
   Extension = 0,
   CSRC = 0,
+  ?D({rtp,Sequence,PayloadType,Timestamp}),
   <<Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, SSRC:32, Payload/binary>>.
 
 
@@ -1027,12 +1022,19 @@ encode(sender_report, #base_rtp{stream_id = StreamId,
                                 packets = SPC,
                                 bytes = SOC} = State) ->
   Count = 0,
-  MSW = ((WallClock div 1000) + ?YEARS_70) band 16#FFFFFFFF,
-  LSW = (WallClock rem 1000)*1000*1000,
-  Packet = <<StreamId:32, MSW:32, LSW:32, Timecode:32, SPC:32, SOC:32>>,
+  % MSW = ((WallClock div 1000) + ?YEARS_70) band 16#FFFFFFFF,
+  % LSW = (WallClock rem 1000)*1000*1000,
+  
+  NTP = round((WallClock / 1000 + ?YEARS_70)*16#100000000),
+  
+  % Packet = <<StreamId:32, MSW:32, LSW:32, Timecode:32, SPC:32, SOC:32>>,
+  Packet = <<StreamId:32, NTP:64, Timecode:32, SPC:32, SOC:32>>,
   Length = trunc(size(Packet)/4),
   Header = <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16>>,
   {State, <<Header/binary,Packet/binary>>};
+
+
+
 
 encode(source_description, #base_rtp{stream_id = StreamId} = State) ->
 
