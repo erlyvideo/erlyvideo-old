@@ -26,7 +26,7 @@
 -include("../../include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../log.hrl").
--export([decode/2, encode/2, connect/2, binary_to_hexbin/1, auth/3]).
+-export([decode/2, encode/2, connect/2, binary_to_hexbin/1, auth/3, session_sign/2]).
 
 
 auth(Host, _Method, LoginInfo) ->
@@ -52,7 +52,6 @@ perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInf
   UserId = proplists:get_value(user_id, Session),
   SessionId = proplists:get_value(session_id, Session, DefaultSessionId),
   Channels = proplists:get_value(channels, Session, []),
-  {ok, SessionId} = ems_users:login(Host, UserId, Channels),
 	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
 	ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~w json_session", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
 	NewState.
