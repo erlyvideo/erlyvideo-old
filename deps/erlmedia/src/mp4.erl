@@ -191,9 +191,9 @@ moov(Atom, MediaInfo) ->
 mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
       Volume:16, 0:16, _Reserved1:64, Matrix:36/binary, _Reserved2:24/binary, NextTrackId:32>>, #mp4_media{} = Media) ->
         
-  Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
+  _Meta = [{ctime,CTime},{mtime,MTime},{timescale,TimeScale},{duration,Duration},{rate,Rate},
           {volume,Volume},{matrix,Matrix},{next_track,NextTrackId}],
-  ?D(Meta),
+  % ?D(Meta),
   Media#mp4_media{timescale = TimeScale, duration = Duration, seconds = Duration/TimeScale}.
 
 udta(Value, Media) ->
