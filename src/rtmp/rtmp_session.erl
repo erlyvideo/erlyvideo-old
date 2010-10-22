@@ -264,7 +264,7 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
 
 handle_rtmp_message(#rtmp_session{} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:setopts(Player, [{client_buffer, BufferSize}]);
+    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
     _ -> ok
   end,
   State;
@@ -481,6 +481,10 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts)}),
+  case Frame#video_frame.content of
+    metadata -> ?D(Frame);
+    _ -> ok
+  end,
   case Allow of
     true ->
       Message = #rtmp_message{
