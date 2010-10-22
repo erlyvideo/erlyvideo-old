@@ -26,7 +26,7 @@
 -include("../log.hrl").
 
 -export([start_link/3, init/3, loop/1, handle_message/2]).
--export([start/1, pause/1, resume/1, seek/3, stop/1]).
+-export([start/1, pause/1, resume/1, seek/3, stop/1, play_setup/2]).
 
 -record(ticker, {
   media,
@@ -57,6 +57,9 @@ pause(Ticker) ->
 
 resume(Ticker) ->
   Ticker ! resume.
+
+play_setup(Ticker, Options) ->
+  Ticker ! {play_setup, Options}.
 
 start_link(Media, Consumer, Options) ->
   proc_lib:start_link(?MODULE, init, [Media, Consumer, Options]).
@@ -160,6 +163,10 @@ handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, 
   end,
   Consumer ! {ems_stream, StreamId, seek_success, DTS},
   {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
+
+handle_message({play_setup, Options}, #ticker{media = Media} = Ticker) ->
+  ?D({play_setup, self(), Options}),
+  {noreply, Ticker};
 
 handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, paused = Paused, client_buffer = ClientBuffer, consumer = Consumer} = Ticker) ->
   Frame = ems_media:read_frame(Media, Consumer, Pos),

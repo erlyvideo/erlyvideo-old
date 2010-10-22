@@ -60,7 +60,7 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1, metadata/2, info/1, setopts/2, seek_info/3, status/1]).
+-export([metadata/1, metadata/2, info/1, play_setup/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 -export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
 
@@ -285,9 +285,8 @@ info(Media) ->
 %% send_audio : boolean() - send audio or not
 %% @end
 %%----------------------------------------------------------------------
-setopts(_Media, _Options) ->
-  %TODO add options
-  ok.
+play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
+  gen_server:call(Media, {play_setup, self(), Options}).
   
   
 %%----------------------------------------------------------------------
@@ -494,6 +493,22 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
       {reply, ok, Media, ?TIMEOUT};
 
     undefined ->
+      {reply, {error, no_client}, Media, ?TIMEOUT}
+  end;
+
+handle_call({play_setup, Client, Options}, _From, #ems_media{clients = Clients} = Media) ->
+  case ems_media_clients:find(Clients, Client) of
+    #client{state = passive, ticker = Ticker} ->
+      ?D({"Setup play options for passive client", Client, Options}),
+      media_ticker:play_setup(Ticker, Options),
+      {reply, ok, Media, ?TIMEOUT};
+
+    #client{} ->
+      ?D({"Play options for active clients are not supported not", Client, Options}),
+      {reply, ok, Media, ?TIMEOUT};
+
+    undefined ->
+      ?D({"Unknown client asked to change his play options", Client, Options}),
       {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
       
