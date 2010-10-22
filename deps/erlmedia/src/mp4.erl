@@ -1,6 +1,15 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @copyright  2010 Max Lapshin
 %%% @doc        MP4 decoding module
+%%% 
+%%% This is how ttxt subtitle track is translated
+%%% [<<"onCuePoint">>,
+%%%     [{<<"name">>,<<"onCuePoint">>},
+%%%     {<<"time">>,16.0},
+%%%     {<<"parameters">>,
+%%%     [{<<"text">>, <<"But then you see the light...">>}]},
+%%%      {<<"type">>,<<"navigation">>}]]
+%%% 
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
