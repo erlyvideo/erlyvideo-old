@@ -144,13 +144,6 @@ read_frame(#reader{count = Count, delta = Delta, last_dts = DTS} = Reader) when 
   end,
   read_frame(Reader#reader{count = Count+1});
 
-read_frame(#reader{socket = RTMP, last_dts = DTS, debug = true, seeked = false} = Reader) when DTS >= 2000 andalso DTS =< 6000 ->
-  Seek = 36000,
-  io:format("Make seek to ~p~n", [Seek]),
-  rtmp_lib:seek(RTMP, 1, Seek),
-  read_frame(Reader#reader{seeked = true});
-
-  
 read_frame(#reader{socket = RTMP, count = Count} = Reader) ->
   receive
     {rtmp, RTMP, #rtmp_message{type = Type} = Message} when Type == audio orelse Type == video ->
