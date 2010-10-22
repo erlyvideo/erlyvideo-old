@@ -48,8 +48,35 @@
   					url: 'flowplayer.rtmp-3.1.3.swf', 
   					netConnectionUrl: server,
   					durationFunc: 'getStreamLength'
-  				}
-  			},
+  				},
+          captions: {
+          	url: 'flowplayer.captions-3.2.2.swf',
+
+          			// the content plugin we use to show the captions
+          	captionTarget: 'content'
+          },
+          // configure a content plugin to look good for our purpose
+          content: {
+        	  url:'flowplayer.content-3.2.0.swf',
+        		top: 10,
+        		width: '80%',
+        		height:40,
+        		backgroundColor: 'transparent',
+        		backgroundGradient: 'none',
+        		border: 0,
+
+                    // an outline is useful so that the subtitles are more visible
+            textDecoration: 'outline',
+        		style: {
+        		  'body': {
+        			  fontSize: '14',
+          			fontFamily: 'Arial',
+          			textAlign: 'center',
+          			color: '#ffffff'
+        		  }
+        		}
+          }
+        },
   			clip: {
   				provider: 'rtmp',
   				autoPlay: true
