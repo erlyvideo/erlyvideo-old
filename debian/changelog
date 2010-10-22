@@ -1,3 +1,15 @@
+erlyvideo (2.4.12) unstable; urgency=low
+
+  Fixed flv playing
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 22 Oct 2010 19:15:41 +0400
+
+erlyvideo (2.4.11) unstable; urgency=low
+
+  Remove rtmp_stat_collector, fix apps_stat_collector
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 19 Oct 2010 22:39:50 +0400
+
 erlyvideo (2.4.10) unstable; urgency=low
 
   flv reading h264.  Connect to stream behaviour

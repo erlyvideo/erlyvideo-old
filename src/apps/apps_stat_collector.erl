@@ -9,7 +9,6 @@
 
 entries(#rtmp_session{host = Host} = State, #rtmp_funcall{} = AMF) -> 
   Entries = erlyvideo:stats(Host),
-  ?D({updatingInfo}),
   rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, Entries]}),
   State.
 

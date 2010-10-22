@@ -87,6 +87,9 @@ first(_, Id, _DTS) ->
 properties(#media_info{metadata = Meta}) -> Meta.
 
 
+max_duration(#media_info{duration = D1}, D2) when D2 > D1 -> D2;
+max_duration(#media_info{duration = D1}, _D2) -> D1.
+
 read_frame_list(#media_info{} = MediaInfo, _Offset, 0) ->
   {ok, MediaInfo};
 
@@ -111,10 +114,10 @@ read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Met
 		  
   	#video_frame{content = video, flavor = keyframe, dts = DTS, next_id = NextOffset} ->
   	  ets:insert(FrameTable, {DTS, Offset}),
-			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset, Limit - 1);
+			read_frame_list(MediaInfo#media_info{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
 
 		#video_frame{next_id = NextOffset, dts = DTS} ->
-			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset, Limit - 1);
+			read_frame_list(MediaInfo#media_info{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
 
     eof ->
       ?D({duration, MediaInfo#media_info.duration, Offset}),
@@ -139,12 +142,11 @@ get_int(Key, Meta, Coeff) ->
   end.
 
 parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
-  Meta1 = lists:keydelete(<<"keyframes">>, 1, Meta),
-  Meta2 = lists:keydelete(<<"times">>, 1, Meta1),
-  Meta3 = lists:map(fun({Key,Value}) ->
-    {erlang:binary_to_atom(Key, utf8), Value}
-  end, Meta2),
-  % ?D({"Metadata", get_int(<<"duration">>, Meta, 1000), Meta2}),
+  Meta1 = [{binary_to_atom(K,utf8),V} || {K,V} <- Meta, K =/= <<"duration">> andalso 
+                                                        K =/= <<"keyframes">> andalso
+                                                        K =/= <<"times">>],
+
+  Duration = get_int(<<"duration">>, Meta, 1000),
   MediaInfo1 = MediaInfo#media_info{
     width = case get_int(<<"width">>, Meta, 1) of
       undefined -> undefined;
@@ -154,8 +156,8 @@ parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
       undefined -> undefined;
       ElseH -> round(ElseH)
     end,
-    duration = get_int(<<"duration">>, Meta, 1000),
-    metadata = Meta3
+    duration = Duration,
+    metadata = [{duration,Duration}|Meta1]
   },
   case proplists:get_value(<<"keyframes">>, Meta) of
     {object, Keyframes} ->

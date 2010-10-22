@@ -4,7 +4,7 @@ erlang-mpegts
 erlang-mpegts is a library, extracted from Erlyvideo. 
 It handles RTSP and RTP protocols.
 
-It requires [erlmedia](http://github.com/erlyvideo/erlmedia) for unpacking RTP payload
+It requires [erlmedia](http://github.com/erlyvideo) for unpacking RTP payload
 
 Licensing
 =========

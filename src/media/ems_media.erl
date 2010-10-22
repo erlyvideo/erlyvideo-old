@@ -686,7 +686,8 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
       {stop, Reason, Media2}
   end;
 
-handle_info(#video_frame{} = Frame, Media) ->
+handle_info(#video_frame{} = RawFrame, Media) ->
+  Frame = normalize_dts(RawFrame, Media),
   % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
   {Media1, Frames} = case ems_media_frame:transcode(Frame, Media) of
     {Media1_, undefined} -> {Media1_, []};
@@ -767,6 +768,17 @@ handle_info(Message, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
+
+normalize_dts(#video_frame{codec = nellymoser8, dts = DTS} = F, #ems_media{last_dts = LastDTS, ts_delta = Delta}) when is_number(Delta) and is_number(LastDTS) ->
+  PrevDTS = LastDTS - Delta,
+  if
+    DTS == PrevDTS + 32 -> F;
+    DTS > PrevDTS andalso DTS < PrevDTS + 100 -> F#video_frame{dts = PrevDTS + 32}; % nellymoser8 is 8KHz audio, 256 samples in each frame
+    true -> F
+  end;
+
+normalize_dts(Frame, _Media) ->
+  Frame.
 
 try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = undefined} = Media) ->
   Media;
