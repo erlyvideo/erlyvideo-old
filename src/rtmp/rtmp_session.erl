@@ -157,6 +157,7 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %%-------------------------------------------------------------------------
 init([]) ->
   random:seed(now()),
+  process_flag(trap_exit, true),
   {ok, 'WAIT_FOR_SOCKET', #rtmp_session{}}.
 
 
