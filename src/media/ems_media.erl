@@ -286,7 +286,7 @@ info(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:call(Media, {play_setup, self(), Options}).
+  gen_server:cast(Media, {play_setup, self(), Options}).
   
   
 %%----------------------------------------------------------------------
@@ -495,22 +495,6 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
     undefined ->
       {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
-
-handle_call({play_setup, Client, Options}, _From, #ems_media{clients = Clients} = Media) ->
-  case ems_media_clients:find(Clients, Client) of
-    #client{state = passive, ticker = Ticker} ->
-      ?D({"Setup play options for passive client", Client, Options}),
-      media_ticker:play_setup(Ticker, Options),
-      {reply, ok, Media, ?TIMEOUT};
-
-    #client{} ->
-      ?D({"Play options for active clients are not supported not", Client, Options}),
-      {reply, ok, Media, ?TIMEOUT};
-
-    undefined ->
-      ?D({"Unknown client asked to change his play options", Client, Options}),
-      {reply, {error, no_client}, Media, ?TIMEOUT}
-  end;
       
 handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
@@ -613,6 +597,23 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M} = 
       ?D({"ems_media failed to set_source", M, Source, Reason}),
       {stop, Reason, Media#ems_media{state = S2}}
   end;
+
+handle_cast({play_setup, Client, Options}, #ems_media{clients = Clients} = Media) ->
+  case ems_media_clients:find(Clients, Client) of
+    #client{state = passive, ticker = Ticker} ->
+      ?D({"Setup play options for passive client", Client, Options}),
+      media_ticker:play_setup(Ticker, Options),
+      {noreply, Media, ?TIMEOUT};
+
+    #client{} ->
+      ?D({"Play options for active clients are not supported not", Client, Options}),
+      {noreply, Media, ?TIMEOUT};
+
+    undefined ->
+      ?D({"Unknown client asked to change his play options", Client, Options}),
+      {noreply, Media, ?TIMEOUT}
+  end;
+
 
 handle_cast(Cast, #ems_media{module = M} = Media) ->
   case M:handle_control(Cast, Media) of

@@ -35,7 +35,7 @@ can_open_file(Name) when is_binary(Name) ->
   can_open_file(binary_to_list(Name));
 
 can_open_file(Name) ->
-  lists:member(filename:extension(Name), [".ext"]).
+  lists:member(filename:extension(Name), [".jpg", ".jpeg"]).
 
 write_frame(_Device, _Frame) -> 
   erlang:error(unsupported).
@@ -46,31 +46,31 @@ write_frame(_Device, _Frame) ->
   reader
 }).
 
-init(Reader, Options) ->
-  Body = undefined,
+init({Access,Device} = Reader, Options) ->
+  Size = proplists:get_value(size,Options),
+  ?D({open,Reader,Size}),
+  {ok, Body} = Access:pread(Device, 0, Size),
   Media = #media{body = Body},
   {ok, Media}.
 
 
 
-properties(#media{} = Media) -> 
-  [].
+properties(#media{}) -> 
+  [{duration,10000}].
 
 
-first(Media) ->
+first(_Media) ->
   0.
 
 
 
+read_frame(#media{} = Media, undefined) ->
+  read_frame(Media, first(Media));
 
-read_frame(MediaInfo, undefined) ->
-  read_frame(MediaInfo, first(MediaInfo));
 
-read_frame(#media{} = Media, Key) ->
-  DTS = 0,
-  PTS = 0,
-  Next = 0,
-  #video_frame{next_id = Next, dts = DTS, pts = DTS};
+read_frame(#media{body = Body}, Key) ->
+  DTS = Key,
+  #video_frame{next_id = Key + 1000, dts = DTS, pts = DTS, codec = mjpeg, body = Body, content = video, flavor = keyframe};
 
 read_frame(_, eof) ->
   eof.
@@ -81,7 +81,7 @@ read_frame(_, eof) ->
 seek(#media{} = Media, before, Timestamp) when Timestamp =< 0 ->
   {first(Media), 0};
 
-seek(#media{} = Media, before, Timestamp) ->
+seek(#media{} = _Media, before, _Timestamp) ->
   Key = 0,
   DTS = 0,
   {Key, DTS}.

@@ -164,9 +164,14 @@ handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, 
   Consumer ! {ems_stream, StreamId, seek_success, DTS},
   {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
 
-handle_message({play_setup, Options}, #ticker{media = Media} = Ticker) ->
+handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Media, paused = Paused} = Ticker) ->
   ?D({play_setup, self(), Options}),
-  {noreply, Ticker};
+  ClientBuffer = proplists:get_value(client_buffer, Options, OldCB),
+  case Paused of
+    true -> ok;
+    false -> self() ! tick
+  end,
+  {noreply, Ticker#ticker{client_buffer = ClientBuffer}};
 
 handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, paused = Paused, client_buffer = ClientBuffer, consumer = Consumer} = Ticker) ->
   Frame = ems_media:read_frame(Media, Consumer, Pos),
@@ -187,7 +192,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
   case ems_media:read_frame(Media, Consumer, Pos) of
     eof ->
-      % ?D(play_complete),
+      ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
       {noreply, Ticker};
