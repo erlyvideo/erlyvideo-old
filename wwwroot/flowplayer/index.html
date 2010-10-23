@@ -7,7 +7,7 @@
 		include flowplayer JavaScript file that does  
 		Flash embedding and provides the Flowplayer API.
 	-->
-	<script type="text/javascript" src="flowplayer-3.1.4.min.js"></script>
+	<script type="text/javascript" src="flowplayer-3.2.4.min.js"></script>
 	
 	<!-- some minimal styling, can be removed -->
 	<link rel="stylesheet" type="text/css" href="style.css">
@@ -40,9 +40,7 @@
       var server = document.getElementById('server').value;
       var path = document.getElementById('path').value;
       document.getElementById("player").setAttribute("href", path);
-			flowplayer("player", "flowplayer-3.1.5.swf", { 
-			  debug : true,
-			  log: {level : 'debug', filter :'org.flowplayer.rtmp.*,org.flowplayer.controller.*'},
+			flowplayer("player", "flowplayer-3.2.5.swf", { 
   			plugins: { 
   				rtmp: { 
   					url: 'flowplayer.rtmp-3.1.3.swf', 
@@ -51,8 +49,6 @@
   				},
           captions: {
           	url: 'flowplayer.captions-3.2.2.swf',
-
-          			// the content plugin we use to show the captions
           	captionTarget: 'content'
           },
           // configure a content plugin to look good for our purpose
@@ -61,11 +57,9 @@
         		top: 10,
         		width: '80%',
         		height:40,
-        		backgroundColor: 'transparent',
+        		backgroundColor: 'black',
         		backgroundGradient: 'none',
         		border: 0,
-
-                    // an outline is useful so that the subtitles are more visible
             textDecoration: 'outline',
         		style: {
         		  'body': {
@@ -77,10 +71,11 @@
         		}
           }
         },
-  			clip: {
-  				provider: 'rtmp',
-  				autoPlay: true
-  			}
+        clip: {
+          provider: 'rtmp',
+          cuepointMultiplier: 1,
+          autoPlay: true
+        }
   		});
     }
 		</script>
