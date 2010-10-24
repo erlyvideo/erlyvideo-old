@@ -49,18 +49,21 @@ play(_Name, Player, Req, Options, Counters) ->
   ?D({"Player starting", _Name, Player}),
   erlang:monitor(process,Player),
   Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
+  MS1 = erlang:now(),
   case proplists:get_value(buffered, Options) of
     true -> 
       {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
-      ?D({iphone_segment, iolist_size(Buffer)}),
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       Req:stream(lists:reverse(Buffer));
     _ ->
       Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
       {NextCounters, _} = ?MODULE:play(Streamer#http_player{req = Req})
   end,      
+  MS2 = erlang:now(),
   
   Req:stream(close),
+  MS3 = erlang:now(),
+  ?D({mpegts, _Name, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000}),
   NextCounters.
 
 play(#http_player{streamer = Streamer} = Player) ->
@@ -73,6 +76,7 @@ play(#http_player{streamer = Streamer} = Player) ->
   end.
 
 handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+  % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.dts}),
   case mpegts:encode(Streamer, Frame) of
     {Streamer1, none} -> 
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
