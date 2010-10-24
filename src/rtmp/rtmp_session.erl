@@ -228,9 +228,6 @@ send(Session, Message) ->
 
 %% Sync event
 
-'WAIT_FOR_DATA'(info, _From, #rtmp_session{} = State) ->
-  {reply, session_stats(State), 'WAIT_FOR_DATA', State};
-
   
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
@@ -378,6 +375,9 @@ handle_event(Event, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 
+handle_sync_event(info, _From, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
+  {reply, session_stats(State), 'WAIT_FOR_DATA', State};
+
 handle_sync_event(Event, _From, StateName, StateData) ->
   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
@@ -441,7 +441,7 @@ handle_info(exit, _StateName, StateData) ->
   {stop, normal, StateData};
   
 handle_info({'$gen_call', From, Request}, StateName, StateData) ->
-  case ?MODULE:StateName(Request, From, StateData) of
+  case ?MODULE:handle_sync_event(Request, From, StateName, StateData) of
     {reply, Reply, NewStateName, NewState} ->
       gen:reply(From, Reply),
       {next_state, NewStateName, NewState};
