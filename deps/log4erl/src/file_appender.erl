@@ -184,15 +184,16 @@ check_rotation(State) ->
     case T of
 	size ->
 	    File = Dir ++ "/" ++ Fname ++  "." ++ Suf,
-	    {ok, Finfo} = file:read_file_info(File),
-	    Size = Finfo#file_info.size,
-	    if
-		Size > Max ->
-		    {ok, State2} = rotate(State),
-		    State2;
-		true ->
-		    State
-	    end;
+	    case file:read_file_info(File) of
+	      {ok, #file_info{size = Size}} when Size > Max ->
+	        {ok, State2} = rotate(State),
+	        State2;
+	      {error, _Error} ->
+	        {ok, State2} = rotate(State),
+	        State2;
+	      _ ->
+	        State
+	    end;  
 
 	daily ->
 	    File = Dir ++ "/" ++ Fname ++  "." ++ Suf,
