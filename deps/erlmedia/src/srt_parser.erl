@@ -38,15 +38,26 @@
 %%----------------------------------------------------------------------
 
 parse(SRT) when is_binary(SRT) ->
-  parse_srt(SRT, [], id).
+  parse_srt(SRT, []).
 
-parse_srt(SRT, Entries, State) ->
+parse_srt(SRT, Entries) ->
+  case parse_subtitle(SRT) of
+    more ->
+      {ok, lists:reverse(Entries), SRT};
+    {Entry, Rest} ->
+      parse_srt(Rest, [Entry|Entries])
+  end.
+
+parse_subtitle(SRT) ->
+  parse_subtitle(SRT, id).
+  
+parse_subtitle(SRT, _State) ->
+  
   case erlang:decode_packet(line, SRT, []) of
     {ok, Line, Rest} ->
-      do_something_with_line,
-      parse_srt(Rest, Entries, State);
+      do_something_with_line;
     {more, undefined} ->
-      {ok, lists:reverse(Entries), SRT}
+      {more, SRT}
   end.  
       
 
