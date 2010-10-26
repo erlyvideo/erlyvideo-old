@@ -155,6 +155,9 @@ cache_path(CachePath, URL) ->
 start_link(URL, Options) ->
   gen_server:start_link(?MODULE, [URL, Options], []).
 
+init([URL, Options]) when is_binary(URL) ->
+  init([binary_to_list(URL), Options]);
+
 init([URL, Options]) ->
   Path = cache_path(proplists:get_value(cache_path, Options), URL),
   TempPath = Path ++ ".tmp",
