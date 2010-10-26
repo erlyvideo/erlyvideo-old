@@ -228,9 +228,13 @@ handle_info({ibrowse_async_headers, _Stream, _Code, _Headers}, State) ->
   % ?D(Resp),
   {noreply, State};
 
-handle_info({ibrowse_async_response, Stream, Bin}, State) ->
+
+handle_info({ibrowse_async_response, Stream, Bin}, State) when is_binary(Bin) ->
   ibrowse:stream_next(Stream),
   schedule_closing(handle_incoming_data(Stream, Bin, State));
+
+handle_info({ibrowse_async_response, Stream, {error, _Reason}}, State) ->
+  handle_info({ibrowse_async_response_end, Stream}, State);
 
 handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams, removing_streams = Removing} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
