@@ -11,7 +11,7 @@
 
 -export([s3_sign/3, headers/2, head_request/1]).
 
--export([start/0, stop/0, start_link/2, reload/0, archive/0]).
+-export([start/0, stop/0, start_link/2, reload/0, archive/0, rebuild/0]).
 
 -behaviour(gen_server).
 
@@ -33,8 +33,7 @@
 -record(stream, {
   pid,
   offset,
-  size,
-  ref
+  size
 }).
 
 
@@ -56,6 +55,10 @@ ems_client_unload() ->
   
 
 reload() ->
+  case lists:keyfind(http_file, 1, application:loaded_applications()) of
+    false -> http_file:start();
+    _ -> ok
+  end,
   {ok, Modules} = application:get_key(http_file,modules),
   [begin
     code:soft_purge(Module),
@@ -63,6 +66,9 @@ reload() ->
   end || Module <- Modules].
 
 
+rebuild() ->
+  make:all(),
+  reload().
 
 archive() ->
   make:all([load]),
@@ -161,6 +167,9 @@ handle_call({pread, Offset, _Limit}, _From, #http_file{size = Size} = File)
   {reply, eof, File};
 
 
+handle_call({pread, Offset, Limit}, From, #http_file{streams = []} = File) ->
+  handle_call({pread, Offset, Limit}, From, start_download(File));
+
 handle_call({pread, Offset, Limit}, From, #http_file{size = Size} = File) when Offset + Limit > Size ->
   handle_call({pread, Offset, Size - Offset}, From, File);
 
@@ -208,81 +217,36 @@ handle_cast(_, State) ->
   {noreply, State}.  
 
 
+handle_info({ibrowse_async_headers, _Stream, _Code, _Headers}, State) ->
+  % ?D(Resp),
+  {noreply, State};
 
-handle_info({bin, Bin, Offset, Stream}, #http_file{cache_file = Cache, streams = Streams, requests = Requests, size = Size} = State) ->
-  case lists:keyfind(Stream, #stream.pid, Streams) of
-    false ->
-      % ?D({"Got message from dead process", {bin, size(Bin), Offset, Stream}}),
-      Stream ! stop,
-      {noreply, State};
-    _ -> 
-      ok = file:pwrite(Cache, Offset, Bin),
-      % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
-      NewStreams1 = update_map(Streams, Stream, Offset, size(Bin)),
-      {NewStreams2, Removed} = glue_map(NewStreams1),
-      % ?D({"Removing streams", NewStreams2, Removed}),
-      lists:foreach(fun({OldStream, Ref}) ->
-        erlang:demonitor(Ref, [flush]),
-        OldStream ! stop
-      end, Removed),
-      {NewRequests, Replies} = match_requests(Requests, NewStreams2),
-      % ?D({"Matching requests", NewRequests, Replies}),
-      lists:foreach(fun({From, Position, Limit}) ->
-        {ok, Data} = file:pread(Cache, Position, Limit),
-        % ?D({"Replying to", From, Offset, Limit}),
-        gen_server:reply(From, {ok, Data})
-      end, Replies),
+handle_info({ibrowse_async_response, Stream, Bin}, State) ->
+  {noreply, stop_if_no_clients(handle_incoming_data(Stream, Bin, State))};
 
-      NewStreams = NewStreams2,
-
-      FileCached = case NewStreams of
-        [#stream{offset = 0, size = Size}] ->
-          % ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path, State#http_file.clients}),
-          file:rename(State#http_file.temp_path, State#http_file.path),
-          true;
-        _ ->
-          false
-      end,
-      State1 = State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached},
-      case {FileCached, State#http_file.clients} of
-        {true, []} ->
-          % ?D({"All is ready, exit"}),
-          {stop, normal, State1};
-        _ ->
-          {noreply, State1}
-      end
-  end;
-
-
-handle_info(start_download, #http_file{url = URL} = State) ->
-  {ok, Headers} = head_request(URL),
-  % ?D(Headers),
-  Length = proplists:get_value('Content-Length', Headers),
-  State1 = schedule_request(State, {undefined, 0, Length}),
-  {noreply, State1};
-
-handle_info({'DOWN', _, process, Stream, _Reason}, #http_file{streams = Streams, clients = Clients} = State) ->
+handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
     {value, _Entry, NewStreams} ->
       stop_if_no_clients(State#http_file{streams = NewStreams});
     _ ->
-      case lists:keytake(Stream, 1, Clients) of
-        {value, _Entry, NewClients} ->
-          stop_if_no_clients(State#http_file{clients = NewClients});
-        _ ->
-          ?D({unknown_died, Stream, State}),
-          {noreply, State}
-      end
+      ?D({"Closed unknown stream", Stream}),
+      {noreply, State}
   end;
   
-handle_info({ibrowse_async_headers, Stream, Code, Headers, Code} = Resp, State) ->
-  ?D(Resp),
-  {noreply, State};
-  
-handle_info({ibrowse_async_response, Stream, _Bin}, State) ->
-  ?D({Stream, size(_Bin)}),
-  {noreply, State};
+handle_info({'DOWN', _, process, Client, _Reason}, #http_file{clients = Clients} = State) ->
+  case lists:keytake(Client, 1, Clients) of
+    {value, _Entry, NewClients} ->
+      stop_if_no_clients(State#http_file{clients = NewClients});
+    _ ->
+      ?D({unknown_died, Client, State}),
+      {noreply, State}
+  end;
 
+
+handle_info(start_download, State) ->
+  {noreply, start_download(State)};
+
+  
 handle_info(Message, State) ->
   ?D({"Some message:", Message}),
   {noreply, State}.
@@ -304,6 +268,13 @@ code_change(_Old, State, _Extra) ->
   
 %%%----------------------------
 
+
+start_download(#http_file{url = URL} = State) ->
+  {ok, Headers} = head_request(URL),
+  % ?D(Headers),
+  Length = proplists:get_value('Content-Length', Headers),
+  schedule_request(State, {undefined, 0, Length}).
+  
 
 
 s3_sign(get, Key, Path) ->
@@ -345,10 +316,63 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
       Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
       Headers = headers(URL, get) ++ [{'Range', Range}],
       {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,self()},{response_format,binary},{stream_chunk_size,4096}]),
-      % ?D({"Starting new stream for", URL, Offset, Limit, Stream}),
+      ?D({"Starting new stream for", URL, Offset, _Limit, Stream}),
       lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0}], Streams)
   end,
   File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.
+  
+
+handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
+  case lists:keyfind(Stream, #stream.pid, Streams) of
+    false ->
+      ?D({"Got message from dead process", {bin, size(Bin), Stream}}),
+      % Stream ! stop,
+      State;
+    #stream{pid = Stream, offset = _BlockOffset, size = CurrentSize} = StreamInfo ->
+      % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
+      ok = save_data(Cache, CurrentSize, Bin),
+      {NewStreams, ToRemove} = register_chunk(Streams, StreamInfo, size(Bin)),
+      stop_finished_streams(ToRemove),
+      {NewRequests, Replies} = satisfied_requests(Requests, NewStreams),
+      reply_requests(Replies, Cache),
+      
+      FileCached = autorename_cached_file(NewStreams, State),
+      State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached}
+  end.
+  
+
+save_data(Cache, Offset, Bin) ->
+  file:pwrite(Cache, Offset, Bin).
+  
+
+register_chunk(Streams, #stream{pid = Stream, size = CurrentSize}, ChunkSize) ->
+  NewStreams1 = update_map(Streams, Stream, CurrentSize, ChunkSize),
+  {_NewStreams, _Removed} = glue_map(NewStreams1).
+  
+stop_finished_streams(Removed) ->
+  lists:foreach(fun(_OldStream) ->
+    %OldStream ! stop
+    ok
+  end, Removed).
+  
+  
+reply_requests(Replies, Cache) ->
+  % ?D({"Matching requests", NewRequests, Replies}),
+  lists:foreach(fun({From, Position, Limit}) ->
+    {ok, Data} = file:pread(Cache, Position, Limit),
+    % ?D({"Replying to", From, Offset, Limit}),
+    gen_server:reply(From, {ok, Data})
+  end, Replies).
+
+
+autorename_cached_file([#stream{offset = 0, size = FileSize}], #http_file{size = FileSize, temp_path = TempPath, path = Path}) ->
+  % ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path, State#http_file.clients}),
+  file:rename(TempPath, Path),
+  true;
+  
+autorename_cached_file(_Streams, _File) ->  
+  false.
+  
   
   
 has_covering_stream([#stream{offset = RequestOffset, size = Size} | _], {_Client, Offset, _Limit}) 
@@ -361,10 +385,10 @@ has_covering_stream([], _Request) -> false.
 fetch_cached_data(#http_file{cache_file = Cache}, Offset, Limit) ->
   file:pread(Cache, Offset, Limit).
   
-update_map(Streams, Stream, Offset, Size) ->
-  {value, #stream{offset = OldOffset, size = OldSize} = Entry, Streams1} = lists:keytake(Stream, #stream.pid, Streams),
-  Offset = OldOffset + OldSize, % This is assertion, that we haven't missed not a packet
-  NewEntry = Entry#stream{size = OldSize + Size},
+update_map(Streams, Stream, ChunkOffset, ChunkSize) ->
+  {value, #stream{offset = BlockOffset, size = CurrentSize} = Entry, Streams1} = lists:keytake(Stream, #stream.pid, Streams),
+  ChunkOffset = BlockOffset + CurrentSize, % This is assertion, that we haven't missed not a packet
+  NewEntry = Entry#stream{size = CurrentSize + ChunkSize},
   lists:keysort(#stream.offset, lists:ukeymerge(#stream.pid, [NewEntry], Streams1)).
   
   
@@ -373,7 +397,7 @@ glue_map(Streams) ->
   glue_map(Sorted, [], []).
 
 glue_map([Stream], NewStreams, Removed) ->
-  {lists:keysort(#stream.offset, [Stream|NewStreams]), lists:keysort(1, Removed)};
+  {lists:keysort(#stream.offset, [Stream|NewStreams]), lists:sort(Removed)};
 
 glue_map([Stream1, Stream2 | Streams], NewStreams, Removed) ->
   case intersect(Stream1, Stream2) of
@@ -389,18 +413,18 @@ intersect(#stream{offset = Offset1, size = Size1} = R1, #stream{offset = Offset2
   {leave, R1, R2};
 
 %%   Start1....Start2...End1...End2
-intersect(#stream{pid = Key1, ref = Ref, offset = Offset1, size = Size1}, #stream{offset = Offset2, size = Size2} = S) 
+intersect(#stream{pid = Key1, offset = Offset1, size = Size1}, #stream{offset = Offset2, size = Size2} = S) 
   when Offset1 + Size1 >= Offset2 andalso Offset1 + Size1 < Offset2 + Size2 ->
-  {remove, S#stream{offset = Offset1, size = Offset2 + Size2 - Offset1}, {Key1,Ref}};
+  {remove, S#stream{offset = Offset1, size = Offset2 + Size2 - Offset1}, Key1};
 
 
 %%   Start1....Start2...End2...End1
-intersect(#stream{offset = Offset1, size = Size1} = R1, #stream{pid = Key2, offset = Offset2, size = Size2, ref = Ref}) 
+intersect(#stream{offset = Offset1, size = Size1} = R1, #stream{pid = Key2, offset = Offset2, size = Size2}) 
   when Offset1 + Size1 >= Offset2 andalso Offset1 + Size1 >= Offset2 + Size2 ->
-  {remove, R1, {Key2,Ref}}.
+  {remove, R1, Key2}.
 
 
-match_requests(Requests, Streams) ->
+satisfied_requests(Requests, Streams) ->
   match_requests(Requests, Streams, [], []).
 
 match_requests([], _Streams, NewRequests, Replies) ->
@@ -451,27 +475,27 @@ is_data_cached_test() ->
  
  
 intersect_test() ->
-  ?assertEqual({remove, #stream{pid = b, offset = 0, size = 30}, {a,ar}}, intersect(#stream{pid=a, offset=0, size=20,ref=ar}, #stream{pid=b, offset=20, size=10})),
+  ?assertEqual({remove, #stream{pid = b, offset = 0, size = 30}, a}, intersect(#stream{pid=a, offset=0, size=20}, #stream{pid=b, offset=20, size=10})),
   ?assertEqual({leave, #stream{pid=a, offset=0, size=18}, #stream{pid=b, offset=20, size=10}}, intersect(#stream{pid=a, offset=0, size=18}, #stream{pid=b, offset=20, size=10})),
-  ?assertEqual({remove, #stream{pid=a, offset=0, size=45}, {b,br}}, intersect(#stream{pid=a, offset=0, size=45}, #stream{pid=b, offset=20, size=10, ref=br})).
+  ?assertEqual({remove, #stream{pid=a, offset=0, size=45}, b}, intersect(#stream{pid=a, offset=0, size=45}, #stream{pid=b, offset=20, size=10})).
 
 glue_map1_test() ->
-  Map = [#stream{pid=a, offset=0, size=20, ref=ar}, #stream{pid=b, offset=20, size=10}],
-  ?assertEqual({[#stream{pid=b, offset=0, size=30}], [{a,ar}]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=20}, #stream{pid=b, offset=20, size=10}],
+  ?assertEqual({[#stream{pid=b, offset=0, size=30}], [a]}, glue_map(Map)).
 
 
 glue_map2_test() ->
-  Map = [#stream{pid=a, offset=0, size=25, ref=ar}, #stream{pid=b, offset=20, size=10}],
-  ?assertEqual({[#stream{pid=b, offset=0, size=30}], [{a,ar}]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=25}, #stream{pid=b, offset=20, size=10}],
+  ?assertEqual({[#stream{pid=b, offset=0, size=30}], [a]}, glue_map(Map)).
 
 
 glue_map3_test() ->
-  Map = [#stream{pid=a, offset=0, size=45}, #stream{pid=b, ref=br,offset=20, size=10}, #stream{pid=c,ref=cr, offset=32, size=6}],
-  ?assertEqual({[#stream{pid=a, offset=0, size=45}], [{b,br},{c,cr}]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=45}, #stream{pid=b,offset=20, size=10}, #stream{pid=c, offset=32, size=6}],
+  ?assertEqual({[#stream{pid=a, offset=0, size=45}], [b,c]}, glue_map(Map)).
 
 glue_map4_test() ->
-  Map = [#stream{pid=a, offset=0, size=31}, #stream{pid=b, ref=br, offset=20, size=10}, #stream{pid=c, offset=35, size=100}],
-  ?assertEqual({[#stream{pid=a, offset=0, size=31}, #stream{pid=c, offset=35, size=100}], [{b,br}]}, glue_map(Map)).
+  Map = [#stream{pid=a, offset=0, size=31}, #stream{pid=b, offset=20, size=10}, #stream{pid=c, offset=35, size=100}],
+  ?assertEqual({[#stream{pid=a, offset=0, size=31}, #stream{pid=c, offset=35, size=100}], [b]}, glue_map(Map)).
 
 
 

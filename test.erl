@@ -6,7 +6,7 @@ main(["test"]) ->
   http_file:test();
 
 main([]) ->
-  URL = "http://erlyvideo.org/video.mp4",
+  URL = "http://localhost/video.mp4",
   Limit = 100,
   {ok, File} = http_file:open(URL, []),
   
@@ -15,25 +15,25 @@ main([]) ->
   Self = self(),
   spawn(fun() ->
     {ok, Result} = http_file:pread(File, 33212403, Limit),
-    io:format("~p~n", [size(Result)]),
+    io:format("1 ~p~n", [size(Result)]),
     Self ! tick
   end),
 
   spawn(fun() ->
     {ok, Result} = http_file:pread(File, 33212400, Limit),
-    io:format("~p~n", [size(Result)]),
+    io:format("2 ~p~n", [size(Result)]),
     Self ! tick
   end),
 
   spawn(fun() ->
     {ok, Result} = http_file:pread(File, 1000000, Limit),
-    io:format("~p~n", [size(Result)]),
+    io:format("3 ~p~n", [size(Result)]),
     Self ! tick
   end),
   
   spawn(fun() ->
     {ok, Result} = http_file:pread(File, 2000000, Limit),
-    io:format("~p~n", [size(Result)]),
+    io:format("4 ~p~n", [size(Result)]),
     Self ! tick
   end),
   
