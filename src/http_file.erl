@@ -229,7 +229,7 @@ handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams} 
     {value, _Entry, NewStreams} ->
       stop_if_no_clients(State#http_file{streams = NewStreams});
     _ ->
-      ?D({"Closed unknown stream", Stream}),
+      ?D({"Closed unknown stream", Stream, Streams}),
       {noreply, State}
   end;
   
@@ -325,7 +325,7 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
 handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
   case lists:keyfind(Stream, #stream.pid, Streams) of
     false ->
-      ?D({"Got message from dead process", {bin, size(Bin), Stream}}),
+      % ?D({"Got message from dead process", {bin, size(Bin), Stream}}),
       % Stream ! stop,
       State;
     #stream{pid = Stream, offset = BlockOffset, size = CurrentSize} = StreamInfo ->
@@ -386,8 +386,7 @@ fetch_cached_data(#http_file{cache_file = Cache}, Offset, Limit) ->
   file:pread(Cache, Offset, Limit).
   
 update_map(Streams, Stream, ChunkSize) ->
-  {value, #stream{offset = BlockOffset, size = CurrentSize} = Entry, Streams1} = lists:keytake(Stream, #stream.pid, Streams),
-  ?D({Stream, BlockOffset, CurrentSize, ChunkSize}),
+  {value, #stream{size = CurrentSize} = Entry, Streams1} = lists:keytake(Stream, #stream.pid, Streams),
   NewEntry = Entry#stream{size = CurrentSize + ChunkSize},
   lists:keysort(#stream.offset, lists:ukeymerge(#stream.pid, [NewEntry], Streams1)).
   
