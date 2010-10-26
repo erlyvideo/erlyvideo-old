@@ -222,7 +222,7 @@ handle_info({ibrowse_async_headers, _Stream, _Code, _Headers}, State) ->
   {noreply, State};
 
 handle_info({ibrowse_async_response, Stream, Bin}, State) ->
-  {noreply, stop_if_no_clients(handle_incoming_data(Stream, Bin, State))};
+  stop_if_no_clients(handle_incoming_data(Stream, Bin, State));
 
 handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
@@ -328,9 +328,9 @@ handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Strea
       ?D({"Got message from dead process", {bin, size(Bin), Stream}}),
       % Stream ! stop,
       State;
-    #stream{pid = Stream, offset = _BlockOffset, size = CurrentSize} = StreamInfo ->
+    #stream{pid = Stream, offset = BlockOffset, size = CurrentSize} = StreamInfo ->
       % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
-      ok = save_data(Cache, CurrentSize, Bin),
+      ok = save_data(Cache, BlockOffset + CurrentSize, Bin),
       {NewStreams, ToRemove} = register_chunk(Streams, StreamInfo, size(Bin)),
       stop_finished_streams(ToRemove),
       {NewRequests, Replies} = satisfied_requests(Requests, NewStreams),
@@ -345,8 +345,8 @@ save_data(Cache, Offset, Bin) ->
   file:pwrite(Cache, Offset, Bin).
   
 
-register_chunk(Streams, #stream{pid = Stream, size = CurrentSize}, ChunkSize) ->
-  NewStreams1 = update_map(Streams, Stream, CurrentSize, ChunkSize),
+register_chunk(Streams, #stream{pid = Stream}, ChunkSize) ->
+  NewStreams1 = update_map(Streams, Stream, ChunkSize),
   {_NewStreams, _Removed} = glue_map(NewStreams1).
   
 stop_finished_streams(Removed) ->
@@ -385,9 +385,9 @@ has_covering_stream([], _Request) -> false.
 fetch_cached_data(#http_file{cache_file = Cache}, Offset, Limit) ->
   file:pread(Cache, Offset, Limit).
   
-update_map(Streams, Stream, ChunkOffset, ChunkSize) ->
+update_map(Streams, Stream, ChunkSize) ->
   {value, #stream{offset = BlockOffset, size = CurrentSize} = Entry, Streams1} = lists:keytake(Stream, #stream.pid, Streams),
-  ChunkOffset = BlockOffset + CurrentSize, % This is assertion, that we haven't missed not a packet
+  ?D({Stream, BlockOffset, CurrentSize, ChunkSize}),
   NewEntry = Entry#stream{size = CurrentSize + ChunkSize},
   lists:keysort(#stream.offset, lists:ukeymerge(#stream.pid, [NewEntry], Streams1)).
   
@@ -457,11 +457,11 @@ is_data_cached([_ | Streams], Offset, Size) ->
 
 update_map1_test() ->
   Map1 = [#stream{pid = a, offset = 0, size = 10}],
-  ?assertEqual([#stream{pid = a, offset = 0, size = 20}], update_map(Map1, a, 10, 10)).
+  ?assertEqual([#stream{pid = a, offset = 0, size = 20}], update_map(Map1, a, 10)).
 
 update_map2_test() ->
   Map1 = [#stream{pid = a, offset = 0, size = 10}, #stream{pid = b, offset = 15, size = 15}],
-  ?assertEqual([#stream{pid = a, offset = 0, size = 20},#stream{pid = b, offset = 15, size = 15}], update_map(Map1, a, 10, 10)).
+  ?assertEqual([#stream{pid = a, offset = 0, size = 20},#stream{pid = b, offset = 15, size = 15}], update_map(Map1, a, 10)).
   
 
 is_data_cached_test() ->
