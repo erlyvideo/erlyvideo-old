@@ -203,7 +203,7 @@ handle_call({close, Client, Ref}, _From, #http_file{clients = Clients, file_cach
     %   ?D({"No clients left, waiting"}),
     %   {stop, normal, ok, schedule_closing(State#http_file{clients = []})};
     {value, {Client,Ref}, NewClients} ->
-      ?D({"closing for", Client, NewClients}),
+      % ?D({"closing for", Client, NewClients}),
       erlang:demonitor(Ref, [flush]),
       {reply, ok, State#http_file{clients = NewClients}};
     _ ->  
@@ -230,26 +230,27 @@ handle_info({ibrowse_async_headers, _Stream, _Code, _Headers}, State) ->
 
 handle_info({ibrowse_async_response, Stream, Bin}, State) ->
   ibrowse:stream_next(Stream),
-  stop_if_no_clients(handle_incoming_data(Stream, Bin, State));
+  schedule_closing(handle_incoming_data(Stream, Bin, State));
 
 handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams, removing_streams = Removing} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
-    {value, _Entry, NewStreams} ->
-      stop_if_no_clients(State#http_file{streams = NewStreams});
+    {value, #stream{} = Entry, NewStreams} ->
+      schedule_closing(State#http_file{streams = [Entry#stream{pid = undefined}| NewStreams]});
     _ ->
       case lists:member(Stream, Removing) of
         true ->
-          stop_if_no_clients(State#http_file{removing_streams = lists:delete(Stream, Removing)});
+          schedule_closing(State#http_file{removing_streams = lists:delete(Stream, Removing)});
         false ->
           ?D({"Closed unknown stream", Stream, Streams}),
-          {noreply, stop_if_no_clients(State)}
+          {noreply, schedule_closing(State)}
       end
   end;
   
 handle_info({'DOWN', _, process, Client, _Reason}, #http_file{clients = Clients} = State) ->
   case lists:keytake(Client, 1, Clients) of
     {value, _Entry, NewClients} ->
-      stop_if_no_clients(State#http_file{clients = NewClients});
+      ?D({"Client died", Client}),
+      schedule_closing(State#http_file{clients = NewClients});
     _ ->
       ?D({unknown_died, Client, State}),
       {noreply, schedule_closing(State)}
@@ -272,13 +273,6 @@ handle_info(Message, State) ->
   {noreply, State}.
 
 
-stop_if_no_clients(#http_file{clients = []} = State) ->
-  ?D({"Stop no clients"}),
-  {stop, normal, State};
-
-stop_if_no_clients(State) ->
-  {noreply, schedule_closing(State)}.
-  
 terminate(_Reason, #http_file{path = Path, temp_path = TempPath} = _State) ->
   (catch file:delete(Path)),
   (catch file:delete(TempPath)),
@@ -298,10 +292,10 @@ start_download(#http_file{url = URL} = State) ->
 
 schedule_closing(#http_file{close_ref = undefined, clients = [], options = Options} = State) ->
   CloseRef = timer:send_after(proplists:get_value(timeout,Options,?DEFAULT_TIMEOUT), no_clients),
-  State#http_file{close_ref = CloseRef};
+  {noreply, State#http_file{close_ref = CloseRef}};
   
 schedule_closing(State) ->
-  State.
+  {noreply, State}.
   
 
 
@@ -344,7 +338,7 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
       Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
       Headers = headers(URL, get) ++ [{'Range', Range}],
       {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,{self(),once}},{response_format,binary},{stream_chunk_size,4096}]),
-      ?D({"Starting new stream for", URL, Offset, _Limit, Stream}),
+      % ?D({"Starting new stream for", URL, Offset, _Limit, Stream}),
       lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0}], Streams)
   end,
   File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.
@@ -361,7 +355,7 @@ handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Strea
       reply_requests(Replies, Cache),
       
       FileCached = autorename_cached_file(NewStreams, State),
-      ?D({NewStreams, State#http_file.size}),
+      % ?D({NewStreams, State#http_file.size}),
       State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached, removing_streams = lists:merge([Removing, ToRemove])};
     false ->
       case lists:member(Stream, Removing) of
@@ -387,8 +381,17 @@ register_chunk(Streams, #stream{pid = Stream}, ChunkSize) ->
   
 stop_finished_streams(Removed) ->
   lists:foreach(fun(OldStream) ->
-    ok = ibrowse:stream_close(OldStream)
+    ok = ibrowse:stream_close(OldStream),
+    flush_stream_data(OldStream)
   end, Removed).
+  
+flush_stream_data(Stream) ->
+  receive
+    {ibrowse_async_response, Stream, _Bin} -> flush_stream_data(Stream)
+  after
+    0 -> ok
+  end.
+    
   
   
 reply_requests(Replies, Cache) ->
@@ -431,7 +434,7 @@ glue_map(Streams) ->
   glue_map(Sorted, [], []).
 
 glue_map([Stream], NewStreams, Removed) ->
-  {lists:keysort(#stream.offset, [Stream|NewStreams]), lists:sort(Removed)};
+  {lists:keysort(#stream.offset, [Stream|NewStreams]), lists:dropwhile(fun(F) -> F == undefined end, lists:sort(Removed))};
 
 glue_map([Stream1, Stream2 | Streams], NewStreams, Removed) ->
   case intersect(Stream1, Stream2) of

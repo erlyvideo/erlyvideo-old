@@ -8,7 +8,7 @@ main(["test"]) ->
 main([]) ->
   URL = "http://localhost/video.mp4",
   Limit = 100,
-  {ok, File} = http_file:open(URL, []),
+  {ok, File} = http_file:open(URL, [binary,{timeout,360000}]),
   
   ?D({open, File}),
   
