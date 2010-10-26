@@ -175,15 +175,18 @@ read_frame(_, eof) ->
   eof;
 
 read_frame(#mp4_media{} = Media, Id) ->
-  #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame = mp4:read_frame(Media, Id),
-
-  % ?D({"read frame", Id, Offset, Size,Content}),
-	case read_data(Media, Offset, Size) of
-		{ok, Data, _} ->
-		  VideoFrame = video_frame(Content, Frame, Data),
-		  VideoFrame#video_frame{next_id = Next};
-    eof -> eof;
-    {error, Reason} -> {error, Reason}
+  case mp4:read_frame(Media, Id) of
+    eof ->
+      eof;
+    #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame ->
+      % ?D({"read frame", Id, Offset, Size,Content}),
+    	case read_data(Media, Offset, Size) of
+    		{ok, Data, _} ->
+    		  VideoFrame = video_frame(Content, Frame, Data),
+    		  VideoFrame#video_frame{next_id = Next};
+        eof -> eof;
+        {error, Reason} -> {error, Reason}
+      end
   end.
   
 
