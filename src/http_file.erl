@@ -26,7 +26,9 @@
   requests = [],
   size,
   file_cached = false,
-  clients = []
+  clients = [],
+  removing_streams = [],
+  close_ref
 }).
 
 
@@ -38,6 +40,7 @@
 
 
 -define(COVER_LIMIT, 100000).
+-define(DEFAULT_TIMEOUT, 30000).
 
 start() ->
   application:start(http_file).
@@ -185,18 +188,22 @@ handle_call({pread, Offset, Limit}, From, #http_file{streams = Streams} = File) 
   end;    
 
 
-handle_call({add_client, Opener}, _From, #http_file{clients = Clients} = State) ->
+handle_call({add_client, Opener}, _From, #http_file{clients = Clients, close_ref = CloseRef} = State) ->
   Ref = erlang:monitor(process, Opener),
+  (catch timer:cancel(CloseRef)),
   {reply, {ok,Ref}, State#http_file{clients = [{Opener,Ref}|Clients]}};
 
 
 handle_call({close, Client, Ref}, _From, #http_file{clients = Clients, file_cached = Cached} = State) ->
   case lists:keytake(Ref, 2, Clients) of
     {value, _Entry, []} when Cached == true ->
-      % ?D({"No clients left"}),
+      ?D({"No clients left"}),
       {stop, normal, ok, State#http_file{clients = []}};
+    % {value, _Entry, []} ->
+    %   ?D({"No clients left, waiting"}),
+    %   {stop, normal, ok, schedule_closing(State#http_file{clients = []})};
     {value, {Client,Ref}, NewClients} ->
-      % ?D({"closing for", Client, NewClients}),
+      ?D({"closing for", Client, NewClients}),
       erlang:demonitor(Ref, [flush]),
       {reply, ok, State#http_file{clients = NewClients}};
     _ ->  
@@ -222,15 +229,21 @@ handle_info({ibrowse_async_headers, _Stream, _Code, _Headers}, State) ->
   {noreply, State};
 
 handle_info({ibrowse_async_response, Stream, Bin}, State) ->
+  ibrowse:stream_next(Stream),
   stop_if_no_clients(handle_incoming_data(Stream, Bin, State));
 
-handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams} = State) ->
+handle_info({ibrowse_async_response_end, Stream}, #http_file{streams = Streams, removing_streams = Removing} = State) ->
   case lists:keytake(Stream, #stream.pid, Streams) of
     {value, _Entry, NewStreams} ->
       stop_if_no_clients(State#http_file{streams = NewStreams});
     _ ->
-      ?D({"Closed unknown stream", Stream, Streams}),
-      {noreply, State}
+      case lists:member(Stream, Removing) of
+        true ->
+          stop_if_no_clients(State#http_file{removing_streams = lists:delete(Stream, Removing)});
+        false ->
+          ?D({"Closed unknown stream", Stream, Streams}),
+          {noreply, stop_if_no_clients(State)}
+      end
   end;
   
 handle_info({'DOWN', _, process, Client, _Reason}, #http_file{clients = Clients} = State) ->
@@ -239,13 +252,20 @@ handle_info({'DOWN', _, process, Client, _Reason}, #http_file{clients = Clients}
       stop_if_no_clients(State#http_file{clients = NewClients});
     _ ->
       ?D({unknown_died, Client, State}),
-      {noreply, State}
+      {noreply, schedule_closing(State)}
   end;
 
 
 handle_info(start_download, State) ->
   {noreply, start_download(State)};
 
+
+handle_info(no_clients, #http_file{clients = []} = State) ->
+  ?D({"Close http file due timeout and no clients"}),
+  {stop, normal, State};
+
+handle_info(no_clients, #http_file{} = State) ->
+  {noreply, State#http_file{close_ref = undefined}};
   
 handle_info(Message, State) ->
   ?D({"Some message:", Message}),
@@ -253,10 +273,11 @@ handle_info(Message, State) ->
 
 
 stop_if_no_clients(#http_file{clients = []} = State) ->
+  ?D({"Stop no clients"}),
   {stop, normal, State};
 
 stop_if_no_clients(State) ->
-  {noreply, State}.
+  {noreply, schedule_closing(State)}.
   
 terminate(_Reason, #http_file{path = Path, temp_path = TempPath} = _State) ->
   (catch file:delete(Path)),
@@ -271,9 +292,16 @@ code_change(_Old, State, _Extra) ->
 
 start_download(#http_file{url = URL} = State) ->
   {ok, Headers} = head_request(URL),
-  % ?D(Headers),
-  Length = proplists:get_value('Content-Length', Headers),
-  schedule_request(State, {undefined, 0, Length}).
+  Length = list_to_integer(proplists:get_value("Content-Length", Headers)),
+  schedule_request(State#http_file{size = Length}, {undefined, 0, Length}).
+  
+
+schedule_closing(#http_file{close_ref = undefined, clients = [], options = Options} = State) ->
+  CloseRef = timer:send_after(proplists:get_value(timeout,Options,?DEFAULT_TIMEOUT), no_clients),
+  State#http_file{close_ref = CloseRef};
+  
+schedule_closing(State) ->
+  State.
   
 
 
@@ -315,19 +343,15 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
     false ->
       Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
       Headers = headers(URL, get) ++ [{'Range', Range}],
-      {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,self()},{response_format,binary},{stream_chunk_size,4096}]),
+      {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,{self(),once}},{response_format,binary},{stream_chunk_size,4096}]),
       ?D({"Starting new stream for", URL, Offset, _Limit, Stream}),
       lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0}], Streams)
   end,
   File#http_file{streams = NewStreams, requests = lists:ukeymerge(1, [Request], Requests)}.
   
 
-handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Streams, requests = Requests} = State) ->
+handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Streams, requests = Requests, removing_streams = Removing} = State) ->
   case lists:keyfind(Stream, #stream.pid, Streams) of
-    false ->
-      % ?D({"Got message from dead process", {bin, size(Bin), Stream}}),
-      % Stream ! stop,
-      State;
     #stream{pid = Stream, offset = BlockOffset, size = CurrentSize} = StreamInfo ->
       % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
       ok = save_data(Cache, BlockOffset + CurrentSize, Bin),
@@ -337,7 +361,19 @@ handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Strea
       reply_requests(Replies, Cache),
       
       FileCached = autorename_cached_file(NewStreams, State),
-      State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached}
+      ?D({NewStreams, State#http_file.size}),
+      State#http_file{streams = NewStreams, requests = NewRequests, file_cached = FileCached, removing_streams = lists:merge([Removing, ToRemove])};
+    false ->
+      case lists:member(Stream, Removing) of
+        true ->
+          ?D({"Got message from removing process", {bin, size(Bin), Stream}}),
+          ibrowse:stream_close(Stream),
+          State;
+        false ->  
+          ?D({"Got message from dead process", {bin, size(Bin), Stream}}),
+          stop_finished_streams([Stream]),
+          State
+      end
   end.
   
 
@@ -350,9 +386,8 @@ register_chunk(Streams, #stream{pid = Stream}, ChunkSize) ->
   {_NewStreams, _Removed} = glue_map(NewStreams1).
   
 stop_finished_streams(Removed) ->
-  lists:foreach(fun(_OldStream) ->
-    %OldStream ! stop
-    ok
+  lists:foreach(fun(OldStream) ->
+    ok = ibrowse:stream_close(OldStream)
   end, Removed).
   
   
@@ -366,7 +401,7 @@ reply_requests(Replies, Cache) ->
 
 
 autorename_cached_file([#stream{offset = 0, size = FileSize}], #http_file{size = FileSize, temp_path = TempPath, path = Path}) ->
-  % ?D({"File is fully downloaded", State#http_file.temp_path, State#http_file.path, State#http_file.clients}),
+  ?D({"File is fully downloaded", TempPath, Path}),
   file:rename(TempPath, Path),
   true;
   
