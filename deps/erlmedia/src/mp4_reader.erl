@@ -72,12 +72,15 @@ init(Reader, Options) ->
 
 properties(#mp4_media{additional = Additional, width = Width, height = Height, duration = Duration} = MP4Media) -> 
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
+  TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language}] || 
+                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id} <- Tracks],
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   Languages = [list_to_binary(Language) || #mp4_track{language = Language, content = Content} <- Tracks, Content == audio],
   [{width, Width}, 
    {height, Height},
    {type, file},
    {duration, Duration},
+   {tracks, TrackInfo},
    {bitrates, Bitrates},
    {languages, Languages}] ++ Additional.
 
