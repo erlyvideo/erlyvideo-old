@@ -235,7 +235,7 @@ seek(#mp4_media{} = Media, before, Timestamp) ->
   Audio = track_for_language(Media, undefined),
   ?D({"Seek", Timestamp}),
   case mp4:seek(Media, Video, Timestamp) of
-    {Id, DTS} -> {{Id,Audio,Video}, DTS};
+    {Id, DTS} -> {{audio_config, {Id,Audio,Video}, DTS}, DTS};
     undefined -> undefined
   end.
 
