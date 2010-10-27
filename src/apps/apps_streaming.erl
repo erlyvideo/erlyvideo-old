@@ -60,7 +60,7 @@ handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} 
 handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
   #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   
-  ?D({"seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
+  ?D({self(), "seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
   rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
   
@@ -242,7 +242,7 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
   #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
-  ?D({"seek", round(Timestamp), Player}),
+  ?D({self(), "seek", round(Timestamp), Player}),
   case ems_media:seek(Player, before, Timestamp + BaseDTS) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),
