@@ -166,7 +166,7 @@ reconfigure() ->
   ems_log:stop(),
   ems_log:start(),
   load_config(),
-  % ems_vhosts:start(),
+  ems_vhosts:start(),
   % ems_http:stop(),
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
     {undefined, undefined} -> ok;
