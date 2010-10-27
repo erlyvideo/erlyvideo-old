@@ -1,3 +1,9 @@
+erlyvideo (2.4.14) unstable; urgency=low
+
+  fix joining stream
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 28 Oct 2010 01:30:42 +0400
+
 erlyvideo (2.4.13) unstable; urgency=low
 
   Remove latency while viewing
