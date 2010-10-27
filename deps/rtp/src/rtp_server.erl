@@ -660,9 +660,9 @@ audio(#audio{media = _Media, audio_headers = <<>>, codec = aac} = Audio, {data, 
 audio(#audio{media = _Media, audio_data = AudioData, codec = aac} = Audio, {data, Bin, _Sequence, _Timestamp}) ->
   unpack_aac_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []);
 
-audio(#audio{codec = Codec} = Audio, {data, Bin, _Sequence, Timestamp}) when Codec == pcma orelse Codec == pcmu orelse Codec == g726_16 ->
+audio(#audio{codec = Codec, clock_map = Clock} = Audio, {data, Bin, _Sequence, Timestamp}) when Codec == pcma orelse Codec == pcmu orelse Codec == g726_16 ->
   DTS = convert_timecode(Audio#audio{timecode = Timestamp}),
-  % ?D({"Audio", size(Bin), DTS}),
+  % ?D({"Audio", Codec, Clock, size(Bin), DTS}),
   Frame = #video_frame{
     content = audio,
     dts     = DTS,
@@ -670,7 +670,7 @@ audio(#audio{codec = Codec} = Audio, {data, Bin, _Sequence, Timestamp}) when Cod
     body    = Bin,
 	  codec	  = Codec,
 	  flavor  = frame,
-	  sound	  = {mono, bit8, rate11}
+	  sound	  = {mono, bit8, round(Clock*1000)}
   },
   _Samples =
     case Codec of
