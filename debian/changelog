@@ -1,3 +1,9 @@
+erlyvideo (2.4.13) unstable; urgency=low
+
+  Remove latency while viewing
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 27 Oct 2010 12:09:20 +0400
+
 erlyvideo (2.4.12) unstable; urgency=low
 
   Fixed flv playing
