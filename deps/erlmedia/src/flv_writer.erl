@@ -152,9 +152,9 @@ store_message(Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
   {ok, FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}}.
   
 
-flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
+flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, _How) ->
   Buffer = lists:reverse(Buf1),
-  Sorted = lists:keysort(#video_frame.dts, Buffer),
+  _Sorted = lists:keysort(#video_frame.dts, Buffer),
   % case Sorted of
   %   Buffer -> ?D({"Frames in order", length(Sorted)}), ok;
   %   _ -> ?D({"Frame reordering work", length(Sorted)}), ok
