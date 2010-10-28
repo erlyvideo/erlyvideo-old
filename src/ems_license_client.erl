@@ -240,7 +240,7 @@ execute_commands_v1([{save,Info}|Commands], Startup) ->
   File = proplists:get_value(file, Info),
   Path = proplists:get_value(path, Info),
   CacheDir = ems:get_var(license_cache_dir, "tmp"),
-  FullPath = filename:join(CacheDir, Path),
+  FullPath = filename:join([CacheDir ++ "/" ++ Path]),
   code:add_patha(filename:dirname(FullPath)),
   case file:read_file(FullPath) of
     {ok, File} -> ok;
