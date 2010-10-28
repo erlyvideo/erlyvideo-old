@@ -1,3 +1,9 @@
+erlyvideo (2.4.15) unstable; urgency=low
+
+  vulnerability in playing video
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 28 Oct 2010 20:25:13 +0400
+
 erlyvideo (2.4.14) unstable; urgency=low
 
   fix joining stream
