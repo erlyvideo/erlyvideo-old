@@ -59,7 +59,7 @@ can_open_file(Name) ->
 init(Media, Options) ->
   Host = proplists:get_value(host, Options),
   Name = proplists:get_value(url, Options),
-  FileName = filename:join([file_media:file_dir(Host) ++ "/" ++ Name]), 
+  FileName = ems:pathjoin(file_media:file_dir(Host), Name), 
   {ok, Reader} = mpegts_sup:start_file_reader(FileName, [{consumer,self()}]),
   erlang:monitor(process, Reader),
   ems_media:set_source(self(), Reader),

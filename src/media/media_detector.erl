@@ -109,7 +109,7 @@ check_path(Host, Name) ->
   case file_media:file_dir(Host) of
     undefined -> false;
     Dir -> 
-      Path = filename:join([Dir ++ "/" ++ Name]), 
+      Path = ems:pathjoin(Dir, Name), 
       case filelib:is_regular(Path) of
         true -> {true, Path};
         false -> false

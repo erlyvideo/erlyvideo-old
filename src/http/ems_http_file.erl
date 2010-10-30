@@ -46,7 +46,7 @@ http(_Host, _Method, _Path, _Req) ->
 
 
 serve_file(Host, Root, Path, Req) ->
-  FileName = filename:absname(filename:join([Root | Path])),
+  FileName = filename:absname(ems:pathjoin([Root | Path])),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
