@@ -92,7 +92,7 @@
 }).
 
 
--define(RTCP_SR_INTERVAL, 1000).
+-define(RTCP_SR_INTERVAL, 5000).
 
 %% API
 -export([
@@ -167,12 +167,12 @@ handle_call({play, Fun, Media}, _From,
                    media = OldMedia} = State) ->
   ?DBG("DS: Play", []),
   ?DBG("Media: ~p, Old Media: ~p", [Media, OldMedia]),
-  Info = [{Track, Seq, RtpTime} ||
+  Info = [{Track, Seq-1, RtpTime-1} ||
            #desc{track_control = Track,
                  state = #base_rtp{sequence = Seq,
                                    timecode = RtpTime}} <- [AudioDesc, VideoDesc]],
-  self() ! {send_sr, [audio, video]},  
   Fun(),
+  self() ! {send_sr, [audio, video]},
   timer:send_interval(?RTCP_SR_INTERVAL, {send_sr, [audio, video]}),
   %%timer:send_interval(100, {dump_pack}),
   {reply, {ok, Info}, State};
@@ -217,6 +217,7 @@ handle_call({add_stream,
                       timecode = Timecode,
                       base_wall_clock = 0,
                       wall_clock = 0,
+                      last_sr = get_date(),
                       stream_id = init_rnd_ssrc()},
   NewState =
     case Type of
@@ -323,15 +324,22 @@ handle_info(#video_frame{content = video, flavor = Flavor,
       case Flavor of
         config ->
           case h264:unpack_config(Body) of
-            {FrameLength, [SPS, PPS]} ->
-              NewAcc = Acc ++ [SPS, PPS],
-              %%?DBG("NewAcc: ~p", [NewAcc]),
-              NewState = State#state{video = VideoDesc#desc{state = BaseRTP#base_rtp{framelens = FrameLength}, acc = NewAcc}};
+            {FrameLength, [_SPS, _PPS]} ->
+              NewState = State#state{video = VideoDesc#desc{state = BaseRTP#base_rtp{framelens = FrameLength}}};
             _ ->
-              <<_:64,Data/binary>> = Body,
-              NewAcc = Acc ++ [Data],
-              NewState = State#state{video = VideoDesc#desc{acc = NewAcc}}
+              NewState = State
           end;
+        %% config ->
+        %%   case h264:unpack_config(Body) of
+        %%     {FrameLength, [SPS, PPS]} ->
+        %%       NewAcc = Acc ++ [SPS, PPS],
+        %%       %%?DBG("NewAcc: ~p", [NewAcc]),
+        %%       NewState = State#state{video = VideoDesc#desc{state = BaseRTP#base_rtp{framelens = FrameLength}, acc = NewAcc}};
+        %%     _ ->
+        %%       <<_:64,Data/binary>> = Body,
+        %%       NewAcc = Acc ++ [Data],
+        %%       NewState = State#state{video = VideoDesc#desc{acc = NewAcc}}
+        %%   end;
         KF when ((KF == keyframe) or (KF == frame)) ->
           if length(Acc) > 0 ->
               Data = [{config, Acc}, {KF, Body}];
@@ -650,7 +658,7 @@ timecode_to_dts(State) ->
   DTS = WallClock + (Timecode - BaseTimecode)/ClockMap,
   % ?D({"->", WallClock, Timecode, BaseTimecode, ClockMap, DTS}),
   DTS.
-  
+
 
 dts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
 
@@ -660,11 +668,12 @@ dts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecod
 
   % State1 = setelement(#base_rtp.timecode, State, NewTC),
   % State2 = setelement(#base_rtp.wall_clock, State1, round(DTS)),
-  % 
+  %
   % State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
   % State4 = setelement(#base_rtp.base_wall_clock, State3, round(DTS)),
 
-  State#base_rtp{timecode = NewTC, wall_clock = round(DTS)}.
+  State#base_rtp{timecode = NewTC, wall_clock = round(DTS), last_sr = get_date()}.
+
 
 %%
 %% http://webee.technion.ac.il/labs/comnet/netcourse/CIE/RFC/1889/19.htm
@@ -925,7 +934,8 @@ compose_rtp(Base, <<>>, _, Acc, _) -> % Return new Sequence ID and list of RTP-b
 compose_rtp(#base_rtp{sequence = Sequence, marker = _Marker,
                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal)
   when (is_integer(Size) andalso (size(Data) > Size)) ->
-  <<P:Size/binary,Rest/binary>> = Data,
+  HalfSize = round(size(Data)/2),
+  <<P:HalfSize/binary,Rest/binary>> = Data,
   Start = if Acc == [] -> 1; true -> 0 end,
   End = 0,
   {PFrag, NewNal} = fragment_nal(P, Nal, Start, End),
@@ -965,17 +975,14 @@ fragment_nal(Data, Nal, S, E) ->
 
 
 init_rnd_seq() ->
-  % random:uniform(16#FFFF).
-  0.
+  random:uniform(16#FFFE) + 1.
 
 init_rnd_ssrc() ->
-  % random:uniform(16#FFFFFFFF).
-  0.
+  random:uniform(16#FFFFFFFF).
 
 init_rnd_timecode() ->
-  % Range = 1000000000,
-  % random:uniform(Range) + Range.
-  0.
+  Range = 1000000000,
+  random:uniform(Range) + Range.
 
 inc_seq(S) ->
   (S+1) band 16#FFFF.
@@ -1020,17 +1027,19 @@ encode(sender_report, #base_rtp{stream_id = StreamId,
                                 base_timecode = _BaseTimecode,
                                 wall_clock = WallClock,
                                 base_wall_clock = _BaseWallClock,
+                                last_sr = {MSW, LSW},
                                 packets = SPC,
                                 bytes = SOC} = State) ->
   Count = 0,
-  % MSW = ((WallClock div 1000) + ?YEARS_70) band 16#FFFFFFFF,
-  % LSW = (WallClock rem 1000)*1000*1000,
-  
-  NTP = round((WallClock / 1000 + ?YEARS_70)*16#100000000),
+  %%MSW = ((WallClock div 1000) + ?YEARS_70) band 16#FFFFFFFF,
+  %%LSW = (WallClock rem 1000)*1000*1000,
+  %%{MSW, LSW} = get_date(),
+
+  %%NTP = round((WallClock / 1000 + ?YEARS_70)*16#100000000),
   ?D({sr, StreamId,Timecode,WallClock,SPC,SOC}),
-  
-  % Packet = <<StreamId:32, MSW:32, LSW:32, Timecode:32, SPC:32, SOC:32>>,
-  Packet = <<StreamId:32, NTP:64, Timecode:32, SPC:32, SOC:32>>,
+
+  Packet = <<StreamId:32, MSW:32, LSW:32, Timecode:32, SPC:32, SOC:32>>,
+  %%Packet = <<StreamId:32, NTP:64, Timecode:32, SPC:32, SOC:32>>,
   Length = trunc(size(Packet)/4),
   Header = <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16>>,
   {State, <<Header/binary,Packet/binary>>};
@@ -1054,3 +1063,6 @@ encode(source_description, #base_rtp{stream_id = StreamId} = State) ->
   Header = <<2:2, 0:1, Count:5, ?RTCP_SD, Length:16>>,
   {State, <<Header/binary,Packet/binary>>}.
 
+get_date() ->
+  {A1, A2, A3} = now(),
+  {A1*1000000 + A2 + ?YEARS_70, A3 * 1000}.
