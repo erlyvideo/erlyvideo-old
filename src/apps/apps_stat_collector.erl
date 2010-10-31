@@ -23,7 +23,7 @@ init([Session]) ->
   
   
 handle_event(#erlyvideo_event{} = _Event, Session) ->
-  Session ! event_happened,
+  % Session ! event_happened,
   % XML = ems_event:to_xml(Event),
   % rtmp_socket:status(Socket, 0, <<"NetConnection.Message">>, XML),
   {ok, Session}.
