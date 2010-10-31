@@ -41,5 +41,5 @@
 send_message(#rtmp_session{host = Host} = Session, #rtmp_funcall{args = [null, ChannelF, Message]}) -> 
   ChannelId = round(ChannelF),
   ems_users:send_to_channel(Host, ChannelId, Message),
-  ems_log:access(Host, "MESSAGE ~p ~p ~p ~p~n", [Host, State#rtmp_session.addr, ChannelId, Message]),
+  ems_log:access(Host, "MESSAGE ~p ~p ~p ~p~n", [Host, Session#rtmp_session.addr, ChannelId, Message]),
   Session.
