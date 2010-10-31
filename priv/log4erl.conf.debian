@@ -1,3 +1,6 @@
+% Turn this on to reduce logging
+% cutoff_level = info
+
 %% Default logger
 %% it includes a file appender and a console appender
 logger{
