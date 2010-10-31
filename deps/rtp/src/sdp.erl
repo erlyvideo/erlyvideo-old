@@ -207,7 +207,7 @@ parse_connect(Connect) ->
   {N, Addr}.
 
 %%
--define(LSEP, <<$\n>>).
+-define(LSEP, <<$\r,$\n>>).
 encode(#session_desc{connect = GConnect} = Session,
        MediaSeq) ->
   S = encode_session(Session),
@@ -238,20 +238,7 @@ encode_session(#session_desc{version = Ver,
         ["c=", at2bin(Type), $ , Addr, ?LSEP];
       _ -> []
     end,
-  AttrL = [begin
-             ResB =
-               case KV of
-                 {K, V} when (is_atom(K)
-                              andalso (is_list(V) or is_binary(V))) ->
-                   [atom_to_list(K), $:, V];
-                 _ when is_atom(KV) ->
-                   atom_to_list(KV);
-                 _Other ->
-                   ?DBG("Err: ~p", [KV]),
-                   ""
-               end,
-             ["a=", ResB, ?LSEP]
-           end || KV <- Attrs],
+  AttrL = encode_attrs(Attrs),
   TimeB =
     case Time of
       {TimeStart, TimeStop} when is_integer(TimeStart), is_integer(TimeStop) ->
@@ -271,6 +258,22 @@ encode_session(#session_desc{version = Ver,
 %%   S = <<"c="/binary,AT/binary,$ ,(list_to_binary(Addr))/binary>>,
 %%   <<A/binary,S/binary,?LSEP/binary>>.
 
+encode_attrs(Attrs) ->
+  [begin
+     ResB =
+       case KV of
+         {K, V} when (is_atom(K)
+                      andalso (is_list(V) or is_binary(V))) ->
+           [atom_to_list(K), $:, V];
+         _ when is_atom(KV) ->
+           atom_to_list(KV);
+         _Other ->
+           ?DBG("Err: ~p", [KV]),
+           ""
+       end,
+     ["a=", ResB, ?LSEP]
+   end || KV <- Attrs].
+
 encode_media_seq(MS, GConnect) ->
   encode_media_seq(MS, GConnect, <<>>).
 
@@ -288,7 +291,8 @@ encode_media(#media_desc{type = Type,
                          port = Port,
                          payloads = PayLoads,
                          track_control = TControl,
-                         config = Config
+                         config = Config,
+                         attrs = Attrs
                         }, _GConnect, _A) ->
   Tb = type2bin(Type),
   M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ ,
@@ -322,7 +326,8 @@ encode_media(#media_desc{type = Type,
            _ ->
              []
          end,
-  iolist_to_binary([M, AC, AR, ACfg]);
+  AttrL = encode_attrs(Attrs),
+  iolist_to_binary([M, AR, ACfg, AC, AttrL]);
 encode_media(_, _, _) ->
   <<>>.
 
