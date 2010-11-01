@@ -27,6 +27,9 @@
 %%%=========================================================================
 %%%  API
 %%%=========================================================================
+parse(AbsURI) when is_binary(AbsURI) ->
+  parse(binary_to_list(AbsURI));
+  
 parse(AbsURI) ->
     case parse_scheme(AbsURI) of
 	{error, Reason} ->
