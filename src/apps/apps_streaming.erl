@@ -274,12 +274,13 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
 
 closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
   case rtmp_session:get_stream(StreamId, State) of
-    undefined -> State;
-    null ->
-      rtmp_session:delete_stream(StreamId, State);
+    undefined -> 
+      State;
     #rtmp_stream{pid = Player} when is_pid(Player) ->
       ems_media:stop(Player),
       rtmp_session:flush_stream(StreamId),
+      rtmp_session:delete_stream(StreamId, State);
+    _ ->
       rtmp_session:delete_stream(StreamId, State)
   end.
 
