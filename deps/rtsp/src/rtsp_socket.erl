@@ -62,6 +62,7 @@
   pending,
   pending_reply = ok,
   seq,
+  timeout,
   session
 }).
 
@@ -311,11 +312,13 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
                       connect = {inet4, "0.0.0.0"},
                       attrs = [
                                {tool, "LIVE555 Streaming Media v2008.04.09"},
+                               recvonly,
                                {type, "broadcast"},
                                {control, "*"},
-                               {range, "npt=0-"}
+                               {charset, "UTF-8"},
+                               {range, " npt=0-"}
                               ]},
-      Opts = [{video, "trackID=1"},{audio, "trackID=2"}],
+      Opts = [{video, <<URL/binary, "/trackID=0">>},{audio, <<URL/binary, "/trackID=1">>}],
       MediaConfig = [sdp:prep_media_config(F, Opts) || F <- MediaParams],
       ?DBG("MediaConfig:~n~p", [MediaConfig]),
       SDP = sdp:encode(SessionDesc, MediaConfig),
@@ -343,13 +346,14 @@ handle_request({request, 'PLAY', URL, Headers, Body},
     {ok, Info} ->
       %%erlang:monitor(process, Media),
       %% Save Pid of producer here or in SETUP?
-      Infos = [binary_to_list(URL) ++ "/" ++ Track
+      Infos = [Track
                ++ ";seq=" ++ integer_to_list(Seq)
                ++ ";rtptime=" ++ integer_to_list(RtpTime) ||
                 {Track, Seq, RtpTime} <- Info],
-      reply(State#rtsp_socket{}, "200 OK",
+      reply(State#rtsp_socket{timeout = 5}, "200 OK",
             [
              {'Cseq', seq(Headers)},
+             {'Cache-control', "no-cache"},
              {'RTP-Info', string:join(Infos, ",")}
             ]);
     {error, authentication} ->
@@ -443,8 +447,9 @@ handle_request({request, 'SETUP', URL, Headers, _},
 
   if ((Proto =/= undefined) andalso (TagVal =/= undefined)) ->
       case re:run(URL, "trackID=(\\d+)", [{capture, all, list}]) of
-        {match, [_, TrackID_S]} ->
-          case lists:keyfind("trackID="++TrackID_S, #media_desc.track_control, SDP) of
+        {match, [_, _TrackID_S]} ->
+          ?DBG("URL: ~p~nSDP:~n~p", [URL, SDP]),
+          case lists:keyfind(binary_to_list(URL), #media_desc.track_control, SDP) of
             #media_desc{} = Stream ->
               {Val0, Val1} = {list_to_integer(Val0s), list_to_integer(Val1s)},
               if is_pid(ProducerCtl) ->
@@ -509,13 +514,19 @@ handle_request({request, 'TEARDOWN', _URL, Headers, _Body},
 reply(State, Code, Headers) ->
   reply(State, Code, Headers, undefined).
 
-reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers, Body) ->
-  Headers2 = case SessionId of
-    undefined -> Headers;
-    _ -> [{'Session', integer_to_list(SessionId)} | Headers]
-  end,
+reply(#rtsp_socket{socket = Socket, session = SessionId, timeout = TimeOut} = State, Code, Headers, Body) ->
+  Headers2 =
+    case SessionId of
+      undefined -> Headers;
+      _ ->
+        if is_integer(TimeOut) ->
+            TO = ";timeout=" ++ integer_to_list(TimeOut);
+           true -> TO = ""
+        end,
+        [{'Session', integer_to_list(SessionId) ++ TO} | lists:keydelete('Session', 1, Headers)]
+    end,
   Headers3 = case Body of
-    undefined -> Headers2;
+    undefined -> [{'Content-Length', 0} | Headers2];
     _ -> [{'Content-Length', iolist_size(Body)}, {'Content-Type', <<"application/sdp">>}|Headers2]
   end,
   ReplyList = lists:map(fun binarize_header/1, Headers3),
@@ -526,7 +537,7 @@ reply(#rtsp_socket{socket = Socket, session = SessionId} = State, Code, Headers,
   end]),
   io:format("[RTSP Response to Client]~n~s", [Reply]),
   gen_tcp:send(Socket, Reply),
-  State.
+  State#rtsp_socket{timeout = undefined}.
 
 
 binarize_header({Key, Value}) when is_atom(Key) ->
