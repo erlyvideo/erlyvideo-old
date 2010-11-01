@@ -28,6 +28,7 @@
 -include("../include/sdp.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/h264.hrl").
 -include("log.hrl").
 
 %%----------------------------------------------------------------------
@@ -206,7 +207,7 @@ parse_connect(Connect) ->
   {N, Addr}.
 
 %%
--define(LSEP, <<$\n>>).
+-define(LSEP, <<$\r,$\n>>).
 encode(#session_desc{connect = GConnect} = Session,
        MediaSeq) ->
   S = encode_session(Session),
@@ -237,20 +238,7 @@ encode_session(#session_desc{version = Ver,
         ["c=", at2bin(Type), $ , Addr, ?LSEP];
       _ -> []
     end,
-  AttrL = [begin
-             ResB =
-               case KV of
-                 {K, V} when (is_atom(K)
-                              andalso (is_list(V) or is_binary(V))) ->
-                   [atom_to_list(K), $:, V];
-                 _ when is_atom(KV) ->
-                   atom_to_list(KV);
-                 _Other ->
-                   ?DBG("Err: ~p", [KV]),
-                   ""
-               end,
-             ["a=", ResB, ?LSEP]
-           end || KV <- Attrs],
+  AttrL = encode_attrs(Attrs),
   TimeB =
     case Time of
       {TimeStart, TimeStop} when is_integer(TimeStart), is_integer(TimeStop) ->
@@ -270,6 +258,22 @@ encode_session(#session_desc{version = Ver,
 %%   S = <<"c="/binary,AT/binary,$ ,(list_to_binary(Addr))/binary>>,
 %%   <<A/binary,S/binary,?LSEP/binary>>.
 
+encode_attrs(Attrs) ->
+  [begin
+     ResB =
+       case KV of
+         {K, V} when (is_atom(K)
+                      andalso (is_list(V) or is_binary(V))) ->
+           [atom_to_list(K), $:, V];
+         _ when is_atom(KV) ->
+           atom_to_list(KV);
+         _Other ->
+           ?DBG("Err: ~p", [KV]),
+           ""
+       end,
+     ["a=", ResB, ?LSEP]
+   end || KV <- Attrs].
+
 encode_media_seq(MS, GConnect) ->
   encode_media_seq(MS, GConnect, <<>>).
 
@@ -287,7 +291,8 @@ encode_media(#media_desc{type = Type,
                          port = Port,
                          payloads = PayLoads,
                          track_control = TControl,
-                         config = Config
+                         config = Config,
+                         attrs = Attrs
                         }, _GConnect, _A) ->
   Tb = type2bin(Type),
   M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ ,
@@ -321,7 +326,8 @@ encode_media(#media_desc{type = Type,
            _ ->
              []
          end,
-  iolist_to_binary([M, AC, AR, ACfg]);
+  AttrL = encode_attrs(Attrs),
+  iolist_to_binary([M, AR, ACfg, AC, AttrL]);
 encode_media(_, _, _) ->
   <<>>.
 
@@ -365,15 +371,13 @@ prep_media_config({video,
                                 flavor = config,
                                 codec = h264 = Codec,
                                 body = Body}}, Opts) ->
-  {_, [SPS, PPS]} = h264:unpack_config(Body),
+  AFmtp = h264:to_fmtp(Body),
   #media_desc{type = video,
               port = proplists:get_value(video_port, Opts, 0),
-              payloads = [#payload{num = 96, codec = Codec, clock_map = 90000,
-                                   config = [iolist_to_binary(["packetization-mode=1;"
-                                                               "profile-level-id=64001e;"
-                                                               "sprop-parameter-sets=",
-                                                               base64:encode(SPS), $,, base64:encode(PPS)])]}],
-              track_control = proplists:get_value(video, Opts, "1")
+              payloads = [#payload{num = 97, codec = Codec, clock_map = 90000,
+                                   config = [iolist_to_binary(AFmtp)]
+                                  }],
+              track_control = proplists:get_value(video, Opts, "2")
              };
 prep_media_config({audio,
                    #video_frame{content = audio,
@@ -384,18 +388,27 @@ prep_media_config({audio,
   <<ConfigVal:2/big-integer-unit:8>> = Body,
   #media_desc{type = audio,
               port = proplists:get_value(audio_port, Opts, 0),
-              payloads = [#payload{num = 97, codec = Codec, clock_map = rate2num(Rate),
+              payloads = [#payload{num = 96, codec = Codec, clock_map = rate2num(Rate),
                                    ptime = proplists:get_value(audio_ptime, Opts),
-                                   config = [iolist_to_binary(["streamtype=5;"
-                                                               "profile-level-id=15;"
+                                   config = [iolist_to_binary([
+                                                               %%"streamtype=5;"
+                                                               "profile-level-id=1;"
                                                                "mode=AAC-hbr;"
                                                                "config=",
                                                                erlang:integer_to_list(ConfigVal, 16) ++ ";",
                                                                "SizeLength=13;"
                                                                "IndexLength=3;"
                                                                "IndexDeltaLength=3;"
-                                                               "Profile=1;"])]}],
-              track_control = proplists:get_value(audio, Opts, "2")
+                                                               "Profile=1;"
+
+                                                               %% "profile-level-id=1;"
+                                                               %% "mode=AAC-hbr;"
+                                                               %% "sizelength=13;"
+                                                               %% "indexlength=3;"
+                                                               %% "indexdeltalength=3;"
+                                                               %% "config=", erlang:integer_to_list(ConfigVal, 16) ++ ";"
+                                                              ])]}],
+              track_control = proplists:get_value(audio, Opts, "1")
              };
 prep_media_config({audio,
                    #video_frame{content = audio,

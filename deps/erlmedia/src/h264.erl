@@ -5,7 +5,7 @@
 %%% @end
 %%%
 %%% This file is part of erlmedia.
-%%% 
+%%%
 %%% erlmedia is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -32,14 +32,14 @@
 
 -export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
--export([parse_sps/1, init/0]).
+-export([parse_sps/1, to_fmtp/1, init/0]).
 
 
 video_config(H264) ->
   case has_config(H264) of
     false -> undefined;
     true ->
-      #video_frame{       
+      #video_frame{
        	content = video,
        	flavor  = config,
     		dts     = 0,
@@ -53,33 +53,33 @@ metadata(Config) ->
   {_, [SPSBin, _]} = unpack_config(Config),
   #h264_sps{width = Width, height = Height} = parse_sps(SPSBin),
   [{width,Width},{height,Height}].
-  
+
 
 metadata_frame(Config) ->
-  #video_frame{       
+  #video_frame{
    	content = metadata,
 		dts     = 0,
 		pts     = 0,
 		body    = [<<"onMetaData">>, {object, metadata(Config)}]
 	}.
-  
-      
+
+
 %% Look at vlc/modules/demux/mp4/libmp4.c:1022
 %%
 unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, _Skip1:6, LengthSize:2, _Skip2:3, SPSCount:5, Rest/binary>>) ->
   {SPS, <<PPSCount, Rest1/binary>>} = parse_h264_config(Rest, SPSCount, []),
   {PPS, <<>>} = parse_h264_config(Rest1, PPSCount, SPS),
   {LengthSize + 1, lists:reverse(PPS)}.
-  
-  
+
+
 init() -> #h264{}.
-  
-  
+
+
 parse_h264_config(Rest, 0, List) -> {List, Rest};
-parse_h264_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) -> 
+parse_h264_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) ->
   parse_h264_config(Rest, Count - 1, [NAL|List]).
 
-  
+
 has_config(#h264{sps = SPS, pps = PPS}) when length(SPS) > 0 andalso length(PPS) > 0 -> true;
 has_config(_) -> false.
 
@@ -90,7 +90,7 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
   Version = 1,
   SPSBin = iolist_to_binary(SPS),
   PPSBin = iolist_to_binary(PPS),
-  <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2, 
+  <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2,
     2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
     (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
 
@@ -157,7 +157,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) -
 		flavor  = frame,
 		codec   = h264
   },
-  
+
   {H264, []};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{} = H264) ->
@@ -196,7 +196,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary
   {H264, [VideoFrame]};
 
 
-  
+
 decode_nal(<<0:1, _NRI:2, ?NAL_STAP_A:5, Rest/binary>>, H264) ->
   ?D("STAPA"),
   decode_stapa(Rest, [], H264);
@@ -244,14 +244,14 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_FILLER:5, _/binary>>, H264) ->
 decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>> = _NAL, H264) ->
   ?D({"Unknown NAL unit type", _NalUnitType, size(_NAL)}),
   {H264, []}.
-  
+
 decode_stapa(<<Size:16, NAL:Size/binary, Rest/binary>>, Frames, H264) ->
   {H264_1, NewFrames} = decode_nal(NAL, H264),
   decode_stapa(Rest, Frames ++ NewFrames, H264_1);
-  
+
 decode_stapa(<<>>, Frames, H264) ->
   {H264, Frames}.
-  
+
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
 
 
@@ -273,18 +273,18 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) -
   % ?D({"SPS ID", SPS_ID}),
   SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
   parse_sps_data(Rest1, SPS).
-  
-  
+
+
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
   ?D({"Pic order", PicOrder}),
   parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
-  
+
 parse_sps_pic_order(Data, 0, SPS) ->
   {_Log2PicOrder, Rest} = exp_golomb_read(Data),
   parse_sps_ref_frames(Rest, SPS);
-  
+
 parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
   {_OffsetNonRef, Rest1} = exp_golomb_read_s(Data),
   {_OffsetTopBottom, Rest2} = exp_golomb_read_s(Rest1),
@@ -294,7 +294,7 @@ parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
 
 parse_sps_pic_order(Data, 2, SPS) ->
   parse_sps_ref_frames(Data, SPS).
-  
+
 parse_sps_ref_frames(Data, SPS) ->
   {_NumRefFrames, <<_Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
   {PicWidth, Rest2} = exp_golomb_read(Rest1),
@@ -302,7 +302,7 @@ parse_sps_ref_frames(Data, SPS) ->
   {PicHeight, <<_FrameMbsOnly:1, _Rest3/bitstring>>} = exp_golomb_read(Rest2),
   Height = (PicHeight + 1)*16,
   SPS#h264_sps{width = Width, height = Height}.
-  
+
 
 profile_name(66) -> "Baseline";
 profile_name(77) -> "Main";
@@ -364,7 +364,7 @@ nal_unit_type(?NAL_FUB) -> fub.
 
 exp_golomb_read_list(Bin, List) ->
   exp_golomb_read_list(Bin, List, []).
-  
+
 exp_golomb_read_list(Bin, [], Results) -> {Results, Bin};
 exp_golomb_read_list(Bin, [Key | Keys], Results) ->
   {Value, Rest} = exp_golomb_read(Bin),
@@ -379,7 +379,7 @@ exp_golomb_read_s(Bin) ->
 
 exp_golomb_read(Bin) ->
   exp_golomb_read(Bin, 0).
-  
+
 exp_golomb_read(<<0:1, Rest/bitstring>>, LeadingZeros) ->
   exp_golomb_read(Rest, LeadingZeros + 1);
 
@@ -387,6 +387,29 @@ exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
   <<ReadBits:LeadingZeros, Rest/bitstring>> = Data,
   CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
   {CodeNum, Rest}.
+
+%% http://www.rfc-editor.org/rfc/rfc3984.txt
+to_fmtp(Body) ->
+  {_, [SPS, PPS]} = h264:unpack_config(Body),
+  {H264, _} = h264:decode_nal(SPS, #h264{}),
+  {RC, _} = h264:decode_nal(PPS, H264),
+  io:format("RC: ~p", [RC]),
+  PLI =
+    case RC of
+      #h264{profile = Profile,
+            level = Level}
+        when (is_integer(Profile) and is_integer(Level)) ->
+        io_lib:format("profile-level-id=~2.16.0B~2.16.0B~2.16.0B;", [Profile, 16#E0, Level]);
+      _ -> []
+    end,
+  PktMode = ?H264_PKT_NONINT,
+  [
+   "packetization-mode=", integer_to_list(PktMode),";",
+   PLI,
+   "sprop-parameter-sets=",
+   base64:encode(SPS), $,, base64:encode(PPS),
+   ";"
+  ].
 
 %%
 %% Tests
@@ -407,11 +430,11 @@ unpack_config_1_test() ->
   Result = [<<103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80>>, <<104,206,50,200>>],
   LengthSize = 2,
   ?assertEqual({LengthSize, Result}, unpack_config(Config)).
-  
+
 unpack_config_2_test() ->
   Config = <<1,77,64,30,255,224,0>>,
   ?assertEqual({4, []}, unpack_config(Config)).
-  
+
 unpack_config_3_test() ->
   Config = <<1,66,224,11,255,225,0,19,39,66,224,11,169,24,96,157,128,53,6,1,6,182,194,181,239,124,4,1,0,4,40,222,9,136>>,
   ?assertEqual({4,[<<39,66,224,11,169,24,96,157,128,53,6,1,6,182,194,181,239,124,4>>, <<40,222,9,136>>]}, unpack_config(Config)).
@@ -426,5 +449,5 @@ unpack_config_4_test() ->
 
 
 
-  
-  
+
+
