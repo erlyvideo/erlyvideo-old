@@ -66,7 +66,7 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
   StreamId = proplists:get_value(stream_id, Options),
-  ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
+  ClientBuffer = proplists:get_value(client_buffer, Options, 100),
   {Pos, DTS} = case proplists:get_value(start, Options) of
     undefined -> {undefined, undefined};
     {BeforeAfter, Start_} -> ems_media:seek_info(Media, BeforeAfter, Start_);
