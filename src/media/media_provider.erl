@@ -166,7 +166,12 @@ register(Host, Name, Pid, Options) ->
   gen_server:call(name(Host), {register, Name, Pid, Options}).
 
 entries(Host) ->
-  gen_server:call(name(Host), entries).
+  Entries = gen_server:call(name(Host), entries),
+  
+  Info1 = [{Name, Pid, (catch ems_media:status(Pid))} || {Name,Pid} <- Entries],
+  Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
+  Info.
+  
   
 remove(Host, Name) ->
   gen_server:cast(name(Host), {remove, Name}).
@@ -265,8 +270,7 @@ handle_call(host, _From, #media_provider{host = Host} = MediaProvider) ->
   {reply, Host, MediaProvider};
 
 handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Info1 = [{Name, Pid, (catch ems_media:status(Pid))} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
-  Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
+  Info = [{Name, Pid} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
   {reply, Info, MediaProvider};
 
 handle_call(Request, _From, State) ->

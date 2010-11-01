@@ -76,6 +76,9 @@
 
 -export([behaviour_info/1]).
 
+
+-include("../meta_access.hrl").
+
 %%-------------------------------------------------------------------------
 %% @spec (Callbacks::atom()) -> CallBackList::list()
 %% @doc  List of require functions in a video file reader
@@ -990,22 +993,6 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 
-get(#ems_media{} = Media, Key) -> 
-  element(index(Key, record_info(fields, ems_media)) + 1, Media).
-  
-
-set(#ems_media{} = Media, Key, Value) ->
-  Pos = index(Key, record_info(fields, ems_media)) + 1,
-  setelement(Pos, Media, Value).
-
-index(Element, List) -> index(Element, List, 1).
-index(Element, [Element|_], N) -> N;
-index(Element, [_|List], N) -> index(Element, List, N+1);
-index(_, [], _) -> undefined.
-
-
-set(#ems_media{} = Media, Options) ->
-  lists:foldl(fun({K,V}, M) -> set(M, K, V) end, Media, Options).
 
 %
 %  Tests
