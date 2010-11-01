@@ -384,8 +384,7 @@ prep_media_config({audio,
                                 flavor = config,
                                 codec = aac = Codec,
                                 sound = {_Channs, _Size, Rate},
-                                body = Body}}, Opts) ->
-  <<ConfigVal:2/big-integer-unit:8>> = Body,
+                                body = <<ConfigVal:2/big-integer-unit:8>>}}, Opts) ->
   #media_desc{type = audio,
               port = proplists:get_value(audio_port, Opts, 0),
               payloads = [#payload{num = 96, codec = Codec, clock_map = rate2num(Rate),
@@ -422,7 +421,7 @@ prep_media_config({audio,
                                    clock_map = rate2num(Rate), ms = mono,
                                    config = ["vbr=vad"]}],
               track_control = undefined};
-prep_media_config(_, _) ->
+prep_media_config({data, _}, _) ->
   undefined.
 
 
