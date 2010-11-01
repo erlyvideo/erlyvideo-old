@@ -561,7 +561,7 @@ activate_socket(Socket) when is_pid(Socket) ->
 send_data(#rtmp_socket{sent_audio_notify = false} = Socket, 
           #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId, body = Body} = Message) when size(Body) > 0 ->
   State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)),
-  send_data(State1, Message);
+  send_data(State1, Message#rtmp_message{ts_type = new});
 
 send_data(#rtmp_socket{sent_video_notify = false} = Socket, #rtmp_message{type = video, timestamp = DTS, stream_id = StreamId} = Message) ->
   Msg = [
