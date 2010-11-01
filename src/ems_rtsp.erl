@@ -38,7 +38,7 @@ start() ->
       rtsp:start_server(RTSP, rtsp_listener1, ems_rtsp),
       ok
   end.
-  
+
 
 stop() ->
   application:stop(rtsp),
@@ -95,7 +95,7 @@ play(URL, Headers, _Body) ->
   ?D({"PLAY", Host, Path, Headers}),
   % {Module, Function} = ems:check_app(Host, auth, 3),
   ems_log:access(Host, "RTSP PLAY ~s ~s", [Host, Path]),
-  {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}]),
+  {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}, {client_buffer,100}]),
   ems_network_lag_monitor:watch(self()),
   {ok, Media}.
 
