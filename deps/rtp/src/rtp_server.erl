@@ -716,7 +716,7 @@ audio(#audio{media = _Media, audio_data = AudioData, codec = aac} = Audio, {data
   unpack_aac_units(Audio#audio{audio_data = <<AudioData/binary, Bin/binary>>}, []);
 
 audio(#audio{codec = Codec, clock_map = Clock} = Audio, {data, Bin, _Sequence, Timestamp}) when Codec == pcma orelse Codec == pcmu orelse Codec == g726_16 ->
-  DTS = convert_timecode(Audio#audio{timecode = Timestamp}),
+  DTS = timecode_to_dts(Audio#audio{timecode = Timestamp}),
   % ?D({"Audio", Codec, Clock, size(Bin), DTS}),
   Frame = #video_frame{
     content = audio,
