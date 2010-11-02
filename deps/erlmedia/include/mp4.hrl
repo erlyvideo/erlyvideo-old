@@ -1,3 +1,10 @@
+-record(frame_id, {
+  id,
+  a,
+  v,
+  t
+}).
+
 -record(mp4_media, {
   file,
   file_type,

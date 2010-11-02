@@ -117,9 +117,9 @@ first(#mp4_media{} = Media, Id, DTS) when is_number(Id) ->
   Audio = track_for_language(Media, undefined),
   Video = track_for_bitrate(Media, undefined),
   % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
-  first(Media, {Id,Audio,Video}, DTS);
+  first(Media, #frame_id{id = Id, a = Audio, v = Video}, DTS);
 
-first(#mp4_media{tracks = Tracks}, {_Id,Audio,Video} = Id, DTS) ->
+first(#mp4_media{tracks = Tracks}, #frame_id{a = Audio,v = Video} = Id, DTS) ->
   AudioConfig = (element(Audio,Tracks))#mp4_track.decoder_config,
   VideoConfig = (element(Video,Tracks))#mp4_track.decoder_config,
 
@@ -160,7 +160,7 @@ codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) ->
 read_frame(MediaInfo, undefined) ->
   read_frame(MediaInfo, first(MediaInfo));
 
-read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, {_Id,Audio,Video} = Pos, DTS}) ->
+read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Audio,v = Video} = Pos, DTS}) ->
   Frame = codec_config({audio,Audio}, Media),
   Next = case (element(Video,Tracks))#mp4_track.decoder_config of
     undefined -> Pos;
@@ -169,7 +169,7 @@ read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, {_Id,Audio,Video}
   % ?D({audio,Audio,Frame}),
   Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
 
-read_frame(MediaInfo, {video_config, {_Id,_Audio,Video} = Pos, DTS}) ->
+read_frame(MediaInfo, {video_config, #frame_id{v = Video} = Pos, DTS}) ->
   Frame = codec_config({video,Video}, MediaInfo),
   % ?D({video,Video,Frame}),
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
@@ -238,7 +238,7 @@ seek(#mp4_media{} = Media, before, Timestamp) ->
   Audio = track_for_language(Media, undefined),
   ?D({"Seek", Timestamp}),
   case mp4:seek(Media, Video, Timestamp) of
-    {Id, DTS} -> {{audio_config, {Id,Audio,Video}, DTS}, DTS};
+    {Id, DTS} -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video}, DTS}, DTS};
     undefined -> undefined
   end.
 
