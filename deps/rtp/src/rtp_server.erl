@@ -661,18 +661,8 @@ timecode_to_dts(State) ->
 
 
 dts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
-
   NewTC = round((DTS - BaseDTS)*ClockMap) + BaseTimecode,
-
-  % ?D({"<-", DTS, BaseDTS, ClockMap, BaseTimecode, NewTC}),
-
-  % State1 = setelement(#base_rtp.timecode, State, NewTC),
-  % State2 = setelement(#base_rtp.wall_clock, State1, round(DTS)),
-  %
-  % State3 = setelement(#base_rtp.base_timecode, State2, Timecode),
-  % State4 = setelement(#base_rtp.base_wall_clock, State3, round(DTS)),
-
-  State#base_rtp{timecode = NewTC, wall_clock = round(DTS), last_sr = get_date()}.
+  State#base_rtp{timecode = NewTC, wall_clock = round(DTS)}.
 
 
 %%
@@ -934,8 +924,7 @@ compose_rtp(Base, <<>>, _, Acc, _) -> % Return new Sequence ID and list of RTP-b
 compose_rtp(#base_rtp{sequence = Sequence, marker = _Marker,
                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal)
   when (is_integer(Size) andalso (size(Data) > Size)) ->
-  HalfSize = round(size(Data)/2),
-  <<P:HalfSize/binary,Rest/binary>> = Data,
+  <<P:Size/binary,Rest/binary>> = Data,
   Start = if Acc == [] -> 1; true -> 0 end,
   End = 0,
   {PFrag, NewNal} = fragment_nal(P, Nal, Start, End),
@@ -1027,25 +1016,17 @@ encode(sender_report, #base_rtp{stream_id = StreamId,
                                 base_timecode = _BaseTimecode,
                                 wall_clock = WallClock,
                                 base_wall_clock = _BaseWallClock,
-                                last_sr = {MSW, LSW},
+                                last_sr = {AddMSW, AddLSW}, % Get offset from 1900
                                 packets = SPC,
                                 bytes = SOC} = State) ->
   Count = 0,
-  %%MSW = ((WallClock div 1000) + ?YEARS_70) band 16#FFFFFFFF,
-  %%LSW = (WallClock rem 1000)*1000*1000,
-  %%{MSW, LSW} = get_date(),
-
-  %%NTP = round((WallClock / 1000 + ?YEARS_70)*16#100000000),
-  ?D({sr, StreamId,Timecode,WallClock,SPC,SOC}),
-
+  MSW = ((WallClock div 1000) + ?YEARS_70 + AddMSW) band 16#FFFFFFFF,
+  LSW = ((WallClock rem 1000) + AddLSW)*1000*1000,
+  %%?D({sr, StreamId,Timecode,WallClock,SPC,SOC}),
   Packet = <<StreamId:32, MSW:32, LSW:32, Timecode:32, SPC:32, SOC:32>>,
-  %%Packet = <<StreamId:32, NTP:64, Timecode:32, SPC:32, SOC:32>>,
   Length = trunc(size(Packet)/4),
   Header = <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16>>,
   {State, <<Header/binary,Packet/binary>>};
-
-
-
 
 encode(source_description, #base_rtp{stream_id = StreamId} = State) ->
 
