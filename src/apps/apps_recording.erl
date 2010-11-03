@@ -45,7 +45,6 @@
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   ?D({"FCunpublish", Name}),
   % apps_streaming:stop(State, AMF).
-  % rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, undefined]}),
   State.
 
 

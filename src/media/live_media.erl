@@ -66,7 +66,7 @@ init(Media, Options) ->
     record ->
       URL = proplists:get_value(url, Options),
       Host = proplists:get_value(host, Options),
-    	FileName = filename:join([file_media:file_dir(Host), binary_to_list(URL)]),
+    	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
       {ok, Writer} = flv_writer:start_link(FileName),

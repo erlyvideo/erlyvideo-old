@@ -56,6 +56,11 @@
 -export([reply/2, fail/2]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 -export([get_socket/1]).
+-export([get/2, set/3, set/2]).
+
+
+-include("../meta_access.hrl").
+
 
 %%-------------------------------------------------------------------------
 %% @spec create_client(Socket)  -> {ok, Pid}
@@ -170,6 +175,8 @@ send(Session, Message) ->
   % end,
   Session ! Message.
   
+
+
 
 
 %%-------------------------------------------------------------------------
@@ -375,8 +382,8 @@ handle_event(Event, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_sync_event(info, _From, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
-  {reply, session_stats(State), 'WAIT_FOR_DATA', State};
+handle_sync_event(info, _From, StateName, #rtmp_session{} = State) ->
+  {reply, session_stats(State), StateName, State};
 
 handle_sync_event(Event, _From, StateName, StateData) ->
   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),

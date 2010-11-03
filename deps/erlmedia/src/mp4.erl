@@ -423,7 +423,7 @@ config_from_esds_tag(Data, ESDS) ->
         object_type = mp4_object_type(ObjectType), stream_type = StreamType, buffer_size = BufferSize,
         max_bitrate = MaxBitrate, avg_bitrate = AvgBitrate}),
       config_from_esds_tag(Rest2, ESDS1);
-    {?MP4DecSpecificDescrTag, Config, _} ->
+    {?MP4DecSpecificDescrTag, <<Config:2/binary, _/binary>>, _} ->
       ESDS#esds{specific = Config};
     {?MP4Unknown6Tag, _Body, Rest} ->
       config_from_esds_tag(Rest, ESDS);

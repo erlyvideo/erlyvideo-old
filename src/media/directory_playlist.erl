@@ -117,8 +117,8 @@ handle_frame(Frame, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_info(read_playlist, #ems_media{state = #playlist{host = Host, wildcard = Wildcard, path = Path} = State} = Media) ->
-  AbsPath = filename:join([file_media:file_dir(Host), Path]),
-  Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
+  AbsPath = ems:pathjoin(file_media:file_dir(Host), Path),
+  Files = [ems:pathjoin(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
   ?D({AbsPath, Wildcard, Files}),
   
   self() ! start_playing,
@@ -145,8 +145,8 @@ handle_info(_Message, State) ->
   {noreply, State}.
 
 next_file(#ems_media{state = #playlist{host = Host, wildcard = Wildcard, path = Path, files = []} = State} = Media) ->
-  AbsPath = filename:join([file_media:file_dir(Host), Path]),
-  Files = [filename:join(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
+  AbsPath = ems:pathjoin(file_media:file_dir(Host), Path),
+  Files = [ems:pathjoin(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
   next_file(Media#ems_media{state = State#playlist{files = Files}});
 
 next_file(#ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
