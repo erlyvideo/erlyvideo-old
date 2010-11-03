@@ -88,6 +88,14 @@ releaseStream(State, _AMF) ->
 %%-------------------------------------------------------------------------
 %% @private
 %%-------------------------------------------------------------------------
+
+closeStream(#rtmp_session{} = State, #rtmp_funcall{} = AMF) -> 
+  deleteStream(State, AMF).
+
+
+%%-------------------------------------------------------------------------
+%% @private
+%%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player} when is_pid(Player) -> 
@@ -268,21 +276,6 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
     _ -> State
   end.
 
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
-
-closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
-  case rtmp_session:get_stream(StreamId, State) of
-    undefined -> 
-      State;
-    #rtmp_stream{pid = Player} when is_pid(Player) ->
-      ems_media:stop(Player),
-      rtmp_session:flush_stream(StreamId),
-      rtmp_session:delete_stream(StreamId, State);
-    _ ->
-      rtmp_session:delete_stream(StreamId, State)
-  end.
 
 % Required for latest flash players like (http://www.longtailvideo.com/players/jw-flv-player/)
 % http://www.adobe.com/devnet/flashmediaserver/articles/dynamic_stream_switching_04.html
