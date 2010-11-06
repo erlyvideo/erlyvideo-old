@@ -26,7 +26,7 @@
 -include("../include/srt.hrl").
 
 %% External API
--export([parse/1, test_srt/0]).
+-export([parse/1, good_srt_1/0, good_srt_2/0]).
 
 
 %%----------------------------------------------------------------------
@@ -72,7 +72,7 @@ binary_to_integer(Bin) ->
 
 -include_lib("eunit/include/eunit.hrl").
 
-test_srt() ->
+good_srt_1() ->
   <<"2
 00:00:05,600 --> 00:00:10,200
 -==http://www.ragbear.com==-
@@ -87,8 +87,57 @@ Season 1 Episode 01</i>
 00:00:22,100 --> 00:00:23,800
 <i>HEY, UPPER EAST SIDERS,</i>">>.
 
+good_srt_1_test() ->
+  ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
+	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
+      #srt_subtitle{id = 3, from = 10200, to = 16200, 
+	    text = <<"<i>Gossip Girl\nSeason 1 Episode 01</i>">>}],
+      <<"4\n00:00:22,100 --> 00:00:23,800\n<i>HEY, UPPER EAST SIDERS,</i>">>}, 
+	parse(good_srt_1())).
 
-parse_good_test() ->
-  ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, text = <<"-==http://www.ragbear.com==-\nPresent...">>},
-                     #srt_subtitle{id = 3, from = 10200, to = 16200, text = <<"<i>Gossip Girl\nSeason 1 Episode 01</i>">>}],
-                     <<"4\n00:00:22,100 --> 00:00:23,800\n<i>HEY, UPPER EAST SIDERS,</i>">>}, parse(test_srt())).
+good_srt_2() ->
+  list_to_binary([good_srt_1(), <<"\n\n">>]).
+
+good_srt_2_test() ->
+  ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
+	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
+      #srt_subtitle{id = 3, from = 10200, to = 16200, 
+	    text = <<"<i>Gossip Girl\nSeason 1 Episode 01</i>">>},
+      #srt_subtitle{id = 4, from = 22100, to = 23800, 
+	    text = <<"<i>HEY, UPPER EAST SIDERS,</i>">>}],
+      <<"">>}, 
+	parse(good_srt_2())).
+
+%invalid id
+bad_srt_1() -> 
+  <<"XX
+00:00:10,200 --> 00:00:16,200
+<i>Gossip Girl
+Season 1 Episode 01</i>
+
+">>.
+
+%invalid time
+bad_srt_2() -> 
+  <<"3
+XX:XX:XX,XXX --> XX:XX:XX,XXX
+<i>Gossip Girl
+Season 1 Episode 01</i>
+
+">>.
+
+%invalid separator between from and to time
+bad_srt_3() -> 
+  <<"3
+00:00:10,200 -- 00:00:16,200
+<i>Gossip Girl
+Season 1 Episode 01</i>
+
+">>.
+
+%text is absent
+bad_srt_4() -> 
+  <<"3
+00:00:10,200 --> 00:00:16,200
+
+">>.
