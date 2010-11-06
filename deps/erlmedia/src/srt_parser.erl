@@ -26,7 +26,7 @@
 -include("../include/srt.hrl").
 
 %% External API
--export([parse/1, good_srt_1/0, good_srt_2/0]).
+-export([parse/1]).
 
 
 %%----------------------------------------------------------------------
@@ -38,7 +38,10 @@
 %%----------------------------------------------------------------------
 
 parse(SRT) when is_binary(SRT) ->
-  process_srts(re:split(SRT, "\n\s*\n"), []).
+  try process_srts(re:split(SRT, "\n\s*\n"), [])
+  catch
+    {parse_error, Srt} -> {error, {parse_error, Srt}}
+  end.
 
 process_srts(Items, Result) -> 
   case Items of
@@ -47,14 +50,32 @@ process_srts(Items, Result) ->
   end.
 
 srt_to_record(Srt) -> 
-  [IdBin|[TimeBin|[Text|_]]] = re:split(Srt, "\n", [{parts,3}]),
-  [FromBin|[ToBin|_]] = re:split(TimeBin, " --> "),
-  #srt_subtitle{
-	id = binary_to_integer(IdBin), 
-	from = parse_time(FromBin), 
-	to = parse_time(ToBin), 
-	text = Text
-  }.
+  try
+    {IdBin, TimeBin, Text} = get_fields(Srt),
+    {FromBin, ToBin} = get_times(TimeBin),
+    #srt_subtitle{
+      id = binary_to_integer(IdBin), 
+      from = parse_time(FromBin), 
+      to = parse_time(ToBin), 
+      text = Text
+    }
+  catch
+    cant_parse_srt -> throw({parse_error, Srt});
+    cant_parse_time -> throw({parse_error, Srt});
+    cant_convert_to_int -> throw({parse_error, Srt})
+  end.
+
+get_fields(Srt) ->
+  case re:split(Srt, "\n", [{parts,3}]) of
+    [IdBin|[TimeBin|[Text|_]]] -> {IdBin, TimeBin, Text};
+	_ -> throw(cant_parse_srt)
+  end.
+
+get_times(TimeBin) ->
+  case re:split(TimeBin, " --> ") of
+    [FromBin|[ToBin|_]] -> {FromBin, ToBin};
+	_ -> throw(cant_parse_time)
+  end.
 
 parse_time(Time) ->
   [HBin|[MBin|[SBin|[MSBin|_]]]] = re:split(Time, ":|,"),
@@ -65,8 +86,10 @@ parse_time(Time) ->
   H * 3600000 + M * 60000 + S * 1000 + MS.
 
 binary_to_integer(Bin) ->
-  {Int,_} = string:to_integer(binary_to_list(Bin)),
-  Int.
+  case string:to_integer(binary_to_list(Bin)) of
+    {error, _} -> throw(cant_convert_to_int);
+    {Int,_} -> Int
+  end.
 
 
 
@@ -110,34 +133,75 @@ good_srt_2_test() ->
 
 %invalid id
 bad_srt_1() -> 
-  <<"XX
+  <<"2
+00:00:05,600 --> 00:00:10,200
+-==http://www.ragbear.com==-
+Present...
+
+XX
 00:00:10,200 --> 00:00:16,200
 <i>Gossip Girl
 Season 1 Episode 01</i>
 
 ">>.
 
+bad_srt_1_test() ->
+  ?assertEqual({error, {parse_error, 
+    <<"XX\n00:00:10,200 --> 00:00:16,200\n<i>Gossip Girl\nSeason 1 Episode 01</i>">>}}, 
+	parse(bad_srt_1())).
+
 %invalid time
 bad_srt_2() -> 
-  <<"3
+  <<"2
+00:00:05,600 --> 00:00:10,200
+-==http://www.ragbear.com==-
+Present...
+
+3
 XX:XX:XX,XXX --> XX:XX:XX,XXX
 <i>Gossip Girl
 Season 1 Episode 01</i>
 
 ">>.
 
-%invalid separator between from and to time
+bad_srt_2_test() ->
+  ?assertEqual({error, {parse_error, 
+    <<"3\nXX:XX:XX,XXX --> XX:XX:XX,XXX\n<i>Gossip Girl\nSeason 1 Episode 01</i>">>}}, 
+	parse(bad_srt_2())).
+
+%invalid separator between "from" and "to" time
 bad_srt_3() -> 
-  <<"3
+  <<"2
+00:00:05,600 --> 00:00:10,200
+-==http://www.ragbear.com==-
+Present...
+
+3
 00:00:10,200 -- 00:00:16,200
 <i>Gossip Girl
 Season 1 Episode 01</i>
 
 ">>.
 
+bad_srt_3_test() ->
+  ?assertEqual({error, {parse_error, 
+    <<"3\n00:00:10,200 -- 00:00:16,200\n<i>Gossip Girl\nSeason 1 Episode 01</i>">>}}, 
+	parse(bad_srt_3())).
+
 %text is absent
 bad_srt_4() -> 
-  <<"3
+  <<"2
+00:00:05,600 --> 00:00:10,200
+-==http://www.ragbear.com==-
+Present...
+
+3
 00:00:10,200 --> 00:00:16,200
 
 ">>.
+
+bad_srt_4_test() ->
+  ?assertEqual({error, {parse_error, 
+    <<"3\n00:00:10,200 --> 00:00:16,200">>}}, 
+	parse(bad_srt_4())).
+
