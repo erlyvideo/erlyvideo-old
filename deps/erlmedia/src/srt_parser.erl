@@ -26,7 +26,7 @@
 -include("../include/srt.hrl").
 
 %% External API
--export([parse/1]).
+-export([parse/1, test_srt/0]).
 
 
 %%----------------------------------------------------------------------
@@ -38,28 +38,36 @@
 %%----------------------------------------------------------------------
 
 parse(SRT) when is_binary(SRT) ->
-  parse_srt(SRT, []).
+  process_srts(re:split(SRT, "\n\s*\n"), []).
 
-parse_srt(SRT, Entries) ->
-  case parse_subtitle(SRT) of
-    more ->
-      {ok, lists:reverse(Entries), SRT};
-    {Entry, Rest} ->
-      parse_srt(Rest, [Entry|Entries])
+process_srts(Items, Result) -> 
+  case Items of
+    [More|[]] -> {ok, lists:reverse(Result), More};
+	[Item|Rest] -> process_srts(Rest, [srt_to_record(Item)|Result])
   end.
 
-parse_subtitle(SRT) ->
-  parse_subtitle(SRT, id).
-  
-parse_subtitle(SRT, _State) ->
-  
-  case erlang:decode_packet(line, SRT, []) of
-    {ok, Line, Rest} ->
-      do_something_with_line;
-    {more, undefined} ->
-      {more, SRT}
-  end.  
-      
+srt_to_record(Srt) -> 
+  [IdBin|[TimeBin|[Text|_]]] = re:split(Srt, "\n", [{parts,3}]),
+  [FromBin|[ToBin|_]] = re:split(TimeBin, " --> "),
+  #srt_subtitle{
+	id = binary_to_integer(IdBin), 
+	from = parse_time(FromBin), 
+	to = parse_time(ToBin), 
+	text = Text
+  }.
+
+parse_time(Time) ->
+  [HBin|[MBin|[SBin|[MSBin|_]]]] = re:split(Time, ":|,"),
+  H = binary_to_integer(HBin),
+  M = binary_to_integer(MBin),
+  S = binary_to_integer(SBin),
+  MS = binary_to_integer(MSBin),
+  H * 3600000 + M * 60000 + S * 1000 + MS.
+
+binary_to_integer(Bin) ->
+  {Int,_} = string:to_integer(binary_to_list(Bin)),
+  Int.
+
 
 
 -include_lib("eunit/include/eunit.hrl").
