@@ -91,11 +91,12 @@ binary_to_integer(Bin) ->
 
 good_srt_1() ->
   <<"2
-00:00:05,600 --> 00:00:10,200\r-==http://www.ragbear.com==-
-Present...
-
+00:00:05,600 --> 00:00:10,200\r
+-==http://www.ragbear.com==-\r
+Present...\r
+\r
 3\r
-00:00:10,200 --> 00:00:16,200
+00:00:10,200 --> 00:00:16,200\r
 <i>Gossip Girl\r
 Season 1 Episode 01</i>
 
@@ -105,7 +106,7 @@ Season 1 Episode 01</i>
 
 good_srt_1_test() ->
   ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
-	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
+	    text = <<"-==http://www.ragbear.com==-\r\nPresent...">>},
       #srt_subtitle{id = 3, from = 10200, to = 16200, 
 	    text = <<"<i>Gossip Girl\r\nSeason 1 Episode 01</i>">>}],
       <<"4\n00:00:22,100 --> 00:00:23,800\n<i>HEY, UPPER EAST SIDERS,</i>">>}, 
@@ -116,7 +117,7 @@ good_srt_2() ->
 
 good_srt_2_test() ->
   ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
-	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
+	    text = <<"-==http://www.ragbear.com==-\r\nPresent...">>},
       #srt_subtitle{id = 3, from = 10200, to = 16200, 
 	    text = <<"<i>Gossip Girl\r\nSeason 1 Episode 01</i>">>},
       #srt_subtitle{id = 4, from = 22100, to = 23800, 
