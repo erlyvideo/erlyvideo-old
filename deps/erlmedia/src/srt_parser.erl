@@ -97,13 +97,13 @@ binary_to_integer(Bin) ->
 
 good_srt_1() ->
   <<"2
-00:00:05,600 --> 00:00:10,200
--==http://www.ragbear.com==-
-Present...
-
-3
-00:00:10,200 --> 00:00:16,200
-<i>Gossip Girl
+00:00:05,600 --> 00:00:10,200\r
+-==http://www.ragbear.com==-\r
+Present...\r
+\r
+3\r
+00:00:10,200 --> 00:00:16,200\r
+<i>Gossip Girl\r
 Season 1 Episode 01</i>
 
 4
