@@ -26,7 +26,10 @@
 -include("../include/srt.hrl").
 
 %% External API
--export([parse/1]).
+-export([parse/1, good_srt_1/0]).
+
+-define(NewLine, "\r\n|\r|\n").
+-define(EmptyLine, "\r\n\s*\r\n|\r\s*\r|\n\s*\n").
 
 
 %%----------------------------------------------------------------------
@@ -38,7 +41,7 @@
 %%----------------------------------------------------------------------
 
 parse(SRT) when is_binary(SRT) ->
-  try process_srts(re:split(SRT, "\n\s*\n"), [])
+  try process_srts(re:split(SRT, ?EmptyLine), [])
   catch
     {parse_error, Srt} -> {error, {parse_error, Srt}}
   end.
@@ -66,7 +69,7 @@ srt_to_record(Srt) ->
   end.
 
 get_fields(Srt) ->
-  case re:split(Srt, "\n", [{parts,3}]) of
+  case re:split(Srt, ?NewLine, [{parts,3}]) of
     [IdBin|[TimeBin|[Text|_]]] -> {IdBin, TimeBin, Text};
 	_ -> throw(cant_parse_srt)
   end.
@@ -97,13 +100,12 @@ binary_to_integer(Bin) ->
 
 good_srt_1() ->
   <<"2
-00:00:05,600 --> 00:00:10,200
--==http://www.ragbear.com==-
+00:00:05,600 --> 00:00:10,200\r-==http://www.ragbear.com==-
 Present...
 
-3
+3\r
 00:00:10,200 --> 00:00:16,200
-<i>Gossip Girl
+<i>Gossip Girl\r
 Season 1 Episode 01</i>
 
 4
@@ -114,7 +116,7 @@ good_srt_1_test() ->
   ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
 	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
       #srt_subtitle{id = 3, from = 10200, to = 16200, 
-	    text = <<"<i>Gossip Girl\nSeason 1 Episode 01</i>">>}],
+	    text = <<"<i>Gossip Girl\r\nSeason 1 Episode 01</i>">>}],
       <<"4\n00:00:22,100 --> 00:00:23,800\n<i>HEY, UPPER EAST SIDERS,</i>">>}, 
 	parse(good_srt_1())).
 
@@ -125,7 +127,7 @@ good_srt_2_test() ->
   ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
 	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
       #srt_subtitle{id = 3, from = 10200, to = 16200, 
-	    text = <<"<i>Gossip Girl\nSeason 1 Episode 01</i>">>},
+	    text = <<"<i>Gossip Girl\r\nSeason 1 Episode 01</i>">>},
       #srt_subtitle{id = 4, from = 22100, to = 23800, 
 	    text = <<"<i>HEY, UPPER EAST SIDERS,</i>">>}],
       <<"">>}, 
