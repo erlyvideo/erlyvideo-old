@@ -26,7 +26,7 @@
 -include("../include/srt.hrl").
 
 %% External API
--export([parse/1, good_srt_1/0]).
+-export([parse/1]).
 
 -define(NewLine, "\r\n|\r|\n").
 -define(EmptyLine, "\r\n\s*\r\n|\r\s*\r|\n\s*\n").
@@ -63,22 +63,16 @@ srt_to_record(Srt) ->
       text = Text
     }
   catch
-    cant_parse_srt -> throw({parse_error, Srt});
-    cant_parse_time -> throw({parse_error, Srt});
-    cant_convert_to_int -> throw({parse_error, Srt})
+    _:_ -> throw({parse_error, Srt})
   end.
 
 get_fields(Srt) ->
-  case re:split(Srt, ?NewLine, [{parts,3}]) of
-    [IdBin|[TimeBin|[Text|_]]] -> {IdBin, TimeBin, Text};
-	_ -> throw(cant_parse_srt)
-  end.
+  [IdBin|[TimeBin|[Text|_]]] = re:split(Srt, ?NewLine, [{parts,3}]),
+  {IdBin, TimeBin, Text}.
 
 get_times(TimeBin) ->
-  case re:split(TimeBin, " --> ") of
-    [FromBin|[ToBin|_]] -> {FromBin, ToBin};
-	_ -> throw(cant_parse_time)
-  end.
+  [FromBin|[ToBin|_]] = re:split(TimeBin, " --> "),
+  {FromBin, ToBin}.
 
 parse_time(Time) ->
   [HBin|[MBin|[SBin|[MSBin|_]]]] = re:split(Time, ":|,"),
@@ -89,10 +83,7 @@ parse_time(Time) ->
   H * 3600000 + M * 60000 + S * 1000 + MS.
 
 binary_to_integer(Bin) ->
-  case string:to_integer(binary_to_list(Bin)) of
-    {error, _} -> throw(cant_convert_to_int);
-    {Int,_} -> Int
-  end.
+  list_to_integer(binary_to_list(Bin)).
 
 
 
