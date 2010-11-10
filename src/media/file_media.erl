@@ -24,6 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
 -include("../../include/ems_media.hrl").
+-include_lib("kernel/include/file.hrl").
 -include("../log.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
@@ -69,7 +70,14 @@ open_file(Access, Path, Options) ->
 	  undefined ->
 	    {error, notfound};
   	Format ->
-    	{ok, Storage} = Format:init({Access,File}, Options),
+    	InitOptions = case erlang:function_exported(Access, read_file_info, 1) of
+    	  true -> 
+    	    {ok, #file_info{size = Size, atime = Atime, mtime = Mtime, ctime = Ctime}} = Access:read_file_info(Path),
+    	    [{size,Size},{atime,Atime},{mtime,Mtime},{ctime,Ctime}|Options];
+    	  false ->
+    	    Options
+    	end,
+    	{ok, Storage} = Format:init({Access,File}, InitOptions),
     	{Format, Storage}
   end.
 

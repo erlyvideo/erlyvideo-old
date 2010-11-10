@@ -1,3 +1,9 @@
+erlyvideo (2.4.16) unstable; urgency=low
+
+  speedup measures
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 03 Nov 2010 11:46:01 +0300
+
 erlyvideo (2.4.15) unstable; urgency=low
 
   vulnerability in playing video
