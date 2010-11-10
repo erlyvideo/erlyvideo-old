@@ -227,13 +227,14 @@ video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
 
 
 
-seek(#mp4_media{} = Media, before, Timestamp) when Timestamp =< 0 ->
+seek(#mp4_media{} = Media, Timestamp, Options) when Timestamp =< 0 ->
   {first(Media), 0};
 
-seek(#mp4_media{duration = Duration}, _, Timestamp) when Timestamp > Duration ->
+seek(#mp4_media{duration = Duration}, Timestamp, Options) when Timestamp > Duration ->
   undefined;
 
-seek(#mp4_media{} = Media, before, Timestamp) ->
+seek(#mp4_media{} = Media, Timestamp, Options) ->
+  % TODO: insert here ability to seek in options
   Video = track_for_bitrate(Media, undefined),
   Audio = track_for_language(Media, undefined),
   ?D({"Seek", Timestamp}),

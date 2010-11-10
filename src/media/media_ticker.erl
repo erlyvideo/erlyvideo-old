@@ -72,8 +72,7 @@ init(Media, Consumer, Options) ->
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
   {Pos, DTS} = case proplists:get_value(start, Options) of
     undefined -> {undefined, undefined};
-    {BeforeAfter, Start_} -> ems_media:seek_info(Media, BeforeAfter, Start_);
-    Start_ -> ems_media:seek_info(Media, before, Start_)
+    Start_ -> ems_media:seek_info(Media, Start_, Options)
   end,
   Start = case proplists:get_value(start, Options, 0) of
     {_, S} -> S;

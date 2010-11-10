@@ -180,14 +180,14 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   insert_keyframes(MediaInfo, Offsets, Times).
 
 
-seek(#media_info{} = Media, _BeforeAfter, TS) when TS == 0 ->
+seek(#media_info{} = Media, TS, _Options) when TS == 0 ->
   {{audio_config, first(Media), 0}, 0};
 
-seek(#media_info{frames = undefined} = Media, BeforeAfter, Timestamp) ->
+seek(#media_info{frames = undefined} = Media, Timestamp, _Options) ->
   erlang:error(flv_file_should_have_frame_table),
-  find_frame_in_file(Media, BeforeAfter, Timestamp, 0, first(Media), first(Media));
+  find_frame_in_file(Media, Timestamp, 0, first(Media), first(Media));
 
-seek(#media_info{frames = FrameTable}, before, Timestamp) ->
+seek(#media_info{frames = FrameTable}, Timestamp, _Options) ->
   TimestampInt = round(Timestamp),
   Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Offset, FrameTimestamp}
@@ -198,44 +198,22 @@ seek(#media_info{frames = FrameTable}, before, Timestamp) ->
   case lists:reverse(Ids) of
     [{Offset, DTS} | _] -> {{audio_config,Offset,DTS}, DTS};
     _ -> undefined
-  end;
-
-seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
-  TimestampInt = round(Timestamp),
-  Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp >= TimestampInt ->
-    {Offset, FrameTimestamp}
-  end)),
-
-  case Ids of
-    [Item | _] -> Item;
-    _ -> undefined
   end.
 
-find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Offset) ->
+find_frame_in_file(Media, Timestamp, PrevTS, PrevOffset, Offset) ->
   case read_frame(Media, Offset) of
     #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
       {{audio_config, PrevOffset, PrevTS}, PrevTS};
     #video_frame{flavor = keyframe, dts = DTS, next_id = Next} -> 
-      find_frame_in_file(Media, before, Timestamp, DTS, Offset, Next);
+      find_frame_in_file(Media, Timestamp, DTS, Offset, Next);
     #video_frame{next_id = Next} ->
-      find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Next);
+      find_frame_in_file(Media, Timestamp, PrevTS, PrevOffset, Next);
     eof when PrevTS == undefined -> 
       undefined;
     eof ->  
       {{audio_config, PrevOffset, PrevTS}, PrevTS}
-  end;
-    
-find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Offset) ->
-  case read_frame(Media, Offset) of
-    #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
-      {Offset, DTS};
-    #video_frame{next_id = Next} ->
-      find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Next);
-    eof -> 
-      undefined
   end.
-
-
+  
 % Reads a tag from IoDev for position Pos.
 % @param IoDev
 % @param Pos
