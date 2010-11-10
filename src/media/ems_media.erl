@@ -242,10 +242,10 @@ seek(Media, DTS) when is_number(DTS) ->
 %% Returns Key for this keyframe and its NewDTS. Takes options to determine which track to choose
 %% @end
 %%----------------------------------------------------------------------
-seek_info(Media, BeforeAfter, DTS) when is_atom(BeforeAfter) andalso is_number(DTS) ->
+seek_info(Media, BeforeAfter, DTS) when BeforeAfter == before orelse BeforeAfter == 'after' ->
   seek_info(Media, DTS, []);
 
-seek_info(Media, DTS, Options) when is_number(DTS) andalso is_list(Options) ->
+seek_info(Media, DTS, Options) when is_list(Options) ->
   gen_server:call(Media, {seek_info, DTS, Options}).
 
 

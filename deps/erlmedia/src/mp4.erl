@@ -276,7 +276,7 @@ mdhd(<<1:8, _Flags:24, _Ctime:64, _Mtime:64, TimeScale:32, Duration:64,
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration, language = extract_language(Language)}.
   
 extract_language(<<L1:5, L2:5, L3:5>>) ->
-  [L1+16#60, L2+16#60, L3+16#60].
+  list_to_binary([L1+16#60, L2+16#60, L3+16#60]).
 
 
 %% Handler Reference Box

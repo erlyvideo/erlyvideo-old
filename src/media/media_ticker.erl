@@ -70,10 +70,8 @@ init(Media, Consumer, Options) ->
   proc_lib:init_ack({ok, self()}),
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
-  {Pos, DTS} = case proplists:get_value(start, Options) of
-    undefined -> {undefined, undefined};
-    Start_ -> ems_media:seek_info(Media, Start_, Options)
-  end,
+  {Pos, DTS} = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
+  ?D({begin_from,Pos,DTS}),
   Start = case proplists:get_value(start, Options, 0) of
     {_, S} -> S;
     S -> S
