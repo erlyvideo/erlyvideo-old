@@ -79,7 +79,7 @@ handle_control({seek, _Client, _BeforeAfter, _DTS}, #ems_media{} = State) ->
   %% {noreply, State}       => default action is to seek in storage.
   {noreply, State};
 
-handle_control({seek, _Client, _BeforeAfter, _DTS}, #ems_media{} = State) ->
+handle_control({seek, _Client, _DTS, _Options}, #ems_media{} = State) ->
   %% seek_info is used by media ticker to know, where to start from.
   %% It should be non-destructive if possible. returns:
   %% {reply, {NewPos, NewDTS}, State} => media knows how to seek in storage
