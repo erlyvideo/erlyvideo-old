@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_sip).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("log.hrl").
+-include("../log.hrl").
 
 -export([start/0, stop/0]).
 
