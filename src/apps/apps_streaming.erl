@@ -146,6 +146,8 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
   
 extract_url_args([]) -> [];
 extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};
+extract_url_args({"language", Lang}) -> {language, list_to_binary(Lang)};
+extract_url_args({"bitrate", Bitrate}) -> {bitrate, list_to_integer(Bitrate)};
 extract_url_args({"duration", Duration}) -> {duration, list_to_integer(Duration)*1000};
 extract_url_args({"clients_timeout", Timeout}) -> {clients_timeout, list_to_integer(Timeout)*1000};
 extract_url_args({Key, Value}) -> {Key, Value};
@@ -251,7 +253,7 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
   #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   ?D({self(), "seek", round(Timestamp), Player}),
-  case ems_media:seek(Player, before, Timestamp + BaseDTS) of
+  case ems_media:seek(Player, Timestamp + BaseDTS) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),
       State;

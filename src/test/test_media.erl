@@ -84,7 +84,7 @@ handle_control({unsubscribe, _Client}, #ems_media{} = State) ->
   %% {reply, {error, Reason}, State} => client receives {error, Reason} 
   {noreply, State};
 
-handle_control({seek, _Client, _BeforeAfter, _DTS}, #ems_media{} = State) ->
+handle_control({seek, _Client, _DTS, _Options}, #ems_media{} = State) ->
   %% seek returns:
   %% {reply, {NewPos, NewDTS}, State} => media knows how to seek in storage
   %% {stop, Reason, State}  => stop with Reason

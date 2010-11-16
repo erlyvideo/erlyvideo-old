@@ -34,7 +34,7 @@ http(Host, 'GET', ["flv" | Name] = Path, Req) ->
   Query = Req:parse_qs(),
   Seek = case proplists:get_value("start", Query) of
     undefined -> [];
-    S -> [{seek, {before, list_to_integer(S)}}]
+    S -> [{start, list_to_integer(S)}]
   end,
   Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Seek) of
@@ -69,7 +69,7 @@ http(Host, 'GET', ["flvcontrol", SessionId, "resume"], Req) ->
   end;
 
 http(Host, 'GET', ["flvcontrol", SessionId, "seek", Timestamp], Req) ->
-  case ems_flv_streams:command({Host,SessionId}, {seek, before, list_to_integer(Timestamp)}) of
+  case ems_flv_streams:command({Host,SessionId}, {seek, list_to_integer(Timestamp)}) of
     undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
     _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
   end;

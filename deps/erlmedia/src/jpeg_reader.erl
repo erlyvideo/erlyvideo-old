@@ -78,10 +78,10 @@ read_frame(_, eof) ->
 
 
 
-seek(#media{} = Media, before, Timestamp) when Timestamp =< 0 ->
+seek(#media{} = Media, Timestamp, _Options) when Timestamp =< 0 ->
   {first(Media), 0};
 
-seek(#media{} = _Media, before, _Timestamp) ->
+seek(#media{} = _Media, _Timestamp, _Options) ->
   Key = 0,
   DTS = 0,
   {Key, DTS}.

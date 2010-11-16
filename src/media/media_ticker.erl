@@ -26,7 +26,7 @@
 -include("../log.hrl").
 
 -export([start_link/3, init/3, loop/1, handle_message/2]).
--export([start/1, pause/1, resume/1, seek/3, stop/1, play_setup/2]).
+-export([start/1, pause/1, resume/1, seek/2, stop/1, play_setup/2]).
 
 -record(ticker, {
   media,
@@ -46,8 +46,8 @@
 start(Ticker) ->
   Ticker ! start.
 
-seek(Ticker, Pos, DTS) ->
-  Ticker ! {seek, Pos, DTS}.
+seek(Ticker, DTS) ->
+  Ticker ! {seek, DTS}.
 
 stop(Ticker) ->
   Ticker ! stop.
@@ -70,11 +70,8 @@ init(Media, Consumer, Options) ->
   proc_lib:init_ack({ok, self()}),
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
-  {Pos, DTS} = case proplists:get_value(start, Options) of
-    undefined -> {undefined, undefined};
-    {BeforeAfter, Start_} -> ems_media:seek_info(Media, BeforeAfter, Start_);
-    Start_ -> ems_media:seek_info(Media, before, Start_)
-  end,
+  {Pos, DTS} = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
+  ?D({begin_from,Pos,DTS}),
   Start = case proplists:get_value(start, Options, 0) of
     {_, S} -> S;
     S -> S
@@ -156,13 +153,15 @@ handle_message(pause, Ticker) ->
   flush_tick(),
   {noreply, Ticker#ticker{paused = true, frame = undefined}};
   
-handle_message({seek, Pos, DTS}, #ticker{paused = Paused, stream_id = StreamId, consumer = Consumer} = Ticker) ->
+handle_message({seek, DTS}, #ticker{media = Media, paused = Paused, stream_id = StreamId, consumer = Consumer, options = Options} = Ticker) ->
+  {Pos,NewDTS} = ems_media:seek_info(Media, DTS, Options),
+  ?D({"Seek", DTS, Pos,NewDTS}),
   case Paused of
     true -> ok;
     false -> self() ! tick
   end,
   Consumer ! {ems_stream, StreamId, seek_success, DTS},
-  {noreply, Ticker#ticker{pos = Pos, dts = DTS, frame = undefined}};
+  {noreply, Ticker#ticker{pos = Pos, dts = NewDTS, frame = undefined}};
 
 handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Media, paused = Paused} = Ticker) ->
   ?D({play_setup, self(), Options}),

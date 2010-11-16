@@ -49,11 +49,17 @@ write_frame(_Device, _Frame) ->
 
 init(Reader, Options) -> 
   {ok, MP4Media} = mp4:open(Reader),
+  
+  %% 1. Here we must take Path = proplists:get_value(url, Options)
+  %% 2. {Access,Device} = Reader
+  %% 3. try Access:open(Path.gsub(".mp4",".srt"), [binary])
+  %% 4. if it exists, than add proper track with number not 5, but {srt_parser, 5}
+  %%
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
-  ?D({"MP4", [Track#mp4_track{frames = frames} || Track <- Tracks]}),
+  ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
 
   {ok, MP4Media#mp4_media{options = Options}}.
 
@@ -75,7 +81,7 @@ properties(#mp4_media{additional = Additional, width = Width, height = Height, d
   TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language}] || 
                 #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id} <- Tracks],
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
-  Languages = [list_to_binary(Language) || #mp4_track{language = Language, content = Content} <- Tracks, Content == audio],
+  Languages = [Language || #mp4_track{language = Language, content = Content} <- Tracks, Content == audio],
   [{width, Width}, 
    {height, Height},
    {type, file},
@@ -110,16 +116,16 @@ find_track(Tracks, Pos, Value, Index, Content, Default) ->
   find_track(Tracks, Pos, Value, Index + 1, Content, Default).
 
 
-first(Media) ->
-  first(Media, 0, 0).
+first(Media, Options) ->
+  first(Media, Options, 0, 0).
 
-first(#mp4_media{} = Media, Id, DTS) when is_number(Id) ->
-  Audio = track_for_language(Media, undefined),
-  Video = track_for_bitrate(Media, undefined),
+first(#mp4_media{} = Media, Options, Id, DTS) when is_number(Id) ->
+  Audio = track_for_language(Media, proplists:get_value(language, Options)),
+  Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
-  first(Media, #frame_id{id = Id, a = Audio, v = Video}, DTS);
+  first(Media, Options, #frame_id{id = Id, a = Audio, v = Video}, DTS);
 
-first(#mp4_media{tracks = Tracks}, #frame_id{a = Audio,v = Video} = Id, DTS) ->
+first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id, DTS) ->
   AudioConfig = (element(Audio,Tracks))#mp4_track.decoder_config,
   VideoConfig = (element(Video,Tracks))#mp4_track.decoder_config,
 
@@ -158,7 +164,7 @@ codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) ->
 
 
 read_frame(MediaInfo, undefined) ->
-  read_frame(MediaInfo, first(MediaInfo));
+  read_frame(MediaInfo, first(MediaInfo, []));
 
 read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Audio,v = Video} = Pos, DTS}) ->
   Frame = codec_config({audio,Audio}, Media),
@@ -227,15 +233,16 @@ video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
 
 
 
-seek(#mp4_media{} = Media, before, Timestamp) when Timestamp =< 0 ->
-  {first(Media), 0};
+seek(#mp4_media{} = Media, Timestamp, Options) when Timestamp =< 0 orelse Timestamp == undefined ->
+  {first(Media,Options), 0};
 
-seek(#mp4_media{duration = Duration}, _, Timestamp) when Timestamp > Duration ->
+seek(#mp4_media{duration = Duration}, Timestamp, _Options) when Timestamp > Duration ->
   undefined;
 
-seek(#mp4_media{} = Media, before, Timestamp) ->
-  Video = track_for_bitrate(Media, undefined),
-  Audio = track_for_language(Media, undefined),
+seek(#mp4_media{} = Media, Timestamp, Options) ->
+  % TODO: insert here ability to seek in options
+  Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
+  Audio = track_for_language(Media, proplists:get_value(language, Options)),
   ?D({"Seek", Timestamp}),
   case mp4:seek(Media, Video, Timestamp) of
     {Id, DTS} -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video}, DTS}, DTS};
