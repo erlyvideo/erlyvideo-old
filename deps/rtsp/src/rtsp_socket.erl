@@ -65,6 +65,9 @@
   session
 }).
 
+read(URL, Options) when is_binary(URL) ->
+  read(binary_to_list(URL), Options);
+
 read(URL, Options) ->
   try read_raw(URL, Options) of
     {ok, RTSP} -> {ok, RTSP}

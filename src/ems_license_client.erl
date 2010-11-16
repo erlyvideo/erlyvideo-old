@@ -195,16 +195,21 @@ send_license_request(Sock, Env) ->
 read_license_response(Sock) ->
   Headers = read_headers(Sock, []),
   Length = proplists:get_value('Content-Length', Headers),
-  {ok, Bin} = gen_tcp:recv(Sock, Length),
-  gen_tcp:close(Sock),
-  {reply, Reply} = erlang:binary_to_term(Bin),
-  case proplists:get_value(version, Reply) of
-    1 ->
-      Commands = proplists:get_value(commands, Reply),
-      Startup = execute_commands_v1(Commands, []),
-      handle_loaded_modules_v1(lists:reverse(Startup));
-    Version ->
-      {error,{unknown_license_version, Version}}
+  case Length of
+    undefined ->
+      {error, {no_length_header, Headers}};
+    _ when is_number(Length) ->
+      {ok, Bin} = gen_tcp:recv(Sock, Length),
+      gen_tcp:close(Sock),
+      {reply, Reply} = erlang:binary_to_term(Bin),
+      case proplists:get_value(version, Reply) of
+        1 ->
+          Commands = proplists:get_value(commands, Reply),
+          Startup = execute_commands_v1(Commands, []),
+          handle_loaded_modules_v1(lists:reverse(Startup));
+        Version ->
+          {error,{unknown_license_version, Version}}
+      end
   end.
   
   
@@ -240,7 +245,7 @@ execute_commands_v1([{save,Info}|Commands], Startup) ->
   File = proplists:get_value(file, Info),
   Path = proplists:get_value(path, Info),
   CacheDir = ems:get_var(license_cache_dir, "tmp"),
-  FullPath = filename:join(CacheDir, Path),
+  FullPath = ems:pathjoin(CacheDir, Path),
   code:add_patha(filename:dirname(FullPath)),
   case file:read_file(FullPath) of
     {ok, File} -> ok;
@@ -270,7 +275,11 @@ execute_commands_v1([{load,ModInfo}|Commands], Startup) ->
       code:soft_purge(Module),
       code:load_binary(Module, "license/"++atom_to_list(Module)++".erl", Code),
       execute_commands_v1(Commands, [Module|Startup])
-  end.
+  end;
+  
+execute_commands_v1([_Command|Commands], Startup) ->
+  error_logger:error_msg("Unknown license server commands"),
+  execute_commands_v1(Commands, Startup).
 
 
 is_new_version(ModInfo) ->

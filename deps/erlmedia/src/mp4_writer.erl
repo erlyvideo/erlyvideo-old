@@ -8,6 +8,8 @@
 -export([write/2, write/3, pack_language/1]).
 -export([init/2, handle_frame/2, close/1]).
 
+-export([pack_compositions/1]).
+
 -record(convertor, {
   options = [],
   out_mp4,

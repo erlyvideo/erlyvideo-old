@@ -466,7 +466,7 @@ file_send(FilePath, Headers) ->
 			% get filesize
 			FileSize = FileInfo#file_info.size,
 			% send headers
-			HeadersFull = [{'Content-Type', get_content_type(FilePath)}, {'Content-Size', FileSize} | Headers],
+			HeadersFull = [{'Content-Type', get_content_type(FilePath)}, {'Content-Length', FileSize} | Headers],
 			stream(head, HeadersFull),
 			% do the gradual sending
 			case file_open_and_send(FilePath) of

@@ -110,12 +110,12 @@ handle_config(Frame, Media) ->
   handle_frame(Frame, Media).
 
 
-handle_frame(#video_frame{content = Content} = Frame, #ems_media{module = M, clients = Clients} = Media) ->
+handle_frame(#video_frame{content = Content} = Frame, #ems_media{module = M, video_config = V, clients = Clients} = Media) ->
   Media1 = reply_with_decoder_config(Media),
   case M:handle_frame(Frame, Media1) of
     {reply, F, Media2} ->
       case Content of
-        audio -> ems_media_clients:send_frame(F, Clients, starting);
+        audio when V == undefined -> ems_media_clients:send_frame(F, Clients, starting);
         _ -> ok
       end,
       ems_media_clients:send_frame(F, Clients, active),
@@ -137,21 +137,22 @@ save_frame(Format, Storage, Frame) ->
   end.
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
-                  #ems_media{clients = Clients, video_config = V} = M) ->
-  Starting = ems_media_clients:select_by_state(Clients, starting),
-  Meta = ems_media:metadata_frame(M),
-  lists:foreach(fun(#client{consumer = Client, stream_id = StreamId}) ->
-    case Meta of
-      undefined -> ok;
-      _ -> Client ! Meta#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}
-    end,
+                  #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
+  Clients1 = case ems_media:metadata_frame(M) of
+    undefined -> Clients;
+    Meta -> ems_media_clients:send_frame(Meta#video_frame{dts = DTS, pts = DTS}, Clients, starting)
+  end,
+  Clients2 = case A of
+    undefined -> Clients1;
+    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+  end,
+  Clients3 = case V of
+    undefined -> Clients2;
+    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+  end,
     
-    %
-    % We need to send video config only here, because audio config is sent earlier
-    (catch Client ! V#video_frame{dts = DTS, pts = DTS, stream_id = StreamId})
-  end, Starting),
-  Clients2 = ems_media_clients:mass_update_state(Clients, starting, active),
-  M#ems_media{clients = Clients2};
+  Clients4 = ems_media_clients:mass_update_state(Clients3, starting, active),
+  M#ems_media{clients = Clients4};
 
 
 start_on_keyframe(_, Media) ->

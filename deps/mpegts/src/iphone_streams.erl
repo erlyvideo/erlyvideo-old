@@ -92,7 +92,7 @@ playlist(Host, Name, Options) ->
 
 
 segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
-  {_Key, StartDTS} = ems_media:seek_info(Media, 'before', Number * ?STREAM_TIME),
+  {_Key, StartDTS} = ems_media:seek_info(Media, Number * ?STREAM_TIME),
   Info = ems_media:info(Media),
   Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
   ?D({"Last segment", Number, StartDTS, Duration}),

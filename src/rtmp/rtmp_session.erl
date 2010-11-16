@@ -55,6 +55,12 @@
 
 -export([reply/2, fail/2]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
+-export([get_socket/1]).
+-export([get/2, set/3, set/2]).
+
+
+-include("../meta_access.hrl").
+
 
 %%-------------------------------------------------------------------------
 %% @spec create_client(Socket)  -> {ok, Pid}
@@ -156,6 +162,7 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %%-------------------------------------------------------------------------
 init([]) ->
   random:seed(now()),
+  process_flag(trap_exit, true),
   {ok, 'WAIT_FOR_SOCKET', #rtmp_session{}}.
 
 
@@ -168,6 +175,8 @@ send(Session, Message) ->
   % end,
   Session ! Message.
   
+
+
 
 
 %%-------------------------------------------------------------------------
@@ -226,9 +235,6 @@ send(Session, Message) ->
 
 %% Sync event
 
-'WAIT_FOR_DATA'(info, _From, #rtmp_session{} = State) ->
-  {reply, session_stats(State), 'WAIT_FOR_DATA', State};
-
   
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
@@ -263,7 +269,7 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
 
 handle_rtmp_message(#rtmp_session{} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:setopts(Player, [{client_buffer, BufferSize}]);
+    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
     _ -> ok
   end,
   State;
@@ -376,6 +382,9 @@ handle_event(Event, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 
+handle_sync_event(info, _From, StateName, #rtmp_session{} = State) ->
+  {reply, session_stats(State), StateName, State};
+
 handle_sync_event(Event, _From, StateName, StateData) ->
   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
   {stop, {StateName, undefined_event, Event}, StateData}.
@@ -439,7 +448,7 @@ handle_info(exit, _StateName, StateData) ->
   {stop, normal, StateData};
   
 handle_info({'$gen_call', From, Request}, StateName, StateData) ->
-  case ?MODULE:StateName(Request, From, StateData) of
+  case ?MODULE:handle_sync_event(Request, From, StateName, StateData) of
     {reply, Reply, NewStateName, NewState} ->
       gen:reply(From, Reply),
       {next_state, NewStateName, NewState};
@@ -467,8 +476,9 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
-    #rtmp_stream{started = false} = Stream ->
-      rtmp_lib:play_start(Socket, StreamId, 0),
+    #rtmp_stream{pid = Media, started = false} = Stream ->
+      MediaType = proplists:get_value(type, ems_media:info(Media)),
+      rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
       % put(stream_start, erlang:now()),
       {set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State), DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
@@ -479,7 +489,12 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
-  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts)}),
+  case Frame#video_frame.content of
+    metadata -> ?D(Frame);
+    _ -> 
+  %    ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts)}),
+      ok
+  end,
   case Allow of
     true ->
       Message = #rtmp_message{
@@ -570,3 +585,6 @@ delete_stream(#rtmp_stream{stream_id = StreamId}, State) ->
 
 delete_stream(StreamId, #rtmp_session{streams1 = Streams} = State) ->
   State#rtmp_session{streams1 = lists:keydelete(StreamId, #rtmp_stream.stream_id, Streams)}.
+
+get_socket(#rtmp_session{socket = Socket}) -> Socket.
+

@@ -30,11 +30,16 @@
 -export([play/2]).
 
 
+dump_session_id(SessionId) when is_integer(SessionId) -> integer_to_list(SessionId);
+dump_session_id(SessionId) when is_binary(SessionId) -> binary_to_list(SessionId);
+dump_session_id(SessionId) when is_list(SessionId) -> SessionId;
+dump_session_id(SessionId) -> lists:flatten(io_lib:format("~p",[SessionId])).
+
 play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
   {http, _UserInfo, Host, Port, Path, _Query} = http_uri2:parse(URL),
   
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary]),
-  Req = io_lib:format("GET ~s?ip=~s&file=~s&user_id=~p&session_id=~p HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, IP, Name, UserId, SessionId, Host]),
+  Req = io_lib:format("GET ~s?ip=~s&file=~s&user_id=~p&session_id="++dump_session_id(SessionId)++" HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, IP, Name, UserId, Host]),
   ok = gen_tcp:send(Socket, Req),
   inet:setopts(Socket, [{packet,http},{active,once}]),
   receive

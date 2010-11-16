@@ -1,3 +1,75 @@
+erlyvideo (2.5.0) unstable; urgency=low
+
+  language track selection. First steps to multibitrate
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 12 Nov 2010 21:19:36 +0300
+
+erlyvideo (2.4.16) unstable; urgency=low
+
+  speedup measures
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 03 Nov 2010 11:46:01 +0300
+
+erlyvideo (2.4.15) unstable; urgency=low
+
+  vulnerability in playing video
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 28 Oct 2010 20:25:13 +0400
+
+erlyvideo (2.4.14) unstable; urgency=low
+
+  fix joining stream
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 28 Oct 2010 01:30:42 +0400
+
+erlyvideo (2.4.13) unstable; urgency=low
+
+  Remove latency while viewing
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 27 Oct 2010 12:09:20 +0400
+
+erlyvideo (2.4.12) unstable; urgency=low
+
+  Fixed flv playing
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 22 Oct 2010 19:15:41 +0400
+
+erlyvideo (2.4.11) unstable; urgency=low
+
+  Remove rtmp_stat_collector, fix apps_stat_collector
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 19 Oct 2010 22:39:50 +0400
+
+erlyvideo (2.4.10) unstable; urgency=low
+
+  flv reading h264.  Connect to stream behaviour
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 14 Oct 2010 01:33:13 +0400
+
+erlyvideo (2.4.9) unstable; urgency=low
+
+  Clients list handling and pauses 
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 13 Oct 2010 17:49:13 +0400
+
+erlyvideo (2.4.8) unstable; urgency=low
+
+  bundled all dependencies. New amf
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 13 Oct 2010 00:44:15 +0400
+
+erlyvideo (2.4.7) unstable; urgency=low
+
+  Registrator is now independent
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 12 Oct 2010 10:52:37 +0400
+
+erlyvideo (2.4.6) unstable; urgency=low
+
+  ems_media changes
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 11 Oct 2010 23:13:27 +0400
+
 erlyvideo (2.4.5) unstable; urgency=low
 
   Minor stability fixes

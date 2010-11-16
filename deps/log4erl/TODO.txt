@@ -1,0 +1,18 @@
+TODO:
+=====
+
+* Add formatters functions that can be added to appenders to change
+default formatting patters [DONE]
+* Add support for pattern appender [DONE]
+* Update manual [DONE (latest for log4erl 0.8.2)]
+* Add performance benchmarks
+* Add support for file-based configuration to log4erl instead of only
+programmable-only configuration that is working now [DONE]
+* Add support for SNMP appender
+* Add support for DB appender (MySQL, Postgres?, Mnesia,...etc)
+* Add support for SMTP appender [DONE]
+* Add support for NT event appender
+* Add support for syslog appender [DONE]
+* Add support for NDC/MDC
+* Add support for time-based log rotation (file_appender)
+

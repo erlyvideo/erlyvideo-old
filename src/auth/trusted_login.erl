@@ -58,7 +58,7 @@ auth(_Host, _Protocol, _Session) ->
 %% It can even subscribe to channels
 %% @end
 %%-------------------------------------------------------------------------
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, #rtmp_funcall{args = [_, SessionData, UserId]}) ->
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, session_id = DefaultSessionId} = State, #rtmp_funcall{args = [_, SessionData|_]}) ->
   Session = try json_session:decode(SessionData, undefined) of
     S when is_list(S) -> S;
     _ -> []
@@ -69,15 +69,16 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = S
       []
   end,
   Channels = proplists:get_value(channels, Session, []),
-  {ok, SessionId} = ems_users:login(Host, UserId, Channels),
+  UserId = proplists:get_value(user_id, Session),
+  SessionId = proplists:get_value(session_id, Session, DefaultSessionId),
 	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
-	ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~w trusted_login", [Address, Host, UserId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
+	ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~w trusted_login", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
 	rtmp_session:accept_connection(NewState),
   NewState;
   
 	
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, _AMF) ->
-  ems_log:access(Host, "CONNECT ~s ~s ~p ~s ~p trusted_login", [Address, Host, undefined, proplists:get_value(pageUrl, PlayerInfo), []]),
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, session_id = SessionId} = State, _AMF) ->
+  ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~p trusted_login", [Address, Host, undefined, SessionId, proplists:get_value(pageUrl, PlayerInfo), []]),
 	rtmp_session:accept_connection(State),
   State.
 	

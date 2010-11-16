@@ -60,7 +60,7 @@ handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} 
 handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
   #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   
-  ?D({"seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
+  ?D({self(), "seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
   rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
   
@@ -88,9 +88,19 @@ releaseStream(State, _AMF) ->
 %%-------------------------------------------------------------------------
 %% @private
 %%-------------------------------------------------------------------------
+
+closeStream(#rtmp_session{} = State, #rtmp_funcall{} = AMF) -> 
+  deleteStream(State, AMF).
+
+
+%%-------------------------------------------------------------------------
+%% @private
+%%-------------------------------------------------------------------------
 deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:stop(Player);
+    #rtmp_stream{pid = Player} when is_pid(Player) -> 
+      ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
   rtmp_session:delete_stream(StreamId, State).
@@ -116,7 +126,10 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
   Options = lists:ukeymerge(1, Options2, Options1),
   
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> ?D({"Unsubscribe from old", OldMedia}), ems_media:stop(OldMedia);
+    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
+      ?D({"Unsubscribe from old", OldMedia}), 
+      ems_media:stop(OldMedia),
+      rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
   
@@ -133,6 +146,8 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
   
 extract_url_args([]) -> [];
 extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};
+extract_url_args({"language", Lang}) -> {language, list_to_binary(Lang)};
+extract_url_args({"bitrate", Bitrate}) -> {bitrate, list_to_integer(Bitrate)};
 extract_url_args({"duration", Duration}) -> {duration, list_to_integer(Duration)*1000};
 extract_url_args({"clients_timeout", Timeout}) -> {clients_timeout, list_to_integer(Timeout)*1000};
 extract_url_args({Key, Value}) -> {Key, Value};
@@ -176,6 +191,8 @@ pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausin
       {null, _} ->
         State;
       {undefined, _} ->
+        State;
+      {#rtmp_stream{pid = undefined}, _} ->
         State;
       {#rtmp_stream{pid = Player}, true} ->
         ems_media:pause(Player),
@@ -235,8 +252,8 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
   #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
-  ?D({"seek", round(Timestamp), Player}),
-  case ems_media:seek(Player, before, Timestamp + BaseDTS) of
+  ?D({self(), "seek", round(Timestamp), Player}),
+  case ems_media:seek(Player, Timestamp + BaseDTS) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),
       State;
@@ -253,6 +270,7 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player} when is_pid(Player) ->
       ems_media:stop(Player),
+      rtmp_session:flush_stream(StreamId),
       ems_log:access(Host, "STOP ~p ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
       % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
@@ -260,20 +278,6 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
     _ -> State
   end.
 
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
-
-closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) -> 
-  case rtmp_session:get_stream(StreamId, State) of
-    undefined -> State;
-    null ->
-      rtmp_session:delete_stream(StreamId, State);
-    #rtmp_stream{pid = Player} when is_pid(Player) ->
-      ems_media:stop(Player),
-      rtmp_session:flush_stream(StreamId),
-      rtmp_session:delete_stream(StreamId, State)
-  end.
 
 % Required for latest flash players like (http://www.longtailvideo.com/players/jw-flv-player/)
 % http://www.adobe.com/devnet/flashmediaserver/articles/dynamic_stream_switching_04.html

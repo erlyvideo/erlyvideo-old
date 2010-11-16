@@ -113,7 +113,8 @@ start_rtmp() ->
 stats(Host) ->
   Streams = [{object, [{name,Name}, {count, proplists:get_value(client_count, Options)}]} || {Name, _Pid, Options} <- media_provider:entries(Host)],
   CPULoad = {object, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
-  RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
+  % RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
+  RTMPTraf = [{object, []}],
   FixStats = fun(List) ->
     [begin
       {Key, if
@@ -139,7 +140,6 @@ stop() ->
 	io:format("Stopping Erlyvideo ...~n"),
   ems_vhosts:stop(),
 	stop_modules(),
-	ems_script:stop(),
 	application:stop(erlyvideo),
 	application:unload(erlyvideo),
 	application:stop(rtmp),
@@ -162,11 +162,11 @@ restart() ->
 reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   HTTP = ems:get_var(http_port, undefined),
-  ems_vhosts:stop(),
-  load_config(),
-  ems_vhosts:start(),
+  % ems_vhosts:stop(),
   ems_log:stop(),
   ems_log:start(),
+  load_config(),
+  ems_vhosts:start(),
   % ems_http:stop(),
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
     {undefined, undefined} -> ok;

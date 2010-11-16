@@ -38,8 +38,8 @@
   duration,
   height,
   width,
-  audio_codec,
-  video_codec
+  audio_config,
+  video_config
 }).
 
 
@@ -65,35 +65,60 @@ init({_Module,_Device} = Reader, _Options) ->
   MediaInfo = #media_info{reader = Reader},
   case flv:read_header(Reader) of
     {#flv_header{} = Header, Offset} -> 
-      read_frame_list(MediaInfo#media_info{header = Header, frames = ets:new(frames, [ordered_set, private])}, Offset);
+      read_frame_list(MediaInfo#media_info{header = Header, frames = ets:new(frames, [ordered_set, private])}, Offset, -1);
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
   end.
 
-first(_) ->
-  flv:data_offset().
+first(Media) ->
+  first(Media, flv:data_offset(), 0).
+
+first(#media_info{audio_config = A}, Id, DTS) when A =/= undefined ->
+  {audio_config, Id, DTS};
+
+first(#media_info{video_config = V}, Id, DTS) when V =/= undefined ->
+  {video_config, Id, DTS};
+
+first(_, Id, _DTS) ->
+  Id.
+
 
 properties(#media_info{metadata = Meta}) -> Meta.
 
-read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Metadata} = MediaInfo, Offset) ->
-  {Module,Device} = Reader,
+
+max_duration(#media_info{duration = D1}, D2) when D2 > D1 -> D2;
+max_duration(#media_info{duration = D1}, _D2) -> D1.
+
+read_frame_list(#media_info{} = MediaInfo, _Offset, 0) ->
+  {ok, MediaInfo};
+
+read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Metadata} = MediaInfo, Offset, Limit) ->
   % We need to bypass PreviousTagSize and read header.
-	case flv:read_tag_header(Reader, Offset)	of
-	  #flv_tag{type = metadata, size = Length, offset = BodyOffset, next_tag_offset = NextOffset} ->
-			{ok, MetaBody} = Module:pread(Device, BodyOffset, Length),
-			Meta = rtmp:decode_list(MetaBody),
-			?D({"Got metadata", Meta}),
+	case flv:read_frame(Reader, Offset)	of
+	  #video_frame{content = metadata, body = Meta, next_id = NextOffset} ->
 			case parse_metadata(MediaInfo, Meta) of
-			  {MediaInfo1, true} ->	{ok, MediaInfo1};
+			  {MediaInfo1, true} ->	
+			    ?D({"Found metadata, looking 10 frames ahead"}),
+			    read_frame_list(MediaInfo1, NextOffset, 10);
 			  {MediaInfo1, false} ->
-			    read_frame_list(MediaInfo1, NextOffset)
+			    read_frame_list(MediaInfo1, NextOffset, Limit - 1)
 			end;
-  	#flv_tag{type = video, flavor = keyframe, timestamp = DTS, next_tag_offset = NextOffset} ->
+		#video_frame{content = video, flavor = config, next_id = NextOffset} = V ->
+		  ?D({"Save flash video_config"}),
+			read_frame_list(MediaInfo#media_info{video_config = V}, NextOffset, Limit - 1);
+
+		#video_frame{content = audio, flavor = config, next_id = NextOffset} = A ->
+		  ?D({"Save flash audio config"}),
+			read_frame_list(MediaInfo#media_info{audio_config = A}, NextOffset, Limit - 1);
+		  
+  	#video_frame{content = video, flavor = keyframe, dts = DTS, next_id = NextOffset} ->
   	  ets:insert(FrameTable, {DTS, Offset}),
-			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset);
-		#flv_tag{next_tag_offset = NextOffset, timestamp = DTS}->
-			read_frame_list(MediaInfo#media_info{duration = DTS}, NextOffset);
+			read_frame_list(MediaInfo#media_info{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
+
+		#video_frame{next_id = NextOffset, dts = DTS} ->
+			read_frame_list(MediaInfo#media_info{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
+
     eof ->
       ?D({duration, MediaInfo#media_info.duration, Offset}),
       {ok, MediaInfo#media_info{
@@ -116,28 +141,25 @@ get_int(Key, Meta, Coeff) ->
       end
   end.
 
-parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
-  Meta1 = lists:keydelete(<<"keyframes">>, 1, Meta),
-  Meta2 = lists:keydelete(<<"times">>, 1, Meta1),
-  Meta3 = lists:map(fun({Key,Value}) ->
-    {erlang:binary_to_atom(Key, utf8), Value}
-  end, Meta2),
-  % ?D({"Metadata", get_int(<<"duration">>, Meta, 1000), Meta2}),
+parse_metadata(MediaInfo, [<<"onMetaData">>, {object, Meta}]) ->
+  Meta1 = [{K,V} || {K,V} <- Meta, K =/= duration andalso 
+                                   K =/= keyframes andalso
+                                   K =/= times],
+
+  Duration = get_int(duration, Meta, 1000),
   MediaInfo1 = MediaInfo#media_info{
-    width = case get_int(<<"width">>, Meta, 1) of
+    width = case get_int(width, Meta, 1) of
       undefined -> undefined;
       ElseW -> round(ElseW)
     end,
-    height = case get_int(<<"height">>, Meta, 1) of
+    height = case get_int(height, Meta, 1) of
       undefined -> undefined;
       ElseH -> round(ElseH)
     end,
-    duration = get_int(<<"duration">>, Meta, 1000),
-    audio_codec = get_int(<<"audiocodecid">>, Meta, {flv, audio_codec}),
-    video_codec = get_int(<<"videocodecid">>, Meta, {flv, video_codec}),
-    metadata = Meta3
+    duration = Duration,
+    metadata = [{duration,Duration}|Meta1]
   },
-  case proplists:get_value(<<"keyframes">>, Meta) of
+  case proplists:get_value(keyframes, Meta) of
     {object, Keyframes} ->
       Offsets = proplists:get_value(filepositions, Keyframes),
       Times = proplists:get_value(times, Keyframes),
@@ -157,15 +179,14 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   ets:insert(FrameTable, {round(Time*1000), round(Offset)}),
   insert_keyframes(MediaInfo, Offsets, Times).
 
+seek(#media_info{} = Media, TS, _Options) when TS == 0 orelse TS == undefined ->
+  {{audio_config, first(Media), 0}, 0};
 
-seek(#media_info{} = Media, _BeforeAfter, TS) when TS == 0 ->
-  {first(Media), 0};
-
-seek(#media_info{frames = undefined} = Media, BeforeAfter, Timestamp) ->
+seek(#media_info{frames = undefined} = Media, Timestamp, _Options) ->
   erlang:error(flv_file_should_have_frame_table),
-  find_frame_in_file(Media, BeforeAfter, Timestamp, 0, first(Media), first(Media));
+  find_frame_in_file(Media, Timestamp, 0, first(Media), first(Media));
 
-seek(#media_info{frames = FrameTable}, before, Timestamp) ->
+seek(#media_info{frames = FrameTable}, Timestamp, _Options) ->
   TimestampInt = round(Timestamp),
   Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp =< TimestampInt ->
     {Offset, FrameTimestamp}
@@ -174,54 +195,53 @@ seek(#media_info{frames = FrameTable}, before, Timestamp) ->
   % ?D({zz, ets:tab2list(FrameTable)}),
   
   case lists:reverse(Ids) of
-    [Item | _] -> Item;
-    _ -> undefined
-  end;
-
-seek(#media_info{frames = FrameTable}, 'after', Timestamp) ->
-  TimestampInt = round(Timestamp),
-  Ids = ets:select(FrameTable, ets:fun2ms(fun({FrameTimestamp, Offset} = _Frame) when FrameTimestamp >= TimestampInt ->
-    {Offset, FrameTimestamp}
-  end)),
-
-  case Ids of
-    [Item | _] -> Item;
+    [{Offset, DTS} | _] -> {{audio_config,Offset,DTS}, DTS};
     _ -> undefined
   end.
 
-find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Offset) ->
+find_frame_in_file(Media, Timestamp, PrevTS, PrevOffset, Offset) ->
   case read_frame(Media, Offset) of
     #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
-      {PrevOffset, PrevTS};
+      {{audio_config, PrevOffset, PrevTS}, PrevTS};
     #video_frame{flavor = keyframe, dts = DTS, next_id = Next} -> 
-      find_frame_in_file(Media, before, Timestamp, DTS, Offset, Next);
+      find_frame_in_file(Media, Timestamp, DTS, Offset, Next);
     #video_frame{next_id = Next} ->
-      find_frame_in_file(Media, before, Timestamp, PrevTS, PrevOffset, Next);
+      find_frame_in_file(Media, Timestamp, PrevTS, PrevOffset, Next);
     eof when PrevTS == undefined -> 
       undefined;
     eof ->  
-      {PrevOffset, PrevTS}
-  end;
-    
-find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Offset) ->
-  case read_frame(Media, Offset) of
-    #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp -> 
-      {Offset, DTS};
-    #video_frame{next_id = Next} ->
-      find_frame_in_file(Media, 'after', Timestamp, PrevTS, PrevOffset, Next);
-    eof -> 
-      undefined
+      {{audio_config, PrevOffset, PrevTS}, PrevTS}
   end.
-
-
+  
 % Reads a tag from IoDev for position Pos.
 % @param IoDev
 % @param Pos
 % @return a valid video_frame record type
+
+read_frame(#media_info{audio_config = undefined} = MediaInfo, {audio_config, Pos, DTS}) ->
+  read_frame(MediaInfo, {video_config, Pos, DTS});
+
+read_frame(#media_info{audio_config = Frame} = MediaInfo, {audio_config, Pos, DTS}) ->
+  Next = case MediaInfo#media_info.video_config of
+    undefined -> 0;
+    _ -> {video_config,Pos, DTS}
+  end,
+  Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
+
+
+read_frame(#media_info{video_config = undefined} = MediaInfo, {video_config, Pos, _DTS}) ->
+  read_frame(MediaInfo, Pos);
+
+read_frame(#media_info{video_config = Frame}, {video_config,Pos, DTS}) ->
+  Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
+
+read_frame(_, eof) ->
+  eof;
 
 read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
 read_frame(#media_info{reader = Reader}, Offset) ->
   flv:read_frame(Reader, Offset).
+
 

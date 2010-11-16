@@ -50,7 +50,7 @@
 }).
 
 %% External API
--export([start_link/0, clients/1, login/3, logout/0, send_to_user/3, send_to_channel/3]).
+-export([start_link/0, clients/1, login/3, login/4, logout/0, send_to_user/3, send_to_channel/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -81,7 +81,11 @@ login(_, undefined, _) -> undefined;
 login(_, _, undefined) -> undefined;
 
 login(Host, UserId, Channels) ->
- gen_server:call(?MODULE, {login, Host, UserId, Channels}).
+  login(Host, UserId, undefined, Channels).
+
+
+login(Host, UserId, SessionId, Channels) ->
+  gen_server:call(?MODULE, {login, Host, UserId, SessionId, Channels}).
 
 %%--------------------------------------------------------------------
 %% @spec () -> {ok}
@@ -90,7 +94,7 @@ login(Host, UserId, Channels) ->
 %% @end
 %%----------------------------------------------------------------------
 logout() ->
- gen_server:call(?MODULE, logout).
+  gen_server:call(?MODULE, logout).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, UserId::integer(), Message::text) -> {ok}
@@ -99,7 +103,7 @@ logout() ->
 %% @end
 %%----------------------------------------------------------------------
 send_to_user(Host, UserId, Message) ->
- gen_server:cast(?MODULE, {send_to_user, Host, UserId, Message}).
+  gen_server:cast(?MODULE, {send_to_user, Host, UserId, Message}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Channel::integer(), Message::text) -> {ok}
@@ -108,7 +112,7 @@ send_to_user(Host, UserId, Message) ->
 %% @end
 %%----------------------------------------------------------------------
 send_to_channel(Host, Channel, Message) ->
- gen_server:cast(?MODULE, {send_to_channel, Host, Channel, Message}).
+  gen_server:cast(?MODULE, {send_to_channel, Host, Channel, Message}).
 
 
 
@@ -149,14 +153,17 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({login, Host, UserId, UserChannels}, {Client, _Ref}, 
-  #ems_users{clients = Clients, user_ids = UserIds, channels = Channels, session_id = LastSessionId} = Server) ->
-  SessionId = LastSessionId + 1,
+handle_call({login, Host, UserId, UserSessionId, UserChannels}, {Client, _Ref}, 
+  #ems_users{clients = Clients, user_ids = UserIds, channels = Channels} = Server) ->
+  SessionId = case UserSessionId of
+    undefined -> timer:now_diff(erlang:now(),{0,0,0});
+    _ -> UserSessionId
+  end,
   ets:insert(Clients, #client_entry{host = Host, session_id = SessionId, client = Client, user_id = UserId, channels = Channels}),
   ets:insert(UserIds, #user_id_entry{user_id = {Host, UserId}, client = Client}),
   lists:foreach(fun(Channel) -> ets:insert(Channels, #channel_entry{channel = {Host, Channel}, client = Client}) end, UserChannels),
   link(Client),
-  {reply, {ok, SessionId}, Server#ems_users{session_id = SessionId}};
+  {reply, {ok, SessionId}, Server};
 
 handle_call(logout, {Client, _Ref}, Server) ->
   internal_logout(Client, Server),

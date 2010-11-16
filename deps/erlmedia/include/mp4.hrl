@@ -1,21 +1,29 @@
+-record(frame_id, {
+  id,
+  a,
+  v,
+  t
+}).
+
 -record(mp4_media, {
   file,
   file_type,
   timescale,
   duration,
-  seconds,
   file_types = [],
   tracks = [],
-  audio_tracks = [],
-  video_tracks = [],
+  index,
   width,
   height,
   frames,
-  additional = []
+  additional = [],
+  reader,
+  options
 }).
 
 -record(mp4_track, {
   data_format,
+  content,
   track_id,
   timescale,
   duration,
@@ -42,7 +50,9 @@
   pts,
   keyframe = false,
   offset,
-  codec
+  codec,
+  content,
+  next_id
 }).
 
 -record(mp4_sample_description, {

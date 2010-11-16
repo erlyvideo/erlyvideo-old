@@ -28,7 +28,7 @@
 -export([host/1]).
 
 -export([expand_tuple/2, element/2, setelement/3]).
--export([str_split/2, multicall/3]).
+-export([str_split/2, multicall/3, pathjoin/2, pathjoin/1]).
 
 -export([rebuild/0, restart/0]).
 
@@ -44,6 +44,20 @@ list_by(What) ->
   lists:sort(fun({_Pid1,Info1}, {_Pid2,Info2}) ->
     Info1 > Info2
   end, Processes).
+
+
+pathjoin(Root, Path) ->
+  pathjoin([Root, Path]).
+  
+pathjoin(Paths) ->
+  Root = case Paths of
+    ["/"++_|_] -> "/";
+    _ -> ""
+  end,
+  Cleared = lists:foldl(fun(Path, Parts) ->
+    Parts ++ [Token || Token <- string:tokens(Path, "/"), Token =/= ".."]
+  end, [], Paths),
+  Root ++ string:join(Cleared, "/").
   
   
 top_info(What) -> top_info(What, 10).

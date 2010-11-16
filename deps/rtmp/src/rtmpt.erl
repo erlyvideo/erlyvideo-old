@@ -208,7 +208,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({'DOWN', _, process, Client, _Reason}, Server) ->
+handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
 
 handle_info(timeout, State) ->

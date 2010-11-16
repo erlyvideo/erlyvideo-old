@@ -270,10 +270,14 @@ wait_for_socket_on_server(timeout, State) ->
   {stop, normal, State};
 
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
-  inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
-  {ok, {IP, Port}} = inet:peername(Socket),
-  {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
-
+  case inet:setopts(Socket, [{active, once}, {packet, raw}, binary]) of
+    ok ->
+      {ok, {IP, Port}} = inet:peername(Socket),
+      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
+    {error, _Error} ->
+      {stop, normal, State}
+  end;
+      
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
   link(Socket),
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
@@ -561,7 +565,7 @@ activate_socket(Socket) when is_pid(Socket) ->
 send_data(#rtmp_socket{sent_audio_notify = false} = Socket, 
           #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId, body = Body} = Message) when size(Body) > 0 ->
   State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)),
-  send_data(State1, Message);
+  send_data(State1, Message#rtmp_message{ts_type = new});
 
 send_data(#rtmp_socket{sent_video_notify = false} = Socket, #rtmp_message{type = video, timestamp = DTS, stream_id = StreamId} = Message) ->
   Msg = [
@@ -598,7 +602,7 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     {undefined,_} -> rtmpe:crypt(KeyOut, Data);
     _ -> erlang:error(not_implemented_rtmp_codec)
   end,
-  (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
+  % (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
   if
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
