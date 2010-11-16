@@ -48,20 +48,29 @@ write_frame(_Device, _Frame) ->
 
 
 init(Reader, Options) -> 
+  ?D({"Init"}),
   {ok, MP4Media} = mp4:open(Reader),
   
-  %% 1. Here we must take Path = proplists:get_value(url, Options)
-  %% 2. {Access,Device} = Reader
-  %% 3. try Access:open(Path.gsub(".mp4",".srt"), [binary])
-  %% 4. if it exists, than add proper track with number not 5, but {srt_parser, 5}
-  %%
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
+  parsed_srt_tracks(Reader, Options),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
   ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
 
   {ok, MP4Media#mp4_media{options = Options}}.
+
+
+parsed_srt_tracks(Reader, Options) ->
+  Url = proplists:get_value(url, Options),
+  SrtFiles = filelib:wildcard(filename:dirname(Url) ++ "/" 
+    ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt"),
+  ?D({"  !!! === !!! SrtFiles", SrtFiles}),
+  %% 2. {Access,Device} = Reader
+  %% 3. try Access:open(Path.gsub(".mp4",".srt"), [binary])
+  %% 4. if it exists, than add proper track with number not 5, but {srt_parser, 5}
+  %%
+  "ok".
 
 
 
