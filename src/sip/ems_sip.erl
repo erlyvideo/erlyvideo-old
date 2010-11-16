@@ -27,7 +27,7 @@
 
 -export([start/0, stop/0]).
 
--export([progress/3, play/3]).
+-export([progress/3, ack/3]).
 
 start() ->
   ?D("Start EMS SIP"),
@@ -78,7 +78,7 @@ progress(URL, Headers, _Body) ->
       end
   end.
 
-play(URL, Headers, _Body) ->
+ack(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
   ?D({"PLAY", Host, Path, Headers}),
   ems_log:access(Host, "SIP PLAY ~s ~s", [Host, Path]),
