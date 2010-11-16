@@ -178,6 +178,23 @@ read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Aud
 read_frame(MediaInfo, {video_config, #frame_id{v = Video} = Pos, DTS}) ->
   Frame = codec_config({video,Video}, MediaInfo),
   % ?D({video,Video,Frame}),
+  Frame#video_frame{next_id = {dummy_subtitle, Pos, DTS}, dts = DTS, pts = DTS};
+
+read_frame(MediaInfo, {dummy_subtitle, #frame_id{v = Video} = Pos, DTS}) ->
+  Frame = #video_frame{       
+   	content = metadata,
+		dts     = 0,
+		pts     = 0,
+		body    = [<<"onMetaData">>, {object, [
+		  {name, onCuePoint},
+		  {type, event},
+		  {'begin', 0.0},
+  		{'end', 1000.0},
+		  {parameters, [
+		    {text, <<"Hi! I'm useless subtitle">>}
+		  ]}
+		]}]
+	},
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
 
 read_frame(_, eof) ->
