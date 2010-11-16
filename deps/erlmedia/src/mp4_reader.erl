@@ -48,11 +48,13 @@ write_frame(_Device, _Frame) ->
 
 
 init(Reader, Options) -> 
-  ?D({"Init"}),
   {ok, MP4Media} = mp4:open(Reader),
   
-  Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
-  parsed_srt_tracks(Reader, Options),
+  Url = proplists:get_value(url, Options),
+  Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
+  SrtFiles = filelib:wildcard(Wildcard),
+  ?D({"SrtFiles", SrtFiles}),
+  Tracks = tuple_to_list(MP4Media#mp4_media.tracks) ++ parse_srt_tracks(SrtFiles),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
@@ -61,16 +63,17 @@ init(Reader, Options) ->
   {ok, MP4Media#mp4_media{options = Options}}.
 
 
-parsed_srt_tracks(Reader, Options) ->
-  Url = proplists:get_value(url, Options),
-  SrtFiles = filelib:wildcard(filename:dirname(Url) ++ "/" 
-    ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt"),
-  ?D({"  !!! === !!! SrtFiles", SrtFiles}),
-  %% 2. {Access,Device} = Reader
-  %% 3. try Access:open(Path.gsub(".mp4",".srt"), [binary])
-  %% 4. if it exists, than add proper track with number not 5, but {srt_parser, 5}
-  %%
-  "ok".
+parse_srt_tracks([]) -> [];
+parse_srt_tracks([File|Files]) ->
+  % (11:41:23 PM) max lapshin: AccessModule чаще всего — file
+  % (11:41:31 PM) max lapshin: но в принципе может быть и http_file
+  % (11:41:50 PM) max lapshin: поэтому надо сделать такую проверку:
+  % parsed_srt_tracks({file, _}, Options) ->
+  ?D({"File", File}),
+  {ok, Data} = file:read_file(File),
+  ?D({"Data", Data}),
+  [] ++ parse_srt_tracks(Files).
+  
 
 
 
