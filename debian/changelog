@@ -1,3 +1,15 @@
+erlyvideo (2.5.0) unstable; urgency=low
+
+  language track selection. First steps to multibitrate
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 12 Nov 2010 21:19:36 +0300
+
+erlyvideo (2.4.16) unstable; urgency=low
+
+  speedup measures
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 03 Nov 2010 11:46:01 +0300
+
 erlyvideo (2.4.15) unstable; urgency=low
 
   vulnerability in playing video

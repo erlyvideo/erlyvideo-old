@@ -59,8 +59,8 @@
 
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
--export([play/2, stop/1, resume/1, pause/1, seek/3]).
--export([metadata/1, metadata/2, info/1, setopts/2, seek_info/3, status/1]).
+-export([play/2, stop/1, resume/1, pause/1, seek/2, seek/3]).
+-export([metadata/1, metadata/2, info/1, play_setup/2, seek_info/2, seek_info/3, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 -export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
 
@@ -219,26 +219,35 @@ read_frame(Media, Client, Key) ->
   gen_server:call(Media, {read_frame, Client, Key}, 10000).
 
 %%----------------------------------------------------------------------
-%% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> ok |
-%%                                                                   {error, Reason}
+%% @spec (Media::pid(), DTS::number()) -> ok | {error, Reason}
 %%
 %% @doc Seek in storage. Looks either keyframe before DTS or keyframe after DTS.
 %% Seeks private caller stream and starts sending frames from NewDTS.
 %% @end
 %%----------------------------------------------------------------------
-seek(Media, BeforeAfter, DTS) ->
-  gen_server:call(Media, {seek, self(), BeforeAfter, DTS}, 5000).
+seek(Media, DTS) ->
+  gen_server:call(Media, {seek, self(), DTS}, 5000).
+
+seek(Media, BeforeAfter, DTS) when BeforeAfter == before orelse BeforeAfter == 'after' ->
+  seek(Media, DTS).
 
 %%----------------------------------------------------------------------
-%% @spec (Media::pid(), BeforeAfter::before|after, DTS::number()) -> {Key::any(), NewDTS::number()} |
+%% @spec (Media::pid(), DTS::number(), Options::proplist()) -> {Key::any(), NewDTS::number()} |
 %%                                                                   undefined
 %%
 %% @doc Seek in storage. Looks either keyframe before DTS or keyframe after DTS.
-%% Returns Key for this keyframe and its NewDTS.
+%% Returns Key for this keyframe and its NewDTS. Takes options to determine which track to choose
 %% @end
 %%----------------------------------------------------------------------
-seek_info(Media, BeforeAfter, DTS) ->
-  gen_server:call(Media, {seek_info, BeforeAfter, DTS}).
+seek_info(Media, BeforeAfter, DTS) when BeforeAfter == before orelse BeforeAfter == 'after' ->
+  seek_info(Media, DTS, []);
+
+seek_info(Media, DTS, Options) when is_list(Options) ->
+  gen_server:call(Media, {seek_info, DTS, Options}).
+
+
+seek_info(Media, DTS) when is_number(DTS) ->
+  seek_info(Media, DTS, []).
 
 
 %%----------------------------------------------------------------------
@@ -288,9 +297,8 @@ info(Media) ->
 %% send_audio : boolean() - send audio or not
 %% @end
 %%----------------------------------------------------------------------
-setopts(_Media, _Options) ->
-  %TODO add options
-  ok.
+play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
+  gen_server:cast(Media, {play_setup, self(), Options}).
   
   
 %%----------------------------------------------------------------------
@@ -517,16 +525,15 @@ handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
       {reply, {error, no_client}, Media, ?TIMEOUT}
   end;
 
-handle_call({seek, _Client, _BeforeAfter, _DTS} = Seek, _From, #ems_media{} = Media) ->
+handle_call({seek, _Client, _DTS} = Seek, _From, #ems_media{} = Media) ->
   handle_seek(Seek, Media);
       
 
 %% It is information seek, required for outside needs.
-handle_call({seek_info, BeforeAfter, DTS} = SeekInfo, _From, 
-  #ems_media{format = Format, storage = Storage, module = M} = Media) ->
+handle_call({seek_info, DTS, Options} = SeekInfo, _From, #ems_media{format = Format, storage = Storage, module = M} = Media) ->
   case M:handle_control(SeekInfo, Media) of
     {noreply, Media1} ->
-      {reply, Format:seek(Storage, BeforeAfter, DTS), Media1, ?TIMEOUT};
+      {reply, Format:seek(Storage, DTS, Options), Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
     {stop, Reason, Reply, Media1} ->
@@ -601,6 +608,23 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M} = 
       ?D({"ems_media failed to set_source", M, Source, Reason}),
       {stop, Reason, Media#ems_media{state = S2}}
   end;
+
+handle_cast({play_setup, Client, Options}, #ems_media{clients = Clients} = Media) ->
+  case ems_media_clients:find(Clients, Client) of
+    #client{state = passive, ticker = Ticker} ->
+      ?D({"Setup play options for passive client", Client, Options}),
+      media_ticker:play_setup(Ticker, Options),
+      {noreply, Media, ?TIMEOUT};
+
+    #client{} ->
+      ?D({"Play options for active clients are not supported not", Client, Options}),
+      {noreply, Media, ?TIMEOUT};
+
+    undefined ->
+      ?D({"Unknown client asked to change his play options", Client, Options}),
+      {noreply, Media, ?TIMEOUT}
+  end;
+
 
 handle_cast(Cast, #ems_media{module = M} = Media) ->
   case M:handle_control(Cast, Media) of
@@ -823,10 +847,11 @@ try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
 
 
 
-handle_seek({seek, Client, _BeforeAfter, _DTS} = Seek, #ems_media{module = M} = Media) ->
-
+handle_seek({seek, Client, _DTS} = Seek, #ems_media{module = M} = Media) ->
+  ?D({"Going to seek", Seek}),
   case M:handle_control(Seek, Media) of
     {noreply, Media1} ->
+      ?D({"default seek", Seek}),
       default_ems_media_seek(Seek, Media1);
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
@@ -839,20 +864,22 @@ default_ems_media_seek(_, #ems_media{format = undefined} = Media) ->
   ?D("no format"),
   {reply, seek_failed, Media, ?TIMEOUT};
   
-default_ems_media_seek({seek, Client, BeforeAfter, DTS}, #ems_media{format = Format, storage = Storage} = Media) ->
-  case Format:seek(Storage, BeforeAfter, DTS) of
+default_ems_media_seek({seek, Client, DTS}, #ems_media{format = Format, storage = Storage} = Media) ->
+  ?D({"default seek", Client, DTS}),
+  case Format:seek(Storage, DTS, []) of
     {NewPos, NewDTS} ->
-      default_seek_reply(Client, {NewPos, NewDTS}, Media);
+      ?D({"seek ready", NewPos, NewDTS}),
+      default_seek_reply(Client, {DTS, NewPos, NewDTS}, Media);
     undefined ->
       ?D({"no flv seek"}),
       {reply, seek_failed, Media, ?TIMEOUT}
   end.
 
 
-default_seek_reply(Client, {NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
+default_seek_reply(Client, {DTS, NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{ticker = Ticker, state = passive} ->
-      media_ticker:seek(Ticker, NewPos, NewDTS),
+      media_ticker:seek(Ticker, DTS),
       {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
 
     #client{stream_id = StreamId} = Entry ->

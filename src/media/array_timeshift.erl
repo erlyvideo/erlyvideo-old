@@ -64,16 +64,16 @@ properties(_) ->
   [].
 
 
-seek(#shift{first = First, frames = Frames} = Media, _BeforeAfter, Timestamp) when is_number(Timestamp) andalso Timestamp =< 0 ->
+seek(#shift{first = First, frames = Frames} = Media, Timestamp, _Options) when is_number(Timestamp) andalso Timestamp =< 0 ->
   % ?D({"going to seek", Timestamp}),
   case array:get(First, Frames) of
     undefined -> undefined;
     #video_frame{dts = DTS} -> append_config_to_seek(Media, {(First + 1) rem array:size(Frames), DTS})
   end;
 
-seek(#shift{first = First, last = Last, frames = Frames} = Media, BeforeAfter, Timestamp) when is_number(Timestamp) ->
+seek(#shift{first = First, last = Last, frames = Frames} = Media, Timestamp, _Options) when is_number(Timestamp) ->
   % ?D({"going to seek", Timestamp}),
-  S1 = seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, undefined),
+  S1 = seek_in_timeshift(First, Last, Frames, Timestamp, undefined),
   S = append_config_to_seek(Media, S1),
   S.
   
@@ -87,19 +87,17 @@ append_config_to_seek(_, Seek) ->
   ?D("no config in array"),
   Seek.  
   
-seek_in_timeshift(First, First, _Frames, _BeforeAfter, _Timestamp, Key) ->
+seek_in_timeshift(First, First, _Frames, _Timestamp, Key) ->
   Key;
 
-seek_in_timeshift(First, Last, Frames, BeforeAfter, Timestamp, Key) ->
+seek_in_timeshift(First, Last, Frames, Timestamp, Key) ->
   case array:get(First, Frames) of
-    #video_frame{dts = DTS} when BeforeAfter == before andalso DTS > Timestamp ->
+    #video_frame{dts = DTS} when DTS > Timestamp ->
       Key;
-    #video_frame{content = video, flavor = keyframe, dts = DTS} when BeforeAfter == 'after' andalso DTS > Timestamp ->
-      {First, DTS};
     #video_frame{content = video, flavor = keyframe, dts = DTS} ->
-      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, {First, DTS});
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, {First, DTS});
     #video_frame{} ->
-      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, BeforeAfter, Timestamp, Key)
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, Key)
   end.
 
 read_frame(#shift{first = First} = Shift, undefined) ->
