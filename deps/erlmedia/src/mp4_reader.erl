@@ -54,7 +54,9 @@ init(Reader, Options) ->
   Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
   SrtFiles = filelib:wildcard(Wildcard),
   ?D({"SrtFiles", SrtFiles}),
-  Tracks = tuple_to_list(MP4Media#mp4_media.tracks) ++ parse_srt_tracks(SrtFiles),
+  SrtTracks = parse_srt_tracks(SrtFiles),
+  ?D({"SrtTracks", SrtTracks}),
+  Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
@@ -69,10 +71,10 @@ parse_srt_tracks([File|Files]) ->
   % (11:41:31 PM) max lapshin: но в принципе может быть и http_file
   % (11:41:50 PM) max lapshin: поэтому надо сделать такую проверку:
   % parsed_srt_tracks({file, _}, Options) ->
-  ?D({"File", File}),
   {ok, Data} = file:read_file(File),
-  ?D({"Data", Data}),
-  [] ++ parse_srt_tracks(Files).
+  {ok, Tracks, More} = srt_parser:parse(Data),
+  % TODO convert list of srt_records to list of mp4_frames
+  Tracks ++ parse_srt_tracks(Files).
   
 
 
