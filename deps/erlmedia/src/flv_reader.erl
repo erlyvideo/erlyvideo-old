@@ -141,25 +141,25 @@ get_int(Key, Meta, Coeff) ->
       end
   end.
 
-parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
-  Meta1 = [{binary_to_atom(K,utf8),V} || {K,V} <- Meta, K =/= <<"duration">> andalso 
-                                                        K =/= <<"keyframes">> andalso
-                                                        K =/= <<"times">>],
+parse_metadata(MediaInfo, [<<"onMetaData">>, {object, Meta}]) ->
+  Meta1 = [{K,V} || {K,V} <- Meta, K =/= duration andalso 
+                                   K =/= keyframes andalso
+                                   K =/= times],
 
-  Duration = get_int(<<"duration">>, Meta, 1000),
+  Duration = get_int(duration, Meta, 1000),
   MediaInfo1 = MediaInfo#media_info{
-    width = case get_int(<<"width">>, Meta, 1) of
+    width = case get_int(width, Meta, 1) of
       undefined -> undefined;
       ElseW -> round(ElseW)
     end,
-    height = case get_int(<<"height">>, Meta, 1) of
+    height = case get_int(height, Meta, 1) of
       undefined -> undefined;
       ElseH -> round(ElseH)
     end,
     duration = Duration,
     metadata = [{duration,Duration}|Meta1]
   },
-  case proplists:get_value(<<"keyframes">>, Meta) of
+  case proplists:get_value(keyframes, Meta) of
     {object, Keyframes} ->
       Offsets = proplists:get_value(filepositions, Keyframes),
       Times = proplists:get_value(times, Keyframes),
@@ -179,8 +179,7 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   ets:insert(FrameTable, {round(Time*1000), round(Offset)}),
   insert_keyframes(MediaInfo, Offsets, Times).
 
-
-seek(#media_info{} = Media, TS, _Options) when TS == 0 ->
+seek(#media_info{} = Media, TS, _Options) when TS == 0 orelse TS == undefined ->
   {{audio_config, first(Media), 0}, 0};
 
 seek(#media_info{frames = undefined} = Media, Timestamp, _Options) ->
