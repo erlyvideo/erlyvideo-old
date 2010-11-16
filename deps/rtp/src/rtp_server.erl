@@ -98,7 +98,7 @@
 -export([
          start_link/1,
          play/3,
-         add_stream/5,
+         add_stream/6,
          stop/1
         ]).
 
@@ -140,7 +140,8 @@
           audio     :: #desc{},
           video     :: #desc{},
           media     :: pid(),
-          parent    :: pid()
+          parent    :: pid(),
+          tc_fun    :: function()
          }).
 
 %% Gen server process does control RTP-stream.
@@ -182,7 +183,7 @@ handle_call({add_stream,
                                                            codec = _Codec,
                                                            clock_map = ClockMap}|_],
                          track_control = TCtl},
-             Proto, Addr, {Method, Params}}, _From,
+             Proto, Addr, {Method, Params}, Extra}, _From,
             #state{} = State) ->
   ?DBG("DS: Add Stream", []),
   case Method of
@@ -219,16 +220,19 @@ handle_call({add_stream,
                       wall_clock = 0,
                       last_sr = get_date(),
                       stream_id = init_rnd_ssrc()},
+  TCFun = compose_tc_fun(Extra),
   NewState =
     case Type of
       audio ->
         State#state{audio = #desc{method = MethodDesc,
                                   track_control = TCtl,
-                                  state = BaseRTP}};
+                                  state = BaseRTP},
+                    tc_fun = TCFun};
       video ->
         State#state{video = #desc{method = MethodDesc,
                                   track_control = TCtl,
-                                  state = BaseRTP}}
+                                  state = BaseRTP},
+                    tc_fun = TCFun}
     end,
   ?DBG("NewState:~n~p", [NewState]),
   {reply, {ok, {Method, Result}}, NewState};
@@ -273,10 +277,11 @@ handle_info({send_sr, Types},
   {noreply, NewState};
 
 handle_info(#video_frame{content = audio, flavor = frame,
-                         dts = DTS, pts = _PTS,
+                         dts = DTS, pts = PTS,
                          codec = Codec, sound = {_Channel, _Size, _Rate},
                          body = Body},
-            #state{audio = #desc{acc = Acc} = AudioDesc} = State) ->
+            #state{audio = #desc{acc = Acc} = AudioDesc,
+                   tc_fun = TCFun} = State) ->
   case AudioDesc of
     #desc{method = MDesc, state = BaseRTP, acc = Acc} ->
       if (DTS == 0) and (Acc == []) ->
@@ -284,7 +289,7 @@ handle_info(#video_frame{content = audio, flavor = frame,
          true ->
           %%?DBG("DS: Audio Frame(~p) (pl ~p):~n~p", [self(), iolist_size(Body), Body]),
           NBody = iolist_to_binary([Acc, Body]),
-          {NewBaseRTP, RTPs} = encode(rtp, dts_to_timecode(DTS, BaseRTP), Codec, NBody),
+          {NewBaseRTP, RTPs} = encode(rtp, TCFun(DTS, PTS, BaseRTP), Codec, NBody),
           case MDesc of
             #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
               %%?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, RTPs]),
@@ -310,9 +315,10 @@ handle_info(#video_frame{content = metadata},
   {noreply, State};
 
 handle_info(#video_frame{content = video, flavor = Flavor,
-                         dts = DTS, pts = _PTS,
+                         dts = DTS, pts = PTS,
                          codec = Codec, body = Body} = _Frame,
-            #state{video = VideoDesc} = State) ->
+            #state{video = VideoDesc,
+                   tc_fun = TCFun} = State) ->
   %%?DBG("DS: Video Frame(~p)", [DTS]),
   case VideoDesc of
     #desc{method = MDesc, state = #base_rtp{} = BaseRTP, acc = Acc} ->
@@ -346,7 +352,7 @@ handle_info(#video_frame{content = video, flavor = Flavor,
              true ->
               Data = {KF, Body}
           end,
-          {NewBaseRTP, RTPs} = encode(rtp, dts_to_timecode(DTS, BaseRTP), Codec, Data),
+          {NewBaseRTP, RTPs} = encode(rtp, TCFun(DTS, PTS, BaseRTP), Codec, Data),
           case MDesc of
             #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
               %%?DBG("RTPs to ~p:~p~n~p", [Addr, PortRTP, RTPs]),
@@ -433,8 +439,8 @@ code_change(_OldVsn, State, _Extra) ->
 play(Pid, Fun, Media) ->
   gen_server:call(Pid, {play, Fun, Media}).
 
-add_stream(Pid, Stream, Proto, Addr, {Method, Params}) ->
-  gen_server:call(Pid, {add_stream, Stream, Proto, Addr, {Method, Params}}).
+add_stream(Pid, Stream, Proto, Addr, {Method, Params}, Extra) ->
+  gen_server:call(Pid, {add_stream, Stream, Proto, Addr, {Method, Params}, Extra}).
 
 stop(Pid) ->
   gen_server:call(Pid, {stop}).
@@ -660,9 +666,23 @@ timecode_to_dts(State) ->
   DTS.
 
 
-dts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
+ts_to_timecode(DTS, #base_rtp{clock_map = ClockMap, base_timecode = BaseTimecode, base_wall_clock = BaseDTS} = State) ->
   NewTC = round((DTS - BaseDTS)*ClockMap) + BaseTimecode,
   State#base_rtp{timecode = NewTC, wall_clock = round(DTS)}.
+
+
+compose_tc_fun({rtsp, Headers}) ->
+  UA = proplists:get_value('User-Agent', Headers),
+  case UA of
+    <<"MPlayer", _/binary>> ->
+      fun(DTS, _PTS, BaseRTP) -> ts_to_timecode(DTS, BaseRTP) end;
+    <<"LibVLC", _/binary>> ->
+      fun(_DTS, PTS, BaseRTP) -> ts_to_timecode(PTS, BaseRTP) end;
+    _ ->
+      fun(DTS, _PTS, BaseRTP) -> ts_to_timecode(DTS, BaseRTP) end
+  end;
+compose_tc_fun(_) ->
+  fun(DTS, _PTS, BaseRTP) -> ts_to_timecode(DTS, BaseRTP) end.
 
 
 %%

@@ -469,12 +469,12 @@ handle_request({request, 'SETUP', URL, Headers, _},
               ?DBG("Add Stream: ~p", [{Stream, Proto, Addr, TagVal, {Val0, Val1}}]),
               case TagVal of
                 ports ->
-                  {ok, {TagVal, {SRTPPort, SRTCPPort}}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {TagVal, {Val0, Val1}}),
+                  {ok, {TagVal, {SRTPPort, SRTCPPort}}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {TagVal, {Val0, Val1}}, {rtsp, Headers}),
                   ?DBG("Server Ports: ~p", [{SRTPPort, SRTCPPort}]),
                   ServerPorts = [";server_port=", integer_to_list(SRTPPort), "-", integer_to_list(SRTCPPort)],
                   NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;client_port=", Val0s, "-", Val1s, ServerPorts]);
                 interleaved ->
-                  {ok, {TagVal, ok}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {TagVal, {self(), Val0, Val1}}),
+                  {ok, {TagVal, ok}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {TagVal, {self(), Val0, Val1}}, {rtsp, Headers}),
                   NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;interleaved=", Val0s, "-", Val1s])
               end
           end;
