@@ -67,8 +67,8 @@ srt_to_record(Srt) ->
   end.
 
 get_fields(Srt) ->
-  [IdBin|[TimeBin|[Text|_]]] = re:split(Srt, ?NewLine, [{parts,3}]),
-  {IdBin, TimeBin, Text}.
+  [IdBin|[TimeBin|Text]] = re:split(Srt, ?NewLine, [{parts,3}]),
+  {IdBin, TimeBin, list_to_binary(Text)}.
 
 get_times(TimeBin) ->
   [FromBin|[ToBin|_]] = re:split(TimeBin, " --> "),
@@ -124,6 +124,41 @@ good_srt_2_test() ->
 	    text = <<"<i>HEY, UPPER EAST SIDERS,</i>">>}],
       <<"">>}, 
 	parse(good_srt_2())).
+
+good_srt_3() -> 
+  <<"1
+00:00:20,000 --> 00:00:40,000
+
+
+2
+00:00:52,902 --> 00:00:57,635
+<i>Before time began, there was the Cube.</i>">>.
+
+good_srt_3_test() ->
+  ?assertEqual({ok, [#srt_subtitle{id = 1, from = 20000, to = 40000, 
+	    text = <<"">>}],
+      <<"\n2\n00:00:52,902 --> 00:00:57,635\n<i>Before time began, there was the Cube.</i>">>}, 
+	parse(good_srt_3())).
+
+good_srt_4() -> 
+  <<"2
+00:00:05,600 --> 00:00:10,200
+-==http://www.ragbear.com==-
+Present...
+
+3
+00:00:10,200 --> 00:00:16,200
+
+">>.
+
+good_srt_4_test() ->
+  ?assertEqual({ok, [#srt_subtitle{id = 2, from = 5600, to = 10200, 
+	    text = <<"-==http://www.ragbear.com==-\nPresent...">>},
+      #srt_subtitle{id = 3, from = 10200, to = 16200, 
+	    text = <<"">>}],
+      <<"">>}, 
+	parse(good_srt_4())).
+
 
 %invalid id
 bad_srt_1() -> 
@@ -181,21 +216,4 @@ bad_srt_3_test() ->
   ?assertEqual({error, {parse_error, 
     <<"3\n00:00:10,200 -- 00:00:16,200\n<i>Gossip Girl\nSeason 1 Episode 01</i>">>}}, 
 	parse(bad_srt_3())).
-
-%text is absent
-bad_srt_4() -> 
-  <<"2
-00:00:05,600 --> 00:00:10,200
--==http://www.ragbear.com==-
-Present...
-
-3
-00:00:10,200 --> 00:00:16,200
-
-">>.
-
-bad_srt_4_test() ->
-  ?assertEqual({error, {parse_error, 
-    <<"3\n00:00:10,200 --> 00:00:16,200">>}}, 
-	parse(bad_srt_4())).
 
