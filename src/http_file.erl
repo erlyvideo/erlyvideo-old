@@ -1,3 +1,7 @@
+%%
+%% How to multipart upload to Amazon
+%% http://docs.amazonwebservices.com/AmazonS3/latest/API/index.html?mpUploadInitiate.html
+%%
 -module(http_file).
 -include("log.hrl").
 
@@ -5,7 +9,7 @@
 -export([start/2, stop/1, config_change/3]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([open/2, pread/3, close/1]).
+-export([open/2, pread/3, close/1, pwrite/3]).
 
 -export([cache_path/2, add_client/2, ems_client_load/0, ems_client_unload/0]).
 
@@ -137,6 +141,10 @@ pread({cached,File}, Offset, Limit) ->
 pread({http_file,File,_Ref}, Offset, Limit) ->
   % ?D({"Requesting", Offset, Limit}),
   gen_server:call(File, {pread, Offset, Limit}, infinity).
+
+pwrite({http_file, File, _Ref}, Location, Bytes) ->
+  erlang:error(pwrite_not_supported).
+
 
 close({cached,File}) ->
   file:close(File);
