@@ -29,7 +29,7 @@
 -export([parse/1]).
 
 -define(NewLine, "\r\n|\r|\n").
--define(EmptyLine, "\r\n\s*\r\n|\r\s*\r|\n\s*\n").
+-define(EmptyLine, "\r\n\s*\r+\n+|\r\s*\r+|\n\s*\n+").
 
 
 %%----------------------------------------------------------------------
@@ -137,7 +137,7 @@ good_srt_3() ->
 good_srt_3_test() ->
   ?assertEqual({ok, [#srt_subtitle{id = 1, from = 20000, to = 40000, 
 	    text = <<"">>}],
-      <<"\n2\n00:00:52,902 --> 00:00:57,635\n<i>Before time began, there was the Cube.</i>">>}, 
+      <<"2\n00:00:52,902 --> 00:00:57,635\n<i>Before time began, there was the Cube.</i>">>}, 
 	parse(good_srt_3())).
 
 good_srt_4() -> 
