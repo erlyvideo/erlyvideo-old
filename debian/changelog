@@ -1,3 +1,9 @@
+erlyvideo (2.5.1) unstable; urgency=low
+
+  iphone. apps_rewrite_publish
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 18 Nov 2010 18:05:33 +0300
+
 erlyvideo (2.5.0) unstable; urgency=low
 
   language track selection. First steps to multibitrate

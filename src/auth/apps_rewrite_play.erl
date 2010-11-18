@@ -27,7 +27,7 @@
 -include("../../include/rtmp_session.hrl").
 
 
--export([play/2]).
+-export([play/2, run_http_request/2]).
 
 
 dump_session_id(SessionId) when is_integer(SessionId) -> integer_to_list(SessionId);
@@ -35,7 +35,12 @@ dump_session_id(SessionId) when is_binary(SessionId) -> binary_to_list(SessionId
 dump_session_id(SessionId) when is_list(SessionId) -> SessionId;
 dump_session_id(SessionId) -> lists:flatten(io_lib:format("~p",[SessionId])).
 
-play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
+
+play(#rtmp_session{} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
+  run_http_request(State, AMF).
+
+
+run_http_request(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
   {http, _UserInfo, Host, Port, Path, _Query} = http_uri2:parse(URL),
   
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary]),
