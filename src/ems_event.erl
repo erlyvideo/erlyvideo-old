@@ -32,6 +32,7 @@
 
 -export([user_connected/3, user_disconnected/3, user_play/4, user_stop/4]).
 -export([stream_created/4, stream_started/4, stream_source_lost/3, stream_source_requested/3, stream_stopped/3]).
+-export([slow_media/2]).
 
 -export([to_json/1, to_xml/1]).
 
@@ -233,6 +234,14 @@ stream_source_requested(Host, Name, Options) ->
 stream_stopped(Host, Name, Stream) ->
   gen_event:notify(?MODULE, #erlyvideo_event{event = stream_stopped, host = Host, stream_name = Name, stream = Stream}).
 
+%%--------------------------------------------------------------------
+%% @spec (Host, Name, Stream) -> ok
+%%
+%% @doc media cannot read frames at required speed
+%% @end
+%%----------------------------------------------------------------------
+slow_media(Stream, Delay) when is_pid(Stream) andalso is_number(Delay) ->
+  gen_event:notify(?MODULE, #erlyvideo_event{event = slow_media, stream = Stream, options = [{delay,Delay}]}).
 
 
 %%%------------------------------------------------------------------------
