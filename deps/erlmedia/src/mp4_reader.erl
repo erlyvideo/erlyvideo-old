@@ -27,6 +27,7 @@
 -behaviour(gen_format).
 -include("../include/video_frame.hrl").
 -include("../include/mp4.hrl").
+-include("../include/srt.hrl").
 -include("log.hrl").
 
 
@@ -51,11 +52,13 @@ init(Reader, Options) ->
   {ok, MP4Media} = mp4:open(Reader),
   
   Url = proplists:get_value(url, Options),
-  Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
-  SrtFiles = filelib:wildcard(Wildcard),
-  ?D({"SrtFiles", SrtFiles}),
-  SrtTracks = parse_srt_tracks(SrtFiles),
-  ?D({"SrtTracks", SrtTracks}),
+  Lang = ".eng",
+  Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ Lang ++ ".srt",
+  [SrtFile|_] = filelib:wildcard(Wildcard),
+  SrtTracks = parse_srt_tracks(SrtFile),
+  SrtFrames = srt_records_to_mp4_frames(SrtTracks, []),
+  ?D({"SrtFrames", SrtFrames}),
+  %Tracks = tuple_to_list(MP4Media#mp4_media.tracks) ++ SrtFrames,
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
@@ -65,16 +68,23 @@ init(Reader, Options) ->
   {ok, MP4Media#mp4_media{options = Options}}.
 
 
-parse_srt_tracks([]) -> [];
-parse_srt_tracks([File|Files]) ->
+parse_srt_tracks(File) ->
   % (11:41:23 PM) max lapshin: AccessModule чаще всего — file
   % (11:41:31 PM) max lapshin: но в принципе может быть и http_file
   % (11:41:50 PM) max lapshin: поэтому надо сделать такую проверку:
   % parsed_srt_tracks({file, _}, Options) ->
   {ok, Data} = file:read_file(File),
-  {ok, Tracks, More} = srt_parser:parse(Data),
-  % TODO convert list of srt_records to list of mp4_frames
-  Tracks ++ parse_srt_tracks(Files).
+  {ok, Tracks, _More} = srt_parser:parse(Data),
+  Tracks.
+
+srt_records_to_mp4_frames(Tracks, Frames) ->
+  case Tracks of
+    [] -> lists:reverse(Frames);
+    [Track|Left] -> 
+      #srt_subtitle{id = Id, from = From, to = To, text = Text} = Track,
+      Frame = #mp4_frame{id = Id, dts = From, pts = From, size = size(Text), codec = srt, content = Text},
+      srt_records_to_mp4_frames(Left, [Frame|Frames])
+   end.
   
 
 
