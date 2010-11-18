@@ -33,6 +33,7 @@
 -module(mp4).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/mp4.hrl").
+-include("../include/srt.hrl").
 -include("../include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
@@ -56,18 +57,48 @@
 }).
 
 
--export([mp4_desc_length/1, open/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
+-export([mp4_desc_length/1, open/2, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
 
 -define(FRAMESIZE, 32).
 
 
-open(Reader) ->
-  {ok, #mp4_media{tracks = Tracks} = Mp4Media} = read_header(Reader),
+open(Reader, Options) ->
+  {ok, Mp4Media} = read_header(Reader),
+  #mp4_media{tracks = Tracks} = Mp4Media1 = read_srt_files(Mp4Media, proplists:get_value(url, Options)),
   Index = build_index(Tracks),
-  {ok, Mp4Media#mp4_media{index = Index, reader = Reader}}.
+  {ok, Mp4Media1#mp4_media{index = Index, reader = Reader}}.
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
+
+
+
+read_srt_files(Media, Url) ->
+  Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
+  lists:foldl(fun(SrtFile, Mp4Media) ->
+     read_srt_file(Mp4Media, SrtFile)
+  end, Media, filelib:wildcard(Wildcard)).
+
+read_srt_file(Media, SrtFile) ->
+  Subtitles = parse_srt_file(SrtFile),
+  SrtFrames = subtitles_to_mp4_frames(Subtitles),
+  ?D({"SrtFrames", SrtFrames}),
+  Media.
+  
+parse_srt_file(File) ->
+  % (11:41:23 PM) max lapshin: AccessModule чаще всего — file
+  % (11:41:31 PM) max lapshin: но в принципе может быть и http_file
+  % (11:41:50 PM) max lapshin: поэтому надо сделать такую проверку:
+  % parsed_srt_tracks({file, _}, Options) ->
+  {ok, Data} = file:read_file(File),
+  {ok, Subtitles, _More} = srt_parser:parse(Data),
+  Subtitles.
+
+subtitles_to_mp4_frames(Subtitles) ->
+  [#mp4_frame{id = Id, dts = From, pts = From, size = size(Text), codec = srt, content = Text} ||
+   #srt_subtitle{id = Id, from = From, to = _To, text = Text} <- Subtitles].
+
+  
 
 
 read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = Reader, Pos) -> 
