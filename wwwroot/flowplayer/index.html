@@ -74,7 +74,11 @@
         clip: {
           provider: 'rtmp',
           cuepointMultiplier: 1,
-          autoPlay: true
+          autoPlay: true,
+          onCuePoint: function(event) {
+            alert(event);
+            console.dir(event);
+          }
         }
   		});
     }

@@ -122,8 +122,9 @@ first(Media, Options) ->
 first(#mp4_media{} = Media, Options, Id, DTS) when is_number(Id) ->
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
+  Subtitle = track_for_bitrate(Media, proplists:get_value(subtitle, Options)),
   % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
-  first(Media, Options, #frame_id{id = Id, a = Audio, v = Video}, DTS);
+  first(Media, Options, #frame_id{id = Id, a = Audio, v = Video, t = Subtitle}, DTS);
 
 first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id, DTS) ->
   AudioConfig = (element(Audio,Tracks))#mp4_track.decoder_config,
@@ -185,7 +186,7 @@ read_frame(MediaInfo, {dummy_subtitle, #frame_id{v = Video} = Pos, DTS}) ->
    	content = metadata,
 		dts     = 0,
 		pts     = 0,
-		body    = [<<"onMetaData">>, {object, [
+		body    = [<<"onCuePoint">>, {object, [
 		  {name, onCuePoint},
 		  {type, event},
 		  {'begin', 0.0},
