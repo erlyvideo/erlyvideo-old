@@ -66,7 +66,7 @@ open(Reader, Options) ->
   {ok, Mp4Media} = read_header(Reader),
   #mp4_media{tracks = Tracks} = Mp4Media1 = read_srt_files(Mp4Media, proplists:get_value(url, Options)),
   Index = build_index(Tracks),
-  {ok, Mp4Media1#mp4_media{index = Index, reader = Reader}}.
+  {ok, Mp4Media1#mp4_media{index = Index, reader = Reader, tracks = list_to_tuple(Tracks)}}.
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
@@ -79,11 +79,13 @@ read_srt_files(Media, Url) ->
      read_srt_file(Mp4Media, SrtFile)
   end, Media, filelib:wildcard(Wildcard)).
 
-read_srt_file(Media, SrtFile) ->
+read_srt_file(#mp4_media{tracks = Tracks, duration = Duration} = Media, SrtFile) ->
+  {match,[Lang]} = re:run(SrtFile, "\\.(\\w+)\\.srt", [{capture,all_but_first,list}]),
   Subtitles = parse_srt_file(SrtFile),
   SrtFrames = subtitles_to_mp4_frames(Subtitles),
-  ?D({"SrtFrames", SrtFrames}),
-  Media.
+  Track = #mp4_track{data_format = srt, content = text, track_id = length(Tracks)+1, timescale = 1, 
+  duration = Duration, language = list_to_binary(Lang), frames = SrtFrames},
+  Media#mp4_media{tracks = Tracks ++ [Track]}.
   
 parse_srt_file(File) ->
   % (11:41:23 PM) max lapshin: AccessModule чаще всего — file
@@ -237,7 +239,7 @@ ftyp(<<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
 % Movie box
 moov(Atom, MediaInfo) ->
   Media = #mp4_media{tracks = Tracks} = parse_atom(Atom, MediaInfo),
-  Media#mp4_media{tracks = list_to_tuple(lists:reverse(Tracks))}.
+  Media#mp4_media{tracks = lists:reverse(Tracks)}.
 
 % MVHD atom
 mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
@@ -724,9 +726,15 @@ fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [
              SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Id+1, FDTS).
 
 
+prepare_track_for_index([], Index, _Id, _Num) ->
+  lists:reverse(Index);
 
 prepare_track_for_index(<<>>, Index, _Id, _Num) ->
   lists:reverse(Index);
+
+prepare_track_for_index([#mp4_frame{codec = srt, dts = DTS}|Frames], Index, Id, TrackId) ->
+  Keyframe = 0,
+  prepare_track_for_index(Frames, [{{DTS, TrackId, Keyframe}, Id}|Index], Id+1, TrackId);
   
 prepare_track_for_index(<<Keyframe:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, Index, Id, TrackId) ->
   prepare_track_for_index(Frames, [{{DTS, TrackId, Keyframe}, Id}|Index], Id+1, TrackId).
