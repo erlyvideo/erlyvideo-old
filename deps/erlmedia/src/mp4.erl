@@ -97,8 +97,8 @@ parse_srt_file(File) ->
   Subtitles.
 
 subtitles_to_mp4_frames(Subtitles) ->
-  [#mp4_frame{id = Id, dts = From, pts = From, size = size(Text), codec = srt, content = Text} ||
-   #srt_subtitle{id = Id, from = From, to = _To, text = Text} <- Subtitles].
+  [#mp4_frame{id = Id, dts = From, pts = To, size = size(Text), codec = srt, body = Text, content = text} ||
+   #srt_subtitle{id = Id, from = From, to = To, text = Text} <- Subtitles].
 
   
 
@@ -167,12 +167,15 @@ seek(Media, TrackId, Timestamp, Id, Found) ->
     eof -> undefined
   end.
 
-read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id,a = Audio,v = Video} = FrameId) ->
+read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id,a = Audio,v = Video, t = Text} = FrameId) ->
   IndexOffset = Id*4,
   
   case Index of
     <<_:IndexOffset/binary, Audio, _:1, AudioId:23, _/binary>> -> 
       (unpack_frame(element(Audio,Tracks), AudioId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = audio};
+    <<_:IndexOffset/binary, Text, _:1, TextId:23, _/binary>> -> 
+      ?D({read_text,Text,TextId}),
+      (unpack_frame(element(Text,Tracks), TextId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = text};
     <<_:IndexOffset/binary, Video, _:1, VideoId:23, _/binary>> -> 
       (unpack_frame(element(Video,Tracks), VideoId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = video};
     <<_:IndexOffset/binary>> -> 
@@ -182,6 +185,8 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
   end.
   
   
+unpack_frame(#mp4_track{frames = Frames, content = text, data_format = Codec}, Id) when Id < length(Frames) ->
+  lists:nth(Id+1, Frames);
   
 unpack_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,

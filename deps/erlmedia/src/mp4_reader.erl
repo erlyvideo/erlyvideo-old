@@ -96,6 +96,9 @@ track_for_bitrate(#mp4_media{tracks = Tracks}, Bitrate) ->
 track_for_language(#mp4_media{tracks = Tracks}, Language) ->
   find_track(Tracks, #mp4_track.language, Language, audio).
 
+text_with_language(#mp4_media{tracks = Tracks}, Language) ->
+  find_track(Tracks, #mp4_track.language, Language, text).
+
 find_track(Tracks, Pos, Value, Content) ->
   find_track(Tracks, Pos, Value, 1, Content, undefined).
   
@@ -120,7 +123,7 @@ first(Media, Options) ->
 first(#mp4_media{} = Media, Options, Id, DTS) when is_number(Id) ->
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
-  Subtitle = track_for_bitrate(Media, proplists:get_value(subtitle, Options)),
+  Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
   % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
   first(Media, Options, #frame_id{id = Id, a = Audio, v = Video, t = Subtitle}, DTS);
 
@@ -184,7 +187,7 @@ read_frame(MediaInfo, {dummy_subtitle, #frame_id{v = Video} = Pos, DTS}) ->
    	content = metadata,
 		dts     = 0,
 		pts     = 0,
-		body    = [<<"onCuePoint">>, {object, [
+		body    = [<<"onMetaData">>, {object, [
 		  {name, onCuePoint},
 		  {type, event},
 		  {'begin', 0.0},
@@ -203,6 +206,9 @@ read_frame(#mp4_media{} = Media, Id) ->
   case mp4:read_frame(Media, Id) of
     eof ->
       eof;
+    #mp4_frame{content = text, next_id = Next, body = Data} = Frame ->
+		  VideoFrame = video_frame(text, Frame, Data),
+		  VideoFrame#video_frame{next_id = Next};
     #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame ->
       % ?D({"read frame", Id, Offset, Size,Content}),
     	case read_data(Media, Offset, Size) of
@@ -234,6 +240,24 @@ video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS, codec =
 		  _ -> frame
 	  end,
 		codec   = Codec
+  };  
+
+video_frame(text, #mp4_frame{dts = DTS, pts = PTS, codec = Codec}, Data) ->
+  #video_frame{
+   	content = metadata,
+		dts     = DTS,
+		pts     = DTS,
+		flavor  = frame,
+		codec   = Codec,
+		body    = [<<"onMetaData">>, {object, [
+		  {name, onCuePoint},
+		  {type, event},
+		  {'begin', DTS},
+  		{'end', PTS},
+		  {parameters, [
+		    {text, Data}
+		  ]}
+		]}]
   };  
 
 video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->

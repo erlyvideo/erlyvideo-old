@@ -52,6 +52,7 @@
   offset,
   codec,
   content,
+  body,
   next_id
 }).
 
