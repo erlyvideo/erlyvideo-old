@@ -29,6 +29,7 @@
 
 %% External API
 -export([start_link/0, notify/1, add_handler/2, subscribe_to_events/1, add_sup_handler/2, remove_handler/1]).
+-export([start_handlers/0, stop_handlers/0]).
 
 -export([user_connected/3, user_disconnected/3, user_play/4, user_stop/4]).
 -export([stream_created/4, stream_started/4, stream_source_lost/3, stream_source_requested/3, stream_stopped/3]).
@@ -42,9 +43,21 @@
 
 start_link() ->
   {ok, Pid} = gen_event:start_link({local, ?MODULE}),
-  gen_event:add_handler(?MODULE, ?MODULE, []),
+  start_handlers(),
   {ok, Pid}.
 
+
+
+start_handlers() ->
+  gen_event:add_handler(?MODULE, ?MODULE, []),
+  Hosts = proplists:get_keys(ems:get_var(vhosts,[])),
+  lists:foreach(fun(Host) ->
+    [gen_event:add_handler(?MODULE, ems_event_hook, [Host, Event, Handler]) || {Event, Handler} <- ems:get_var(event_handlers, Host, [])]
+  end, Hosts),
+  ok.
+
+stop_handlers() ->
+  [gen_event:delete_handler(?MODULE, Handler, []) || Handler <- gen_event:which_handlers(?MODULE)].
 
 %%--------------------------------------------------------------------
 %% @spec (Event::any()) -> ok
@@ -54,8 +67,8 @@ start_link() ->
 %%----------------------------------------------------------------------
 to_json(Event) ->
   Map = fun
-    (V) when is_pid(V) -> erlang:pid_to_list(V);
-    (V) when is_reference(V) -> erlang:ref_to_list(V);
+    (V) when is_pid(V) -> list_to_binary(erlang:pid_to_list(V));
+    (V) when is_reference(V) -> list_to_binary(erlang:ref_to_list(V));
     (V) -> V
   end,
   Clean = [{K,Map(V)} || {K,V} <- tuple_to_list(?record_to_struct(erlyvideo_event, Event))],
