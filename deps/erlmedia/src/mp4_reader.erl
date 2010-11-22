@@ -187,14 +187,12 @@ read_frame(MediaInfo, {dummy_subtitle, #frame_id{v = Video} = Pos, DTS}) ->
    	content = metadata,
 		dts     = 0,
 		pts     = 0,
-		body    = [<<"onMetaData">>, {object, [
+		body    = [<<"onTextData">>, {object, [
 		  {name, onCuePoint},
 		  {type, event},
 		  {'begin', 0.0},
   		{'end', 1000.0},
-		  {parameters, [
-		    {text, <<"Hi! I'm useless subtitle">>}
-		  ]}
+		  {text, <<"Hi! I'm useless subtitle">>}
 		]}]
 	},
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
@@ -249,14 +247,12 @@ video_frame(text, #mp4_frame{dts = DTS, pts = PTS, codec = Codec}, Data) ->
 		pts     = DTS,
 		flavor  = frame,
 		codec   = Codec,
-		body    = [<<"onMetaData">>, {object, [
+		body    = [<<"onTextData">>, {object, [
 		  {name, onCuePoint},
 		  {type, event},
 		  {'begin', DTS},
   		{'end', PTS},
-		  {parameters, [
-		    {text, Data}
-		  ]}
+		  {text, Data}
 		]}]
   };  
 
