@@ -384,6 +384,9 @@ handle_event(Event, StateName, StateData) ->
 
 handle_sync_event(info, _From, StateName, #rtmp_session{} = State) ->
   {reply, session_stats(State), StateName, State};
+  
+handle_sync_event({get_field, Field}, _From, StateName, State) ->
+  {reply, get(State, Field), StateName, State};
 
 handle_sync_event(Event, _From, StateName, StateData) ->
   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
