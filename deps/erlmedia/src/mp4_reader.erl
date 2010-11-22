@@ -48,13 +48,9 @@ write_frame(_Device, _Frame) ->
 
 
 init(Reader, Options) -> 
-  {ok, MP4Media} = mp4:open(Reader),
+  {ok, MP4Media} = mp4:open(Reader, Options),
   
-  %% 1. Here we must take Path = proplists:get_value(url, Options)
-  %% 2. {Access,Device} = Reader
-  %% 3. try Access:open(Path.gsub(".mp4",".srt"), [binary])
-  %% 4. if it exists, than add proper track with number not 5, but {srt_parser, 5}
-  %%
+  %Tracks = tuple_to_list(MP4Media#mp4_media.tracks) ++ SrtFrames,
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
@@ -62,6 +58,8 @@ init(Reader, Options) ->
   ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
 
   {ok, MP4Media#mp4_media{options = Options}}.
+
+
 
 
 
@@ -98,6 +96,9 @@ track_for_bitrate(#mp4_media{tracks = Tracks}, Bitrate) ->
 track_for_language(#mp4_media{tracks = Tracks}, Language) ->
   find_track(Tracks, #mp4_track.language, Language, audio).
 
+text_with_language(#mp4_media{tracks = Tracks}, Language) ->
+  find_track(Tracks, #mp4_track.language, Language, text).
+
 find_track(Tracks, Pos, Value, Content) ->
   find_track(Tracks, Pos, Value, 1, Content, undefined).
   
@@ -122,8 +123,9 @@ first(Media, Options) ->
 first(#mp4_media{} = Media, Options, Id, DTS) when is_number(Id) ->
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
+  Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
   % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
-  first(Media, Options, #frame_id{id = Id, a = Audio, v = Video}, DTS);
+  first(Media, Options, #frame_id{id = Id, a = Audio, v = Video, t = Subtitle}, DTS);
 
 first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id, DTS) ->
   AudioConfig = (element(Audio,Tracks))#mp4_track.decoder_config,
@@ -178,6 +180,21 @@ read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Aud
 read_frame(MediaInfo, {video_config, #frame_id{v = Video} = Pos, DTS}) ->
   Frame = codec_config({video,Video}, MediaInfo),
   % ?D({video,Video,Frame}),
+  Frame#video_frame{next_id = {dummy_subtitle, Pos, DTS}, dts = DTS, pts = DTS};
+
+read_frame(MediaInfo, {dummy_subtitle, #frame_id{v = Video} = Pos, DTS}) ->
+  Frame = #video_frame{       
+   	content = metadata,
+		dts     = 0,
+		pts     = 0,
+		body    = [<<"onTextData">>, {object, [
+		  {name, onCuePoint},
+		  {type, event},
+		  {'begin', 0.0},
+  		{'end', 1000.0},
+		  {text, <<"Hi! I'm useless subtitle">>}
+		]}]
+	},
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
 
 read_frame(_, eof) ->
@@ -187,6 +204,9 @@ read_frame(#mp4_media{} = Media, Id) ->
   case mp4:read_frame(Media, Id) of
     eof ->
       eof;
+    #mp4_frame{content = text, next_id = Next, body = Data} = Frame ->
+		  VideoFrame = video_frame(text, Frame, Data),
+		  VideoFrame#video_frame{next_id = Next};
     #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame ->
       % ?D({"read frame", Id, Offset, Size,Content}),
     	case read_data(Media, Offset, Size) of
@@ -218,6 +238,22 @@ video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS, codec =
 		  _ -> frame
 	  end,
 		codec   = Codec
+  };  
+
+video_frame(text, #mp4_frame{dts = DTS, pts = PTS, codec = Codec}, Data) ->
+  #video_frame{
+   	content = metadata,
+		dts     = DTS,
+		pts     = DTS,
+		flavor  = frame,
+		codec   = Codec,
+		body    = [<<"onTextData">>, {object, [
+		  {name, onCuePoint},
+		  {type, event},
+		  {'begin', DTS},
+  		{'end', PTS},
+		  {text, Data}
+		]}]
   };  
 
 video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->

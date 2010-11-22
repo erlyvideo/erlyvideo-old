@@ -33,6 +33,7 @@
 -module(mp4).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/mp4.hrl").
+-include("../include/srt.hrl").
 -include("../include/video_frame.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
@@ -56,18 +57,50 @@
 }).
 
 
--export([mp4_desc_length/1, open/1, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
+-export([mp4_desc_length/1, open/2, read_frame/2, frame_count/1, seek/3, mp4_read_tag/1]).
 
 -define(FRAMESIZE, 32).
 
 
-open(Reader) ->
-  {ok, #mp4_media{tracks = Tracks} = Mp4Media} = read_header(Reader),
+open(Reader, Options) ->
+  {ok, Mp4Media} = read_header(Reader),
+  #mp4_media{tracks = Tracks} = Mp4Media1 = read_srt_files(Mp4Media, proplists:get_value(url, Options)),
   Index = build_index(Tracks),
-  {ok, Mp4Media#mp4_media{index = Index, reader = Reader}}.
+  {ok, Mp4Media1#mp4_media{index = Index, reader = Reader, tracks = list_to_tuple(Tracks)}}.
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
+
+
+
+read_srt_files(Media, Url) ->
+  Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
+  lists:foldl(fun(SrtFile, Mp4Media) ->
+     read_srt_file(Mp4Media, SrtFile)
+  end, Media, filelib:wildcard(Wildcard)).
+
+read_srt_file(#mp4_media{tracks = Tracks, duration = Duration} = Media, SrtFile) ->
+  {match,[Lang]} = re:run(SrtFile, "\\.(\\w+)\\.srt", [{capture,all_but_first,list}]),
+  Subtitles = parse_srt_file(SrtFile),
+  SrtFrames = subtitles_to_mp4_frames(Subtitles),
+  Track = #mp4_track{data_format = srt, content = text, track_id = length(Tracks)+1, timescale = 1, 
+  duration = Duration, language = list_to_binary(Lang), frames = SrtFrames},
+  Media#mp4_media{tracks = Tracks ++ [Track]}.
+  
+parse_srt_file(File) ->
+  % (11:41:23 PM) max lapshin: AccessModule чаще всего — file
+  % (11:41:31 PM) max lapshin: но в принципе может быть и http_file
+  % (11:41:50 PM) max lapshin: поэтому надо сделать такую проверку:
+  % parsed_srt_tracks({file, _}, Options) ->
+  {ok, Data} = file:read_file(File),
+  {ok, Subtitles, _More} = srt_parser:parse(Data),
+  Subtitles.
+
+subtitles_to_mp4_frames(Subtitles) ->
+  [#mp4_frame{id = Id, dts = From, pts = To, size = size(Text), codec = srt, body = Text, content = text} ||
+   #srt_subtitle{id = Id, from = From, to = To, text = Text} <- Subtitles].
+
+  
 
 
 read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = Reader, Pos) -> 
@@ -134,12 +167,15 @@ seek(Media, TrackId, Timestamp, Id, Found) ->
     eof -> undefined
   end.
 
-read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id,a = Audio,v = Video} = FrameId) ->
+read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id,a = Audio,v = Video, t = Text} = FrameId) ->
   IndexOffset = Id*4,
   
   case Index of
     <<_:IndexOffset/binary, Audio, _:1, AudioId:23, _/binary>> -> 
       (unpack_frame(element(Audio,Tracks), AudioId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = audio};
+    <<_:IndexOffset/binary, Text, _:1, TextId:23, _/binary>> -> 
+      ?D({read_text,Text,TextId}),
+      (unpack_frame(element(Text,Tracks), TextId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = text};
     <<_:IndexOffset/binary, Video, _:1, VideoId:23, _/binary>> -> 
       (unpack_frame(element(Video,Tracks), VideoId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = video};
     <<_:IndexOffset/binary>> -> 
@@ -149,6 +185,8 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
   end.
   
   
+unpack_frame(#mp4_track{frames = Frames, content = text, data_format = Codec}, Id) when Id < length(Frames) ->
+  lists:nth(Id+1, Frames);
   
 unpack_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
@@ -206,7 +244,7 @@ ftyp(<<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
 % Movie box
 moov(Atom, MediaInfo) ->
   Media = #mp4_media{tracks = Tracks} = parse_atom(Atom, MediaInfo),
-  Media#mp4_media{tracks = list_to_tuple(lists:reverse(Tracks))}.
+  Media#mp4_media{tracks = lists:reverse(Tracks)}.
 
 % MVHD atom
 mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
@@ -693,9 +731,15 @@ fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [
              SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, Id+1, FDTS).
 
 
+prepare_track_for_index([], Index, _Id, _Num) ->
+  lists:reverse(Index);
 
 prepare_track_for_index(<<>>, Index, _Id, _Num) ->
   lists:reverse(Index);
+
+prepare_track_for_index([#mp4_frame{codec = srt, dts = DTS}|Frames], Index, Id, TrackId) ->
+  Keyframe = 0,
+  prepare_track_for_index(Frames, [{{DTS, TrackId, Keyframe}, Id}|Index], Id+1, TrackId);
   
 prepare_track_for_index(<<Keyframe:1, _Size:63, _Offset:64, DTS:64/float, _PTS:64/float, Frames/binary>>, Index, Id, TrackId) ->
   prepare_track_for_index(Frames, [{{DTS, TrackId, Keyframe}, Id}|Index], Id+1, TrackId).

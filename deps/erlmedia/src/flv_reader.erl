@@ -141,10 +141,16 @@ get_int(Key, Meta, Coeff) ->
       end
   end.
 
+b_to_atom(A) when is_atom(A) -> A;
+b_to_atom(A) when is_binary(A) -> binary_to_atom(A, latin1).
+
 parse_metadata(MediaInfo, [<<"onMetaData">>, {object, Meta}]) ->
-  Meta1 = [{K,V} || {K,V} <- Meta, K =/= duration andalso 
-                                   K =/= keyframes andalso
-                                   K =/= times],
+  parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]);
+
+parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
+  Meta1 = [{b_to_atom(K),V} || {K,V} <- Meta, K =/= duration andalso K =/= <<"duration">> andalso
+                                   K =/= keyframes andalso K =/= <<"keyframes">> andalso
+                                   K =/= times andalso K =/= <<"times">>],
 
   Duration = get_int(duration, Meta, 1000),
   MediaInfo1 = MediaInfo#media_info{
