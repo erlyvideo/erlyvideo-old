@@ -1,5 +1,8 @@
 get(#?MODULE{} = Media, Key) -> 
-  element(index(Key, record_info(fields, ?MODULE)) + 1, Media).
+  element(index(Key, record_info(fields, ?MODULE)) + 1, Media);
+  
+get(Media, Key) when is_pid(Media) ->
+  gen_server:call(Media, {get_field, Key}).
   
 
 set(#?MODULE{} = Media, Key, Value) ->
