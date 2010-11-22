@@ -185,7 +185,7 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
   end.
   
   
-unpack_frame(#mp4_track{frames = Frames, content = text, data_format = Codec}, Id) when Id < length(Frames) ->
+unpack_frame(#mp4_track{frames = Frames, content = text, data_format = _Codec}, Id) when Id < length(Frames) ->
   lists:nth(Id+1, Frames);
   
 unpack_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
