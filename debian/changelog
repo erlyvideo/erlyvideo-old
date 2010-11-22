@@ -1,3 +1,9 @@
+erlyvideo (2.5.2) unstable; urgency=low
+
+  Added http hooks. Working subtitles.
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 23 Nov 2010 00:20:34 +0300
+
 erlyvideo (2.5.1) unstable; urgency=low
 
   iphone. apps_rewrite_publish
