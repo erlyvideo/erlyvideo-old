@@ -123,6 +123,9 @@ properties(#media_info{duration = undefined} = Media) -> properties(Media#media_
 properties(#media_info{duration = Duration}) -> [{duration, Duration}].
 
 
+seek(#media_info{} = Media, undefined, _Options) ->
+  {first(Media), 0};
+
 seek(#media_info{} = Media, Timestamp, _Options) ->
   ?D({"mp3 seek", Timestamp}),
   find_frame(Media, Timestamp, first(Media), undefined).
