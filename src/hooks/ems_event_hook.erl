@@ -60,12 +60,12 @@ init([Host, Event, Handler]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_event(#erlyvideo_event{event = Event, host = Host} = Evt, #hook{event = Event, host = Host, handler = Handler} = Hook) ->
-  ?D({calling, Evt, Handler}),
+  % ?D({calling, Evt, Handler}),
   Handler:handle_event(Evt),
   {ok, Hook};
 
 handle_event(_Event, Hook) ->
-  ?D({skipping, _Event}),
+  % ?D({skipping, _Event}),
   {ok, Hook}.
 
 %%-------------------------------------------------------------------------

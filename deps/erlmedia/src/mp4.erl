@@ -72,12 +72,19 @@ read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
 
 
+read_srt_files(Media, Url) when is_binary(Url) ->
+  read_srt_files(Media, binary_to_list(Url));
 
-read_srt_files(Media, Url) ->
+read_srt_files(Media, [$/|_] = Url) ->
   Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
   lists:foldl(fun(SrtFile, Mp4Media) ->
      read_srt_file(Mp4Media, SrtFile)
-  end, Media, filelib:wildcard(Wildcard)).
+  end, Media, filelib:wildcard(Wildcard));
+  
+read_srt_files(Media, _Url) ->
+  ?D({will_not_read, _Url}),
+  Media.
+
 
 read_srt_file(#mp4_media{tracks = Tracks, duration = Duration} = Media, SrtFile) ->
   {match,[Lang]} = re:run(SrtFile, "\\.(\\w+)\\.srt", [{capture,all_but_first,list}]),
