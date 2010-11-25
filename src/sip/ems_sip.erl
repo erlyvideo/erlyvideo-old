@@ -68,9 +68,9 @@ progress(URL, Headers, _Body) ->
       ?D({Module, Function, _Session}),
       Instream = <<Path/binary, <<"-in">>/binary >>,
       Outstream = << Path/binary, <<"-out">>/binary >>,
-      {ok, Media} = media_provider:create(default, Instream, [{type,live},{source_shutdown,shutdown}]),
       case esip_registrator:get(Path) of
         {ok, RTMP} ->
+          {ok, Media} = media_provider:create(default, Instream, [{type,live},{source_shutdown,shutdown}]),
           apps_sip:sip_call(RTMP, Outstream, Instream),
           {ok, Media};
         _ ->
