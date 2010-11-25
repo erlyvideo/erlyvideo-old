@@ -1,3 +1,9 @@
+erlyvideo (2.5.3) unstable; urgency=low
+
+  flv metadata reading
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 26 Nov 2010 00:45:54 +0300
+
 erlyvideo (2.5.2) unstable; urgency=low
 
   Added http hooks. Working subtitles.
