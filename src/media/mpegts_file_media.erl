@@ -59,8 +59,8 @@ can_open_file(Name) ->
 init(Media, Options) ->
   Host = proplists:get_value(host, Options),
   Name = proplists:get_value(url, Options),
-  FileName = ems:pathjoin(file_media:file_dir(Host), Name), 
-  {ok, Reader} = mpegts_sup:start_file_reader(FileName, [{consumer,self()}]),
+  % FileName = ems:pathjoin(file_media:file_dir(Host), Name), 
+  {ok, Reader} = mpegts_sup:start_file_reader(Name, [{consumer,self()}]),
   erlang:monitor(process, Reader),
   ems_media:set_source(self(), Reader),
   {ok, Media#ems_media{source_timeout = 1, clients_timeout = file_media:default_timeout()}}.
