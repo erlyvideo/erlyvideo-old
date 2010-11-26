@@ -34,16 +34,39 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -record(clients, {
+  active,
+  passive,
+  starting,
   list = [],
   bytes
 }).
 
 init() ->
-  #clients{bytes = ets:new(clients, [set,  private])}.
+  #clients{
+    active = ets:new(active, [set,  private]),
+    passive = ets:new(passive, [set,  private]),
+    starting = ets:new(starting, [set,  private]),
+    bytes = ets:new(clients, [set,  private])
+  }.
+
+table(#clients{active = Table}, active) -> Table;
+table(#clients{passive = Table}, passive) -> Table;
+table(#clients{starting = Table}, starting) -> Table.
+
+insert_client(Clients, State, Client, StreamId) ->
+  ets:insert(table(Clients, State), {Client, StreamId}),
+  ok.
+  
+remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
+  ets:delete(A, Client),
+  ets:delete(P, Client),
+  ets:delete(S, Client),
+  ok.
   
   
-insert(#clients{list = List, bytes = Bytes} = Clients, #client{consumer = Client} = Entry) ->
+insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId} = Entry) ->
   ets:insert(Bytes, {Client,0}),
+  insert_client(Clients, State, Client, StreamId),
   Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
 
 
@@ -74,46 +97,58 @@ update(#clients{bytes = Bytes}, Client, #client.bytes, Value) ->
   ets:insert(Bytes, {Client, Value});
 
 update(#clients{list = List} = Clients, Client, Pos, Value) ->
-  
+  remove_client(Clients, Client),
   case lists:keytake(Client, #client.consumer, List) of
-    {value, #client{} = Entry, List1} ->
+    {value, #client{state = State, stream_id = StreamId} = Entry, List1} ->
+      insert_client(Clients, State, Client, StreamId),
       Entry1 = setelement(Pos, Entry, Value),
       Clients#clients{list = [Entry1|List1]};
     false ->
       Clients
   end.
 
-update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B} = NewEntry) ->
+update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B, state = State, stream_id = StreamId} = NewEntry) ->
+  remove_client(Clients, Client),
+  insert_client(Clients, State, Client, StreamId),
   ets:insert(Bytes, {Client, B}),
   List1 = lists:keystore(Client, #client.consumer, List, NewEntry),
   Clients#clients{list = List1}.
 
 delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   ets:delete(Bytes, Client),
+  remove_client(Clients, Client),
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
   
 
-send_frame(#video_frame{} = Frame, #clients{list = List, bytes = Bytes} = Clients, State) ->
+send_frame(#video_frame{} = Frame, #clients{bytes = Bytes} = Clients, State) ->
   Size = try erlang:iolist_size(Frame#video_frame.body) of
     S -> S
   catch
     _:_ -> 0
   end,
-  [begin
-    Pid ! Frame#video_frame{stream_id = StreamId},
-    ets:update_counter(Bytes, Pid, Size)
-  end || #client{consumer = Pid, stream_id = StreamId, state = S} <- List, S == State],
+  F = fun({Pid, StreamId}, F) ->
+    Pid ! F#video_frame{stream_id = StreamId}
+    % ets:update_counter(Bytes, Pid, Size)
+  end,
+  ets:foldl(F, Frame, table(Clients, State)),
+  % [begin
+  %   Pid ! Frame#video_frame{stream_id = StreamId},
+  %   ets:update_counter(Bytes, Pid, Size)
+  % end || #client{consumer = Pid, stream_id = StreamId, state = S} <- List, S == State],
   Clients.
 
 
 mass_update_state(#clients{list = List} = Clients, From, To) ->
   Clients#clients{list = [begin
     S = case State of
-      From -> To;
+      From ->
+        remove_client(Clients, Pid),
+        insert_client(Clients, To, Pid, StreamId),
+        To;
       S1 -> S1
     end,
     Entry#client{state = S}
-  end || #client{state = State} = Entry <- List]}.
+  end || #client{consumer = Pid, stream_id = StreamId, state = State} = Entry <- List]}.
   
 increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
   ets:update_counter(Bytes, Client, Size),
