@@ -148,6 +148,7 @@ extract_url_args([]) -> [];
 extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};
 extract_url_args({"language", Lang}) -> {language, list_to_binary(Lang)};
 extract_url_args({"bitrate", Bitrate}) -> {bitrate, list_to_integer(Bitrate)};
+extract_url_args({"subtitle", Subtitle}) -> {subtitle, list_to_binary(Subtitle)};
 extract_url_args({"duration", Duration}) -> {duration, list_to_integer(Duration)*1000};
 extract_url_args({"clients_timeout", Timeout}) -> {clients_timeout, list_to_integer(Timeout)*1000};
 extract_url_args({Key, Value}) -> {Key, Value};
