@@ -166,14 +166,18 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
       {noreply, Media#ems_media{retry_count = Count + 1}};
     true ->
       ems_event:stream_source_requested(Host, URL, []),
-      ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Count, URL}),
-      {ok, Reader} = case Type of
-        shoutcast -> ems_sup:start_shoutcast_reader(self());
-        _ -> 
-          mpegts_sup:start_reader([{consumer,self()},{url,URL}])
+      Module = case Type of
+        shoutcast -> ems_shoutcast;
+        Else -> Else
       end,
-      ems_media:set_source(self(), Reader),
-      {noreply, Media#ems_media{retry_count = Count + 1}}
+      ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Module, Count, URL}),
+      case Module:read(URL, []) of
+        {ok, Reader} ->
+          ems_media:set_source(self(), Reader),
+          {noreply, Media#ems_media{retry_count = 0}};
+        {error, _Error} ->
+          {noreply, Media#ems_media{retry_count = Count + 1}}
+      end    
   end;
   
 

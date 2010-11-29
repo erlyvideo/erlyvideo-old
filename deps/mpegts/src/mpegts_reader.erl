@@ -104,63 +104,48 @@ start_link(Options) ->
 
 
 
-connect_http(URL, Timeout) ->
-  {_, _, Host, Port, Path, Query} = http_uri2:parse(URL),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}], Timeout),
-  ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
-  ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
-  ok = inet:setopts(Socket, [{active, once}]),
-  {ok, Socket}.
-
-
 init([Options]) ->
   Consumer = proplists:get_value(consumer, Options),
-  self() ! connect,
   erlang:monitor(process, Consumer),
   synchronizer(#ts_lander{consumer = Consumer, options = Options, pids = [#stream{pid = 0, handler = handle_pat}]}).
 
-synchronizer(#ts_lander{consumer = Consumer, options = Options, buffer = Buffer} = TSLander) ->
+synchronizer(#ts_lander{} = TSLander) ->
   receive
-    {'DOWN', _Ref, process, Consumer, normal} ->
-      ok;
-    {'DOWN', _Ref, process, Consumer, _Reason} ->
-      ?D({"MPEG TS reader lost consumer", Consumer}),
-      ok;
-    {'DOWN', _Ref, process, _Pid, _Reason} ->
-      ?D({"MPEG TS reader lost pid handler", _Pid}),
-      ok;
-    connect ->
-      URL = proplists:get_value(url, Options),
-      Timeout = proplists:get_value(timeout, Options, 2000),
-      {ok, Socket} = connect_http(URL, Timeout),
-      ?MODULE:synchronizer(TSLander#ts_lander{socket = Socket});
-    {http, Socket, {http_response, _Version, 200, _Reply}} ->
-      inet:setopts(Socket, [{active,once}]),
-      ?MODULE:synchronizer(TSLander);
-    {http, Socket, {http_header, _, _Header, _, _Value}} ->
-      inet:setopts(Socket, [{active,once}]),
-      ?MODULE:synchronizer(TSLander);
-    {http, Socket, http_eoh} ->
-      inet:setopts(Socket, [{active, once}, {packet, raw}]),
-      ?MODULE:synchronizer(TSLander);
-    % {data, Bin} when size(Buffer) == 0 ->
-    %   ?D({"Rece"})
-    %   synchronizer(Bin, TSLander),
-    %   ?MODULE:synchronizer(TSLander);
-    {data, Bin} ->
-      TSLander1 = synchronizer(<<Buffer/binary, Bin/binary>>, TSLander),
-      ?MODULE:synchronizer(TSLander1);
-    {tcp, Socket, Bin} ->
-      inet:setopts(Socket, [{active,once}]),
-      TSLander1 = case Buffer of
-        <<>> -> synchronizer(Bin, TSLander);
-        _ -> synchronizer(<<Buffer/binary, Bin/binary>>, TSLander)
-      end,
-      ?MODULE:synchronizer(TSLander1);
-    Else ->
-      ?D({"MPEG TS reader", Else}),
-      ok
-  end.    
+    Message ->
+      case (catch handle_message(Message, TSLander)) of
+        {ok, TSLander1} -> synchronizer(TSLander1);
+        ok -> ok;
+        {'EXIT', Reason} -> 
+          error_logger:error_msg("MPEGTS reader died: ~p~n", Reason),
+          {error, Reason}
+      end
+  end.
+  
+handle_message({'DOWN', _Ref, process, Consumer, normal}, #ts_lander{consumer = Consumer}) ->
+  ok;
+handle_message({'DOWN', _Ref, process, _Pid, normal}, #ts_lander{}) ->
+  ?D({"MPEG TS reader lost pid handler", _Pid}),
+  ok;
+
+handle_message({'$gen_call', From, connect}, #ts_lander{options = Options} = TSLander) ->
+  URL = proplists:get_value(url, Options),
+  Timeout = proplists:get_value(timeout, Options, 2000),
+  {ok, _Headers, Socket} = http_stream:get(URL, [{timeout,Timeout}]),
+  ?D({connected, _Headers, Socket}),
+  gen:reply(From, ok),
+  {ok, TSLander#ts_lander{socket = Socket}};
+
+handle_message({tcp, Socket, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
+  inet:setopts(Socket, [{active,once}]),
+  TSLander1 = case Buffer of
+    <<>> -> synchronizer(Bin, TSLander);
+    _ -> synchronizer(<<Buffer/binary, Bin/binary>>, TSLander)
+  end,
+  {ok, TSLander1};
+
+handle_message(Else, _TSLander) ->
+  ?D({"MPEG TS reader", Else}),
+  ok.
     
     
 
