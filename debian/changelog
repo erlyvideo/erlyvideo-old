@@ -1,3 +1,27 @@
+erlyvideo (2.5.3) unstable; urgency=low
+
+  flv metadata reading
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 26 Nov 2010 00:45:54 +0300
+
+erlyvideo (2.5.2) unstable; urgency=low
+
+  Added http hooks. Working subtitles.
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 23 Nov 2010 00:20:34 +0300
+
+erlyvideo (2.5.1) unstable; urgency=low
+
+  iphone. apps_rewrite_publish
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 18 Nov 2010 18:05:33 +0300
+
+erlyvideo (2.5.0) unstable; urgency=low
+
+  language track selection. First steps to multibitrate
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 12 Nov 2010 21:19:36 +0300
+
 erlyvideo (2.4.16) unstable; urgency=low
 
   speedup measures

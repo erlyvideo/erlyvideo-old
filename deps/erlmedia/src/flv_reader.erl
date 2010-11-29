@@ -35,6 +35,7 @@
   frames,
   header,
   metadata = [],
+  metadata_offset,
   duration,
   height,
   width,
@@ -100,9 +101,9 @@ read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Met
 			case parse_metadata(MediaInfo, Meta) of
 			  {MediaInfo1, true} ->	
 			    ?D({"Found metadata, looking 10 frames ahead"}),
-			    read_frame_list(MediaInfo1, NextOffset, 10);
+			    read_frame_list(MediaInfo1#media_info{metadata_offset = Offset}, NextOffset, 10);
 			  {MediaInfo1, false} ->
-			    read_frame_list(MediaInfo1, NextOffset, Limit - 1)
+			    read_frame_list(MediaInfo1#media_info{metadata_offset = Offset} , NextOffset, Limit - 1)
 			end;
 		#video_frame{content = video, flavor = config, next_id = NextOffset} = V ->
 		  ?D({"Save flash video_config"}),
@@ -141,25 +142,31 @@ get_int(Key, Meta, Coeff) ->
       end
   end.
 
-parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
-  Meta1 = [{binary_to_atom(K,utf8),V} || {K,V} <- Meta, K =/= <<"duration">> andalso 
-                                                        K =/= <<"keyframes">> andalso
-                                                        K =/= <<"times">>],
+b_to_atom(A) when is_atom(A) -> A;
+b_to_atom(A) when is_binary(A) -> binary_to_atom(A, latin1).
 
-  Duration = get_int(<<"duration">>, Meta, 1000),
+parse_metadata(MediaInfo, [<<"onMetaData">>, {object, Meta}]) ->
+  parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]);
+
+parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
+  Meta1 = [{b_to_atom(K),V} || {K,V} <- Meta],
+  
+  Meta2 = [{b_to_atom(K),V} || {K,V} <- Meta1, K =/= duration andalso K =/= keyframes andalso K =/= times],
+
+  Duration = get_int(duration, Meta1, 1000),
   MediaInfo1 = MediaInfo#media_info{
-    width = case get_int(<<"width">>, Meta, 1) of
+    width = case get_int(width, Meta1, 1) of
       undefined -> undefined;
       ElseW -> round(ElseW)
     end,
-    height = case get_int(<<"height">>, Meta, 1) of
+    height = case get_int(height, Meta1, 1) of
       undefined -> undefined;
       ElseH -> round(ElseH)
     end,
     duration = Duration,
-    metadata = [{duration,Duration}|Meta1]
+    metadata = [{duration,Duration}|Meta2]
   },
-  case proplists:get_value(<<"keyframes">>, Meta) of
+  case proplists:get_value(keyframes, Meta1) of
     {object, Keyframes} ->
       Offsets = proplists:get_value(filepositions, Keyframes),
       Times = proplists:get_value(times, Keyframes),
@@ -179,8 +186,7 @@ insert_keyframes(#media_info{frames = FrameTable} = MediaInfo, [Offset|Offsets],
   ets:insert(FrameTable, {round(Time*1000), round(Offset)}),
   insert_keyframes(MediaInfo, Offsets, Times).
 
-
-seek(#media_info{} = Media, TS, _Options) when TS == 0 ->
+seek(#media_info{} = Media, TS, _Options) when TS == 0 orelse TS == undefined ->
   {{audio_config, first(Media), 0}, 0};
 
 seek(#media_info{frames = undefined} = Media, Timestamp, _Options) ->
@@ -241,6 +247,13 @@ read_frame(_, eof) ->
 
 read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
+
+read_frame(#media_info{metadata_offset = Offset, reader = Reader} = Media, Offset) ->
+  ?D({"Skip metadata", Offset}),
+  case flv:read_frame(Reader, Offset) of
+    #video_frame{next_id = Next} -> read_frame(Media, Next);
+    Else -> Else
+  end;
 
 read_frame(#media_info{reader = Reader}, Offset) ->
   flv:read_frame(Reader, Offset).

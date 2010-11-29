@@ -191,13 +191,13 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
           ?D({"Synced AAC"}),
           AACConfig = aac:config(Second),
           AudioConfig = #video_frame{       
-           	content          = audio,
-           	flavor = config,
-        		dts           = 0,
-        		pts           = 0,
-        		body          = AACConfig,
+           	content   = audio,
+           	flavor    = config,
+        		dts       = 0,
+        		pts       = 0,
+        		body      = AACConfig,
         	  codec	    = aac,
-        	  sound	  = {stereo, bit16, rate44}
+        	  sound	    = {stereo, bit16, rate44}
         	},
         	Config = aac:decode_config(AACConfig),
         	SampleRate = Config#aac_config.frequency / 1000,
@@ -224,12 +224,13 @@ decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timesta
   case aac:decode(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
-        content          = audio,
-        dts           = Timestamp / SampleRate,
-        pts           = Timestamp / SampleRate,
-        body          = Packet,
+        content    = audio,
+        dts        = Timestamp / SampleRate,
+        pts        = Timestamp / SampleRate,
+        body       = Packet,
+        flavor     = frame,
     	  codec      = aac,
-    	  sound	  = {stereo, bit16, rate44}
+    	  sound	     = {stereo, bit16, rate44}
       },
       send_frame(Frame, State),
       decode(State#shoutcast{buffer = Rest, timestamp = Timestamp + 1024});
@@ -247,11 +248,12 @@ decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timesta
   case mp3:decode(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
-        content          = audio,
-        dts           = Timestamp / SampleRate,
-        pts           = Timestamp / SampleRate,
-        body          = Packet,
-    	  codec	    = mp3,
+        content = audio,
+        dts     = Timestamp / SampleRate,
+        pts     = Timestamp / SampleRate,
+        body    = Packet,
+        flavor  = frame,
+    	  codec	  = mp3,
     	  sound	  = {stereo, bit16, rate44}
       },
       send_frame(Frame, State),

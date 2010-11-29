@@ -11,7 +11,11 @@
 	{file_access, file},
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {rtmp_handlers, [{auth_users_limit, 200}, {apps_rewrite_play, "http://erlyvideo.org/"}, trusted_login, apps_push, apps_streaming, apps_recording]},
+    {rtmp_handlers, [{auth_users_limit, 200}, trusted_login, apps_push, apps_streaming, apps_recording]},
+    {event_handlers, [
+%      {stream_stopped, {ems_hook_http, "http://localhost:8082/stopped"}},
+%      {user_connected, {ems_hook_http, "http://localhost:3000/"}}
+    ]},
     {secret_key, "123"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},

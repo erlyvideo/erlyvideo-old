@@ -12,7 +12,8 @@
   "src/rtmp/shared_objects/*",
   "src/plugins/*",
   "src/test/*",
-  "src/http/*"
+  "src/http/*",
+  "src/hooks/*"
  ],
  [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]
 }.

@@ -384,6 +384,9 @@ handle_event(Event, StateName, StateData) ->
 
 handle_sync_event(info, _From, StateName, #rtmp_session{} = State) ->
   {reply, session_stats(State), StateName, State};
+  
+handle_sync_event({get_field, Field}, _From, StateName, State) ->
+  {reply, get(State, Field), StateName, State};
 
 handle_sync_event(Event, _From, StateName, StateData) ->
   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
@@ -489,10 +492,11 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
-  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts)}),
   case Frame#video_frame.content of
     metadata -> ?D(Frame);
-    _ -> ok
+    _ ->
+      % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
+      ok
   end,
   case Allow of
     true ->

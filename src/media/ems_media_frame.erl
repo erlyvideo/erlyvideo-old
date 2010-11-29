@@ -33,6 +33,16 @@
 -define(TIMEOUT, 1000).
 
 transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) when Transcoder =/= undefined ->
+  % case Frame#video_frame.content of
+  %   audio ->
+  %     Counter = case get(start_count) of
+  %       undefined -> put(start_dts, Frame#video_frame.dts), put(start_count, 0), 0;
+  %       C -> C
+  %     end,
+  %     put(start_count, Counter + size(Frame#video_frame.body)),
+  %     ?D({transcoding, round(Frame#video_frame.dts - get(start_dts)), Counter});
+  %   _ -> ok
+  % end,
   {ok, Frames, State1} = Transcoder:transcode(Frame, State),
   {Media#ems_media{trans_state = State1}, Frames};
   
