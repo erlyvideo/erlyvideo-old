@@ -45,8 +45,11 @@ parse(AbsURI) when is_list(AbsURI) ->
 
 
 extract_path_with_query(URL) ->
-  {ok, Re} = re:compile("[^:+]://([^/]+)(/.*)$"),
-  {match, [_, HostPort, Path]} = re:run(URL, Re, [{capture, all, list}]),
+  {match, [HostPort, P]} = re:run(URL, "[^:+]://([^/]+)(/?.*)$",  [{capture, all_but_first, list}]),
+  Path = case P of
+    "" -> "/";
+    Else -> Else
+  end,
   {HostPort, Path}.
 
 %%%========================================================================
