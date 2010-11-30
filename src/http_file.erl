@@ -140,7 +140,7 @@ pread({cached,File}, Offset, Limit) ->
 
 pread({http_file,File,_Ref}, Offset, Limit) ->
   % ?D({"Requesting", Offset, Limit}),
-  gen_server:call(File, {pread, Offset, Limit}, infinity).
+  gen_server:call(File, {pread, Offset, Limit}, Limit div 100). %% Counting on 100 kbyte/s at least
 
 pwrite({http_file, File, _Ref}, Location, Bytes) ->
   erlang:error(pwrite_not_supported).
@@ -413,7 +413,7 @@ reply_requests(Replies, Cache) ->
   % ?D({"Matching requests", NewRequests, Replies}),
   lists:foreach(fun({From, Position, Limit}) ->
     {ok, Data} = file:pread(Cache, Position, Limit),
-    % ?D({"Replying to", From, Offset, Limit}),
+    % ?D({"Replying to", From, Position, Limit}),
     gen_server:reply(From, {ok, Data})
   end, Replies).
 
