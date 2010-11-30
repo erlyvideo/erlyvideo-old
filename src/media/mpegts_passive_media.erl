@@ -20,7 +20,7 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(mpegts_media).
+-module(mpegts_passive_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
 -include_lib("erlmedia/include/video_frame.hrl").
@@ -34,7 +34,6 @@
 
 -record(mpegts, {
   options,
-  make_request,
   timeout
 }).
 
@@ -51,13 +50,11 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(#ems_media{type = Type} = Media, Options) ->
-  MakeRequest = case {Type, proplists:get_value(make_request, Options, true)} of
-    {_, true} -> self() ! make_request, true;
-    _ -> false
-  end,
-  State = #mpegts{options = Options, make_request = MakeRequest, timeout = proplists:get_value(timeout, Options, 4000)},
-  {ok, Media#ems_media{state = State}}.
+init(#ems_media{} = Media, Options) ->
+  State = #mpegts{options = Options, timeout = proplists:get_value(timeout, Options, 4000)},
+  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()}]),
+  ems_media:set_source(self(), Reader),
+  {ok, Media#ems_media{clients_timeout = false, state = State}}.
 
 
 %%----------------------------------------------------------------------
@@ -81,17 +78,27 @@ handle_control({source_lost, _Source}, State) ->
   %% {stop, Reason, State} -> stop with Reason
   {stop, source_lost, State};
 
+handle_control({set_source, _Source}, State) ->
+  %% Set source returns:
+  %% {reply, Reply, State}
+  %% {stop, Reason, State}
+  {noreply, State};
+  
+handle_control({set_socket, Socket}, #ems_media{source = Reader} = Media) ->
+  mpegts_reader:set_socket(Reader, Socket),
+  {noreply, Media};
+
 handle_control(timeout, State) ->
   ?D({"Timeout in MPEG-TS", State#ems_media.type, erlang:get_stacktrace()}),
   {noreply, State};
 
-handle_control(no_clients, State) ->
-  %% no_clients returns:
-  %% {reply, ok, State}      => wait forever till clients returns
-  %% {reply, Timeout, State} => wait for Timeout till clients returns
-  %% {noreply, State}        => just ignore and live more
-  %% {stop, Reason, State}   => stops. This should be default
-  {stop, normal, State};
+handle_control(no_clients, #ems_media{type = mpegts_passive, source = undefined, clients_timeout = LifeTimeout} = Media) ->
+  ?D("MPEG-TS passive doesn't have clients and socket"),
+  {reply, LifeTimeout, Media};
+
+handle_control(no_clients, #ems_media{type = mpegts_passive} = Media) ->
+  ?D("MPEG-TS passive doesn't have clients, but have socket"),
+  {noreply, Media};
 
 handle_control(_Control, State) ->
   {noreply, State}.
@@ -115,28 +122,6 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Type, retry_limit = Limit, state = State, url = URL} = Media) ->
-  if
-    is_number(Count) andalso is_number(Limit) andalso Count > Limit ->
-      {stop, normal, Media};
-    State#mpegts.make_request == false ->
-      {noreply, Media#ems_media{retry_count = Count + 1}};
-    true ->
-      ems_event:stream_source_requested(Host, URL, []),
-      Module = case Type of
-        shoutcast -> ems_shoutcast;
-        Else -> Else
-      end,
-      ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Module, Count, URL}),
-      case Module:read(URL, []) of
-        {ok, Reader} ->
-          ems_media:set_source(self(), Reader),
-          {noreply, Media#ems_media{retry_count = 0}};
-        {error, _Error} ->
-          {noreply, Media#ems_media{retry_count = Count + 1}}
-      end    
-  end;
-  
 
 handle_info(_Msg, State) ->
   {noreply, State}.

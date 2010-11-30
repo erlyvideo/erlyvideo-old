@@ -84,7 +84,7 @@
 -export([pat/1]).
 -export([extract_nal/1]).
 
--export([start_link/1]).
+-export([start_link/1, set_socket/2]).
 -export([init/1, synchronizer/1]).
 
 load_nif() ->
@@ -102,7 +102,9 @@ load_nif(false) ->
 start_link(Options) ->
   {ok, proc_lib:spawn_link(?MODULE, init, [[Options]])}.
 
-
+set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
+  gen_tcp:controlling_process(Socket, Reader),
+  gen_server:call(Reader, {set_socket, Socket}).
 
 init([Options]) ->
   Consumer = proplists:get_value(consumer, Options),
@@ -127,6 +129,13 @@ handle_message({'DOWN', _Ref, process, _Pid, normal}, #ts_lander{}) ->
   ?D({"MPEG TS reader lost pid handler", _Pid}),
   ok;
 
+handle_message({'$gen_call', From, {set_socket, Socket}}, #ts_lander{} = TSLander) ->
+  inet:setopts(Socket, [{packet,raw},{active,once}]),
+  ?D({passive_accepted, Socket}),
+  gen:reply(From, ok),
+  {ok, TSLander#ts_lander{socket = Socket}};
+  
+
 handle_message({'$gen_call', From, connect}, #ts_lander{options = Options} = TSLander) ->
   URL = proplists:get_value(url, Options),
   Timeout = proplists:get_value(timeout, Options, 2000),
@@ -134,7 +143,7 @@ handle_message({'$gen_call', From, connect}, #ts_lander{options = Options} = TSL
   ?D({connected, _Headers, Socket}),
   gen:reply(From, ok),
   {ok, TSLander#ts_lander{socket = Socket}};
-
+  
 handle_message({tcp, Socket, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
   inet:setopts(Socket, [{active,once}]),
   TSLander1 = case Buffer of
