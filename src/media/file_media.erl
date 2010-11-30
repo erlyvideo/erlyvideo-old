@@ -117,7 +117,11 @@ handle_control(no_clients, State) ->
   %% {stop, Reason, State}   => stops. This should be default
   {stop, normal, State};
 
-handle_control(timeout, State) ->
+handle_control(timeout, #ems_media{options = Options} = State) ->
+  case proplists:get_value(file_access, Options, file) of
+    http_file -> ?D({"Media timeout in HTTP file", proplists:get_value(url, Options)});
+    _ -> ok
+  end,
   {noreply, State};
 
 handle_control(_Control, State) ->

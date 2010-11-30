@@ -117,7 +117,7 @@ handle_control({set_socket, Socket}, #ems_media{source = Reader, type = Type} = 
   {noreply, Media};
 
 handle_control(timeout, State) ->
-  ?D({"Timeout in MPEG-TS", State#ems_media.type}),
+  ?D({"Timeout in MPEG-TS", State#ems_media.type, erlang:get_stacktrace()}),
   {noreply, State};
 
 handle_control(no_clients, #ems_media{type = mpegts_passive, source = undefined, clients_timeout = LifeTimeout} = Media) ->
@@ -181,17 +181,6 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
   end;
   
 
-% handle_info({tcp_closed, _Socket}, #ems_media{type = mpegts_passive, state = State} = Media) ->
-%   ?D({"MPEG-TS passive lost socket"}),
-%   ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-%   State1 = State#mpegts{socket = undefined},
-%   {noreply, Media#ems_media{state = State1}};
-% 
-% 
-% handle_info({tcp_closed, _Socket}, #ems_media{} = Media) ->
-%   ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-%   self() ! make_request,
-%   {noreply, Media};
 handle_info(_Msg, State) ->
   {noreply, State}.
 
