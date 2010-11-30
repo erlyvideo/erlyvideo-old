@@ -22,13 +22,15 @@
 %%%---------------------------------------------------------------------------------------
 -module(http_stream).
 -author('Max Lapshin <max@maxidoors.ru>').
--incude("log.hrl").
+-include("log.hrl").
 
 -export([get/2]).
 
 open_socket(URL, Timeout) ->
   {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
+  
+  ?D({http_connect, Host, Port, Path}),
 
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}], Timeout),
   ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
