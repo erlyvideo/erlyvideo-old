@@ -116,7 +116,7 @@ synchronizer(#ts_lander{} = TSLander) ->
         {ok, TSLander1} -> synchronizer(TSLander1);
         ok -> ok;
         {'EXIT', Reason} -> 
-          error_logger:error_msg("MPEGTS reader died: ~p~n", Reason),
+          error_logger:error_msg("MPEGTS reader died: ~p~n", [Reason]),
           {error, Reason}
       end
   end.
@@ -383,10 +383,10 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
 % stream_timestamp(_, #stream{pcr = PCR} = Stream, _) when is_number(PCR) ->
 %   % ?D({"Set DTS to PCR", PCR}),
 %   normalize_timestamp(Stream#stream{dts = PCR, pts = PCR});
-stream_timestamp(_, #stream{dts = DTS, pts = _PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
-  ?D({"Increasing", DTS}),
-  % Stream#stream{dts = DTS + 40, pts = PTS + 40};
-  Stream;
+stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
+  % ?D({"Increasing", DTS}),
+  Stream#stream{dts = DTS + 40, pts = PTS + 40};
+  % Stream;
 
 stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
   ?D({none, PTS, DTS}),
@@ -397,8 +397,8 @@ stream_timestamp(Bin,  #stream{pcr = PCR, start_dts = undefined} = Stream) when 
   stream_timestamp(Bin,  Stream#stream{start_dts = 0});
 
 stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
-  ?D({no_dts, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts, Stream#stream.start_dts}),
-  ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
+  ?D({no_dts, PCR, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts}),
+  % ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
 stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
