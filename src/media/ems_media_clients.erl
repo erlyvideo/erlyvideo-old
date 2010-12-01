@@ -93,11 +93,11 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
   
 
-send_frame(#video_frame{} = Frame, #clients{list = List, bytes = Bytes} = Clients, State) ->
-  Size = try erlang:iolist_size(Frame#video_frame.body) of
-    S -> S
-  catch
-    _:_ -> 0
+send_frame(#video_frame{content = Content} = Frame, #clients{list = List, bytes = Bytes} = Clients, State) ->
+  Size = case Content of
+    audio -> erlang:iolist_size(Frame#video_frame.body);
+    video -> erlang:iolist_size(Frame#video_frame.body);
+    _ -> 0
   end,
   [begin
     Pid ! Frame#video_frame{stream_id = StreamId},

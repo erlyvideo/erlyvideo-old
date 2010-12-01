@@ -85,7 +85,7 @@ start_mjpeg_reader(URL, Consumer) ->
 start_media(_Name, file,          Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
 start_media(_Name, mpegts,        Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
 start_media(_Name, shoutcast,     Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
-start_media(_Name, mpegts_passive,Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
+start_media(_Name, mpegts_passive,Opts) -> supervisor:start_child(ems_media_sup, [mpegts_passive_media, Opts]);
 start_media(_Name, mpegts_file,   Opts) -> supervisor:start_child(ems_media_sup, [mpegts_file_media, Opts]);
 start_media(_Name, record,        Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);
 start_media(_Name, live,          Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);

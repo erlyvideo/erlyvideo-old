@@ -53,33 +53,12 @@
 
 init(#ems_media{type = Type} = Media, Options) ->
   MakeRequest = case {Type, proplists:get_value(make_request, Options, true)} of
-    {mpegts_passive, _} -> false;
     {_, true} -> self() ! make_request, true;
     _ -> false
   end,
   State = #mpegts{options = Options, make_request = MakeRequest, timeout = proplists:get_value(timeout, Options, 4000)},
-  Media1 = Media#ems_media{state = State},
-  Media2 = case Type of
-    mpegts_passive -> Media1#ems_media{clients_timeout = false};
-    _ -> Media1
-  end,  
-  {ok, Media2}.
+  {ok, Media#ems_media{state = State}}.
 
-
-% connect_http(URL, Timeout) ->
-%   try connect_http_raw(URL, Timeout) of
-%     {ok, Socket} -> {ok, Socket}
-%   catch
-%     Class:Error -> {Class, Error}
-%   end.
-%   
-% connect_http_raw(URL, Timeout) ->
-%   {_, _, Host, Port, Path, Query} = http_uri:parse(URL),
-%   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, line}, {active, false}], Timeout),
-%   ?D({Host, Path, Query, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"}),
-%   ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
-%   ok = inet:setopts(Socket, [{active, once}]),
-%   {ok, Socket}.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
@@ -102,31 +81,9 @@ handle_control({source_lost, _Source}, State) ->
   %% {stop, Reason, State} -> stop with Reason
   {stop, source_lost, State};
 
-handle_control({set_source, _Source}, State) ->
-  %% Set source returns:
-  %% {reply, Reply, State}
-  %% {stop, Reason, State}
-  {noreply, State};
-  
-handle_control({set_socket, Socket}, #ems_media{source = Reader, type = Type} = Media) ->
-  case Type of
-    mpegts_passive -> mpegts_reader:set_socket(Reader, Socket);
-    mpegts -> mpegts_reader:set_socket(Reader, Socket);
-    _ -> ok
-  end,
-  {noreply, Media};
-
 handle_control(timeout, State) ->
-  ?D({"Timeout in MPEG-TS", State#ems_media.type}),
+  ?D({"Timeout in MPEG-TS", State#ems_media.type, erlang:get_stacktrace()}),
   {noreply, State};
-
-handle_control(no_clients, #ems_media{type = mpegts_passive, source = undefined, clients_timeout = LifeTimeout} = Media) ->
-  ?D("MPEG-TS passive doesn't have clients and socket"),
-  {reply, LifeTimeout, Media};
-
-handle_control(no_clients, #ems_media{type = mpegts_passive} = Media) ->
-  ?D("MPEG-TS passive doesn't have clients, but have socket"),
-  {noreply, Media};
 
 handle_control(no_clients, State) ->
   %% no_clients returns:
@@ -166,28 +123,21 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
       {noreply, Media#ems_media{retry_count = Count + 1}};
     true ->
       ems_event:stream_source_requested(Host, URL, []),
-      ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Count, URL}),
-      {ok, Reader} = case Type of
-        shoutcast -> ems_sup:start_shoutcast_reader(self());
-        _ -> 
-          mpegts_sup:start_reader([{consumer,self()},{url,URL}])
+      Module = case Type of
+        shoutcast -> ems_shoutcast;
+        Else -> Else
       end,
-      ems_media:set_source(self(), Reader),
-      {noreply, Media#ems_media{retry_count = Count + 1}}
+      ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Module, Count, URL}),
+      case Module:read(URL, []) of
+        {ok, Reader} ->
+          ems_media:set_source(self(), Reader),
+          {noreply, Media#ems_media{retry_count = 0}};
+        {error, _Error} ->
+          {noreply, Media#ems_media{retry_count = Count + 1}}
+      end    
   end;
   
 
-% handle_info({tcp_closed, _Socket}, #ems_media{type = mpegts_passive, state = State} = Media) ->
-%   ?D({"MPEG-TS passive lost socket"}),
-%   ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-%   State1 = State#mpegts{socket = undefined},
-%   {noreply, Media#ems_media{state = State1}};
-% 
-% 
-% handle_info({tcp_closed, _Socket}, #ems_media{} = Media) ->
-%   ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-%   self() ! make_request,
-%   {noreply, Media};
 handle_info(_Msg, State) ->
   {noreply, State}.
 
