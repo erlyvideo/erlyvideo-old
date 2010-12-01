@@ -45,7 +45,7 @@ open_socket(URL, Timeout) ->
   after
     Timeout -> 
       gen_tcp:close(Socket),
-      {error, Timeout}
+      {error, timeout}
   end.
 
 
