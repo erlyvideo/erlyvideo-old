@@ -1,3 +1,9 @@
+erlyvideo (2.5.4) unstable; urgency=low
+
+
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 02 Dec 2010 13:32:38 +0300
+
 erlyvideo (2.5.3) unstable; urgency=low
 
   flv metadata reading
