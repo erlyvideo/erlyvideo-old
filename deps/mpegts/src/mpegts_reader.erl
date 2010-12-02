@@ -139,10 +139,25 @@ handle_message({'$gen_call', From, {set_socket, Socket}}, #ts_lander{} = TSLande
 handle_message({'$gen_call', From, connect}, #ts_lander{options = Options} = TSLander) ->
   URL = proplists:get_value(url, Options),
   Timeout = proplists:get_value(timeout, Options, 2000),
-  {ok, _Headers, Socket} = http_stream:get(URL, [{timeout,Timeout}]),
-  ?D({connected, _Headers, Socket}),
+  {Schema, _, _Host, _Port, _Path, _Query} = http_uri2:parse(URL),
+  {ok, Socket} = case Schema of
+    udp -> 
+      connect_udp(URL);
+    _ ->
+      {ok, _Headers, Sock} = http_stream:get(URL, [{timeout,Timeout}]),
+      {ok, Sock}
+  end,
+  ?D({connected, URL, Socket}),
   gen:reply(From, ok),
   {ok, TSLander#ts_lander{socket = Socket}};
+
+handle_message({udp, Socket, _IP, _InPortNo, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
+  inet:setopts(Socket, [{active,once}]),
+  TSLander1 = case Buffer of
+    <<>> -> synchronizer(Bin, TSLander);
+    _ -> synchronizer(<<Buffer/binary, Bin/binary>>, TSLander)
+  end,
+  {ok, TSLander1};
   
 handle_message({tcp, Socket, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
   inet:setopts(Socket, [{active,once}]),
@@ -156,6 +171,13 @@ handle_message(Else, _TSLander) ->
   ?D({"MPEG TS reader", Else}),
   ok.
     
+    
+connect_udp(URL) ->
+  {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  {ok, Addr} = inet_parse:address(Host),
+  {ok, Socket} = gen_udp:open(Port, [binary,{active,once},{recbuf,65536},inet,{ip,Addr}]),
+  {ok, Socket}.
+  
     
 
 synchronizer(<<16#47, _:187/binary, 16#47, _/binary>> = Bin, TSLander) ->
