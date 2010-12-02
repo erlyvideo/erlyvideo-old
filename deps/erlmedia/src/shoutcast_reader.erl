@@ -33,6 +33,9 @@
   consumer,
   audio_config = undefined,
   state,
+  url,
+  socket,
+  options,
   sync_count = 0,
   format = aac,
   buffer = <<>>,
@@ -50,13 +53,25 @@
 % MP3 example
 % {ok, Pid2} = ems_sup:start_shoutcast_media("http://205.188.215.230:8002").
 
-start_link(Consumer) ->
-  gen_server:start_link(?MODULE, [Consumer], []).
+start_link(Options) ->
+  gen_server:start_link(?MODULE, [Options], []).
 
 
-init([Consumer]) ->
+init([Options]) ->
+  Consumer = proplists:get_value(consumer, Options),
+  URL = proplists:get_value(url, Options),
+
+  {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
+  
+  ?D({shout_connect, Host, Port, Path}),
+  Timeout = proplists:get_value(timeout, Options, 3000),
+
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}], Timeout),
+  ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
+
   erlang:monitor(process, Consumer),
-  {ok, #shoutcast{state = request, consumer = Consumer}}.
+  {ok, #shoutcast{state = request, consumer = Consumer, url = URL, socket = Socket, options = Options}}.
 
 
 %%-------------------------------------------------------------------------
@@ -71,7 +86,8 @@ init([Consumer]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-
+handle_call(connect, _From, State) ->
+  {reply, ok, State};
 
 handle_call(Request, _From, State) ->
   ?D({"Undefined call", Request, _From}),
@@ -102,10 +118,12 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info({data, Bin}, #shoutcast{buffer = <<>>} = State) ->
+handle_info({tcp, Socket, Bin}, #shoutcast{buffer = <<>>} = State) ->
+  inet:setopts(Socket, [{active,once}]),
   {noreply, decode(State#shoutcast{buffer = Bin})};
 
-handle_info({data, Bin}, #shoutcast{buffer = Buffer} = State) ->
+handle_info({tcp, Socket, Bin}, #shoutcast{buffer = Buffer} = State) ->
+  inet:setopts(Socket, [{active,once}]),
   {noreply, decode(State#shoutcast{buffer = <<Buffer/binary, Bin/binary>>})};
 
 handle_info(#video_frame{flavor = config, content = audio} = Frame, State) ->

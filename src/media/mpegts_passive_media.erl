@@ -1,6 +1,6 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @copyright  2009 Max Lapshin
-%%% @doc        file reader
+%%% @doc        ems_media handler template
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
@@ -20,18 +20,23 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(file_media).
+-module(mpegts_passive_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
+-include_lib("erlmedia/include/video_frame.hrl").
 -include("../../include/ems_media.hrl").
--include_lib("kernel/include/file.hrl").
 -include("../log.hrl").
 
--export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
--export([file_dir/1, file_format/1, default_timeout/0]).
 
-default_timeout() ->
-  600000.
+-define(TIMEOUT_RESTART, 1000).
+
+-export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
+
+-record(mpegts, {
+  options,
+  timeout
+}).
+
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -44,47 +49,17 @@ default_timeout() ->
 %% @doc Called by ems_media to initialize specific data for current media type
 %% @end
 %%----------------------------------------------------------------------
-init(State, Options) ->
-  Path = proplists:get_value(url, Options),
-  Host = proplists:get_value(host, Options),
-  DefaultAccess = ems:get_var(file_access, Host, file),
-  Access = proplists:get_value(file_access, Options, DefaultAccess),
-  case open_file(Access, Path, Options) of
-    {error, Reason} ->
-      {stop, Reason};
-    {Format, Storage} ->
-      {ok, State#ems_media{format = Format, storage = Storage, source_timeout = false, clients_timeout = default_timeout()}}
-  end.
-  
 
-open_file(Access, Path, Options) when is_binary(Path) ->
-  open_file(Access, binary_to_list(Path), Options);
-
-open_file(Access, Path, Options) ->
-  Opts = case Access of
-    file -> [binary, raw, read, {read_ahead, 100000}];
-    _ -> Options
-  end,
-	{ok, File} = Access:open(Path, Opts),
-	case file_media:file_format(Path) of
-	  undefined ->
-	    {error, notfound};
-  	Format ->
-    	InitOptions = case erlang:function_exported(Access, read_file_info, 1) of
-    	  true -> 
-    	    {ok, #file_info{size = Size, atime = Atime, mtime = Mtime, ctime = Ctime}} = Access:read_file_info(Path),
-    	    [{size,Size},{atime,Atime},{mtime,Mtime},{ctime,Ctime}|Options];
-    	  false ->
-    	    Options
-    	end,
-    	{ok, Storage} = Format:init({Access,File}, InitOptions),
-    	{Format, Storage}
-  end.
+init(#ems_media{} = Media, Options) ->
+  State = #mpegts{options = Options, timeout = proplists:get_value(timeout, Options, 4000)},
+  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()}]),
+  ems_media:set_source(self(), Reader),
+  {ok, Media#ems_media{clients_timeout = false, state = State}}.
 
 
 %%----------------------------------------------------------------------
-%% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |
-%%                                        {stop, Reason, State} |
+%% @spec (ControlInfo::tuple(), State) -> {ok, State}       |
+%%                                        {ok, State, tick} |
 %%                                        {error, Reason}
 %%
 %% @doc Called by ems_media to handle specific events
@@ -92,14 +67,14 @@ open_file(Access, Path, Options) ->
 %%----------------------------------------------------------------------
 handle_control({subscribe, _Client, _Options}, State) ->
   %% Subscribe returns:
-  %% {reply, tick, State} -> client requires ticker (file reader)
-  %% {reply, Reply, State} -> client is subscribed as active receiver
-  %% {reply, {error, Reason}, State} -> client receives {error, Reason}
-  {reply, tick, State};
+  %% {ok, State} -> client is subscribed as active receiver
+  %% {ok, State, tick} -> client requires ticker (file reader)
+  %% {error, Reason} -> client receives {error, Reason}
+  {noreply, State};
 
 handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
-  %% {reply, Source, State} -> new source is created
+  %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
   {stop, source_lost, State};
 
@@ -107,22 +82,23 @@ handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {stop, refused, State};
-
-handle_control(no_clients, State) ->
-  %% no_clients returns:
-  %% {reply, ok, State}      => wait forever till clients returns
-  %% {reply, Timeout, State} => wait for Timeout till clients returns
-  %% {noreply, State}        => just ignore and live more
-  %% {stop, Reason, State}   => stops. This should be default
-  {stop, normal, State};
-
-handle_control(timeout, #ems_media{options = Options} = State) ->
-  case proplists:get_value(file_access, Options, file) of
-    http_file -> ?D({"Media timeout in HTTP file", proplists:get_value(url, Options)});
-    _ -> ok
-  end,
   {noreply, State};
+  
+handle_control({set_socket, Socket}, #ems_media{source = Reader} = Media) ->
+  mpegts_reader:set_socket(Reader, Socket),
+  {noreply, Media};
+
+handle_control(timeout, State) ->
+  ?D({"Timeout in MPEG-TS", State#ems_media.type, erlang:get_stacktrace()}),
+  {noreply, State};
+
+handle_control(no_clients, #ems_media{type = mpegts_passive, source = undefined, clients_timeout = LifeTimeout} = Media) ->
+  ?D("MPEG-TS passive doesn't have clients and socket"),
+  {reply, LifeTimeout, Media};
+
+handle_control(no_clients, #ems_media{type = mpegts_passive} = Media) ->
+  ?D("MPEG-TS passive doesn't have clients, but have socket"),
+  {noreply, Media};
 
 handle_control(_Control, State) ->
   {noreply, State}.
@@ -146,30 +122,7 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(_Message, State) ->
+
+handle_info(_Msg, State) ->
   {noreply, State}.
-
-
-%%-------------------------------------------------------------------------
-%% @spec (Host) -> FileName::string()
-%% @doc retrieves video file folder from application environment
-%% @end
-%%-------------------------------------------------------------------------	
-file_dir(Host) ->
-  ems:get_var(file_dir, Host, undefined).
-
-
-
-file_format(Name) ->
-  Readers = ems:get_var(file_formats, [mp4_reader, flv_reader, mp3_reader]),
-  file_format(Name, Readers).
-
-file_format(_Name, []) ->
-  undefined;
-
-file_format(Name, [Reader|Readers]) ->
-  case Reader:can_open_file(Name) of
-    true -> Reader;
-    false -> file_format(Name, Readers)
-  end.
 

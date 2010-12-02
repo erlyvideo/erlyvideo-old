@@ -772,6 +772,7 @@ handle_info(no_clients, #ems_media{module = M} = Media) ->
 %   {noreply, Media}; % No need to set timeout, because Timeout is already going to arrive
 % 
 handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Source =/= undefined ->
+  ?D({timeout, self()}),
   case M:handle_control(timeout, Media) of
     {stop, Reason, Media1} ->
       error_logger:error_msg("Source of media doesnt send frames, stopping...~n"),
@@ -877,6 +878,7 @@ default_ems_media_seek({seek, Client, DTS}, #ems_media{format = Format, storage 
 
 
 default_seek_reply(Client, {DTS, NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
+  ?D({dst,DTS,NewPos,NewDTS}),
   case ems_media_clients:find(Clients, Client) of
     #client{ticker = Ticker, state = passive} ->
       media_ticker:seek(Ticker, DTS),

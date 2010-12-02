@@ -39,6 +39,8 @@
   buffer = <<>>,
   pids,
   consumer,
+  socket,
+  options,
   byte_counter = 0
 }).
 
@@ -82,7 +84,8 @@
 -export([pat/1]).
 -export([extract_nal/1]).
 
--export([start_link/1, init/1, synchronizer/1]).
+-export([start_link/1, set_socket/2]).
+-export([init/1, synchronizer/1]).
 
 load_nif() ->
   load_nif(erlang:system_info(otp_release) >= "R13B04").
@@ -96,35 +99,62 @@ load_nif(false) ->
   ok.
   
 
-start_link(Consumer) ->
-  {ok, proc_lib:spawn_link(?MODULE, init, [[Consumer]])}.
+start_link(Options) ->
+  {ok, proc_lib:spawn_link(?MODULE, init, [[Options]])}.
 
+set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
+  gen_tcp:controlling_process(Socket, Reader),
+  gen_server:call(Reader, {set_socket, Socket}).
 
-init([Consumer]) ->
+init([Options]) ->
+  Consumer = proplists:get_value(consumer, Options),
   erlang:monitor(process, Consumer),
-  synchronizer(#ts_lander{consumer = Consumer, pids = [#stream{pid = 0, handler = handle_pat}]}).
+  synchronizer(#ts_lander{consumer = Consumer, options = Options, pids = [#stream{pid = 0, handler = handle_pat}]}).
 
-synchronizer(#ts_lander{consumer = Consumer, buffer = Buffer} = TSLander) ->
+synchronizer(#ts_lander{} = TSLander) ->
   receive
-    {'DOWN', _Ref, process, Consumer, normal} ->
-      ok;
-    {'DOWN', _Ref, process, Consumer, _Reason} ->
-      ?D({"MPEG TS reader lost consumer", Consumer}),
-      ok;
-    {'DOWN', _Ref, process, _Pid, _Reason} ->
-      ?D({"MPEG TS reader lost pid handler", _Pid}),
-      ok;
-    % {data, Bin} when size(Buffer) == 0 ->
-    %   ?D({"Rece"})
-    %   synchronizer(Bin, TSLander),
-    %   ?MODULE:synchronizer(TSLander);
-    {data, Bin} ->
-      TSLander1 = synchronizer(<<Buffer/binary, Bin/binary>>, TSLander),
-      ?MODULE:synchronizer(TSLander1);
-    Else ->
-      ?D({"MPEG TS reader", Else}),
-      ok
-  end.    
+    Message ->
+      case (catch handle_message(Message, TSLander)) of
+        {ok, TSLander1} -> synchronizer(TSLander1);
+        ok -> ok;
+        {'EXIT', Reason} -> 
+          error_logger:error_msg("MPEGTS reader died: ~p~n", [Reason]),
+          {error, Reason}
+      end
+  end.
+  
+handle_message({'DOWN', _Ref, process, Consumer, normal}, #ts_lander{consumer = Consumer}) ->
+  ok;
+handle_message({'DOWN', _Ref, process, _Pid, normal}, #ts_lander{}) ->
+  ?D({"MPEG TS reader lost pid handler", _Pid}),
+  ok;
+
+handle_message({'$gen_call', From, {set_socket, Socket}}, #ts_lander{} = TSLander) ->
+  inet:setopts(Socket, [{packet,raw},{active,once}]),
+  ?D({passive_accepted, Socket}),
+  gen:reply(From, ok),
+  {ok, TSLander#ts_lander{socket = Socket}};
+  
+
+handle_message({'$gen_call', From, connect}, #ts_lander{options = Options} = TSLander) ->
+  URL = proplists:get_value(url, Options),
+  Timeout = proplists:get_value(timeout, Options, 2000),
+  {ok, _Headers, Socket} = http_stream:get(URL, [{timeout,Timeout}]),
+  ?D({connected, _Headers, Socket}),
+  gen:reply(From, ok),
+  {ok, TSLander#ts_lander{socket = Socket}};
+  
+handle_message({tcp, Socket, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
+  inet:setopts(Socket, [{active,once}]),
+  TSLander1 = case Buffer of
+    <<>> -> synchronizer(Bin, TSLander);
+    _ -> synchronizer(<<Buffer/binary, Bin/binary>>, TSLander)
+  end,
+  {ok, TSLander1};
+
+handle_message(Else, _TSLander) ->
+  ?D({"MPEG TS reader", Else}),
+  ok.
     
     
 
@@ -362,10 +392,10 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
 % stream_timestamp(_, #stream{pcr = PCR} = Stream, _) when is_number(PCR) ->
 %   % ?D({"Set DTS to PCR", PCR}),
 %   normalize_timestamp(Stream#stream{dts = PCR, pts = PCR});
-stream_timestamp(_, #stream{dts = DTS, pts = _PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
-  ?D({"Increasing", DTS}),
-  % Stream#stream{dts = DTS + 40, pts = PTS + 40};
-  Stream;
+stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
+  % ?D({"Increasing", DTS}),
+  Stream#stream{dts = DTS + 40, pts = PTS + 40};
+  % Stream;
 
 stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
   ?D({none, PTS, DTS}),
@@ -376,8 +406,8 @@ stream_timestamp(Bin,  #stream{pcr = PCR, start_dts = undefined} = Stream) when 
   stream_timestamp(Bin,  Stream#stream{start_dts = 0});
 
 stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
-  ?D({no_dts, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts, Stream#stream.start_dts}),
-  ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
+  ?D({no_dts, PCR, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts}),
+  % ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
 stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->

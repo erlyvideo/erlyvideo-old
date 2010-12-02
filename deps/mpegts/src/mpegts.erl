@@ -34,6 +34,8 @@
 -export([init/0, init/1, encode/2, pad_continuity_counters/1, continuity_counters/1]).
 -export([autostart/0, start/0, stop/0]).
 
+-export([read/2]).
+
 
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
@@ -56,6 +58,14 @@ start() ->
   
 stop() ->
   mpegts_sup:stop().
+  
+  
+read(URL, Options) ->
+  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()},{url, URL}|Options]),
+  case (catch gen_server:call(Reader, connect)) of
+    ok -> {ok, Reader};
+    {'EXIT', Error} -> {error, Error}
+  end.
 
 -record(streamer, {
   pat_counter = 0,
