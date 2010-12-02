@@ -1,6 +1,6 @@
 erlyvideo (2.5.4) unstable; urgency=low
 
-
+  UDP unicast
 
  -- Max Lapshin <max@maxidoors.ru>  Thu, 02 Dec 2010 13:32:38 +0300
 
