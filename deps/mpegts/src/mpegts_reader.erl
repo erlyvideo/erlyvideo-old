@@ -428,7 +428,7 @@ stream_timestamp(Bin,  #stream{pcr = PCR, start_dts = undefined} = Stream) when 
   stream_timestamp(Bin,  Stream#stream{start_dts = 0});
 
 stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
-  ?D({no_dts, PCR, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts}),
+  % ?D({no_dts, PCR, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts}),
   % ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
