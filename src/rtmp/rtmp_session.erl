@@ -564,7 +564,7 @@ flush_stream(StreamId) ->
 code_change(_OldVersion, _StateName, _State, _Extra) ->
   ok.
 
-find_stream_by_pid(PlayerPid, #rtmp_session{streams = Streams}) -> 
+find_stream_by_pid(PlayerPid, #rtmp_session{streams1 = Streams}) -> 
   find_stream_by_pid(PlayerPid, Streams);
 
 find_stream_by_pid(PlayerPid, Streams) -> 
