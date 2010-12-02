@@ -175,6 +175,8 @@ unhexdigit(C) when C >= $A, C =< $F -> C - $A + 10.
 
 default_port(http) ->
     80;
+default_port(udp) ->
+    5670;
 default_port(https) ->
     443;
 default_port(rtmp) ->
