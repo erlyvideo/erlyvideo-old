@@ -165,7 +165,7 @@ cache_path(CachePath, URL) ->
 
 
 start_link(URL, Options) ->
-  gen_server:start_link(?MODULE, [URL, Options], []).
+  gen_server_ems:start_link(?MODULE, [URL, Options], []).
 
 init([URL, Options]) when is_binary(URL) ->
   init([binary_to_list(URL), Options]);

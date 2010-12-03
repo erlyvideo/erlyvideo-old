@@ -35,7 +35,7 @@
 
 
 start_link(CachePath) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [CachePath], []).
+  gen_server_ems:start_link({local, ?MODULE}, ?MODULE, [CachePath], []).
 
 
 -record(tracker, {

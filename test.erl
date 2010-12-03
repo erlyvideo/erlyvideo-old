@@ -14,6 +14,16 @@ main([]) ->
   
   Self = self(),
   spawn(fun() ->
+    {ok, Result} = http_file:pread(File, 0, 33213403),
+    io:format("1 ~p~n", [size(Result)]),
+    Self ! tick
+  end),
+  wait(1),
+  init:stop(),
+
+
+
+  spawn(fun() ->
     {ok, Result} = http_file:pread(File, 33212403, Limit),
     io:format("1 ~p~n", [size(Result)]),
     Self ! tick
