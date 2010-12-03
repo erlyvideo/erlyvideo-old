@@ -415,7 +415,10 @@ flush_stream_data(Stream) ->
   
 reply_requests(Replies, Cache) ->
   % ?D({"Matching requests", NewRequests, Replies}),
-  lists:foreach(fun({From, Position, Limit}) ->
+  lists:foreach(fun
+    ({undefined, _, _}) ->
+      ok;
+    ({From, Position, Limit}) ->
     {ok, Data} = file:pread(Cache, Position, Limit),
     % ?D({"Replying to", From, Position, Limit}),
     gen_server:reply(From, {ok, Data})
