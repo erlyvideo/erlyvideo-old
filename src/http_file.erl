@@ -142,7 +142,7 @@ pread({http_file,File,_Ref}, Offset, Limit) ->
   % ?D({"Requesting", Offset, Limit}),
   Timeout = if
     Limit < 100000 -> 3000;
-    _ -> Limit div 100 %% Counting on 100 kbyte/s at least
+    true -> Limit div 100 %% Counting on 100 kbyte/s at least
   end,
   gen_server:call(File, {pread, Offset, Limit}, Timeout). 
 
