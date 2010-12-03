@@ -140,7 +140,11 @@ pread({cached,File}, Offset, Limit) ->
 
 pread({http_file,File,_Ref}, Offset, Limit) ->
   % ?D({"Requesting", Offset, Limit}),
-  gen_server:call(File, {pread, Offset, Limit}, Limit div 100). %% Counting on 100 kbyte/s at least
+  Timeout = if
+    Limit < 100000 -> 3000;
+    _ -> Limit div 100 %% Counting on 100 kbyte/s at least
+  end,
+  gen_server:call(File, {pread, Offset, Limit}, Timeout). 
 
 pwrite({http_file, File, _Ref}, Location, Bytes) ->
   erlang:error(pwrite_not_supported).
@@ -352,7 +356,7 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
     false ->
       Range = lists:flatten(io_lib:format("bytes=~p-", [Offset])),
       Headers = headers(URL, get) ++ [{'Range', Range}],
-      {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,{self(),once}},{response_format,binary},{stream_chunk_size,4096}]),
+      {ibrowse_req_id, Stream} = ibrowse:send_req(URL, Headers, get, [], [{stream_to,{self(),once}},{response_format,binary},{stream_chunk_size,8192}]),
       % ?D({"Starting new stream for", URL, Offset, _Limit, Stream}),
       lists:ukeymerge(#stream.pid, [#stream{pid = Stream, offset = Offset, size = 0}], Streams)
   end,
@@ -362,7 +366,7 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
 handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Streams, requests = Requests, removing_streams = Removing} = State) ->
   case lists:keyfind(Stream, #stream.pid, Streams) of
     #stream{pid = Stream, offset = BlockOffset, size = CurrentSize} = StreamInfo ->
-      % ?D({"Got bin", Offset, size(Bin), Request, Streams}),
+      ?D({"Got bin", BlockOffset, CurrentSize, Stream, size(Bin)}),
       ok = save_data(Cache, BlockOffset + CurrentSize, Bin),
       {NewStreams, ToRemove} = register_chunk(Streams, StreamInfo, size(Bin)),
       stop_finished_streams(ToRemove),
