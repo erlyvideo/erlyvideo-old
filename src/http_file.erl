@@ -366,7 +366,7 @@ schedule_request(#http_file{requests = Requests, streams = Streams, url = URL} =
 handle_incoming_data(Stream, Bin, #http_file{cache_file = Cache, streams = Streams, requests = Requests, removing_streams = Removing} = State) ->
   case lists:keyfind(Stream, #stream.pid, Streams) of
     #stream{pid = Stream, offset = BlockOffset, size = CurrentSize} = StreamInfo ->
-      ?D({"Got bin", BlockOffset, CurrentSize, Stream, size(Bin)}),
+      % ?D({"Got bin", BlockOffset, CurrentSize, Stream, size(Bin)}),
       ok = save_data(Cache, BlockOffset + CurrentSize, Bin),
       {NewStreams, ToRemove} = register_chunk(Streams, StreamInfo, size(Bin)),
       stop_finished_streams(ToRemove),
