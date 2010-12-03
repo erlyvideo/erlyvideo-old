@@ -1,3 +1,15 @@
+erlyvideo (2.5.5) unstable; urgency=low
+
+  Publish fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 02 Dec 2010 18:09:56 +0300
+
+erlyvideo (2.5.4) unstable; urgency=low
+
+  UDP unicast
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 02 Dec 2010 13:32:38 +0300
+
 erlyvideo (2.5.3) unstable; urgency=low
 
   flv metadata reading

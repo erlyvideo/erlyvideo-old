@@ -167,6 +167,13 @@ handle_message({tcp, Socket, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
   end,
   {ok, TSLander1};
 
+handle_message({data, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
+  TSLander1 = case Buffer of
+    <<>> -> synchronizer(Bin, TSLander);
+    _ -> synchronizer(<<Buffer/binary, Bin/binary>>, TSLander)
+  end,
+  {ok, TSLander1};
+
 handle_message(Else, _TSLander) ->
   ?D({"MPEG TS reader", Else}),
   ok.

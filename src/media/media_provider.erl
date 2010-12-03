@@ -172,8 +172,10 @@ entries(Host) ->
   Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
   Info.
   
+remove(Host, Name) when is_list(Name) ->
+  remove(Host, list_to_binary(Name));
   
-remove(Host, Name) ->
+remove(Host, Name) when is_binary(Name) ->
   gen_server:cast(name(Host), {remove, Name}).
 
 info(Host, Name) ->
