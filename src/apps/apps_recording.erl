@@ -65,6 +65,7 @@ real_publish(#rtmp_session{host = Host, socket = Socket} = State, FullName, Type
   rtmp_session:set_stream(#rtmp_stream{pid = Recorder, stream_id = StreamId, started = true}, State).
   
 extract_publish_args([]) -> [];
+extract_publish_args({"record", "true"}) -> {type, record};
 extract_publish_args({"source_timeout", "infinity"}) -> {source_timeout, infinity};
 extract_publish_args({"source_timeout", "shutdown"}) -> {source_timeout, shutdown};
 extract_publish_args({"source_timeout", Timeout}) -> {source_timeout, list_to_integer(Timeout)};
