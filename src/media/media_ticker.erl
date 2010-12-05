@@ -240,7 +240,7 @@ tick_timeout(#ticker{playing_from = PlayingFrom, timer_start = TimerStart, clien
   T.
 
 
-log_slow_media(#ticker{media = Media}, Delay) ->
+log_slow_media(#ticker{media = _Media}, _Delay) ->
   % ems_event:slow_media(Media, Delay).
   ok.
 
