@@ -91,7 +91,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
-  rtmp_socket:setopts(Socket, [{chunk_size, 4096}]),
+  rtmp_socket:setopts(Socket, [{chunk_size, 16#200000}]),
   
   ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
