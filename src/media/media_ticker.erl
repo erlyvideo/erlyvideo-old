@@ -82,17 +82,17 @@ init(Media, Consumer, Options) ->
   
   PlayingTill = case proplists:get_value(duration, Options) of
     undefined -> undefined;
-    Duration ->
-      Length = proplists:get_value(length, ems_media:info(Media)),
-      if
-        Duration > Length ->
-          Start + Duration;
-        true ->
-          case ems_media:seek_info(Media, Start + Duration, Options) of
-            {_Pos, EndTimestamp} -> EndTimestamp;
-            _ -> undefined
-          end
-      end
+    Duration -> Start + Duration
+      % Length = proplists:get_value(length, ems_media:info(Media)),
+      % if
+      %   Duration > Length ->
+      %     Start + Duration;
+      %   true ->
+      %     case ems_media:seek_info(Media, Start + Duration, Options) of
+      %       {_Pos, EndTimestamp} -> EndTimestamp;
+      %       _ -> undefined
+      %     end
+      % end
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, slow_media_timeout = SlowMediaTimeout}).
@@ -194,7 +194,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
       {noreply, Ticker};
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
-      % ?D({play_complete, DTS}),
+      ?D({play_complete_limit, PlayingTill, NewDTS}),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
       {noreply, Ticker};
