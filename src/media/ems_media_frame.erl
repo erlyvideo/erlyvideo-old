@@ -30,7 +30,7 @@
 
 -export([transcode/2, send_frame/2]).
 
--define(TIMEOUT, 1000).
+-define(TIMEOUT, 60000).
 
 transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) when Transcoder =/= undefined ->
   % case Frame#video_frame.content of
