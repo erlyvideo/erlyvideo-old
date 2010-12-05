@@ -1,3 +1,9 @@
+erlyvideo (2.5.6) unstable; urgency=low
+
+  Remove dummy subtitle from mp4, add file_password_publish
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 04 Dec 2010 14:14:10 +0300
+
 erlyvideo (2.5.5) unstable; urgency=low
 
   Publish fixes
