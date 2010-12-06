@@ -33,7 +33,6 @@
 -export([start_link/0, set_socket/2]).
 
 -define(RTMP_WINDOW_SIZE, 2500000).
--define(NC_CONNECT_REJECTED, "NetConnection.Connect.Rejected").
 
 
 %% gen_fsm callbacks
@@ -50,7 +49,7 @@
 
 
 -export([create_client/1]).
--export([accept_connection/1, reject_connection/1]).
+-export([accept_connection/1, reject_connection/1, close_connection/1]).
 -export([message/4, collect_stats/1]).
 
 -export([reply/2, fail/2]).
@@ -111,7 +110,7 @@ accept_connection(Session) when is_pid(Session) ->
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
   ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
-               {code, <<?NC_CONNECT_REJECTED>>},
+               {code, <<"NetConnection.Connect.Rejected">>},
                {description, <<"Connection rejected.">>}],
   fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   gen_fsm:send_event(self(), exit),
@@ -119,6 +118,19 @@ reject_connection(#rtmp_session{socket = Socket} = Session) ->
   
 reject_connection(Session) when is_pid(Session) ->
   gen_fsm:send_event(Session, reject_connection).
+
+
+close_connection(#rtmp_session{socket = Socket} = Session) ->
+  ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
+  StatusObj = [{level, <<"status">>}, 
+               {code, <<"NetConnection.Connect.Closed">>},
+               {description, <<"Connection closed.">>}],
+  fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+  gen_fsm:send_event(self(), exit),
+  Session;
+
+close_connection(Session) when is_pid(Session) ->
+  gen_fsm:send_event(Session, close_connection).
 
   
   
@@ -221,6 +233,10 @@ send(Session, Message) ->
 
 'WAIT_FOR_DATA'(reject_connection, Session) ->
   reject_connection(Session),
+  {stop, normal, Session};
+
+'WAIT_FOR_DATA'(close_connection, Session) ->
+  close_connection(Session),
   {stop, normal, Session};
 
 'WAIT_FOR_DATA'({message, Stream, Code, Body}, #rtmp_session{socket = Socket} = State) ->
