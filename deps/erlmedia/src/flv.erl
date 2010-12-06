@@ -39,7 +39,7 @@
          decode_audio_tag/1, decode_video_tag/1, decode_meta_tag/1, decode_tag/1]).
 
 
--export([read_frame/2]).
+-export([read_frame/2, duration/1]).
 
 read_frame(Reader, Offset) ->
   case flv:read_tag(Reader, Offset) of
@@ -127,6 +127,20 @@ frame_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 %% @end 
 %%--------------------------------------------------------------------
 data_offset() -> ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
+
+
+
+duration(Reader) ->
+  {_Header, DataOffset} = read_header(Reader),
+  duration(Reader, DataOffset, 0).
+  
+duration(Reader, Offset, Duration) ->  
+  case read_tag_header(Reader, Offset) of
+    #flv_tag{size = Size, timestamp = Timestamp, next_tag_offset = NextOffset} ->
+      duration(Reader, NextOffset, Timestamp);
+    eof ->
+      Duration
+  end.
 
 %%--------------------------------------------------------------------
 %% @spec (File::file()) -> {Header::flv_header(), Offset::numeric()}
