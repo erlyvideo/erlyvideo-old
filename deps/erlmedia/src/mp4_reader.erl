@@ -124,7 +124,7 @@ first(#mp4_media{} = Media, Options, Id, DTS) when is_number(Id) ->
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
-  % ?D({first,Id,Audio,Video,Media#mp4_media.tracks}),
+  ?D({mp4_selected, Id,Audio,Video,Subtitle}),
   first(Media, Options, #frame_id{id = Id, a = Audio, v = Video, t = Subtitle}, DTS);
 
 first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id, DTS) ->
@@ -180,21 +180,6 @@ read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Aud
 read_frame(MediaInfo, {video_config, #frame_id{v = Video} = Pos, DTS}) ->
   Frame = codec_config({video,Video}, MediaInfo),
   % ?D({video,Video,Frame}),
-  Frame#video_frame{next_id = {dummy_subtitle, Pos, DTS}, dts = DTS, pts = DTS};
-
-read_frame(MediaInfo, {dummy_subtitle, #frame_id{v = Video} = Pos, DTS}) ->
-  Frame = #video_frame{       
-   	content = metadata,
-		dts     = 0,
-		pts     = 0,
-		body    = [<<"onTextData">>, {object, [
-		  {name, onCuePoint},
-		  {type, event},
-		  {'begin', 0.0},
-  		{'end', 1000.0},
-		  {text, <<"Hi! I'm useless subtitle">>}
-		]}]
-	},
   Frame#video_frame{next_id = Pos, dts = DTS, pts = DTS};
 
 read_frame(_, eof) ->
@@ -279,9 +264,10 @@ seek(#mp4_media{} = Media, Timestamp, Options) ->
   % TODO: insert here ability to seek in options
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
+  Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
   ?D({"Seek", Timestamp}),
   case mp4:seek(Media, Video, Timestamp) of
-    {Id, DTS} -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video}, DTS}, DTS};
+    {Id, DTS} -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS};
     undefined -> undefined
   end.
 

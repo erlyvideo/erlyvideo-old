@@ -1,3 +1,27 @@
+erlyvideo (2.5.7) unstable; urgency=low
+
+  Fixed errorneous timeout
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 06 Dec 2010 13:31:14 +0300
+
+erlyvideo (2.5.6) unstable; urgency=low
+
+  Remove dummy subtitle from mp4, add file_password_publish
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 04 Dec 2010 14:14:10 +0300
+
+erlyvideo (2.5.5) unstable; urgency=low
+
+  Publish fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 02 Dec 2010 18:09:56 +0300
+
+erlyvideo (2.5.4) unstable; urgency=low
+
+  UDP unicast
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 02 Dec 2010 13:32:38 +0300
+
 erlyvideo (2.5.3) unstable; urgency=low
 
   flv metadata reading

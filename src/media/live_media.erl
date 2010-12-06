@@ -63,6 +63,13 @@ init(Media, Options) ->
       {ok, Media1};
     undefined -> 
       {ok, Media1};
+    append ->
+      URL = proplists:get_value(url, Options),
+      Host = proplists:get_value(host, Options),
+    	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
+    	ok = filelib:ensure_dir(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName, [{mode,append}]),
+      {ok, Media1#ems_media{format = flv_writer, storage = Writer}};
     record ->
       URL = proplists:get_value(url, Options),
       Host = proplists:get_value(host, Options),

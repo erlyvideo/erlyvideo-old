@@ -153,7 +153,7 @@ subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
 %% @end
 %%----------------------------------------------------------------------
 unsubscribe(Media) when is_pid(Media) ->
-  gen_server:call(Media, {unsubscribe, self()}).
+  (catch gen_server:call(Media, {unsubscribe, self()})).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> ok

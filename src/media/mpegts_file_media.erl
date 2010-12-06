@@ -57,7 +57,7 @@ can_open_file(Name) ->
 %%----------------------------------------------------------------------
 
 init(Media, Options) ->
-  Host = proplists:get_value(host, Options),
+  % Host = proplists:get_value(host, Options),
   Name = proplists:get_value(url, Options),
   % FileName = ems:pathjoin(file_media:file_dir(Host), Name), 
   {ok, Reader} = mpegts_sup:start_file_reader(Name, [{consumer,self()}]),

@@ -61,7 +61,7 @@ init([Path, Options]) ->
   Consumer = proplists:get_value(consumer, Options),
   true = is_pid(Consumer),
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
-  {ok, Reader} = mpegts_reader:start_link(self()),
+  {ok, Reader} = mpegts_reader:start_link([{consumer,self()}]),
   erlang:monitor(process, Consumer),
   self() ! start,
   {ok, #file_reader{reader = Reader, consumer = Consumer, path = Path, file = File}}.
