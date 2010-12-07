@@ -1,5 +1,3 @@
-%% This is the application resource file (.app file) for the 'base'
-%% application.
 {application, log4erl,
 [{description, "Logger for erlang in the spirit of Log4J"},
  {vsn, "0.8.6"},
