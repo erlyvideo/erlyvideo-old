@@ -31,7 +31,7 @@
 -export([file_dir/1, file_format/1, default_timeout/0]).
 
 default_timeout() ->
-  600000.
+  60000.
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
