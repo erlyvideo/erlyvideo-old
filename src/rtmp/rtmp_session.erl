@@ -121,12 +121,7 @@ reject_connection(Session) when is_pid(Session) ->
   gen_fsm:send_event(Session, reject_connection).
 
 
-close_connection(#rtmp_session{socket = Socket} = Session) ->
-  ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
-  StatusObj = [{level, <<"status">>}, 
-               {code, <<"NetConnection.Connect.Closed">>},
-               {description, <<"Connection closed.">>}],
-  fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+close_connection(#rtmp_session{} = Session) ->
   gen_fsm:send_event(self(), exit),
   Session;
 
