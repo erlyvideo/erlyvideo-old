@@ -349,7 +349,7 @@ call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) a
   
   
 call_mfa([], Command, Args) ->
-  ?D({"MFA failed", Command}),
+  % ?D({"MFA failed", Command}),
   case Args of
     [#rtmp_session{host = Host} = State, #rtmp_funcall{args = AMFArgs} = AMF] -> 
       ems_log:error(Host, "Failed RTMP funcall: ~p(~p)", [Command, AMFArgs]),
