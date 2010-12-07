@@ -52,8 +52,6 @@
 
 init(#ems_media{} = Media, Options) ->
   State = #mpegts{options = Options, timeout = proplists:get_value(timeout, Options, 4000)},
-  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()}]),
-  ems_media:set_source(self(), Reader),
   {ok, Media#ems_media{clients_timeout = false, state = State}}.
 
 
@@ -76,7 +74,7 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {stop, source_lost, State};
+  {noreply, State};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
@@ -84,12 +82,13 @@ handle_control({set_source, _Source}, State) ->
   %% {stop, Reason, State}
   {noreply, State};
   
-handle_control({set_socket, Socket}, #ems_media{source = Reader} = Media) ->
+handle_control({set_socket, Socket}, Media) ->
+  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()}]),
+  ems_media:set_source(self(), Reader),
   mpegts_reader:set_socket(Reader, Socket),
   {noreply, Media};
 
 handle_control(timeout, State) ->
-  ?D({"Timeout in MPEG-TS", State#ems_media.type, erlang:get_stacktrace()}),
   {noreply, State};
 
 handle_control(no_clients, #ems_media{type = mpegts_passive, source = undefined, clients_timeout = LifeTimeout} = Media) ->
