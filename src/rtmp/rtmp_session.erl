@@ -349,7 +349,6 @@ call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) a
   
   
 call_mfa([], Command, Args) ->
-  ?D({"Failed funcall", Command}),
   case Args of
     [#rtmp_session{} = State, #rtmp_funcall{} = AMF] -> rtmp_session:fail(State, AMF);
     _ -> ok
@@ -361,7 +360,7 @@ call_mfa([Module|Modules], Command, Args) ->
     _ -> ok
   end,
   % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
-  case ems:respond_to(Module, Command, 2) of
+  case ems:respond_to(Module, Command, length(Args)) of
     true ->
       case erlang:apply(Module, Command, Args) of
         unhandled ->
@@ -562,7 +561,7 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 terminate(_Reason, _StateName, #rtmp_session{host = Host, addr = Addr, user_id = UserId, session_id = SessionId, bytes_recv = Recv, bytes_sent = Sent} = State) ->
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p ~p", [Addr, Host, UserId, SessionId, Recv, Sent]),
   ems_event:user_disconnected(State#rtmp_session.host, self(), session_stats(State)),
-  (catch erlyvideo:call_modules(logout, [State])),
+  (catch call_function(Host, logout, [State])),
   ok.
 
 
