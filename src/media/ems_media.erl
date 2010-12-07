@@ -91,11 +91,11 @@ behaviour_info(_Other) -> undefined.
 
 %% @private
 start_link(Module, Options) ->
-  gen_server_ems:start_link(?MODULE, [Module, Options], []).
+  gen_server_ems:start_link(?MODULE, [Module, Options], [{fullsweep_after, 10}]).
 
 %% @private
 start_custom(Module, Options) ->
-  gen_server_ems:start_link(Module, [Options], []).
+  gen_server_ems:start_link(Module, [Options], [{fullsweep_after, 10}]).
 
 
 

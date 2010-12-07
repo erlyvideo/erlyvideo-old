@@ -80,7 +80,7 @@ create_client(Socket) ->
 collect_stats(_Host) ->
   Pids = [Pid || {_, Pid, _, _} <- supervisor:which_children(rtmp_session_sup), Pid =/= self()],
   Info = ems:multicall(Pids, info, 1000),
-  lists:sort(fun(Inf1, Inf2) -> proplists:get_value(addr, Inf1) < proplists:get_value(addr, Inf2) end, Info).
+  lists:sort(fun({_,Inf1}, {_,Inf2}) -> proplists:get_value(addr, Inf1) < proplists:get_value(addr, Inf2) end, Info).
   
 
 
