@@ -141,8 +141,9 @@ reply(Socket, AMF) when is_pid(Socket) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke}).
 
 
-fail(#rtmp_session{socket = Socket}, AMF) ->
-  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke});
+fail(#rtmp_session{socket = Socket} = State, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}),
+  State;
 fail(Socket, AMF) when is_pid(Socket) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
 
@@ -315,8 +316,7 @@ find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} =
 
 call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
   URL = proplists:get_value(tcUrl, PlayerInfo),
-  {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
-  {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
+  {match, [_Proto, HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
   Host = ems:host(HostName),
   
   ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
@@ -349,8 +349,11 @@ call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) a
   
   
 call_mfa([], Command, Args) ->
+  ?D({"MFA failed", Command}),
   case Args of
-    [#rtmp_session{} = State, #rtmp_funcall{} = AMF] -> rtmp_session:fail(State, AMF);
+    [#rtmp_session{host = Host} = State, #rtmp_funcall{args = AMFArgs} = AMF] -> 
+      ems_log:error(Host, "Failed RTMP funcall: ~p(~p)", [Command, AMFArgs]),
+      rtmp_session:fail(State, AMF);
     _ -> ok
   end;
   

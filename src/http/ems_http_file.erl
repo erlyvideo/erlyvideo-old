@@ -24,19 +24,23 @@
 -module(ems_http_file, [DocRoot]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../ems.hrl").
+-include("../log.hrl").
 
 -export([http/4]).
 
 
 
 http(Host, 'GET', Path, Req) ->
-  Root = if
+  Root1 = if
     is_list(DocRoot) -> DocRoot;
     is_atom(DocRoot) -> code:lib_dir(DocRoot, wwwroot);
     true -> undefined
   end,
   
-  if 
+  Root = ems:expand_path(Root1),
+  
+  ?D({serve, DocRoot, Root}),
+  if
     is_list(Root) -> serve_file(Host, Root, Path, Req);
     true -> unhandled
   end;    
@@ -47,15 +51,18 @@ http(_Host, _Method, _Path, _Req) ->
 
 serve_file(Host, Root, Path, Req) ->
   FileName = filename:absname(ems:pathjoin([Root | Path])),
+  ?D({"check", FileName}),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:file(FileName);
     false ->
-      case filelib:is_regular(FileName ++ "/index.html") of
+      AltPath = ems:pathjoin([FileName, "index.html"]),
+      ?D({"check", AltPath}),
+      case filelib:is_regular(AltPath) of
         true ->
           ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
-          Req:file(FileName ++ "/index.html");
+          Req:file(AltPath);
         false ->  
           unhandled
       end

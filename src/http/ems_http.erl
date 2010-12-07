@@ -64,7 +64,7 @@ try_handler([], Host, Method, Path, Req) ->
   
 try_handler([Handler|Chain], Host, Method, Path, Req) ->
   try Handler:http(Host, Method, Path, Req) of
-    unhandled -> 
+    unhandled ->
       try_handler(Chain, Host, Method, Path, Req);
     Else ->
       Else
@@ -79,9 +79,6 @@ wwwroot(Host) ->
   ems:get_var(wwwroot, Host, ems:get_var(wwwroot, "wwwroot")).
   
   
-http(_Host, _, ["a"], Req) ->
-  Req:respond(302, [{"Location", "video.mp4"}], "Redirect to real file");
-
 % handle the 404 page not found
 http(_Host, _, Path, Req) ->
 	Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req]).
