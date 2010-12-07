@@ -39,7 +39,6 @@ http(Host, 'GET', Path, Req) ->
   
   Root = ems:expand_path(Root1),
   
-  ?D({serve, DocRoot, Root}),
   if
     is_list(Root) -> serve_file(Host, Root, Path, Req);
     true -> unhandled
@@ -51,14 +50,12 @@ http(_Host, _Method, _Path, _Req) ->
 
 serve_file(Host, Root, Path, Req) ->
   FileName = filename:absname(ems:pathjoin([Root | Path])),
-  ?D({"check", FileName}),
   case filelib:is_regular(FileName) of
     true ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:file(FileName);
     false ->
       AltPath = ems:pathjoin([FileName, "index.html"]),
-      ?D({"check", AltPath}),
       case filelib:is_regular(AltPath) of
         true ->
           ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),

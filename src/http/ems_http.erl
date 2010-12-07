@@ -80,6 +80,7 @@ wwwroot(Host) ->
   
   
 % handle the 404 page not found
-http(_Host, _, Path, Req) ->
+http(Host, _, Path, Req) ->
+  ems_log:access(Host, "FAIL ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
 	Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found. ~p: ~p", [Path, Req]).
 
