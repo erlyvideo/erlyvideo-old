@@ -341,16 +341,21 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
 call_function(#rtmp_session{host = Host} = State, AMF) ->
   call_function(Host, State, AMF).
 
-call_function(Host, State, AMF) ->
-  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
+call_function(Host, #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
+  call_function(Host, Command, [State, AMF]);
+
+call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) andalso is_list(Args) ->
+  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), Command, Args).
   
   
-call_mfa([], #rtmp_session{} = State, AMF) ->
-  ?D({"Failed funcall", AMF#rtmp_funcall.command}),
-  rtmp_session:fail(State, AMF),
-  State;
+call_mfa([], Command, Args) ->
+  ?D({"Failed funcall", Command}),
+  case Args of
+    [#rtmp_session{} = State, #rtmp_funcall{} = AMF] -> rtmp_session:fail(State, AMF);
+    _ -> ok
+  end;
   
-call_mfa([Module|Modules], #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
+call_mfa([Module|Modules], Command, Args) ->
   case code:is_loaded(mod_name(Module)) of
     false -> code:load_file(mod_name(Module));
     _ -> ok
@@ -358,16 +363,16 @@ call_mfa([Module|Modules], #rtmp_session{} = State, #rtmp_funcall{command = Comm
   % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
   case ems:respond_to(Module, Command, 2) of
     true ->
-      case Module:Command(State, AMF) of
+      case erlang:apply(Module, Command, Args) of
         unhandled ->
-          call_mfa(Modules, State, AMF);
+          call_mfa(Modules, Command, Args);
         {unhandled, NewState, NewAMF} ->
-          call_mfa(Modules, NewState, NewAMF);
-        #rtmp_session{} = NewState ->
-          NewState
+          call_mfa(Modules, Command, [NewState, NewAMF]);
+        Reply ->
+          Reply
       end;
     false ->
-      call_mfa(Modules, State, AMF)
+      call_mfa(Modules, Command, Args)
   end.
   
 
