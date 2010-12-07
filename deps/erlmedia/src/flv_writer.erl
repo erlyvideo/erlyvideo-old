@@ -125,7 +125,7 @@ writer(FlvWriter) ->
     Message -> handle_message(Message, FlvWriter)
   after
     500 ->
-      ?D({flush,on_timeout}),
+      % ?D({flush,on_timeout}),
       ?MODULE:writer_no_timeout(flush_messages(FlvWriter, hard))
   end.
 
