@@ -6,7 +6,7 @@
 logger{
   console_appender app1{
   	level = all,
-  	format = '%L %j %T %l%n'
+  	format = '%L %j %t %l%n'
   }
 
   file_appender app3{
@@ -17,7 +17,7 @@ logger{
     max = 10000000,
     suffix = log,
     rotation = 30,
-    format = '%j %T %l%n'
+    format = '%j %t %l%n'
   }
 
   file_appender app2{
@@ -28,7 +28,7 @@ logger{
     max = 10000000,
     suffix = log,
     rotation = 30,
-    format = '%L %j %T %l%n'
+    format = '%L %j %t %l%n'
   }
 
   % smtp_appender app3{

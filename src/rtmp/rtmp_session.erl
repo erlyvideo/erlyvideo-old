@@ -33,7 +33,6 @@
 -export([start_link/0, set_socket/2]).
 
 -define(RTMP_WINDOW_SIZE, 2500000).
--define(NC_CONNECT_REJECTED, "NetConnection.Connect.Rejected").
 
 
 %% gen_fsm callbacks
@@ -50,7 +49,7 @@
 
 
 -export([create_client/1]).
--export([accept_connection/1, reject_connection/1]).
+-export([accept_connection/1, reject_connection/1, close_connection/1]).
 -export([message/4, collect_stats/1]).
 
 -export([reply/2, fail/2]).
@@ -80,7 +79,8 @@ create_client(Socket) ->
 %%-------------------------------------------------------------------------
 collect_stats(_Host) ->
   Pids = [Pid || {_, Pid, _, _} <- supervisor:which_children(rtmp_session_sup), Pid =/= self()],
-  ems:multicall(Pids, info, 1000).
+  Info = ems:multicall(Pids, info, 1000),
+  lists:sort(fun({_,Inf1}, {_,Inf2}) -> proplists:get_value(addr, Inf1) < proplists:get_value(addr, Inf2) end, Info).
   
 
 
@@ -111,7 +111,7 @@ accept_connection(Session) when is_pid(Session) ->
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
   ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
-               {code, <<?NC_CONNECT_REJECTED>>},
+               {code, <<"NetConnection.Connect.Rejected">>},
                {description, <<"Connection rejected.">>}],
   fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   gen_fsm:send_event(self(), exit),
@@ -119,6 +119,14 @@ reject_connection(#rtmp_session{socket = Socket} = Session) ->
   
 reject_connection(Session) when is_pid(Session) ->
   gen_fsm:send_event(Session, reject_connection).
+
+
+close_connection(#rtmp_session{} = Session) ->
+  gen_fsm:send_event(self(), exit),
+  Session;
+
+close_connection(Session) when is_pid(Session) ->
+  gen_fsm:send_event(Session, close_connection).
 
   
   
@@ -128,8 +136,9 @@ reply(Socket, AMF) when is_pid(Socket) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke}).
 
 
-fail(#rtmp_session{socket = Socket}, AMF) ->
-  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke});
+fail(#rtmp_session{socket = Socket} = State, AMF) ->
+  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}),
+  State;
 fail(Socket, AMF) when is_pid(Socket) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
 
@@ -223,6 +232,10 @@ send(Session, Message) ->
   reject_connection(Session),
   {stop, normal, Session};
 
+'WAIT_FOR_DATA'(close_connection, Session) ->
+  close_connection(Session),
+  {stop, normal, Session};
+
 'WAIT_FOR_DATA'({message, Stream, Code, Body}, #rtmp_session{socket = Socket} = State) ->
   rtmp_socket:status(Socket, Stream, Code, Body),
   {next_state, 'WAIT_FOR_DATA', State};
@@ -298,8 +311,7 @@ find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} =
 
 call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
   URL = proplists:get_value(tcUrl, PlayerInfo),
-  {ok, UrlRe} = re:compile("(.*)://([^/]+)/?(.*)$"),
-  {match, [_, _Proto, HostName, Path]} = re:run(URL, UrlRe, [{capture, all, binary}]),
+  {match, [_Proto, HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
   Host = ems:host(HostName),
   
   ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
@@ -324,33 +336,40 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
 call_function(#rtmp_session{host = Host} = State, AMF) ->
   call_function(Host, State, AMF).
 
-call_function(Host, State, AMF) ->
-  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), State, AMF).
+call_function(Host, #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
+  call_function(Host, Command, [State, AMF]);
+
+call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) andalso is_list(Args) ->
+  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), Command, Args).
   
   
-call_mfa([], #rtmp_session{} = State, AMF) ->
-  ?D({"Failed funcall", AMF#rtmp_funcall.command}),
-  rtmp_session:fail(State, AMF),
-  State;
+call_mfa([], Command, Args) ->
+  % ?D({"MFA failed", Command}),
+  case Args of
+    [#rtmp_session{host = Host} = State, #rtmp_funcall{args = AMFArgs} = AMF] -> 
+      ems_log:error(Host, "Failed RTMP funcall: ~p(~p)", [Command, AMFArgs]),
+      rtmp_session:fail(State, AMF);
+    _ -> ok
+  end;
   
-call_mfa([Module|Modules], #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
+call_mfa([Module|Modules], Command, Args) ->
   case code:is_loaded(mod_name(Module)) of
     false -> code:load_file(mod_name(Module));
     _ -> ok
   end,
   % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
-  case ems:respond_to(Module, Command, 2) of
+  case ems:respond_to(Module, Command, length(Args)) of
     true ->
-      case Module:Command(State, AMF) of
+      case erlang:apply(Module, Command, Args) of
         unhandled ->
-          call_mfa(Modules, State, AMF);
+          call_mfa(Modules, Command, Args);
         {unhandled, NewState, NewAMF} ->
-          call_mfa(Modules, NewState, NewAMF);
-        #rtmp_session{} = NewState ->
-          NewState
+          call_mfa(Modules, Command, [NewState, NewAMF]);
+        Reply ->
+          Reply
       end;
     false ->
-      call_mfa(Modules, State, AMF)
+      call_mfa(Modules, Command, Args)
   end.
   
 
@@ -540,7 +559,7 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 terminate(_Reason, _StateName, #rtmp_session{host = Host, addr = Addr, user_id = UserId, session_id = SessionId, bytes_recv = Recv, bytes_sent = Sent} = State) ->
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p ~p", [Addr, Host, UserId, SessionId, Recv, Sent]),
   ems_event:user_disconnected(State#rtmp_session.host, self(), session_stats(State)),
-  (catch erlyvideo:call_modules(logout, [State])),
+  (catch call_function(Host, logout, [State])),
   ok.
 
 

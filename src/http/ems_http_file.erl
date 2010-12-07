@@ -24,19 +24,22 @@
 -module(ems_http_file, [DocRoot]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../ems.hrl").
+-include("../log.hrl").
 
 -export([http/4]).
 
 
 
 http(Host, 'GET', Path, Req) ->
-  Root = if
+  Root1 = if
     is_list(DocRoot) -> DocRoot;
     is_atom(DocRoot) -> code:lib_dir(DocRoot, wwwroot);
     true -> undefined
   end,
   
-  if 
+  Root = ems:expand_path(Root1),
+  
+  if
     is_list(Root) -> serve_file(Host, Root, Path, Req);
     true -> unhandled
   end;    
@@ -52,10 +55,11 @@ serve_file(Host, Root, Path, Req) ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:file(FileName);
     false ->
-      case filelib:is_regular(FileName ++ "/index.html") of
+      AltPath = ems:pathjoin([FileName, "index.html"]),
+      case filelib:is_regular(AltPath) of
         true ->
           ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
-          Req:file(FileName ++ "/index.html");
+          Req:file(AltPath);
         false ->  
           unhandled
       end

@@ -51,9 +51,9 @@
 -include("../include/video_frame.hrl").
 -include("log.hrl").
 
--export([start_link/1, init/2, writer/1, writer_no_timeout/1]).
+-export([start_link/1, start_link/2, init/3, writer/1, writer_no_timeout/1]).
 
--export([init_file/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init_file/1, init_file/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(flv_file_writer, {
   writer,
@@ -68,16 +68,19 @@
 %% @end
 %%-------------------------------------------------------------------------
 start_link(FileName) ->
-  {ok, proc_lib:spawn_link(?MODULE, init, [FileName, self()])}.
+  start_link(FileName, []).
+  
+start_link(FileName, Options) ->
+  {ok, proc_lib:spawn_link(?MODULE, init, [FileName, self(), Options])}.
 
 %% @hidden
-init(Writer, Owner) when is_function(Writer) ->
+init(Writer, Owner, _Options) when is_function(Writer) ->
 	Writer(flv:header()),
 	erlang:monitor(process, Owner),
 	?MODULE:writer(#flv_file_writer{writer = Writer});
 
-init(FileName, Owner) when is_list(FileName) or is_binary(FileName) ->
-  case init_file(FileName) of
+init(FileName, Owner, Options) when is_list(FileName) or is_binary(FileName) ->
+  case init_file(FileName, Options) of
     {ok, State} ->
       erlang:monitor(process, Owner),
       ?MODULE:writer(State);
@@ -92,13 +95,22 @@ init(FileName, Owner) when is_list(FileName) or is_binary(FileName) ->
 %% @doc  Creates writer state
 %% @end
 %%-------------------------------------------------------------------------
-init_file(FileName) when is_binary(FileName) ->
-  init_file(binary_to_list(FileName));
-  
 init_file(FileName) ->
+  init_file(FileName, []).
+
+init_file(FileName, Options) when is_binary(FileName) ->
+  init_file(binary_to_list(FileName), Options);
+  
+init_file(FileName, Options) ->
 	ok = filelib:ensure_dir(FileName),
-  case file:open(FileName, [write, {delayed_write, 1024, 50}]) of
-		{ok, File} ->
+	Mode = proplists:get_value(mode, Options, write),
+  case file:open(FileName, [Mode, {delayed_write, 1024, 50}]) of
+		{ok, File} when Mode == append ->
+		  Duration = flv:duration({file,File}),
+    	{ok, #flv_file_writer{writer = fun(Data) ->
+    	  file:write(File, Data)
+    	end, base_dts = Duration}};
+		{ok, File} when Mode == write ->
     	file:write(File, flv:header()),
     	{ok, #flv_file_writer{writer = fun(Data) ->
     	  file:write(File, Data)
@@ -113,7 +125,7 @@ writer(FlvWriter) ->
     Message -> handle_message(Message, FlvWriter)
   after
     500 ->
-      ?D({flush,on_timeout}),
+      % ?D({flush,on_timeout}),
       ?MODULE:writer_no_timeout(flush_messages(FlvWriter, hard))
   end.
 

@@ -1,3 +1,21 @@
+erlyvideo (2.5.8) unstable; urgency=low
+
+  Added flv append, fixed rtmp_session:call
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 08 Dec 2010 02:28:02 +0300
+
+erlyvideo (2.5.7) unstable; urgency=low
+
+  Fixed errorneous timeout
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 06 Dec 2010 13:31:14 +0300
+
+erlyvideo (2.5.6) unstable; urgency=low
+
+  Remove dummy subtitle from mp4, add file_password_publish
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 04 Dec 2010 14:14:10 +0300
+
 erlyvideo (2.5.5) unstable; urgency=low
 
   Publish fixes

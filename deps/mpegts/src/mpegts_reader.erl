@@ -131,7 +131,7 @@ handle_message({'DOWN', _Ref, process, _Pid, normal}, #ts_lander{}) ->
 
 handle_message({'$gen_call', From, {set_socket, Socket}}, #ts_lander{} = TSLander) ->
   inet:setopts(Socket, [{packet,raw},{active,once}]),
-  ?D({passive_accepted, Socket}),
+  % ?D({passive_accepted, Socket}),
   gen:reply(From, ok),
   {ok, TSLander#ts_lander{socket = Socket}};
   
@@ -166,6 +166,9 @@ handle_message({tcp, Socket, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
     _ -> synchronizer(<<Buffer/binary, Bin/binary>>, TSLander)
   end,
   {ok, TSLander1};
+  
+handle_message({tcp_closed, _Socket}, _TSLander) ->
+  ok;
 
 handle_message({data, Bin}, #ts_lander{buffer = Buffer} = TSLander) ->
   TSLander1 = case Buffer of
@@ -390,28 +393,32 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Rest/binary>>, 
   decode_avc(Stream#stream{es_buffer = <<Buffer/binary, Rest/binary>>}).
 
 
-stream_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
+pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   <<DTS1:33>> = <<Dts1:3, Dts2:15, Dts3:15>>,
-  % ?D({both, PTS1, DTS1}),
-  PTS = PTS1 / 90,
-  DTS = DTS1 / 90,
-  % case PTS of
-  %   DTS -> ?D({dup_pts, PTS});
-  %   _ -> ?D({bframe, DTS, PTS-DTS})
-  % end,
-  % ?D({"Have DTS & PTS", Stream#stream.pid, round(DTS), round(PTS)}),
-  normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
-  
+  {DTS1 / 90, PTS1 / 90};
 
-stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>, Stream) ->
+pes_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, _Rest/binary>> = PESHeader,
   <<PTS1:33>> = <<Pts1:3, Pts2:15, Pts3:15>>,
   % ?D({pts, PTS1}),
-  PTS = PTS1/90,
-  % ?D({"Have pts", Stream#stream.pid, round(PTS)}),
+  {undefined, PTS1/90};
+
+pes_timestamp(_) ->
+  {undefined, undefined}.
+  
+stream_timestamp(PES, Stream) ->
+  {DTS, PTS} = pes_timestamp(PES),
+  % ?D({Stream#stream.pid, DTS, PTS}),
+  guess_timestamp(DTS, PTS, Stream).
+  
+  
+guess_timestamp(DTS, PTS, Stream) when is_number(DTS) andalso is_number(PTS) ->
+  normalize_timestamp(Stream#stream{dts = DTS, pts = PTS});
+  
+guess_timestamp(undefined, PTS, Stream) when is_number(PTS) ->
   normalize_timestamp(Stream#stream{dts = PTS, pts = PTS});
 
 % FIXME!!!
@@ -421,26 +428,25 @@ stream_timestamp(<<_:7/binary, 2#10:2, _:6, PESHeaderLength, PESHeader:PESHeader
 % stream_timestamp(_, #stream{pcr = PCR} = Stream, _) when is_number(PCR) ->
 %   % ?D({"Set DTS to PCR", PCR}),
 %   normalize_timestamp(Stream#stream{dts = PCR, pts = PCR});
-stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
+guess_timestamp(undefined, undefined, #stream{dts = DTS, pts = PTS, pcr = PCR, start_dts = Start} = Stream) when is_number(PCR) andalso is_number(DTS) andalso is_number(Start) andalso PCR == DTS + Start ->
   % ?D({"Increasing", DTS}),
   Stream#stream{dts = DTS + 40, pts = PTS + 40};
   % Stream;
 
-stream_timestamp(_, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
+guess_timestamp(undefined, undefined, #stream{dts = DTS, pts = PTS, pcr = undefined} = Stream) when is_number(DTS) andalso is_number(PTS) ->
   ?D({none, PTS, DTS}),
   % ?D({"Have no timestamps", DTS}),
   Stream#stream{dts = DTS + 40, pts = PTS + 40};
 
-stream_timestamp(Bin,  #stream{pcr = PCR, start_dts = undefined} = Stream) when is_number(PCR) ->
-  stream_timestamp(Bin,  Stream#stream{start_dts = 0});
+guess_timestamp(undefined, undefined,  #stream{pcr = PCR, start_dts = undefined} = Stream) when is_number(PCR) ->
+  guess_timestamp(undefined, undefined,  Stream#stream{start_dts = 0});
 
-stream_timestamp(_,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
+guess_timestamp(undefined, undefined,  #stream{pcr = PCR} = Stream) when is_number(PCR) ->
   % ?D({no_dts, PCR, Stream#stream.dts, Stream#stream.start_dts, Stream#stream.pts}),
   % ?D({"No DTS, taking", PCR - (Stream#stream.dts + Stream#stream.start_dts), PCR - (Stream#stream.pts + Stream#stream.start_dts)}),
   normalize_timestamp(Stream#stream{pcr = PCR, dts = PCR, pts = PCR});
   
-stream_timestamp(_, #stream{pcr = undefined, dts = undefined} = Stream) ->
-  ?D(none),
+guess_timestamp(undefined, undefined, #stream{pcr = undefined, dts = undefined} = Stream) ->
   ?D({"Not timestamps at all"}),
   Stream.
 
