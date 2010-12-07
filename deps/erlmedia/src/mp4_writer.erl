@@ -85,6 +85,8 @@ close(#convertor{out_mp4 = OutMp4}) ->
 
   
     
+handle_frame(#video_frame{next_id = NextOffset, flavor = command}, Convertor) ->
+  {ok, NextOffset, Convertor};
     
 handle_frame(#video_frame{next_id = NextOffset, flavor = config, content = video, body = Config}, Convertor) ->
   ?D("mp4_writer got video config"),
