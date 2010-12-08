@@ -136,7 +136,7 @@ duration(Reader) ->
   
 duration(Reader, Offset, Duration) ->  
   case read_tag_header(Reader, Offset) of
-    #flv_tag{size = Size, timestamp = Timestamp, next_tag_offset = NextOffset} ->
+    #flv_tag{timestamp = Timestamp, next_tag_offset = NextOffset} ->
       duration(Reader, NextOffset, Timestamp);
     eof ->
       Duration

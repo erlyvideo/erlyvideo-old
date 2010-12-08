@@ -33,7 +33,11 @@
 http(Host, 'GET', Path, Req) ->
   Root1 = if
     is_list(DocRoot) -> DocRoot;
-    is_atom(DocRoot) -> code:lib_dir(DocRoot, wwwroot);
+    is_atom(DocRoot) ->
+      case code:lib_dir(DocRoot, wwwroot) of
+        R when is_list(R) -> R;
+        _ -> undefined
+      end;
     true -> undefined
   end,
   
