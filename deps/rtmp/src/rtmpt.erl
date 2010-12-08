@@ -80,7 +80,7 @@ create(IP) ->
   
 generate_session_id() ->
   {T1, T2, T3} = now(),
-  lists:flatten(io_lib:format("~p:~p:~p", [T1, T2, T3])).
+  integer_to_list(T2*1000 + T3 div 1000).
   
 
 find(SessionID, IP) ->
@@ -112,7 +112,7 @@ idle(SessionID, IP, Sequence) ->
 %% </code>
 %% @end
 send(SessionID, IP, Sequence, Data) ->
-  case rtmpt_sessions:find(SessionID, IP) of
+  case find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> 
       gen_server:call(RTMPT, {client_data, Data}),
@@ -123,7 +123,7 @@ send(SessionID, IP, Sequence, Data) ->
 %% @doc Closes RTMPT session
 %% @end
 close(SessionID, IP) ->
-  case rtmpt_sessions:find(SessionID, IP) of
+  case find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> gen_server:cast(RTMPT, close)
   end.
@@ -213,7 +213,7 @@ handle_cast(close, #rtmpt{} = State) ->
   {stop, normal, State};
 
 handle_cast(_Msg, State) ->
-  {noreply, State}.
+  {stop, {unknown_cast, _Msg}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -229,8 +229,10 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
 
-handle_info(timeout, State) ->
-  {noreply, State};
+handle_info(timeout, #rtmpt{consumer = Consumer} = State) ->
+  gen_fsm:send_event(Consumer, timeout),
+  {stop, normal, State};
+
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
