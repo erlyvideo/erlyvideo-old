@@ -209,14 +209,14 @@ pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausin
 pauseRaw(AMF, State) -> pause(AMF, State).
 
 
-receiveAudio(#rtmp_session{} = State, #rtmp_funcall{args = [null, Audio], stream_id = StreamId}) ->
-  #rtmp_stream{pid = Pid} = rtmp_session:get_stream(StreamId, State),
-  ems_media:setopts(Pid, [{send_audio, Audio}]),
+receiveAudio(#rtmp_session{} = State, #rtmp_funcall{args = [null, _Audio], stream_id = _StreamId}) ->
+  % #rtmp_stream{pid = Pid} = rtmp_session:get_stream(StreamId, State),
+  % ems_media:setopts(Pid, [{send_audio, Audio}]),
   State.
 
-receiveVideo(#rtmp_session{} = State, #rtmp_funcall{args = [null, Video], stream_id = StreamId}) ->
-  #rtmp_stream{pid = Pid} = rtmp_session:get_stream(StreamId, State),
-  ems_media:setopts(Pid, [{send_video, Video}]),
+receiveVideo(#rtmp_session{} = State, #rtmp_funcall{args = [null, _Video], stream_id = _StreamId}) ->
+  % #rtmp_stream{pid = Pid} = rtmp_session:get_stream(StreamId, State),
+  % ems_media:setopts(Pid, [{send_video, Video}]),
   State.
 
 
