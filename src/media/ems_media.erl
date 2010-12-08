@@ -144,9 +144,6 @@ stop_stream(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  Socket = proplists:get_value(socket, Options),
-  io:format("#### Socket ~p ~n", [Socket]),
-  % {rtmp,#Port<0.5570>} 
   gen_server:call(Media, {subscribe, self(), Options}, 10000).
 
 %%----------------------------------------------------------------------
@@ -448,7 +445,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
           true -> paused;
           false -> starting
         end,
-        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState})
+        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS})
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
   end,

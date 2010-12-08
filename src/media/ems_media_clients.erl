@@ -53,6 +53,13 @@ table(#clients{active = Table}, active) -> Table;
 table(#clients{passive = Table}, passive) -> Table;
 table(#clients{starting = Table}, starting) -> Table.
 
+insert_client(Clients, State, _Client, Socket, DTS, StreamId) when ((State =/= passive) and (Socket =/= undefined)) ->
+  ets:insert(table(Clients, State), {Socket, DTS, StreamId}),
+  ok;
+insert_client(Clients, State, Client, _Socket, _DTS, StreamId) ->
+  ets:insert(table(Clients, State), {Client, StreamId}),
+  ok.
+
 insert_client(Clients, State, Client, StreamId) ->
   ets:insert(table(Clients, State), {Client, StreamId}),
   ok.
@@ -63,10 +70,9 @@ remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
   ets:delete(S, Client),
   ok.
   
-  
-insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId} = Entry) ->
+insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS} = Entry) ->
   ets:insert(Bytes, {Client,0}),
-  insert_client(Clients, State, Client, StreamId),
+  insert_client(Clients, State, Client, Socket, DTS, StreamId),
   Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
 
 
@@ -126,10 +132,15 @@ send_frame(#video_frame{content = Content} = Frame, #clients{bytes = _Bytes} = C
     video -> erlang:iolist_size(Frame#video_frame.body);
     _ -> 0
   end,
-  F = fun({Pid, StreamId}, F) ->
-    Pid ! F#video_frame{stream_id = StreamId}
-    % ets:update_counter(Bytes, Pid, Size)
+  FrameGen = flv:rtmp_tag_generator(Frame),
+  F = fun({{rtmp, Sock}, DTS, StreamId}, Frame) ->
+    gen_tcp:send(Sock, FrameGen(DTS, StreamId))
   end,
+  %F = fun({Pid, StreamId}, F) ->
+    %Pid ! F#video_frame{stream_id = StreamId}
+    % ets:update_counter(Bytes, Pid, Size)
+  %end,
+  
   ets:foldl(F, Frame, table(Clients, State)),
   % [begin
   %   Pid ! Frame#video_frame{stream_id = StreamId},
