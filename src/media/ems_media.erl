@@ -355,7 +355,7 @@ init([Module, Options]) ->
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options)},
                      
-  timer:send_after(30000, garbage_collect),
+  timer:send_interval(30000, garbage_collect),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),
