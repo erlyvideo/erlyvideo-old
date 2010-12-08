@@ -91,11 +91,11 @@ behaviour_info(_Other) -> undefined.
 
 %% @private
 start_link(Module, Options) ->
-  gen_server_ems:start_link(?MODULE, [Module, Options], []).
+  gen_server_ems:start_link(?MODULE, [Module, Options], [{fullsweep_after, 10}]).
 
 %% @private
 start_custom(Module, Options) ->
-  gen_server_ems:start_link(Module, [Options], []).
+  gen_server_ems:start_link(Module, [Options], [{fullsweep_after, 10}]).
 
 
 
@@ -657,7 +657,7 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->
   ?D({"ems_media lost source", Source, _Reason}),
   ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-  case M:handle_control({source_lost, Source}, Media) of
+  case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined}) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
@@ -667,11 +667,11 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       ?D({"ems_media lost source and sending graceful", SourceTimeout, round(Media1#ems_media.last_dts)}),
       Media2 = mark_clients_as_starting(Media1),
       {ok, Ref} = timer:send_after(SourceTimeout, no_source),
-      {noreply, Media2#ems_media{source = undefined, source_ref = undefined, source_timeout_ref = Ref}, ?TIMEOUT};
+      {noreply, Media2#ems_media{source_ref = undefined, source_timeout_ref = Ref}, ?TIMEOUT};
     {noreply, Media1} when SourceTimeout == false ->
       ?D({"ems_media lost source but source_timeout = false"}),
       Media2 = mark_clients_as_starting(Media1),
-      {noreply, Media2#ems_media{source = undefined, source_ref = undefined}, ?TIMEOUT};
+      {noreply, Media2#ems_media{source_ref = undefined}, ?TIMEOUT};
     {reply, NewSource, Media1} ->
       ?D({"ems_media lost source and sending graceful, but have new source", SourceTimeout, NewSource}),
       Ref = erlang:monitor(process, NewSource),
@@ -772,7 +772,6 @@ handle_info(no_clients, #ems_media{module = M} = Media) ->
 %   {noreply, Media}; % No need to set timeout, because Timeout is already going to arrive
 % 
 handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Source =/= undefined ->
-  ?D({timeout, self()}),
   case M:handle_control(timeout, Media) of
     {stop, Reason, Media1} ->
       error_logger:error_msg("Source of media doesnt send frames, stopping...~n"),
@@ -784,6 +783,10 @@ handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Sourc
     {reply, _Reply, Media1} ->
       {noreply, Media1, ?TIMEOUT}
   end;
+
+handle_info(timeout, #ems_media{source = undefined} = Media) ->
+  {noreply, Media};
+
 
 handle_info(Message, #ems_media{module = M} = Media) ->
   case M:handle_info(Message, Media) of

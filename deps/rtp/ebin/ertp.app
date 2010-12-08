@@ -1,5 +1,3 @@
-%% This is the application resource file (.app file) for the 'base'
-%% application.
 {application, ertp,
 [{description, "RTP handling library"},
  {vsn, "0.1"},

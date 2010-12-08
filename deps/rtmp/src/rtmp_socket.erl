@@ -394,9 +394,8 @@ set_options(#rtmp_socket{} = State, [{debug, Debug} | Options]) ->
   io:format("Set debug to ~p~n", [Debug]),
   set_options(State#rtmp_socket{debug = Debug}, Options);
 
-set_options(#rtmp_socket{consumer = PrevConsumer} = State, [{consumer, Consumer} | Options]) ->
-  (catch unlink(PrevConsumer)),  
-  (catch link(Consumer)),  
+set_options(#rtmp_socket{consumer = undefined} = State, [{consumer, Consumer} | Options]) ->
+  erlang:monitor(process, Consumer),
   set_options(State#rtmp_socket{consumer = Consumer}, Options);
 
 set_options(State, [{chunk_size, ChunkSize} | Options]) ->
@@ -537,6 +536,9 @@ handle_info({rtmpt, RTMPT, alive}, StateName, #rtmp_socket{socket = RTMPT} = Sta
 
 handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
   handle_info({tcp, RTMPT, Data}, StateName, State);
+
+handle_info({'DOWN', _, process, _Client, _Reason}, _StateName, State) ->
+  {stop, normal, State};
 
 handle_info(_Info, StateName, StateData) ->
   error_logger:error_msg("Unknown message to rtmp socket: ~p ~p~n", [_Info, StateData]),

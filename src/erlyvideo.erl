@@ -111,7 +111,8 @@ start_rtmp() ->
 
 
 stats(Host) ->
-  Streams = [{object, [{name,Name}, {count, proplists:get_value(client_count, Options)}]} || {Name, _Pid, Options} <- media_provider:entries(Host)],
+  Entries = lists:sort(fun({Name1, _, _}, {Name2, _, _}) -> Name1 < Name2 end, media_provider:entries(Host)),
+  Streams = [{object, [{name,Name}, {count, proplists:get_value(client_count, Options)}]} || {Name, _Pid, Options} <- Entries],
   CPULoad = {object, [{avg1, cpu_sup:avg1() / 256}, {avg5, cpu_sup:avg5() / 256}, {avg15, cpu_sup:avg15() / 256}]},
   % RTMPTraf = [{object, Info} || Info <- rtmp_stat_collector:stats()],
   RTMPTraf = [{object, []}],

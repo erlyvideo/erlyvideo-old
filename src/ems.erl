@@ -28,7 +28,7 @@
 -export([host/1]).
 
 -export([expand_tuple/2, element/2, setelement/3]).
--export([str_split/2, multicall/3, pathjoin/2, pathjoin/1]).
+-export([str_split/2, multicall/3, pathjoin/2, pathjoin/1, expand_path/1]).
 
 -export([rebuild/0, restart/0]).
 
@@ -45,6 +45,18 @@ list_by(What) ->
     Info1 > Info2
   end, Processes).
 
+
+expand_path(Path) ->
+  expand_path(string:tokens(filename:absname(Path), "/"), []).
+  
+expand_path([], Acc) ->
+  "/"++string:join(lists:reverse(Acc), "/");
+  
+expand_path([_, ".."|Path], Acc) ->
+  expand_path(Path, Acc);
+
+expand_path([Part|Path], Acc) ->
+  expand_path(Path, [Part|Acc]).
 
 pathjoin(Root, Path) ->
   pathjoin([Root, Path]).

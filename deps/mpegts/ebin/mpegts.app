@@ -1,5 +1,3 @@
-%% This is the application resource file (.app file) for the 'base'
-%% application.
 {application, mpegts,
 [{description, "MPEG-TS handling library"},
  {vsn, "0.1"},

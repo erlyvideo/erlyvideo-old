@@ -1,4 +1,3 @@
-%% -*- mode: erlang -*-
 {application, erlydtl,
  [{description, "ErlyDTL implements most but not all of the Django Template Language"},
   {vsn, "0.5.3"},

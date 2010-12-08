@@ -1,5 +1,3 @@
-%% -*- mode: Erlang; -*-
-
 {application, erlmedia,
  [
   {description, "Erlmedia"},
