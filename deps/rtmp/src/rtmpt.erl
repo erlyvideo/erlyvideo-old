@@ -79,7 +79,7 @@ create(IP) ->
   
   
 generate_session_id() ->
-  {T1, T2, T3} = now(),
+  {_T1, T2, T3} = now(),
   integer_to_list(T2*1000 + T3 div 1000).
   
 
