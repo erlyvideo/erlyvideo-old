@@ -105,8 +105,8 @@ update(#clients{bytes = Bytes}, Client, #client.bytes, Value) ->
 update(#clients{list = List} = Clients, Client, Pos, Value) ->
   remove_client(Clients, Client),
   case lists:keytake(Client, #client.consumer, List) of
-    {value, #client{state = State, stream_id = StreamId} = Entry, List1} ->
-      insert_client(Clients, State, Client, StreamId),
+    {value, #client{state = State, tcp_socket = Socket, dts = DTS, stream_id = StreamId} = Entry, List1} ->
+      insert_client(Clients, State, Client, Socket, DTS, StreamId),
       Entry1 = setelement(Pos, Entry, Value),
       Clients#clients{list = [Entry1|List1]};
     false ->
