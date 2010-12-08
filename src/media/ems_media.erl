@@ -354,6 +354,8 @@ init([Module, Options]) ->
   URL = proplists:get_value(url, Options),
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options)},
+                     
+  timer:send_after(30000, garbage_collect),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),
@@ -787,6 +789,10 @@ handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Sourc
 handle_info(timeout, #ems_media{source = undefined} = Media) ->
   {noreply, Media};
 
+
+handle_info(garbage_collect, Media) ->
+  garbage_collect(self()),
+  {noreply, Media};
 
 handle_info(Message, #ems_media{module = M} = Media) ->
   case M:handle_info(Message, Media) of
