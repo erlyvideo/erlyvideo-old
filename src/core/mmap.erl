@@ -42,14 +42,17 @@ open(Path, Options) when is_binary(Path) ->
 mmap_open(_Path, _Options) ->
   ?NIF_STUB.
   
-pread(File, Position, Size) when Position >= 0 andalso Position + Size < size(File) ->
-  <<_:Position/binary, Bin:Size/binary, _/binary>> = File,
-  {ok, Bin};
+
+pread(File, Position, Size) when Position >= 0 andalso Position < size(File) ->
+  case File of
+    <<_:Position/binary, Bin:Size/binary, _/binary>> -> {ok, Bin};
+    <<_:Position/binary, Bin/binary>> -> {ok, Bin}
+  end;
 
 pread(_File, Position, Size) when Position < 0 orelse Size < 0 ->
   {error,einval};
 
-pread(File, Position, Size) when Position + Size > size(File) ->
+pread(File, Position, Size) when Position >= size(File) ->
   eof.
   
 mmap_pread(_File, _Position, _Size) ->
