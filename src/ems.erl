@@ -23,6 +23,7 @@
 -module(ems).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("ems.hrl").
+-include("log.hrl").
 
 -export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([host/1]).
@@ -46,8 +47,14 @@ list_by(What) ->
   end, Processes).
 
 
-expand_path(Path) ->
-  expand_path(string:tokens(filename:absname(Path), "/"), []).
+expand_path(Path) when is_binary(Path) ->
+  expand_path(binary_to_list(Path));
+
+expand_path(Path) when is_list(Path) ->
+  expand_path(string:tokens(filename:absname(Path), "/"), []);
+  
+expand_path(_) ->
+  undefined.
   
 expand_path([], Acc) ->
   "/"++string:join(lists:reverse(Acc), "/");
