@@ -37,6 +37,7 @@ http(Host, 'POST', ["open", ChunkNumber], Req) ->
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [SessionId, "\n"]);
   
 http(Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->
+  ems_log:access("RTMPT IDLE ~p ~p.\n", [SessionId, SequenceNumber]),
   case rtmpt:idle(SessionId, Req:get(peer_addr), list_to_integer(SequenceNumber)) of
     {ok, Data} ->
       Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [33, Data]);
@@ -47,7 +48,7 @@ http(Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->
   end;
 
 http(Host, 'POST', ["send", SessionId, SequenceNumber], Req) ->
-  % error_logger:info_msg("Request: send/~p/~p.\n", [SessionId, SequenceNumber]),
+  ems_log:access("RTMPT IDLE ~p ~p.\n", [SessionId, SequenceNumber]),
   case rtmpt:send(SessionId, Req:get(peer_addr), list_to_integer(SequenceNumber), Req:get(body)) of
     {ok, Data} ->
       Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [33, Data]);
@@ -65,11 +66,11 @@ http(Host, 'POST', ["close", SessionId, _ChunkNumber], Req) ->
   Req:stream(close);
     
 http(_Host, 'POST', ["fcs", "ident", _ChunkNumber], Req) ->
-  % ems_log:access(Host, "RTMPT ident/~p", [ChunkNumber]),
-  Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
+  ems_log:access(_Host, "RTMPT ident/~p", [_ChunkNumber]),
+  Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "<fcs><Company>Erlyvideo</Company><Team>Erlyvideo</Team></fcs>");
     
 http(_Host, 'POST', ["fcs", "ident2"], Req) ->
-  % ems_log:access(Host, "RTMPT ident2", []),
+  ems_log:access(_Host, "RTMPT ident2", []),
   Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
 
 http(_Host, _Method, _Path, _Req) ->

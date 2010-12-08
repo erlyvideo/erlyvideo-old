@@ -87,13 +87,6 @@ init([rtmpt_session]) ->
 
 init([]) ->
   Supervisors = [
-    {rtmpt_sessions_sup,                       % Id       = internal id
-      {rtmpt_sessions,start_link,[]},          % StartFun = {M, F, A}
-      permanent,                               % Restart  = permanent | transient | temporary
-      2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-      worker,                                  % Type     = worker | supervisor
-      [rtmpt_sessions]                         % Modules  = [Module] | dynamic
-    },
     {rtmpt_session_sup,
       {supervisor,start_link,[{local, rtmpt_session_sup}, ?MODULE, [rtmpt_session]]},
       permanent,                               % Restart  = permanent | transient | temporary
@@ -116,5 +109,8 @@ init([]) ->
       [rtmp_stat_collector]                                       % Modules  = [Module] | dynamic
     }
   ],
+  
+  
+  ets:new(rtmpt_sessions, [public,named_table]),
   
   {ok, {{one_for_one, 3, 10}, Supervisors}}.
