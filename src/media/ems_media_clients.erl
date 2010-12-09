@@ -33,6 +33,8 @@
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
+-define(SNDBUF, 4194304).
+
 -record(clients, {
   active,
   passive,
@@ -128,32 +130,35 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
   
 
-send_frame(#video_frame{content = Content} = Frame, #clients{bytes = _Bytes} = Clients, State) ->
-  Size = case Content of
-    audio -> erlang:iolist_size(Frame#video_frame.body);
-    video -> erlang:iolist_size(Frame#video_frame.body);
-    _ -> 0
-  end,
-  FrameGen = flv:rtmp_tag_generator(Frame),
+send_frame(#video_frame{} = VideoFrame, #clients{bytes = _Bytes} = Clients, State) ->
+  FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
-  F = fun
-    (#cached_entry{socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId, audio_notified = true}, #video_frame{content = audio} = Frame) ->
+  Sender = fun
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, audio_notified = true}, #video_frame{content = audio} = Frame) ->
       % ?D("send when audio notified"),
-      gen_tcp:send(Socket, FrameGen(DTS, StreamId)),
+      case (catch port_command(Socket, FrameGen(DTS, StreamId),[nosuspend])) of
+        true -> ok;
+        _ -> Pid ! {rtmp_lag, self()}
+      end,
       Frame;
-    (#cached_entry{socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId, video_notified = true}, #video_frame{content = video} = Frame) ->
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, video_notified = true}, #video_frame{content = video} = Frame) ->
       % ?D("send when video notified"),
-      gen_tcp:send(Socket, FrameGen(DTS, StreamId)),
+      case (catch port_command(Socket, FrameGen(DTS, StreamId),[nosuspend])) of
+        true -> ok;
+        _ -> Pid ! {rtmp_lag, self()}
+      end,
       Frame;
-    (#cached_entry{pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio} = Frame) ->
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio} = Frame) ->
       % ?D("send with pid, audio not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
+      inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.audio_notified,true}),
       Frame;
-    (#cached_entry{pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video} = Frame) ->
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video} = Frame) ->
       % ?D("send with pid, video not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
+      inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.video_notified,true}),
       Frame;
     (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
@@ -161,7 +166,7 @@ send_frame(#video_frame{content = Content} = Frame, #clients{bytes = _Bytes} = C
       Pid ! Frame#video_frame{stream_id = StreamId}
   end,
   
-  ets:foldl(F, Frame, Table),
+  ets:foldl(Sender, VideoFrame, Table),
   % [begin
   %   Pid ! Frame#video_frame{stream_id = StreamId},
   %   ets:update_counter(Bytes, Pid, Size)
