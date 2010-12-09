@@ -153,7 +153,7 @@ get(headers) ->
 get(cookies) ->
   case proplists:get_value('Cookie', Req#req.headers) of
     undefined -> [];
-    Cookies -> parse_qs(Cookies)
+    Cookies -> [{string:strip(Key),Value} || {Key,Value} <- parse_qs(Cookies)]
   end;
 get(body) ->
 	Req#req.body.
