@@ -132,7 +132,7 @@ rtmp_tag_generator(#video_frame{content = Content, body = Body, dts = DTS} = Fra
   TagSize = <<(size(Tag)):24, Type>>,
   fun(StartDTS, StreamId) ->
     ChannelId = rtmp_lib:channel_id(Content, StreamId),
-    [rtmp:encode_id(new, ChannelId), <<(DTS - StartDTS):24>>, TagSize, <<StreamId:32/little>>, Tag]
+    [rtmp:encode_id(new, ChannelId), <<(round(DTS - StartDTS)):24>>, TagSize, <<StreamId:32/little>>, Tag]
   end.
 
 
