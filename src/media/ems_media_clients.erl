@@ -45,14 +45,16 @@
   pid, 
   socket, 
   dts, 
-  stream_id
+  stream_id,
+  audio_notified = false,
+  video_notified = false
 }).
 
 init() ->
   #clients{
-    active = ets:new(active, [set,  private]),
-    passive = ets:new(passive, [set,  private]),
-    starting = ets:new(starting, [set,  private]),
+    active = ets:new(active, [set,  private, {keypos, #cached_entry.pid}]),
+    passive = ets:new(passive, [set,  private, {keypos, #cached_entry.pid}]),
+    starting = ets:new(starting, [set,  private, {keypos, #cached_entry.pid}]),
     bytes = ets:new(clients, [set,  private])
   }.
 
@@ -134,12 +136,32 @@ send_frame(#video_frame{content = Content} = Frame, #clients{bytes = _Bytes} = C
   end,
   FrameGen = flv:rtmp_tag_generator(Frame),
   % ?D(ets:tab2list(table(Clients, State))),
-  F = fun(#cached_entry{pid = Pid, socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId}, Frame) ->
-    % Pid ! Frame#video_frame{stream_id = StreamId}
-    gen_tcp:send(Socket, FrameGen(DTS, StreamId))
+  Table = table(Clients, State),
+  F = fun
+    (#cached_entry{socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId, audio_notified = true}, #video_frame{content = audio} = Frame) ->
+      % ?D("send when audio notified"),
+      gen_tcp:send(Socket, FrameGen(DTS, StreamId)),
+      Frame;
+    (#cached_entry{socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId, video_notified = true}, #video_frame{content = video} = Frame) ->
+      % ?D("send when video notified"),
+      gen_tcp:send(Socket, FrameGen(DTS, StreamId)),
+      Frame;
+    (#cached_entry{pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio} = Frame) ->
+      % ?D("send with pid, audio not notified"),
+      Pid ! Frame#video_frame{stream_id = StreamId},
+      ets:update_element(Table, Pid, {#cached_entry.audio_notified,true}),
+      Frame;
+    (#cached_entry{pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video} = Frame) ->
+      % ?D("send with pid, video not notified"),
+      Pid ! Frame#video_frame{stream_id = StreamId},
+      ets:update_element(Table, Pid, {#cached_entry.video_notified,true}),
+      Frame;
+    (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
+      % ?D("send with pid"),
+      Pid ! Frame#video_frame{stream_id = StreamId}
   end,
   
-  ets:foldl(F, Frame, table(Clients, State)),
+  ets:foldl(F, Frame, Table),
   % [begin
   %   Pid ! Frame#video_frame{stream_id = StreamId},
   %   ets:update_counter(Bytes, Pid, Size)

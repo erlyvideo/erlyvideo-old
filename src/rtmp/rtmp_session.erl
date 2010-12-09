@@ -495,7 +495,7 @@ handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts =
   case Frame#video_frame.content of
     metadata -> ?D(Frame);
     _ ->
-      ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
+      % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
       ok
   end,
   case Allow of
