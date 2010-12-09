@@ -122,7 +122,7 @@ frame_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
 
 
-rtmp_tag_generator(#video_frame{content = Content, body = Body} = Frame) ->
+rtmp_tag_generator(#video_frame{content = Content, body = Body, dts = DTS} = Frame) ->
   Tag = flv_video_frame:encode(Frame),
   Type = case Content of
     audio -> 8;
@@ -130,9 +130,9 @@ rtmp_tag_generator(#video_frame{content = Content, body = Body} = Frame) ->
     metadata -> 18
   end,
   TagSize = <<(size(Tag)):24, Type>>,
-  fun(DTS, StreamId) ->
+  fun(StartDTS, StreamId) ->
     ChannelId = rtmp_lib:channel_id(Content, StreamId),
-    [rtmp:encode_id(new, ChannelId), <<DTS:24>>, TagSize, <<StreamId:32/little>>, Tag]
+    [rtmp:encode_id(new, ChannelId), <<(DTS - StartDTS):24>>, TagSize, <<StreamId:32/little>>, Tag]
   end.
 
 
