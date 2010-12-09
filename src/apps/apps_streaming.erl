@@ -132,8 +132,8 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
       rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
-  
-  case media_provider:play(Host, Name, [{stream_id,StreamId}|Options]) of
+
+  case media_provider:play(Host, Name, [{stream_id,StreamId},{socket,{rtmp,rtmp_socket:get_socket(Socket)}}|Options]) of
     {notfound, _Reason} -> 
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),

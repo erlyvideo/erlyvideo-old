@@ -52,7 +52,7 @@
 -export([accept_connection/1, reject_connection/1, close_connection/1]).
 -export([message/4, collect_stats/1]).
 
--export([reply/2, fail/2]).
+-export([reply/2, fail/2, stop/1]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 -export([get_socket/1]).
 -export([get/2, set/3, set/2]).
@@ -84,6 +84,9 @@ collect_stats(_Host) ->
   
 
 
+stop(Pid) when is_pid(Pid) ->
+  gen_fsm:send_event(Pid, exit).
+  
 
 accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
   Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
@@ -91,7 +94,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
-  rtmp_socket:setopts(Socket, [{chunk_size, 4096}]),
+  rtmp_socket:setopts(Socket, [{chunk_size, 16#200000}]),
   
   ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
@@ -485,6 +488,10 @@ handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
     #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1}
   end;
+  
+  
+handle_info({rtmp_lag, _Media}, StateName, StateData) ->
+  {stop, rtmp_lag, StateData};
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),

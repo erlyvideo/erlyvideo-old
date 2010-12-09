@@ -49,7 +49,7 @@
 -include("rtmp_private.hrl").
 -version(1.1).
 
--export([accept/1, connect/1, start_link/1, getopts/2, setopts/2, getstat/2, getstat/1, send/2]).
+-export([accept/1, connect/1, start_link/1, getopts/2, setopts/2, getstat/2, getstat/1, send/2, get_socket/1]).
 -export([status/3, status/4, prepare_status/2, prepare_status/3, invoke/2, invoke/4, prepare_invoke/3, notify/4, prepare_notify/3]).
 
 -export([start_socket/2, start_server/3, set_socket/2]).
@@ -110,6 +110,9 @@ start_socket(Type, Socket) ->
 
 set_socket(RTMP, Socket) ->
   gen_fsm:send_event(RTMP, {socket, Socket}).
+
+get_socket(RTMP) ->
+  gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT).
   
   
 %% @private
@@ -439,8 +442,12 @@ handle_sync_event({getstat, Options}, _From, StateName, State) ->
 handle_sync_event(getstat, _From, StateName, State) ->
   {reply, get_stat(State), StateName, State};
 
+handle_sync_event(get_socket, _From, StateName, #rtmp_socket{socket = Socket} = State) ->
+  {reply, Socket, StateName, State};
+
 handle_sync_event(Event, _From, StateName, StateData) ->
   {stop, {StateName, undefined_event, Event}, StateData}.
+
 
 %%-------------------------------------------------------------------------
 %% Func: handle_info/3
