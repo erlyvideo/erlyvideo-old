@@ -41,6 +41,13 @@
   bytes
 }).
 
+-record(cached_entry, {
+  pid, 
+  socket, 
+  dts, 
+  stream_id
+}).
+
 init() ->
   #clients{
     active = ets:new(active, [set,  private]),
@@ -53,17 +60,10 @@ table(#clients{active = Table}, active) -> Table;
 table(#clients{passive = Table}, passive) -> Table;
 table(#clients{starting = Table}, starting) -> Table.
 
-insert_client(Clients, State, _Client, Socket, DTS, StreamId) when ((State =/= passive) and (Socket =/= undefined)) ->
-  ets:insert(table(Clients, State), {Socket, DTS, StreamId}),
-  ok;
-insert_client(Clients, State, Client, _Socket, _DTS, StreamId) ->
-  ets:insert(table(Clients, State), {Client, StreamId}),
+insert_client(Clients, State, Entry) ->
+  ets:insert(table(Clients, State), Entry),
   ok.
 
-insert_client(Clients, State, Client, StreamId) ->
-  ets:insert(table(Clients, State), {Client, StreamId}),
-  ok.
-  
 remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
   ets:delete(A, Client),
   ets:delete(P, Client),
@@ -72,7 +72,7 @@ remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
   
 insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS} = Entry) ->
   ets:insert(Bytes, {Client,0}),
-  insert_client(Clients, State, Client, Socket, DTS, StreamId),
+  insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
   Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
 
 
@@ -106,16 +106,16 @@ update(#clients{list = List} = Clients, Client, Pos, Value) ->
   remove_client(Clients, Client),
   case lists:keytake(Client, #client.consumer, List) of
     {value, #client{state = State, tcp_socket = Socket, dts = DTS, stream_id = StreamId} = Entry, List1} ->
-      insert_client(Clients, State, Client, Socket, DTS, StreamId),
+      insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
       Entry1 = setelement(Pos, Entry, Value),
       Clients#clients{list = [Entry1|List1]};
     false ->
       Clients
   end.
 
-update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B, state = State, stream_id = StreamId} = NewEntry) ->
+update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B, state = State, tcp_socket = Socket, dts = DTS, stream_id = StreamId} = NewEntry) ->
   remove_client(Clients, Client),
-  insert_client(Clients, State, Client, StreamId),
+  insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
   ets:insert(Bytes, {Client, B}),
   List1 = lists:keystore(Client, #client.consumer, List, NewEntry),
   Clients#clients{list = List1}.
@@ -133,13 +133,11 @@ send_frame(#video_frame{content = Content} = Frame, #clients{bytes = _Bytes} = C
     _ -> 0
   end,
   FrameGen = flv:rtmp_tag_generator(Frame),
-  F = fun({{rtmp, Sock}, DTS, StreamId}, Frame) ->
-    gen_tcp:send(Sock, FrameGen(DTS, StreamId))
+  % ?D(ets:tab2list(table(Clients, State))),
+  F = fun(#cached_entry{pid = Pid, socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId}, Frame) ->
+    Pid ! Frame#video_frame{stream_id = StreamId}
+    % gen_tcp:send(Socket, FrameGen(DTS, StreamId))
   end,
-  %F = fun({Pid, StreamId}, F) ->
-    %Pid ! F#video_frame{stream_id = StreamId}
-    % ets:update_counter(Bytes, Pid, Size)
-  %end,
   
   ets:foldl(F, Frame, table(Clients, State)),
   % [begin
@@ -154,12 +152,12 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
     S = case State of
       From ->
         remove_client(Clients, Pid),
-        insert_client(Clients, To, Pid, StreamId),
+        insert_client(Clients, To, #cached_entry{pid = Pid, socket = Socket, dts = DTS, stream_id = StreamId}),
         To;
       S1 -> S1
     end,
     Entry#client{state = S}
-  end || #client{consumer = Pid, stream_id = StreamId, state = State} = Entry <- List]}.
+  end || #client{consumer = Pid, stream_id = StreamId, state = State, tcp_socket = Socket, dts = DTS} = Entry <- List]}.
   
 increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
   ets:update_counter(Bytes, Client, Size),
