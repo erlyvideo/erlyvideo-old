@@ -135,8 +135,8 @@ send_frame(#video_frame{content = Content} = Frame, #clients{bytes = _Bytes} = C
   FrameGen = flv:rtmp_tag_generator(Frame),
   % ?D(ets:tab2list(table(Clients, State))),
   F = fun(#cached_entry{pid = Pid, socket = {rtmp, Socket}, dts = DTS, stream_id = StreamId}, Frame) ->
-    Pid ! Frame#video_frame{stream_id = StreamId}
-    % gen_tcp:send(Socket, FrameGen(DTS, StreamId))
+    % Pid ! Frame#video_frame{stream_id = StreamId}
+    gen_tcp:send(Socket, FrameGen(DTS, StreamId))
   end,
   
   ets:foldl(F, Frame, table(Clients, State)),
