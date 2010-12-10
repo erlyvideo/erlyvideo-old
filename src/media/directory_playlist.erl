@@ -137,6 +137,10 @@ handle_info({ems_stream, _StreamId, play_complete, _DTS}, #ems_media{state = #pl
   ?D({"Playing",Name,Stream}),
   {noreply, Media#ems_media{state = State#playlist{files = Files}}};
 
+handle_info({ems_stream, _StreamId, play_complete, _DTS}, #ems_media{state = #playlist{files = []}} = Media) ->
+  self() ! read_playlist,
+  {noreply, Media};
+
 handle_info(timeout, State) ->
   {stop, normal, State};
 
