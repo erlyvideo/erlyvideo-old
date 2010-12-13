@@ -55,6 +55,7 @@ stop() ->
   
   
 ems_client_load() ->
+  [application:set_env(http_file, Key, Value) || {Key,Value} <- ems:get_var(http_file, [])],
   start().
 
 ems_client_unload() ->
@@ -146,7 +147,7 @@ pread({http_file,File,_Ref}, Offset, Limit) ->
   end,
   gen_server:call(File, {pread, Offset, Limit}, Timeout). 
 
-pwrite({http_file, File, _Ref}, Location, Bytes) ->
+pwrite({http_file, _File, _Ref}, _Location, _Bytes) ->
   erlang:error(pwrite_not_supported).
 
 
