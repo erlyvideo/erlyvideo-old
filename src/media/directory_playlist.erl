@@ -76,14 +76,17 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {reply, Source, State} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {Stream, State1} = next_file(State),
-  {reply, Stream, State1};
+%  {Stream, State1} = next_file(State),
+%  {reply, Stream, State1};
+  {noreply, State};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
   %% {reply, Reply, State}
   %% {stop, Reason, State}
-  {noreply, State};
+  {Stream, State1} = next_file(State),
+  {reply, Stream, State1};
+%  {noreply, State};
 
 handle_control({set_socket, _Socket}, State) ->
   %% Set socket returns:
@@ -95,6 +98,7 @@ handle_control(timeout, State) ->
   {stop, timeout, State};
 
 handle_control(_Control, State) ->
+  ?D({"### HANDLE CONTROL ###", State}),
   {noreply, State}.
 
 %%----------------------------------------------------------------------
@@ -137,10 +141,6 @@ handle_info({ems_stream, _StreamId, play_complete, _DTS}, #ems_media{state = #pl
   ?D({"Playing",Name,Stream}),
   {noreply, Media#ems_media{state = State#playlist{files = Files}}};
 
-handle_info({ems_stream, _StreamId, play_complete, _DTS}, #ems_media{state = #playlist{files = []}} = Media) ->
-  self() ! read_playlist,
-  {noreply, Media};
-
 handle_info(timeout, State) ->
   {stop, normal, State};
 
@@ -151,14 +151,13 @@ handle_info(_Message, State) ->
 next_file(#ems_media{state = #playlist{host = Host, wildcard = Wildcard, path = Path, files = []} = State} = Media) ->
   AbsPath = ems:pathjoin(file_media:file_dir(Host), Path),
   Files = [ems:pathjoin(Path,File) || File <- filelib:wildcard(Wildcard, AbsPath)],
-  next_file(Media#ems_media{state = State#playlist{files = Files}});
+  {reply, Media#ems_media{state = State#playlist{files = Files}}};
 
-next_file(#ems_media{state = #playlist{host = Host, files = [Name|Files]}} = Media) ->
+next_file(#ems_media{state = #playlist{files = Files} = State} = Media) ->
   State = Media#ems_media.state,
-  {ok, Stream} = media_provider:play(Host, Name, [{stream_id,1}]),
-  ems_media:set_source(self(), Stream),
-  ?D({"Playing",Name, Stream}),
-  {Stream, Media#ems_media{state = State#playlist{files = Files}}}.
+%  {ok, Stream} = media_provider:play(Host, Name, [{stream_id,1}]),
+%  ems_media:set_source(self(), Stream),
+  {reply, Media#ems_media{state = State#playlist{files = Files}}}.
   
 
 
