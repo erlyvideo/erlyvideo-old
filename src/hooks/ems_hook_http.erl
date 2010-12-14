@@ -30,9 +30,6 @@
 -export([handle_event/1]).
 
 handle_event(#erlyvideo_event{} = Event) ->
-  case (catch httpc:request(post, 
+  httpc:request(post, 
     {URL, [], "application/json", ems_event:to_json(Event)}, 
-    [{timeout,2000}], [{sync, true}, {body_format, binary}])) of
-    {ok, Result} -> Result;
-    {'EXIT', Reason} -> {error, Reason}
-  end.
+    [{timeout,2000}], [{sync, true}, {body_format, binary}]).
