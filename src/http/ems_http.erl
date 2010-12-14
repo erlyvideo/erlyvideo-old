@@ -24,7 +24,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_http).
 -export([start_listener/1, start_link/1, accept/2, stop/0, handle_http/1, http/4, wwwroot/1]).
--include("../ems.hrl").
+-include("../log.hrl").
 
   
 % start misultin http server
