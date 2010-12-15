@@ -859,7 +859,7 @@ try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
 
 
 
-handle_seek({seek, Client, _DTS} = Seek, #ems_media{module = M} = Media) ->
+handle_seek({seek, Client, DTS} = Seek, #ems_media{module = M} = Media) ->
   ?D({"Going to seek", Seek}),
   case M:handle_control(Seek, Media) of
     {noreply, Media1} ->
@@ -867,6 +867,8 @@ handle_seek({seek, Client, _DTS} = Seek, #ems_media{module = M} = Media) ->
       default_ems_media_seek(Seek, Media1);
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
+    {reply, {NewKey, NewDTS}, Media1} ->
+      default_seek_reply(Client, {DTS, NewKey, NewDTS}, Media1);
     {reply, Reply, Media1} ->
       default_seek_reply(Client, Reply, Media1)
   end.
