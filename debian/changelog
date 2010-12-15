@@ -1,3 +1,9 @@
+erlyvideo (2.5.11) unstable; urgency=low
+
+  Sync license, mmap included
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 16 Dec 2010 00:42:57 +0300
+
 erlyvideo (2.5.10) unstable; urgency=low
 
   rtmpt, dir_playlist

@@ -32,7 +32,12 @@
 
 -define(TIMEOUT, 60000).
 
-transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) when Transcoder =/= undefined ->
+
+transcode(Frame, #ems_media{transcoder = undefined} = Media) ->
+  {Media, Frame};
+
+
+transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_state = State} = Media) ->
   % case Frame#video_frame.content of
   %   audio ->
   %     Counter = case get(start_count) of
@@ -44,25 +49,8 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
   %   _ -> ok
   % end,
   {ok, Frames, State1} = Transcoder:transcode(Frame, State),
-  {Media#ems_media{trans_state = State1}, Frames};
+  {Media#ems_media{trans_state = State1}, Frames}.
   
-
-transcode(#video_frame{content = audio, codec = Codec} = Frame, Media) when Codec == pcma orelse 
-                                                                     % Codec == pcm orelse
-                                                                     Codec == g726_16 orelse
-                                                                     % Codec == pcm_le orelse
-                                                                     % Codec == mp3 orelse
-                                                                     Codec == pcmu ->
-  case erlang:function_exported(ems_sound, adapt_sound, 1) of
-    true -> 
-      {Media, ems_sound:adapt_sound(Frame)};
-    _ ->
-      {Media, undefined}
-  end;  
-
-transcode(Frame, Media) ->
-  {Media, Frame}.
-
 
 
 send_frame(Frame, Media) ->

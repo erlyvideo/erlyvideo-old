@@ -27,6 +27,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -author('Alexander Songe <a@songe.me>').
 -include("../include/mp3.hrl").
+-include("log.hrl").
 
 -export([decode/1]).
 
