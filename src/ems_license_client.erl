@@ -51,7 +51,7 @@ ping() ->
   ok.
   
 ping([sync]) ->
-  gen_server:call(?MODULE, ping).
+  gen_server:call(?MODULE, ping, 60000).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
