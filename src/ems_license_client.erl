@@ -34,7 +34,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([ping/0]).
+-export([ping/0, ping/1]).
 
 
 -record(client, {
@@ -50,7 +50,8 @@ ping() ->
   ?MODULE ! timeout,
   ok.
   
-
+ping([sync]) ->
+  gen_server:call(?MODULE, ping).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -84,6 +85,10 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_call(ping, _From, State) ->
+  State1 = #client{timeout = Timeout} = make_request_internal(State),
+  {reply, ok, State1, Timeout};
+
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
@@ -111,7 +116,8 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info(timeout, State) ->
-  make_request_internal(State);
+  State1 = #client{timeout = Timeout} = make_request_internal(State),
+  {noreply, State1, Timeout};
 
 handle_info(_Info, State) ->
   {stop, {unknown_info, _Info}, State}.
@@ -150,7 +156,7 @@ make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = Stat
       {Env,proplists:get_value(timeout,Env,OldTimeout)}
   end,
   request_licensed(License),
-  {noreply, State#client{license = License, timeout = Timeout}, Timeout}.
+  State#client{license = License, timeout = Timeout}.
 
 
 read_license() ->
