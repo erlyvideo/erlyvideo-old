@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(erlyvideo).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("ems.hrl").
+-include("log.hrl").
 
 
 -export([start/2, stop/1]).
@@ -79,6 +79,8 @@ start() ->
   media_provider:init_names(),
 
 	application:start(erlyvideo),
+	
+	ems_license_client:ping([sync]),
 	
   start_http(),
   start_rtmp(),
