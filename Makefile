@@ -30,13 +30,10 @@ push:
 rebar.config:
 	cp rebar.config.sample rebar.config
 
-compile:
+compile: ebin/mmap.so
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/erlydtl && make)
 	(cd deps/mpegts && make)
-
-src/core/mmap.c:
-	git show commercial:src/core/mmap.c > src/core/mmap.c
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
@@ -84,7 +81,7 @@ priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 start: priv/erlyvideo.conf
 	contrib/erlyctl start
 
-install: compile ebin/mmap.so
+install: compile
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/plugins
 	mkdir -p $(DESTROOT)$(ERLDIR)
