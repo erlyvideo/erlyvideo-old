@@ -79,8 +79,7 @@ create(IP) ->
   
   
 generate_session_id() ->
-  {_T1, T2, T3} = now(),
-  integer_to_list(T2*1000 + T3 div 1000).
+  [random:uniform(9) + $1 || _N <- lists:seq(1,10)].
   
 
 find(SessionID, IP) ->

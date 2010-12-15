@@ -37,7 +37,6 @@ http(Host, 'POST', ["open", ChunkNumber], Req) ->
   Req:ok([?CONTENT_TYPE, ?SERVER_HEADER, {'Cache-Control', 'no-cache'},{'Connection','Keep-Alive'}], [SessionId, "\n"]);
   
 http(Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->
-  ems_log:access("RTMPT IDLE ~p ~p.\n", [SessionId, SequenceNumber]),
   case rtmpt:idle(SessionId, Req:get(peer_addr), list_to_integer(SequenceNumber)) of
     {ok, Data} ->
       Req:ok([?CONTENT_TYPE, ?SERVER_HEADER], [33, Data]);
@@ -48,7 +47,6 @@ http(Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->
   end;
 
 http(Host, 'POST', ["send", SessionId, SequenceNumber], Req) ->
-  ems_log:access("RTMPT SEND ~p ~p.\n", [SessionId, SequenceNumber]),
   case rtmpt:send(SessionId, Req:get(peer_addr), list_to_integer(SequenceNumber), Req:get(body)) of
     {ok, Data} ->
       Req:ok([?CONTENT_TYPE, ?SERVER_HEADER], [33, Data]);

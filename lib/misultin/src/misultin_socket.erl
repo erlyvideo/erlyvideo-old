@@ -118,7 +118,13 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 		{http, Sock, {http_error, Error}} ->
 		  erlang:exit({http_error, Error});
 		{http, Sock, http_eoh} ->
-			?MODULE:body(C, Req#req{headers = lists:reverse(H), socket = Sock})
+			case ?MODULE:body(C, Req#req{headers = lists:reverse(H), socket = Sock}) of
+			  #c{} = C1 ->
+			    inet:setopts(Sock, [{active,once},{packet,http}]),
+			    ?MODULE:request(C1, Req);
+			  _ ->
+			    exit(normal)
+			end
 	after RecvTimeout ->
 		?DEBUG(debug, "headers timeout, sending error", []),
 		send(Sock, ?REQUEST_TIMEOUT_408)
@@ -165,16 +171,16 @@ body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, #req{content_length = Cont
 	end.
 
 % handle a get request
-handle_get(C, #req{connection = Conn} = Req) ->
+handle_get(C, #req{} = Req) ->
 	case Req#req.uri of
 		{abs_path, Path} ->
 			{F, Args} = split_at_q_mark(Path, []),
 			call_mfa(C, Req#req{args = Args, uri = {abs_path, F}}),
-			Conn;
+			C;
 		{absoluteURI, http, _Host, _, Path} ->
 			{F, Args} = split_at_q_mark(Path, []),
 			call_mfa(C, Req#req{args = Args, uri = {absoluteURI, F}}),
-			Conn;
+			C;
 		{absoluteURI, _Other_method, _Host, _, _Path} ->
 			send(C#c.sock, ?NOT_IMPLEMENTED_501),
 			close;
@@ -187,14 +193,14 @@ handle_get(C, #req{connection = Conn} = Req) ->
 	end.
 
 % handle a post request
-handle_post(C, #req{connection = Conn} = Req) ->
+handle_post(C, #req{} = Req) ->
 	case Req#req.uri of
 		{abs_path, _Path} ->
 			call_mfa(C, Req),
-			Conn;
+			C;
 		{absoluteURI, http, _Host, _, _Path} ->
 			call_mfa(C, Req),
-			Conn;
+			C;
 		{absoluteURI, _Other_method, _Host, _, _Path} ->
 			send(C#c.sock, ?NOT_IMPLEMENTED_501),
 			close;
