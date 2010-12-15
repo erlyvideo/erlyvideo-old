@@ -4,6 +4,10 @@ ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
 ERL_LIBS:=deps:lib:plugins:..
 
+NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
+NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
+
+
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
@@ -30,7 +34,14 @@ compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/erlydtl && make)
 	(cd deps/mpegts && make)
-	
+
+src/core/mmap.c:
+	git show commercial:src/core/mmap.c > src/core/mmap.c
+
+ebin/mmap.so: src/core/mmap.c
+	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
+
+
 include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
 	erlc -o include snmp/ERLYVIDEO-MIB.bin
 
@@ -69,11 +80,11 @@ priv/log4erl.conf: priv/log4erl.conf.sample
 
 priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
-	
+
 start: priv/erlyvideo.conf
 	contrib/erlyctl start
 
-install: compile
+install: compile ebin/mmap.so
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/plugins
 	mkdir -p $(DESTROOT)$(ERLDIR)

@@ -25,8 +25,8 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
 
--define(SERVER_HEADER, {"Server", "Erlyvideo RTMPT"}).
--define(CONTENT_TYPE, "application/x-fcs").
+-define(SERVER_HEADER, {"Server", "FlashCom/3.5.4"}).
+-define(CONTENT_TYPE, {'Content-Type', "application/x-fcs"}).
 
 -export([http/4]).
 
@@ -34,12 +34,12 @@ http(Host, 'POST', ["open", ChunkNumber], Req) ->
   <<_Timeout>> = Req:get(body),
   {ok, Pid, SessionId} = rtmpt:open(Req:get(peer_addr), rtmp_session),
   ems_log:access(Host, "RTMPT OPEN ~p ~p ~p", [SessionId, ChunkNumber, Pid]),
-  Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [SessionId, "\n"]);
+  Req:ok([?CONTENT_TYPE, ?SERVER_HEADER, {'Cache-Control', 'no-cache'},{'Connection','Keep-Alive'}], [SessionId, "\n"]);
   
 http(Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->
   case rtmpt:idle(SessionId, Req:get(peer_addr), list_to_integer(SequenceNumber)) of
     {ok, Data} ->
-      Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [33, Data]);
+      Req:ok([?CONTENT_TYPE, ?SERVER_HEADER], [33, Data]);
     {error, _} ->
       ems_log:error(Host, "RTMPT IDLE to closed session ~p", [SessionId]),
       Req:stream(<<0>>),
@@ -47,10 +47,9 @@ http(Host, 'POST', ["idle", SessionId, SequenceNumber], Req) ->
   end;
 
 http(Host, 'POST', ["send", SessionId, SequenceNumber], Req) ->
-  % error_logger:info_msg("Request: send/~p/~p.\n", [SessionId, SequenceNumber]),
   case rtmpt:send(SessionId, Req:get(peer_addr), list_to_integer(SequenceNumber), Req:get(body)) of
     {ok, Data} ->
-      Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], [33, Data]);
+      Req:ok([?CONTENT_TYPE, ?SERVER_HEADER], [33, Data]);
     {error, _} ->
       ems_log:error(Host, "RTMPT SEND to closed session ~p", [SessionId]),
       Req:stream(<<0>>),
@@ -65,12 +64,12 @@ http(Host, 'POST', ["close", SessionId, _ChunkNumber], Req) ->
   Req:stream(close);
     
 http(_Host, 'POST', ["fcs", "ident", _ChunkNumber], Req) ->
-  % ems_log:access(Host, "RTMPT ident/~p", [ChunkNumber]),
-  Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
+  ems_log:access(_Host, "RTMPT ident/~p", [_ChunkNumber]),
+  Req:ok([?CONTENT_TYPE, ?SERVER_HEADER], "<fcs><Company>Erlyvideo</Company><Team>Erlyvideo</Team></fcs>");
     
 http(_Host, 'POST', ["fcs", "ident2"], Req) ->
-  % ems_log:access(Host, "RTMPT ident2", []),
-  Req:ok([{'Content-Type', ?CONTENT_TYPE}, ?SERVER_HEADER], "0.1");
+  ems_log:access(_Host, "RTMPT ident2", []),
+  Req:ok([?CONTENT_TYPE, ?SERVER_HEADER], "0.1");
 
 http(_Host, _Method, _Path, _Req) ->
   unhandled.

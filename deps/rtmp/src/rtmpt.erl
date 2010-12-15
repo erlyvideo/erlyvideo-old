@@ -61,7 +61,7 @@
 %% will start client for you. See overview for details.
 %% @end
 open(IP, Callback) ->
-  {ok, RTMPT, SessionID} = rtmpt_sessions:create(IP),
+  {ok, RTMPT, SessionID} = create(IP),
   % {ok, RTMP} = rtmp_socket:start_socket(Consumer, accept, RTMPT),
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
   {ok, Pid} = Callback:create_client(RTMP),
@@ -70,6 +70,23 @@ open(IP, Callback) ->
   gen_fsm:send_event(RTMP, {socket, RTMPT}),
   {ok, Pid, SessionID}.
 
+
+create(IP) ->
+  SessionID = generate_session_id(),
+  {ok, RTMPT} = rtmp_sup:start_rtmpt(SessionID, IP),
+  ets:insert(rtmpt_sessions, {{SessionID, IP}, RTMPT}),
+  {ok, RTMPT, SessionID}.
+  
+  
+generate_session_id() ->
+  [random:uniform(9) + $1 || _N <- lists:seq(1,10)].
+  
+
+find(SessionID, IP) ->
+  case ets:lookup(rtmpt_sessions, {SessionID, IP}) of
+    [{_Key, RTMPT}] -> {ok, RTMPT};
+    _ -> {error, notfound}
+  end.
 
 %% @spec(SessionID::string(), IP::{}, Sequence::integer()) -> {ok, Data::binary()} | {error, Reason}
 %% @doc Asks RTMPT buffer for any data, need to be received to client. Usually flash client calls is several times per second.
@@ -80,7 +97,7 @@ open(IP, Callback) ->
 %% </code>
 %% @end
 idle(SessionID, IP, Sequence) ->
-  case rtmpt_sessions:find(SessionID, IP) of
+  case find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> gen_server:call(RTMPT, {recv, Sequence})
   end.
@@ -94,7 +111,7 @@ idle(SessionID, IP, Sequence) ->
 %% </code>
 %% @end
 send(SessionID, IP, Sequence, Data) ->
-  case rtmpt_sessions:find(SessionID, IP) of
+  case find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> 
       gen_server:call(RTMPT, {client_data, Data}),
@@ -105,7 +122,7 @@ send(SessionID, IP, Sequence, Data) ->
 %% @doc Closes RTMPT session
 %% @end
 close(SessionID, IP) ->
-  case rtmpt_sessions:find(SessionID, IP) of
+  case find(SessionID, IP) of
     {error, Reason} -> {error, Reason};
     {ok, RTMPT} -> gen_server:cast(RTMPT, close)
   end.
@@ -136,7 +153,7 @@ set_consumer(RTMPT, Consumer) ->
 %% @private
 %%-------------------------------------------------------------------------
 init([SessionId, IP]) ->
-  % process_flag(trap_exit, true),
+  process_flag(trap_exit, true),
   {ok, #rtmpt{session_id = SessionId, ip = IP}, ?RTMPT_TIMEOUT}.
         
 
@@ -166,13 +183,13 @@ handle_call({set_consumer, Upstream}, _From, #rtmpt{consumer = undefined} = Stat
   erlang:monitor(process, Upstream),
   {reply, ok, State#rtmpt{consumer = Upstream}, ?RTMPT_TIMEOUT};
 
-handle_call(timeout, _From, #rtmpt{consumer = _Consumer} = State) ->
-  % gen_fsm:send_event(Consumer, timeout),
-  % {stop, normal, State};
-  {reply, ok, State, ?RTMPT_TIMEOUT};
+handle_call(timeout, _From, #rtmpt{consumer = Consumer} = State) ->
+  gen_fsm:send_event(Consumer, timeout),
+  {stop, normal, State};
+  % {reply, ok, State, ?RTMPT_TIMEOUT};
 
 
-handle_call({info}, _From, #rtmpt{sequence_number = SequenceNumber, session_id = SessionId, buffer = Buffer, bytes_count = BytesCount} = State) ->
+handle_call(info, _From, #rtmpt{sequence_number = SequenceNumber, session_id = SessionId, buffer = Buffer, bytes_count = BytesCount} = State) ->
   Info = {self(), [{session_id, SessionId}, {sequence_number, SequenceNumber}, {total_bytes, BytesCount}, {unread_data, size(Buffer)} | process_info(self(), [message_queue_len, heap_size])]},
   {reply, Info, State, ?RTMPT_TIMEOUT};
 
@@ -195,7 +212,7 @@ handle_cast(close, #rtmpt{} = State) ->
   {stop, normal, State};
 
 handle_cast(_Msg, State) ->
-  {noreply, State}.
+  {stop, {unknown_cast, _Msg}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -211,8 +228,10 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
 
-handle_info(timeout, State) ->
-  {noreply, State};
+handle_info(timeout, #rtmpt{consumer = Consumer} = State) ->
+  gen_fsm:send_event(Consumer, timeout),
+  {stop, normal, State};
+
 
 handle_info(Message, State) ->
   {stop, {unhandled, Message}, State}.
@@ -226,6 +245,7 @@ handle_info(Message, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 terminate(_Reason, _State) ->
+  ets:match_delete(rtmpt_sessions, {'_', self()}),
   ok.
 
 %%-------------------------------------------------------------------------

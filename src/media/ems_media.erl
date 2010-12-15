@@ -354,6 +354,8 @@ init([Module, Options]) ->
   URL = proplists:get_value(url, Options),
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options)},
+                     
+  timer:send_interval(30000, garbage_collect),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),
@@ -788,6 +790,10 @@ handle_info(timeout, #ems_media{source = undefined} = Media) ->
   {noreply, Media};
 
 
+handle_info(garbage_collect, Media) ->
+  garbage_collect(self()),
+  {noreply, Media};
+
 handle_info(Message, #ems_media{module = M} = Media) ->
   case M:handle_info(Message, Media) of
     {noreply, Media1} ->
@@ -851,7 +857,7 @@ try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
 
 
 
-handle_seek({seek, Client, _DTS} = Seek, #ems_media{module = M} = Media) ->
+handle_seek({seek, Client, DTS} = Seek, #ems_media{module = M} = Media) ->
   ?D({"Going to seek", Seek}),
   case M:handle_control(Seek, Media) of
     {noreply, Media1} ->
@@ -859,6 +865,8 @@ handle_seek({seek, Client, _DTS} = Seek, #ems_media{module = M} = Media) ->
       default_ems_media_seek(Seek, Media1);
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
+    {reply, {NewKey, NewDTS}, Media1} ->
+      default_seek_reply(Client, {DTS, NewKey, NewDTS}, Media1);
     {reply, Reply, Media1} ->
       default_seek_reply(Client, Reply, Media1)
   end.

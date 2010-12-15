@@ -61,7 +61,10 @@ init([Host, Event, Handler]) ->
 %%-------------------------------------------------------------------------
 handle_event(#erlyvideo_event{event = Event, host = Host} = Evt, #hook{event = Event, host = Host, handler = Handler} = Hook) ->
   % ?D({calling, Evt, Handler}),
-  Handler:handle_event(Evt),
+  case (catch Handler:handle_event(Evt)) of
+    {'EXIT', Reason} -> ems_log:error(Host, "Failed event handler ~p on event ~p: ~p~n~p", [Handler, Event, Reason, erlang:get_stacktrace()]);
+    _ -> ok
+  end,
   {ok, Hook};
 
 handle_event(_Event, Hook) ->

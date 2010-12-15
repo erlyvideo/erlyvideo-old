@@ -1,3 +1,15 @@
+erlyvideo (2.5.10) unstable; urgency=low
+
+  rtmpt, dir_playlist
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 14 Dec 2010 23:01:54 +0300
+
+erlyvideo (2.5.9) unstable; urgency=low
+
+  Work with Red5 client
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 08 Dec 2010 22:57:10 +0300
+
 erlyvideo (2.5.8) unstable; urgency=low
 
   Added flv append, fixed rtmp_session:call
