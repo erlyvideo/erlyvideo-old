@@ -23,14 +23,18 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_debug).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("ems.hrl").
 
--compile(export_all).
+-export([sorted_procs/1]).
 
 sorted_procs(Sort) ->
-  Pids = lists:sort(fun(Pid1, Pid2) ->
-    {Sort, Val1} = process_info(Pid1, Sort),
-    {Sort, Val2} = process_info(Pid2, Sort),
+  Info = [ case process_info(Pid, [Sort,memory,message_queue_len,total_heap_size,heap_size,stack_size,dictionary,current_function]) of
+    undefined -> undefined;
+    Else -> [{pid,Pid}|Else]
+  end || Pid <- processes()],
+  ClearedInfo = [I||I <- Info, I =/= undefined],
+  Sorted = lists:sort(fun(Info1, Info2) ->
+    Val1 = proplists:get_value(Sort, Info1),
+    Val2 = proplists:get_value(Sort, Info2),
     Val1 > Val2
-  end, processes()),
-  lists:sublist([ [{pid,Pid}|process_info(Pid, [memory,message_queue_len,total_heap_size,heap_size,stack_size,dictionary,current_function])] || Pid <- Pids], 10).
+  end, ClearedInfo),
+  lists:sublist(Sorted, 10).

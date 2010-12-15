@@ -481,8 +481,8 @@ handle_info({'$gen_call', From, Request}, StateName, StateData) ->
       {next_state, NewStateName, NewState}
   end;
 
-handle_info({rtmp_lag, _Media}, StateName, StateData) ->
-  {stop, rtmp_lag, StateData};
+handle_info({rtmp_lag, _Media}, _StateName, State) ->
+  {stop, rtmp_lag, State};
 
 handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of
