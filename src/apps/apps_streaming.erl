@@ -186,7 +186,7 @@ extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].
 %% @end
 %%-------------------------------------------------------------------------
 pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}) -> 
-    ?D({"PAUSE", Pausing, round(NewTs)}),
+    ?D({"PAUSE", Pausing, round(NewTs), rtmp_session:get_stream(StreamId, State)}),
     
     case {rtmp_session:get_stream(StreamId, State), Pausing} of
       {null, _} ->
@@ -200,8 +200,8 @@ pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausin
         rtmp_lib:pause_notify(Socket, StreamId),
         State;
       {#rtmp_stream{pid = Player}, false} ->
-        ems_media:resume(Player),
         rtmp_lib:unpause_notify(Socket, StreamId),
+        ems_media:resume(Player),
         State
     end.
 
