@@ -142,6 +142,7 @@ handle_message(stop, Ticker) ->
 
 handle_message(resume, Ticker) ->
   self() ! tick,
+  ?D({ticker_resume, Ticker}),
   {noreply, Ticker#ticker{paused = false}};
 
 handle_message(start, Ticker) ->

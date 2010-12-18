@@ -496,7 +496,7 @@ handle_call(decoder_config, _From, #ems_media{video_config = V, audio_config = A
 handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{state = passive, ticker = Ticker} ->
-      media_ticker:start(Ticker),
+      media_ticker:resume(Ticker),
       {reply, ok, Media, ?TIMEOUT};
 
     #client{state = paused} ->
