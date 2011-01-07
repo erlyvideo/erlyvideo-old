@@ -695,6 +695,9 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
           end,
           case unsubscribe_client(Client, Media2) of
             {reply, _Reply, Media3, _} -> {noreply, Media3, ?TIMEOUT};
+            {stop, Reason, _Reply, Media3} ->
+              ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
+              {stop, Reason, Media3};
             {stop, Reason, Media3} -> 
               ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
               {stop, Reason, Media3}
