@@ -40,7 +40,6 @@
   playing_from,
   playing_till,
   paused = false,
-  slow_media_timeout = 1000,
   options
 }).
 
@@ -79,8 +78,6 @@ init(Media, Consumer, Options) ->
     S -> S
   end,
   
-  SlowMediaTimeout = proplists:get_value(slow_media_timeout, Options, 1000),
-  
   PlayingTill = case proplists:get_value(duration, Options) of
     undefined -> undefined;
     Duration -> Start + Duration
@@ -96,7 +93,7 @@ init(Media, Consumer, Options) ->
       % end
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, slow_media_timeout = SlowMediaTimeout}).
+                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options}).
   
 loop(Ticker) ->
   receive
@@ -227,13 +224,12 @@ tick_timeout(Ticker, Frame) ->
   Now = os:timestamp(),
   tick_timeout(Ticker, Frame, Now).
 
-tick_timeout(#ticker{playing_from = PlayingFrom, timer_start = TimerStart, client_buffer = ClientBuffer,
-                     slow_media_timeout = SlowMediaTimeout} = Ticker, #video_frame{dts = DTS}, Now) ->
+tick_timeout(#ticker{playing_from = PlayingFrom, timer_start = TimerStart, client_buffer = ClientBuffer},
+             #video_frame{dts = DTS}, Now) ->
   NextTime = DTS - PlayingFrom,   %% Time from PlayingFrom in video timeline in which next frame should be seen
   RealTime = timer:now_diff(Now, TimerStart) div 1000,    %% Wall clock from PlayingFrom
   Sleep = NextTime - RealTime - ClientBuffer,    %% Delta between next show time and current wall clock delta
   T = if
-    is_integer(SlowMediaTimeout) andalso Sleep < SlowMediaTimeout -> log_slow_media(Ticker, Sleep), 0; %% Media is reading frames slowly
     Sleep < 0 -> 0;                %% This case means, that frame was too late. show it immediately
     ClientBuffer >= NextTime -> 0; %% We have seen less than buffer size from stream begin
     true -> round(Sleep)           %% Regular situation: we are far from stream begin, feed with frames
@@ -241,10 +237,6 @@ tick_timeout(#ticker{playing_from = PlayingFrom, timer_start = TimerStart, clien
   % ?D({tick,round(DTS),round(PlayingFrom),RealTime,T}),
   T.
 
-
-log_slow_media(#ticker{media = _Media}, _Delay) ->
-  % ems_event:slow_media(Media, Delay).
-  ok.
 
 -include_lib("eunit/include/eunit.hrl").
 
