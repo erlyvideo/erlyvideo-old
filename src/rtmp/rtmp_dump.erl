@@ -65,13 +65,14 @@ connect(#dumper{} = Dumper, [URL]) ->
 
 connect(#dumper{} = Dumper, [URL, Options]) ->
   Timeout = proplists:get_value(timeout, Options, 5000),
+  Debug = proplists:get_value(debug, Options, false),
   {_HostPort,FullPath} = http_uri2:extract_path_with_query(URL),
   {match, [App]} = re:run(FullPath, "/([^/]+)", [{capture,all_but_first,binary}]),
   
   {ok, RTMP} = rtmp_socket:connect(URL),
   receive 
     {rtmp, RTMP, connected} ->
-      rtmp_socket:setopts(RTMP, [{active, true}]),
+      rtmp_socket:setopts(RTMP, [{active, true},{debug,Debug}]),
       rtmp_lib:connect(RTMP, [{app, App}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
       Dumper#dumper{rtmp = RTMP}
   after
