@@ -200,7 +200,7 @@ pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausin
         rtmp_lib:pause_notify(Socket, StreamId),
         State;
       {#rtmp_stream{pid = Player}, false} ->
-        rtmp_lib:unpause_notify(Socket, StreamId),
+        rtmp_lib:unpause_notify(Socket, StreamId, NewTs),
         ems_media:resume(Player),
         State
     end.
