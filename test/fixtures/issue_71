@@ -1,0 +1,6 @@
+{connect, "rtmp://localhost/rtmp"}.
+{play, "video.mp4"}.
+{wait, 1000}.
+{pause}.
+{resume}.
+{wait, 20000}.

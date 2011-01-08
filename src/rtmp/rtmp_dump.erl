@@ -27,13 +27,17 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/flv.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--include("../log.hrl").
+-define(D(X), io:format("~p:~p ~p~n", [?MODULE, ?LINE, X])).
 
 -export([run/1]).
 
+-export([connect/2, play/2, wait/2, pause/2, resume/2, seek/2]).
+
 -record(dumper, {
   commands,
-  rtmp
+  rtmp,
+  stream,
+  last_dts
 }).
 
 
@@ -44,12 +48,76 @@ run(Filename) when is_list(Filename) ->
 run(#dumper{commands = [Command|Commands]} = Dumper) ->
   [Function|Args] = erlang:tuple_to_list(Command),
   ?D(Command),
-  case erlang:apply(?MODULE, Function, [Dumper#dumper{commands = Commands}|Args]) of
+  case ?MODULE:Function(Dumper#dumper{commands = Commands}, Args) of
     {ok, Dumper1} ->
       run(Dumper1);
-    stop ->
-      ?D(stop)
+    #dumper{} = Dumper1 ->
+      run(Dumper1);
+    {error, Reason} ->
+      ?D({error, Reason})
+  end;
+  
+run(#dumper{commands = []}) ->
+  ok.
+
+connect(#dumper{} = Dumper, [URL]) ->
+  connect(Dumper, [URL, []]);
+
+connect(#dumper{} = Dumper, [URL, Options]) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  {_HostPort,FullPath} = http_uri2:extract_path_with_query(URL),
+  {match, [App]} = re:run(FullPath, "/([^/]+)", [{capture,all_but_first,binary}]),
+  
+  {ok, RTMP} = rtmp_socket:connect(URL),
+  receive 
+    {rtmp, RTMP, connected} ->
+      rtmp_socket:setopts(RTMP, [{active, true}]),
+      rtmp_lib:connect(RTMP, [{app, App}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
+      Dumper#dumper{rtmp = RTMP}
+  after
+    Timeout ->
+      {error, timeout}
+  end.
+  
+play(#dumper{rtmp = RTMP} = Dumper, [Path]) ->
+  Stream = rtmp_lib:createStream(RTMP),
+  rtmp_lib:play(RTMP, Stream, Path),
+  Dumper#dumper{stream = Stream}.
+
+wait(#dumper{rtmp = RTMP} = Dumper, [AbsTime]) ->
+  % rtmp_socket:setopts(RTMP, [{active, once}]),
+  receive
+    {rtmp, RTMP, #rtmp_message{timestamp = DTS, type = Type}} when DTS >= AbsTime andalso (Type == audio orelse Type == video)->
+      ?D({wait_success, AbsTime, DTS}),
+      Dumper#dumper{last_dts = DTS};
+    {rtmp, RTMP, #rtmp_message{timestamp = DTS}} ->
+      wait(Dumper#dumper{last_dts = DTS}, [AbsTime]);
+    {rtmp, RTMP, disconnect} -> 
+      {error, disconnect}
   end.
 
 
+pause(#dumper{rtmp = RTMP, stream = Stream, last_dts = DTS} = Dumper, []) ->
+  rtmp_lib:pause(RTMP, Stream, DTS),
+  flush(),
+  Dumper.
+
+resume(#dumper{rtmp = RTMP, stream = Stream, last_dts = DTS} = Dumper, []) ->
+  rtmp_lib:resume(RTMP, Stream, DTS),
+  flush(),
+  Dumper.
+
+seek(#dumper{rtmp = RTMP, stream = Stream} = Dumper, [DTS]) ->
+  rtmp_lib:seek(RTMP, Stream, DTS),
+  flush(),
+  Dumper.
+
   
+flush() ->
+  receive
+    {rtmp, _RTMP, _Message} -> flush()
+  after
+    0 -> ok
+  end.
+
+    

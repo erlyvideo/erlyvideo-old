@@ -26,7 +26,7 @@
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
--export([connect/1, connect/2, createStream/1, play/3, seek/3, publish/3, publish/4]).
+-export([connect/1, connect/2, createStream/1, play/3, seek/3, pause/3, resume/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
 -export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/4, pause_notify/2, unpause_notify/2]).
 -export([channel_id/2, empty_audio/2]).
@@ -112,6 +112,26 @@ play(RTMP, Stream, Path) ->
   after
     30000 -> erlang:error(timeout)
   end.
+
+pause(RTMP, Stream, DTS) ->
+  AMF = #rtmp_funcall{
+    command = pause,
+    type = invoke,
+    stream_id = Stream,
+    args = [null, true, DTS]
+  },
+  rtmp_socket:invoke(RTMP, AMF),
+  ok.
+
+resume(RTMP, Stream, DTS) ->
+  AMF = #rtmp_funcall{
+    command = pause,
+    type = invoke,
+    stream_id = Stream,
+    args = [null, false, DTS]
+  },
+  rtmp_socket:invoke(RTMP, AMF),
+  ok.
 
 seek(RTMP, Stream, DTS) ->
   AMF = #rtmp_funcall{
