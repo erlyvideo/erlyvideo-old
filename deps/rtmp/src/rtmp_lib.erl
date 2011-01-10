@@ -26,9 +26,9 @@
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
--export([connect/1, connect/2, createStream/1, play/3, seek/3, publish/3, publish/4]).
+-export([connect/1, connect/2, createStream/1, play/3, seek/3, pause/3, resume/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
--export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/4, pause_notify/2, unpause_notify/2]).
+-export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/4, pause_notify/2, unpause_notify/3]).
 -export([channel_id/2, empty_audio/2]).
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
@@ -113,6 +113,26 @@ play(RTMP, Stream, Path) ->
     30000 -> erlang:error(timeout)
   end.
 
+pause(RTMP, Stream, DTS) ->
+  AMF = #rtmp_funcall{
+    command = pause,
+    type = invoke,
+    stream_id = Stream,
+    args = [null, true, DTS]
+  },
+  rtmp_socket:invoke(RTMP, AMF),
+  ok.
+
+resume(RTMP, Stream, DTS) ->
+  AMF = #rtmp_funcall{
+    command = pause,
+    type = invoke,
+    stream_id = Stream,
+    args = [null, false, DTS]
+  },
+  rtmp_socket:invoke(RTMP, AMF),
+  ok.
+
 seek(RTMP, Stream, DTS) ->
   AMF = #rtmp_funcall{
     command = seek,
@@ -174,9 +194,12 @@ shared_object_set(RTMP, Name, Key, Value) ->
 play_start(RTMP, StreamId, DTS, Type) ->
   % rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(audio, StreamId), timestamp = DTS}),
   % rtmp_socket:send(RTMP, #rtmp_message{type = abort, body = channel_id(video, StreamId), timestamp = DTS}),
-  Reset = rtmp_socket:prepare_status(StreamId, <<"NetStream.Play.Reset">>),
-  rtmp_socket:send(RTMP, Reset#rtmp_message{timestamp = DTS, channel_id = channel_id(metadata, StreamId)}),
-
+  case Type of
+    resume -> ok;
+    _ -> 
+      Reset = rtmp_socket:prepare_status(StreamId, <<"NetStream.Play.Reset">>),
+      rtmp_socket:send(RTMP, Reset#rtmp_message{timestamp = DTS, channel_id = channel_id(metadata, StreamId)})
+  end,
 
   case Type of
     live -> ok;
@@ -205,9 +228,10 @@ pause_notify(RTMP, StreamId) ->
   rtmp_socket:status(RTMP, StreamId, <<"NetStream.Pause.Notify">>),
   ok.
 
-unpause_notify(RTMP, StreamId) ->
+unpause_notify(RTMP, StreamId, DTS) ->
   Status = rtmp_socket:prepare_status(StreamId, <<"NetStream.Unpause.Notify">>),
   rtmp_socket:send(RTMP, Status#rtmp_message{channel_id = rtmp_lib:channel_id(audio, StreamId), ts_type = delta, timestamp = 0}),
+  play_start(RTMP, StreamId, DTS, resume),
   ok.
   
   

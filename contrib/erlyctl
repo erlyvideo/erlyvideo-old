@@ -81,7 +81,7 @@ ctl()
 
 usage()
 {
-    echo <<-EOF
+    cat <<-EOF
 erlyctl run (in foreground)
 erlyctl start (in background)
 erlyctl shell (remote shell)

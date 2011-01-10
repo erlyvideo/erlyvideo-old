@@ -496,7 +496,7 @@ handle_call(decoder_config, _From, #ems_media{video_config = V, audio_config = A
 handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{state = passive, ticker = Ticker} ->
-      media_ticker:start(Ticker),
+      media_ticker:resume(Ticker),
       {reply, ok, Media, ?TIMEOUT};
 
     #client{state = paused} ->
@@ -695,6 +695,9 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
           end,
           case unsubscribe_client(Client, Media2) of
             {reply, _Reply, Media3, _} -> {noreply, Media3, ?TIMEOUT};
+            {stop, Reason, _Reply, Media3} ->
+              ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
+              {stop, Reason, Media3};
             {stop, Reason, Media3} -> 
               ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
               {stop, Reason, Media3}
