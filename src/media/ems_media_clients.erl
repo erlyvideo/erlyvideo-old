@@ -151,9 +151,10 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
 
 
-send_frame(#video_frame{} = Frame, #clients{repeater = Repeater} = Clients, State) when State == active orelse State == starting ->
+send_frame(#video_frame{} = Frame, #clients{repeater = Repeater} = Clients, State) ->
   Repeater ! {Frame, State},
   Clients.
+  % repeater_send_frame(Frame, Clients, State).
 
 repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
@@ -174,13 +175,13 @@ repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
         _ -> Pid ! {rtmp_lag, self()}
       end,
       Frame;
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio} = Frame) ->
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio, flavor = frame} = Frame) ->
       % ?D("send with pid, audio not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
       inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.audio_notified,true}),
       Frame;
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video} = Frame) ->
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video, flavor = keyframe} = Frame) ->
       % ?D("send with pid, video not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
       inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
