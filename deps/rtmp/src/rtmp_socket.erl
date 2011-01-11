@@ -88,8 +88,13 @@ accept(Socket) ->
 %% @doc Accepts client connection on socket Socket, starts RTMP decoder, passes socket to it
 %% and returns pid of newly created RTMP socket.
 %% @end
--spec(connect(Socket::port()) -> {ok, RTMPSocket::pid()}).
-connect(Socket) ->
+-spec(connect(Socket::port()|string()) -> {ok, RTMPSocket::pid()}).
+connect(ServerSpec) when is_list(ServerSpec) ->
+  {_Proto,_Auth,Host,Port,_Path,_Query} = http_uri2:parse(ServerSpec),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
+  connect(Socket);
+
+connect(Socket) when is_port(Socket) ->
   {ok, Pid} = start_socket(connect, Socket),
   setopts(Pid, [{consumer,self()}]),
   {ok,Pid}.
