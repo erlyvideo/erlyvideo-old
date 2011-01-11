@@ -30,15 +30,20 @@
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
          send_frame/3, mass_update_state/3, increment_bytes/3]).
+         
+-export([init_repeater/2, repeater/1]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -define(SNDBUF, 4194304).
 
+
+
 -record(clients, {
   active,
   passive,
   starting,
+  repeater,
   list = [],
   bytes
 }).
@@ -53,12 +58,28 @@
 }).
 
 init() ->
-  #clients{
-    active = ets:new(active, [set,  private, {keypos, #cached_entry.pid}]),
-    passive = ets:new(passive, [set,  private, {keypos, #cached_entry.pid}]),
-    starting = ets:new(starting, [set,  private, {keypos, #cached_entry.pid}]),
-    bytes = ets:new(clients, [set,  private])
-  }.
+  Clients = #clients{
+    active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
+    passive = ets:new(passive, [set, public, {keypos, #cached_entry.pid}]),
+    starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}]),
+    bytes = ets:new(clients, [set, public])
+  },
+  Repeater = proc_lib:spawn_link(?MODULE, init_repeater, [Clients, self()]),
+  erlang:link(Repeater),
+  ?D({started_repeater,Repeater}),
+  Clients#clients{repeater = Repeater}.
+  
+init_repeater(#clients{} = Clients, Media) when is_pid(Media) ->
+  erlang:monitor(process, Media),
+  ?MODULE:repeater(Clients).
+  
+repeater(#clients{} = Clients) ->
+  receive
+    {#video_frame{} = Frame, State} -> ?MODULE:repeater(repeater_send_frame(Frame, Clients, State));
+    {'DOWN', _, process, _Media, normal} -> ok;
+    {inet_reply, _Socket, _Reply} -> ?MODULE:repeater(Clients);
+    Else -> erlang:exit({error, Else})
+  end.
 
 table(#clients{active = Table}, active) -> Table;
 table(#clients{passive = Table}, passive) -> Table;
@@ -128,9 +149,13 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   ets:delete(Bytes, Client),
   remove_client(Clients, Client),
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
-  
 
-send_frame(#video_frame{} = VideoFrame, #clients{bytes = _Bytes} = Clients, State) ->
+
+send_frame(#video_frame{} = Frame, #clients{repeater = Repeater} = Clients, State) when State == active orelse State == starting ->
+  Repeater ! {Frame, State},
+  Clients.
+
+repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
