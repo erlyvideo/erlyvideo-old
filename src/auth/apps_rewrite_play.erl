@@ -25,6 +25,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
+-include("../log.hrl").
 
 
 -export([play/2, run_http_request/2]).
@@ -45,6 +46,7 @@ run_http_request(#rtmp_session{addr = IP, user_id = UserId, session_id = Session
   
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary]),
   Req = io_lib:format("GET ~s?ip=~s&file=~s&user_id=~p&session_id="++dump_session_id(SessionId)++" HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, IP, Name, UserId, Host]),
+  ?D({http_check, lists:flatten(Req)}),
   ok = gen_tcp:send(Socket, Req),
   inet:setopts(Socket, [{packet,http},{active,once}]),
   receive
