@@ -152,9 +152,9 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
 
 
 send_frame(#video_frame{} = Frame, #clients{repeater = Repeater} = Clients, State) ->
-  Repeater ! {Frame, State},
-  Clients.
-  % repeater_send_frame(Frame, Clients, State).
+  % Repeater ! {Frame, State},
+  % Clients.
+  repeater_send_frame(Frame, Clients, State).
 
 repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
