@@ -151,25 +151,24 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
 
 
+send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
+  repeater_send_frame(Frame, Clients, starting);
+
 send_frame(#video_frame{} = Frame, #clients{repeater = Repeater} = Clients, State) ->
-  % Repeater ! {Frame, State},
-  % Clients.
-  repeater_send_frame(Frame, Clients, State).
+  % case Frame#video_frame.flavor of
+  %   frame -> ok;
+  %   _ -> ?D({Frame#video_frame.flavor, Frame#video_frame.content, State})
+  % end,
+  Repeater ! {Frame, State},
+  Clients.
+  % repeater_send_frame(Frame, Clients, State).
 
 repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
   Sender = fun
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, audio_notified = true}, #video_frame{content = audio} = Frame) ->
-      % ?D("send when audio notified"),
-      case (catch port_command(Socket, FrameGen(DTS, StreamId),[nosuspend])) of
-        true -> ok;
-        _ -> Pid ! {rtmp_lag, self()}
-      end,
-      Frame;
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, video_notified = true}, #video_frame{content = video} = Frame) ->
-      % ?D("send when video notified"),
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, audio_notified = true, video_notified = true}, Frame) ->
       case (catch port_command(Socket, FrameGen(DTS, StreamId),[nosuspend])) of
         true -> ok;
         _ -> Pid ! {rtmp_lag, self()}
@@ -188,8 +187,8 @@ repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
       ets:update_element(Table, Pid, {#cached_entry.video_notified,true}),
       Frame;
     (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
-      % ?D("send with pid"),
-      Pid ! Frame#video_frame{stream_id = StreamId}
+      Pid ! Frame#video_frame{stream_id = StreamId},
+      Frame
   end,
   
   ets:foldl(Sender, VideoFrame, Table),
@@ -201,6 +200,7 @@ repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
 
 
 mass_update_state(#clients{list = List} = Clients, From, To) ->
+  % ?D({update,From,ets:tab2list(table(Clients,From)),To,ets:tab2list(table(Clients,To))}),
   Clients#clients{list = [begin
     S = case State of
       From ->
