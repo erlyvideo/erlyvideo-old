@@ -497,9 +497,20 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
+handle_frame(#video_frame{content = audio} = Frame, Session) ->
+  case is_good_flv(Frame) of
+    true -> send_frame(Frame, Session);
+    _ -> Session
+  end;
+  
+handle_frame(Frame, Session) ->
+  send_frame(Frame, Session).
 
+is_good_flv(#video_frame{content = audio, sound = {_Channels, _Bits, Rate}}) when is_number(Rate) -> false;
+is_good_flv(#video_frame{content = audio, codec = pcm_le}) -> false;
+is_good_flv(#video_frame{content = audio}) -> true.
 
-handle_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
+send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
              #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{seeking = true} ->
