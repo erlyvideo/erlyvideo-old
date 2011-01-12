@@ -24,16 +24,24 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
 
--export([get/2]).
+-export([get/2, get_with_body/2]).
 
-open_socket(URL, Timeout) ->
+open_socket(URL, Options) ->
+  Timeout = proplists:get_value(timeout, Options, 3000),
   {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
   
   ?D({http_connect, Host, Port, Path}),
+  
+  RequestPath = case proplists:get_value(send_hostpath, Options, false) of
+    true -> URL;
+    false -> Path
+  end,
 
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}], Timeout),
-  ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
+  ok = gen_tcp:send(Socket, "GET "++RequestPath++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\n"),
+  [gen_tcp:send(Socket, Key++": "++Value++"\r\n") || {Key,Value} <- proplists:get_value(headers, Options, [])],
+  gen_tcp:send(Socket, "\r\n"),
   ok = inet:setopts(Socket, [{active, once}]),
   receive
     {http, Socket, {http_response, _Version, 200, _Reply}} ->
@@ -49,13 +57,30 @@ open_socket(URL, Timeout) ->
   end.
 
 
+get_with_body(URL, Options) ->
+  case get(URL, Options) of
+    {ok, Headers, Socket} ->
+      case proplists:get_value('Content-Length', Headers) of
+        undefined -> 
+          gen_tcp:close(Socket),
+          {error, no_length};
+        Length ->
+          {ok, Body} = gen_tcp:recv(Socket, list_to_integer(Length)),
+          gen_tcp:close(Socket),
+          {ok, Headers, Body}
+      end;
+    Else ->
+      Else
+  end.  
+        
+
 get(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
-  case open_socket(URL, Timeout) of
+  case open_socket(URL, Options) of
     {ok, Socket} ->
       case wait_for_headers(Socket, [], Timeout) of
         {ok, Headers} ->
-          ok = inet:setopts(Socket, [{active, once},{packet,raw}]),
+          ok = inet:setopts(Socket, [{active, false},{packet,raw}]),
           {ok, Headers, Socket};
         {error, Reason} ->
           {error, Reason}
