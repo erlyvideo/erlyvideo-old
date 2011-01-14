@@ -27,7 +27,7 @@
 -include("shared_objects.hrl").
 -version(1.1).
 
--export([encode/2, decode/2]).
+-export([encode/2, encode_id/2, decode/2]).
 -export([encode_list/1, decode_list/1]).
 -export([element/2, setelement/3, justify_ts/1]).
 
@@ -257,6 +257,11 @@ encode_list(Message, [Arg | Args]) ->
   AMF = amf0:encode(Arg),
   encode_list(<<Message/binary, AMF/binary>>, Args).
 
+
+encode_id(new, Id) -> encode_id(?RTMP_HDR_NEW, Id);
+encode_id(same, Id) -> encode_id(?RTMP_HDR_SAME_SRC, Id);
+encode_id(new_ts, Id) -> encode_id(?RTMP_HDR_TS_CHG, Id);
+encode_id(continue, Id) -> encode_id(?RTMP_HDR_CONTINUE, Id);
 
 encode_id(Type, Id) when Id =< 63 -> 
   <<Type:2, Id:6>>;

@@ -5,6 +5,8 @@
   ticker,
   ticker_ref,
   state = paused,
+  tcp_socket,
+  dts,
   bytes = 0
 }).
 

@@ -54,6 +54,10 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
 
 
 send_frame(Frame, Media) ->
+  %case Media#ems_media.type of
+    %mpegts -> ?D(Frame#video_frame{body=body});
+    %_ -> ok
+  %end,
   shift_dts(Frame, Media).
 
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
