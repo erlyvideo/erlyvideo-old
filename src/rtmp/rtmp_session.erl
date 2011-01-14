@@ -522,12 +522,12 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
   
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
-  case Frame#video_frame.content of
-    metadata -> ?D(Frame);
-    _ ->
-      % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
-      ok
-  end,
+  % case Frame#video_frame.content of
+  %   metadata -> ?D(Frame);
+  %   _ ->
+  %     % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
+  %     ok
+  % end,
   case Allow of
     true ->
       Message = #rtmp_message{
