@@ -333,11 +333,15 @@ s3_sign(Method, Key, Path) ->
 
 
 headers("http://s3.amazonaws.com"++Path, Method) ->
-  {ok, Env, _Path} = file:path_consult(["/etc/erlyvideo", "priv", "."], "aws.conf"),
-  Secret = proplists:get_value(secret, Env),
-  Key = proplists:get_value(key, Env),
-  {Date, Sign} = s3_sign(Method, Secret, Path),
-  [{'Date', Date}, {'Content-Type', ""}, {'Authorization', "AWS "++Key++":"++Sign}];
+  Auth = case file:path_consult(["/etc/erlyvideo", "priv", "."], "aws.conf") of
+    {ok, Env, _Path} ->
+      Secret = proplists:get_value(secret, Env),
+      Key = proplists:get_value(key, Env),
+      {Date, Sign} = s3_sign(Method, Secret, Path),
+      [{'Date', Date}, {'Authorization', "AWS "++Key++":"++Sign}];
+    {error, _Error} -> []
+  end,
+  [{'Content-Type', ""}] ++ Auth;
   
 headers(_URL, _Method) ->
   [].
