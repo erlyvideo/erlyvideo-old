@@ -34,7 +34,6 @@
 {"deps/rtmp/src/*", [encrypt_debug_info, {outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"},{i,"deps"}]}.
 {"deps/rtsp/src/*", [encrypt_debug_info, {outdir, "deps/rtsp/ebin"}, {i, "deps/rtsp/src"}, {i, "deps"}]}.
 {"deps/rtp/src/*", [encrypt_debug_info, {outdir, "deps/rtp/ebin"}, {i, "deps/rtp/src"}, {i, "deps/rtp/include"}, {i, "deps"}]}.
-{"deps/esip/src/*", [encrypt_debug_info, {outdir, "deps/esip/ebin"}, {i,".."}, {i, "deps/ertp/include"}, {i,"deps/esip/include"}, {i, "deps"}]}.
 {"deps/log4erl/src/*", [encrypt_debug_info, {outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.
 {"deps/erlydtl/src/erlydtl/*", [encrypt_debug_info, {outdir, "deps/erlydtl/ebin"}, {i, "deps/erlydtl/include"}]}.
 % , bin_opt_info,
