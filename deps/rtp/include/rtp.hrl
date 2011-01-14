@@ -11,3 +11,22 @@
 -define(SDES_TOOL, 6).
 -define(SDES_NOTE, 7).
 -define(SDES_PRIV, 8).
+
+
+-record(base_rtp, {
+  media,
+  clock_map,
+  base_timecode = undefined,
+  sequence = undefined,
+  wall_clock = undefined,
+  base_wall_clock = undefined,
+  timecode = undefined,
+  synced = false,
+  stream_id,
+  last_sr,
+  codec,
+  marker  = false     :: undefined | true | false,
+  framelens    :: integer(),                    % Size of frame length in bytes
+  packets = 0  :: integer(),
+  bytes   = 0  :: integer()
+}).

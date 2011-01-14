@@ -276,7 +276,7 @@ configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, media = Consumer} = Socket,
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
       io:format("~s~n", [Body]),
-      {SDPConfig, RtpStreams1, Frames} = rtp_server:configure(Body, RTPStreams, Consumer),
+      {SDPConfig, RtpStreams1, Frames} = rtp_rtsp:configure(Body, RTPStreams, Consumer),
       StreamNums = lists:seq(1, length([Desc || Desc <- tuple_to_list(RtpStreams1), element(1, Desc) == audio orelse element(1,Desc) == video])),
 
       lists:foreach(fun(Frame) ->
@@ -461,7 +461,7 @@ handle_request({request, 'SETUP', URL, Headers, _},
                  true ->
                   ?DBG("Start RTP process with media ~p", [Media]),
                   {ok, ProdCtlPid} =
-                    rtp_server:start_link(Media),
+                    rtp_server:start_link({producer, [{media, Media}]}),
                   ProducerRef = erlang:monitor(process, ProdCtlPid),
                   NewState = State#rtsp_socket{rtp = ProdCtlPid,
                                                rtp_ref = ProducerRef}
@@ -582,7 +582,7 @@ sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
       end,
       RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
       % ?D({"Rtp", RtpInfo}),
-      Streams1 = rtp_server:presync(Streams, RtpInfo),
+      Streams1 = rtp_rtsp:presync(Streams, RtpInfo),
       Socket#rtsp_socket{rtp_streams = Streams1}
   end.
 
@@ -593,7 +593,7 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
       {rtcp, RTPNum} ->
         %% ?D({rtcp, RTPNum}),
         {Type, RtpState} = element(RTPNum+1, Streams),
-        {RtpState1, _} = rtp_server:decode(rtcp, RtpState, Packet),
+        {RtpState1, _} = rtp_rtsp:decode(rtcp, RtpState, Packet),
         {RtpState2, RtcpData} = rtp_server:encode(receiver_report, RtpState1),
         RTCP_RR = packet_codec:encode({rtcp, RTPNum, RtcpData}),
         gen_tcp:send(Sock, RTCP_RR),
@@ -601,7 +601,7 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
       {Type, RtpState} ->
         %% ?D({"Decode rtp on", Channel, Type, size(Packet), element(1, RtpState)}),
         %% ?D(RtpState),
-        {RtpState1, RtpFrames} = rtp_server:decode(Type, RtpState, Packet),
+        {RtpState1, RtpFrames} = rtp_rtsp:decode(Type, RtpState, Packet),
         %% ?D({"Frame", Frames}),
         {setelement(Channel+1, Streams, {Type, RtpState1}), RtpFrames};
       undefined ->
