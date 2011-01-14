@@ -212,7 +212,7 @@ handle_info({Event, Types, Args},
              send_sr -> Port = PortRTCP;
              send_rr -> {Port, _} = Args
            end,
-           ?DBG("Send UDP: ~p(~p), ~p, ~p", [RTCPSocket, inet:port(RTCPSocket), Addr, Port]),
+           %%?DBG("Send UDP: ~p(~p), ~p, ~p", [RTCPSocket, inet:port(RTCPSocket), Addr, Port]),
            send_udp(RTCPSocket, Addr, Port, RTCP);
          #interleaved_desc{socket_owner = SocketOwner, channel_rtcp = ChanRTCP} ->
            send_interleaved(SocketOwner, ChanRTCP, {rtcp, RTCP})
@@ -340,7 +340,7 @@ handle_info({udp, SSocket, SAddr, SPort, Data},
 
   case SSocket of
     AudioRTCPSock ->
-      ?DBG("Audio RTCP", []),
+      %%?DBG("Audio RTCP", []),
       do_audio_rtcp,
       NewState = State;
     AudioRTPSock ->
@@ -348,11 +348,11 @@ handle_info({udp, SSocket, SAddr, SPort, Data},
       NewAudioDesc = AudioDesc#desc{state = NewBaseRTP},
       NewState = State#state{audio = NewAudioDesc, rtcp_send = true};
     VideoRTCPSock ->
-      ?DBG("Video RTCP", []),
+      %%?DBG("Video RTCP", []),
       do_video_rtcp,
       NewState = State;
     VideoRTPSock ->
-      ?DBG("Video RTP", []),
+      %%?DBG("Video RTP", []),
       do_video_rtp,
       NewState = State;
     _Other ->
