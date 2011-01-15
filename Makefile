@@ -19,7 +19,7 @@ update: update_deps
 deps/amf: update_deps
 
 deps/esip:
-	(cd $@ && $(MAKE) all)
+	[ -d $@ ] && (cd $@ && $(MAKE) all) || true
 
 update_deps: rebar.config
 	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
