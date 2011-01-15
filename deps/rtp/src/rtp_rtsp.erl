@@ -8,7 +8,7 @@
 
 
 -export([video/2, audio/2, rtcp_sr/2]).
--export([decode/3, init/2, get_socket/3, wait_data/1]).
+-export([encode/2, decode/3, init/2, get_socket/3, wait_data/1]).
 -export([configure/2, configure/3, presync/2]).
 
 -record(rtp_state, {
@@ -75,7 +75,7 @@ configure([undefined | Streams], RTPStreams, Media, RTP) ->
   configure(Streams, RTPStreams, Media, RTP+2);
 
 configure([#media_desc{} = Stream | Streams], RTPStreams, Media, RTP) ->
-  RtpConfig = rtp_server:init(Stream, Media),
+  RtpConfig = ?MODULE:init(Stream, Media),
   RtpStreams1 = setelement(RTP+1, RTPStreams, {Stream#media_desc.type, RtpConfig}),
   RTPStreams2 = setelement(RTP+2, RtpStreams1, {rtcp, RTP}),
   configure(Streams, RTPStreams2, Media, RTP+2).
@@ -347,3 +347,20 @@ rtcp_sr(State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, 
   % decode_sender_reports(Count, Rest),
 
   {State7, []}.
+
+
+encode(receiver_report, State) ->
+  Count = 0,
+  StreamId = element(#base_rtp.stream_id, State),
+  Length = 16,
+  FractionLost = 0,
+  LostPackets = 0,
+  MaxSeq = case element(#base_rtp.sequence, State) of
+    undefined -> 0;
+    MS -> MS
+  end,
+  Jitter = 0,
+  LSR = element(#base_rtp.last_sr, State),
+  DLSR = 0,
+  % ?D({rr, StreamId, MaxSeq, LSR}),
+  {State, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.

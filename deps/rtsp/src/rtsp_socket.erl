@@ -594,7 +594,7 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
         %% ?D({rtcp, RTPNum}),
         {Type, RtpState} = element(RTPNum+1, Streams),
         {RtpState1, _} = rtp_rtsp:decode(rtcp, RtpState, Packet),
-        {RtpState2, RtcpData} = rtp_server:encode(receiver_report, RtpState1),
+        {RtpState2, RtcpData} = rtp_rtsp:encode(receiver_report, RtpState1),
         RTCP_RR = packet_codec:encode({rtcp, RTPNum, RtcpData}),
         gen_tcp:send(Sock, RTCP_RR),
         {setelement(RTPNum+1, Streams, {Type, RtpState2}), []};
