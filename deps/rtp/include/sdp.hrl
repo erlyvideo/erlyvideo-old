@@ -7,6 +7,8 @@
           config = []
          }).
 
+-type(sdp_attr() :: atom() | {atom(), string() | binary()}).
+
 -record(media_desc, {
   type,
   connect,
@@ -15,10 +17,9 @@
   track_control,
   pps,
   sps,
-  config
+  config,
+  attrs          = []   :: [sdp_attr()]
 }).
-
--type(sdp_attr() :: atom() | {atom(), string() | binary()}).
 
 -record(session_desc, {
   version = <<"0">>,
