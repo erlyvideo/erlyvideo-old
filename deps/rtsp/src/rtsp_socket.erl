@@ -382,6 +382,9 @@ handle_request({request, 'ANNOUNCE', URL, Headers, Body}, #rtsp_socket{callback 
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
 
+handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = undefined} = State) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+
 handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Consumer} = State) ->
   gen_server:call(Consumer, {pause, self()}),
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
