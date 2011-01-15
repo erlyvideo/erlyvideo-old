@@ -421,6 +421,10 @@ prep_media_config({audio,
                                    clock_map = rate2num(Rate), ms = mono,
                                    config = ["vbr=vad"]}],
               track_control = undefined};
+prep_media_config({audio, _}, _) ->
+    undefined;
+prep_media_config({video, _}, _) ->
+    undefined;
 prep_media_config({data, _}, _) ->
   undefined.
 
