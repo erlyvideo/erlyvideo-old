@@ -145,6 +145,7 @@ handle_message({'$gen_call', From, connect}, #ts_lander{options = Options} = TSL
       connect_udp(URL);
     _ ->
       {ok, _Headers, Sock} = http_stream:get(URL, [{timeout,Timeout}]),
+      inet:setopts(Sock, [{packet,raw},{active,once}]),
       {ok, Sock}
   end,
   ?D({connected, URL, Socket}),

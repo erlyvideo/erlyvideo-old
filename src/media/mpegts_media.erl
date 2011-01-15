@@ -79,7 +79,8 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {stop, source_lost, State};
+  self() ! make_request,
+  {noreply, State};
 
 handle_control(timeout, State) ->
   ?D({"Timeout in MPEG-TS", State#ems_media.type, erlang:get_stacktrace()}),
@@ -133,6 +134,8 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
           ems_media:set_source(self(), Reader),
           {noreply, Media#ems_media{retry_count = 0}};
         {error, _Error} ->
+          ?D({failed_open_mpegts}),
+          timer:send_after(1000 + round((Limit - Count)*60000/Limit), make_request),
           {noreply, Media#ems_media{retry_count = Count + 1}}
       end    
   end;
