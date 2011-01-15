@@ -118,10 +118,11 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{retry_count = Count, retry_limit = Limit} = Media) when 
+handle_info(make_request, #ems_media{host = Host, url = URL, retry_count = Count, retry_limit = Limit} = Media) when 
   (is_number(Count) andalso is_number(Limit) andalso Count =< Limit) orelse Limit == false ->
   case connect_rtsp(Media) of
     {ok, Reader} ->
+      ems_event:stream_source_requested(Host, URL, []),
       ems_media:set_source(self(), Reader),
       {noreply, Media#ems_media{retry_count = 0}};
     _Else ->
