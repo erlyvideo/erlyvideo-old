@@ -44,6 +44,7 @@
 
 -record(rtsp_socket, {
   callback,
+  direction,
   buffer = <<>>,
   addr,
   port,
@@ -326,7 +327,7 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
       ?DBG("MediaConfig:~n~p", [MediaConfig]),
       SDP = sdp:encode(SessionDesc, MediaConfig),
       %%?DBG("SDP:~n~p", [SDP]),
-      reply(State#rtsp_socket{sdp = sdp:decode(SDP), media = Media}, "200 OK",
+      reply(State#rtsp_socket{sdp = sdp:decode(SDP), media = Media, direction = out}, "200 OK",
             [
              {'Server', ?SERVER_NAME},
              {'Cseq', seq(Headers)},
@@ -334,8 +335,18 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
             ], SDP)
   end;
 
-handle_request({request, 'PLAY', _URL, Headers, _Body}, #rtsp_socket{rtp = undefined} = State) ->
-  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+
+handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
+  case Callback:record(URL, Headers, Body) of
+    ok ->
+      reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+    {error, authentication} ->
+      reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
+  end;
+
+
+handle_request({request, 'PLAY', URL, Headers, Body}, #rtsp_socket{direction = in} = State) ->
+  handle_request({request, 'RECORD', URL, Headers, Body}, State);
 
 handle_request({request, 'PLAY', URL, Headers, Body},
                #rtsp_socket{callback = Callback, session = _Session,
@@ -377,7 +388,7 @@ handle_request({request, 'ANNOUNCE', URL, Headers, Body}, #rtsp_socket{callback 
     {ok, Media} ->
       ?D({"Announced to", Media}),
       erlang:monitor(process, Media),
-      reply(State#rtsp_socket{session = 42, media = Media}, "200 OK", [{'Cseq', seq(Headers)}]);
+      reply(State#rtsp_socket{session = 42, media = Media, direction = in}, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end;
@@ -388,14 +399,6 @@ handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = unde
 handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Consumer} = State) ->
   gen_server:call(Consumer, {pause, self()}),
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
-
-handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
-  case Callback:record(URL, Headers, Body) of
-    ok ->
-      reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
-    {error, authentication} ->
-      reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
-  end;
 
 handle_request({request, 'SETUP', URL, Headers, _},
                #rtsp_socket{addr = Addr, port = OPort,
