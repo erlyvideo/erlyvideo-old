@@ -3,7 +3,7 @@ ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init st
 ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
 ERL_LIBS:=deps:lib:plugins:..
-  
+
 NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
 NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
@@ -11,12 +11,15 @@ NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -f
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: deps/amf snmp compile 
+all: deps/amf snmp compile deps/esip
 
 update: update_deps
 	git pull
 
 deps/amf: update_deps
+
+deps/esip:
+	(cd $@ && $(MAKE) all)
 
 update_deps: rebar.config
 	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
@@ -103,5 +106,5 @@ install: compile
 	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
-.PHONY: doc debian compile snmp
+.PHONY: doc debian compile snmp deps/esip
 

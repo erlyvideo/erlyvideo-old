@@ -159,6 +159,8 @@ decode_headers(Data, Headers, BodyLength) ->
           <<"To">> -> {'To', HVal};
           <<"Subject">> -> {'Subject', HVal};
           <<"Contact">> -> {'Contact', HVal};
+          <<"Route">> -> {'Route', HVal};
+          <<"Event">> -> {'Event', HVal};
           _ -> {HKey, HVal}
         end,
       decode_headers(Rest, [NewPair | Headers], BodyLength);
@@ -288,7 +290,7 @@ decode_sip_invite_test() ->
           "Content-Length: ",(list_to_binary(integer_to_list(size(SDP))))/binary,"\r\n",
           "\r\n",
           SDP/binary>>,
-  
+
   _MediaDesc = [{media_desc,video,
     {inet4,"0.0.0.0"},
     "0","96",90.0,"trackID=1",h264,
