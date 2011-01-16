@@ -36,8 +36,15 @@
 %% @private
 %%-------------------------------------------------------------------------
 
-'FCPublish'(State, #rtmp_funcall{args = [null, Name]} = _AMF) -> 
+'FCPublish'(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Name]} = AMF) -> 
   ?D({"FCpublish", Name}),
+  Args = {object, [
+    {code, <<"NetStream.Publish.Start">>},
+    {level, <<"status">>}, 
+    {description, <<"FCPublish to ", Name/binary>>}
+  ]},
+  rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, 0]}),
+  rtmp_socket:invoke(Socket, 0, 'onFCPublish', [Args]),
   State.
 
 'FCUnpublish'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
