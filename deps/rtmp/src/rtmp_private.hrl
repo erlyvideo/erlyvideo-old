@@ -103,7 +103,8 @@
 	type          ::non_neg_integer(),
 	stream_id = 0 ::non_neg_integer(),
 	msg       = <<>> ::binary(),
-	chunk_size    ::non_neg_integer()
+	chunk_size    ::non_neg_integer(),
+  abs_ts = false::boolean()
 	}).
 	
 -type(channel() ::#channel{}).
@@ -119,7 +120,6 @@
   socket            ::port()|pid(),
   codec = undefined ::port()|undefined,
   amf_version = 0   ::integer(),
-  abs_ts = false    ::boolean(),
 	channels          ::tuple(),
 	out_channels      ::tuple(),
 	sent_audio_notify = false ::boolean(),
