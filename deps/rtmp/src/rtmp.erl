@@ -367,15 +367,21 @@ decode_channel_header(Packet, ?RTMP_HDR_SAME_SRC = Type, Id, #rtmp_socket{channe
 decode_channel_header(Packet, ?RTMP_HDR_TS_CHG = Type, Id, #rtmp_socket{channels = Channels} = S) when size(Channels) < Id orelse erlang:element(Id, Channels) == undefined ->
   erlang:error({invalid_rtmp,Id,Type,S, Packet});
 
-decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, State) ->
+decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, #rtmp_socket{fmle_3 = FMLE3} = State) ->
   Channel = rtmp:element(Id, State#rtmp_socket.channels),
   #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
+  
+  R = case {FMLE3,Rest} of
+    {true, <<Timestamp:32, ZZ/binary>>} ->?D({type3,shift}), ZZ;
+    _ -> Rest
+  end,
+  
   Channel1 = case {Delta, size(Msg)} of
     {undefined, _} -> Channel;
     {_, 0} -> Channel#channel{timestamp = Timestamp + Delta};
     _ -> Channel
   end,
-  decode_channel(Rest,Channel1,State);
+  decode_channel(R,Channel1,State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:32, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   Channel = rtmp:element(Id, State#rtmp_socket.channels),
@@ -561,7 +567,16 @@ command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Body/binary>>, stream_id =
 
 command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Body, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
-  {State, Message#rtmp_message{type = invoke, body = decode_funcall(Body, StreamId)}};
+  Funcall = decode_funcall(Body, StreamId),
+  State1 = case Funcall of
+    #rtmp_funcall{command = <<"connect">>, args = [{object, ConnectObj}|_]} ->
+      case proplists:get_value(flashVer, ConnectObj) of
+        <<"FMLE/",_/binary>> -> State#rtmp_socket{fmle_3 = true};
+        _ -> State
+      end;
+    _ -> State
+  end,    
+  {State1, Message#rtmp_message{type = invoke, body = Funcall}};
 
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Body} = Channel, State) ->
