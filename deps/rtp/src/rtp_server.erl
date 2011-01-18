@@ -180,11 +180,12 @@ handle_call({stop}, _From, State) ->
   {stop, normal, ok, State};
 handle_call(Request, _From, State) ->
   ?DBG("Unknown call: ~p", [Request]),
-  Reply = pass,
-  {reply, Reply, State}.
+  Error = {unknown_call, Request},
+  {stop, Error, {error, Error}, State}.
 
-handle_cast(_Msg, State) ->
-  {noreply, State}.
+handle_cast(Msg, State) ->
+  Error = {unknown_cast, Msg},
+  {stop, Error, State}.
 
 handle_info({Event, Types, Args},
             #state{audio = AudioDesc,
@@ -380,8 +381,8 @@ handle_info({dump_pack}, #state{video = #desc{state = #base_rtp{packets = P}}} =
 handle_info({ems_stream, _, play_complete, _}, State) ->
   {stop, normal, State};
 handle_info(Info, State) ->
-  ?DBG("Unknown message: ~p", [Info]),
-  {noreply, State}.
+  Error = {unknown_info, Info},
+  {stop, Error, State}.
 
 terminate(Reason, #state{audio = AD, video = MD}) ->
   ?DBG("RTP Process ~p terminates: ~p:~n~p~n~p", [self(), Reason, AD, MD]),
@@ -396,10 +397,10 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% API
-play(Pid, Fun, Media) ->
+play(Pid, Fun, Media) when is_function(Fun) ->
   gen_server:call(Pid, {play, Fun, Media}).
 
-add_stream(Pid, Stream, Proto, Addr, {Method, Params}, Extra) ->
+add_stream(Pid, #media_desc{} = Stream, Proto, Addr, {Method, Params}, Extra) ->
   gen_server:call(Pid, {add_stream, Stream, Proto, Addr, {Method, Params}, Extra}).
 
 stop(Pid) ->
