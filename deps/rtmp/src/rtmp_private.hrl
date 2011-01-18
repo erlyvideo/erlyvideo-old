@@ -119,7 +119,7 @@
   socket            ::port()|pid(),
   codec = undefined ::port()|undefined,
   amf_version = 0   ::integer(),
-  fmle_3 = false    ::boolean(),
+  abs_ts = false    ::boolean(),
 	channels          ::tuple(),
 	out_channels      ::tuple(),
 	sent_audio_notify = false ::boolean(),
