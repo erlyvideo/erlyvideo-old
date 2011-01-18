@@ -367,7 +367,7 @@ decode_channel_header(Rest, ?RTMP_HDR_CONTINUE, Id, #rtmp_socket{fmle_3 = FMLE3}
   #channel{msg = Msg, timestamp = Timestamp, delta = Delta} = Channel,
   
   R = case {FMLE3,Rest} of
-    {true, <<Timestamp:32, ZZ/binary>>} ->?D({type3,shift}), ZZ;
+    {true, <<_Timestamp1:32, ZZ/binary>>} ->?D({type3,shift}), ZZ;
     _ -> Rest
   end,
   
