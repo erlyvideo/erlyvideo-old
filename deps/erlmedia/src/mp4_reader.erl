@@ -124,12 +124,17 @@ first(#mp4_media{} = Media, Options, Id, DTS) when is_number(Id) ->
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
-  ?D({mp4_selected, Id,Audio,Video,Subtitle}),
   first(Media, Options, #frame_id{id = Id, a = Audio, v = Video, t = Subtitle}, DTS);
 
 first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id, DTS) ->
-  AudioConfig = (element(Audio,Tracks))#mp4_track.decoder_config,
-  VideoConfig = (element(Video,Tracks))#mp4_track.decoder_config,
+  AudioConfig = case Audio of
+    undefined -> undefined;
+    _ -> (element(Audio,Tracks))#mp4_track.decoder_config
+  end,
+  VideoConfig = case Video of
+    undefined -> undefined;
+    _ -> (element(Video,Tracks))#mp4_track.decoder_config
+  end,
 
   case {AudioConfig, VideoConfig} of
     {undefined,undefined} -> Id;
@@ -139,8 +144,7 @@ first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id
 
 
 
-
-codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) ->
+codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
   #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
   #video_frame{
    	content = video,
@@ -151,7 +155,7 @@ codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) ->
 		codec   = Codec
 	};
 
-codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) ->
+codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
   #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
   #video_frame{       
    	content = audio,
@@ -265,9 +269,12 @@ seek(#mp4_media{} = Media, Timestamp, Options) ->
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
-  ?D({"Seek", Timestamp}),
   case mp4:seek(Media, Video, Timestamp) of
-    {Id, DTS} -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS};
-    undefined -> undefined
+    undefined -> undefined;
+    {Id, DTS} ->
+      case Audio of
+        undefined -> {{video_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS};
+        _ -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS}
+      end
   end.
 
