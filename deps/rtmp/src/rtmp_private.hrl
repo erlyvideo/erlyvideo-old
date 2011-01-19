@@ -103,7 +103,8 @@
 	type          ::non_neg_integer(),
 	stream_id = 0 ::non_neg_integer(),
 	msg       = <<>> ::binary(),
-	chunk_size    ::non_neg_integer()
+	chunk_size    ::non_neg_integer(),
+  abs_ts = false::boolean()
 	}).
 	
 -type(channel() ::#channel{}).
