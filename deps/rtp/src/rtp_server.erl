@@ -88,7 +88,9 @@ start_link(Args) ->
   gen_server:start_link(?MODULE, [Args, Parent], []).
 
 init([{Type, Opts}, Parent]) ->
+  process_flag(trap_exit, true),
   Media = proplists:get_value(media, Opts),
+  erlang:monitor(process, Parent),
   random:seed(now()),
   {ok, #state{type = Type,
               media = Media,
@@ -381,6 +383,7 @@ handle_info({dump_pack}, #state{video = #desc{state = #base_rtp{packets = P}}} =
 handle_info({ems_stream, _, play_complete, _}, State) ->
   {stop, normal, State};
 handle_info(Info, State) ->
+  ?DBG("Unknown info:~n~p", [Info]),
   Error = {unknown_info, Info},
   {stop, Error, State}.
 
