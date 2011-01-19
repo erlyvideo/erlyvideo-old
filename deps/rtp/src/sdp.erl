@@ -24,7 +24,17 @@
 -module(sdp).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--export([decode/1, encode/2, prep_media_config/2]).
+-export([
+         decode/1,
+         encode/2,
+         prep_media_config/2
+        ]).
+
+-export([
+         make_session/0,
+         make_username/0
+        ]).
+
 -include("../include/sdp.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
@@ -231,3 +241,12 @@ prep_media_config(Config, Options) ->
 % a=rtpmap:96 H264/90000
 % a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==
 
+-spec make_session() -> string().
+make_session() ->
+  random:seed(now()),
+  M = 100000000000000,
+  integer_to_list(M+random:uniform(M)*5).
+
+-spec make_username() -> string().
+make_username() ->
+  "-".
