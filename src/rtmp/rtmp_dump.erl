@@ -31,7 +31,7 @@
 
 -export([run/1]).
 
--export([connect/2, play/2, wait/2, pause/2, resume/2, seek/2]).
+-export([connect/2, play/2, wait/2, pause/2, resume/2, seek/2, fcpublish/2, publish/2]).
 
 -record(dumper, {
   commands,
@@ -112,6 +112,19 @@ seek(#dumper{rtmp = RTMP, stream = Stream} = Dumper, [DTS]) ->
   rtmp_lib:seek(RTMP, Stream, DTS),
   flush(),
   Dumper.
+
+
+fcpublish(#dumper{rtmp = RTMP} = Dumper, [Path]) ->
+  #rtmp_message{body = #rtmp_funcall{} = FC1} = Invoke1 = rtmp_socket:prepare_invoke(0, 'releaseStream', [list_to_binary(Path)]),
+  rtmp_socket:send(RTMP, Invoke1#rtmp_message{body = FC1#rtmp_funcall{id = 2}}),
+  #rtmp_message{body = #rtmp_funcall{} = FC2} = Invoke2 = rtmp_socket:prepare_invoke(0, 'FCPublish', [list_to_binary(Path)]),
+  rtmp_socket:send(RTMP, Invoke2#rtmp_message{body = FC2#rtmp_funcall{id = 3}}),
+  Dumper.
+
+publish(#dumper{rtmp = RTMP} = Dumper, [Path]) ->
+  Stream = rtmp_lib:createStream(RTMP),
+  rtmp_socket:invoke(RTMP, Stream, publish, [list_to_binary(Path)]),
+  Dumper#dumper{stream = Stream}.
 
   
 flush() ->

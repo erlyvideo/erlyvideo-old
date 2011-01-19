@@ -1,3 +1,9 @@
+erlyvideo (2.5.13) unstable; urgency=low
+
+  Unified RTSP. MPEG-TS reconnect fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 19 Jan 2011 00:21:44 +0300
+
 erlyvideo (2.5.12) unstable; urgency=low
 
   Fix for beward cameras. Paused seek

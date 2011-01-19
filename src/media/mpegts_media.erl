@@ -117,6 +117,7 @@ handle_frame(Frame, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Type, retry_limit = Limit, state = State, url = URL} = Media) ->
+  ?D({self(),connect,URL}),
   if
     is_number(Count) andalso is_number(Limit) andalso Count > Limit ->
       {stop, normal, Media};
@@ -134,8 +135,13 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
           ems_media:set_source(self(), Reader),
           {noreply, Media#ems_media{retry_count = 0}};
         {error, _Error} ->
-          ?D({failed_open_mpegts}),
-          timer:send_after(1000 + round((Limit - Count)*60000/Limit), make_request),
+          Timer = 1000 + if 
+            Count > 10 -> 3000;
+            Count > 50 -> 10000;
+            true -> 0
+          end,
+          ?D({failed_open_mpegts, Timer}),
+          timer:send_after(Timer, make_request),
           {noreply, Media#ems_media{retry_count = Count + 1}}
       end    
   end;

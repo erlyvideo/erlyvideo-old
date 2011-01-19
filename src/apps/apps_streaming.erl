@@ -81,7 +81,8 @@ createStream(#rtmp_session{} = State, AMF) ->
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   rtmp_session:set_stream(Stream, State).
 
-releaseStream(State, _AMF) -> 
+releaseStream(State, #rtmp_funcall{stream_id = StreamId} = AMF) -> 
+  rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, StreamId]}),
   State.
 
 
