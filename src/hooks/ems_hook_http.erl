@@ -26,10 +26,10 @@
 -include("../log.hrl").
 -include("../../include/erlyvideo.hrl").
 
+-define(TIMEOUT, 2000).
 
 -export([handle_event/1]).
 
 handle_event(#erlyvideo_event{} = Event) ->
-  httpc:request(post, 
-    {URL, [], "application/json", ems_event:to_json(Event)}, 
-    [{timeout,2000}], [{sync, true}, {body_format, binary}]).
+  ibrowse:send_req(URL, [], post, ems_event:to_json(Event),
+  [{content_type, "application/json"},{response_format, binary}], ?TIMEOUT).
