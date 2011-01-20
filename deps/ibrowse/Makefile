@@ -1,4 +1,5 @@
 IBROWSE_VSN = $(shell sed -n 's/.*{vsn,.*"\(.*\)"}.*/\1/p' src/ibrowse.app.src)
+ERLDIR=$(ERLANG_ROOT)/lib/erlydtl-$(IBROWSE_VSN)
 
 all:
 	./rebar compile
@@ -7,8 +8,8 @@ clean:
 	./rebar clean
 
 install: all
-	mkdir -p $(DESTDIR)/lib/ibrowse-$(IBROWSE_VSN)/
-	cp -r ebin $(DESTDIR)/lib/ibrowse-$(IBROWSE_VSN)/
+	mkdir -p $(DESTDIR)/$(ERLDIR)
+	cp -r ebin $(DESTDIR)/$(ERLDIR)/
 
 test: all
 	(cd test; make) 
