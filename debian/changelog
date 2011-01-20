@@ -1,3 +1,9 @@
+erlyvideo (2.5.14) unstable; urgency=low
+
+  ibrowse bundling
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 20 Jan 2011 11:50:59 +0300
+
 erlyvideo (2.5.13) unstable; urgency=low
 
   Unified RTSP. MPEG-TS reconnect fixes
