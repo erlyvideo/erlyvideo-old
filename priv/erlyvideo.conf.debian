@@ -3,7 +3,7 @@
 {http_port, 8082}.
 {iphone_segment_size, 10000}.
 {rtmp_default_wait, false}.
-{modules,[rtsp,mpegts]}.
+{modules,[]}.
 {license_cache_dir, "/var/cache/erlyvideo/licensed"}.
 {paths, ["/var/lib/erlyvideo/plugins", "/usr/local/lib/erlyvideo/plugins"]}.
 {file_formats,[mp4_reader,flv_reader,mp3_reader]}.

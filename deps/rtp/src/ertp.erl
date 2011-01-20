@@ -3,9 +3,12 @@
 -include("log.hrl").
 
 
--export([start/2, stop/1, config_change/3]).
+-export([start/0, start/2, stop/1, config_change/3]).
 -export([start_server/1]).
 
+
+start() ->
+  application:start(ertp).
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
