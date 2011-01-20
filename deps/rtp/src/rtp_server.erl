@@ -77,6 +77,7 @@
           audio     :: #desc{},
           video     :: #desc{},
           media     :: pid(),
+          stream_id :: any(),
           parent    :: pid(),
           tc_fun    :: function(),
           rtcp_send = false :: boolean()
@@ -90,10 +91,12 @@ start_link(Args) ->
 init([{Type, Opts}, Parent]) ->
   process_flag(trap_exit, true),
   Media = proplists:get_value(media, Opts),
+  StreamId = proplists:get_value(stream_id, Opts),
   erlang:monitor(process, Parent),
   random:seed(now()),
   {ok, #state{type = Type,
               media = Media,
+              stream_id = StreamId,
               parent = Parent}}.
 
 
@@ -327,6 +330,7 @@ handle_info(#video_frame{content = video, flavor = Flavor,
 handle_info({udp, SSocket, SAddr, SPort, Data},
             #state{audio = AudioDesc,
                    video = VideoDesc,
+                   stream_id = StreamId,
                    media = Media} = State) ->
   {AudioRTCPSock, AudioRTPSock} =
     if is_record(AudioDesc, desc) ->
@@ -347,7 +351,7 @@ handle_info({udp, SSocket, SAddr, SPort, Data},
       do_audio_rtcp,
       NewState = State;
     AudioRTPSock ->
-      NewBaseRTP = do_audio_rtp({udp, SAddr, SPort, Data}, AudioDesc, Media),
+      NewBaseRTP = do_audio_rtp({udp, SAddr, SPort, Data}, AudioDesc, Media, StreamId),
       NewAudioDesc = AudioDesc#desc{state = NewBaseRTP},
       NewState = State#state{audio = NewAudioDesc, rtcp_send = true};
     VideoRTCPSock ->
@@ -754,7 +758,7 @@ get_date() ->
   {A1, A2, A3} = now(),
   {A1*1000000 + A2 + ?YEARS_70, A3 * 1000}.
 
-do_audio_rtp({udp, _SAddr, _SPort, Data}, AudioDesc, Media) ->
+do_audio_rtp({udp, _SAddr, _SPort, Data}, AudioDesc, Media, StreamId) ->
 %%  ?DBG("Data From ~p:~p:~n~p", [SAddr, SPort, Data]),
   <<_Version:2, _Padding:1, _Extension:1, _CSRC:4, _Marker:1, _PayloadType:7,
     Sequence:16, Timestamp:32, SSRC:32, Payload/binary>> = Data,
@@ -775,10 +779,11 @@ do_audio_rtp({udp, _SAddr, _SPort, Data}, AudioDesc, Media) ->
     dts     = DTS,
     pts     = DTS,
     body    = Payload,
+    stream_id = StreamId,
     codec	  = speex,
     flavor  = frame,
     sound	  = {mono, bit16, rate44}
    },
   %%?DBG("AudioFrame:~n~p", [AF]),
-  Media ! AF,
+  (catch Media ! AF),
   NewBaseRTP#base_rtp{wall_clock = round(DTS)}.
