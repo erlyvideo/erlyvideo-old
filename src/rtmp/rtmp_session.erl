@@ -33,7 +33,7 @@
 -export([start_link/0, set_socket/2]).
 
 -define(RTMP_WINDOW_SIZE, 2500000).
-
+-define(FMS_VERSION, "4,0,0,1121").
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
@@ -93,11 +93,11 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
   rtmp_socket:setopts(Socket, [{chunk_size, 4096}]),
   
-  ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
+  ConnectObj = [{fmsVer, <<"FMS/",?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<"NetConnection.Connect.Success">>},
                {description, <<"Connection succeeded.">>},
-               {data,[<<"version">>, <<"3,5,2,654">>]},
+               {data,[{<<"version">>, <<?FMS_VERSION>>}]},
                {objectEncoding, AMFVersion}],
   reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
@@ -109,7 +109,7 @@ accept_connection(Session) when is_pid(Session) ->
 
 
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
-  ConnectObj = [{fmsVer, <<"FMS/3,5,2,654">>}, {capabilities, 31}, {mode, 1}],
+  ConnectObj = [{fmsVer, <<"FMS/", ?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>}, 
                {code, <<"NetConnection.Connect.Rejected">>},
                {description, <<"Connection rejected.">>}],
