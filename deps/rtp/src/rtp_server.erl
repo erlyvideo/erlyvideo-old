@@ -785,5 +785,5 @@ do_audio_rtp({udp, _SAddr, _SPort, Data}, AudioDesc, Media, StreamId) ->
     sound	  = {mono, bit16, rate44}
    },
   %%?DBG("AudioFrame:~n~p", [AF]),
-  (catch Media ! AF),
+  Media ! AF,
   NewBaseRTP#base_rtp{wall_clock = round(DTS)}.
