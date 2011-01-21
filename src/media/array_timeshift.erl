@@ -35,6 +35,7 @@
 -record(shift, {
   first = 0,
   last = 0,
+  max_len,
   frames,
   size,
   video_config,
@@ -46,23 +47,25 @@
 init(Options, _MoreOptions) ->
   Shift = proplists:get_value(timeshift, Options),
   Size = Shift*80 div 1000, % About 80 fps for video and audio
-  {ok, #shift{frames = array:new(Size), size = Size}}.
+  {ok, #shift{frames = array:new(Size), size = Size, max_len = Shift}}.
 
 
 can_open_file(_) ->
   false.
 
-properties(#shift{first = First, last = Last, frames = Frames, size = Size}) when First =/= Last ->
+properties(#shift{first = First, last = Last, frames = Frames, max_len = Size}) when First =/= Last ->
   #video_frame{dts = FirstDTS} = array:get(First, Frames),
   #video_frame{dts = LastDTS} = array:get((Last-1+array:size(Frames)) rem array:size(Frames), Frames),
   [{duration,(LastDTS - FirstDTS)},{start,FirstDTS},{timeshift_size,Size}];
   
-properties(#shift{size = Size}) ->
+properties(#shift{max_len = Size}) ->
   [{duration,0},{timeshift_size,Size},{type,stream}];
   
 properties(_) ->
   [].
 
+seek(Media, undefined, Options) ->
+  seek(Media, 0, Options);
 
 seek(#shift{first = First, frames = Frames} = Media, Timestamp, _Options) when is_number(Timestamp) andalso Timestamp =< 0 ->
   % ?D({"going to seek", Timestamp}),
@@ -74,8 +77,8 @@ seek(#shift{first = First, frames = Frames} = Media, Timestamp, _Options) when i
 seek(#shift{first = First, last = Last, frames = Frames} = Media, Timestamp, _Options) when is_number(Timestamp) ->
   % ?D({"going to seek", Timestamp}),
   S1 = seek_in_timeshift(First, Last, Frames, Timestamp, undefined),
-  S = append_config_to_seek(Media, S1),
-  S.
+  % S = append_config_to_seek(Media, S1),
+  S1.
   
 append_config_to_seek(#shift{audio_config = A}, {Key, DTS}) when A =/= undefined ->
   {{audio_config,Key,DTS},DTS};
