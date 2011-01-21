@@ -619,7 +619,7 @@ handle_cast({play_setup, Client, Options}, #ems_media{clients = Clients} = Media
       {noreply, Media, ?TIMEOUT};
 
     #client{} ->
-      ?D({"Play options for active clients are not supported not", Client, Options}),
+      %?D({"Play options for active clients are not supported not", Client, Options}),
       {noreply, Media, ?TIMEOUT};
 
     undefined ->
