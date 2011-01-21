@@ -31,19 +31,19 @@
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
          send_frame/3, mass_update_state/3, increment_bytes/3]).
          
--export([init_repeater/2, repeater/1]).
+-export([init_repeater/3, repeater/2]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -define(SNDBUF, 4194304).
 
-
+-define(REPEATER_COUNT, 4).
 
 -record(clients, {
   active,
   passive,
   starting,
-  repeater,
+  repeaters = {},
   list = [],
   bytes
 }).
@@ -53,6 +53,7 @@
   socket, 
   dts, 
   stream_id,
+  key,
   audio_notified = false,
   video_notified = false
 }).
@@ -64,20 +65,22 @@ init() ->
     starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}]),
     bytes = ets:new(clients, [set, public])
   },
-  Repeater = proc_lib:spawn_link(?MODULE, init_repeater, [Clients, self()]),
-  erlang:link(Repeater),
-  ?D({started_repeater,Repeater}),
-  Clients#clients{repeater = Repeater}.
+  Repeaters = lists:map(fun(Key) ->
+    Repeater = proc_lib:spawn_link(?MODULE, init_repeater, [Clients, self(), Key]),
+    erlang:link(Repeater),
+    Repeater
+  end, lists:seq(1, ?REPEATER_COUNT)),
+  Clients#clients{repeaters = Repeaters}.
   
-init_repeater(#clients{} = Clients, Media) when is_pid(Media) ->
+init_repeater(#clients{} = Clients, Media, Key) when is_pid(Media) ->
   erlang:monitor(process, Media),
-  ?MODULE:repeater(Clients).
+  ?MODULE:repeater(Clients, Key).
   
-repeater(#clients{} = Clients) ->
+repeater(#clients{} = Clients, Key) ->
   receive
-    {#video_frame{} = Frame, State} -> ?MODULE:repeater(repeater_send_frame(Frame, Clients, State));
+    {#video_frame{} = Frame, State} -> ?MODULE:repeater(repeater_send_frame(Frame, Clients, State, Key), Key);
     {'DOWN', _, process, _Media, normal} -> ok;
-    {inet_reply, _Socket, _Reply} -> ?MODULE:repeater(Clients);
+    {inet_reply, _Socket, _Reply} -> ?MODULE:repeater(Clients, Key);
     Else -> erlang:exit({error, Else})
   end.
 
@@ -86,7 +89,7 @@ table(#clients{passive = Table}, passive) -> Table;
 table(#clients{starting = Table}, starting) -> Table.
 
 insert_client(Clients, State, Entry) ->
-  ets:insert(table(Clients, State), Entry),
+  ets:insert(table(Clients, State), Entry#cached_entry{key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1}),
   ok.
 
 remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
@@ -152,22 +155,20 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
 
 
 send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
-  repeater_send_frame(Frame, Clients, starting);
+  repeater_send_frame(Frame, Clients, starting, undefined);
 
-send_frame(#video_frame{} = Frame, #clients{repeater = Repeater} = Clients, State) ->
-  % case Frame#video_frame.flavor of
-  %   frame -> ok;
-  %   _ -> ?D({Frame#video_frame.flavor, Frame#video_frame.content, State})
-  % end,
-  Repeater ! {Frame, State},
+send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, State) ->
+  [Repeater ! {Frame, State} || Repeater <- Repeaters],
   Clients.
   % repeater_send_frame(Frame, Clients, State).
 
-repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State) ->
+repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State, Key) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
   Sender = fun
+    (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
+      Frame; 
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, audio_notified = true, video_notified = true}, Frame) ->
       case (catch port_command(Socket, FrameGen(DTS, StreamId),[nosuspend])) of
         true -> ok;
