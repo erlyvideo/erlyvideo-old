@@ -661,7 +661,8 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->
   ?D({"ems_media lost source", Source, _Reason}),
   ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-  case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined}) of
+  MediaStarting = mark_clients_as_starting(Media),
+  case M:handle_control({source_lost, Source}, MediaStarting#ems_media{source = undefined, audio_config = undefined, video_config = undefined}) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
@@ -669,18 +670,15 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       {stop, Reason, Media1};
     {noreply, Media1} when is_number(SourceTimeout) andalso SourceTimeout > 0 ->
       ?D({"ems_media lost source and sending graceful", SourceTimeout, round(Media1#ems_media.last_dts)}),
-      Media2 = mark_clients_as_starting(Media1),
       {ok, Ref} = timer:send_after(SourceTimeout, no_source),
-      {noreply, Media2#ems_media{source_ref = undefined, source_timeout_ref = Ref}, ?TIMEOUT};
+      {noreply, Media1#ems_media{source_ref = undefined, source_timeout_ref = Ref}, ?TIMEOUT};
     {noreply, Media1} when SourceTimeout == false ->
       ?D({"ems_media lost source but source_timeout = false"}),
-      Media2 = mark_clients_as_starting(Media1),
-      {noreply, Media2#ems_media{source_ref = undefined}, ?TIMEOUT};
+      {noreply, Media1#ems_media{source_ref = undefined}, ?TIMEOUT};
     {reply, NewSource, Media1} ->
       ?D({"ems_media lost source and sending graceful, but have new source", SourceTimeout, NewSource}),
       Ref = erlang:monitor(process, NewSource),
-      Media2 = mark_clients_as_starting(Media1),
-      {noreply, Media2#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
+      {noreply, Media1#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
   end;
   % FIXME: should send notification
   % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
