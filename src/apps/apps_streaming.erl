@@ -29,7 +29,7 @@
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
-         getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2]).
+         getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2, 'DVRGetStreamInfo'/2]).
 -export(['WAIT_FOR_DATA'/2, handle_info/2]).
 
 -export([extract_play_args/1]).
@@ -278,6 +278,23 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
       % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       State;
     _ -> State
+  end.
+  
+'DVRGetStreamInfo'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null | RawName]} = AMF) ->
+  Name = case re:run(RawName, "[^:]+:(.*)", [{capture, [1], binary}]) of
+    {match, [N]} -> N;
+    _ -> RawName
+  end,
+  case media_provider:info(Host, Name) of
+    undefined ->
+      State;
+    Info ->
+      Reply = [{maxLen,proplists:get_value(timeshift_size, Info)/1000}, {currLen, proplists:get_value(duration,Info)}],
+      ?D({'DVRGetStreamInfo', Reply}),
+      rtmp_session:reply(State, AMF#rtmp_funcall{args = [null,
+        [{data, Reply},{code,<<"NetStream.DVRStreamInfo.Success">>}]
+      ]}),
+      State
   end.
 
 
