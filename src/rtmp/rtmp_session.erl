@@ -314,7 +314,7 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
   {match, [_Proto, HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
   Host = ems:host(HostName),
   
-  ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
+  % ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
 
   AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
     {objectEncoding, 0.0} -> 0;
@@ -477,7 +477,6 @@ handle_info({'$gen_call', From, Request}, StateName, StateData) ->
     {next_state, NewStateName, NewState} ->
       {next_state, NewStateName, NewState}
   end;
-
 
 handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of

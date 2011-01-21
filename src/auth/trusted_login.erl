@@ -71,9 +71,9 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, ses
   Channels = proplists:get_value(channels, Session, []),
   UserId = proplists:get_value(user_id, Session),
   SessionId = proplists:get_value(session_id, Session, DefaultSessionId),
-	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
-	ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~w trusted_login", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
-	rtmp_session:accept_connection(NewState),
+  NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
+  ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~w trusted_login", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
+  rtmp_session:accept_connection(NewState),
   NewState;
   
 	
