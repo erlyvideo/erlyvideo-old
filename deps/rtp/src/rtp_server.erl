@@ -293,7 +293,7 @@ handle_info(#video_frame{content = audio, flavor = frame,
                          body = Body} = Frame,
             #state{audio = #desc{acc = Acc} = AudioDesc,
                    tc_fun = TCFun} = State) ->
-  ?DBG("Audio: ~n~p", [Frame]),
+  % ?DBG("Audio: ~n~p", [Frame]),
   case AudioDesc of
     #desc{method = MDesc, state = BaseRTP, acc = Acc} ->
       if (DTS == 0) and (Acc == []) ->
@@ -304,7 +304,7 @@ handle_info(#video_frame{content = audio, flavor = frame,
           {NewBaseRTP, RTPs} = encode(rtp, TCFun(DTS, PTS, BaseRTP), Codec, NBody),
           case MDesc of
             #ports_desc{addr = Addr, socket_rtp = RTPSocket, port_rtp = PortRTP} ->
-              ?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, RTPs]),
+              % ?DBG("RTP to ~p:~p :~n~p", [Addr, PortRTP, RTPs]),
               send_udp(RTPSocket, Addr, PortRTP, RTPs);
             #interleaved_desc{socket_owner = SocketOwner, channel_rtp = ChanRTP, channel_rtcp = _ChanRTCP} ->
               send_interleaved(SocketOwner, ChanRTP, {rtp, RTPs})
