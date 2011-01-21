@@ -137,7 +137,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
         g726_16 -> 8000;
         _ -> list_to_integer(ClockMap1)
       end,
-      Pt1 = #payload{num = list_to_integer(PayLoadNum), codec = Codec, clock_map = ClockMap/1000},
+      Pt1 = #payload{num = list_to_integer(PayLoadNum), codec = Codec, clock_map = ClockMap},
       NewPt = lists:keystore(Pt1#payload.num, #payload.num, Pt0, Pt1),
       Stream#media_desc{payloads = NewPt};
     "control" ->

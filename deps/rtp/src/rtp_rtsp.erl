@@ -220,7 +220,7 @@ audio(#audio{codec = Codec, clock_map = Clock} = Audio, {data, Bin, _Sequence, T
     body    = Bin,
 	  codec	  = Codec,
 	  flavor  = frame,
-	  sound	  = {mono, bit8, round(Clock*1000)}
+	  sound	  = {mono, bit8, Clock}
   },
   _Samples =
     case Codec of
