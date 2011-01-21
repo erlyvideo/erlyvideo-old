@@ -84,6 +84,9 @@ start() ->
 	
   start_http(),
   start_rtmp(),
+  mpegts:start(),
+  ertp:start(),
+  rtsp:start(),
 	start_modules(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
