@@ -671,6 +671,8 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       ?D({"ems_media lost source and sending graceful", SourceTimeout, round(Media1#ems_media.last_dts)}),
       {ok, Ref} = timer:send_after(SourceTimeout, no_source),
       {noreply, Media1#ems_media{source_ref = undefined, source_timeout_ref = Ref}, ?TIMEOUT};
+    {noreply, Media1} when SourceTimeout == 0 ->
+      {stop, normal, Media1};
     {noreply, Media1} when SourceTimeout == false ->
       ?D({"ems_media lost source but source_timeout = false"}),
       {noreply, Media1#ems_media{source_ref = undefined}, ?TIMEOUT};
