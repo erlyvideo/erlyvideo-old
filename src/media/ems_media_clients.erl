@@ -37,7 +37,7 @@
 
 -define(SNDBUF, 4194304).
 
--define(REPEATER_COUNT, 4).
+-define(REPEATER_COUNT, 1).
 
 -record(clients, {
   active,
