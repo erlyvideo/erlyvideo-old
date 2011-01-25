@@ -51,7 +51,7 @@ find(Host, Name, Number) ->
   Options = case {Start + Count - 1,Type} of
     {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment of file doesn't require any end limit
     % {Number,_} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length and buffer
-    _ -> [{client_buffer,?STREAM_TIME*2},{duration, ?STREAM_TIME}]
+    _ -> [{client_buffer,?STREAM_TIME*2},{duration, {before,?STREAM_TIME}}]
   end,
   if
     Number < Start ->
@@ -95,7 +95,7 @@ segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
   {_Key, StartDTS} = ems_media:seek_info(Media, Number * ?STREAM_TIME),
   Info = ems_media:info(Media),
   Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
-  ?D({"Last segment", Number, StartDTS, Duration}),
+  % ?D({"Last segment", Number, StartDTS, Duration}),
   Generator(round((Duration - StartDTS)/1000), Name, Number);
   
 

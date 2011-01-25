@@ -80,17 +80,18 @@ init(Media, Consumer, Options) ->
   
   PlayingTill = case proplists:get_value(duration, Options) of
     undefined -> undefined;
+    {before, Duration} ->
+      Length = proplists:get_value(length, ems_media:info(Media)),
+      if
+        Duration > Length ->
+          Start + Duration;
+        true ->
+          case ems_media:seek_info(Media, Start + Duration, Options) of
+            {_Pos, EndTimestamp} -> EndTimestamp;
+            _ -> undefined
+          end
+      end;
     Duration -> Start + Duration
-      % Length = proplists:get_value(length, ems_media:info(Media)),
-      % if
-      %   Duration > Length ->
-      %     Start + Duration;
-      %   true ->
-      %     case ems_media:seek_info(Media, Start + Duration, Options) of
-      %       {_Pos, EndTimestamp} -> EndTimestamp;
-      %       _ -> undefined
-      %     end
-      % end
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options}).
