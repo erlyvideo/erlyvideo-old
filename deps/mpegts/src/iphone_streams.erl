@@ -92,11 +92,15 @@ playlist(Host, Name, Options) ->
 
 
 segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
-  {_Key, StartDTS} = ems_media:seek_info(Media, Number * ?STREAM_TIME),
-  Info = ems_media:info(Media),
-  Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
-  % ?D({"Last segment", Number, StartDTS, Duration}),
-  Generator(round((Duration - StartDTS)/1000), Name, Number);
+  case ems_media:seek_info(Media, Number * ?STREAM_TIME) of
+    {_Key, StartDTS} ->
+      Info = ems_media:info(Media),
+      Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
+      % ?D({"Last segment", Number, StartDTS, Duration}),
+      Generator(round((Duration - StartDTS)/1000), Name, Number);
+    undefined ->
+      undefined
+  end;
   
 
 segment_info(_MediaEntry, Name, Number, _Count, Generator) ->
@@ -136,7 +140,7 @@ file_segments(Info) ->
 timeshift_segments(Info) ->
   Duration = proplists:get_value(length, Info, 0),
   StartTime = proplists:get_value(start, Info, 0),
-  Start = trunc(StartTime / ?STREAM_TIME) + 1,
+  Start = trunc(StartTime / ?STREAM_TIME) + 3,
   SegmentLength = ?STREAM_TIME div 1000,
   DurationLimit = 5*?STREAM_TIME,
   Count = if
