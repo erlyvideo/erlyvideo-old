@@ -106,8 +106,7 @@ parse_announce([{a, Attribute} | Announce], Streams, #media_desc{} = Stream, Con
 
   Stream1 = case Key of
     "rtpmap" ->
-      {ok, Re} = re:compile("(\\d+) ([^/]+)/([\\d]+)"),
-      {match, [_, PayLoadNum, CodecCode, ClockMap1]} = re:run(Value, Re, [{capture, all, list}]),
+      {match, [PayLoadNum, CodecCode, ClockMap1]} = re:run(Value, "(\\d+)[\\ ]+([^/\\s]+)/([\\d]+)", [{capture, all_but_first, list}]),
       Pt0 = Stream#media_desc.payloads,
       Codec = case CodecCode of
         "H264" -> h264;
