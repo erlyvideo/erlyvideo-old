@@ -35,7 +35,7 @@
 }).
 
 default_timeout() ->
-  600000.
+  3000.
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -122,7 +122,7 @@ handle_control(no_clients, State) ->
   %% {stop, Reason, State}   => stops. This should be default
   ?D({"No clients, but has source", State#ems_media.source}),
   {noreply, State};
-
+  
 handle_control(timeout, State) ->
   {noreply, State};
 
@@ -149,7 +149,7 @@ handle_frame(Frame, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_info(source_timeout, State) ->
-  {stop, timeout, State};
+  {stop, normal, State};
 
 handle_info(_Message, State) ->
   {noreply, State}.
