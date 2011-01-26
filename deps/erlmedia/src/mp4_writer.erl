@@ -63,13 +63,18 @@ write_mp4(Reader, ReadOffset, Convertor) ->
 
 init(Writer, Options) ->
   {ok, MdatOffset} = mp4_write(Writer, 0, mp4_header() ++ proplists:get_value(mp4, Options, [])),
+  Method = proplists:get_value(method, Options),
   ?D({add_mp4, proplists:get_value(mp4, Options, [])}),
   % ?D({mdat_offset, MdatOffset}),
-  {ok, WriteOffset} = mp4_write(Writer, MdatOffset, {mdat, <<>>}),
+  
+  {ok, WriteOffset} = case Method of
+    one_pass -> mp4_write(Writer, MdatOffset, {mdat, <<>>});
+    two_pass -> {ok, undefined}
+  end,
   % ?D({write_offset, WriteOffset}),
   
   {ok, #convertor{options = Options,
-             method = proplists:get_value(method, Options),
+             method = Method,
              write_offset = WriteOffset,
              mdat_offset = MdatOffset,
              writer = Writer,
@@ -121,35 +126,41 @@ dump_media(Media, Options) when is_pid(Media) ->
 
   
     
-handle_frame(#video_frame{next_id = NextOffset, flavor = command}, Convertor) ->
-  {ok, NextOffset, Convertor};
+handle_frame(#video_frame{flavor = command}, Convertor) ->
+  {ok, Convertor};
     
-handle_frame(#video_frame{next_id = NextOffset, flavor = config, content = video, body = Config}, Convertor) ->
+handle_frame(#video_frame{flavor = config, content = video, body = Config}, Convertor) ->
   ?D("mp4_writer got video config"),
-  {ok, NextOffset, Convertor#convertor{video_config = Config}};
+  {ok, Convertor#convertor{video_config = Config}};
 
-handle_frame(#video_frame{next_id = NextOffset, flavor = config, content = audio, body = Config}, Convertor) ->
+handle_frame(#video_frame{flavor = config, content = audio, body = Config}, Convertor) ->
   ?D("mp4_writer got audio config"),
-  {ok, NextOffset, Convertor#convertor{audio_config = Config}};
+  {ok, Convertor#convertor{audio_config = Config}};
 
-handle_frame(#video_frame{next_id = NextOffset, body = Body, content = video} = Frame, 
-             #convertor{write_offset = WriteOffset, writer = Writer, video_frames = Video} = Convertor) ->
+
+handle_frame(#video_frame{content = metadata}, Convertor) ->
+  {ok, Convertor};
+
+handle_frame(#video_frame{body = Body} = Frame,
+             #convertor{write_offset = WriteOffset, writer = Writer, method = one_pass} = Convertor) ->
   Writer(WriteOffset, Body),
-  {ok, NextOffset, Convertor#convertor{write_offset = WriteOffset + size(Body), 
-                                 video_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Video]}};
+  {ok, Convertor1} = append_frame_to_list(Frame, Convertor),
+  {ok, Convertor1#convertor{write_offset = WriteOffset + size(Body)}};
 
-handle_frame(#video_frame{next_id = NextOffset, body = Body, content = audio} = Frame,
-             #convertor{write_offset = WriteOffset, writer = Writer, audio_frames = Audio} = Convertor) ->
-  Writer(WriteOffset, Body),
-  {ok, NextOffset, Convertor#convertor{write_offset = WriteOffset + size(Body), 
-                                 audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}};
-
-handle_frame(#video_frame{next_id = NextOffset}, Convertor) ->
-  {ok, NextOffset, Convertor};
-
-handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, mdat_offset = MdatOffset} = Convertor) ->
+handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, mdat_offset = MdatOffset, method = one_pass} = Convertor) ->
   Writer(MdatOffset, <<(WriteOffset - MdatOffset):32>>),
   {ok, write_moov(Convertor)}.
+
+
+append_frame_to_list(#video_frame{body = Body, content = video} = Frame, 
+             #convertor{write_offset = WriteOffset, video_frames = Video} = Convertor) ->
+  {ok, Convertor#convertor{video_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Video]}};
+
+append_frame_to_list(#video_frame{body = Body, content = audio} = Frame,
+             #convertor{write_offset = WriteOffset, audio_frames = Audio} = Convertor) ->
+  {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}}.
+
+  
   
   
 sorted(Frames) ->
