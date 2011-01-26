@@ -141,14 +141,14 @@ dump_media(Media, Options) when is_pid(Media) ->
 
 
 dump_media_2pass(Media, Writer, Pos, End) ->
-  Frame = ems_media:read_frame(Media, Pos),
-  #video_frame{next_id = NewPos, dts = DTS} = Frame,
-  if DTS >= End ->
-    {ok, Writer};
-  true ->  
-    % ?D({read, NewPos, round(DTS)}),
-    {ok, Writer1} = handle_frame(Frame, Writer),
-    dump_media_2pass(Media, Writer1, NewPos, End)
+  case ems_media:read_frame(Media, Pos) of
+    eof ->
+      {ok, Writer};
+    #video_frame{dts = DTS} when DTS >= End ->
+      {ok, Writer};
+    #video_frame{next_id = NewPos} = Frame ->  
+      {ok, Writer1} = handle_frame(Frame, Writer),
+      dump_media_2pass(Media, Writer1, NewPos, End)
   end.
 
   
