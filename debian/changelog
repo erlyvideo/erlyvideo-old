@@ -1,3 +1,9 @@
+erlyvideo (2.5.17) unstable; urgency=low
+
+  Change mp4_writer API. Added device support to reverse_mpegts
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 27 Jan 2011 01:56:41 +0300
+
 erlyvideo (2.5.16) unstable; urgency=low
 
   Fix in iphone streaming. Reordering frames when writing flv.
