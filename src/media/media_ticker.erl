@@ -71,7 +71,7 @@ init(Media, Consumer, Options) ->
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
   SeekInfo = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
-  ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
+  % ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
   {Pos, DTS} = SeekInfo,
   Start = case proplists:get_value(start, Options, 0) of
     {_, S} -> S;

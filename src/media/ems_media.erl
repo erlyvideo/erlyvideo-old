@@ -752,7 +752,7 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
 handle_info(no_clients, #ems_media{module = M} = Media) ->
   case client_count(Media) of
     0 ->
-      ?D({"graceful received, handling", self(), Media#ems_media.name}),
+      % ?D({"graceful received, handling", self(), Media#ems_media.name}),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
           ?D({"ems_media is stopping", M, Media#ems_media.name}),
@@ -760,7 +760,10 @@ handle_info(no_clients, #ems_media{module = M} = Media) ->
         {stop, Reason, _Reply, Media1} ->
           {stop, Reason, Media1};
         {stop, Reason, Media1} ->
-          ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name}),
+          case Reason of
+            normal -> ok;
+            _ -> ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name})
+          end,
           {stop, Reason, Media1};
         {reply, ok, Media1} ->
           ?D({M, "rejected stopping of ems_media due to 0 clients", self(), Media#ems_media.name}),
@@ -951,7 +954,7 @@ check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
   Count = client_count(Media),
   {ok, TimeoutRef} = case Count of
     0 when is_number(Timeout) -> 
-      ?D({"No clients, sending delayed graceful", Timeout, self(), Media#ems_media.name}), 
+      % ?D({"No clients, sending delayed graceful", Timeout, self(), Media#ems_media.name}), 
       timer:send_after(Timeout, no_clients);
     _ -> 
       {ok, undefined}
@@ -1017,7 +1020,6 @@ terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
   ok;
 
 terminate(normal, #ems_media{source = undefined}) ->
-  ?D("ems_media exit normal"),
   ok;
 
 terminate(_Reason, Media) ->
