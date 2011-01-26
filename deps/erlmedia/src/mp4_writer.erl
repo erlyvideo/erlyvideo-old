@@ -5,15 +5,15 @@
 -include_lib("../include/video_frame.hrl").
 -include("log.hrl").
 
--export([write/2, write/3, pack_language/1]).
--export([init/2, handle_frame/2, close/1]).
+-export([write/2, write/3, pack_language/1, dump_media/2]).
+-export([init/2, handle_frame/2]).
 
 -export([pack_compositions/1]).
 
 -record(convertor, {
+  method,
   options = [],
-  out_mp4,
-  out_mp4_path,
+  writer,
   url,
   write_offset,
   mdat_offset,
@@ -42,9 +42,12 @@ write(InFlvPath, OutMp4Path, Options) ->
   Reader = fun(Key) ->
     flv:read_frame(InFlv, Key)
   end,
-  {ok, Convertor} = init(OutMp4Path, Options),
-  Convertor1 = write_mp4(Reader, ReadOffset, Convertor),
-  close(Convertor1),
+  OutMp4 = file:open(OutMp4Path, [write, binary, raw]),
+  {ok, Convertor} = init(fun(Offset, Bin) ->
+    ok = file:pwrite(OutMp4, Offset, Bin)
+  end, Options),
+  _Convertor1 = write_mp4(Reader, ReadOffset, Convertor),
+  file:close(OutMp4),
   file:close(InFlv),
   ok.
 
@@ -58,29 +61,62 @@ write_mp4(Reader, ReadOffset, Convertor) ->
   end.
       
 
-
-init(OutMp4Path, Options) ->
-  {ok, OutMp4} = file:open(OutMp4Path, [write, binary, raw]),
-  URL = proplists:get_value(url, Options, list_to_binary(OutMp4Path)),
-
-  Mp4Header = mp4_header(),
-  {ok, MdatOffset} = mp4_write(OutMp4, Mp4Header ++ proplists:get_value(mp4, Options, []), 0),
+init(Writer, Options) ->
+  {ok, MdatOffset} = mp4_write(Writer, 0, mp4_header() ++ proplists:get_value(mp4, Options, [])),
   ?D({add_mp4, proplists:get_value(mp4, Options, [])}),
   % ?D({mdat_offset, MdatOffset}),
-  {ok, WriteOffset} = mp4_write(OutMp4, {mdat, <<>>}, MdatOffset),
+  {ok, WriteOffset} = mp4_write(Writer, MdatOffset, {mdat, <<>>}),
   % ?D({write_offset, WriteOffset}),
   
-  {ok, #convertor{out_mp4_path = OutMp4Path, 
-             options = Options,
+  {ok, #convertor{options = Options,
+             method = proplists:get_value(method, Options),
              write_offset = WriteOffset,
              mdat_offset = MdatOffset,
-             out_mp4 = OutMp4,
-             url = URL}}.
+             writer = Writer,
+             url = proplists:get_value(url, Options)}}.
   
-close(#convertor{out_mp4 = OutMp4}) ->
-  file:close(OutMp4).
   
 
+% 1294735440 .. 1294736280
+%
+% 
+% Two pass method:
+% 
+% 1. open media
+% 2. write header
+% 3. read frame by frame, skip pwrite, store info in list
+% 4. when eof happens, write frame list to moov
+% 5. calculate moov size
+% 6. append moov size to all frame offsets
+% 7. write again moov to output
+% 8. rewind media
+% 9. calculate total mdat size
+% 10. write total mdat size
+% 11. read frame by frame, write frame to output
+% 
+% 
+% One pass method:
+% 
+% 1. write header
+% 2. open file
+% 3. remember mdat start position
+% 4. wait for frames
+% 5. dump frame content to disk, store info in list
+% 6. when eof happens, write mdat size into the beginning
+% 7. write moov to disk
+% 
+% So, media writer should be one of two choices should provide two methods:
+% 
+% Writer(Offset, Bin) — random position write media for one pass method
+% or
+% Writer(Bin) — stream media for two pass method
+% 
+
+dump_media(Media, Options) when is_pid(Media) ->
+  
+  
+  ok.
+  
 
 
   
@@ -97,32 +133,32 @@ handle_frame(#video_frame{next_id = NextOffset, flavor = config, content = audio
   {ok, NextOffset, Convertor#convertor{audio_config = Config}};
 
 handle_frame(#video_frame{next_id = NextOffset, body = Body, content = video} = Frame, 
-             #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, video_frames = Video} = Convertor) ->     
-  ok = file:pwrite(OutMp4, WriteOffset, Body),
+             #convertor{write_offset = WriteOffset, writer = Writer, video_frames = Video} = Convertor) ->
+  Writer(WriteOffset, Body),
   {ok, NextOffset, Convertor#convertor{write_offset = WriteOffset + size(Body), 
                                  video_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Video]}};
 
 handle_frame(#video_frame{next_id = NextOffset, body = Body, content = audio} = Frame,
-             #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, audio_frames = Audio} = Convertor) ->
-  ok = file:pwrite(OutMp4, WriteOffset, Body),
+             #convertor{write_offset = WriteOffset, writer = Writer, audio_frames = Audio} = Convertor) ->
+  Writer(WriteOffset, Body),
   {ok, NextOffset, Convertor#convertor{write_offset = WriteOffset + size(Body), 
                                  audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}};
 
 handle_frame(#video_frame{next_id = NextOffset}, Convertor) ->
   {ok, NextOffset, Convertor};
 
-handle_frame(eof, #convertor{write_offset = WriteOffset, out_mp4 = OutMp4, mdat_offset = MdatOffset} = Convertor) ->
-  file:pwrite(OutMp4, MdatOffset, <<(WriteOffset - MdatOffset):32>>),
+handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, mdat_offset = MdatOffset} = Convertor) ->
+  Writer(MdatOffset, <<(WriteOffset - MdatOffset):32>>),
   {ok, write_moov(Convertor)}.
   
   
 sorted(Frames) ->
   lists:reverse(lists:keysort(#video_frame.dts, Frames)).
   
-write_moov(#convertor{out_mp4 = OutMp4, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio} = Convertor) ->
+write_moov(#convertor{writer = Writer, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio} = Convertor) ->
   [#video_frame{dts = DTS}|_] = Video,
   Moov = {moov, moov(Convertor#convertor{duration = DTS, video_frames = sorted(Video), audio_frames = sorted(Audio)})},
-  {ok, End} = mp4_write(OutMp4, Moov, WriteOffset),
+  {ok, End} = mp4_write(Writer, WriteOffset, Moov),
   Convertor#convertor{write_offset = End}.
 
 mp4_header() ->
@@ -131,16 +167,16 @@ mp4_header() ->
     {free, <<>>}
   ].
 
-mp4_write(File, [Atom|Atoms], Offset)	->
-  {ok, NewOffset} = mp4_write(File, Atom, Offset),
-  mp4_write(File, Atoms, NewOffset);
+mp4_write(Writer, Offset, [Atom|Atoms])	->
+  {ok, NewOffset} = mp4_write(Writer, Offset, Atom),
+  mp4_write(Writer, NewOffset, Atoms);
 
-mp4_write(_File, [], Offset)	->
+mp4_write(_Writer, Offset, [])	->
   {ok, Offset};
   
-mp4_write(File, {_AtomName, _Content} = Atom, Offset)	->
+mp4_write(Writer, Offset, {_AtomName, _Content} = Atom)	->
   Bin = mp4_serialize(Atom),
-  ok = file:pwrite(File, Offset, Bin),
+  Writer(Offset, Bin),
   {ok, Offset + iolist_size(Bin)}.
 
 mp4_serialize(Bin) when is_binary(Bin) ->
