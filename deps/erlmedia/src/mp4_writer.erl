@@ -112,26 +112,31 @@ write(InFlvPath, OutMp4Path, Options) ->
 %
 dump_media(undefined, _Options) ->
   {ok, Pid} = media_provider:open(default, "zzz"),
-  dump_media(Pid, _Options);
-
-dump_media(Media, Options) when is_pid(Media) ->
-  ems_media:subscribe(Media, Options),
   {ok, Out} = file:open("out.mp4", [append, binary, raw]),
-  {ok, Writer} = mp4_writer:init(fun(_Offset, Bin) ->
-    file:write(Out, Bin)
-  end, [{method,two_pass}]),
-  
   Start = 1294735443380,
   End = 1294736280000,
   % End = 1294735448480,
-  
-  {StartPos, _} = ems_media:seek_info(Media, Start, []),
-  {ok, Writer1} = dump_media_2pass(Media, Writer, StartPos, End),
-  {ok, Writer2} = shift_and_write_moov(Writer1),
-
-  {StartPos, _} = ems_media:seek_info(Media, Start, []),
-  {ok, _Writer3} = dump_media_2pass(Media, Writer2, StartPos, End),
+  dump_media(Pid, [{writer, fun(_Offset, Bin) ->
+    file:write(Out, Bin)
+  end}, {from, Start}, {to, End}]),
   file:close(Out),
+  ok;
+
+dump_media(Media, Options) when is_pid(Media) ->
+  ems_media:subscribe(Media, Options),
+  
+  Writer = proplists:get_value(writer, Options),
+    
+  {ok, Converter} = mp4_writer:init(Writer, [{method,two_pass}]),
+  From = proplists:get_value(from, Options),
+  To = proplists:get_value(to, Options),
+  
+  {StartPos, _} = ems_media:seek_info(Media, From, []),
+  {ok, Converter1} = dump_media_2pass(Media, Converter, StartPos, To),
+  {ok, Converter2} = shift_and_write_moov(Converter1),
+
+  {StartPos, _} = ems_media:seek_info(Media, From, []),
+  {ok, _Converter3} = dump_media_2pass(Media, Converter2, StartPos, To),
   ok.
 
 
