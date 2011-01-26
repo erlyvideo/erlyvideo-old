@@ -1,3 +1,57 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2010-2011 Max Lapshin
+%%% @doc        Module to write H.264
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org</a> for more information
+%%% @end
+%%%
+% 
+% Two pass method:
+% 
+% 1. open media
+% 2. write header
+% 3. read frame by frame, skip pwrite, store info in list
+% 4. when eof happens, write frame list to moov
+% 5. calculate moov size
+% 6. append moov size to all frame offsets
+% 7. write again moov to output
+% 8. rewind media
+% 9. calculate total mdat size
+% 10. write total mdat size
+% 11. read frame by frame, write frame to output
+% 
+% 
+% One pass method:
+% 
+% 1. write header
+% 2. open file
+% 3. remember mdat start position
+% 4. wait for frames
+% 5. dump frame content to disk, store info in list
+% 6. when eof happens, write mdat size into the beginning
+% 7. write moov to disk
+% 
+% So, media writer should be one of two choices should provide two methods:
+% 
+% Writer(Offset, Bin) — random position write media for one pass method
+% or
+% Writer(Bin) — stream media for two pass method
+% 
+%%% This file is part of erlmedia.
+%%% 
+%%% erlmedia is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% erlmedia is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlmedia.  If not, see <http://www.gnu.org/licenses/>.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(mp4_writer).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("../include/flv.hrl").
@@ -16,8 +70,10 @@
   writer,
   url,
   write_offset,
-  mdat_offset,
+  header_end,
   duration,
+  min_dts,
+  max_dts,
 
   audio_frames = [],
   audio_config,
@@ -52,6 +108,47 @@ write(InFlvPath, OutMp4Path, Options) ->
   ok.
 
 
+% 1294735440 .. 1294736280
+%
+dump_media(undefined, _Options) ->
+  {ok, Pid} = media_provider:open(default, "zzz"),
+  dump_media(Pid, _Options);
+
+dump_media(Media, Options) when is_pid(Media) ->
+  ems_media:subscribe(Media, Options),
+  {ok, Out} = file:open("out.mp4", [append, binary, raw]),
+  {ok, Writer} = mp4_writer:init(fun(_Offset, Bin) ->
+    file:write(Out, Bin)
+  end, [{method,two_pass}]),
+  
+  Start = 1294735443380,
+  End = 1294736280000,
+  % End = 1294735448480,
+  
+  {StartPos, _} = ems_media:seek_info(Media, Start, []),
+  {ok, Writer1} = dump_media_2pass(Media, Writer, StartPos, End),
+  {ok, Writer2} = shift_and_write_moov(Writer1),
+
+  {StartPos, _} = ems_media:seek_info(Media, Start, []),
+  {ok, _Writer3} = dump_media_2pass(Media, Writer2, StartPos, End),
+  file:close(Out),
+  ok.
+
+
+dump_media_2pass(Media, Writer, Pos, End) ->
+  Frame = ems_media:read_frame(Media, Pos),
+  #video_frame{next_id = NewPos, dts = DTS} = Frame,
+  if DTS >= End ->
+    {ok, Writer};
+  true ->  
+    % ?D({read, NewPos, round(DTS)}),
+    {ok, Writer1} = handle_frame(Frame, Writer),
+    dump_media_2pass(Media, Writer1, NewPos, End)
+  end.
+
+  
+
+
 write_mp4(Reader, ReadOffset, Convertor) ->
   case handle_frame(Reader(ReadOffset), Convertor) of
     {ok, NextOffset, Convertor1} ->
@@ -62,65 +159,24 @@ write_mp4(Reader, ReadOffset, Convertor) ->
       
 
 init(Writer, Options) ->
-  {ok, MdatOffset} = mp4_write(Writer, 0, mp4_header() ++ proplists:get_value(mp4, Options, [])),
+  {ok, HeaderEnd} = mp4_write(Writer, 0, mp4_header() ++ proplists:get_value(mp4, Options, [])),
   Method = proplists:get_value(method, Options),
   ?D({add_mp4, proplists:get_value(mp4, Options, [])}),
-  % ?D({mdat_offset, MdatOffset}),
+  % ?D({header_end, HeaderEnd}),
   
   {ok, WriteOffset} = case Method of
-    one_pass -> mp4_write(Writer, MdatOffset, {mdat, <<>>});
-    two_pass -> {ok, undefined}
+    one_pass -> mp4_write(Writer, HeaderEnd, {mdat, <<>>});
+    two_pass -> {ok, HeaderEnd}
   end,
   % ?D({write_offset, WriteOffset}),
   
   {ok, #convertor{options = Options,
              method = Method,
              write_offset = WriteOffset,
-             mdat_offset = MdatOffset,
+             header_end = HeaderEnd,
              writer = Writer,
-             url = proplists:get_value(url, Options)}}.
+             url = proplists:get_value(url, Options, <<>>)}}.
   
-  
-
-% 1294735440 .. 1294736280
-%
-% 
-% Two pass method:
-% 
-% 1. open media
-% 2. write header
-% 3. read frame by frame, skip pwrite, store info in list
-% 4. when eof happens, write frame list to moov
-% 5. calculate moov size
-% 6. append moov size to all frame offsets
-% 7. write again moov to output
-% 8. rewind media
-% 9. calculate total mdat size
-% 10. write total mdat size
-% 11. read frame by frame, write frame to output
-% 
-% 
-% One pass method:
-% 
-% 1. write header
-% 2. open file
-% 3. remember mdat start position
-% 4. wait for frames
-% 5. dump frame content to disk, store info in list
-% 6. when eof happens, write mdat size into the beginning
-% 7. write moov to disk
-% 
-% So, media writer should be one of two choices should provide two methods:
-% 
-% Writer(Offset, Bin) — random position write media for one pass method
-% or
-% Writer(Bin) — stream media for two pass method
-% 
-
-dump_media(Media, Options) when is_pid(Media) ->
-  
-  
-  ok.
   
 
 
@@ -147,10 +203,26 @@ handle_frame(#video_frame{body = Body} = Frame,
   {ok, Convertor1} = append_frame_to_list(Frame, Convertor),
   {ok, Convertor1#convertor{write_offset = WriteOffset + size(Body)}};
 
-handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, mdat_offset = MdatOffset, method = one_pass} = Convertor) ->
-  Writer(MdatOffset, <<(WriteOffset - MdatOffset):32>>),
+handle_frame(#video_frame{body = Body} = Frame,
+             #convertor{write_offset = WriteOffset, method = two_pass} = Convertor) ->
+  {ok, Convertor1} = append_frame_to_list(Frame, Convertor),
+  {ok, Convertor1#convertor{write_offset = WriteOffset + size(Body)}};
+
+handle_frame(#video_frame{body = Body},
+             #convertor{write_offset = WriteOffset, writer = Writer, method = two_pass2} = Convertor) ->
+  Writer(WriteOffset, Body),
+  {ok, Convertor#convertor{write_offset = WriteOffset + size(Body)}};
+
+handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, header_end = HeaderEnd, method = one_pass} = Convertor) ->
+  Writer(HeaderEnd, <<(WriteOffset - HeaderEnd):32>>),
   {ok, write_moov(Convertor)}.
 
+
+append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{min_dts = Min} = C) when Min == undefined orelse Min > DTS ->
+  append_frame_to_list(Frame, C#convertor{min_dts = DTS});
+
+append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{max_dts = Max} = C) when Max == undefined orelse Max < DTS ->
+  append_frame_to_list(Frame, C#convertor{max_dts = DTS});
 
 append_frame_to_list(#video_frame{body = Body, content = video} = Frame, 
              #convertor{write_offset = WriteOffset, video_frames = Video} = Convertor) ->
@@ -161,14 +233,31 @@ append_frame_to_list(#video_frame{body = Body, content = audio} = Frame,
   {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}}.
 
   
+shift_and_write_moov(#convertor{writer = Writer, header_end = HeaderEnd, write_offset = WriteOffset, method = two_pass} = Convertor) ->
+  MdatSize = WriteOffset - HeaderEnd,
+  #convertor{write_offset = MoovOffset} = Convertor1 = write_moov(Convertor#convertor{write_offset = HeaderEnd, writer = fun(_, _) -> ok end}),
+  MoovSize = MoovOffset - HeaderEnd,
+  MdatHeaderSize = 8,
+  Convertor2 = append_chunk_offsets(Convertor1, MoovSize + MdatHeaderSize),
   
+  #convertor{write_offset = MoovOffset} = Convertor3 = write_moov(Convertor2#convertor{write_offset = HeaderEnd, writer = Writer}),
+  MoovSize = MoovOffset - HeaderEnd,
+  
+  Writer(MoovOffset, <<(MdatSize+MdatHeaderSize):32, "mdat">>),
+  {ok, Convertor3#convertor{method = two_pass2, write_offset = MoovOffset + MdatHeaderSize}}.
+  
+  
+append_chunk_offsets(#convertor{video_frames = Video, audio_frames = Audio} = Convertor, Shift) ->
+  Video1 = [Frame#video_frame{body = {Offset+Shift,Size}} || #video_frame{body = {Offset,Size}} = Frame <- Video],
+  Audio1 = [Frame#video_frame{body = {Offset+Shift,Size}} || #video_frame{body = {Offset,Size}} = Frame <- Audio],
+  Convertor#convertor{video_frames = Video1, audio_frames = Audio1}.
   
 sorted(Frames) ->
   lists:reverse(lists:keysort(#video_frame.dts, Frames)).
   
-write_moov(#convertor{writer = Writer, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio} = Convertor) ->
-  [#video_frame{dts = DTS}|_] = Video,
-  Moov = {moov, moov(Convertor#convertor{duration = DTS, video_frames = sorted(Video), audio_frames = sorted(Audio)})},
+write_moov(#convertor{writer = Writer, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio, min_dts = Min, max_dts = Max} = Convertor) ->
+  Duration = round(Max - Min),
+  Moov = {moov, moov(Convertor#convertor{duration = Duration, video_frames = sorted(Video), audio_frames = sorted(Audio)})},
   {ok, End} = mp4_write(Writer, WriteOffset, Moov),
   Convertor#convertor{write_offset = End}.
 
@@ -303,8 +392,7 @@ pack_language(Lang) when is_atom(Lang) ->
 pack_language([L1, L2, L3]) ->
   <<(L1 - 16#60):5, (L2 - 16#60):5, (L3 - 16#60):5>>.
   
-pack_elst(Convertor) ->
-  Duration = round(duration(Convertor)),
+pack_elst(#convertor{duration = Duration}) ->
   MediaTime = 2002, 
   MediaRate = 1,
   MediaFrac = 0,
@@ -321,22 +409,11 @@ next_track_id(#convertor{video_frames = []}) -> 2;
 next_track_id(#convertor{audio_frames = []}) -> 2;
 next_track_id(_) -> 3.
 
-duration(#convertor{video_frames = [#video_frame{dts = DTS1}|_], audio_frames = [#video_frame{dts = DTS2}|_]}) ->
-  if
-    DTS1 > DTS2 -> DTS1;
-    true -> DTS2
-  end;
-duration(#convertor{video_frames = [#video_frame{dts = DTS}|_]}) ->
-  DTS;
 
-duration(#convertor{audio_frames = [#video_frame{dts = DTS}|_]}) ->
-  DTS.
-
-pack_mvhd(#convertor{} = Convertor) ->
+pack_mvhd(#convertor{duration = Duration} = Convertor) ->
   CTime = mp4_now(),
   MTime = CTime,
   TimeScale = 1000,
-  Duration = round(duration(Convertor)),
   Rate = 1,
   RateDelim = 0,
   Volume = 1,
@@ -353,7 +430,7 @@ pack_mvhd(#convertor{} = Convertor) ->
 pack_video_tkhd(Convertor) -> pack_tkhd(Convertor, video).
 pack_audio_tkhd(Convertor) -> pack_tkhd(Convertor, audio).
 
-pack_tkhd(#convertor{duration = DTS, video_config = Config}, Track) ->
+pack_tkhd(#convertor{duration = Duration, video_config = Config}, Track) ->
 	Flags = 15,
 	CTime = mp4_now(),
 	MTime = mp4_now(),
@@ -362,7 +439,6 @@ pack_tkhd(#convertor{duration = DTS, video_config = Config}, Track) ->
 	  audio -> 2
 	end,
 	Reserved1 = 0,
-	Duration = round(DTS),
 	Reserved2 = 0,
 	Layer = 0,
 	AlternateGroup = 0,
