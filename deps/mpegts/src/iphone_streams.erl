@@ -140,7 +140,7 @@ file_segments(Info) ->
 timeshift_segments(Info) ->
   Duration = proplists:get_value(length, Info, 0),
   StartTime = proplists:get_value(start, Info, 0),
-  Start = trunc(StartTime / ?STREAM_TIME) + 3,
+  Start = trunc(StartTime / ?STREAM_TIME) + 1,
   SegmentLength = ?STREAM_TIME div 1000,
   DurationLimit = 5*?STREAM_TIME,
   Count = if
