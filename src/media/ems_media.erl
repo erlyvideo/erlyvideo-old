@@ -534,6 +534,8 @@ handle_call({seek, _Client, _DTS} = Seek, _From, #ems_media{} = Media) ->
 %% It is information seek, required for outside needs.
 handle_call({seek_info, DTS, Options} = SeekInfo, _From, #ems_media{format = Format, storage = Storage, module = M} = Media) ->
   case M:handle_control(SeekInfo, Media) of
+    {noreply, Media1} when Format == undefined ->
+      {reply, undefined, Media1, ?TIMEOUT};
     {noreply, Media1} ->
       {reply, Format:seek(Storage, DTS, Options), Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
