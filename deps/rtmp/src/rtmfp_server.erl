@@ -19,11 +19,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--export([encrypt/1, decrypt/1]).
+-export([encrypt/2, decrypt/2]).
 
 
 start_link(Port) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
+  
+-define(DEFAULT_KEY, <<"Adobe Systems 02">>).
 
 
 -record(server, {
@@ -41,7 +43,12 @@ start_link(Port) ->
   client_cookie,
   client_public,
   server_public,
-  shared_secret
+  shared_secret,
+  
+  enc_key,
+  dec_key,
+  new_enc_key,
+  new_dec_key
 }).
 
 %%%------------------------------------------------------------------------
@@ -62,6 +69,7 @@ start_link(Port) ->
 
 init([Port]) ->
   {ok, Socket} = gen_udp:open(Port, [binary,{active,once},{recbuf,65536},inet]),
+  inet:setopts(Socket, [{active,true}]),
   {ok, #server{socket = Socket, port = Port, sessions = #session{}}}.
 
 %%-------------------------------------------------------------------------
@@ -114,21 +122,35 @@ handle_info({udp, Socket, IP, Port, Bin}, #server{socket = Socket, sessions = Se
   %   SessionId -> ok;
   %   _ -> ?D({session,SessionId,Session#session.id})
   % end,
-  {ok, Session1, Reply} = process(Bin, Session#session{addr = {IP, Port}, id = SessionId}),
+  Session1 = case SessionId of
+    0 -> ?D(flush_keys), Session#session{dec_key = ?DEFAULT_KEY, enc_key = ?DEFAULT_KEY};
+    _ -> Session
+  end,
+  % gen_udp:send(Socket, IP, 1936, Bin),
+  {ok, Session2, Reply} = process(Bin, Session1#session{addr = {IP, Port}, id = SessionId}),
+  % receive
+  %   {udp, Socket, IP, 1936, Reply} -> 
+  %     % gen_udp:send(Socket, IP, Port, Reply),
+  %     ?D(match), ok;
+  %   {udp, Socket, IP, 1936, Reply2} -> 
+  %     io:format("Mismatch: ~n~n"),
+  %     diff(Reply, Reply2)
+  %     % gen_udp:send(Socket, IP, Port, Reply2)
+  % end,
   gen_udp:send(Socket, IP, Port, Reply),
-  
-  inet:setopts(Socket, [{active,once}]),
-  {noreply, Server#server{sessions = Session1}};
+    
+  % inet:setopts(Socket, [{active,once}]),
+  {noreply, Server#server{sessions = Session2}};
   
 
 handle_info(_Info, State) ->
   {noreply, State}.
 
-decrypt(Crypted) ->
-  crypto:aes_cbc_128_decrypt(<<"Adobe Systems 02">>, <<0:128>>, Crypted).
+decrypt(Crypted, Key) ->
+  crypto:aes_cbc_128_decrypt(Key, <<0:128>>, Crypted).
 
-encrypt(Decrypted) ->
-  crypto:aes_cbc_128_encrypt(<<"Adobe Systems 02">>, <<0:128>>, Decrypted).
+encrypt(Decrypted, Key) ->
+  crypto:aes_cbc_128_encrypt(Key, <<0:128>>, Decrypted).
 
 hexdump(<<>>) ->
   ok;
@@ -165,9 +187,44 @@ checksum(<<>>, Sum) ->
   S3 = S1 + S2,
   S4 = S3 + (S3 bsr 16),
   bnot S4 band 16#FFFF.
+  
+  
+diff(<<S1:32, N1/binary>>, <<S2:32, N2/binary>>) ->
+  diff0(<<S1:32, (decrypt(N1, ?DEFAULT_KEY))/binary>>, <<S2:32, (decrypt(N2, ?DEFAULT_KEY))/binary>>).
+  
+diff0(<<S1:8/binary, N1/binary>>, <<S2:8/binary, N2/binary>>) ->
+  [io:format("~2.16.0b ", [N]) || N <- binary_to_list(S1)],
+  io:format("  "),
+  [io:format("~2.16.0b ", [N]) || N <- binary_to_list(S2)],
+  case S1 of
+    S2 -> io:format("=");
+    _ -> io:format("+")
+  end,
+  io:format("~n"),
+  diff0(N1, N2);
+
+diff0(<<>>, <<>>) ->
+  ok;
+
+diff0(<<S1/binary>>, <<S2/binary>>) ->
+  [io:format("~2.16.0b ", [N]) || N <- binary_to_list(S1)],
+  [io:format("   ") || N <- lists:seq(1, 8 - size(S1))],
+  io:format("  "),
+  [io:format("~2.16.0b ", [N]) || N <- binary_to_list(S2)],
+  [io:format("   ") || N <- lists:seq(1, 8 - size(S2))],
+  case S1 of
+    S2 -> io:format("=");
+    _ -> io:format("+")
+  end,
+  io:format("~n"),
+  ok.
     
-process(<<_:32, Crypted/binary>>, Session) ->
-  All = <<CRC:16, Decrypted/binary>> = decrypt(Crypted),
+process(<<_S:32, Crypted/binary>>, #session{dec_key = DecKey} = Session) ->
+  % case DecKey of
+  %   ?DEFAULT_KEY -> ok;
+  %   _ -> ?D(Crypted)
+  % end,
+  All = <<CRC:16, Decrypted/binary>> = decrypt(Crypted, DecKey),
   CRC1 = checksum(Decrypted),
   <<Type, DTS:16, ChunkType, Length:16, Message/binary>> = Decrypted,
   case CRC of
@@ -178,8 +235,12 @@ process(<<_:32, Crypted/binary>>, Session) ->
       process_message(Type, ChunkType, Session, Message, DTS, Length);
     _ ->
       % ?D({crc,CRC,CRC1, Type, ChunkType,size(Crypted)}),
-      ?D(Crypted),
-      ?D(All),
+      % hexdump(<<_S:32, Crypted/binary>>),
+      % io:format("------~n"),
+      hexdump(<<_S:32,All/binary>>),
+      % io:format("------~n"),
+      % ?D(Crypted),
+      % ?D(All),
       % hexdump(Crypted),
       application:stop(rtmp),
       {ok, Session, <<"hi">>}
@@ -187,19 +248,28 @@ process(<<_:32, Crypted/binary>>, Session) ->
 
 
 process_message(16#0B, 16#30, Session, Message, DTS, Length) -> process_message_0b_30(Session, Message, DTS, Length);
-process_message(16#0B, 16#38, Session, Message, DTS, Length) -> process_message_0b_38(Session, Message, DTS, Length).
+process_message(16#0B, 16#38, Session, Message, DTS, Length) -> process_message_0b_38(Session, Message, DTS, Length);
+process_message(Type, ChunkType, Session, Message, DTS, Length) ->
+  ?D({unknown_message, Type, ChunkType, DTS, Length}),
+  io:format("~n~n"),
+  hexdump(Message),
+  application:stop(rtmp),
+  {ok, Session, <<>>}.
 
 process_message_0b_30(Session, Message, _DTS, _Length) ->
   {_Len1, Rest1} = amf3:read_uint29(Message),
   {Len2, Rest2} = amf3:read_uint29(Rest1),
   Len2_ = Len2 - 1,
-  <<_Unknown1, URI:Len2_/binary, ClientTag:16/binary, _Rest3/binary>> = Rest2,
+  <<PunchHole, URI:Len2_/binary, ClientTag:16/binary, _Rest3/binary>> = Rest2,
   
   % ?D({uri,URI}),
   
-  ServerCookie = crypto:rand_bytes(64),
+  % ServerCookie = crypto:rand_bytes(64),
+  ServerCookie = list_to_binary(lists:seq(1,64)),
+  
+  PunchHole = 16#0A,
 
-  Reply = [ClientTag, ServerCookie, <<10>>, server_cert(), <<16#15, 16#02>>, <<16#15, 16#05>>, <<16#15, 16#0E>>],
+  Reply = [ClientTag, ServerCookie, <<10>>, <<16#0E, (server_cert())/binary>>, <<16#15, 16#02>>, <<16#15, 16#05>>, <<16#15, 16#0E>>],
   prepare_for_client(Session#session{tag = ClientTag, server_cookie = ServerCookie},
                  16#0B, 16#70, pack_reply(Reply)).
                  
@@ -207,8 +277,7 @@ process_message_0b_38(#session{server_cookie = ServerCookie} = Session, Message,
   <<SessionId:32, Rest1/binary>> = Message,
   {64, <<ServerCookie:64/binary, Rest2/binary>>} = amf3:read_uint29(Rest1),
   
-  {_Len1, Rest3} = amf3:read_uint29(Rest2),
-  ?D({length1,_Len1}),
+  {132, Rest3} = amf3:read_uint29(Rest2),
   {130, <<_Unknown1:16, ClientPublic:128/binary, Rest4/binary>>} = amf3:read_uint29(Rest3),
   {Len3, Rest5} = amf3:read_uint29(Rest4),
   Len3 = 16#4c,
@@ -217,18 +286,26 @@ process_message_0b_38(#session{server_cookie = ServerCookie} = Session, Message,
   {<<DH_KEY_SIZE:32, ServerPublic:DH_KEY_SIZE/binary>>, Private} = crypto:dh_generate_key([rtmpe:p(), rtmpe:g()]),
   SharedSecret = crypto:dh_compute_key(<<(size(ClientPublic)):32, ClientPublic/binary>>, Private, [rtmpe:p(), rtmpe:g()]),
   
-  ClientId = sha2:digest256(ClientPublic),
-  ServerId = sha2:digest256(ServerPublic),
-  
-  NewSessionId = random:uniform(16#FFFFFFFF),
+  % NewSessionId = random:uniform(16#FFFFFFFF),
+  NewSessionId = 42,
   Reply = <<NewSessionId:32, 
-  16#81, 16#0B, 
-  16#03, 16#1a, 16#00, 16#00, 16#02, 16#1e, 16#00,
-  16#81, 16#02, 16#0d, 16#02,
-  ServerPublic/binary,
+  16#81, 16#0B,
+    16#03, 16#1a, 16#00, 16#00, 
+    16#02, 16#1e, 16#00,
+    16#81, 16#02, 16#0d, 16#02, % 81 01 = amf3:write_uint29(size(ServerPublic)+2)
+    ServerPublic/binary,
   16#58>>,
   
   % ?D({replied,SessionId,NewSessionId}),
+  
+  ClientId = sha2:digest256(ClientPublic),
+  ServerId = sha2:digest256(ServerPublic),
+  
+  Buf = <<3,16#1a,0,0,2,16#1e,0,16#81,2,16#d,2,ServerPublic/binary>>,
+  MD1 = hmac256:digest_bin(Buf, ClientCookie),
+  MD2 = hmac256:digest_bin(ClientCookie, Buf),
+  <<NewDecKey:16/binary, _/binary>> = hmac256:digest_bin(SharedSecret, MD1),
+  <<NewEncKey:16/binary, _/binary>> = hmac256:digest_bin(SharedSecret, MD2),
   
   prepare_for_client(Session#session{
     id = SessionId,
@@ -236,25 +313,33 @@ process_message_0b_38(#session{server_cookie = ServerCookie} = Session, Message,
     client_cookie = ClientCookie,
     server_public = ServerPublic,
     client_public = ClientPublic,
-    shared_secret = SharedSecret
+    shared_secret = SharedSecret,
+    new_enc_key = NewEncKey,
+    new_dec_key = NewDecKey
   }, 16#0B, 16#78, Reply).
   
-  
+
+% dts() ->
+%   16#FAFA;
 
 dts() ->
   {_Mega, Sec, USec} = erlang:now(),
   TS = ((Sec rem 1000)*1000 + (USec div 1000)) div 4,
   TS band 16#FFFF.
   
-prepare_for_client(#session{id = SessionId} = Session, Type, ChunkType, Chunk) ->
+prepare_for_client(#session{id = SessionId, enc_key = EncKey} = Session, Type, ChunkType, Chunk) ->
   Msg1 = <<Type, (dts()):16, ChunkType, (size(Chunk)):16, Chunk/binary>>,
   Msg2 = pad(Msg1),
   0 = (size(Msg2) + 2) rem 16,
   CRC = checksum(Msg2),
-  <<S2:32, S3:32, _/binary>> = Msg3 = encrypt(<<CRC:16, Msg2/binary>>),
+  <<S2:32, S3:32, _/binary>> = Msg3 = encrypt(<<CRC:16, Msg2/binary>>, EncKey),
   S1 = S2 bxor S3 bxor SessionId,
   Session1 = case ChunkType of
-    16#78 -> Session#session{id = Session#session.new_id};
+    16#78 -> Session#session{
+      id = Session#session.new_id,
+      enc_key = Session#session.new_enc_key,
+      dec_key = Session#session.new_dec_key
+      };
     _ -> Session
   end,
   {ok, Session1, <<S1:32, Msg3/binary>>}.
