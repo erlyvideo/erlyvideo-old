@@ -36,19 +36,17 @@ start_link(Port) ->
 
 -record(session, {
   id = 0,
+  socket,
   addr,
   tag,
-  new_id,
   server_cookie,
   client_cookie,
   client_public,
   server_public,
   shared_secret,
   
-  enc_key,
-  dec_key,
-  new_enc_key,
-  new_dec_key
+  enc_key = ?DEFAULT_KEY,
+  dec_key = ?DEFAULT_KEY
 }).
 
 %%%------------------------------------------------------------------------
@@ -116,28 +114,11 @@ handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
 handle_info({udp, Socket, IP, Port, Bin}, #server{socket = Socket, sessions = Session} = Server) ->
   <<S1:32, S2:32, S3:32, _/binary>> = Bin,
   SessionId = S1 bxor S2 bxor S3,
-  % ?D({session, SessionId, _IP, _InPortNo, Bin}),
-  % case Session#session.id of
-  %   0 -> ok;
-  %   SessionId -> ok;
-  %   _ -> ?D({session,SessionId,Session#session.id})
-  % end,
   Session1 = case SessionId of
     0 -> ?D(flush_keys), Session#session{dec_key = ?DEFAULT_KEY, enc_key = ?DEFAULT_KEY};
     _ -> Session
   end,
-  % gen_udp:send(Socket, IP, 1936, Bin),
-  {ok, Session2, Reply} = process(Bin, Session1#session{addr = {IP, Port}, id = SessionId}),
-  % receive
-  %   {udp, Socket, IP, 1936, Reply} -> 
-  %     % gen_udp:send(Socket, IP, Port, Reply),
-  %     ?D(match), ok;
-  %   {udp, Socket, IP, 1936, Reply2} -> 
-  %     io:format("Mismatch: ~n~n"),
-  %     diff(Reply, Reply2)
-  %     % gen_udp:send(Socket, IP, Port, Reply2)
-  % end,
-  gen_udp:send(Socket, IP, Port, Reply),
+  {ok, Session2} = process(Bin, Session1#session{addr = {IP, Port}, id = SessionId, socket = Socket}),
     
   % inet:setopts(Socket, [{active,once}]),
   {noreply, Server#server{sessions = Session2}};
@@ -249,6 +230,7 @@ process(<<_S:32, Crypted/binary>>, #session{dec_key = DecKey} = Session) ->
 
 process_message(16#0B, 16#30, Session, Message, DTS, Length) -> process_message_0b_30(Session, Message, DTS, Length);
 process_message(16#0B, 16#38, Session, Message, DTS, Length) -> process_message_0b_38(Session, Message, DTS, Length);
+process_message(16#8D, _, Session, Message, DTS, Length) -> process_message_8d_5e(Session, Message, DTS, Length);
 process_message(Type, ChunkType, Session, Message, DTS, Length) ->
   ?D({unknown_message, Type, ChunkType, DTS, Length}),
   io:format("~n~n"),
@@ -307,17 +289,27 @@ process_message_0b_38(#session{server_cookie = ServerCookie} = Session, Message,
   <<NewDecKey:16/binary, _/binary>> = hmac256:digest_bin(SharedSecret, MD1),
   <<NewEncKey:16/binary, _/binary>> = hmac256:digest_bin(SharedSecret, MD2),
   
-  prepare_for_client(Session#session{
+  {ok, Session1} = prepare_for_client(Session#session{
     id = SessionId,
-    new_id = NewSessionId,
     client_cookie = ClientCookie,
     server_public = ServerPublic,
     client_public = ClientPublic,
-    shared_secret = SharedSecret,
-    new_enc_key = NewEncKey,
-    new_dec_key = NewDecKey
-  }, 16#0B, 16#78, Reply).
+    shared_secret = SharedSecret
+  }, 16#0B, 16#78, Reply),
+  {ok, Session1#session{
+    id = NewSessionId,
+    enc_key = NewEncKey,
+    dec_key = NewDecKey
+  }}.
   
+
+
+process_message_8d_5e(Session, Message, DTS, Length) ->
+  <<Len:16, Msg:Len/binary, Rest/binary>> = Message,
+  hexdump(Msg),
+  application:stop(rtmp),
+  {ok, Session, <<>>}.
+  % <<Skip:13/binary, RTMPType, StreamId:32, Payload/binary
 
 % dts() ->
 %   16#FAFA;
@@ -327,22 +319,15 @@ dts() ->
   TS = ((Sec rem 1000)*1000 + (USec div 1000)) div 4,
   TS band 16#FFFF.
   
-prepare_for_client(#session{id = SessionId, enc_key = EncKey} = Session, Type, ChunkType, Chunk) ->
+prepare_for_client(#session{id = SessionId, enc_key = EncKey, socket = Socket, addr = {IP, Port}} = Session, Type, ChunkType, Chunk) ->
   Msg1 = <<Type, (dts()):16, ChunkType, (size(Chunk)):16, Chunk/binary>>,
   Msg2 = pad(Msg1),
   0 = (size(Msg2) + 2) rem 16,
   CRC = checksum(Msg2),
   <<S2:32, S3:32, _/binary>> = Msg3 = encrypt(<<CRC:16, Msg2/binary>>, EncKey),
   S1 = S2 bxor S3 bxor SessionId,
-  Session1 = case ChunkType of
-    16#78 -> Session#session{
-      id = Session#session.new_id,
-      enc_key = Session#session.new_enc_key,
-      dec_key = Session#session.new_dec_key
-      };
-    _ -> Session
-  end,
-  {ok, Session1, <<S1:32, Msg3/binary>>}.
+  gen_udp:send(Socket, IP, Port, <<S1:32, Msg3/binary>>),
+  {ok, Session}.
 
 pad(Bin) when size(Bin) rem 16 == 14 -> Bin;
 pad(Bin) -> pad(<<Bin/binary, 16#FF>>).
