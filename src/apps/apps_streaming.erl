@@ -119,7 +119,7 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 play(#rtmp_session{host = Host, socket = Socket} = State, 
      #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   Options1 = extract_play_args(Args),
-
+  
   {RawName, Args2} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   Options2 = extract_url_args(Args2),
@@ -162,19 +162,19 @@ extract_play_args([]) ->
     true -> [{wait,infinity}];
     false -> []
   end;
-extract_play_args([Start]) when Start > 0 -> [{start, Start}];
+extract_play_args([Start]) when is_number(Start) andalso Start > 0 -> [{start, Start}];
 extract_play_args([Start]) when Start == -2 -> [{wait, infinity}];
 extract_play_args([_Start]) -> [];
-extract_play_args([Start, Duration]) when Start > 0 andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
-extract_play_args([Start, _Duration]) when Start > 0 -> [{start, Start}];
-extract_play_args([Start, Duration]) when Start == -1 -> [{wait,Duration}];
+extract_play_args([Start, Duration]) when is_number(Start) andalso Start > 0 andalso is_number(Duration) andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
+extract_play_args([Start, _Duration]) when is_number(Start) andalso Start > 0 -> [{start, Start}];
+extract_play_args([Start, Duration]) when is_number(Duration) andalso Start == -1 -> [{wait,Duration}];
 extract_play_args([_Start, _Duration]) -> 
   case ems:get_var(rtmp_default_wait, false) of
     true -> [{wait,infinity}];
     false -> []
   end;
-extract_play_args([Start, Duration, Reset]) when Start > 0 andalso Duration > 0 andalso Reset == 0 -> [{start, Start}, {duration, Duration}, {reset, false}];
-extract_play_args([Start, _Duration, Reset]) when Start > 0 andalso Reset == 0 -> [{start, Start}, {reset, false}];
+extract_play_args([Start, Duration, Reset]) when is_number(Start) andalso Start > 0 andalso Duration > 0 andalso Reset == 0 -> [{start, Start}, {duration, Duration}, {reset, false}];
+extract_play_args([Start, _Duration, Reset]) when is_number(Start) andalso Start > 0 andalso Reset == 0 -> [{start, Start}, {reset, false}];
 extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].
 
 
