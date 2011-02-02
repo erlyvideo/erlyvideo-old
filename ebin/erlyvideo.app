@@ -67,6 +67,7 @@
     mpegts_passive_media,
     password_publish,
     referer_check,
+    remove_useless_prefix,
     reverse_mpegts,
     rtmp_dump,
     rtmp_media,
