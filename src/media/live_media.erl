@@ -35,7 +35,7 @@
 }).
 
 default_timeout() ->
-  600000.
+  3000.
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from ems_media
@@ -50,6 +50,7 @@ default_timeout() ->
 %%----------------------------------------------------------------------
 
 init(Media, Options) ->
+  SortBuffer = proplists:get_value(sort_buffer, Options, 10),
   State = case proplists:get_value(wait, Options, default_timeout()) of
     Timeout when is_number(Timeout) ->
       {ok, Ref} = timer:send_after(Timeout, source_timeout),
@@ -68,7 +69,7 @@ init(Media, Options) ->
       Host = proplists:get_value(host, Options),
     	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
     	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:start_link(FileName, [{mode,append}]),
+      {ok, Writer} = flv_writer:start_link(FileName, [{mode,append},{sort_buffer,SortBuffer}]),
       {ok, Media1#ems_media{format = flv_writer, storage = Writer}};
     record ->
       URL = proplists:get_value(url, Options),
@@ -76,7 +77,7 @@ init(Media, Options) ->
     	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:start_link(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName, [{sort_buffer,SortBuffer}]),
       {ok, Media1#ems_media{format = flv_writer, storage = Writer}}
   end.
 
@@ -121,7 +122,7 @@ handle_control(no_clients, State) ->
   %% {stop, Reason, State}   => stops. This should be default
   ?D({"No clients, but has source", State#ems_media.source}),
   {noreply, State};
-
+  
 handle_control(timeout, State) ->
   {noreply, State};
 
@@ -148,7 +149,7 @@ handle_frame(Frame, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_info(source_timeout, State) ->
-  {stop, timeout, State};
+  {stop, normal, State};
 
 handle_info(_Message, State) ->
   {noreply, State}.

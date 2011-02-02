@@ -71,7 +71,7 @@ init(Media, Consumer, Options) ->
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
   SeekInfo = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
-  ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
+  % ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
   {Pos, DTS} = SeekInfo,
   Start = case proplists:get_value(start, Options, 0) of
     {_, S} -> S;
@@ -80,17 +80,18 @@ init(Media, Consumer, Options) ->
   
   PlayingTill = case proplists:get_value(duration, Options) of
     undefined -> undefined;
+    {before, Duration} ->
+      Length = proplists:get_value(length, ems_media:info(Media)),
+      if
+        Duration > Length ->
+          Start + Duration;
+        true ->
+          case ems_media:seek_info(Media, Start + Duration, Options) of
+            {_Pos, EndTimestamp} -> EndTimestamp;
+            _ -> undefined
+          end
+      end;
     Duration -> Start + Duration
-      % Length = proplists:get_value(length, ems_media:info(Media)),
-      % if
-      %   Duration > Length ->
-      %     Start + Duration;
-      %   true ->
-      %     case ems_media:seek_info(Media, Start + Duration, Options) of
-      %       {_Pos, EndTimestamp} -> EndTimestamp;
-      %       _ -> undefined
-      %     end
-      % end
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options}).
