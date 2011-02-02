@@ -223,7 +223,8 @@ parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Pa
   AtomName = binary_to_atom(BinaryAtomName, utf8),
   NewMp4Parser = case erlang:function_exported(?MODULE, AtomName, 2) of
     true -> ?MODULE:AtomName(Atom, Mp4Parser);
-    false -> ?D({"Unknown atom", AtomName}), Mp4Parser
+    % false -> ?D({"Unknown atom", AtomName}), Mp4Parser
+    false -> Mp4Parser
   end,
   parse_atom(Rest, NewMp4Parser);
   
@@ -443,12 +444,12 @@ samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
 esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) when Version == 0 ->
   % ?D({"Extracted audio config", DecoderConfig}),
   ESDS = config_from_esds_tag(DecoderConfig),
-  ?D(ESDS),
+  % ?D(ESDS),
   Mp4Track#mp4_track{decoder_config = ESDS#esds.specific, data_format = ESDS#esds.object_type}.
 
 % avcC atom
 avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
-  ?D({"Extracted video config", DecoderConfig, h264:unpack_config(DecoderConfig)}),
+  % ?D({"Extracted video config", DecoderConfig, h264:unpack_config(DecoderConfig)}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
 btrt(<<_BufferSize:32, MaxBitRate:32, AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->

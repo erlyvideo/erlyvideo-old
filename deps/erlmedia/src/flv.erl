@@ -32,7 +32,9 @@
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).
 
--export([header/0, header/1, read_header/1, tag_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
+-export([read_tag_header/2, read_tag/2, read_tag/1]).
+
+-export([header/0, header/1, read_header/1, tag_header/1, data_offset/0]).
 -export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
 
 -export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1, encode_tag/1,
@@ -175,7 +177,7 @@ read_header(Device) ->
   
 
 
-tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->  
+tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>> = H) ->
   <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
   #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size}.
 
@@ -186,9 +188,8 @@ tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
 %%--------------------------------------------------------------------
 read_tag_header({Module,Device}, Offset) ->
 	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH+1) of
-		{ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} ->
-      % io:format("Frame ~p ~p ~p~n", [Type, TimeStamp, Size]),
-      FlvTag = tag_header(Bin),
+	  {ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} -> 
+	    FlvTag = tag_header(Bin),
       FlvTag1 = FlvTag#flv_tag{offset = Offset + ?FLV_TAG_HEADER_LENGTH,
        next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + FlvTag#flv_tag.size + ?FLV_PREV_TAG_SIZE_LENGTH},
       Flavor = case {FlvTag1#flv_tag.type, VideoFlavor} of
@@ -196,19 +197,43 @@ read_tag_header({Module,Device}, Offset) ->
         _ -> frame
       end,
       FlvTag1#flv_tag{flavor = Flavor};
-    eof -> eof;
-    {error, Reason} -> {error, Reason}
+	  eof -> eof;
+	  {error, Reason} -> {error, Reason}
   end;
-
+  
 read_tag_header(Device, Offset) ->
   read_tag_header({file,Device}, Offset).
-  
 
 %%--------------------------------------------------------------------
 %% @spec (File::file(), Offset::numeric()) -> Tag::flv_tag()
 %% @doc Reads from File FLV tag, starting on offset Offset. NextOffset is hidden in #flv_tag{}
 %% @end 
 %%--------------------------------------------------------------------
+read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
+  case tag_header(Header) of
+    #flv_tag{type = audio, size = 0} = Tag ->
+      Tag#flv_tag{body = #flv_audio_tag{codec = empty, body = <<>>, flavor = frame}, flavor = frame};
+
+    #flv_tag{type = Type, size = Size} = Tag when size(Data) >= Size ->
+      {Body, Rest} = erlang:split_binary(Data, Size),
+
+      Flavor = case Type of
+        video ->
+          case Body of 
+            <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4, _/binary>> -> keyframe;
+            _ -> frame
+          end;
+        _ -> frame
+      end,
+
+      {ok, decode_tag(Tag#flv_tag{body = Body, flavor = Flavor}), Rest};
+      
+    #flv_tag{} ->
+      more;
+    Else -> Else
+  end.  
+
+
 read_tag({Module,Device} = Reader, Offset) ->
   case read_tag_header(Reader, Offset) of
     #flv_tag{type = audio, size = 0} = Tag ->

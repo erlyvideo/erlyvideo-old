@@ -30,6 +30,7 @@
 
 -export([publish/2]).
 -export(['FCPublish'/2, 'FCUnpublish'/2]).
+-export(['DVRSetStreamInfo'/2]).
 
 
 %%-------------------------------------------------------------------------
@@ -54,7 +55,11 @@
   media_provider:remove(Host, Name),
   State.
 
-
+'DVRSetStreamInfo'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, {object, Info}]} = _AMF) ->
+  ?D({'DVRSetStreamInfo', Info}),
+  State.
+  
+  
 real_publish(#rtmp_session{host = Host, socket = Socket} = State, FullName, Type, StreamId) ->
 
   {RawName, Args1} = http_uri2:parse_path_query(FullName),

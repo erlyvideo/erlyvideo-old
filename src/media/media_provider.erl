@@ -264,7 +264,7 @@ handle_call({register, Name, Pid, Options}, _From, #media_provider{host = Host, 
       Ref = erlang:monitor(process, Pid),
       ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
       ems_event:stream_created(Host, Name, Pid, Options),
-      ?D({"Registering", Name, Pid}),
+      % ?D({"Registering", Name, Pid}),
       {reply, {ok, {Name, Pid}}, MediaProvider}
   end;
 
@@ -295,7 +295,7 @@ internal_open(Host, Name, Opts) ->
   Opts1 = case proplists:get_value(type, Opts0) of
     undefined ->
       DetectedOpts = detect_type(Host, Name, Opts0),
-      ?D({"Detecting type", Host, Name, Opts0, DetectedOpts}),
+      % ?D({"Detecting type", Host, Name, Opts0, DetectedOpts}),
       lists:ukeymerge(1, DetectedOpts, Opts0);
     _ ->
       Opts0
@@ -411,7 +411,10 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{host = Host, o
       {noreply, MediaProvider};
     [Name] ->
       ets:delete(OpenedMedia, Name),
-      ?D({"Stream died", Media, Name, io_lib_pretty_limited:print(_Reason, 2000)}),
+      case _Reason of
+        normal -> ok;
+        _ -> ?D({"Stream died", Media, Name, io_lib_pretty_limited:print(_Reason, 2000)})
+      end,
       ems_event:stream_stopped(Host, Name, Media),
       {noreply, MediaProvider}
   end;

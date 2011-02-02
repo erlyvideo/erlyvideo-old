@@ -55,6 +55,8 @@
 
 -export([init_file/1, init_file/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
+-define(BUFFER_SIZE, 40).
+
 -record(flv_file_writer, {
   writer,
   buffer_size = 5,
@@ -103,18 +105,19 @@ init_file(FileName, Options) when is_binary(FileName) ->
   
 init_file(FileName, Options) ->
 	ok = filelib:ensure_dir(FileName),
+	SortBuffer = proplists:get_value(sort_buffer, Options, 0),
 	Mode = proplists:get_value(mode, Options, write),
   case file:open(FileName, [Mode, {delayed_write, 1024, 50}]) of
 		{ok, File} when Mode == append ->
 		  Duration = flv:duration({file,File}),
     	{ok, #flv_file_writer{writer = fun(Data) ->
     	  file:write(File, Data)
-    	end, base_dts = Duration}};
+    	end, base_dts = Duration, buffer_size = SortBuffer}};
 		{ok, File} when Mode == write ->
     	file:write(File, flv:header()),
     	{ok, #flv_file_writer{writer = fun(Data) ->
     	  file:write(File, Data)
-    	end}};
+    	end, buffer_size = SortBuffer}};
 		Error ->
 			Error
   end.
@@ -156,6 +159,10 @@ handle_message(Message, FlvWriter) ->
   flush_messages(FlvWriter, hard),
   Message.
   
+store_message(Frame, #flv_file_writer{buffer_size = 0} = Writer) ->
+  ?D({unbuffered_store}),
+  dump_frame_in_file(Frame, Writer);
+  
 store_message(Frame, #flv_file_writer{buffer = Buffer, buffer_size = Size} = FlvWriter) when length(Buffer) >= Size ->
   FlvWriter1 = flush_messages(FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}, soft),
   {ok, FlvWriter1};
@@ -164,25 +171,28 @@ store_message(Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
   {ok, FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}}.
   
 
-flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, _How) ->
-  Buffer = lists:reverse(Buf1),
-  _Sorted = lists:keysort(#video_frame.dts, Buffer),
+flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
+  Sorted = lists:keysort(#video_frame.dts, Buf1),
+
+  % Buffer = lists:reverse(Buf1),
   % case Sorted of
-  %   Buffer -> ?D({"Frames in order", length(Sorted)}), ok;
-  %   _ -> ?D({"Frame reordering work", length(Sorted)}), ok
+  %   Buffer -> ?D({"Frames in order", length(Sorted)});
+  %   _ -> ?D({"Frame reordering work", length(Sorted)}),
+  %   ?D([round(DTS) || #video_frame{dts = DTS} <- Sorted]),
+  %   ?D([round(DTS) || #video_frame{dts = DTS} <- Buffer])
   % end,
   
-  % {Disk,Mem} = case How of 
-  %   soft -> lists:split(length(Buffer) div 2, Sorted);
-  %   hard -> {Sorted, []}
-  % end,
-  Disk = Buffer,
-  Mem = [],
+  {Disk,Mem} = case How of 
+    soft -> lists:split(length(Sorted) div 2, Sorted);
+    hard -> {Sorted, []}
+  end,
+  % Disk = Buffer,
+  % Mem = [],
   FlvWriter1 = lists:foldl(fun(Frame, Writer) ->
     {ok, Writer1} = dump_frame_in_file(Frame, Writer),
     Writer1
   end, FlvWriter, Disk),
-  FlvWriter1#flv_file_writer{buffer = Mem}.
+  FlvWriter1#flv_file_writer{buffer = lists:reverse(Mem)}.
   
 
   

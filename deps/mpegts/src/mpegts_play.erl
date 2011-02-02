@@ -46,7 +46,7 @@ play(Name, Player, Req, Options) ->
   play(Name, Player, Req, Options, {0,0,0,0}).
 
 play(_Name, Player, Req, Options, Counters) ->
-  ?D({"Player starting", _Name, Player}),
+  % ?D({"Player starting", _Name, Player}),
   erlang:monitor(process,Player),
   Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
   MS1 = erlang:now(),

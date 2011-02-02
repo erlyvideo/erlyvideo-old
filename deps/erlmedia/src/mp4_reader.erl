@@ -55,7 +55,7 @@ init(Reader, Options) ->
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
-  ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
+  % ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
 
   {ok, MP4Media#mp4_media{options = Options}}.
 

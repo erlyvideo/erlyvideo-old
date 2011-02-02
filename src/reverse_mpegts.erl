@@ -57,8 +57,9 @@ loop(FromUrl, ToUrl) ->
 
   
 
-connect_source(From) ->
+connect_source("http://"++_ = From) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(From),
+  ?D({connecting_to, From}),
   case gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000) of
     {ok, Socket} -> 
       ?D({"Connected to", From, Socket}),
@@ -68,7 +69,11 @@ connect_source(From) ->
       ?D({"Cannot connect source", From, Else}),
       timer:sleep(500),
       connect_source(From)
-  end.
+  end;
+  
+connect_source(File) ->
+  Port = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary, {args, [File]}, exit_status]),
+  {port, Port}.
   
 read_response(Socket, From) ->
   ok = inet:setopts(Socket, [{active, once}]),
@@ -95,7 +100,7 @@ read_headers(Socket, From) ->
     {http, Socket, http_eoh} ->
       ok = inet:setopts(Socket, [{packet, raw}]),
       ?D({"Connected to source"}),
-      Socket;
+      {socket, Socket};
     {tcp_closed, Socket} ->
       ?D({"Socket closed", From}),
       timer:sleep(500),
@@ -144,15 +149,26 @@ run_loop(#pusher{to = undefined, to_url = URL} = Pusher) ->
   run_loop(Pusher#pusher{to = connect_to(URL)});
 
 
-run_loop(#pusher{from = From, to = To} = Pusher) ->
-  inet:setopts(From, [{active, once}]),
+run_loop(#pusher{from = {Mode, From}, to = To} = Pusher) ->
+  case Mode of
+    socket -> inet:setopts(From, [{active, once}]);
+    _ -> ok
+  end,
   receive
     {tcp, From, Bin} ->
       ok = gen_tcp:send(To, Bin),
       run_loop(Pusher);
+    {From, {data, Bin}} ->
+      ok = gen_tcp:send(To, Bin),
+      run_loop(Pusher);
     {tcp_closed, From} ->
+      timer:sleep(500),
+      run_loop(Pusher#pusher{from = undefined});
+    {From, {exit_status, _ExitStatus}} ->
+      timer:sleep(500),
       run_loop(Pusher#pusher{from = undefined});
     {tcp_closed, To} ->
+      timer:sleep(500),
       run_loop(Pusher#pusher{to = undefined});
     Else ->
       ?D({"Undefined message", Else}),
