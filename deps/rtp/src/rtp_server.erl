@@ -44,8 +44,14 @@
         ]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2,
-         handle_info/2, terminate/2, code_change/3]).
+-export([
+         init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3
+        ]).
 
 
 -export([encode/2, encode/4]).
@@ -80,26 +86,32 @@
           media     :: pid(),
           stream_id :: any(),
           parent    :: pid(),
+          parent_ref:: reference(),
           tc_fun    :: function(),
           rtcp_send = false :: boolean()
          }).
 
 %% Gen server process does control RTP-stream.
 start_link(Args) ->
-  Parent = self(),
-  gen_server:start_link(?MODULE, [Args, Parent], []).
+  gen_server:start_link(?MODULE, Args, []).
 
-init([{Type, Opts}, Parent]) ->
+init({Type, Opts}) ->
   process_flag(trap_exit, true),
   Media = proplists:get_value(media, Opts),
+  Parent = proplists:get_value(parent, Opts),
   StreamId = proplists:get_value(stream_id, Opts),
-  erlang:monitor(process, Parent),
+  if is_pid(Parent) ->
+      ParentRef = erlang:monitor(process, Parent);
+     true ->
+      ParentRef = undefined
+  end,
   random:seed(now()),
   {ok, #state{type = Type,
               media = Media,
               stream_id = StreamId,
-              parent = Parent}}.
-
+              parent = Parent,
+              parent_ref = ParentRef
+             }}.
 
 handle_call({play, Fun, Media}, _From,
             #state{type = RtpType,
@@ -290,7 +302,7 @@ handle_info({Event, Types, Args},
 handle_info(#video_frame{content = audio, flavor = frame,
                          dts = DTS, pts = PTS,
                          codec = Codec, sound = {_Channel, _Size, _Rate},
-                         body = Body} = Frame,
+                         body = Body} = _Frame,
             #state{audio = #desc{acc = Acc} = AudioDesc,
                    tc_fun = TCFun} = State) ->
   % ?DBG("Audio: ~n~p", [Frame]),
@@ -439,6 +451,11 @@ handle_info({dump_pack}, #state{video = #desc{state = #base_rtp{packets = P}}} =
   io:format("~b    ~b~n", [S, P]),
   {noreply, State};
 handle_info({ems_stream, _, play_complete, _}, State) ->
+  {stop, normal, State};
+handle_info({'DOWN', ParentRef, process, Parent, Reason},
+            #state{parent = Parent,
+                   parent_ref = ParentRef} = State) ->
+  ?DBG("Parent DOWN with reason ~p. Stop.", [Reason]),
   {stop, normal, State};
 handle_info(Info, State) ->
   ?DBG("Unknown info:~n~p", [Info]),
