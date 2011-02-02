@@ -1,3 +1,9 @@
+erlyvideo (2.5.19) unstable; urgency=low
+
+  flv:read_tag conference fix
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 02 Feb 2011 20:59:17 +0300
+
 erlyvideo (2.5.18) unstable; urgency=low
 
   reverse_mpegts fix
