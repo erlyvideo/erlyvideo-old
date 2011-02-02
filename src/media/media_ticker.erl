@@ -187,13 +187,13 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   Consumer ! PrevFrame#video_frame{stream_id = StreamId},
   case ems_media:read_frame(Media, Consumer, Pos) of
     eof ->
-      ?D(play_complete),
+      % ?D(play_complete),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
       {noreply, Ticker};
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
-      ?D({play_complete_limit, PlayingTill, NewDTS}),
+      % ?D({play_complete_limit, PlayingTill, NewDTS}),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
       {noreply, Ticker};

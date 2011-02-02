@@ -162,7 +162,7 @@ read_header(Device) ->
   
 
 
-tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->  
+tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>> = H) ->
   <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
   #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size}.
 
@@ -194,7 +194,7 @@ read_tag_header(Device, Offset) ->
 %% @doc Reads from File FLV tag, starting on offset Offset. NextOffset is hidden in #flv_tag{}
 %% @end 
 %%--------------------------------------------------------------------
-read_tag(<<Header:?FLV_TAG_HEADER_LENGTH, Data/binary>>) ->
+read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
   case tag_header(Header) of
     #flv_tag{type = audio, size = 0} = Tag ->
       Tag#flv_tag{body = #flv_audio_tag{codec = empty, body = <<>>, flavor = frame}, flavor = frame};
