@@ -146,6 +146,8 @@ first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id
   end.
 
 
+codec_config({_Type, undefined}, _Media) ->
+  undefined;
 
 codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
   #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
@@ -160,15 +162,19 @@ codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackI
 
 codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
   #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
-  #video_frame{       
-   	content = audio,
-   	flavor  = config,
-		dts     = 0,
-		pts     = 0,
-		body    = Config,
-	  codec	  = Codec,
-	  sound   = {stereo, bit16, rate44}
-	}.
+  case Config of
+    undefined -> undefined;
+    _ ->
+      #video_frame{       
+       	content = audio,
+       	flavor  = config,
+    		dts     = 0,
+    		pts     = 0,
+    		body    = Config,
+    	  codec	  = Codec,
+    	  sound   = {stereo, bit16, rate44}
+    	}
+  end.
 
 
 
@@ -279,9 +285,14 @@ seek(#mp4_media{} = Media, Timestamp, Options) ->
   case mp4:seek(Media, Video, Timestamp) of
     undefined -> undefined;
     {Id, DTS} ->
-      case Audio of
-        undefined -> {{video_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS};
-        _ -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS}
+      FrameId = #frame_id{id = Id,a = Audio,v = Video, t = Subtitle},
+      case codec_config({audio,Audio},Media) of
+        undefined -> 
+          case codec_config({video,Video},Media) of
+            undefined -> {FrameId, DTS};
+            _ -> {{video_config, FrameId, DTS}, DTS}
+          end;
+        _ -> {{audio_config, FrameId, DTS}, DTS}
       end
   end.
 
