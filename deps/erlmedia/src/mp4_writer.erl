@@ -54,9 +54,10 @@
 %%%---------------------------------------------------------------------------------------
 -module(mp4_writer).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("../include/flv.hrl").
--include_lib("../include/mp4.hrl").
--include_lib("../include/video_frame.hrl").
+-include("../include/flv.hrl").
+-include("../include/mp4.hrl").
+-include("../include/mp3.hrl").
+-include("../include/video_frame.hrl").
 -include("log.hrl").
 
 -export([write/2, write/3, pack_language/1, dump_media/2]).
@@ -198,6 +199,11 @@ handle_frame(#video_frame{flavor = config, content = audio, body = Config}, Conv
   ?D("mp4_writer got audio config"),
   {ok, Convertor#convertor{audio_config = Config}};
 
+handle_frame(#video_frame{codec = mp3, body = Body}, #convertor{audio_config = undefined} = Convertor) ->
+  {ok, #mp3_frame{} = Config, _} = mp3:read(Body),
+  ?D("mp4_writer got audio config"),
+  {ok, Convertor#convertor{audio_config = Config}};
+  
 
 handle_frame(#video_frame{content = metadata}, Convertor) ->
   {ok, Convertor};
@@ -478,13 +484,21 @@ pack_audio_config(#convertor{audio_config = undefined}) ->
   <<>>;
 
 
-pack_audio_config(#convertor{audio_config = Config}) ->
+pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame{codec = Codec}|_]}) ->
   Reserved = <<0,0,0,0,0,0>>,
   RefIndex = 1,
   SoundVersion = 0,
   Unknown = <<0,0,0,0,0,0>>,
-  
-  {_AACType, _SampleRate, ChannelsCount, _SamplesPerFrame} = aac:pack_config(aac:decode_config(Config)),
+
+  {ObjectType, ChannelsCount} = case Codec of
+    aac ->
+      {_AACType, _SampleRate, AACChannels, _SamplesPerFrame} = aac:pack_config(aac:decode_config(Config)),
+      {64, AACChannels};
+    mp3 ->
+      #mp3_frame{channels = Channels} = Config,
+      {107, Channels}
+  end,
+
   
   SampleSize = 16,
   PacketSize = 0,
@@ -498,7 +512,6 @@ pack_audio_config(#convertor{audio_config = Config}) ->
   StreamPriority = 0,
   ESDescr = <<ESID:16, StreamDependence:1, HaveUrl:1, OCRStream:1, StreamPriority:5>>,
   
-  ObjectType = 64,
   StreamType = 5,
   UpStream = 0,
   Reserved3 = 1,
@@ -507,12 +520,16 @@ pack_audio_config(#convertor{audio_config = Config}) ->
   AvgBitrate = 0,
   ConfigDescr = <<ObjectType, StreamType:6, UpStream:1, Reserved3:1, BufferSizeDB:24, MaxBitrate:32, AvgBitrate:32>>,
   
+
   MP4A = <<Reserved:6/binary, RefIndex:16, SoundVersion:16, Unknown:6/binary, ChannelsCount:16, SampleSize:16, 
             CompressionId:16, PacketSize:16, (round(?AUDIO_SCALE*1000)):16, 0:16>>,
+            
+  DescrTag = case Codec of
+    aac -> [ConfigDescr, {?MP4DecSpecificDescrTag, Config}];
+    mp3 -> ConfigDescr
+  end,
   ESDS = {?MP4ESDescrTag, [ESDescr,
-     {?MP4DecConfigDescrTag, [
-         ConfigDescr, {?MP4DecSpecificDescrTag, Config}
-      ]},
+     {?MP4DecConfigDescrTag, DescrTag},
      {?MP4Unknown6Tag, <<2>>}]
    },
    
