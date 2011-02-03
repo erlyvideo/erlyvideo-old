@@ -1,3 +1,9 @@
+erlyvideo (2.5.20) unstable; urgency=low
+
+  mp3 in mp4 fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Feb 2011 02:26:07 +0300
+
 erlyvideo (2.5.19) unstable; urgency=low
 
   flv:read_tag conference fix
