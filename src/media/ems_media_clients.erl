@@ -116,7 +116,7 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
   end || #client{state = State} = Entry <- List]}.
   
 increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
-  ets:update_counter(Bytes, Client, Size),
+  % ets:update_counter(Bytes, Client, Size),
   Clients.
 
 -include_lib("eunit/include/eunit.hrl").
