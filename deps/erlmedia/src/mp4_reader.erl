@@ -51,7 +51,7 @@ init(Reader, Options) ->
   {ok, MP4Media} = mp4:open(Reader, Options),
   
   %Tracks = tuple_to_list(MP4Media#mp4_media.tracks) ++ SrtFrames,
-  Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
+  % Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
@@ -76,13 +76,16 @@ init(Reader, Options) ->
 
 properties(#mp4_media{additional = Additional, width = Width, height = Height, duration = Duration} = MP4Media) -> 
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
-  TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language}] || 
-                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id} <- Tracks],
+  TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language},{codec,Codec}] || 
+                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id, data_format = Codec} <- Tracks],
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   Languages = [Language || #mp4_track{language = Language, content = Content} <- Tracks, Content == audio],
-  [{width, Width}, 
-   {height, Height},
-   {type, file},
+  
+  Opt1 = case {Width, Height} of
+    {undefined, undefined} -> [];
+    _ -> [{width, Width},{height, Height}]
+  end,
+  Opt1 ++ [{type, file},
    {duration, Duration},
    {tracks, TrackInfo},
    {bitrates, Bitrates},
@@ -174,9 +177,13 @@ read_frame(MediaInfo, undefined) ->
 
 read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Audio,v = Video} = Pos, DTS}) ->
   Frame = codec_config({audio,Audio}, Media),
-  Next = case (element(Video,Tracks))#mp4_track.decoder_config of
+  Next = case Video of 
     undefined -> Pos;
-    _ -> {video_config,Pos, DTS}
+    _ -> 
+      case (element(Video,Tracks))#mp4_track.decoder_config of
+        undefined -> Pos;
+        _ -> {video_config,Pos, DTS}
+      end
   end,
   % ?D({audio,Audio,Frame}),
   Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
