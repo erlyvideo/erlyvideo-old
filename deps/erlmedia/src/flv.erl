@@ -35,7 +35,7 @@
 -export([read_tag_header/2, read_tag/2, read_tag/1]).
 
 -export([header/0, header/1, read_header/1, tag_header/1, data_offset/0]).
--export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
+-export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, video_size/2, decodeVP6/2, extractAudioHeader/2]).
 
 -export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1, encode_tag/1,
          decode_audio_tag/1, decode_video_tag/1, decode_meta_tag/1, decode_tag/1]).
@@ -162,7 +162,7 @@ read_header(Device) ->
   
 
 
-tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>> = H) ->
+tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
   <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
   #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size}.
 
@@ -380,7 +380,7 @@ encode_meta_tag(Metadata) when is_list(Metadata) ->
 % @return {Width, Height}
 getWidthHeight({_Module,_Device} = IoDev, Pos, CodecID)->
 	case CodecID of
-		?FLV_VIDEO_CODEC_SORENSEN 	-> decodeSorensen(IoDev, Pos);
+    % ?FLV_VIDEO_CODEC_SORENSEN   -> decodeSorensen(IoDev, Pos);
 		?FLV_VIDEO_CODEC_SCREENVIDEO 	-> decodeScreenVideo(IoDev, Pos);
 		?FLV_VIDEO_CODEC_ON2VP6 	-> decodeVP6(IoDev, Pos);
 		%not sure if FLV_VIDEO_CODEC_ON2VP6 == FLV_VIDEO_CODEC_ON2VP6_ALPHA: needs to be tested...
@@ -408,21 +408,14 @@ decodeScreenVideo({Module,IoDev}, Pos) ->
 		{ok, <<_Offset:4, Width:12, Height:12, _Rest:4>>} -> {Width, Height}
 	end.
 	
-decodeSorensen({Module,IoDev}, Pos) ->
-	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 9) of
-		{ok, IoList} ->
-		  <<_Offset:30, Info:3, _Rest:39>> = IoList,
-			case Info of
-				
-				0 -> <<_:30, _:3, Width1:8, Height1:8, _Rest1:23>> = IoList, {Width1, Height1};
-				1 -> <<_:30, _:3, Width2:16, Height2:16, _Rest2:7>> = IoList, {Width2, Height2};
-				2 -> {352, 288};
-				3 -> {176, 144};
-				4 -> {128, 96};
-				5 -> {320, 240};
-				6 -> {160, 120}
-			end
-	end.
+video_size(<<_:30, 0:3, Width1:8, Height1:8, _Rest1:23, _/binary>>, sorensen)	-> {Width1, Height1};
+video_size(<<_:30, 1:3, Width1:16, Height1:16, _Rest1:7, _/binary>>, sorensen)	-> {Width1, Height1};
+video_size(<<_Offset:30, 2:3, _Rest:39, _/binary>>, sorensen) -> {352, 288};
+video_size(<<_Offset:30, 3:3, _Rest:39, _/binary>>, sorensen) -> {176, 144};
+video_size(<<_Offset:30, 4:3, _Rest:39, _/binary>>, sorensen) -> {128, 96};
+video_size(<<_Offset:30, 5:3, _Rest:39, _/binary>>, sorensen) -> {320, 240};
+video_size(<<_Offset:30, 6:3, _Rest:39, _/binary>>, sorensen) -> {160, 120}.
+
 
 decodeVP6({Module,IoDev}, Pos)->
 	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 6) of
