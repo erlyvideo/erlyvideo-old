@@ -226,7 +226,7 @@ handle_frame(#video_frame{body = Body},
 
 handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, header_end = HeaderEnd, method = one_pass} = Convertor) ->
   Writer(HeaderEnd, <<(WriteOffset - HeaderEnd):32>>),
-  {ok, write_moov(Convertor)}.
+  {ok, write_moov(sort_frames(Convertor))}.
 
 
 append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{min_dts = Min} = C) when Min == undefined orelse Min > DTS ->
@@ -243,10 +243,11 @@ append_frame_to_list(#video_frame{body = Body, content = audio} = Frame,
              #convertor{write_offset = WriteOffset, audio_frames = Audio} = Convertor) ->
   {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}}.
 
-  
+
 shift_and_write_moov(#convertor{writer = Writer, header_end = HeaderEnd, write_offset = WriteOffset, method = two_pass} = Convertor) ->
   MdatSize = WriteOffset - HeaderEnd,
-  #convertor{write_offset = MoovOffset} = Convertor1 = write_moov(Convertor#convertor{write_offset = HeaderEnd, writer = fun(_, _) -> ok end}),
+  Convertor0 = sort_frames(Convertor),
+  #convertor{write_offset = MoovOffset} = Convertor1 = write_moov(Convertor0#convertor{write_offset = HeaderEnd, writer = fun(_, _) -> ok end}),
   MoovSize = MoovOffset - HeaderEnd,
   MdatHeaderSize = 8,
   Convertor2 = append_chunk_offsets(Convertor1, MoovSize + MdatHeaderSize),
@@ -264,13 +265,21 @@ append_chunk_offsets(#convertor{video_frames = Video, audio_frames = Audio} = Co
   Convertor#convertor{video_frames = Video1, audio_frames = Audio1}.
   
 sorted(Frames) ->
-  lists:reverse(lists:keysort(#video_frame.dts, Frames)).
+  lists:sort(fun
+    (#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) when DTS1 >= DTS2 -> true;
+    (#video_frame{dts = DTS, pts = PTS1}, #video_frame{dts = DTS, pts = PTS2}) when PTS1 >= PTS2 -> true;
+    (_, _) -> false
+  end, Frames).
   
-write_moov(#convertor{writer = Writer, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio, min_dts = Min, max_dts = Max} = Convertor) ->
+sort_frames(#convertor{video_frames = Video, audio_frames = Audio} = Convertor) ->
+  Convertor#convertor{video_frames = sorted(Video), audio_frames = sorted(Audio)}.
+  
+write_moov(#convertor{writer = Writer, write_offset = WriteOffset, min_dts = Min, max_dts = Max} = Convertor) ->
   Duration = round(Max - Min),
-  Moov = {moov, moov(Convertor#convertor{duration = Duration, video_frames = sorted(Video), audio_frames = sorted(Audio)})},
+  Convertor1 = Convertor#convertor{duration = Duration},
+  Moov = {moov, moov(Convertor1)},
   {ok, End} = mp4_write(Writer, WriteOffset, Moov),
-  Convertor#convertor{write_offset = End}.
+  Convertor1#convertor{write_offset = End}.
 
 mp4_header() ->
   [
@@ -567,8 +576,8 @@ pack_durations(ReverseFrames) ->
 	List = [<<1:32, Duration:32>> || Duration <- Durations],
 	[<<0:32, (length(List)):32>>, List].
 
-pack_durations([#video_frame{dts = DTS}, #video_frame{dts = DTS, content = Content} = F|ReverseFrames], Acc) ->
-	pack_durations([F#video_frame{dts = DTS - 1}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
+pack_durations([#video_frame{dts = DTS, pts = PTS}, #video_frame{dts = DTS1, content = Content} = F|ReverseFrames], Acc) when DTS =< DTS1->
+	pack_durations([F#video_frame{dts = DTS - 1, pts = PTS - DTS1 + DTS}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
 
 pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], Acc) when DTS1 > DTS2 ->
 	pack_durations([F|ReverseFrames], [round((DTS1 - DTS2)*scale_for_content(Content)) | Acc]);
