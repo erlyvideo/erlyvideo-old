@@ -176,14 +176,31 @@ parse_post() ->
 		undefined ->
 			[];
 		ContentType ->
-			[Type|_CharSet] = string:tokens(ContentType, ";"),
+			[Type|Modificator] = string:tokens(ContentType, "; "),
 			case Type of
 				"application/x-www-form-urlencoded" ->
 					parse_qs(Req#req.body);
+				"multipart/form-data" ->
+				  ["boundary=" ++ Boundary] = Modificator,
+				  parse_multipart_form_data(Req#req.body, list_to_binary(Boundary));
 				_Other ->
 					[]
 			end
 	end.
+	
+parse_multipart_form_data(Body, Boundary)	->
+  [<<>> | Parts] = re:split(Body, <<"--", Boundary/binary>>),
+  lists:foldl(fun
+    (<<"--\r\n">>, Data) -> Data;
+    (Part, Data) ->
+    case re:run(Part, "Content-Disposition: form-data; name=\"([^\"]+)\".*\r\n\r\n(.+)\r\n", [{capture, all_but_first,binary},ungreedy,dotall]) of
+      {match, [Key, Value]} ->
+        [{binary_to_list(Key),Value}|Data];
+      _ ->
+        io:format("Unknown part: ~p~n", [Part]),
+        Data
+    end  
+  end, [], Parts).
 
 % Description: Sets resource elements for restful services.
 resource(Options) when is_list(Options) ->
