@@ -89,10 +89,10 @@
 -export([init/1, synchronizer/1]).
 
 
-load_nif() ->
-  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
-  io:format("Load mpegts_reader: ~p~n", [Load]),
-  ok.
+% load_nif() ->
+%   Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+%   io:format("Load mpegts_reader: ~p~n", [Load]),
+%   ok.
 
 
 start_link(Options) ->
