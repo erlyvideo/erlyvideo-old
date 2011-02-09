@@ -34,7 +34,7 @@ compile: ebin/mmap.so
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/ibrowse && make)
 	(cd deps/erlydtl && make)
-	(cd deps/mpegts && make)
+	# (cd deps/mpegts && make)
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
