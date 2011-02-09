@@ -33,9 +33,18 @@
 -export([call_modules/2]).
 -export([stats/1]).
 -export([vhosts/0]).
+-export([main/1]).
 
 
 -export([edoc/0, edoc/1]).
+
+
+main([]) ->
+  start(),
+  Ref = erlang:monitor(process, whereis(ems_sup)),
+  receive
+    {'DOWN', Ref, process, _Client, _Reason} -> ok
+  end.
 
 
 start(normal, []) ->
