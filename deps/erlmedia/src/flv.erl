@@ -32,8 +32,10 @@
 
 -export([audio_codec/1, audio_type/1, audio_size/1, audio_rate/1, video_codec/1, frame_type/1, frame_format/1]).
 
--export([header/0, header/1, read_header/1, tag_header/1, read_tag_header/2, read_tag/2, data_offset/0]).
--export([getWidthHeight/3, extractVideoHeader/2, decodeScreenVideo/2, decodeSorensen/2, decodeVP6/2, extractAudioHeader/2]).
+-export([read_tag_header/2, read_tag/2, read_tag/1]).
+
+-export([header/0, header/1, read_header/1, tag_header/1, data_offset/0]).
+-export([video_size/2, extractAudioHeader/2]).
 
 -export([encode_audio_tag/1, encode_video_tag/1, encode_meta_tag/1, encode_tag/1,
          decode_audio_tag/1, decode_video_tag/1, decode_meta_tag/1, decode_tag/1]).
@@ -100,14 +102,22 @@ audio_rate(rate11) -> ?FLV_AUDIO_RATE_11;
 audio_rate(rate22) -> ?FLV_AUDIO_RATE_22;
 audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
 
-video_codec(mjpeg) -> ?FLV_VIDEO_CODEC_JPEG;
-video_codec(h264) -> ?FLV_VIDEO_CODEC_AVC;
-video_codec(sorensen) -> ?FLV_VIDEO_CODEC_SORENSEN;
-video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
-video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
+
+video_codec(?FLV_VIDEO_CODEC_JPEG) -> mjpeg;
 video_codec(?FLV_VIDEO_CODEC_SORENSEN) -> sorensen;
+video_codec(?FLV_VIDEO_CODEC_SCREENVIDEO) -> screen;
+video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
+video_codec(?FLV_VIDEO_CODEC_ON2VP6_ALPHA) -> vp6_alpha;
+video_codec(?FLV_VIDEO_CODEC_SCREENVIDEO2) -> screen2;
 video_codec(?FLV_VIDEO_CODEC_AVC) -> h264;
-video_codec(?FLV_VIDEO_CODEC_JPEG) -> mjpeg.
+
+video_codec(mjpeg) -> ?FLV_VIDEO_CODEC_JPEG;
+video_codec(sorensen) -> ?FLV_VIDEO_CODEC_SORENSEN;
+video_codec(screen) -> ?FLV_VIDEO_CODEC_SCREENVIDEO;
+video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
+video_codec(vp6_alpha) -> ?FLV_VIDEO_CODEC_ON2VP6_ALPHA;
+video_codec(screen2) -> ?FLV_VIDEO_CODEC_SCREENVIDEO2;
+video_codec(h264) -> ?FLV_VIDEO_CODEC_AVC.
 
 frame_type(frame) -> ?FLV_VIDEO_FRAME_TYPEINTER_FRAME;
 frame_type(keyframe) -> ?FLV_VIDEO_FRAME_TYPE_KEYFRAME;
@@ -175,7 +185,7 @@ read_header(Device) ->
   
 
 
-tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->  
+tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
   <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
   #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size}.
 
@@ -186,9 +196,8 @@ tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
 %%--------------------------------------------------------------------
 read_tag_header({Module,Device}, Offset) ->
 	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH+1) of
-		{ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} ->
-      % io:format("Frame ~p ~p ~p~n", [Type, TimeStamp, Size]),
-      FlvTag = tag_header(Bin),
+	  {ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} -> 
+	    FlvTag = tag_header(Bin),
       FlvTag1 = FlvTag#flv_tag{offset = Offset + ?FLV_TAG_HEADER_LENGTH,
        next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + FlvTag#flv_tag.size + ?FLV_PREV_TAG_SIZE_LENGTH},
       Flavor = case {FlvTag1#flv_tag.type, VideoFlavor} of
@@ -196,19 +205,43 @@ read_tag_header({Module,Device}, Offset) ->
         _ -> frame
       end,
       FlvTag1#flv_tag{flavor = Flavor};
-    eof -> eof;
-    {error, Reason} -> {error, Reason}
+	  eof -> eof;
+	  {error, Reason} -> {error, Reason}
   end;
-
+  
 read_tag_header(Device, Offset) ->
   read_tag_header({file,Device}, Offset).
-  
 
 %%--------------------------------------------------------------------
 %% @spec (File::file(), Offset::numeric()) -> Tag::flv_tag()
 %% @doc Reads from File FLV tag, starting on offset Offset. NextOffset is hidden in #flv_tag{}
 %% @end 
 %%--------------------------------------------------------------------
+read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
+  case tag_header(Header) of
+    #flv_tag{type = audio, size = 0} = Tag ->
+      Tag#flv_tag{body = #flv_audio_tag{codec = empty, body = <<>>, flavor = frame}, flavor = frame};
+
+    #flv_tag{type = Type, size = Size} = Tag when size(Data) >= Size ->
+      {Body, Rest} = erlang:split_binary(Data, Size),
+
+      Flavor = case Type of
+        video ->
+          case Body of 
+            <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4, _/binary>> -> keyframe;
+            _ -> frame
+          end;
+        _ -> frame
+      end,
+
+      {ok, decode_tag(Tag#flv_tag{body = Body, flavor = Flavor}), Rest};
+      
+    #flv_tag{} ->
+      more;
+    Else -> Else
+  end.  
+
+
 read_tag({Module,Device} = Reader, Offset) ->
   case read_tag_header(Reader, Offset) of
     #flv_tag{type = audio, size = 0} = Tag ->
@@ -362,62 +395,29 @@ encode_meta_tag(Metadata) when is_list(Metadata) ->
   encode_list(Metadata).
 
 	
-% Extracts width and height from video frames.
-% TODO: add to video_frame, not done yet
-% @param IoDev
-% @param Pos
-% @param codecID
-% @return {Width, Height}
-getWidthHeight({_Module,_Device} = IoDev, Pos, CodecID)->
-	case CodecID of
-		?FLV_VIDEO_CODEC_SORENSEN 	-> decodeSorensen(IoDev, Pos);
-		?FLV_VIDEO_CODEC_SCREENVIDEO 	-> decodeScreenVideo(IoDev, Pos);
-		?FLV_VIDEO_CODEC_ON2VP6 	-> decodeVP6(IoDev, Pos);
-		%not sure if FLV_VIDEO_CODEC_ON2VP6 == FLV_VIDEO_CODEC_ON2VP6_ALPHA: needs to be tested...
-		?FLV_VIDEO_CODEC_ON2VP6_ALPHA 	-> decodeVP6(IoDev, Pos);
-		%FLV_VIDEO_CODEC_SCREENVIDEO2 doesn't seem to be widely used yet, no decoding method available
-		?FLV_VIDEO_CODEC_SCREENVIDEO2 	-> {undefined, undefined}
-	end.
 	
 				
 
 
-% Extracts video header information for a tag.
-% @param IoDev
-% @param Pos
-% @return {FrameType, CodecID}
-extractVideoHeader({Module,IoDev} = Reader, Pos) ->	
-	{ok, <<FrameType:4, CodecID:4>>} = Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1),
-	{Width, Height} = getWidthHeight(Reader, Pos, CodecID),
-	{FrameType, CodecID, Width, Height}.
+
+
+video_size(<<H_Helper:4, W_Helper:4, _:24, W:8, H:8, _/binary>>,   vp6) -> {ok, {W*16-W_Helper, H*16-H_Helper}};
+video_size(_, vp6) -> {more, 6};
+
+video_size(<<_:4,       Width:12, Height:12, _:4,  _/binary>>,   screen) -> {ok, {Width, Height}};
+video_size(_, screen) -> {more, 8};
+
+video_size(<<_:30, 0:3, Width:8,  Height:8,  _:23, _/binary>>, sorensen) -> {ok, {Width, Height}};
+video_size(<<_:30, 1:3, Width:16, Height:16, _:7,  _/binary>>, sorensen) -> {ok, {Width, Height}};
+video_size(<<_:30, 2:3,                      _:39, _/binary>>, sorensen) -> {ok, {352, 288}};
+video_size(<<_:30, 3:3,                      _:39, _/binary>>, sorensen) -> {ok, {176, 144}};
+video_size(<<_:30, 4:3,                      _:39, _/binary>>, sorensen) -> {ok, {128, 96}};
+video_size(<<_:30, 5:3,                      _:39, _/binary>>, sorensen) -> {ok, {320, 240}};
+video_size(<<_:30, 6:3,                      _:39, _/binary>>, sorensen) -> {ok, {160, 120}};
+video_size(_, sorensen) -> {more, 9}.
 
 
 
-decodeScreenVideo({Module,IoDev}, Pos) ->
-	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 4) of
-		{ok, <<_Offset:4, Width:12, Height:12, _Rest:4>>} -> {Width, Height}
-	end.
-	
-decodeSorensen({Module,IoDev}, Pos) ->
-	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 9) of
-		{ok, IoList} ->
-		  <<_Offset:30, Info:3, _Rest:39>> = IoList,
-			case Info of
-				
-				0 -> <<_:30, _:3, Width1:8, Height1:8, _Rest1:23>> = IoList, {Width1, Height1};
-				1 -> <<_:30, _:3, Width2:16, Height2:16, _Rest2:7>> = IoList, {Width2, Height2};
-				2 -> {352, 288};
-				3 -> {176, 144};
-				4 -> {128, 96};
-				5 -> {320, 240};
-				6 -> {160, 120}
-			end
-	end.
-
-decodeVP6({Module,IoDev}, Pos)->
-	case Module:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH + 1, 6) of
-			{ok, <<HeightHelper:4, WidthHelper:4, _Offset:24, Width:8, Height:8>>} -> {Width*16-WidthHelper, Height*16-HeightHelper}
-	end.
 % Extracts audio header information for a tag.
 % @param IoDev
 % @param Pos

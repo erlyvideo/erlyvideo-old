@@ -77,7 +77,7 @@ seek(#shift{first = First, frames = Frames} = Media, Timestamp, _Options) when i
 seek(#shift{first = First, last = Last, frames = Frames} = Media, Timestamp, _Options) when is_number(Timestamp) ->
   % ?D({"going to seek", Timestamp}),
   S1 = seek_in_timeshift(First, Last, Frames, Timestamp, undefined),
-  S = append_config_to_seek(Media, S1).
+  append_config_to_seek(Media, S1).
   % S1.
   
 append_config_to_seek(#shift{audio_config = A}, {Key, DTS}) when A =/= undefined ->

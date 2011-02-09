@@ -1,0 +1,30 @@
+#!/usr/bin/env escript
+%%! 
+
+
+main([]) ->
+  Files = 
+  load_files("*", "ebin") ++
+  load_files("*", "deps/amf/ebin") ++
+  load_files("*", "deps/erlmedia/ebin") ++
+  load_files("*", "deps/erlydtl/ebin") ++
+  load_files("*", "deps/ibrowse/ebin") ++
+  load_files("*", "deps/log4erl/ebin") ++
+  load_files("*", "deps/mpegts/ebin") ++
+  load_files("*", "deps/rtmp/ebin") ++
+  load_files("*", "deps/rtp/ebin") ++
+  load_files("*", "deps/rtsp/ebin"),
+  {ok, {"mem", ZipBin}} = zip:create("mem", Files, [memory]),
+  % Flags = <<"%%! -noshell -noinput\n">>,
+  Flags = <<"%%! -name ems -noinput -noshell +A 8 +K true\n">>,
+  Script = <<"#!/usr/bin/env escript\n", Flags/binary, ZipBin/binary>>,
+  ok = file:write_file("erlyvideo", Script),
+  os:cmd("chmod u+x erlyvideo"),
+  ok.
+    
+load_files(Wildcard, Dir) ->
+    [read_file(Filename, Dir) || Filename <- filelib:wildcard(Wildcard, Dir)].
+
+read_file(Filename, Dir) ->
+    {ok, Bin} = file:read_file(filename:join(Dir, Filename)),
+    {Filename, Bin}.

@@ -32,7 +32,8 @@
 
 -export([ts/1]).
 
--on_load(load_nif/0).
+% -on_load(load_nif/0).
+
 
 
 -record(ts_lander, {
@@ -87,17 +88,12 @@
 -export([start_link/1, set_socket/2]).
 -export([init/1, synchronizer/1]).
 
-load_nif() ->
-  load_nif(erlang:system_info(otp_release) >= "R13B04").
 
-load_nif(true) ->
-  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
-  io:format("Load mpegts_reader: ~p~n", [Load]),
-  ok;
+% load_nif() ->
+%   Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+%   io:format("Load mpegts_reader: ~p~n", [Load]),
+%   ok.
 
-load_nif(false) ->
-  ok.
-  
 
 start_link(Options) ->
   {ok, proc_lib:spawn_link(?MODULE, init, [[Options]])}.
@@ -554,44 +550,41 @@ handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Str
 extract_nal(Data) -> extract_nal_erl(Data).
 
 extract_nal_erl(Data) ->
-  extract_nal_erl(Data, 0).
+  find_nal_start_erl(Data).
 
-extract_nal_erl(Data, Offset) ->
-  case Data of
-    <<_:Offset/binary>> ->
-      undefined;
-    <<_:Offset/binary, 1:32, _Rest/binary>> ->
-      extract_nal_erl(Data, Offset + 1, 0);
-    <<_:Offset/binary, 1:24, _Rest/binary>> ->
-      extract_nal_erl(Data, Offset, 0);
-    _ ->
-      extract_nal_erl(Data, Offset+1)
-  end.
+find_nal_start_erl(<<1:32, Rest/binary>>) ->
+  find_and_extract_nal(Rest);
+
+find_nal_start_erl(<<1:24, Rest/binary>>) ->
+  find_and_extract_nal(Rest);
+
+find_nal_start_erl(<<>>) ->
+  undefined;
+  
+find_nal_start_erl(<<_, Rest/binary>>) ->
+  find_nal_start_erl(Rest).
+
+find_and_extract_nal(Bin) ->
+  Length = find_nal_end_erl(Bin, 0),
+  <<NAL:Length/binary, Rest/binary>> = Bin,
+  {ok, NAL, Rest}.
+  
+  
+find_nal_end_erl(<<1:32, _/binary>>, Len) -> Len;
+find_nal_end_erl(<<1:24, _/binary>>, Len) -> Len;
+find_nal_end_erl(<<>>, Len) -> Len;
+find_nal_end_erl(<<_, Rest/binary>>, Len) -> find_nal_end_erl(Rest, Len+1).
 
 
-extract_nal_erl(Data, Offset, Length) ->
-  case Data of
-    <<_:Offset/binary, 1:24, NAL:Length/binary, 1:32, _/binary>> ->
-      <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
-      {ok, NAL, Rest};
-    <<_:Offset/binary, 1:24, NAL:Length/binary, 1:24, _/binary>> ->
-      <<_:Offset/binary, 1:24, NAL:Length/binary, Rest/binary>> = Data,
-      {ok, NAL, Rest};
-    <<_:Offset/binary, 1:24, NAL:Length/binary, 0>> ->
-      {ok, NAL, <<>>};
-    <<_:Offset/binary, 1:24, NAL:Length/binary>> ->
-      {ok, NAL, <<>>};
-    <<_:Offset/binary, 1:24, _/binary>> ->
-      extract_nal_erl(Data, Offset, Length+1)
-  end.
-       
+      
 
 
 -include_lib("eunit/include/eunit.hrl").
 
 benchmark() ->
-  extract_nal_erl_bm(),
-  extract_nal_c_bm().
+  N = 100000,
+  extract_nal_erl_bm(N),
+  extract_nal_c_bm(N).
 
 nal_test_bin(large) ->
   <<0,0,0,1,
@@ -644,25 +637,23 @@ extract_real_nal_test() ->
   {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>, <<>>} = extract_nal(Bin5).
 
 
-extract_nal_erl_bm() ->
+extract_nal_erl_bm(N) ->
   Bin = nal_test_bin(large),
-  erlang:statistics(wall_clock),
-  N = 100000,
+  T1 = erlang:now(),
   lists:foreach(fun(_) ->
     extract_nal_erl(Bin)
   end, lists:seq(1,N)),
-  {_, Timer} = erlang:statistics(wall_clock),
-  ?D({"Timer erl", N, Timer}).
+  T2 = erlang:now(),
+  ?D({"Timer erl", timer:now_diff(T2, T1) / N}).
 
-extract_nal_c_bm() ->
+extract_nal_c_bm(N) ->
   Bin = nal_test_bin(large),
-  erlang:statistics(wall_clock),
-  N = 100000,
+  T1 = erlang:now(),
   lists:foreach(fun(_) ->
     extract_nal(Bin)
   end, lists:seq(1,N)),
-  {_, Timer} = erlang:statistics(wall_clock),
-  ?D({"Timer native", N, Timer}).
+  T2 = erlang:now(),
+  ?D({"Timer native", timer:now_diff(T2, T1) / N}).
 
 
 

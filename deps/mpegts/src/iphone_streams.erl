@@ -59,7 +59,9 @@ find(Host, Name, Number) ->
     Number >= Start + Count -> 
       {notfound, io_lib:format("Too large segment number: ~p/~p", [Number, Start+Count])};
     true ->
-      {ok, _Pid} = media_provider:play(Host, Name, [{consumer,self()},{start, Number * ?STREAM_TIME}|Options])
+      PlayOptions = [{consumer,self()},{start, Number * ?STREAM_TIME}|Options],
+      % ?D({play,Host,Name,Number,PlayOptions}),
+      {ok, _Pid} = media_provider:play(Host, Name, PlayOptions)
   end.
 
 

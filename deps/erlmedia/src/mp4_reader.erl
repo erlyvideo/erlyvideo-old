@@ -51,11 +51,11 @@ init(Reader, Options) ->
   {ok, MP4Media} = mp4:open(Reader, Options),
   
   %Tracks = tuple_to_list(MP4Media#mp4_media.tracks) ++ SrtFrames,
-  Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
+  % Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
 
   % Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   % Languages = [Lang || #mp4_track{language = Lang, content = Content} <- Tracks, Content == audio],
-  ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
+  % ?D({"MP4", Options, [Track#mp4_track{frames = frames} || Track <- Tracks]}),
 
   {ok, MP4Media#mp4_media{options = Options}}.
 
@@ -76,13 +76,16 @@ init(Reader, Options) ->
 
 properties(#mp4_media{additional = Additional, width = Width, height = Height, duration = Duration} = MP4Media) -> 
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
-  TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language}] || 
-                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id} <- Tracks],
+  TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language},{codec,Codec}] || 
+                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id, data_format = Codec} <- Tracks],
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   Languages = [Language || #mp4_track{language = Language, content = Content} <- Tracks, Content == audio],
-  [{width, Width}, 
-   {height, Height},
-   {type, file},
+  
+  Opt1 = case {Width, Height} of
+    {undefined, undefined} -> [];
+    _ -> [{width, Width},{height, Height}]
+  end,
+  Opt1 ++ [{type, file},
    {duration, Duration},
    {tracks, TrackInfo},
    {bitrates, Bitrates},
@@ -143,6 +146,8 @@ first(#mp4_media{tracks = Tracks}, _Options, #frame_id{a = Audio,v = Video} = Id
   end.
 
 
+codec_config({_Type, undefined}, _Media) ->
+  undefined;
 
 codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
   #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
@@ -157,15 +162,19 @@ codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackI
 
 codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
   #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
-  #video_frame{       
-   	content = audio,
-   	flavor  = config,
-		dts     = 0,
-		pts     = 0,
-		body    = Config,
-	  codec	  = Codec,
-	  sound   = {stereo, bit16, rate44}
-	}.
+  case Config of
+    undefined -> undefined;
+    _ ->
+      #video_frame{       
+       	content = audio,
+       	flavor  = config,
+    		dts     = 0,
+    		pts     = 0,
+    		body    = Config,
+    	  codec	  = Codec,
+    	  sound   = {stereo, bit16, rate44}
+    	}
+  end.
 
 
 
@@ -174,9 +183,13 @@ read_frame(MediaInfo, undefined) ->
 
 read_frame(#mp4_media{tracks = Tracks} = Media, {audio_config, #frame_id{a = Audio,v = Video} = Pos, DTS}) ->
   Frame = codec_config({audio,Audio}, Media),
-  Next = case (element(Video,Tracks))#mp4_track.decoder_config of
+  Next = case Video of 
     undefined -> Pos;
-    _ -> {video_config,Pos, DTS}
+    _ -> 
+      case (element(Video,Tracks))#mp4_track.decoder_config of
+        undefined -> Pos;
+        _ -> {video_config,Pos, DTS}
+      end
   end,
   % ?D({audio,Audio,Frame}),
   Frame#video_frame{next_id = Next, dts = DTS, pts = DTS};
@@ -272,9 +285,14 @@ seek(#mp4_media{} = Media, Timestamp, Options) ->
   case mp4:seek(Media, Video, Timestamp) of
     undefined -> undefined;
     {Id, DTS} ->
-      case Audio of
-        undefined -> {{video_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS};
-        _ -> {{audio_config, #frame_id{id = Id,a = Audio,v = Video, t = Subtitle}, DTS}, DTS}
+      FrameId = #frame_id{id = Id,a = Audio,v = Video, t = Subtitle},
+      case codec_config({audio,Audio},Media) of
+        undefined -> 
+          case codec_config({video,Video},Media) of
+            undefined -> {FrameId, DTS};
+            _ -> {{video_config, FrameId, DTS}, DTS}
+          end;
+        _ -> {{audio_config, FrameId, DTS}, DTS}
       end
   end.
 

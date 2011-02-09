@@ -29,7 +29,7 @@
 -include("ems_media_client.hrl").
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
-         send_frame/3, mass_update_state/3, increment_bytes/3]).
+         send_frame/3, mass_update_state/3, increment_bytes/3, list/1]).
          
 -export([init_repeater/3, repeater/2]).
 
@@ -101,7 +101,22 @@ remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
 insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS} = Entry) ->
   ets:insert(Bytes, {Client,0}),
   insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
-  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
+  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
+
+list(#clients{list = List, bytes = Bytes}) ->
+  Now = ems:now(utc),
+  [begin
+    TimeDelta = Now - ConnectedAt,
+    ByteCount = ets:lookup_element(Bytes, Pid, 2),
+    BitRate = 8*ByteCount div TimeDelta,
+    [{pid, Pid},
+     {bytes, ByteCount},
+     {state, atom_to_binary(State,latin1)},
+     {connection_time, TimeDelta},
+     {bitrate, BitRate}
+   ] 
+   end || #client{consumer = Pid, state = State, connected_at = ConnectedAt} <- List].
+  
 
 
 find(#clients{bytes = Bytes, list = List}, Client) ->
@@ -214,7 +229,7 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
   end || #client{consumer = Pid, stream_id = StreamId, state = State, tcp_socket = Socket, dts = DTS} = Entry <- List]}.
   
 increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
-  ets:update_counter(Bytes, Client, Size),
+  (catch ets:update_counter(Bytes, Client, Size)),
   Clients.
 
 -include_lib("eunit/include/eunit.hrl").

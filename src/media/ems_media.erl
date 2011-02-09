@@ -60,7 +60,8 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/2, seek/3]).
--export([metadata/1, metadata/2, info/1, play_setup/2, seek_info/2, seek_info/3, status/1]).
+-export([metadata/1, metadata/2, play_setup/2, seek_info/2, seek_info/3]).
+-export([info/1, info/2, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 -export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
 
@@ -253,12 +254,42 @@ seek_info(Media, DTS) when is_number(DTS) ->
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
 %%  
-%%
-%% @doc Returns miscelaneous info about media, such as client_count
 %% @end
 %%----------------------------------------------------------------------
 status(Media) ->
-  gen_server:call(Media, status).
+  info(Media).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Status::list()
+%%  
+%% @end
+%%----------------------------------------------------------------------
+info(Media) ->
+  info(Media, [client_count, url, type, storage]).
+  
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Properties::list()) -> Info::list()
+%%
+%% @doc Returns miscelaneous info about media, such as client_count
+%% Here goes list of known properties
+%%
+%% client_count
+%% url
+%% type
+%% storage
+%% clients
+%% @end
+%%----------------------------------------------------------------------
+info(Media, Properties) ->
+  properties_are_valid(Properties) orelse erlang:error({badarg, Properties}),
+  gen_server:call(Media, {info, Properties}).
+  
+known_properties() ->
+  [client_count, url, type, storage, clients].
+  
+properties_are_valid(Properties) ->
+  lists:subtract(Properties, known_properties()) == [].
+  
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Metadata::video_frame()
@@ -278,14 +309,6 @@ metadata(Media) when is_pid(Media) ->
 metadata(Media, Options) when is_pid(Media) ->
   gen_server:call(Media, {metadata, Options}).  
 
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> Info::list()
-%%
-%% @doc Information about stream
-%% @end
-%%----------------------------------------------------------------------
-info(Media) ->
-  gen_server:call(Media, info).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Options::list()) -> ok
@@ -534,6 +557,8 @@ handle_call({seek, _Client, _DTS} = Seek, _From, #ems_media{} = Media) ->
 %% It is information seek, required for outside needs.
 handle_call({seek_info, DTS, Options} = SeekInfo, _From, #ems_media{format = Format, storage = Storage, module = M} = Media) ->
   case M:handle_control(SeekInfo, Media) of
+    {noreply, Media1} when Format == undefined ->
+      {reply, undefined, Media1, ?TIMEOUT};
     {noreply, Media1} ->
       {reply, Format:seek(Storage, DTS, Options), Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
@@ -568,11 +593,8 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
 handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
-handle_call(info, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, lists:ukeymerge(1, [{url,URL},{type, Type}], storage_properties(Media)), Media, ?TIMEOUT};
-
-handle_call(status, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, [{client_count, client_count(Media)},{url,URL},{type, Type}], Media, ?TIMEOUT};
+handle_call({info, Properties}, _From, Media) ->
+  {reply, reply_with_info(Media, Properties), Media, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -681,8 +703,6 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       Ref = erlang:monitor(process, NewSource),
       {noreply, Media1#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
   end;
-  % FIXME: should send notification
-  % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
 
   
 handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
@@ -719,8 +739,7 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
       {stop, Reason, Media2}
   end;
 
-handle_info(#video_frame{} = RawFrame, Media) ->
-  Frame = normalize_dts(RawFrame, Media),
+handle_info(#video_frame{} = Frame, Media) ->
   % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
   {Media1, Frames} = case ems_media_frame:transcode(Frame, Media) of
     {Media1_, undefined} -> {Media1_, []};
@@ -754,7 +773,7 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
 handle_info(no_clients, #ems_media{module = M} = Media) ->
   case client_count(Media) of
     0 ->
-      ?D({"graceful received, handling", self(), Media#ems_media.name}),
+      % ?D({"graceful received, handling", self(), Media#ems_media.name}),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
           ?D({"ems_media is stopping", M, Media#ems_media.name}),
@@ -762,7 +781,10 @@ handle_info(no_clients, #ems_media{module = M} = Media) ->
         {stop, Reason, _Reply, Media1} ->
           {stop, Reason, Media1};
         {stop, Reason, Media1} ->
-          ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name}),
+          case Reason of
+            normal -> ok;
+            _ -> ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name})
+          end,
           {stop, Reason, Media1};
         {reply, ok, Media1} ->
           ?D({M, "rejected stopping of ems_media due to 0 clients", self(), Media#ems_media.name}),
@@ -809,17 +831,6 @@ handle_info(Message, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
-
-normalize_dts(#video_frame{codec = nellymoser8, dts = DTS} = F, #ems_media{last_dts = LastDTS, ts_delta = Delta}) when is_number(Delta) and is_number(LastDTS) ->
-  PrevDTS = LastDTS - Delta,
-  if
-    DTS == PrevDTS + 32 -> F;
-    DTS > PrevDTS andalso DTS < PrevDTS + 100 -> F#video_frame{dts = PrevDTS + 32}; % nellymoser8 is 8KHz audio, 256 samples in each frame
-    true -> F
-  end;
-
-normalize_dts(Frame, _Media) ->
-  Frame.
 
 try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = undefined} = Media) ->
   Media;
@@ -953,7 +964,7 @@ check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
   Count = client_count(Media),
   {ok, TimeoutRef} = case Count of
     0 when is_number(Timeout) -> 
-      ?D({"No clients, sending delayed graceful", Timeout, self(), Media#ems_media.name}), 
+      % ?D({"No clients, sending delayed graceful", Timeout, self(), Media#ems_media.name}), 
       timer:send_after(Timeout, no_clients);
     _ -> 
       {ok, undefined}
@@ -1005,6 +1016,18 @@ video_parameters(#ems_media{}, Options) ->
 
 
 
+reply_with_info(Media, Properties) ->
+  [{Property, tell_about(Media, Property)} || Property <- Properties].
+  
+tell_about(#ems_media{type = Type}, type) -> Type;
+tell_about(#ems_media{url = URL}, url) -> URL;
+tell_about(Media, client_count) -> client_count(Media);
+tell_about(Media, storage) -> storage_properties(Media);
+tell_about(Media, clients) -> ems_media_clients:list(Media#ems_media.clients).
+
+
+
+
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
 %% @doc  Callback executed on server shutdown. It is only invoked if
@@ -1019,7 +1042,6 @@ terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
   ok;
 
 terminate(normal, #ems_media{source = undefined}) ->
-  ?D("ems_media exit normal"),
   ok;
 
 terminate(_Reason, Media) ->

@@ -40,7 +40,7 @@
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2, udta/2]).
--export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2]).
+-export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
 -export([extract_language/1]).
 
@@ -223,7 +223,8 @@ parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Pa
   AtomName = binary_to_atom(BinaryAtomName, utf8),
   NewMp4Parser = case erlang:function_exported(?MODULE, AtomName, 2) of
     true -> ?MODULE:AtomName(Atom, Mp4Parser);
-    false -> ?D({"Unknown atom", AtomName}), Mp4Parser
+    % false -> ?D({"Unknown atom", AtomName}), Mp4Parser
+    false -> Mp4Parser
   end,
   parse_atom(Rest, NewMp4Parser);
   
@@ -252,6 +253,9 @@ ftyp(<<Brand:4/binary, CompatibleBrands/binary>>, BrandList) ->
 moov(Atom, MediaInfo) ->
   Media = #mp4_media{tracks = Tracks} = parse_atom(Atom, MediaInfo),
   Media#mp4_media{tracks = lists:reverse(Tracks)}.
+
+free(_Atom, Media) ->
+  Media.
 
 % MVHD atom
 mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:16,
@@ -443,12 +447,12 @@ samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
 esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Track) when Version == 0 ->
   % ?D({"Extracted audio config", DecoderConfig}),
   ESDS = config_from_esds_tag(DecoderConfig),
-  ?D(ESDS),
+  % ?D(ESDS),
   Mp4Track#mp4_track{decoder_config = ESDS#esds.specific, data_format = ESDS#esds.object_type}.
 
 % avcC atom
 avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
-  ?D({"Extracted video config", DecoderConfig, h264:unpack_config(DecoderConfig)}),
+  % ?D({"Extracted video config", DecoderConfig, h264:unpack_config(DecoderConfig)}),
   Mp4Track#mp4_track{decoder_config = DecoderConfig}.
 
 btrt(<<_BufferSize:32, MaxBitRate:32, AvgBitRate:32>>, #mp4_track{} = Mp4Track) ->
