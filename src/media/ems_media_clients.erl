@@ -195,16 +195,19 @@ repeater_send_frame(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clien
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio, flavor = frame} = Frame) ->
       % ?D("send with pid, audio not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
+      (catch ets:update_counter(Bytes, Pid, Size)),
       inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.audio_notified,true}),
       Frame;
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video, flavor = keyframe} = Frame) ->
       % ?D("send with pid, video not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
+      (catch ets:update_counter(Bytes, Pid, Size)),
       inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.video_notified,true}),
       Frame;
     (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
+      (catch ets:update_counter(Bytes, Pid, Size)),
       Pid ! Frame#video_frame{stream_id = StreamId},
       Frame
   end,
