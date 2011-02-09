@@ -21,5 +21,7 @@
   stream_id,
   base_dts,
   started = false,
-  seeking = false
+  seeking = false,
+  receive_audio = true,
+  receive_video = true
 }).

@@ -506,6 +506,10 @@ is_good_flv(#video_frame{content = audio}) -> true.
 send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
              #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
+    #rtmp_stream{base_dts = DTS_, receive_audio = false} when Type == audio ->
+      {State, DTS_, false, false};
+    #rtmp_stream{base_dts = DTS_, receive_video = false} when Type == video ->
+      {State, DTS_, false, false};
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
     #rtmp_stream{pid = Media, started = false} = Stream ->

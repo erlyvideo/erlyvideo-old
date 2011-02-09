@@ -210,15 +210,13 @@ pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausin
 pauseRaw(AMF, State) -> pause(AMF, State).
 
 
-receiveAudio(#rtmp_session{} = State, #rtmp_funcall{args = [null, _Audio], stream_id = _StreamId}) ->
-  % #rtmp_stream{pid = Pid} = rtmp_session:get_stream(StreamId, State),
-  % ems_media:setopts(Pid, [{send_audio, Audio}]),
-  State.
+receiveAudio(#rtmp_session{} = State, #rtmp_funcall{args = [null, Flag], stream_id = StreamId}) when Flag == true orelse Flag == false ->
+  Stream = rtmp_session:get_stream(StreamId, State),
+  rtmp_session:set_stream(Stream#rtmp_stream{receive_audio = Flag}, State).
 
-receiveVideo(#rtmp_session{} = State, #rtmp_funcall{args = [null, _Video], stream_id = _StreamId}) ->
-  % #rtmp_stream{pid = Pid} = rtmp_session:get_stream(StreamId, State),
-  % ems_media:setopts(Pid, [{send_video, Video}]),
-  State.
+receiveVideo(#rtmp_session{} = State, #rtmp_funcall{args = [null, Flag], stream_id = StreamId}) when Flag == true orelse Flag == false ->
+  Stream = rtmp_session:get_stream(StreamId, State),
+  rtmp_session:set_stream(Stream#rtmp_stream{receive_video = Flag}, State).
 
 
 getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName | _]} = AMF) ->
