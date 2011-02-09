@@ -290,7 +290,7 @@ handle_info({Event, Types, Args},
 handle_info(#video_frame{content = audio, flavor = frame,
                          dts = DTS, pts = PTS,
                          codec = Codec, sound = {_Channel, _Size, _Rate},
-                         body = Body} = Frame,
+                         body = Body} = _Frame,
             #state{audio = #desc{acc = Acc} = AudioDesc,
                    tc_fun = TCFun} = State) ->
   % ?DBG("Audio: ~n~p", [Frame]),
