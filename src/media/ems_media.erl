@@ -1014,15 +1014,14 @@ video_parameters(#ems_media{}, Options) ->
 
 
 
-reply_with_info(Media, Properties) ->
-  [{Property, tell_about(Media, Property)} || Property <- Properties].
-  
-tell_about(#ems_media{type = Type}, type) -> Type;
-tell_about(#ems_media{url = URL}, url) -> URL;
-tell_about(Media, client_count) -> client_count(Media);
-tell_about(Media, storage) -> storage_properties(Media);
-tell_about(Media, clients) -> ems_media_clients:list(Media#ems_media.clients).
-
+reply_with_info(#ems_media{type = Type, url = URL} = Media, Properties) ->
+  lists:foldl(fun
+    (type, Props) -> [{type,Type}|Props];
+    (url, Props) -> [{url,URL}|Props];
+    (client_count, Props) -> [{client_count,client_count(Media)}|Props];
+    (storage, Props) -> storage_properties(Media) ++ Props;
+    (clients, Props) -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props]
+  end, [], Properties).
 
 
 
