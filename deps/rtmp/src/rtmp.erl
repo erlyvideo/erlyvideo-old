@@ -69,10 +69,6 @@ encode(State, #rtmp_message{channel_id = undefined} = Message)  ->
   encode(State, Message#rtmp_message{channel_id = 2});
 
 encode(State, #rtmp_message{type = chunk_size, body = ChunkSize} = Message) ->
-  case State#rtmp_socket.codec of
-    undefined -> ok;
-    Codec -> port_control(Codec, ?SET_CHUNK_SIZE_OUT, <<ChunkSize:32>>)
-  end,
   encode(State#rtmp_socket{server_chunk_size = ChunkSize}, Message#rtmp_message{type = ?RTMP_TYPE_CHUNK_SIZE, body = <<ChunkSize:32>>});
 
 encode(#rtmp_socket{bytes_unack = Bytes} = State, #rtmp_message{type = ack_read} = Message) ->
@@ -168,16 +164,6 @@ setelement(Id, Tuple, Value) -> erlang:setelement(Id, Tuple, Value).
 %   case rtmp:element(Id, Channels) of
 %     #channel{timestamp = PrevTS, stream_id = StreamId} = Channel when PrevTS =/= undefined andalso PrevTS =< Timestamp andalso Timestamp - PrevTS < 10000 ->
 % 
-
-encode_bin(#rtmp_socket{codec = Codec} = State, 
-       #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data}) when is_binary(Data) andalso is_integer(Type) andalso Codec =/= undefined ->
-  TS = case Timestamp of
-    same -> -1;
-    Timestamp when is_integer(Timestamp) -> Timestamp;
-    Timestamp when is_number(Timestamp) -> round(Timestamp)
-  end,
-  Packet = <<Type:32, StreamId:32, TS:32, Id:32, Data/binary>>,
-  {State, port_control(Codec, ?ENCODE, Packet)};
 
 encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, bytes_sent = BytesSent} = State, 
        #rtmp_message{channel_id = Id, timestamp = Timestamp, type = Type, stream_id = StreamId, body = Data} = Msg) when is_binary(Data) and is_integer(Type) -> 
@@ -325,17 +311,6 @@ chunk(Data, ChunkSize, Id, List) when is_binary(Data) ->
 %% @end 
 %%--------------------------------------------------------------------
 decode(#rtmp_socket{} = State, <<>>) -> {State, <<>>};
-decode(#rtmp_socket{codec = Codec} = State, Data) when Codec =/= undefined ->
-  case port_control(Codec, ?DECODE, Data) of
-    <<?OK, Type:32, StreamId:32, Timestamp:32, Id:32, Length:32, Body:Length/binary, Rest/binary>> ->
-      Channel = #channel{id = Id, type = Type, timestamp = Timestamp, stream_id = StreamId, msg = Body, length = Length},
-      {NewState, Message} = command(Channel, State),
-      {NewState, Message, Rest};
-    <<?MORE>> ->
-  	  {State, Data};
-  	<<?CONTINUE, Rest/binary>> ->
-      decode(State, Rest)
-  end;
   
 decode(#rtmp_socket{} = State, Data) when is_binary(Data) -> 
   case decode_channel_id(Data, State) of
@@ -465,10 +440,6 @@ extract_message(#channel{id = Id, timestamp = Timestamp, stream_id = StreamId}) 
 
 command(#channel{type = ?RTMP_TYPE_CHUNK_SIZE, msg = <<ChunkSize:32>>} = Channel, State) ->
   Message = extract_message(Channel),
-  case State#rtmp_socket.codec of
-    undefined -> ok;
-    Codec -> port_control(Codec, ?SET_CHUNK_SIZE_IN, <<ChunkSize:32>>)
-  end,
 	{State#rtmp_socket{client_chunk_size = ChunkSize}, Message#rtmp_message{type = chunk_size, body = ChunkSize}};
 
 command(#channel{type = ?RTMP_TYPE_ACK_READ, msg = <<BytesRead:32>>} = Channel, #rtmp_socket{previous_ack = undefined} = State) ->

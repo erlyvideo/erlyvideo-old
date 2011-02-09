@@ -118,7 +118,6 @@
   active = false    ::true|false|once,
   consumer          ::pid(),
   socket            ::port()|pid(),
-  codec = undefined ::port()|undefined,
   amf_version = 0   ::integer(),
 	channels          ::tuple(),
 	out_channels      ::tuple(),

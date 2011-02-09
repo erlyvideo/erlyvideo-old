@@ -243,29 +243,13 @@ invoke(RTMP, #rtmp_funcall{stream_id = StreamId} = AMF) ->
   send(RTMP, #rtmp_message{stream_id = StreamId, type = invoke, body = AMF}).
 
 
-
-
-init_codec() ->
-  Path = code:lib_dir(rtmp,ebin) ++ "/rtmp_codec_drv.so",
-  case filelib:is_file(Path) of
-    true ->
-      case erl_ddll:load(code:lib_dir(rtmp,ebin), "rtmp_codec_drv") of
-        ok -> 
-          open_port({spawn, rtmp_codec_drv}, [binary]);
-        {error, Error} ->
-          error_logger:error_msg("Error loading ~p: ~p", [rtmp_codec_drv, erl_ddll:format_error(Error)]),
-          undefined
-      end;
-    false ->
-      undefined
-  end.
   
 %% @private  
 init([accept]) ->
-  {ok, wait_for_socket_on_server, #rtmp_socket{codec = init_codec(), channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT};
+  {ok, wait_for_socket_on_server, #rtmp_socket{channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT};
 
 init([connect]) ->
-  {ok, wait_for_socket_on_client, #rtmp_socket{codec = init_codec(), channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT}.
+  {ok, wait_for_socket_on_client, #rtmp_socket{channels = {}, out_channels = {}, active = false}, ?RTMP_TIMEOUT}.
 
 
 
@@ -458,7 +442,7 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
   activate_socket(Socket),
   {next_state, handshake_c1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
-handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead, codec = Codec} = State) ->
+handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
   activate_socket(Socket),
   <<Handshake:(?HS_BODY_LEN+1)/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
   State1 = case rtmp_handshake:server(Handshake) of
@@ -467,12 +451,6 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
     {crypted, Reply, KeyIn, KeyOut} ->
   	  NewState = send_data(State, Reply),
   	  ?D({"Established RTMPE connection"}),
-  	  case Codec of
-  	    undefined -> ok;
-  	    _ -> 
-  	      erlang:port_control(Codec, ?SET_KEY_IN, KeyIn),
-  	      erlang:port_control(Codec, ?SET_KEY_OUT, KeyOut)
-  	  end,
       NewState#rtmp_socket{key_in = KeyIn, key_out = KeyOut}
   end,
 	{next_state, 'handshake_c3', State1#rtmp_socket{buffer = Rest, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
@@ -592,7 +570,7 @@ send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = 
 send_data(#rtmp_socket{sent_video_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
   send_data(Socket#rtmp_socket{sent_video_notify = false}, Message);
 
-send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State, Message) ->
+send_data(#rtmp_socket{socket = Socket, key_out = KeyOut} = State, Message) ->
   case State#rtmp_socket.debug of
     true -> print_rtmp_message(out, Message);
     _ -> ok
@@ -604,10 +582,9 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, codec = Codec} = State
     _ -> 
       {State, Message}
   end,
-  {NewKeyOut, Crypt} = case {Codec, KeyOut} of
-    {undefined,undefined} -> {undefined, Data};
-    {undefined,_} -> rtmpe:crypt(KeyOut, Data);
-    _ -> erlang:error(not_implemented_rtmp_codec)
+  {NewKeyOut, Crypt} = case KeyOut of
+    undefined -> {undefined, Data};
+    _ -> rtmpe:crypt(KeyOut, Data)
   end,
   % (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
   if
