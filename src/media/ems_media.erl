@@ -60,7 +60,8 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/2, seek/3]).
--export([metadata/1, metadata/2, info/1, play_setup/2, seek_info/2, seek_info/3, status/1]).
+-export([metadata/1, metadata/2, play_setup/2, seek_info/2, seek_info/3]).
+-export([info/1, info/2, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 -export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
 
@@ -253,12 +254,42 @@ seek_info(Media, DTS) when is_number(DTS) ->
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
 %%  
-%%
-%% @doc Returns miscelaneous info about media, such as client_count
 %% @end
 %%----------------------------------------------------------------------
 status(Media) ->
-  gen_server:call(Media, status).
+  info(Media).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Status::list()
+%%  
+%% @end
+%%----------------------------------------------------------------------
+info(Media) ->
+  info(Media, [client_count, url, type, storage]).
+  
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Properties::list()) -> Info::list()
+%%
+%% @doc Returns miscelaneous info about media, such as client_count
+%% Here goes list of known properties
+%%
+%% client_count
+%% url
+%% type
+%% storage
+%% clients
+%% @end
+%%----------------------------------------------------------------------
+info(Media, Properties) ->
+  properties_are_valid(Properties) orelse erlang:error({badarg, Properties}),
+  gen_server:call(Media, {info, Properties}).
+  
+known_properties() ->
+  [client_count, url, type, storage, clients].
+  
+properties_are_valid(Properties) ->
+  lists:subtract(Properties, known_properties()) == [].
+  
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Metadata::video_frame()
@@ -278,14 +309,6 @@ metadata(Media) when is_pid(Media) ->
 metadata(Media, Options) when is_pid(Media) ->
   gen_server:call(Media, {metadata, Options}).  
 
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> Info::list()
-%%
-%% @doc Information about stream
-%% @end
-%%----------------------------------------------------------------------
-info(Media) ->
-  gen_server:call(Media, info).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Options::list()) -> ok
@@ -570,11 +593,8 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
 handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
-handle_call(info, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, lists:ukeymerge(1, [{url,URL},{type, Type}], storage_properties(Media)), Media, ?TIMEOUT};
-
-handle_call(status, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, [{client_count, client_count(Media)},{url,URL},{type, Type}], Media, ?TIMEOUT};
+handle_call({info, Properties}, _From, Media) ->
+  {reply, reply_with_info(Media, Properties), Media, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -990,6 +1010,18 @@ video_parameters(#ems_media{video_config = #video_frame{body = Config}}, Options
   
 video_parameters(#ems_media{}, Options) ->  
   [{duration,proplists:get_value(duration, Options, 0)}].
+
+
+
+
+reply_with_info(Media, Properties) ->
+  [{Property, tell_about(Media, Property)} || Property <- Properties].
+  
+tell_about(#ems_media{type = Type}, type) -> Type;
+tell_about(#ems_media{url = URL}, url) -> URL;
+tell_about(Media, client_count) -> client_count(Media);
+tell_about(Media, storage) -> storage_properties(Media);
+tell_about(Media, clients) -> ems_media_clients:list(Media#ems_media.clients).
 
 
 

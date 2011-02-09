@@ -29,7 +29,7 @@
 -include("ems_media_client.hrl").
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
-         send_frame/3, mass_update_state/3, increment_bytes/3]).
+         send_frame/3, mass_update_state/3, increment_bytes/3, list/1]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
@@ -42,9 +42,23 @@ init() ->
   #clients{bytes = ets:new(clients, [set,  private])}.
   
   
+list(#clients{list = List, bytes = Bytes}) ->
+  Now = ems:now(utc),
+  [begin
+    TimeDelta = Now - ConnectedAt,
+    ByteCount = ets:lookup_element(Bytes, Pid, 2),
+    BitRate = 8*ByteCount div TimeDelta,
+    [{pid, Pid},
+     {bytes, ByteCount},
+     {state, atom_to_binary(State,latin1)},
+     {connection_time, TimeDelta},
+     {bitrate, BitRate}
+   ] 
+   end || #client{consumer = Pid, state = State, connected_at = ConnectedAt} <- List].
+  
 insert(#clients{list = List, bytes = Bytes} = Clients, #client{consumer = Client} = Entry) ->
   ets:insert(Bytes, {Client,0}),
-  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
+  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
 
 
 find(#clients{bytes = Bytes, list = List}, Client) ->
@@ -115,8 +129,8 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
     Entry#client{state = S}
   end || #client{state = State} = Entry <- List]}.
   
-increment_bytes(#clients{bytes = _Bytes} = Clients, _Client, _Size) ->
-  % ets:update_counter(Bytes, Client, Size),
+increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
+  (catch ets:update_counter(Bytes, Client, Size)),
   Clients.
 
 -include_lib("eunit/include/eunit.hrl").
