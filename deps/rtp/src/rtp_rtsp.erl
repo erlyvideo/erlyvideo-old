@@ -1,6 +1,7 @@
 -module(rtp_rtsp).
 
 -include_lib("erlmedia/include/h264.hrl").
+-include_lib("erlmedia/include/aac.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("sdp.hrl").
 -include("rtp.hrl").
@@ -222,11 +223,6 @@ audio(#audio{codec = Codec, clock_map = Clock} = Audio, {data, Bin, _Sequence, T
 	  flavor  = frame,
 	  sound	  = {mono, bit8, Clock}
   },
-  _Samples =
-    case Codec of
-      g726_16 -> 1344;
-      _ -> 1024
-    end,
   {Audio, [Frame]}.
 
 
@@ -316,7 +312,7 @@ timecode_to_dts(State) ->
   ClockMap = element(#base_rtp.clock_map, State),
   BaseTimecode = element(#base_rtp.base_timecode, State),
   WallClock = element(#base_rtp.wall_clock, State),
-  DTS = WallClock + (Timecode - BaseTimecode)/ClockMap,
+  DTS = WallClock + (Timecode - BaseTimecode)*1000/ClockMap,
   % ?D({"->", WallClock, Timecode, BaseTimecode, ClockMap, DTS}),
   DTS.
 
