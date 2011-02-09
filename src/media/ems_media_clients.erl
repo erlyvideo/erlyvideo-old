@@ -115,7 +115,7 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
     Entry#client{state = S}
   end || #client{state = State} = Entry <- List]}.
   
-increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
+increment_bytes(#clients{bytes = _Bytes} = Clients, _Client, _Size) ->
   % ets:update_counter(Bytes, Client, Size),
   Clients.
 

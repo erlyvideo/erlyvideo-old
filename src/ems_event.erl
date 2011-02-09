@@ -301,7 +301,7 @@ handle_call(Request, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_event(Event, State) ->
+handle_event(_Event, State) ->
   %?D({ems_event, Event}),
   {ok, State}.
 

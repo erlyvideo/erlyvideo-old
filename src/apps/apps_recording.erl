@@ -55,7 +55,7 @@
   media_provider:remove(Host, Name),
   State.
 
-'DVRSetStreamInfo'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, {object, Info}]} = _AMF) ->
+'DVRSetStreamInfo'(#rtmp_session{host = _Host} = State, #rtmp_funcall{args = [null, {object, Info}]} = _AMF) ->
   ?D({'DVRSetStreamInfo', Info}),
   State.
   
