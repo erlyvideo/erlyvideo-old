@@ -177,10 +177,11 @@ send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, St
   Clients.
   % repeater_send_frame(Frame, Clients, State).
 
-repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State, Key) ->
+repeater_send_frame(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clients, State, Key) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
+  Size = iolist_size(FrameGen(0, 0)),
   Sender = fun
     (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
       Frame; 
@@ -189,6 +190,7 @@ repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State, Ke
         true -> ok;
         _ -> Pid ! {rtmp_lag, self()}
       end,
+      (catch ets:update_counter(Bytes, Pid, Size)),
       Frame;
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio, flavor = frame} = Frame) ->
       % ?D("send with pid, audio not notified"),
