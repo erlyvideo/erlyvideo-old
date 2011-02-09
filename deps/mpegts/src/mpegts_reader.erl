@@ -32,8 +32,6 @@
 
 -export([ts/1]).
 
--on_load(load_nif/0).
-
 
 -record(ts_lander, {
   buffer = <<>>,
@@ -87,17 +85,6 @@
 -export([start_link/1, set_socket/2]).
 -export([init/1, synchronizer/1]).
 
-load_nif() ->
-  load_nif(erlang:system_info(otp_release) >= "R13B04").
-
-load_nif(true) ->
-  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
-  io:format("Load mpegts_reader: ~p~n", [Load]),
-  ok;
-
-load_nif(false) ->
-  ok.
-  
 
 start_link(Options) ->
   {ok, proc_lib:spawn_link(?MODULE, init, [[Options]])}.
@@ -590,8 +577,9 @@ extract_nal_erl(Data, Offset, Length) ->
 -include_lib("eunit/include/eunit.hrl").
 
 benchmark() ->
-  extract_nal_erl_bm(),
-  extract_nal_c_bm().
+  N = 100000,
+  extract_nal_erl_bm(N),
+  extract_nal_c_bm(N).
 
 nal_test_bin(large) ->
   <<0,0,0,1,
@@ -644,25 +632,23 @@ extract_real_nal_test() ->
   {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>, <<>>} = extract_nal(Bin5).
 
 
-extract_nal_erl_bm() ->
+extract_nal_erl_bm(N) ->
   Bin = nal_test_bin(large),
-  erlang:statistics(wall_clock),
-  N = 100000,
+  T1 = erlang:now(),
   lists:foreach(fun(_) ->
     extract_nal_erl(Bin)
   end, lists:seq(1,N)),
-  {_, Timer} = erlang:statistics(wall_clock),
-  ?D({"Timer erl", N, Timer}).
+  T2 = erlang:now(),
+  ?D({"Timer erl", N / timer:now_diff(T2, T1)}).
 
-extract_nal_c_bm() ->
+extract_nal_c_bm(N) ->
   Bin = nal_test_bin(large),
-  erlang:statistics(wall_clock),
-  N = 100000,
+  T1 = erlang:now(),
   lists:foreach(fun(_) ->
     extract_nal(Bin)
   end, lists:seq(1,N)),
-  {_, Timer} = erlang:statistics(wall_clock),
-  ?D({"Timer native", N, Timer}).
+  T2 = erlang:now(),
+  ?D({"Timer native", N / timer:now_diff(T2, T1)}).
 
 
 

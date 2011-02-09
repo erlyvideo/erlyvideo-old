@@ -14,12 +14,8 @@ all: compile
 compile: ebin/mpeg2_crc32.so ebin/mpegts_reader.so
 	erl -make
 	
-ebin/mpeg2_crc32.so: src/mpeg2_crc32.c
-	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
-
-ebin/mpegts_reader.so: src/mpegts_reader.c
-	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
-
+# ebin/mpeg2_crc32.so: src/mpeg2_crc32.c
+# 	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
 
 clean:
 	rm -fv ebin/*.beam ebin/*.so

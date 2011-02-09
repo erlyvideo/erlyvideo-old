@@ -19,7 +19,7 @@
 {"deps/erlmedia/src/*", [debug_info, {outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"deps/amf/src/*", [debug_info, {outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
 {"deps/shoutcast/src/*", [debug_info, {outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}, {i, "deps"}]}.
-{"deps/mpegts/src/*", [debug_info, {outdir, "deps/mpegts/ebin"}, {i, "deps/mpegts/src"}, {i, "deps"}]}.
+{"deps/mpegts/src/*", [debug_info, {outdir, "deps/mpegts/ebin"}, {i, "deps/mpegts/src"}, {i, "deps"},native,{hipe,o3}]}.
 {"deps/rtmp/src/*", [debug_info, {outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"},{i,"deps"}]}.
 {"deps/rtsp/src/*", [debug_info, {outdir, "deps/rtsp/ebin"}, {i, "deps/rtsp/src"}, {i, "deps"}]}.
 {"deps/rtp/src/*", [debug_info, {outdir, "deps/rtp/ebin"}, {i, "deps/rtp/src"}, {i, "deps/rtp/include"}, {i, "deps"}]}.
