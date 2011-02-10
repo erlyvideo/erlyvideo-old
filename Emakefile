@@ -12,6 +12,7 @@
 {"src/rtmp/shared_objects/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/plugins/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/test/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+{"src/sip/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/http/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/hooks/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}]}.
