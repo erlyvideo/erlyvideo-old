@@ -265,7 +265,7 @@ status(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 info(Media) ->
-  info(Media, [client_count, url, type, storage]).
+  info(Media, [client_count, url, type, storage, last_dts]).
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
@@ -285,7 +285,7 @@ info(Media, Properties) ->
   gen_server:call(Media, {info, Properties}).
   
 known_properties() ->
-  [client_count, url, type, storage, clients].
+  [client_count, url, type, storage, clients, last_dts].
   
 properties_are_valid(Properties) ->
   lists:subtract(Properties, known_properties()) == [].
@@ -1014,10 +1014,11 @@ video_parameters(#ems_media{}, Options) ->
 
 
 
-reply_with_info(#ems_media{type = Type, url = URL} = Media, Properties) ->
+reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS} = Media, Properties) ->
   lists:foldl(fun
     (type, Props) -> [{type,Type}|Props];
     (url, Props) -> [{url,URL}|Props];
+    (last_dts, Props) -> [{last_dts,LastDTS}|Props];
     (client_count, Props) -> [{client_count,client_count(Media)}|Props];
     (storage, Props) -> storage_properties(Media) ++ Props;
     (clients, Props) -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props]

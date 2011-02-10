@@ -39,6 +39,7 @@
 
 -define(FRAMES_BUFFER, 15).
 -define(REORDER_FRAMES, 10).
+-define(DEFAULT_TIMEOUT, 30000).
 
 -define(SERVER_NAME, "Erlyvideo").
 
@@ -132,29 +133,29 @@ init([Callback]) ->
 handle_call({connect, URL, Options}, _From, RTSP) ->
   Consumer = proplists:get_value(consumer, Options),
   Ref = erlang:monitor(process, Consumer),
+  Timeout = proplists:get_value(timeout, Options, ?DEFAULT_TIMEOUT),
   {rtsp, UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
-  ?D({"Connecting to", Host, Port}),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}], 1000),
-  ?D({"Connect", URL}),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}, {keepalive, true}, {send_timeout, Timeout}, {send_timeout_close, true}], Timeout),
+  ?D({"RTSP Connect", URL}),
   Auth = case UserInfo of
     [] -> "";
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
   end,
-  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, socket = Socket, auth = Auth}};
+  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, socket = Socket, auth = Auth, timeout = Timeout}, Timeout};
 
-handle_call({consume, Consumer}, _From, #rtsp_socket{rtp_ref = OldRef} = RTSP) ->
+handle_call({consume, Consumer}, _From, #rtsp_socket{rtp_ref = OldRef, timeout = Timeout} = RTSP) ->
   (catch erlang:demonitor(OldRef)),
   Ref = erlang:monitor(process, Consumer),
-  {reply, ok, RTSP#rtsp_socket{rtp = Consumer, rtp_ref = Ref}};
+  {reply, ok, RTSP#rtsp_socket{rtp = Consumer, rtp_ref = Ref}, Timeout};
 
 
-handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth} = RTSP) ->
+handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: 1\r\n"++Auth++"\r\n", [URL]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
-  {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}};
+  {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}, Timeout};
 
-handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth} = RTSP) ->
+handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
   ?D({"Setup", Num, Streams}),
   #media_desc{track_control = Control} = lists:nth(Num, Streams),
 
@@ -167,13 +168,13 @@ handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_confi
         [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
-  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq+1}};
+  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq+1}, Timeout};
 
-handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth} = RTSP) ->
+handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
-  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}};
+  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq + 1}, Timeout};
 
 handle_call(Request, _From, #rtsp_socket{} = RTSP) ->
   {stop, {unknown_call, Request}, RTSP}.
@@ -187,10 +188,10 @@ handle_call(Request, _From, #rtsp_socket{} = RTSP) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast({socket_ready, Socket}, #rtsp_socket{} = State) ->
+handle_cast({socket_ready, Socket}, #rtsp_socket{timeout = Timeout} = State) ->
   {ok, {IP, Port}} = inet:peername(Socket),
   inet:setopts(Socket, [{active, once}]),
-  {noreply, State#rtsp_socket{socket = Socket, addr = IP, port = Port}};
+  {noreply, State#rtsp_socket{socket = Socket, addr = IP, port = Port}, Timeout};
 
 handle_cast(Request, #rtsp_socket{} = Socket) ->
   {stop, {unknown_cast, Request}, Socket}.
@@ -212,29 +213,37 @@ handle_info({tcp_closed, _Socket}, State) ->
   ?D({"RTSP socket closed"}),
   {stop, normal, State};
 
-handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf} = RTSPSocket) ->
+handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf, timeout = Timeout} = RTSPSocket) ->
   inet:setopts(Socket, [{active, once}]),
-  {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>})};
+  {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>}), Timeout};
 
-handle_info({'DOWN', _, process, Consumer, _Reason},
-            #rtsp_socket{rtp = Consumer} = Socket) ->
-  ?D({"RTSP RTP process died", Consumer, _Reason}),
-  {stop, normal, Socket#rtsp_socket{rtp = undefined,
-                                    rtp_ref = undefined}};
+handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{rtp = Consumer} = Socket) ->
+  ?D({"RTSP RTP process died", Consumer}),
+  {stop, normal, Socket};
 
-handle_info(#video_frame{content = Content} = _Frame, #rtsp_socket{socket = _Sock} = Socket) ->
+handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{media = Consumer} = Socket) ->
+  ?D({"RTSP consumer died", Consumer}),
+  {stop, normal, Socket};
+
+handle_info(#video_frame{content = Content} = _Frame, #rtsp_socket{socket = _Sock, timeout = Timeout} = Socket) ->
   ?DBG("Media Frame (~p): ~p", [self(), Content]),
-  {noreply, Socket};
+  {noreply, Socket, Timeout};
 
 %% Here Type is rtp|rtcp
-handle_info({interleaved, Channel, {Type, RTP}}, #rtsp_socket{socket = Sock} = Socket) ->
+handle_info({interleaved, Channel, {Type, RTP}}, #rtsp_socket{socket = Sock, timeout = Timeout} = Socket) ->
   Data = packet_codec:encode({Type, Channel, RTP}),
   gen_tcp:send(Sock, Data),
-  {noreply, Socket};
+  {noreply, Socket, Timeout};
+  
+handle_info(timeout, #rtsp_socket{frames = Frames} = Socket) ->
+  lists:foreach(fun(Frame) ->
+    % ?D({Frame#video_frame.content, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
+    Consumer ! Frame
+  end, Frames)
+  {stop, timeout, Socket#rtsp_socket{frames = []}};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
-  ?D({"Unknown message", Message}),
-  {noreply, Socket}.
+  {stop, {uknown_message, Message}, Socket}.
 
 
 
