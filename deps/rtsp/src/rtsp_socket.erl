@@ -75,12 +75,15 @@ read(URL, Options) ->
   try read_raw(URL, Options) of
     {ok, RTSP} -> {ok, RTSP}
   catch
+    _Class:{error,Reason} -> {error, Reason};
+    exit:Reason -> {error, Reason};
     Class:Reason -> {Class, Reason}
   end.
 
 read_raw(URL, Options) ->
   {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
-  ok = rtsp_socket:connect(RTSP, URL, Options),
+  ConnectResult = rtsp_socket:connect(RTSP, URL, Options),
+  ok == ConnectResult orelse erlang:error(ConnectResult),
   {ok, Streams} = rtsp_socket:describe(RTSP, Options),
   [ok = rtsp_socket:setup(RTSP, Stream, Options) || Stream <- Streams],
   ok = rtsp_socket:play(RTSP, Options),
@@ -88,19 +91,19 @@ read_raw(URL, Options) ->
 
 
 describe(RTSP, Options) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
+  Timeout = proplists:get_value(timeout, Options, 5000)*2,
   gen_server:call(RTSP, {request, describe}, Timeout).
 
 setup(RTSP, Stream, Options) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
+  Timeout = proplists:get_value(timeout, Options, 5000)*2,
   gen_server:call(RTSP, {request, setup, Stream}, Timeout).
 
 play(RTSP, Options) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
+  Timeout = proplists:get_value(timeout, Options, 5000)*2,
   gen_server:call(RTSP, {request, play}, Timeout).
 
 connect(RTSP, URL, Options) ->
-  Timeout = proplists:get_value(timeout, Options, 10000),
+  Timeout = proplists:get_value(timeout, Options, 10000)*2,
   gen_server:call(RTSP, {connect, URL, Options}, Timeout).
 
 start_link(Callback) ->
@@ -135,13 +138,22 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
   Ref = erlang:monitor(process, Consumer),
   Timeout = proplists:get_value(timeout, Options, ?DEFAULT_TIMEOUT),
   {rtsp, UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}, {keepalive, true}, {send_timeout, Timeout}, {send_timeout_close, true}], Timeout),
-  ?D({"RTSP Connect", URL}),
+
   Auth = case UserInfo of
     [] -> "";
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
   end,
-  {reply, ok, RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, socket = Socket, auth = Auth, timeout = Timeout}, Timeout};
+  RTSP1 = RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, auth = Auth, timeout = Timeout},
+
+  ConnectResult = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}, {keepalive, true}, {send_timeout, Timeout}, {send_timeout_close, true}], Timeout),
+
+  case ConnectResult of
+    {ok, Socket} ->
+      ?D({"RTSP Connected", URL}),
+      {reply, ok, RTSP1#rtsp_socket{socket = Socket}, Timeout};
+    Else ->
+      {stop, normal, Else, RTSP1}
+  end;
 
 handle_call({consume, Consumer}, _From, #rtsp_socket{rtp_ref = OldRef, timeout = Timeout} = RTSP) ->
   (catch erlang:demonitor(OldRef)),
@@ -235,11 +247,11 @@ handle_info({interleaved, Channel, {Type, RTP}}, #rtsp_socket{socket = Sock, tim
   gen_tcp:send(Sock, Data),
   {noreply, Socket, Timeout};
   
-handle_info(timeout, #rtsp_socket{frames = Frames} = Socket) ->
+handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
   lists:foreach(fun(Frame) ->
     % ?D({Frame#video_frame.content, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
     Consumer ! Frame
-  end, Frames)
+  end, Frames),
   {stop, timeout, Socket#rtsp_socket{frames = []}};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
@@ -658,10 +670,8 @@ frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
-  ?D({"RTSP stopping", _Reason}),
+terminate(normal, _State) ->
   ok.
-
 
 %%-------------------------------------------------------------------------
 %% @spec (OldVsn, State, Extra) -> {ok, NewState}
