@@ -54,8 +54,16 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
   
 
 
-send_frame(Frame, Media) ->
-  shift_dts(Frame, Media).
+send_frame(Frame, #ems_media{module = M} = Media) ->
+  case M:handle_frame(Frame, Media) of
+    {reply, F, Media1} ->
+      shift_dts(F, Media1);
+    {noreply, Media1} ->
+      {noreply, Media1, ?TIMEOUT};
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1}
+  end.
+  
 
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
   shift_dts(Frame, Media#ems_media{last_dts = 0});
@@ -109,21 +117,14 @@ handle_config(Frame, Media) ->
   handle_frame(Frame, Media).
 
 
-handle_frame(#video_frame{content = Content} = Frame, #ems_media{module = M, video_config = V, clients = Clients} = Media) ->
+handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
   Media1 = reply_with_decoder_config(Media),
-  case M:handle_frame(Frame, Media1) of
-    {reply, F, Media2} ->
-      case Content of
-        audio when V == undefined -> ems_media_clients:send_frame(F, Clients, starting);
-        _ -> ok
-      end,
-      ems_media_clients:send_frame(F, Clients, active),
-      {noreply, Media2, ?TIMEOUT};
-    {noreply, Media2} ->
-      {noreply, Media2, ?TIMEOUT};
-    {stop, Reason, Media2} ->
-      {stop, Reason, Media2}
-  end.
+  case Content of
+    audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
+    _ -> ok
+  end,
+  ems_media_clients:send_frame(Frame, Clients, active),
+  {noreply, Media1, ?TIMEOUT}.
 
 
 save_frame(undefined, Storage, _) ->
