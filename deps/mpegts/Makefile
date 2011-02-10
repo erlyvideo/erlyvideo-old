@@ -11,9 +11,9 @@ DESTROOT=$(CURDIR)/debian/erlang-mpegts
 
 all: compile
 
-compile: ebin/mpeg2_crc32.so ebin/mpegts_reader.so
+compile:
 	erl -make
-	
+
 # ebin/mpeg2_crc32.so: src/mpeg2_crc32.c
 # 	$(NIF_FLAGS)  -o $@ $< -I $(NIFDIR) || touch $@
 
@@ -26,7 +26,6 @@ install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
 	mkdir -p $(DESTROOT)$(ERLDIR)/include
 	install -c -m 644 ebin/*.beam ebin/*.app $(DESTROOT)$(ERLDIR)/ebin/
-	install -c -m 644 ebin/*.so $(DESTROOT)$(ERLDIR)/ebin/
 
 test:
 	ERL_LIBS=.. erl -pa ebin -s mpegts_reader test -s init stop -noinput -noshell
