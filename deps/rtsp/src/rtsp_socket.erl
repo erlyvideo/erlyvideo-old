@@ -670,7 +670,7 @@ frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(normal, _State) ->
+terminate(_Reason, _State) ->
   ok.
 
 %%-------------------------------------------------------------------------
