@@ -1,3 +1,9 @@
+erlyvideo (2.6.1) unstable; urgency=low
+
+  new admin panel
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 11 Feb 2011 20:44:31 +0300
+
 erlyvideo (2.6.0) unstable; urgency=low
 
   receiveAV,  RTSP now better restarts on camera failures, http issues, mp4_writer ready
