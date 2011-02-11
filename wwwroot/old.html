@@ -1,0 +1,57 @@
+<html>
+  <head>
+    <title>Erlyvideo: {{url}}</title>
+    <meta http-equiv=Content-Type content="text/html;charset=utf-8">
+    <script type="text/javascript" src="/js/jquery.js"></script>
+    <script type="text/javascript" src="/js/swfobject.js"></script>
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+  </head>
+  <body>
+    <script type="text/javascript">
+    erlyvideo = {};
+    
+    erlyvideo.init = function() {
+      swfobject.embedSWF("/player/bin-release/ErlyvideoPlayer.swf", "ErlyPlayer", "800", "500", "10.0", "expressInstall.swf",
+        {server :"{{hostname}}",
+         app : "rtmp",
+         file : "{{url}}",
+         session : "{{session}}",
+         buffer : "0.1"});
+    }
+    
+    erlyvideo.play = function() {
+      $('#ErlyPlayer').get(0).play("{{url}}");
+    }
+    
+    erlyvideo.message = function(message) {
+      $("#chat").append("<div>"+message+"</div>");
+    }
+    
+    erlyvideo.debug = function(message) {
+      $("#chat").append("<div>"+message+"</div>");
+    }
+    
+    erlyvideo.connected = function() {
+      erlyvideo.debug("connected");
+      erlyvideo.play();
+    }
+    
+    erlyvideo.init();
+    </script>
+    <table>
+      <tr>
+        <td><a href="/admin">Admin</a>, <a href="/longtail/index.html">JWV Player</a>, <a href="/flowplayer/index.html">FlowPlayer</a></td>
+      </tr>
+      <tr>
+        <td>
+          <div id="ErlyPlayer">
+            <p>Erlyvideo Player should be here</p>
+          </div>
+          <div class="span-3"><a href="#" onclick="$('#ErlyPlayer').get(0).play(\"{{url}}\"); return false;">Play</a></div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

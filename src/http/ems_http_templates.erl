@@ -29,8 +29,8 @@
 
 
 
-http(Host, 'GET', [], Req) ->
-  erlydtl:compile(ems_http:wwwroot(Host) ++ "/index.html", index_template),
+http(Host, 'GET', ["old"], Req) ->
+  erlydtl:compile(ems_http:wwwroot(Host) ++ "/old.html", index_template),
   
   Query = Req:parse_qs(),
   ems_log:access(Host, "GET ~p ~s /", [Req:get(peer_addr), "-"]),

@@ -1,57 +1,327 @@
 <html>
-  <head>
-    <title>Erlyvideo: {{url}}</title>
-    <meta http-equiv=Content-Type content="text/html;charset=utf-8">
-    <script type="text/javascript" src="/js/jquery.js"></script>
-    <script type="text/javascript" src="/js/swfobject.js"></script>
-    <!--[if lt IE 8]>
-      <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
-    <![endif]-->
-  </head>
-  <body>
-    <script type="text/javascript">
-    erlyvideo = {};
-    
-    erlyvideo.init = function() {
-      swfobject.embedSWF("/player/bin-release/ErlyvideoPlayer.swf", "ErlyPlayer", "800", "500", "10.0", "expressInstall.swf",
-        {server :"{{hostname}}",
-         app : "rtmp",
-         file : "{{url}}",
-         session : "{{session}}",
-         buffer : "0.1"});
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Erlyvideo Admin</title>
+
+    <link rel="stylesheet" type="text/css" href="/admin/resources/css/ext-all.css" />
+    <link rel="stylesheet" type="text/css" href="/admin/layout-browser.css" />
+	    
+    <script type="text/javascript" src="/admin/adapter/ext/ext-base.js"></script>
+ 	  <script type="text/javascript" src="/admin/ext-all.js"></script>
+    <script type="text/javascript" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
+</head>
+<body>
+<div id="header"><h1>Erlyvideo Admin Panel</h1></div>
+
+
+
+<script type="text/javascript">
+function embedFlowplayer(server, path) {
+  document.getElementById("flowplayer").href = path;
+  flowplayer("flowplayer", "/flowplayer/flowplayer-3.2.5.swf?"+(Math.random(10000)), {
+    log: {
+      // level: 'debug'
+      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*,org.flowplayer.core.*,org.flowplayer.model.*'
+      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*'
+    },
+    // streamCallbacks: ["onCuepoint"],
+		plugins: { 
+			rtmp: { 
+				url: '/flowplayer/flowplayer.rtmp-3.1.3.swf', 
+				netConnectionUrl: server,
+				durationFunc: 'getStreamLength'
+			},
+      captions: {
+      	url: '/flowplayer/flowplayer.captions-3.2.2.swf?'+(Math.random(10000)),
+      	captionTarget: 'content'
+      },
+      // configure a content plugin to look good for our purpose
+      content: {
+    	  url:'/flowplayer/flowplayer.content-3.2.0.swf',
+    		top: 10,
+    		width: '80%',
+    		height:40,
+    		backgroundColor: 'black',
+    		backgroundGradient: 'none',
+    		border: 0,
+        textDecoration: 'outline',
+    		style: {
+    		  'body': {
+    			  fontSize: '14',
+      			fontFamily: 'Arial',
+      			textAlign: 'center',
+      			color: '#000000'
+    		  }
+    		}
+      }
+    },
+    clip: {
+      provider: 'rtmp',
+      cuepointMultiplier: 1,
+      autoPlay: true
+      //, onCuepoint: function(clip, event) {
+      //   alert("hi");
+      //   // console.dir(event);
+      // }
     }
+	});
+  
+}
+
+function embedJWPlayer(server, path) {
+  var flashvars = "provider=rtmp&autostart=true&streamer="+server+"&file="+path;
+  document.getElementById('jwplayer').innerHTML = '\
+  <object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="800" height="600"> \
+		<param name="movie" value="/jwplayer/player.swf" /> \
+		<param name="allowfullscreen" value="true" /> \
+		<param name="allowscriptaccess" value="always" /> \
+		<param name="flashvars" value="'+flashvars+'" /> \
+		<embed \
+			type="application/x-shockwave-flash" \
+			id="player2" \
+			name="player2" \
+			src="/jwplayer/player.swf"  \
+			width="800" \
+			height="600" \
+			allowscriptaccess="always" \
+			allowfullscreen="true" \
+			flashvars="'+flashvars+'" \
+		/> \
+	</object> ';
+  
+}
+</script>
+
+
+<script type="text/javascript">
+Ext.onReady(function(){
+  
+  
+  window.currentRTMPServer = "rtmp://"+window.location.hostname;
+
+  var flowplayer_html = '<a href="#" id="flowplayer"></a>';
+  var jwplayer_html = '<a href="#" id="jwplayer"></a>';
+
+
+
+  
+  var openFile = function(url) {
+    var currentPlayedFile = url;
     
-    erlyvideo.play = function() {
-      $('#ErlyPlayer').get(0).play("{{url}}");
+    if(window.playerWin) {
+      window.playerWin.close();
     }
+
+    var playerTabs = new Ext.TabPanel({
+        region: 'center',
+        margins:'3 3 3 0', 
+        activeTab: 0,
+        defaults:{autoScroll:true},
+
+        items:[{
+            title: 'JWPlayer',
+            html: jwplayer_html,
+            listeners: {
+              activate: function(panel) {
+                if(currentPlayedFile)
+                  embedJWPlayer(currentRTMPServer, currentPlayedFile);
+              },
+              deactivate: function(panel) {
+                panel.body.innerHTML = jwplayer_html;
+              }
+            }
+        },{
+            title: 'Flowplayer',
+            html: flowplayer_html,
+            listeners: {
+              activate: function(panel) {
+                if(currentPlayedFile)
+                  embedFlowplayer(currentRTMPServer, currentPlayedFile);
+              },
+              deactivate: function(panel) {
+                panel.body.innerHTML = flowplayer_html;
+              }
+            }
+        }],
+
+    });
+
+    var playerWin = new Ext.Window({
+        title: 'Player',
+        closable:true,
+        width:821,
+        height:673,
+        //border:false,
+        plain:true,
+        layout: 'border',
+
+        items: [playerTabs]
+    });
+
+    playerWin.show();
+    window.playerWin = playerWin;
+    setTimeout(streamInfoLoader, 100);
+  }
+  
+  
+  var treePanel = new Ext.tree.TreePanel({
+  	id: 'tree-panel',
+  	title: 'Files',
+      region:'north',
+      split: true,
+      minSize: 150,
+      autoScroll: true,
     
-    erlyvideo.message = function(message) {
-      $("#chat").append("<div>"+message+"</div>");
-    }
+      // tree-specific configs:
+      rootVisible: false,
+      lines: false,
+      singleExpand: true,
+      useArrows: true,
     
-    erlyvideo.debug = function(message) {
-      $("#chat").append("<div>"+message+"</div>");
-    }
+      loader: new Ext.tree.TreeLoader({
+          dataUrl:'/erlyvideo/api/filelist',
+          requestMethod:'GET'
+      }),
+      
+      listeners: {
+        'click': function(n) {
+          openFile(n.attributes.text);
+        }
+      },
     
-    erlyvideo.connected = function() {
-      erlyvideo.debug("connected");
-      erlyvideo.play();
-    }
-    
-    erlyvideo.init();
-    </script>
-    <table>
-      <tr>
-        <td><a href="/admin">Admin</a>, <a href="/longtail/index.html">JWV Player</a>, <a href="/flowplayer/index.html">FlowPlayer</a></td>
-      </tr>
-      <tr>
-        <td>
-          <div id="ErlyPlayer">
-            <p>Erlyvideo Player should be here</p>
-          </div>
-          <div class="span-3"><a href="#" onclick="$('#ErlyPlayer').get(0).play(\"{{url}}\"); return false;">Play</a></div>
-        </td>
-      </tr>
-    </table>
-  </body>
+      root: new Ext.tree.AsyncTreeNode()
+  });
+  
+  var reader = new Ext.data.JsonReader({
+    idProperty: 'name',
+    root: 'streams'
+  }, [
+    {name: 'name'},
+    {name: 'type'},
+    {name: 'client_count', type: 'int'},
+    {name: 'last_dts',      type: 'int'}
+  ]);
+  var proxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
+  
+  var store = new Ext.data.Store({proxy:proxy, reader: reader});
+  
+  var streamInfoLoader = null;
+  streamInfoLoader = function(autorefresh) {
+    store.load();
+    if(autorefresh)
+      setTimeout(streamInfoLoader, 4000);
+  }
+  streamInfoLoader(true);
+  
+  var streamsGrid = new Ext.grid.GridPanel({
+      store: store,
+      columns: [
+          {
+              id       :'name',
+              header   : 'Name', 
+              sortable : true, 
+              dataIndex: 'name'
+          },
+          {
+              header   : 'Type', 
+              width    : 60, 
+              sortable : false, 
+              dataIndex: 'type'
+          },
+          {
+              header   : 'Clients', 
+              width    : 60, 
+              sortable : true,
+              dataIndex: 'client_count'
+          },
+          {
+              header   : 'Last DTS', 
+              width    : 75, 
+              sortable : false,
+              dataIndex: 'last_dts'
+          },
+          {
+              xtype: 'actioncolumn',
+              width: 50,
+              items: [{
+                  icon   : '/admin/delete.gif',  // Use a URL in the icon config
+                  tooltip: 'Sell stock',
+                  handler: function(grid, rowIndex, colIndex) {
+                      var rec = store.getAt(rowIndex);
+                      alert("Sell " + rec.get('company'));
+                  }
+              }, {
+                icon   : '/admin/resources/images/default/grid/page-next.gif',  // Use a URL in the icon config
+                tooltip: 'Play this stream',
+                handler: function(grid, rowIndex, colIndex) {
+                  var record = grid.getStore().getAt(rowIndex);
+                  openFile(record.id);
+                }
+            },{
+                  getClass: function(v, meta, rec) {          // Or return a class from a function
+                      if (rec.get('change') < 0) {
+                          this.items[1].tooltip = 'Do not buy!';
+                          return 'alert-col';
+                      } else {
+                          this.items[1].tooltip = 'Buy stock';
+                          return 'buy-col';
+                      }
+                  },
+                  handler: function(grid, rowIndex, colIndex) {
+                      var rec = store.getAt(rowIndex);
+                      alert("Buy " + rec.get('company'));
+                  }
+              }]
+          }
+      ],
+      listeners: {
+        cellclick: function(grid, rowIndex, colIndex, evt) {
+          if(colIndex == 0) {
+          }
+        }
+      },
+      stripeRows: true,
+      autoExpandColumn: 'name',
+      title: 'Streams',
+      // config options for stateful behavior
+      stateful: true,
+      stateId: 'grid'
+  });
+
+  
+  new Ext.Viewport({
+		layout: 'border',
+		title: 'Ext Layout Browser',
+		items: [{
+			xtype: 'box',
+			region: 'north',
+			applyTo: 'header',
+			height: 30
+		},{
+			layout: 'auto',
+	    id: 'layout-browser',
+	    region:'west',
+	    border: false,
+			margins: '2 0 5 5',
+	    width: 300,
+	    minSize: 100,
+	    maxSize: 500,
+			items: [treePanel]
+		}, {
+		  id: 'streams-grid',
+		  region: 'center',
+		  layout: 'fit',
+		  items: [streamsGrid],
+		  margins: '2 0 5 5',
+		  activeItem: 0,
+		  border: false
+		}
+	  ],
+    renderTo: Ext.getBody()
+  });
+  
+});
+</script>
+
+</body>
 </html>
