@@ -374,7 +374,11 @@ decoder_config(Media) when is_pid(Media) ->
 init([Module, Options]) ->
   % ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
-  URL = proplists:get_value(url, Options),
+  URL_ = proplists:get_value(url, Options),
+  URL = if 
+    is_list(URL_) -> list_to_binary(URL_);
+    is_binary(URL_) -> URL_
+  end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options)},
                      

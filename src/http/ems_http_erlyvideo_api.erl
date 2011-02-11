@@ -1,7 +1,7 @@
 %%%---------------------------------------------------------------------------------------
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2010 Max Lapshin
-%%% @doc        Push channel for HTTP
+%%% @copyright  2010-2011 Max Lapshin
+%%% @doc        Erlyvideo API suitable for admin interface
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
@@ -21,26 +21,41 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_http_stats).
+-module(ems_http_erlyvideo_api).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -export([http/4]).
 
 
-http(Host, 'GET', ["stats"], Req) ->
-  erlydtl:compile(ems_http:wwwroot(Host) ++ "/stats.html", stats_template),
-  
-  _Query = Req:parse_qs(),
-  ems_log:access(Host, "GET ~p ~s /stats", [Req:get(peer_addr), "-"]),
-  
-  {ok, Index} = stats_template:render([
-    {hostname, <<"rtmp://", (Req:host())/binary>>}]),
-  Req:ok([{'Content-Type', "text/html; charset=utf8"}], Index);
 
-http(Host, 'GET', ["stats.json"], Req) ->
-  Stats = erlyvideo:stats(Host),
-  Req:respond(200, [{"Content-Type", "application/json"}], [mochijson2:encode(Stats), "\n"]);
+http(Host, 'GET', ["erlyvideo", "api", "filelist"], Req) ->
+  RawList = case file:list_dir(file_media:file_dir(Host)) of
+    {ok, FL} -> FL;
+    {error, Error} -> 
+      error_logger:error_msg("Invalid file_dir directory: ~p (~p)~n", [file_media:file_dir(Req:host()), Error]),
+      []
+  end,
+  
+  Allowed = [".mp4", ".flv", ".ts", ".mp3"],
+  
+  FileList = lists:foldr(fun(Path, List) ->
+    case lists:member(filename:extension(Path), Allowed) of
+      true ->
+        BinPath = list_to_binary(Path),
+        [[{id,BinPath},{text,BinPath},{leaf,true}]|List];
+      _ ->
+        List
+    end
+  end, [], lists:sort(RawList)),
+  
+  Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode(FileList), "\n"]);
 
-http(_Host, _Method, _Path, _Req) ->
+
+http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
+  Streams = [[{name,Name}|Info] || {Name, _Pid, Info} <- media_provider:entries(Host)],
+  Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
+
+http(_, _, _, _) ->
   unhandled.
