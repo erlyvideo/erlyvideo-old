@@ -1,0 +1,152 @@
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Erlyvideo Admin</title>
+
+    <link rel="stylesheet" type="text/css" href="resources/css/ext-all.css" />
+    <link rel="stylesheet" type="text/css" href="layout-browser.css" />
+	    
+    <script type="text/javascript" src="adapter/ext/ext-base.js"></script>
+ 	  <script type="text/javascript" src="ext-all.js"></script>
+    
+</head>
+<body>
+<div id="header"><h1>Erlyvideo Admin Panel</h1></div>  
+
+<script type="text/javascript">
+Ext.onReady(function(){
+  var treePanel = new Ext.tree.TreePanel({
+  	id: 'tree-panel',
+  	title: 'Files',
+      region:'north',
+      split: true,
+      minSize: 150,
+      autoScroll: true,
+    
+      // tree-specific configs:
+      rootVisible: false,
+      lines: false,
+      singleExpand: true,
+      useArrows: true,
+    
+      loader: new Ext.tree.TreeLoader({
+          dataUrl:'/erlyvideo/api/filelist',
+          requestMethod:'GET'
+      }),
+    
+      root: new Ext.tree.AsyncTreeNode()
+  });
+  
+  var reader = new Ext.data.JsonReader({
+    idProperty: 'name',
+    root: 'streams'
+  }, [
+    {name: 'name'},
+    {name: 'type'},
+    {name: 'client_count', type: 'int'},
+    {name: 'last_dts',      type: 'int'}
+  ]);
+  var proxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
+  
+  var store = new Ext.data.Store({proxy:proxy, reader: reader});
+  store.load();
+  
+  var streamsGrid = new Ext.grid.GridPanel({
+      store: store,
+      columns: [
+          {
+              id       :'name',
+              header   : 'Name', 
+              sortable : true, 
+              dataIndex: 'name'
+          },
+          {
+              header   : 'Type', 
+              width    : 60, 
+              sortable : false, 
+              dataIndex: 'type'
+          },
+          {
+              header   : 'Clients', 
+              width    : 60, 
+              sortable : true,
+              dataIndex: 'client_count'
+          },
+          {
+              header   : 'Last DTS', 
+              width    : 75, 
+              sortable : false,
+              dataIndex: 'last_dts'
+          },
+          {
+              xtype: 'actioncolumn',
+              width: 50,
+              items: [{
+                  icon   : '../ext-js/examples/shared/icons/fam/delete.gif',  // Use a URL in the icon config
+                  tooltip: 'Sell stock',
+                  handler: function(grid, rowIndex, colIndex) {
+                      var rec = store.getAt(rowIndex);
+                      alert("Sell " + rec.get('company'));
+                  }
+              }, {
+                  getClass: function(v, meta, rec) {          // Or return a class from a function
+                      if (rec.get('change') < 0) {
+                          this.items[1].tooltip = 'Do not buy!';
+                          return 'alert-col';
+                      } else {
+                          this.items[1].tooltip = 'Buy stock';
+                          return 'buy-col';
+                      }
+                  },
+                  handler: function(grid, rowIndex, colIndex) {
+                      var rec = store.getAt(rowIndex);
+                      alert("Buy " + rec.get('company'));
+                  }
+              }]
+          }
+      ],
+      stripeRows: true,
+      autoExpandColumn: 'name',
+      title: 'Streams',
+      // config options for stateful behavior
+      stateful: true,
+      stateId: 'grid'
+  });
+
+  
+  new Ext.Viewport({
+		layout: 'border',
+		title: 'Ext Layout Browser',
+		items: [{
+			xtype: 'box',
+			region: 'north',
+			applyTo: 'header',
+			height: 30
+		},{
+			layout: 'auto',
+	    id: 'layout-browser',
+	    region:'west',
+	    border: false,
+			margins: '2 0 5 5',
+	    width: 300,
+	    minSize: 100,
+	    maxSize: 500,
+			items: [treePanel]
+		}, {
+		  id: 'streams-grid',
+		  region: 'center',
+		  layout: 'fit',
+		  items: [streamsGrid],
+		  margins: '2 0 5 5',
+		  activeItem: 0,
+		  border: false
+		}
+	  ],
+    renderTo: Ext.getBody()
+  });
+  
+});
+</script>
+
+</body>
+</html>
