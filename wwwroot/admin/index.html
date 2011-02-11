@@ -102,57 +102,64 @@ Ext.onReady(function(){
   var flowplayer_html = '<a href="#" id="flowplayer"></a>';
   var jwplayer_html = '<a href="#" id="jwplayer"></a>';
 
-  var playerTabs = new Ext.TabPanel({
-      region: 'center',
-      margins:'3 3 3 0', 
-      activeTab: 0,
-      defaults:{autoScroll:true},
-
-      items:[{
-          title: 'JWPlayer',
-          html: jwplayer_html,
-          listeners: {
-            activate: function(panel) {
-              if(currentPlayedFile)
-                embedJWPlayer(currentRTMPServer, currentPlayedFile);
-            },
-            deactivate: function(panel) {
-              panel.body.innerHTML = jwplayer_html;
-            }
-          }
-      },{
-          title: 'Flowplayer',
-          html: flowplayer_html,
-          listeners: {
-            activate: function(panel) {
-              if(currentPlayedFile)
-                embedFlowplayer(currentRTMPServer, currentPlayedFile);
-            },
-            deactivate: function(panel) {
-              panel.body.innerHTML = flowplayer_html;
-            }
-          }
-      }],
-      
-  });
-
-  var playerWin = new Ext.Window({
-      title: 'Player',
-      closable:true,
-      width:821,
-      height:673,
-      //border:false,
-      plain:true,
-      layout: 'border',
-
-      items: [playerTabs]
-  });
 
 
   
   var openFile = function(url) {
-    window.currentPlayedFile = url;
+    var currentPlayedFile = url;
+    
+    if(window.playerWin) {
+      window.playerWin.close();
+    }
+
+    var playerTabs = new Ext.TabPanel({
+        region: 'center',
+        margins:'3 3 3 0', 
+        activeTab: 0,
+        defaults:{autoScroll:true},
+
+        items:[{
+            title: 'JWPlayer',
+            html: jwplayer_html,
+            listeners: {
+              activate: function(panel) {
+                if(currentPlayedFile)
+                  embedJWPlayer(currentRTMPServer, currentPlayedFile);
+              },
+              deactivate: function(panel) {
+                panel.body.innerHTML = jwplayer_html;
+              }
+            }
+        },{
+            title: 'Flowplayer',
+            html: flowplayer_html,
+            listeners: {
+              activate: function(panel) {
+                if(currentPlayedFile)
+                  embedFlowplayer(currentRTMPServer, currentPlayedFile);
+              },
+              deactivate: function(panel) {
+                panel.body.innerHTML = flowplayer_html;
+              }
+            }
+        }],
+
+    });
+
+    var playerWin = new Ext.Window({
+        title: 'Player',
+        closable:true,
+        width:821,
+        height:673,
+        //border:false,
+        plain:true,
+        layout: 'border',
+
+        items: [playerTabs]
+    });
+
     playerWin.show();
+    window.playerWin = playerWin;
   }
   
   
@@ -196,7 +203,13 @@ Ext.onReady(function(){
   var proxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
   
   var store = new Ext.data.Store({proxy:proxy, reader: reader});
-  store.load();
+  
+  var streamInfoLoader = null;
+  streamInfoLoader = function() {
+    store.load();
+    setTimeout(streamInfoLoader, 4000);
+  }
+  streamInfoLoader();
   
   var streamsGrid = new Ext.grid.GridPanel({
       store: store,
@@ -229,7 +242,7 @@ Ext.onReady(function(){
               xtype: 'actioncolumn',
               width: 50,
               items: [{
-                  icon   : '../ext-js/examples/shared/icons/fam/delete.gif',  // Use a URL in the icon config
+                  icon   : 'delete.gif',  // Use a URL in the icon config
                   tooltip: 'Sell stock',
                   handler: function(grid, rowIndex, colIndex) {
                       var rec = store.getAt(rowIndex);
