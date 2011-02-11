@@ -114,6 +114,8 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
   case read_atom_header(Reader, Pos) of
     eof -> {ok, Mp4Media};
     {error, Reason} -> {error, Reason};
+    {atom, mdat, _Offset, all_file} ->
+      {ok, Mp4Media};
     {atom, mdat, Offset, Length} ->
       read_header(Mp4Media, Reader, Offset + Length);
     {atom, _AtomName, Offset, 0} -> 
