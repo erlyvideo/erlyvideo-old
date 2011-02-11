@@ -8,13 +8,154 @@
 	    
     <script type="text/javascript" src="adapter/ext/ext-base.js"></script>
  	  <script type="text/javascript" src="ext-all.js"></script>
-    
+    <script type="text/javascript" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
 </head>
 <body>
-<div id="header"><h1>Erlyvideo Admin Panel</h1></div>  
+<div id="header"><h1>Erlyvideo Admin Panel</h1></div>
+
+
+
+<script type="text/javascript">
+function embedFlowplayer(server, path) {
+  document.getElementById("flowplayer").href = path;
+  flowplayer("flowplayer", "/flowplayer/flowplayer-3.2.5.swf?"+(Math.random(10000)), {
+    log: {
+      // level: 'debug'
+      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*,org.flowplayer.core.*,org.flowplayer.model.*'
+      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*'
+    },
+    // streamCallbacks: ["onCuepoint"],
+		plugins: { 
+			rtmp: { 
+				url: '/flowplayer/flowplayer.rtmp-3.1.3.swf', 
+				netConnectionUrl: server,
+				durationFunc: 'getStreamLength'
+			},
+      captions: {
+      	url: '/flowplayer/flowplayer.captions-3.2.2.swf?'+(Math.random(10000)),
+      	captionTarget: 'content'
+      },
+      // configure a content plugin to look good for our purpose
+      content: {
+    	  url:'/flowplayer/flowplayer.content-3.2.0.swf',
+    		top: 10,
+    		width: '80%',
+    		height:40,
+    		backgroundColor: 'black',
+    		backgroundGradient: 'none',
+    		border: 0,
+        textDecoration: 'outline',
+    		style: {
+    		  'body': {
+    			  fontSize: '14',
+      			fontFamily: 'Arial',
+      			textAlign: 'center',
+      			color: '#000000'
+    		  }
+    		}
+      }
+    },
+    clip: {
+      provider: 'rtmp',
+      cuepointMultiplier: 1,
+      autoPlay: true
+      //, onCuepoint: function(clip, event) {
+      //   alert("hi");
+      //   // console.dir(event);
+      // }
+    }
+	});
+  
+}
+
+function embedJWPlayer(server, path) {
+  var flashvars = "provider=rtmp&autostart=true&streamer="+server+"&file="+path;
+  document.getElementById('jwplayer').innerHTML = '\
+  <object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="800" height="600"> \
+		<param name="movie" value="/jwplayer/player.swf" /> \
+		<param name="allowfullscreen" value="true" /> \
+		<param name="allowscriptaccess" value="always" /> \
+		<param name="flashvars" value="'+flashvars+'" /> \
+		<embed \
+			type="application/x-shockwave-flash" \
+			id="player2" \
+			name="player2" \
+			src="/jwplayer/player.swf"  \
+			width="800" \
+			height="600" \
+			allowscriptaccess="always" \
+			allowfullscreen="true" \
+			flashvars="'+flashvars+'" \
+		/> \
+	</object> ';
+  
+}
+</script>
+
 
 <script type="text/javascript">
 Ext.onReady(function(){
+  
+  
+  window.currentRTMPServer = "rtmp://"+window.location.hostname;
+
+  var flowplayer_html = '<a href="#" id="flowplayer"></a>';
+  var jwplayer_html = '<a href="#" id="jwplayer"></a>';
+
+  var playerTabs = new Ext.TabPanel({
+      region: 'center',
+      margins:'3 3 3 0', 
+      activeTab: 0,
+      defaults:{autoScroll:true},
+
+      items:[{
+          title: 'JWPlayer',
+          html: jwplayer_html,
+          listeners: {
+            activate: function(panel) {
+              if(currentPlayedFile)
+                embedJWPlayer(currentRTMPServer, currentPlayedFile);
+            },
+            deactivate: function(panel) {
+              panel.body.innerHTML = jwplayer_html;
+            }
+          }
+      },{
+          title: 'Flowplayer',
+          html: flowplayer_html,
+          listeners: {
+            activate: function(panel) {
+              if(currentPlayedFile)
+                embedFlowplayer(currentRTMPServer, currentPlayedFile);
+            },
+            deactivate: function(panel) {
+              panel.body.innerHTML = flowplayer_html;
+            }
+          }
+      }],
+      
+  });
+
+  var playerWin = new Ext.Window({
+      title: 'Player',
+      closable:true,
+      width:821,
+      height:673,
+      //border:false,
+      plain:true,
+      layout: 'border',
+
+      items: [playerTabs]
+  });
+
+
+  
+  var openFile = function(url) {
+    window.currentPlayedFile = url;
+    playerWin.show();
+  }
+  
+  
   var treePanel = new Ext.tree.TreePanel({
   	id: 'tree-panel',
   	title: 'Files',
@@ -33,6 +174,12 @@ Ext.onReady(function(){
           dataUrl:'/erlyvideo/api/filelist',
           requestMethod:'GET'
       }),
+      
+      listeners: {
+        'click': function(n) {
+          openFile(n.attributes.text);
+        }
+      },
     
       root: new Ext.tree.AsyncTreeNode()
   });
