@@ -483,10 +483,31 @@ config_from_esds_tag(Data, ESDS) ->
       ESDS
   end.
 
-mp4_object_type(107) -> mp3;
-mp4_object_type(32) -> mp3;
-mp4_object_type(64) -> aac;
-mp4_object_type(ObjectType) -> ObjectType.
+mp4_object_type(8) -> text;
+mp4_object_type(16#20) -> mpeg4;
+mp4_object_type(16#21) -> h264;
+mp4_object_type(16#40) -> aac;
+mp4_object_type(16#60) -> mpeg2video;
+mp4_object_type(16#61) -> mpeg2video;
+mp4_object_type(16#62) -> mpeg2video;
+mp4_object_type(16#63) -> mpeg2video;
+mp4_object_type(16#64) -> mpeg2video;
+mp4_object_type(16#65) -> mpeg2video;
+mp4_object_type(16#66) -> aac;
+mp4_object_type(16#67) -> aac;
+mp4_object_type(16#68) -> aac;
+mp4_object_type(16#69) -> mp3;
+mp4_object_type(16#6A) -> mpeg1video;
+mp4_object_type(16#6B) -> mp3;
+mp4_object_type(16#6C) -> mjpeg;
+mp4_object_type(16#6D) -> png;
+mp4_object_type(16#6E) -> jpeg2000;
+mp4_object_type(16#A3) -> vc1;
+mp4_object_type(16#A4) -> dirac;
+mp4_object_type(16#A5) -> ac3;
+mp4_object_type(16#DD) -> vorbis;
+mp4_object_type(16#E0) -> dvd_subtitle;
+mp4_object_type(16#E1) -> qcelp.
 
 mp4_desc_length(<<0:1, Length:7, Rest:Length/binary, Rest2/binary>>) ->
   {Rest, Rest2};
