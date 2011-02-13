@@ -74,6 +74,7 @@ vhosts() ->
 
 start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
+  ibrowse:start(),
   ems_log:start(),
 	application:start(crypto),
   application:start(os_mon),
@@ -101,7 +102,6 @@ start() ->
 	error_logger:info_report("Started Erlyvideo"),
   error_logger:delete_report_handler(sasl_report_tty_h),
   error_logger:delete_report_handler(sasl_report_file_h),
-  ibrowse:start(),
 	ok.
 
 start_http() ->
