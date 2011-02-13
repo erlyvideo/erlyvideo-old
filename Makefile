@@ -11,41 +11,19 @@ NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -f
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: deps/amf snmp compile 
+all: compile 
 
-update: update_deps
+update:
 	git pull
 
-deps/amf: update_deps
-
-update_deps: rebar.config
-	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
-	./rebar get-deps
-
-
-push:
-	git push github master
-	git push github master --tags
-
-rebar.config:
-	cp rebar.config.sample rebar.config
 
 compile: ebin/mmap.so
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/ibrowse && make)
 	(cd deps/erlydtl && make)
-	# (cd deps/mpegts && make)
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
-
-
-include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
-	erlc -o include snmp/ERLYVIDEO-MIB.bin
-
-snmp/ERLYVIDEO-MIB.bin: snmp/ERLYVIDEO-MIB.mib
-	erlc -o snmp snmp/ERLYVIDEO-MIB.mib
-
 
 archive: ../erlyvideo-$(VERSION).tgz
 
