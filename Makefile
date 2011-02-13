@@ -28,13 +28,7 @@ ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
 
 archive:
-	SRC=`pwd`
-	cd ..
-	git clone $(SRC) erlyvideo-$(VERSION) --depth 1
-	rm -rf erlyvideo-$(VERSION)/.git
-	find erlyvideo-$(VERSION) -name '.git*' -delete
-	tar zcvf erlyvideo-$(VERSION).tgz erlyvideo-$(VERSION)
-
+	git archive --prefix=erlyvideo-$(VERSION)/ v$(VERSION) | gzip -9 > ../erlyvideo-$(VERSION).tar.gz
 
 ebin:
 	mkdir ebin
