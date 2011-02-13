@@ -377,7 +377,9 @@ init([Module, Options]) ->
   URL_ = proplists:get_value(url, Options),
   URL = if 
     is_list(URL_) -> list_to_binary(URL_);
-    is_binary(URL_) -> URL_
+    is_binary(URL_) -> URL_;
+    is_atom(URL_) -> atom_to_binary(URL_, latin1);
+    true -> iolist_to_binary(io_lib:format("~p", [URL_]))
   end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options),

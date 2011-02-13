@@ -54,8 +54,24 @@ http(Host, 'GET', ["erlyvideo", "api", "filelist"], Req) ->
 
 
 http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
-  Streams = [[{name,Name}|Info] || {Name, _Pid, Info} <- media_provider:entries(Host)],
+  Streams = [ clean_values([{name,Name}|Info]) || {Name, _Pid, Info} <- media_provider:entries(Host)],
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
 http(_, _, _, _) ->
   unhandled.
+  
+  
+clean_values(Info) ->
+  clean_values(lists:ukeysort(1, lists:reverse(Info)), []).
+  
+clean_values([], Acc) ->
+  lists:keysort(1, Acc);
+  
+clean_values([{Key,Value}|Info], Acc) when is_binary(Value) ->
+  case mochijson2:json_bin_is_safe(Value) of
+    true -> clean_values(Info, [{Key,Value}|Acc]);
+    false -> clean_values(Info, Acc)
+  end;
+
+clean_values([{K,V}|Info], Acc) ->
+  clean_values(Info, [{K,V}|Acc]).

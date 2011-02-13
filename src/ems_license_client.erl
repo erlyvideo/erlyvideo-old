@@ -70,8 +70,8 @@ ping([sync]) ->
 
 
 init([]) ->
-  self() ! timeout,
-  {ok, #client{timeout = ?TIMEOUT}, ?TIMEOUT}.
+  self() ! ping,
+  {ok, #client{timeout = ?TIMEOUT}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -86,8 +86,8 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_call(ping, _From, State) ->
-  State1 = #client{timeout = Timeout} = make_request_internal(State),
-  {reply, ok, State1, Timeout};
+  State1 = make_request_internal(State),
+  {reply, ok, State1};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -115,9 +115,9 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info(timeout, State) ->
-  State1 = #client{timeout = Timeout} = make_request_internal(State),
-  {noreply, State1, Timeout};
+handle_info(ping, State) ->
+  State1 = make_request_internal(State),
+  {noreply, State1};
 
 handle_info(_Info, State) ->
   {stop, {unknown_info, _Info}, State}.

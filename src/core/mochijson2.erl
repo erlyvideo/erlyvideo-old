@@ -10,6 +10,7 @@
 -export([encoder/1, encode/1]).
 -export([decoder/1, decode/1]).
 -export([test/0]).
+-export([json_string_is_safe/1, json_bin_is_safe/1]).
 
 % This is a macro to placate syntax highlighters..
 -define(Q, $\").
