@@ -218,7 +218,7 @@ Ext.onReady(function(){
       root: new Ext.tree.AsyncTreeNode()
   });
   
-  var reader = new Ext.data.JsonReader({
+  var streamReader = new Ext.data.JsonReader({
     idProperty: 'name',
     root: 'streams'
   }, [
@@ -228,12 +228,12 @@ Ext.onReady(function(){
     {name: 'last_dts',     type: 'int'},
     {name: 'ts_delay',     type: 'int'}
   ]);
-  var proxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
+  var streamProxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
   
-  var store = new Ext.data.Store({proxy:proxy, reader: reader});
+  var streamStore = new Ext.data.Store({proxy:streamProxy, reader: streamReader});
   
   streamInfoLoader = function(autorefresh) {
-    store.load();
+    streamStore.load();
     if(autorefresh) {
       setTimeout(function() {
         streamInfoLoader(true);
@@ -255,8 +255,38 @@ Ext.onReady(function(){
     html: video_launcher_html
   });
   
+  
+  var licenseReader = new Ext.data.JsonReader({
+    idProperty: 'name',
+    root: 'licenses'
+  }, [
+    {name: 'name'},
+    {name: 'version'}
+  ]);
+  var licenseProxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/licenses'});
+  
+  var licenseStore = new Ext.data.Store({proxy:licenseProxy, reader: licenseReader});
+  
+  
+  var licensePanel = new Ext.grid.GridPanel({
+    store: licenseStore,
+    title : 'Product licenses',
+    columns: [
+      {
+        id        : 'name',
+        header    : "Product",
+        dataIndex : 'name'
+      },
+      {
+        id        : 'version',
+        header    : "Version",
+        dataIndex : 'version'
+      }
+    ]
+  });
+  
   var streamsGrid = new Ext.grid.GridPanel({
-      store: store,
+      store: streamStore,
       columns: [
           {
               id       :'name',
@@ -354,7 +384,9 @@ Ext.onReady(function(){
 	    width: 300,
 	    minSize: 100,
 	    maxSize: 500,
-			items: [playPanel, treePanel]
+			items: [playPanel,
+       // licensePanel, 
+			 treePanel]
 		}, {
 		  id: 'streams-grid',
 		  region: 'center',
