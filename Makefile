@@ -4,6 +4,8 @@ ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
 ERL_LIBS:=deps:lib:plugins:..
 
+
+
 NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
 NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
@@ -25,11 +27,13 @@ compile: ebin/mmap.so
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
 
-archive: ../erlyvideo-$(VERSION).tgz
-
-
-../erlyvideo-$(VERSION).tgz:
-	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
+archive:
+	SRC=`pwd`
+	cd ..
+	git clone $(SRC) erlyvideo-$(VERSION) --depth 1
+	rm -rf erlyvideo-$(VERSION)/.git
+	find erlyvideo-$(VERSION) -name '.git*' -delete
+	tar zcvf erlyvideo-$(VERSION).tgz erlyvideo-$(VERSION)
 
 
 ebin:
@@ -71,7 +75,6 @@ install: compile
 	mkdir -p $(DESTROOT)/etc/init.d/
 	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
-	rm -rf $(DESTROOT)/var/lib/erlyvideo/wwwroot/player/.git
 	mkdir -p $(DESTROOT)/var/log/erlyvideo
 	mkdir -p $(DESTROOT)/etc/erlyvideo
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
