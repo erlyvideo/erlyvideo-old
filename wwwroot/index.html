@@ -14,13 +14,6 @@
 <div id="header"><h1>Erlyvideo Admin Panel</h1></div>
 
 
-<div id="video-launcher">
-  <form action="" onsubmit="openFile(document.getElementById('fileUrl').value); return false;">
-    <input type="text" id="fileUrl">
-    <input type="submit" value="Play">
-  </form>
-</div>
-
 <script type="text/javascript">
 function embedFlowplayer(server, path) {
   document.getElementById("flowplayer").href = path;
@@ -165,6 +158,28 @@ function openFile(url) {
   setTimeout(streamInfoLoader, 100);
 }
 
+
+function parseQueryString() {
+  var re1 = /^([^?]+)\?(.+)/
+  var urlHalves;
+  urlHalves = re1.exec(String(document.location));
+  if(!urlHalves) {
+    return {};
+  }
+  urlHalves = urlHalves[2];
+  var params = {};
+  var i;
+  
+  var re = /^([^=]+)=(.*)$/;
+  
+  var urlVars = urlHalves.split('&');
+  for(i=0; i< urlVars.length; i++){
+    var kv = re.exec(urlVars[i]);
+    params[kv[1]] = kv[2];
+  }
+  return params;
+}
+
 Ext.onReady(function(){
   
   
@@ -226,6 +241,19 @@ Ext.onReady(function(){
     }
   }
   streamInfoLoader(true);
+  
+  video_launcher_html = '<div id="video-launcher" style="padding: 6px">\
+    <form action="" onsubmit="openFile(document.getElementById(\'fileUrl\').value); return false;"> \
+      <input type="text" id="fileUrl" style="width: 80%"> \
+      <input type="submit" value="Play"> \
+    </form> \
+  </div>';
+  
+  var playPanel = new Ext.Panel({
+    title: "Play",
+    collapsible: true,
+    html: video_launcher_html
+  });
   
   var streamsGrid = new Ext.grid.GridPanel({
       store: store,
@@ -326,15 +354,7 @@ Ext.onReady(function(){
 	    width: 300,
 	    minSize: 100,
 	    maxSize: 500,
-			items: [
-			  {
-			    region: 'north',
-			    xtype: 'box',
-			    applyTo: 'video-launcher',
-			    height: 20
-			  },
-			  treePanel
-			]
+			items: [playPanel, treePanel]
 		}, {
 		  id: 'streams-grid',
 		  region: 'center',
@@ -348,6 +368,10 @@ Ext.onReady(function(){
     renderTo: Ext.getBody()
   });
   
+  var params = parseQueryString();
+  if(params["file"] && params["file"].length > 0) {
+    document.getElementById("fileUrl").value = params["file"];
+  }
 });
 </script>
 
