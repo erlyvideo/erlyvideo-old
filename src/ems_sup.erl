@@ -90,6 +90,7 @@ start_media(_Name, mpegts_file,   Opts) -> supervisor:start_child(ems_media_sup,
 start_media(_Name, record,        Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);
 start_media(_Name, append,        Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);
 start_media(_Name, live,          Opts) -> supervisor:start_child(ems_media_sup, [live_media, Opts]);
+start_media(_Name, proxy,         Opts) -> supervisor:start_child(ems_media_sup, [proxy_media, Opts]);
 start_media(_Name, rtsp,          Opts) -> supervisor:start_child(ems_media_sup, [rtsp_media, Opts]);
 start_media(_Name, rtmp,          Opts) -> supervisor:start_child(ems_media_sup, [rtmp_media, Opts]);
 start_media( Name, http,          Opts) -> http_media:start_link(Name, Opts);

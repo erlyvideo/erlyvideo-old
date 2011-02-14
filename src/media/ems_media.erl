@@ -265,7 +265,7 @@ status(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 info(Media) ->
-  info(Media, [client_count, url, type, storage]).
+  info(Media, [client_count, url, type, storage, last_dts, ts_delay]).
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
@@ -285,7 +285,7 @@ info(Media, Properties) ->
   gen_server:call(Media, {info, Properties}).
   
 known_properties() ->
-  [client_count, url, type, storage, clients].
+  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at].
   
 properties_are_valid(Properties) ->
   lists:subtract(Properties, known_properties()) == [].
@@ -374,9 +374,16 @@ decoder_config(Media) when is_pid(Media) ->
 init([Module, Options]) ->
   % ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
-  URL = proplists:get_value(url, Options),
+  URL_ = proplists:get_value(url, Options),
+  URL = if 
+    is_list(URL_) -> list_to_binary(URL_);
+    is_binary(URL_) -> URL_;
+    is_atom(URL_) -> atom_to_binary(URL_, latin1);
+    true -> iolist_to_binary(io_lib:format("~p", [URL_]))
+  end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
-                     clients = ems_media_clients:init(), host = proplists:get_value(host, Options)},
+                     clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
+                     created_at = ems:now(utc)},
                      
   timer:send_interval(30000, garbage_collect),
   case Module:init(Media, Options) of
@@ -1016,13 +1023,17 @@ video_parameters(#ems_media{}, Options) ->
 
 
 
-reply_with_info(#ems_media{type = Type, url = URL} = Media, Properties) ->
+reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_at = CreatedAt} = Media, Properties) ->
   lists:foldl(fun
-    (type, Props) -> [{type,Type}|Props];
-    (url, Props) -> [{url,URL}|Props];
+    (type, Props)         -> [{type,Type}|Props];
+    (url, Props)          -> [{url,URL}|Props];
+    (last_dts, Props)     -> [{last_dts,LastDTS}|Props];
+    (created_at, Props)   -> [{created_at,CreatedAt}|Props];
+    (ts_delay, Props) when Type == file -> [{ts_delay,0}|Props];
+    (ts_delay, Props)     -> [{ts_delay,(ems:now(utc) - CreatedAt)*1000 - LastDTS}|Props];
     (client_count, Props) -> [{client_count,client_count(Media)}|Props];
-    (storage, Props) -> storage_properties(Media) ++ Props;
-    (clients, Props) -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props]
+    (storage, Props)      -> storage_properties(Media) ++ Props;
+    (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props]
   end, [], Properties).
 
 
