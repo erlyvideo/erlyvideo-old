@@ -1,10 +1,5 @@
 [{sasl, [
 	{sasl_error_logger, false}
-]},
-{snmp, [
-	{agent, [
-		{config, [{dir, "/var/lib/erlyvideo/snmp/agent/conf/"}]},
-		{db_dir, "/var/lib/erlyvideo/snmp/agent/db/"}
-	]}
-]}
-].
+]}, {erlyvideo, [
+  {config_file, "/etc/erlyvideo/erlyvideo.conf"}
+]}].
