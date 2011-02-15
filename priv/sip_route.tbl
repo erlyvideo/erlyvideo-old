@@ -1,0 +1,9 @@
+%% -*- erlang -*-
+{"11%", [{owner, local}, {user_mod, ems_sip}]}.
+{"22%", [{owner, remote}]}.
+{"32%", [{owner, local}, {user_mod, ems_sip}]}.
+{"33%", [{owner, local}, {user_mod, ems_sip_pbxmate}]}.
+
+{domain, internal}.
+{"4%%", [{owner, local}, {user_mod, ems_sip_pbxmate}]}.
+{"43%%", [{owner, local}, {user_mod, ems_sip_pbxmate}]}.
