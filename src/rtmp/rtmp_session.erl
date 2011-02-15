@@ -502,14 +502,7 @@ handle_frame(#video_frame{} = Frame, Session) ->
   case flv_video_frame:is_good_flv(Frame) of
     true -> send_frame(Frame, Session);
     _ -> Session
-  end;
-
-handle_frame(Frame, Session) ->
-  send_frame(Frame, Session).
-
-is_good_flv(#video_frame{content = audio, sound = {_Channels, _Bits, Rate}}) when is_number(Rate) -> false;
-is_good_flv(#video_frame{content = audio, codec = pcm_le}) -> false;
-is_good_flv(#video_frame{content = audio}) -> true.
+  end.
 
 send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame,
              #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
