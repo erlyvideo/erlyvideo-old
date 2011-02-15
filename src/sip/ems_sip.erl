@@ -36,7 +36,7 @@ start() ->
       ok;
     Config ->
       ?D({"Config", Config}),
-      application:start(gproc, temporary),
+      %%application:start(gproc, temporary),
       application:start(esip, temporary),
       spawn(fun() ->
                 timer:sleep(3000),
