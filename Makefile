@@ -88,5 +88,5 @@ install: compile
 	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
-.PHONY: doc debian compile snmp deps/esip
+.PHONY: doc debian compile snmp
 

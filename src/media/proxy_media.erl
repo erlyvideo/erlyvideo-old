@@ -139,6 +139,10 @@ handle_control(_Control, #ems_media{} = State) ->
 %% @doc Called by ems_media to parse frame.
 %% @end
 %%----------------------------------------------------------------------
+handle_frame(#video_frame{content = audio, stream_id = StreamId, flavor = config} = Frame, 
+             #ems_media{state = #proxy{stream_id = StreamId}, last_dts = LastDTS} = Media) ->
+  {noreply, Media#ems_media{audio_config = Frame#video_frame{dts = LastDTS, pts = LastDTS}}};
+
 handle_frame(#video_frame{content = video, stream_id = StreamId, flavor = Flavor, dts = DTS} = Frame, 
              #ems_media{source = OldSource, source_ref = OldRef, last_dts = LastDTS,
                         state = #proxy{next = Source, stream_id = StreamId} = Proxy} = Media) 
