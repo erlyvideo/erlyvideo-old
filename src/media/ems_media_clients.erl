@@ -177,7 +177,22 @@ send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, St
   Clients.
   % repeater_send_frame(Frame, Clients, State).
 
-repeater_send_frame(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clients, State, Key) ->
+repeater_send_frame(#video_frame{} = VideoFrame, Clients, State, Key) ->
+  case flv_video_frame:is_good_flv(VideoFrame) of
+    true -> repeater_send_frame0(VideoFrame, Clients, State, Key);
+    false ->
+      Sender = fun
+        (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
+          Frame; 
+        (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
+          Pid ! Frame#video_frame{stream_id = StreamId},
+          Frame
+      end,
+      ets:foldl(Sender, VideoFrame, table(Clients, State)),
+      Clients
+  end.
+  
+repeater_send_frame0(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clients, State, Key) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
