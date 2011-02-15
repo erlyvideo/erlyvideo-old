@@ -132,7 +132,7 @@ frame_type(?FLV_VIDEO_FRAME_TYPE_KEYFRAME) -> keyframe.
 
 
 
-rtmp_tag_generator(#video_frame{content = Content, body = Body, dts = DTS} = Frame) ->
+rtmp_tag_generator(#video_frame{content = Content, dts = DTS} = Frame) ->
   Tag = flv_video_frame:encode(Frame),
   Type = case Content of
     audio -> 8;
