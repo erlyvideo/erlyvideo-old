@@ -86,16 +86,16 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call(ping, From, #client{storage_opened = false} = State) ->
-  State1 = case filelib:ensure_dir("priv") of
-    ok -> 
-      {ok, license_storage} = dets:open_file(license_storage, [{file,"priv/license_storage.db"}]),
-      State#client{storage_opened = true};
-    {error, Reason} -> 
-      ems_log:error(license_client, "License client couldn't open license_storage: ~p", [Reason]),
-      State
-  end,
-  handle_call(ping, From, State1);
+% handle_call(ping, From, #client{storage_opened = false} = State) ->
+%   State1 = case filelib:ensure_dir("priv") of
+%     ok -> 
+%       {ok, license_storage} = dets:open_file(license_storage, [{file,"priv/license_storage.db"}]),
+%       State#client{storage_opened = true};
+%     {error, Reason} -> 
+%       ems_log:error(license_client, "License client couldn't open license_storage: ~p", [Reason]),
+%       State
+%   end,
+%   handle_call(ping, From, State1);
 
 handle_call(ping, _From, State) ->
   State1 = make_request_internal(State),
