@@ -36,10 +36,13 @@ start() ->
       ok;
     Config ->
       ?D({"Config", Config}),
+      application:start(gproc, temporary),
       application:start(esip, temporary),
-      timer:sleep(1000),
-      esip:set_config(Config),
-      esip:start_transport(),
+      spawn(fun() ->
+                timer:sleep(3000),
+                esip:set_config(Config),
+                esip:run()
+            end),
       ok
   end.
 
