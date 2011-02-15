@@ -54,9 +54,10 @@
 %%%---------------------------------------------------------------------------------------
 -module(mp4_writer).
 -author('Max Lapshin <max@maxidoors.ru>').
--include_lib("../include/flv.hrl").
--include_lib("../include/mp4.hrl").
--include_lib("../include/video_frame.hrl").
+-include("../include/flv.hrl").
+-include("../include/mp4.hrl").
+-include("../include/mp3.hrl").
+-include("../include/video_frame.hrl").
 -include("log.hrl").
 
 -export([write/2, write/3, pack_language/1, dump_media/2]).
@@ -198,6 +199,11 @@ handle_frame(#video_frame{flavor = config, content = audio, body = Config}, Conv
   ?D("mp4_writer got audio config"),
   {ok, Convertor#convertor{audio_config = Config}};
 
+handle_frame(#video_frame{codec = mp3, body = Body}, #convertor{audio_config = undefined} = Convertor) ->
+  {ok, #mp3_frame{} = Config, _} = mp3:read(Body),
+  ?D("mp4_writer got audio config"),
+  {ok, Convertor#convertor{audio_config = Config}};
+  
 
 handle_frame(#video_frame{content = metadata}, Convertor) ->
   {ok, Convertor};
@@ -220,7 +226,7 @@ handle_frame(#video_frame{body = Body},
 
 handle_frame(eof, #convertor{write_offset = WriteOffset, writer = Writer, header_end = HeaderEnd, method = one_pass} = Convertor) ->
   Writer(HeaderEnd, <<(WriteOffset - HeaderEnd):32>>),
-  {ok, write_moov(Convertor)}.
+  {ok, write_moov(sort_frames(Convertor))}.
 
 
 append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{min_dts = Min} = C) when Min == undefined orelse Min > DTS ->
@@ -237,10 +243,11 @@ append_frame_to_list(#video_frame{body = Body, content = audio} = Frame,
              #convertor{write_offset = WriteOffset, audio_frames = Audio} = Convertor) ->
   {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}}.
 
-  
+
 shift_and_write_moov(#convertor{writer = Writer, header_end = HeaderEnd, write_offset = WriteOffset, method = two_pass} = Convertor) ->
   MdatSize = WriteOffset - HeaderEnd,
-  #convertor{write_offset = MoovOffset} = Convertor1 = write_moov(Convertor#convertor{write_offset = HeaderEnd, writer = fun(_, _) -> ok end}),
+  Convertor0 = sort_frames(Convertor),
+  #convertor{write_offset = MoovOffset} = Convertor1 = write_moov(Convertor0#convertor{write_offset = HeaderEnd, writer = fun(_, _) -> ok end}),
   MoovSize = MoovOffset - HeaderEnd,
   MdatHeaderSize = 8,
   Convertor2 = append_chunk_offsets(Convertor1, MoovSize + MdatHeaderSize),
@@ -258,13 +265,21 @@ append_chunk_offsets(#convertor{video_frames = Video, audio_frames = Audio} = Co
   Convertor#convertor{video_frames = Video1, audio_frames = Audio1}.
   
 sorted(Frames) ->
-  lists:reverse(lists:keysort(#video_frame.dts, Frames)).
+  lists:sort(fun
+    (#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) when DTS1 >= DTS2 -> true;
+    (#video_frame{dts = DTS, pts = PTS1}, #video_frame{dts = DTS, pts = PTS2}) when PTS1 >= PTS2 -> true;
+    (_, _) -> false
+  end, Frames).
   
-write_moov(#convertor{writer = Writer, write_offset = WriteOffset, video_frames = Video, audio_frames = Audio, min_dts = Min, max_dts = Max} = Convertor) ->
+sort_frames(#convertor{video_frames = Video, audio_frames = Audio} = Convertor) ->
+  Convertor#convertor{video_frames = sorted(Video), audio_frames = sorted(Audio)}.
+  
+write_moov(#convertor{writer = Writer, write_offset = WriteOffset, min_dts = Min, max_dts = Max} = Convertor) ->
   Duration = round(Max - Min),
-  Moov = {moov, moov(Convertor#convertor{duration = Duration, video_frames = sorted(Video), audio_frames = sorted(Audio)})},
+  Convertor1 = Convertor#convertor{duration = Duration},
+  Moov = {moov, moov(Convertor1)},
   {ok, End} = mp4_write(Writer, WriteOffset, Moov),
-  Convertor#convertor{write_offset = End}.
+  Convertor1#convertor{write_offset = End}.
 
 mp4_header() ->
   [
@@ -478,13 +493,21 @@ pack_audio_config(#convertor{audio_config = undefined}) ->
   <<>>;
 
 
-pack_audio_config(#convertor{audio_config = Config}) ->
+pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame{codec = Codec}|_]}) ->
   Reserved = <<0,0,0,0,0,0>>,
   RefIndex = 1,
   SoundVersion = 0,
   Unknown = <<0,0,0,0,0,0>>,
-  
-  {_AACType, _SampleRate, ChannelsCount, _SamplesPerFrame} = aac:pack_config(aac:decode_config(Config)),
+
+  {ObjectType, ChannelsCount} = case Codec of
+    aac ->
+      {_AACType, _SampleRate, AACChannels, _SamplesPerFrame} = aac:pack_config(aac:decode_config(Config)),
+      {64, AACChannels};
+    mp3 ->
+      #mp3_frame{channels = Channels} = Config,
+      {107, Channels}
+  end,
+
   
   SampleSize = 16,
   PacketSize = 0,
@@ -498,7 +521,6 @@ pack_audio_config(#convertor{audio_config = Config}) ->
   StreamPriority = 0,
   ESDescr = <<ESID:16, StreamDependence:1, HaveUrl:1, OCRStream:1, StreamPriority:5>>,
   
-  ObjectType = 64,
   StreamType = 5,
   UpStream = 0,
   Reserved3 = 1,
@@ -507,12 +529,16 @@ pack_audio_config(#convertor{audio_config = Config}) ->
   AvgBitrate = 0,
   ConfigDescr = <<ObjectType, StreamType:6, UpStream:1, Reserved3:1, BufferSizeDB:24, MaxBitrate:32, AvgBitrate:32>>,
   
+
   MP4A = <<Reserved:6/binary, RefIndex:16, SoundVersion:16, Unknown:6/binary, ChannelsCount:16, SampleSize:16, 
             CompressionId:16, PacketSize:16, (round(?AUDIO_SCALE*1000)):16, 0:16>>,
+            
+  DescrTag = case Codec of
+    aac -> [ConfigDescr, {?MP4DecSpecificDescrTag, Config}];
+    mp3 -> ConfigDescr
+  end,
   ESDS = {?MP4ESDescrTag, [ESDescr,
-     {?MP4DecConfigDescrTag, [
-         ConfigDescr, {?MP4DecSpecificDescrTag, Config}
-      ]},
+     {?MP4DecConfigDescrTag, DescrTag},
      {?MP4Unknown6Tag, <<2>>}]
    },
    
@@ -550,8 +576,8 @@ pack_durations(ReverseFrames) ->
 	List = [<<1:32, Duration:32>> || Duration <- Durations],
 	[<<0:32, (length(List)):32>>, List].
 
-pack_durations([#video_frame{dts = DTS}, #video_frame{dts = DTS, content = Content} = F|ReverseFrames], Acc) ->
-	pack_durations([F#video_frame{dts = DTS - 1}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
+pack_durations([#video_frame{dts = DTS, pts = PTS}, #video_frame{dts = DTS1, content = Content} = F|ReverseFrames], Acc) when DTS =< DTS1->
+	pack_durations([F#video_frame{dts = DTS - 1, pts = PTS - DTS1 + DTS}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
 
 pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], Acc) when DTS1 > DTS2 ->
 	pack_durations([F|ReverseFrames], [round((DTS1 - DTS2)*scale_for_content(Content)) | Acc]);

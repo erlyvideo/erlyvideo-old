@@ -31,7 +31,7 @@
 
 -export([run/2, create_client/1]).
 
-run(ListenPort, ForwardAddr) ->
+run(ListenPort, _ForwardAddr) ->
 	rtmp_socket:start_server(ListenPort, rtmp_listener1, rtmp_proxy).
 	
 	

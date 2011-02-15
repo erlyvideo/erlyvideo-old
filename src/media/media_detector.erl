@@ -111,7 +111,7 @@ check_path(Host, Name) ->
     Dir -> 
       Path = ems:pathjoin(Dir, Name), 
       case filelib:is_regular(Path) of
-        true -> {true, Path};
+        true -> {true, list_to_binary(Path)};
         false -> false
       end  
   end.

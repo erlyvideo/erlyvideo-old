@@ -60,7 +60,8 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/2, seek/3]).
--export([metadata/1, metadata/2, info/1, play_setup/2, seek_info/2, seek_info/3, status/1]).
+-export([metadata/1, metadata/2, play_setup/2, seek_info/2, seek_info/3]).
+-export([info/1, info/2, status/1]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 -export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
 
@@ -253,12 +254,42 @@ seek_info(Media, DTS) when is_number(DTS) ->
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
 %%  
-%%
-%% @doc Returns miscelaneous info about media, such as client_count
 %% @end
 %%----------------------------------------------------------------------
 status(Media) ->
-  gen_server:call(Media, status).
+  info(Media).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Status::list()
+%%  
+%% @end
+%%----------------------------------------------------------------------
+info(Media) ->
+  info(Media, [client_count, url, type, storage, last_dts, ts_delay]).
+  
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Properties::list()) -> Info::list()
+%%
+%% @doc Returns miscelaneous info about media, such as client_count
+%% Here goes list of known properties
+%%
+%% client_count
+%% url
+%% type
+%% storage
+%% clients
+%% @end
+%%----------------------------------------------------------------------
+info(Media, Properties) ->
+  properties_are_valid(Properties) orelse erlang:error({badarg, Properties}),
+  gen_server:call(Media, {info, Properties}).
+  
+known_properties() ->
+  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at].
+  
+properties_are_valid(Properties) ->
+  lists:subtract(Properties, known_properties()) == [].
+  
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Metadata::video_frame()
@@ -278,14 +309,6 @@ metadata(Media) when is_pid(Media) ->
 metadata(Media, Options) when is_pid(Media) ->
   gen_server:call(Media, {metadata, Options}).  
 
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> Info::list()
-%%
-%% @doc Information about stream
-%% @end
-%%----------------------------------------------------------------------
-info(Media) ->
-  gen_server:call(Media, info).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Options::list()) -> ok
@@ -351,9 +374,16 @@ decoder_config(Media) when is_pid(Media) ->
 init([Module, Options]) ->
   % ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
-  URL = proplists:get_value(url, Options),
+  URL_ = proplists:get_value(url, Options),
+  URL = if 
+    is_list(URL_) -> list_to_binary(URL_);
+    is_binary(URL_) -> URL_;
+    is_atom(URL_) -> atom_to_binary(URL_, latin1);
+    true -> iolist_to_binary(io_lib:format("~p", [URL_]))
+  end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
-                     clients = ems_media_clients:init(), host = proplists:get_value(host, Options)},
+                     clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
+                     created_at = ems:now(utc)},
                      
   timer:send_interval(30000, garbage_collect),
   case Module:init(Media, Options) of
@@ -570,11 +600,8 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
 handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
   {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
-handle_call(info, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, lists:ukeymerge(1, [{url,URL},{type, Type}], storage_properties(Media)), Media, ?TIMEOUT};
-
-handle_call(status, _From, #ems_media{type = Type, url = URL} = Media) ->
-  {reply, [{client_count, client_count(Media)},{url,URL},{type, Type}], Media, ?TIMEOUT};
+handle_call({info, Properties}, _From, Media) ->
+  {reply, reply_with_info(Media, Properties), Media, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -683,8 +710,6 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
       Ref = erlang:monitor(process, NewSource),
       {noreply, Media1#ems_media{source = NewSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
   end;
-  % FIXME: should send notification
-  % ems_event:stream_source_lost(Media#ems_stream.host, MediaInfo#media_info.name, self()),
 
   
 handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
@@ -721,8 +746,7 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
       {stop, Reason, Media2}
   end;
 
-handle_info(#video_frame{} = RawFrame, Media) ->
-  Frame = normalize_dts(RawFrame, Media),
+handle_info(#video_frame{} = Frame, Media) ->
   % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
   {Media1, Frames} = case ems_media_frame:transcode(Frame, Media) of
     {Media1_, undefined} -> {Media1_, []};
@@ -814,17 +838,6 @@ handle_info(Message, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
-
-normalize_dts(#video_frame{codec = nellymoser8, dts = DTS} = F, #ems_media{last_dts = LastDTS, ts_delta = Delta}) when is_number(Delta) and is_number(LastDTS) ->
-  PrevDTS = LastDTS - Delta,
-  if
-    DTS == PrevDTS + 32 -> F;
-    DTS > PrevDTS andalso DTS < PrevDTS + 100 -> F#video_frame{dts = PrevDTS + 32}; % nellymoser8 is 8KHz audio, 256 samples in each frame
-    true -> F
-  end;
-
-normalize_dts(Frame, _Media) ->
-  Frame.
 
 try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = undefined} = Media) ->
   Media;
@@ -1007,6 +1020,21 @@ video_parameters(#ems_media{video_config = #video_frame{body = Config}}, Options
 video_parameters(#ems_media{}, Options) ->  
   [{duration,proplists:get_value(duration, Options, 0)}].
 
+
+
+
+reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_at = CreatedAt} = Media, Properties) ->
+  lists:foldl(fun
+    (type, Props)         -> [{type,Type}|Props];
+    (url, Props)          -> [{url,URL}|Props];
+    (last_dts, Props)     -> [{last_dts,LastDTS}|Props];
+    (created_at, Props)   -> [{created_at,CreatedAt}|Props];
+    (ts_delay, Props) when Type == file -> [{ts_delay,0}|Props];
+    (ts_delay, Props)     -> [{ts_delay,(ems:now(utc) - CreatedAt)*1000 - LastDTS}|Props];
+    (client_count, Props) -> [{client_count,client_count(Media)}|Props];
+    (storage, Props)      -> storage_properties(Media) ++ Props;
+    (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props]
+  end, [], Properties).
 
 
 

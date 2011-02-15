@@ -52,7 +52,7 @@ pread(File, Position, Size) when Position >= 0 andalso Position < size(File) ->
 pread(_File, Position, Size) when Position < 0 orelse Size < 0 ->
   {error,einval};
 
-pread(File, Position, Size) when Position >= size(File) ->
+pread(File, Position, _Size) when Position >= size(File) ->
   eof.
   
 mmap_pread(_File, _Position, _Size) ->

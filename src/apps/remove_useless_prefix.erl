@@ -26,7 +26,7 @@
 -include("../log.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 
--export([play/2]).
+-export([play/2, getStreamLength/2]).
 
 play(Session, #rtmp_funcall{args = [null, <<"flv:", FullName/binary>> | Args]} = AMF) ->
   {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
@@ -37,6 +37,18 @@ play(Session, #rtmp_funcall{args = [null, <<"mp4:", FullName/binary>> | Args]} =
 play(Session, #rtmp_funcall{args = [null, <<"*flv:", FullName/binary>> | Args]} = AMF) ->
   {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
   
-play(Session, AMF) ->
+play(_Session, _AMF) ->
   unhandled.
   
+getStreamLength(Session, #rtmp_funcall{args = [null, <<"flv:", FullName/binary>> | Args]} = AMF) ->
+  {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
+
+getStreamLength(Session, #rtmp_funcall{args = [null, <<"mp4:", FullName/binary>> | Args]} = AMF) ->
+  {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
+
+getStreamLength(Session, #rtmp_funcall{args = [null, <<"*flv:", FullName/binary>> | Args]} = AMF) ->
+  {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
+
+getStreamLength(_Session, _AMF) ->
+  unhandled.
+

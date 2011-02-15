@@ -31,6 +31,7 @@
 -export([transcode/2, send_frame/2]).
 
 -define(TIMEOUT, 60000).
+-define(GLUE_DELTA, 25).
 
 
 transcode(Frame, #ems_media{transcoder = undefined} = Media) ->
@@ -53,12 +54,15 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
   
 
 
-send_frame(Frame, Media) ->
-  %case Media#ems_media.type of
-    %mpegts -> ?D(Frame#video_frame{body=body});
-    %_ -> ok
-  %end,
-  shift_dts(Frame, Media).
+send_frame(Frame, #ems_media{module = M} = Media) ->
+  case M:handle_frame(Frame, Media) of
+    {reply, F, Media1} ->
+      shift_dts(F, Media1);
+    {noreply, Media1} ->
+      {noreply, Media1, ?TIMEOUT};
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1}
+  end.
 
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
   shift_dts(Frame, Media#ems_media{last_dts = 0});
@@ -67,9 +71,9 @@ shift_dts(#video_frame{dts = undefined} = Frame, #ems_media{last_dts = LastDTS} 
   handle_shifted_frame(Frame#video_frame{dts = LastDTS, pts = LastDTS}, Media);
 
 shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, last_dts = LastDTS} = Media) ->
-  ?D({"New instance of stream", LastDTS, DTS, LastDTS - DTS}),
+  ?D({"New instance of stream", LastDTS, DTS, LastDTS - DTS + ?GLUE_DELTA}),
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
-  shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS}); %% Lets glue new instance of stream to old one
+  shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS + ?GLUE_DELTA}); %% Lets glue new instance of stream to old one plus small glue time
 
 shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
   % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
@@ -112,21 +116,14 @@ handle_config(Frame, Media) ->
   handle_frame(Frame, Media).
 
 
-handle_frame(#video_frame{content = Content, flavor = Flavor} = Frame, #ems_media{module = M, video_config = V, clients = Clients} = Media) ->
+handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
   Media1 = reply_with_decoder_config(Media),
-  case M:handle_frame(Frame, Media1) of
-    {reply, F, Media2} ->
-      case Content of
-        audio when V == undefined orelse Flavor == config -> ems_media_clients:send_frame(F, Clients, starting);
-        _ -> ok
-      end,
-      ems_media_clients:send_frame(F, Clients, active),
-      {noreply, Media2, ?TIMEOUT};
-    {noreply, Media2} ->
-      {noreply, Media2, ?TIMEOUT};
-    {stop, Reason, Media2} ->
-      {stop, Reason, Media2}
-  end.
+  case Content of
+    audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
+    _ -> ok
+  end,
+  ems_media_clients:send_frame(Frame, Clients, active),
+  {noreply, Media1, ?TIMEOUT}.
 
 
 save_frame(undefined, Storage, _) ->

@@ -17,7 +17,7 @@
           verify_crc32/1,
           verify_crc32/2]).
 
--on_load(start/0).
+% -on_load(start/0).
 -export([start/0]).
 -export([benchmark/0, benchmark_calc/2]).
 
@@ -209,10 +209,11 @@ crc32_1_test() ->
 
 benchmark() ->
   Bin = iolist_to_binary(lists:map(fun(N) -> integer_to_list(N) end, lists:seq(1, 100))),
-  {Time, _} = timer:tc(?MODULE, benchmark_calc, [Bin, 0]),
-  round(Time/1000).
+  Count = 100000,
+  {Time, _} = timer:tc(?MODULE, benchmark_calc, [Bin, Count]),
+  Time/Count.
 
-benchmark_calc(_, 100000) -> ok;
-benchmark_calc(Bin, N) -> crc32(Bin), benchmark_calc(Bin, N+1).
+benchmark_calc(_, 0) -> ok;
+benchmark_calc(Bin, N) -> crc32(Bin), benchmark_calc(Bin, N-1).
 
 

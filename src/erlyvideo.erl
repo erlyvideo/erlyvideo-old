@@ -33,9 +33,18 @@
 -export([call_modules/2]).
 -export([stats/1]).
 -export([vhosts/0]).
+-export([main/1]).
 
 
 -export([edoc/0, edoc/1]).
+
+
+main([]) ->
+  start(),
+  Ref = erlang:monitor(process, whereis(ems_sup)),
+  receive
+    {'DOWN', Ref, process, _Client, _Reason} -> ok
+  end.
 
 
 start(normal, []) ->
@@ -65,12 +74,9 @@ vhosts() ->
 
 start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
+  ibrowse:start(),
   ems_log:start(),
 	application:start(crypto),
-  application:start(os_mon),
-  % application:start(snmp),
-  % os_mon_mib:load(snmp_master_agent),
-  % snmpa:load_mibs(snmp_master_agent, ["snmp/ERLYVIDEO-MIB"]),
 	application:start(rtmp),
 
 	application:load(erlyvideo),
@@ -92,7 +98,6 @@ start() ->
 	error_logger:info_report("Started Erlyvideo"),
   error_logger:delete_report_handler(sasl_report_tty_h),
   error_logger:delete_report_handler(sasl_report_file_h),
-  ibrowse:start(),
 	ok.
 
 start_http() ->

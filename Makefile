@@ -4,6 +4,8 @@ ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
 ERL_LIBS:=deps:lib:plugins:..
 
+
+
 NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
 NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
 
@@ -11,36 +13,15 @@ NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -f
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: deps/amf snmp compile deps/esip
+all: snmp compile
 
-update: update_deps
+update:
 	git pull
-
-deps/amf: update_deps
-
-deps/esip:
-	[ -d $@ ] && (cd $@ && $(MAKE) all) || true
-
-update_deps: rebar.config
-	[ -d wwwroot/player ] || git clone git://github.com/erlyvideo/erlyplayer wwwroot/player
-	./rebar get-deps
-
-
-push:
-	git push github master
-	git push github master --tags
-
-rebar.config:
-	cp rebar.config.sample rebar.config
 
 compile: ebin/mmap.so
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/ibrowse && make)
 	(cd deps/erlydtl && make)
-	(cd deps/mpegts && make)
-
-ebin/mmap.so: src/core/mmap.c
-	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
 
 
 include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
@@ -49,13 +30,14 @@ include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
 snmp/ERLYVIDEO-MIB.bin: snmp/ERLYVIDEO-MIB.mib
 	erlc -o snmp snmp/ERLYVIDEO-MIB.mib
 
+snmp: include/ERLYVIDEO-MIB.hrl
 
-archive: ../erlyvideo-$(VERSION).tgz
 
+ebin/mmap.so: src/core/mmap.c
+	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
 
-../erlyvideo-$(VERSION).tgz:
-	(cd ..; tar zcvf erlyvideo-$(VERSION).tgz --exclude='.git*' --exclude='.DS_Store' --exclude='erlyvideo/plugins/*' --exclude=erlyvideo/$(MNESIA_DATA)* --exclude='erlyvideo/*/._*' erlyvideo)
-
+archive:
+	git archive --prefix=erlyvideo-$(VERSION)/ v$(VERSION) | gzip -9 > ../erlyvideo-$(VERSION).tar.gz
 
 ebin:
 	mkdir ebin
@@ -96,7 +78,6 @@ install: compile
 	mkdir -p $(DESTROOT)/etc/init.d/
 	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
 	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
-	rm -rf $(DESTROOT)/var/lib/erlyvideo/wwwroot/player/.git
 	mkdir -p $(DESTROOT)/var/log/erlyvideo
 	mkdir -p $(DESTROOT)/etc/erlyvideo
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
@@ -107,5 +88,5 @@ install: compile
 	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
-.PHONY: doc debian compile snmp deps/esip
+.PHONY: doc debian compile snmp
 

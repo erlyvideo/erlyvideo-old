@@ -1,3 +1,33 @@
+erlyvideo (2.6.3) unstable; urgency=low
+
+  Working proxy_media. Fix in license_client
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 15 Feb 2011 07:41:17 +0300
+
+erlyvideo (2.6.2) unstable; urgency=low
+
+  media url fix. Archive. Old player removal.
+
+ -- Max Lapshin <max@maxidoors.ru>  Mon, 14 Feb 2011 09:13:24 +0300
+
+erlyvideo (2.6.1) unstable; urgency=low
+
+  new admin panel
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 11 Feb 2011 20:44:31 +0300
+
+erlyvideo (2.6.0) unstable; urgency=low
+
+  receiveAV,  RTSP now better restarts on camera failures, http issues, mp4_writer ready
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 10 Feb 2011 13:57:04 +0300
+
+erlyvideo (2.5.20) unstable; urgency=low
+
+  mp3 in mp4 fixes
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 04 Feb 2011 02:26:07 +0300
+
 erlyvideo (2.5.19) unstable; urgency=low
 
   flv:read_tag conference fix

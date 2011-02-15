@@ -19,7 +19,8 @@
   
   transcoder,
   trans_state,
-  
+
+  created_at,
   last_dts = 0,
   ts_delta,
   

@@ -160,7 +160,7 @@ handle_message(Message, FlvWriter) ->
   Message.
   
 store_message(Frame, #flv_file_writer{buffer_size = 0} = Writer) ->
-  ?D({unbuffered_store}),
+  % ?D({unbuffered_store}),
   dump_frame_in_file(Frame, Writer);
   
 store_message(Frame, #flv_file_writer{buffer = Buffer, buffer_size = Size} = FlvWriter) when length(Buffer) >= Size ->

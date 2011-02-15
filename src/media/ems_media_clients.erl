@@ -29,7 +29,7 @@
 -include("ems_media_client.hrl").
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
-         send_frame/3, mass_update_state/3, increment_bytes/3]).
+         send_frame/3, mass_update_state/3, increment_bytes/3, list/1]).
          
 -export([init_repeater/3, repeater/2]).
 
@@ -101,7 +101,22 @@ remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
 insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS} = Entry) ->
   ets:insert(Bytes, {Client,0}),
   insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
-  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry)}.
+  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
+
+list(#clients{list = List, bytes = Bytes}) ->
+  Now = ems:now(utc),
+  [begin
+    TimeDelta = Now - ConnectedAt,
+    ByteCount = ets:lookup_element(Bytes, Pid, 2),
+    BitRate = 8*ByteCount div TimeDelta,
+    [{pid, Pid},
+     {bytes, ByteCount},
+     {state, atom_to_binary(State,latin1)},
+     {connection_time, TimeDelta},
+     {bitrate, BitRate}
+   ] 
+   end || #client{consumer = Pid, state = State, connected_at = ConnectedAt} <- List].
+  
 
 
 find(#clients{bytes = Bytes, list = List}, Client) ->
@@ -162,10 +177,11 @@ send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, St
   Clients.
   % repeater_send_frame(Frame, Clients, State).
 
-repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State, Key) ->
+repeater_send_frame(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clients, State, Key) ->
   FrameGen = flv:rtmp_tag_generator(VideoFrame),
   % ?D(ets:tab2list(table(Clients, State))),
   Table = table(Clients, State),
+  Size = iolist_size(FrameGen(0, 0)),
   Sender = fun
     (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
       Frame; 
@@ -174,20 +190,24 @@ repeater_send_frame(#video_frame{} = VideoFrame, #clients{} = Clients, State, Ke
         true -> ok;
         _ -> Pid ! {rtmp_lag, self()}
       end,
+      (catch ets:update_counter(Bytes, Pid, Size)),
       Frame;
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio, flavor = frame} = Frame) ->
       % ?D("send with pid, audio not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
+      (catch ets:update_counter(Bytes, Pid, Size)),
       inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.audio_notified,true}),
       Frame;
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video, flavor = keyframe} = Frame) ->
       % ?D("send with pid, video not notified"),
       Pid ! Frame#video_frame{stream_id = StreamId},
+      (catch ets:update_counter(Bytes, Pid, Size)),
       inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
       ets:update_element(Table, Pid, {#cached_entry.video_notified,true}),
       Frame;
     (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
+      (catch ets:update_counter(Bytes, Pid, Size)),
       Pid ! Frame#video_frame{stream_id = StreamId},
       Frame
   end,
@@ -214,7 +234,7 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
   end || #client{consumer = Pid, stream_id = StreamId, state = State, tcp_socket = Socket, dts = DTS} = Entry <- List]}.
   
 increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
-  ets:update_counter(Bytes, Client, Size),
+  (catch ets:update_counter(Bytes, Client, Size)),
   Clients.
 
 -include_lib("eunit/include/eunit.hrl").

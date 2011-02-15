@@ -514,6 +514,10 @@ is_good_flv(#video_frame{content = audio}) -> true.
 send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame,
              #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
+    #rtmp_stream{base_dts = DTS_, receive_audio = false} when Type == audio ->
+      {State, DTS_, false, false};
+    #rtmp_stream{base_dts = DTS_, receive_video = false} when Type == video ->
+      {State, DTS_, false, false};
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
     #rtmp_stream{pid = Media, started = false} = Stream ->
@@ -533,6 +537,12 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
   %   metadata -> ?D(Frame);
   %   _ ->
   %     ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
+  %     % case get(stream_start) of
+  %     %   undefined -> put(stream_start, erlang:now());
+  %     %   _ -> ok
+  %     % end,
+  %     % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
+  %     % ?D({round(DTS), RealDiff}),
   %     ok
   % end,
   case Allow of
