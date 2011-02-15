@@ -78,6 +78,7 @@ start() ->
   ems_log:start(),
 	application:start(crypto),
 	application:start(rtmp),
+	application:start(os_mon),
 
 	application:load(erlyvideo),
 	load_config(),
