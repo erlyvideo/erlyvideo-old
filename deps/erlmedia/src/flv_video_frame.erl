@@ -30,6 +30,12 @@
 -export([to_tag/1, encode/1, decode/1, decode/2]).
 -export([tag_to_video_frame/1]).
 
+-export([is_good_flv/1]).
+
+is_good_flv(#video_frame{content = audio, sound = {_Channels, _Bits, Rate}}) when is_number(Rate) -> false;
+is_good_flv(#video_frame{content = audio, codec = pcm_le}) -> false;
+is_good_flv(#video_frame{}) -> true.
+
 
 
 

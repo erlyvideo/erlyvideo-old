@@ -498,8 +498,8 @@ handle_info(_Info, StateName, StateData) ->
   {next_state, StateName, StateData}.
 
 
-handle_frame(#video_frame{content = audio} = Frame, Session) ->
-  case is_good_flv(Frame) of
+handle_frame(#video_frame{} = Frame, Session) ->
+  case flv_video_frame:is_good_flv(Frame) of
     true -> send_frame(Frame, Session);
     _ -> Session
   end;
