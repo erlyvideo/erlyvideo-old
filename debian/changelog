@@ -1,3 +1,9 @@
+erlyvideo (2.6.3) unstable; urgency=low
+
+  Working proxy_media. Fix in license_client
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 15 Feb 2011 07:41:17 +0300
+
 erlyvideo (2.6.2) unstable; urgency=low
 
   media url fix. Archive. Old player removal.
