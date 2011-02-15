@@ -39,7 +39,8 @@
 
 -record(client, {
   license,
-  timeout
+  timeout,
+  storage_opened = false
 }).
 
 start_link() ->
@@ -71,7 +72,6 @@ ping([sync]) ->
 
 init([]) ->
   % self() ! ping,
-  {ok, license_storage} = dets:open_file(license_storage, [{file,"priv/license_storage.db"}]),
   {ok, #client{timeout = ?TIMEOUT}}.
 
 %%-------------------------------------------------------------------------
@@ -86,6 +86,17 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_call(ping, From, #client{storage_opened = false} = State) ->
+  State1 = case filelib:ensure_dir("priv") of
+    ok -> 
+      {ok, license_storage} = dets:open_file(license_storage, [{file,"priv/license_storage.db"}]),
+      State#client{storage_opened = true};
+    {error, Reason} -> 
+      ems_log:error(license_client, "License client couldn't open license_storage: ~p", [Reason]),
+      State
+  end,
+  handle_call(ping, From, State1);
+
 handle_call(ping, _From, State) ->
   State1 = make_request_internal(State),
   {reply, ok, State1};
@@ -156,7 +167,7 @@ make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = Stat
       error_logger:info_msg("Reading license key from ~s", [LicensePath]),
       {Env,proplists:get_value(timeout,Env,OldTimeout)}
   end,
-  request_licensed(License),
+  request_licensed(License, State),
   State#client{license = License, timeout = Timeout}.
 
 
@@ -171,10 +182,10 @@ read_license() ->
       undefined
   end.
 
-request_licensed(undefined) ->
+request_licensed(undefined, _State) ->
   ok;
   
-request_licensed(Env) ->
+request_licensed(Env, State) ->
   Command = "init",
   LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.org/license"),
   License = proplists:get_value(license, Env),
@@ -182,28 +193,28 @@ request_licensed(Env) ->
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin} ->
-      read_license_response(Bin);
+      read_license_response(Bin, State);
     _Else ->
       ?D({license_error, _Else}),
       _Else
   end.    
   
-read_license_response(Bin) ->
+read_license_response(Bin, State) ->
   {reply, Reply} = erlang:binary_to_term(Bin),
   case proplists:get_value(version, Reply) of
     1 ->
       Commands = proplists:get_value(commands, Reply),
-      Startup = execute_commands_v1(Commands, []),
+      Startup = execute_commands_v1(Commands, [], State),
       handle_loaded_modules_v1(lists:reverse(Startup));
     Version ->
       {error,{unknown_license_version, Version}}
   end.
   
   
-execute_commands_v1([], Startup) -> 
+execute_commands_v1([], Startup, _State) -> 
   Startup;
 
-execute_commands_v1([{purge,Module}|Commands], Startup) ->
+execute_commands_v1([{purge,Module}|Commands], Startup, State) ->
   case erlang:function_exported(Module, ems_client_unload, 0) of
     true -> (catch Module:ems_client_unload());
     false -> ok
@@ -213,9 +224,13 @@ execute_commands_v1([{purge,Module}|Commands], Startup) ->
     true -> error_logger:info_msg("Licence purge ~p", [Module]), code:purge(Module);
     false -> ok
   end,
-  execute_commands_v1(Commands, Startup);
+  execute_commands_v1(Commands, Startup, State);
 
-execute_commands_v1([{save,Info}|Commands], Startup) ->
+execute_commands_v1([{save,_Info}|Commands], Startup, #client{storage_opened = false} = State) ->
+  execute_commands_v1(Commands, Startup, State);
+  
+
+execute_commands_v1([{save,Info}|Commands], Startup, #client{storage_opened = true} = State) ->
   File = proplists:get_value(file, Info),
   Path = proplists:get_value(path, Info),
   CacheDir = ems:get_var(license_cache_dir, "tmp"),
@@ -228,42 +243,44 @@ execute_commands_v1([{save,Info}|Commands], Startup) ->
       file:write_file(FullPath, File),
       error_logger:info_msg("License file ~p", [Path])
   end,
-  execute_commands_v1(Commands, Startup);
+  execute_commands_v1(Commands, Startup, State);
 
-execute_commands_v1([{save_app, {application,Name,Desc} = AppDescr}|Commands], Startup) ->
+execute_commands_v1([{save_app, {application,Name,Desc} = AppDescr}|Commands], Startup, #client{storage_opened = CanSave} = State) ->
   Version = proplists:get_value(vsn, Desc),
   case application:load(AppDescr) of
-    ok ->
+    ok when CanSave == true ->
       save_application(Name,Desc),
       error_logger:info_msg("License save application ~p(~s)", [Name, Version]);
+    ok when CanSave == false ->
+      error_logger:info_msg("License only load application ~p(~s)", [Name, Version]);
     _ -> ok
   end,
-  execute_commands_v1(Commands, Startup);
+  execute_commands_v1(Commands, Startup, State);
   
-execute_commands_v1([{load_app, {application,Name,_Desc} = AppDescr}|Commands], Startup) ->
+execute_commands_v1([{load_app, {application,Name,_Desc} = AppDescr}|Commands], Startup, State) ->
   case application:load(AppDescr) of
     ok -> error_logger:info_msg("License load application ~p", [Name]);
     _ -> ok
   end,
-  execute_commands_v1(Commands, Startup);
+  execute_commands_v1(Commands, Startup, State);
   
   
-execute_commands_v1([{load,ModInfo}|Commands], Startup) ->
+execute_commands_v1([{load,ModInfo}|Commands], Startup, State) ->
   Code = proplists:get_value(code, ModInfo),
   {ok, {Module, [Version]}} = beam_lib:version(Code),
   case is_new_version(ModInfo) of
     false -> 
-      execute_commands_v1(Commands, Startup);
+      execute_commands_v1(Commands, Startup, State);
     true -> 
       error_logger:info_msg("Licence load ~p(~p)", [Module, Version]),
       code:soft_purge(Module),
       code:load_binary(Module, "license/"++atom_to_list(Module)++".erl", Code),
-      execute_commands_v1(Commands, [Module|Startup])
+      execute_commands_v1(Commands, [Module|Startup], State)
   end;
   
-execute_commands_v1([_Command|Commands], Startup) ->
-  error_logger:error_msg("Unknown license server commands"),
-  execute_commands_v1(Commands, Startup).
+execute_commands_v1([_Command|Commands], Startup, State) ->
+  error_logger:error_msg("Unknown license server command"),
+  execute_commands_v1(Commands, Startup, State).
 
 
 is_new_version(ModInfo) ->
