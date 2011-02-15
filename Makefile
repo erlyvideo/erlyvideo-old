@@ -13,7 +13,7 @@ NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -f
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: snmp compile
+all: compile
 
 update:
 	git pull
@@ -23,14 +23,6 @@ compile: ebin/mmap.so
 	(cd deps/ibrowse && make)
 	(cd deps/erlydtl && make)
 
-
-include/ERLYVIDEO-MIB.hrl: snmp/ERLYVIDEO-MIB.bin
-	erlc -o include snmp/ERLYVIDEO-MIB.bin
-
-snmp/ERLYVIDEO-MIB.bin: snmp/ERLYVIDEO-MIB.mib
-	erlc -o snmp snmp/ERLYVIDEO-MIB.mib
-
-snmp: include/ERLYVIDEO-MIB.hrl
 
 
 ebin/mmap.so: src/core/mmap.c
@@ -83,10 +75,9 @@ install: compile
 	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
-	cp -r snmp $(DESTROOT)/var/lib/erlyvideo/
 	mkdir -p $(DESTROOT)/var/cache/erlyvideo/licensed
 	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
-.PHONY: doc debian compile snmp
+.PHONY: doc debian compile
 
