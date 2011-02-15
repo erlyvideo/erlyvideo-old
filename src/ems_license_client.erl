@@ -186,10 +186,15 @@ request_licensed(undefined, _State) ->
   ok;
   
 request_licensed(Env, State) ->
-  Command = "init",
-  LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.org/license"),
-  License = proplists:get_value(license, Env),
+  case proplists:get_value(license, Env) of
+    undefined -> ok;
+    License ->
+      LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.org/license"),
+      request_code_from_server(LicenseUrl, License, State)
+  end.
   
+request_code_from_server(LicenseUrl, License, State) ->
+  Command = "init",
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin} ->
@@ -304,16 +309,16 @@ handle_loaded_modules_v1([Module|Startup]) ->
   handle_loaded_modules_v1(Startup).
 
   
-save_application(AppName, Desc) ->
-  SavedApps = dets:lookup(license_storage, saved_apps),
-  ModNames = proplists:get_value(modules, Desc),
-  Modules = [begin
-    {Name,Bin,_Path} = code:get_object_code(Name),
-    {Name,Bin}
-  end || Name <- ModNames],
-  NewApps = lists:usort([AppName|SavedApps]),
-  dets:insert(license_storage, [{saved_apps,NewApps},{{app,AppName},Desc}|Modules]),
-  ok.
+% save_application(AppName, Desc) ->
+%   SavedApps = dets:lookup(license_storage, saved_apps),
+%   ModNames = proplists:get_value(modules, Desc),
+%   Modules = [begin
+%     {Name,Bin,_Path} = code:get_object_code(Name),
+%     {Name,Bin}
+%   end || Name <- ModNames],
+%   NewApps = lists:usort([AppName|SavedApps]),
+%   dets:insert(license_storage, [{saved_apps,NewApps},{{app,AppName},Desc}|Modules]),
+%   ok.
 
 
   
