@@ -86,16 +86,16 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call(ping, From, #client{storage_opened = false} = State) ->
-  State1 = case filelib:ensure_dir("priv") of
-    ok -> 
-      {ok, license_storage} = dets:open_file(license_storage, [{file,"priv/license_storage.db"}]),
-      State#client{storage_opened = true};
-    {error, Reason} -> 
-      ems_log:error(license_client, "License client couldn't open license_storage: ~p", [Reason]),
-      State
-  end,
-  handle_call(ping, From, State1);
+% handle_call(ping, From, #client{storage_opened = false} = State) ->
+%   State1 = case filelib:ensure_dir("priv") of
+%     ok -> 
+%       {ok, license_storage} = dets:open_file(license_storage, [{file,"priv/license_storage.db"}]),
+%       State#client{storage_opened = true};
+%     {error, Reason} -> 
+%       ems_log:error(license_client, "License client couldn't open license_storage: ~p", [Reason]),
+%       State
+%   end,
+%   handle_call(ping, From, State1);
 
 handle_call(ping, _From, State) ->
   State1 = make_request_internal(State),
@@ -245,17 +245,17 @@ execute_commands_v1([{save,Info}|Commands], Startup, #client{storage_opened = tr
   end,
   execute_commands_v1(Commands, Startup, State);
 
-execute_commands_v1([{save_app, {application,Name,Desc} = AppDescr}|Commands], Startup, #client{storage_opened = CanSave} = State) ->
-  Version = proplists:get_value(vsn, Desc),
-  case application:load(AppDescr) of
-    ok when CanSave == true ->
-      save_application(Name,Desc),
-      error_logger:info_msg("License save application ~p(~s)", [Name, Version]);
-    ok when CanSave == false ->
-      error_logger:info_msg("License only load application ~p(~s)", [Name, Version]);
-    _ -> ok
-  end,
-  execute_commands_v1(Commands, Startup, State);
+% execute_commands_v1([{save_app, {application,Name,Desc} = AppDescr}|Commands], Startup, #client{storage_opened = CanSave} = State) ->
+%   Version = proplists:get_value(vsn, Desc),
+%   case application:load(AppDescr) of
+%     ok when CanSave == true ->
+%       save_application(Name,Desc),
+%       error_logger:info_msg("License save application ~p(~s)", [Name, Version]);
+%     ok when CanSave == false ->
+%       error_logger:info_msg("License only load application ~p(~s)", [Name, Version]);
+%     _ -> ok
+%   end,
+%   execute_commands_v1(Commands, Startup, State);
   
 execute_commands_v1([{load_app, {application,Name,_Desc} = AppDescr}|Commands], Startup, State) ->
   case application:load(AppDescr) of
