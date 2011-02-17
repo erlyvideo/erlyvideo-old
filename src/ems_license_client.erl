@@ -330,13 +330,20 @@ handle_loaded_modules_v1([Module|Startup]) ->
   
 save_application(AppName, Desc) ->
   [{saved_apps,SavedApps}] = dets:lookup(?LICENSE_TABLE, saved_apps),
-  ModNames = proplists:get_value(modules, Desc),
-  Modules = [begin
-    {Name,Bin,_Path} = code:get_object_code(Name),
-    {{mod,Name},Bin}
-  end || Name <- ModNames],
-  NewApps = lists:usort([AppName|SavedApps]),
-  dets:insert(license_storage, [{saved_apps,NewApps},{{app,AppName},Desc}|Modules]),
+  Modules = lists:foldl(fun
+    (_Name, undefined) -> undefined;
+    (Name, Modules_) ->
+      case code:get_object_code(Name) of
+        {Name,Bin,_Path} -> [{{mod,Name},Bin}|Modules_];
+        _ -> undefined
+      end
+  end, [], proplists:get_value(modules, Desc)),
+  case Modules of
+    undefined -> ok;
+    _ ->
+      NewApps = lists:usort([AppName|SavedApps]),
+      dets:insert(license_storage, [{saved_apps,NewApps},{{app,AppName},Desc}|Modules])
+  end,
   ok.
 
 
