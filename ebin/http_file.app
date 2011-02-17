@@ -4,7 +4,6 @@
  {modules, [
 	erlyvideo_http_file,
 	http_file,
-	http_file_request,
 	http_file_sup
   ]},
  {registered,[http_file]},
