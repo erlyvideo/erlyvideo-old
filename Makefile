@@ -75,6 +75,8 @@ install: compile
 	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
 	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
 	mkdir -p $(DESTROOT)/var/cache/erlyvideo/licensed
+	chown erlyvideo.erlyvideo $(DESTROOT)/var/lib/erlyvideo/movies
+	chown erlyvideo.erlyvideo $(DESTROOT)/var/cache/erlyvideo/licensed
 	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
