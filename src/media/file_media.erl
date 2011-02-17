@@ -49,11 +49,13 @@ init(State, Options) ->
   Host = proplists:get_value(host, Options),
   DefaultAccess = ems:get_var(file_access, Host, file),
   Access = proplists:get_value(file_access, Options, DefaultAccess),
+  ClientsTimeout = proplists:get_value(clients_timeout, Options, default_timeout()),
+  timer:send_after(ClientsTimeout, no_clients),
   case open_file(Access, Path, Options) of
     {error, Reason} ->
       {stop, Reason};
     {Format, Storage} ->
-      {ok, State#ems_media{format = Format, storage = Storage, source_timeout = false, clients_timeout = default_timeout()}}
+      {ok, State#ems_media{format = Format, storage = Storage, source_timeout = false, clients_timeout = ClientsTimeout}}
   end.
   
 
