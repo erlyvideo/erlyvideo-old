@@ -211,7 +211,7 @@ request_licensed(Env, State) ->
   end.
   
 request_code_from_server(LicenseUrl, License, State) ->
-  Command = "init",
+  Command = "save",
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin} ->
