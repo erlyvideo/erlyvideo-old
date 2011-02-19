@@ -186,6 +186,16 @@ codec2bin(C) ->
     speex -> <<"speex">>
   end.
 
+%% TODO: fix dynamic payload types
+codec2plt(C) ->
+  case C of
+    h264 -> 97;
+    aac -> 96;
+    speex -> 101;
+    pcmu -> 0;
+    pcma -> 8
+  end.
+
 ms2bin(MS) ->
   case MS of
     undefined -> <<>>;
@@ -247,6 +257,18 @@ prep_media_config({audio,
               payloads = [#payload{num = 111, codec = Codec,
                                    clock_map = rate2num(Rate), ms = mono,
                                    config = ["vbr=vad"]}],
+              track_control = undefined};
+prep_media_config({audio,
+                   #video_frame{content = audio,
+                                flavor = config,
+                                codec = Codec,
+                                sound = {_Channs, _Size, Rate},
+                                body = _Body}}, Opts) ->
+  #media_desc{type = audio,
+              port = proplists:get_value(audio_port, Opts, 0),
+              payloads = [#payload{num = codec2plt(Codec), codec = Codec,
+                                   clock_map = rate2num(Rate), ms = mono,
+                                   config = []}],
               track_control = undefined};
 prep_media_config({audio, _}, _) ->
     undefined;
