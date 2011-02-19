@@ -43,6 +43,7 @@
 -record(client, {
   license,
   timeout,
+  key,
   storage_opened = false,
   memory_applications = []
 }).
@@ -214,23 +215,27 @@ request_code_from_server(LicenseUrl, License, State) ->
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin} ->
-      read_license_response(Bin, State);
+      read_license_response(Bin, State#client{key = License});
     _Else ->
       ?D({license_error, _Else}),
       _Else
   end.    
   
 read_license_response(Bin, State) ->
-  {reply, Reply} = erlang:binary_to_term(Bin),
-  case proplists:get_value(version, Reply) of
-    1 ->
-      Commands = proplists:get_value(commands, Reply),
-      Startup = execute_commands_v1(Commands, [], State),
-      handle_loaded_modules_v1(lists:reverse(Startup));
-    Version ->
-      {error,{unknown_license_version, Version}}
+  case erlang:binary_to_term(Bin) of
+    {reply, Reply} ->
+      case proplists:get_value(version, Reply) of
+        1 ->
+          Commands = proplists:get_value(commands, Reply),
+          Startup = execute_commands_v1(Commands, [], State),
+          handle_loaded_modules_v1(lists:reverse(Startup));
+        Version ->
+          {error,{unknown_license_version, Version}}
+      end;
+    {error, Reason} ->
+      error_logger:error_msg("Couldn't load license key ~p: ~p~n", [State#client.key, Reason]),
+      {error, Reason}
   end.
-  
   
 execute_commands_v1([], Startup, _State) -> 
   Startup;
@@ -329,7 +334,27 @@ handle_loaded_modules_v1([Module|Startup]) ->
 
   
 save_application(AppName, Desc) ->
-  [{saved_apps,SavedApps}] = dets:lookup(?LICENSE_TABLE, saved_apps),
+  Version = proplists:get_value(vsn, Desc),
+  case need_to_update_application(AppName, Version) of
+    true -> save_or_update_application(AppName, Desc);
+    false -> ok
+  end.
+
+
+need_to_update_application(AppName, Version) ->
+  case saved_application(AppName) of
+    undefined -> true;
+    Desc ->
+      case proplists:get_value(vsn, Desc) of
+        Version -> false;
+        _ -> true
+      end
+  end.
+    
+    
+save_or_update_application(AppName, Desc) ->
+  error_logger:info_msg("Saving license application ~p~n", [AppName]),
+  SavedApps = saved_applications(),
   Modules = lists:foldl(fun
     (_Name, undefined) -> undefined;
     (Name, Modules_) ->
@@ -370,9 +395,25 @@ open_license_storage() ->
       end
   end.
   
+  
+saved_applications() ->
+  [{saved_apps,SavedApps}] = dets:lookup(?LICENSE_TABLE, saved_apps),
+  SavedApps.
+  
+saved_application(AppName) ->
+  case dets:lookup(?LICENSE_TABLE, {app,AppName}) of
+    [] -> undefined;
+    [{{app,AppName},Desc}] -> Desc
+  end.
+
+saved_module(Module) ->
+  case dets:lookup(?LICENSE_TABLE, {mod,Module}) of
+    [] -> undefined;
+    [{{mod,Module},Code}] -> Code
+  end.
 
 restore_license_code() ->
-  [{saved_apps,SavedApps}] = dets:lookup(?LICENSE_TABLE, saved_apps),
+  SavedApps = saved_applications(),
   restore_saved_applications(SavedApps),
   SavedApps.
 
@@ -381,10 +422,10 @@ restore_saved_applications([]) ->
   ok;
   
 restore_saved_applications([App|SavedApps]) -> 
-  case dets:lookup(?LICENSE_TABLE, {app,App}) of
-    [] -> 
+  case saved_application(App) of
+    undefined -> 
       restore_saved_applications(SavedApps);
-    [{{app,App},Desc}] ->
+    Desc ->
       Modules = proplists:get_value(modules, Desc),
       load_saved_modules(Modules),
       application:load(Desc),
@@ -397,9 +438,9 @@ load_saved_modules([]) ->
   ok;
   
 load_saved_modules([Module|Modules]) ->
-  case dets:lookup(?LICENSE_TABLE, {mod,Module}) of
-    [] -> load_saved_modules(Modules);
-    [{{mod,Module},Code}] ->
+  case saved_module(Module) of
+    undefined -> load_saved_modules(Modules);
+    Code ->
       {ok, {Module, [Version]}} = beam_lib:version(Code),
       error_logger:info_msg("Licence restore ~p(~p)", [Module, Version]),
       code:soft_purge(Module),
