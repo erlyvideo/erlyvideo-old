@@ -40,6 +40,7 @@
          play/3,
          listen_ports/4,
          add_stream/4,
+         set_media/2,
          stop/1
         ]).
 
@@ -75,7 +76,8 @@
           method    ::  #ports_desc{} | #interleaved_desc{},
           track_control,
           state,
-          acc = []  :: list()
+          acc = []  :: list(),
+          codec     :: term()
          }).
 
 
@@ -100,6 +102,9 @@ init({Type, Opts}) ->
   Media = proplists:get_value(media, Opts),
   Parent = proplists:get_value(parent, Opts),
   StreamId = proplists:get_value(stream_id, Opts),
+  AudioCodec = proplists:get_value(audio_codec, Opts),
+  VideoCodec = proplists:get_value(video_codec, Opts),
+
   if is_pid(Parent) ->
       ParentRef = erlang:monitor(process, Parent);
      true ->
@@ -107,6 +112,8 @@ init({Type, Opts}) ->
   end,
   random:seed(now()),
   {ok, #state{type = Type,
+              audio = #desc{codec = AudioCodec},
+              video = #desc{codec = VideoCodec},
               media = Media,
               stream_id = StreamId,
               parent = Parent,
@@ -141,7 +148,9 @@ handle_call({listen_ports,
                                               clock_map = ClockMap}|_],
                          track_control = TCtl},
              Proto, Method}, _From,
-           #state{type = RtpType} = State) ->
+           #state{type = RtpType,
+                  audio = AudioDesc,
+                  video = VideoDesc} = State) ->
   Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
   BaseRTP = #base_rtp{codec = PTnum,
                       media = Type,
@@ -173,13 +182,13 @@ handle_call({listen_ports,
   NewState =
     case Type of
       audio ->
-        State#state{audio = #desc{method = MethodDesc,
-                                  track_control = TCtl,
-                                  state = BaseRTP}};
+        State#state{audio = AudioDesc#desc{method = MethodDesc,
+                                           track_control = TCtl,
+                                           state = BaseRTP}};
       video ->
-        State#state{video = #desc{method = MethodDesc,
-                                  track_control = TCtl,
-                                  state = BaseRTP}}
+        State#state{video = VideoDesc#desc{method = MethodDesc,
+                                           track_control = TCtl,
+                                           state = BaseRTP}}
     end,
   ?DBG("NewState:~n~p", [NewState]),
   {reply, {ok, {Method, Result}}, NewState};
@@ -194,7 +203,10 @@ handle_call({add_stream,
                    video = VideoDesc} = State) ->
   ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
 
-  [BaseMethod] = [M || #desc{method = M} <- [AudioDesc, VideoDesc]],
+  ?DBG("AudioDesc:~n~p", [AudioDesc]),
+  ?DBG("VideoDesc:~n~p", [VideoDesc]),
+  [BaseMethod] = [M || #desc{method = M} <- [AudioDesc, VideoDesc],
+                       is_record(M, ports_desc) orelse is_record(M, interleaved_desc)],
   case Method of
     ports ->
       case Params of
@@ -243,9 +255,14 @@ handle_call({add_stream,
   ?DBG("NewState:~n~p", [NewState]),
   {reply, ok, NewState};
 
+handle_call({set_media, Media}, _From, State) ->
+  ?DBG("Set Media Process ~p", [Media]),
+  {reply, ok, State#state{media = Media}};
+
 handle_call({stop}, _From, State) ->
   ?DBG("Stop RTP Process ~p", [self()]),
   {stop, normal, ok, State};
+
 handle_call(Request, _From, State) ->
   ?DBG("Unknown call: ~p", [Request]),
   Error = {unknown_call, Request},
@@ -399,15 +416,21 @@ handle_info({udp, SSocket, SAddr, SPort, Data},
                    stream_id = StreamId,
                    media = Media} = State) ->
   {AudioRTCPSock, AudioRTPSock} =
-    if is_record(AudioDesc, desc) ->
-        {(AudioDesc#desc.method)#ports_desc.socket_rtcp, (AudioDesc#desc.method)#ports_desc.socket_rtp};
-       true ->
+    case AudioDesc of
+      #desc{method =
+              #ports_desc{socket_rtcp = SrtcpA,
+                          socket_rtp = SrtpA}} ->
+        {SrtcpA, SrtpA};
+      _ ->
         {undefined, undefined}
     end,
   {VideoRTCPSock, VideoRTPSock} =
-    if is_record(VideoDesc, desc) ->
-        {(VideoDesc#desc.method)#ports_desc.socket_rtcp, (VideoDesc#desc.method)#ports_desc.socket_rtp};
-       true ->
+    case VideoDesc of
+      #desc{method =
+              #ports_desc{socket_rtcp = SrtcpV,
+                          socket_rtp = SrtpV}} ->
+        {SrtcpV, SrtpV};
+      _ ->
         {undefined, undefined}
     end,
 
@@ -417,8 +440,8 @@ handle_info({udp, SSocket, SAddr, SPort, Data},
       do_audio_rtcp,
       NewState = State;
     AudioRTPSock ->
-      NewBaseRTP = do_audio_rtp({udp, SAddr, SPort, Data}, AudioDesc, Media, StreamId),
-      NewAudioDesc = AudioDesc#desc{state = NewBaseRTP},
+      {NewBaseRTP, NewCodec} = do_audio_rtp({udp, SAddr, SPort, Data}, AudioDesc, Media, StreamId),
+      NewAudioDesc = AudioDesc#desc{state = NewBaseRTP, codec = NewCodec},
       NewState = State#state{audio = NewAudioDesc, rtcp_send = true};
     VideoRTCPSock ->
       %%?DBG("Video RTCP", []),
@@ -483,6 +506,9 @@ listen_ports(Pid, #media_desc{} = Stream, Proto, Method) ->
 
 add_stream(Pid, #media_desc{} = Stream, {Method, Params}, Extra) ->
   gen_server:call(Pid, {add_stream, Stream, {Method, Params}, Extra}).
+
+set_media(Pid, Media) ->
+  gen_server:call(Pid, {set_media, Media}).
 
 stop(Pid) ->
   gen_server:call(Pid, {stop}).
@@ -858,9 +884,21 @@ do_audio_rtp({udp, _SAddr, _SPort, Data}, AudioDesc, Media, StreamId) ->
     flavor  = frame,
     sound	  = {mono, bit16, rate44}
    },
+  Codec = AudioDesc#desc.codec,
+
   %%?DBG("AudioFrame:~n~p", [AF]),
-  if is_pid(Media) ->
-      Media ! AF;
-     true -> pass
-  end,
-  NewBaseRTP#base_rtp{wall_clock = round(DTS)}.
+  NewCodec =
+    if is_pid(Media) ->
+        {CodedFrame, CodecNew} =
+          if Codec =/= undefined ->
+              {ok, OutFrame, Codec1} = ems_sound:transcode(AF, Codec),
+              {OutFrame, Codec1};
+             true ->
+              {AF, Codec}
+          end,
+        Media ! CodedFrame,
+        CodecNew;
+       true -> Codec
+    end,
+  {NewBaseRTP#base_rtp{wall_clock = round(DTS)},
+   NewCodec}.
