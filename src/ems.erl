@@ -25,7 +25,7 @@
 -include("ems.hrl").
 -include("log.hrl").
 
--export([get_var/2, get_var/3, check_app/3, try_method_chain/3, respond_to/3]).
+-export([get_var/2, get_var/3, set_var/3, check_app/3, try_method_chain/3, respond_to/3]).
 -export([host/1]).
 
 -export([expand_tuple/2, element/2, setelement/3]).
@@ -129,6 +129,9 @@ get_var(Key, Host, Default) ->
     [] -> Default
   end.
 
+
+set_var(Key, Host, Value) ->
+  ets:insert(vhosts, {{host(Host), Key}, Value}).
 
 respond_to(Module, Command, Arity) when is_tuple(Module) -> 
   case code:ensure_loaded(erlang:element(1, Module)) of
