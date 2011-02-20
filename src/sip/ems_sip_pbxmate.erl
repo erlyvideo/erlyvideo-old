@@ -59,8 +59,8 @@ progress(#request{uri = _URI,
     connect = {inet4, RtpAddress},
     attrs = []},
 
-  {ok, ConsCodec} = ems_sound:init([{from,{pcmu,[]}}, {to,{speex,[]}}, {debug, true}]),
-
+  %%{ok, ConsCodec} = ems_sound:init([{from,{pcmu,[]}}, {to,{speex,[]}}, {debug, true}]),
+  ConsCodec = [{from,{pcmu,[]}}, {to,{speex,[]}}, {debug, true}],
   RtpOptsCons =
     [
      {parent, self()},

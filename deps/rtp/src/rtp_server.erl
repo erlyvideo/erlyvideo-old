@@ -102,8 +102,8 @@ init({Type, Opts}) ->
   Media = proplists:get_value(media, Opts),
   Parent = proplists:get_value(parent, Opts),
   StreamId = proplists:get_value(stream_id, Opts),
-  AudioCodec = proplists:get_value(audio_codec, Opts),
-  VideoCodec = proplists:get_value(video_codec, Opts),
+  AudioCodecParams = proplists:get_value(audio_codec, Opts),
+  VideoCodecParams = proplists:get_value(video_codec, Opts),
 
   if is_pid(Parent) ->
       ParentRef = erlang:monitor(process, Parent);
@@ -111,6 +111,18 @@ init({Type, Opts}) ->
       ParentRef = undefined
   end,
   random:seed(now()),
+  AudioCodec =
+    if AudioCodecParams =/= undefined ->
+        {ok, AC} = ems_sound:init(AudioCodecParams),
+        AC;
+       true -> undefined
+    end,
+  VideoCodec =
+    if VideoCodecParams =/= undefined ->
+        {ok, VC} = ems_sound:init(VideoCodecParams),
+        VC;
+       true -> undefined
+    end,
   {ok, #state{type = Type,
               audio = #desc{codec = AudioCodec},
               video = #desc{codec = VideoCodec},
@@ -880,7 +892,7 @@ do_audio_rtp({udp, _SAddr, _SPort, Data}, AudioDesc, Media, StreamId) ->
     pts     = DTS,
     body    = Payload,
     stream_id = StreamId,
-    codec	  = speex,
+    codec	  = pcmu,
     flavor  = frame,
     sound	  = {mono, bit16, rate44}
    },
