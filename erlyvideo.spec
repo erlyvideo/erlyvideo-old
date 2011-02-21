@@ -4,7 +4,7 @@
 Summary: Erlyvideo multiprotocol streaming server
 Name: erlyvideo
 Version: 2.4.4
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: GPL
 Group: Network
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -49,6 +49,8 @@ make DESTROOT=%{buildroot} install
 %post
 /bin/chown %{erly_user}:%{erly_group} /var/lib/erlyvideo/movies
 /bin/chown %{erly_user}:%{erly_group} /var/cache/erlyvideo/licensed
+/sbin/chkconfig --add %{name}
+/sbin/chkconfig %{name} on
 
 
 %files
@@ -66,5 +68,8 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Feb 21 2011 Pavel Derendyaev <paul@reic.ru> - 2.4.4-2
+- Autostart erlyvideo
+
 * Mon Feb 21 2011 Pavel Derendyaev <paul@reic.ru> - 2.4.4-1
 - Initial build
