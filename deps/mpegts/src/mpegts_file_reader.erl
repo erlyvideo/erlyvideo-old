@@ -57,7 +57,11 @@ start_link(Path, Options) ->
 %%      Create listening socket.
 %% @end
 %%----------------------------------------------------------------------
+init([Path, Options]) when is_binary(Path) ->
+  init([binary_to_list(Path), Options]);
+
 init([Path, Options]) ->
+  ?D({Path,Options}),
   Consumer = proplists:get_value(consumer, Options),
   true = is_pid(Consumer),
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
