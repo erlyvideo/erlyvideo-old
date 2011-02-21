@@ -4,7 +4,7 @@
 Summary: Erlyvideo multiprotocol streaming server
 Name: erlyvideo
 Version: 2.4.4
-Release: 2%{?dist}
+Release: 3%{?dist}
 License: GPL
 Group: Network
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -29,7 +29,7 @@ make
 
 %pre
 %{_sbindir}/groupadd %{erly_group}
-%{_sbindir}/useradd -g %{erly_group} -c "ErlyVideo User" %{erly_user} 2>/dev/null || :
+%{_sbindir}/useradd -g %{erly_group} -c "ErlyVideo User" -d %{_localstatedir}/lib/%{name} -r -m %{erly_user} 2>/dev/null || :
 
 
 %install
@@ -47,20 +47,20 @@ make DESTROOT=%{buildroot} install
 
 
 %post
-/bin/chown %{erly_user}:%{erly_group} /var/lib/erlyvideo/movies
-/bin/chown %{erly_user}:%{erly_group} /var/cache/erlyvideo/licensed
 /sbin/chkconfig --add %{name}
 /sbin/chkconfig %{name} on
 
 
 %files
+%defattr(-, root, root)
 %{_bindir}/*
 %{_libdir}/erlang
-%{_localstatedir}/lib/%{name}
-%{_localstatedir}/cache/%{name}
 %{_initrddir}/%{name}
 %config(noreplace) %{_sysconfdir}/%{name}
 %doc README.md
+%attr(-, %{erly_user}, %{erly_group}) %{_localstatedir}/lib/%{name}
+%attr(-, %{erly_user}, %{erly_group}) %{_localstatedir}/log/%{name}
+%attr(-, %{erly_user}, %{erly_group}) %{_localstatedir}/cache/%{name}
 
 
 %clean
@@ -68,6 +68,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Feb 21 2011 Pavel Derendyaev <paul@reic.ru> - 2.4.4-3
+- Create erlyvideo as system user
+- Add /var/log/erlyvideo dir
+- Use "attr" macro instead of "chown" command
+
 * Mon Feb 21 2011 Pavel Derendyaev <paul@reic.ru> - 2.4.4-2
 - Autostart erlyvideo
 
