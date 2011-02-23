@@ -1,3 +1,4 @@
+{"deps/erlmedia/src/gen_format.erl", [debug_info, {outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"src/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/crypt/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/core/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
@@ -21,6 +22,7 @@
 {"deps/shoutcast/src/*", [debug_info, {outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}, {i, "deps"}]}.
 {"deps/mpegts/src/*", [debug_info, {outdir, "deps/mpegts/ebin"}, {i, "deps/mpegts/src"}, {i, "deps"},native,{hipe,o3}]}.
 {"deps/rtmp/src/*", [debug_info, {outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"},{i,"deps"}]}.
+{"deps/rtsp/src/rtsp.erl", [debug_info, {outdir, "deps/rtsp/ebin"}, {i, "deps/rtsp/src"}, {i, "deps"}]}.
 {"deps/rtsp/src/*", [debug_info, {outdir, "deps/rtsp/ebin"}, {i, "deps/rtsp/src"}, {i, "deps"}]}.
 {"deps/rtp/src/*", [debug_info, {outdir, "deps/rtp/ebin"}, {i, "deps/rtp/src"}, {i, "deps/rtp/include"}, {i, "deps"}]}.
 {"deps/esip/src/*", [debug_info, {outdir, "deps/esip/ebin"}, {i,".."}, {i, "deps/ertp/include"}, {i,"deps/esip/include"}, {i, "deps"}]}.
