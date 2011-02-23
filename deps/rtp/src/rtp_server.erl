@@ -129,7 +129,8 @@ init({Type, Opts}) ->
               media = Media,
               stream_id = StreamId,
               parent = Parent,
-              parent_ref = ParentRef
+              parent_ref = ParentRef,
+              tc_fun = compose_tc_fun([])
              }}.
 
 handle_call({play, Fun, Media}, _From,
@@ -202,7 +203,7 @@ handle_call({listen_ports,
                                            track_control = TCtl,
                                            state = BaseRTP}}
     end,
-  ?DBG("NewState:~n~p", [NewState]),
+  ?DBG("NewState (~p):~n~p", [self(), NewState]),
   {reply, {ok, {Method, Result}}, NewState};
 
 handle_call({add_stream,
@@ -211,9 +212,10 @@ handle_call({add_stream,
                          port = RemotePort,
                          track_control = TCtl} = MS,
              {Method, Params}, Extra}, _From,
-            #state{audio = AudioDesc,
+            #state{type = RtpProcType,
+                   audio = AudioDesc,
                    video = VideoDesc} = State) ->
-  ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
+  ?DBG("DS: Add Stream (~p):~n~p~n~p, ~p, ~p", [RtpProcType, MS, Method, Params, Extra]),
 
   ?DBG("AudioDesc:~n~p", [AudioDesc]),
   ?DBG("VideoDesc:~n~p", [VideoDesc]),
@@ -264,7 +266,7 @@ handle_call({add_stream,
                                            track_control = TCtl},
                     tc_fun = TCFun}
     end,
-  ?DBG("NewState:~n~p", [NewState]),
+  ?DBG("NewState (~p):~n~p", [self(), NewState]),
   {reply, ok, NewState};
 
 handle_call({set_media, Media}, _From, State) ->
@@ -334,9 +336,10 @@ handle_info(#video_frame{content = audio, flavor = frame,
                          body = Body} = _Frame,
             #state{audio = #desc{acc = Acc} = AudioDesc,
                    tc_fun = TCFun} = State) ->
-  % ?DBG("Audio: ~n~p", [Frame]),
+  ?DBG("Audio: ~n~p", [_Frame]),
   case AudioDesc of
     #desc{method = MDesc, state = BaseRTP, acc = Acc} ->
+      ?DBG("BaseRTP (~p):~n~p", [self(), BaseRTP]),
       if (DTS == 0) and (Acc == []) ->
           NewState = State#state{audio = AudioDesc#desc{acc = Body}};
          true ->
