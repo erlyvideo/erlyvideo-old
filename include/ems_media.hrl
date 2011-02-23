@@ -1,3 +1,5 @@
+-define(DEFAULT_GLUE_DELTA, 25).
+
 -record(ems_media, {
   url,
   name,
@@ -23,6 +25,7 @@
   created_at,
   last_dts = 0,
   ts_delta,
+  glue_delta,
   
   source_timeout,
   source_timeout_ref,
@@ -33,4 +36,3 @@
   retry_count = 0,
   retry_limit = 100
 }).
-

@@ -31,7 +31,6 @@
 -export([transcode/2, send_frame/2]).
 
 -define(TIMEOUT, 60000).
--define(GLUE_DELTA, 25).
 
 
 transcode(Frame, #ems_media{transcoder = undefined} = Media) ->
@@ -71,10 +70,10 @@ shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
 shift_dts(#video_frame{dts = undefined} = Frame, #ems_media{last_dts = LastDTS} = Media) ->
   handle_shifted_frame(Frame#video_frame{dts = LastDTS, pts = LastDTS}, Media);
 
-shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, last_dts = LastDTS} = Media) ->
-  ?D({"New instance of stream", LastDTS, DTS, LastDTS - DTS + ?GLUE_DELTA}),
+shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, glue_delta = GlueDelta, last_dts = LastDTS} = Media) ->
+  ?D({"New instance of stream", LastDTS, DTS, LastDTS - DTS + GlueDelta}),
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
-  shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS + ?GLUE_DELTA}); %% Lets glue new instance of stream to old one plus small glue time
+  shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS + GlueDelta}); %% Lets glue new instance of stream to old one plus small glue time
 
 shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
   % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
