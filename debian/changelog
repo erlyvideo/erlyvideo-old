@@ -1,3 +1,9 @@
+erlyvideo (2.6.5) unstable; urgency=low
+
+  license storage
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 25 Feb 2011 00:29:53 +0300
+
 erlyvideo (2.6.4) unstable; urgency=low
 
   Proxy media fixes.
