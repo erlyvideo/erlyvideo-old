@@ -95,6 +95,9 @@ handle_msg(#http_player{streamer = Streamer} = State, {'DOWN', _, process, Pid, 
 handle_msg(#http_player{streamer = Streamer} = State, {ems_stream, _,play_complete,_}) ->
   {mpegts:continuity_counters(Streamer), State};
 
+handle_msg(#http_player{streamer = Streamer} = State, {tcp_closed, _Socket}) ->
+  {mpegts:continuity_counters(Streamer), State};
+
 handle_msg(#http_player{} = Streamer, Message) ->
   ?D(Message),
   ?MODULE:play(Streamer).
