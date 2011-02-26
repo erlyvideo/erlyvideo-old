@@ -38,8 +38,8 @@
 -export([
          start_link/1,
          play/3,
-         listen_ports/4,
-         add_stream/4,
+         listen_ports/3,
+         add_stream/5,
          set_media/2,
          stop/1
         ]).
@@ -60,8 +60,12 @@
 -record(ports_desc, {
           proto        :: tcp | udp,
           addr         :: term(),
+
+          %% Remote side
           port_rtp     :: integer(),
           port_rtcp    :: integer(),
+
+          %% Local side
           socket_rtp   :: term(),
           socket_rtcp  :: term()
          }).
@@ -80,7 +84,6 @@
           codec     :: term()
          }).
 
-
 -record(state, {
           type      :: consumer | producer,
           audio     :: #desc{},
@@ -90,6 +93,7 @@
           parent    :: pid(),
           parent_ref:: reference(),
           tc_fun    :: function(),
+          descs     :: [{reference(), #desc{}}],
           rtcp_send = false :: boolean()
          }).
 
@@ -102,8 +106,8 @@ init({Type, Opts}) ->
   Media = proplists:get_value(media, Opts),
   Parent = proplists:get_value(parent, Opts),
   StreamId = proplists:get_value(stream_id, Opts),
-  AudioCodecParams = proplists:get_value(audio_codec, Opts),
-  VideoCodecParams = proplists:get_value(video_codec, Opts),
+  %% AudioCodecParams = proplists:get_value(audio_codec, Opts),
+  %% VideoCodecParams = proplists:get_value(video_codec, Opts),
 
   if is_pid(Parent) ->
       ParentRef = erlang:monitor(process, Parent);
@@ -111,21 +115,22 @@ init({Type, Opts}) ->
       ParentRef = undefined
   end,
   random:seed(now()),
-  AudioCodec =
-    if AudioCodecParams =/= undefined ->
-        {ok, AC} = ems_sound:init(AudioCodecParams),
-        AC;
-       true -> undefined
-    end,
-  VideoCodec =
-    if VideoCodecParams =/= undefined ->
-        {ok, VC} = ems_sound:init(VideoCodecParams),
-        VC;
-       true -> undefined
-    end,
+  %% AudioCodec =
+  %%   if AudioCodecParams =/= undefined ->
+  %%       {ok, AC} = ems_sound:init(AudioCodecParams),
+  %%       AC;
+  %%      true -> undefined
+  %%   end,
+  %% VideoCodec =
+  %%   if VideoCodecParams =/= undefined ->
+  %%       {ok, VC} = ems_sound:init(VideoCodecParams),
+  %%       VC;
+  %%      true -> undefined
+  %%   end,
   {ok, #state{type = Type,
-              audio = #desc{codec = AudioCodec},
-              video = #desc{codec = VideoCodec},
+              %% audio = #desc{codec = AudioCodec},
+              %% video = #desc{codec = VideoCodec},
+              descs = [],
               media = Media,
               stream_id = StreamId,
               parent = Parent,
@@ -155,29 +160,31 @@ handle_call({play, Fun, Media}, _From,
   {reply, {ok, Info}, State};
 
 handle_call({listen_ports,
-             #media_desc{type = Type,
-                         payloads = [#payload{num = PTnum,
-                                              codec = _Codec,
-                                              clock_map = ClockMap}|_],
-                         track_control = TCtl},
+             %% #media_desc{type = Type,
+             %%             payloads = [#payload{num = PTnum,
+             %%                                  codec = _Codec,
+             %%                                  clock_map = ClockMap}|_],
+             %%             track_control = TCtl},
              Proto, Method}, _From,
-           #state{type = RtpType,
-                  audio = AudioDesc,
-                  video = VideoDesc} = State) ->
-  Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
-  BaseRTP = #base_rtp{codec = PTnum,
-                      media = Type,
-                      clock_map = ClockMap,
-                      sequence = init_rnd_seq(),
-                      base_timecode = Timecode,
-                      timecode = Timecode,
-                      base_wall_clock = 0,
-                      wall_clock = 0,
-                      last_sr = get_date(),
-                      stream_id = init_rnd_ssrc()},
+            #state{type = _RtpType,
+                   descs = Descs
+                  } = State) ->
+  %%Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
+
+  %% BaseRTP = #base_rtp{codec = PTnum,
+  %%                     media = Type,
+  %%                     clock_map = ClockMap,
+  %%                     sequence = init_rnd_seq(),
+  %%                     base_timecode = Timecode,
+  %%                     timecode = Timecode,
+  %%                     base_wall_clock = 0,
+  %%                     wall_clock = 0,
+  %%                     last_sr = get_date(),
+  %%                     stream_id = init_rnd_ssrc()},
+
   case Method of
     ports ->
-      OP = open_ports(Type),
+      OP = open_ports(),
       ?DBG("OP: ~p", [OP]),
       {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
       gen_udp:controlling_process(RTPSocket, self()),
@@ -192,37 +199,49 @@ handle_call({listen_ports,
       Result = ok,
       MethodDesc = #interleaved_desc{}
   end,
-  NewState =
-    case Type of
-      audio ->
-        State#state{audio = AudioDesc#desc{method = MethodDesc,
-                                           track_control = TCtl,
-                                           state = BaseRTP}};
-      video ->
-        State#state{video = VideoDesc#desc{method = MethodDesc,
-                                           track_control = TCtl,
-                                           state = BaseRTP}}
-    end,
-  ?DBG("NewState (~p):~n~p", [self(), NewState]),
-  {reply, {ok, {Method, Result}}, NewState};
+  %% NewState =
+  %%   case Type of
+  %%     audio ->
+  %%       State#state{audio = AudioDesc#desc{method = MethodDesc,
+  %%                                          track_control = TCtl,
+  %%                                          state = BaseRTP}};
+  %%     video ->
+  %%       State#state{video = VideoDesc#desc{method = MethodDesc,
+  %%                                          track_control = TCtl,
+  %%                                          state = BaseRTP}}
+  %%   end,
 
-handle_call({add_stream,
+  ListenRef = make_ref(),
+  NewDescs = [{ListenRef,
+               #desc{method = MethodDesc}} | Descs],
+  NewState = State#state{descs = NewDescs},
+
+  ?DBG("NewState (~p):~n~p", [self(), NewState]),
+  {reply, {ok, {Method, Result}, ListenRef}, NewState};
+
+handle_call({add_stream, ListenRef,
              #media_desc{type = Type,
+                         payloads = [#payload{num = PTnum,
+                                              codec = _Codec,
+                                              clock_map = ClockMap}|_],
                          connect = Connect,
                          port = RemotePort,
                          track_control = TCtl} = MS,
              {Method, Params}, Extra}, _From,
-            #state{type = RtpProcType,
-                   audio = AudioDesc,
-                   video = VideoDesc} = State) ->
-  ?DBG("DS: Add Stream (~p):~n~p~n~p, ~p, ~p", [RtpProcType, MS, Method, Params, Extra]),
+            #state{type = _RtpProcType,
+                   descs = Descs
+                   %% audio = Audioesc,
+                   %% video = VideoDesc
+                  } = State) ->
+  ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
 
-  ?DBG("AudioDesc:~n~p", [AudioDesc]),
-  ?DBG("VideoDesc:~n~p", [VideoDesc]),
-  [BaseMethod] = [M || #desc{method = M} <- [AudioDesc, VideoDesc],
-                       is_record(M, ports_desc) orelse is_record(M, interleaved_desc)],
-  case Method of
-    ports ->
+  %% ?DBG("AudioDesc:~n~p", [AudioDesc]),
+  %% ?DBG("VideoDesc:~n~p", [VideoDesc]),
+  {ListenRef, Desc} = proplists:lookup(ListenRef, Descs),
+  NewDescs = proplists:delete(ListenRef, Descs),
+  BaseMethod = Desc#desc.method,
+  case BaseMethod of
+    #ports_desc{} ->
       case Params of
         {Addr, PortRTP_p, PortRTCP_p} ->
           ConnAddr = Addr,
@@ -247,7 +266,7 @@ handle_call({add_stream,
                      addr = ConnAddr,
                      port_rtp = PortRTP,
                      port_rtcp = PortRTCP};
-    interleaved ->
+    #interleaved_desc{} ->
       {SocketOwner, ChanRTP, ChanRTCP} = Params,
       MethodDesc = BaseMethod#interleaved_desc{
                      socket_owner = SocketOwner,
@@ -255,15 +274,32 @@ handle_call({add_stream,
                      channel_rtcp = ChanRTCP}
   end,
   TCFun = compose_tc_fun(Extra),
+  %%Timecode = if RtpProcType == consumer -> undefined; true -> init_rnd_timecode() end,
+  Timecode = init_rnd_timecode(),
+  BaseRTP = #base_rtp{codec = PTnum,
+                      media = Type,
+                      clock_map = ClockMap,
+                      sequence = init_rnd_seq(),
+                      base_timecode = Timecode,
+                      timecode = Timecode,
+                      base_wall_clock = 0,
+                      wall_clock = 0,
+                      last_sr = get_date(),
+                      stream_id = init_rnd_ssrc()},
+
+  NewDesc = Desc#desc{method = MethodDesc,
+                      track_control = TCtl,
+                      state = BaseRTP},
+
   NewState =
     case Type of
       audio ->
-        State#state{audio = AudioDesc#desc{method = MethodDesc,
-                                           track_control = TCtl},
+        State#state{audio = NewDesc,
+                    descs = NewDescs,
                     tc_fun = TCFun};
       video ->
-        State#state{video = VideoDesc#desc{method = MethodDesc,
-                                           track_control = TCtl},
+        State#state{video = NewDesc,
+                    descs = NewDescs,
                     tc_fun = TCFun}
     end,
   ?DBG("NewState (~p):~n~p", [self(), NewState]),
@@ -516,11 +552,11 @@ code_change(_OldVsn, State, _Extra) ->
 play(Pid, Fun, Media) when is_function(Fun) ->
   gen_server:call(Pid, {play, Fun, Media}).
 
-listen_ports(Pid, #media_desc{} = Stream, Proto, Method) ->
-  gen_server:call(Pid, {listen_ports, Stream, Proto, Method}).
+listen_ports(Pid, Proto, Method) ->
+  gen_server:call(Pid, {listen_ports, Proto, Method}).
 
-add_stream(Pid, #media_desc{} = Stream, {Method, Params}, Extra) ->
-  gen_server:call(Pid, {add_stream, Stream, {Method, Params}, Extra}).
+add_stream(Pid, ListenRef, #media_desc{} = Stream, {Method, Params}, Extra) ->
+  gen_server:call(Pid, {add_stream, ListenRef, Stream, {Method, Params}, Extra}).
 
 set_media(Pid, Media) ->
   gen_server:call(Pid, {set_media, Media}).
@@ -551,10 +587,7 @@ send_rtp(F, RTPs) when is_list(RTPs) ->
      end
    end || R <- RTPs].
 
-open_ports(audio) ->
-  try_rtp(8000);
-
-open_ports(video) ->
+open_ports() ->
   try_rtp(5000).
 
 try_rtp(40000) ->
