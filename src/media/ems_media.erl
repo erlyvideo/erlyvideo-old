@@ -383,6 +383,7 @@ init([Module, Options]) ->
   end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
+                     glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
                      created_at = ems:now(utc)},
                      
   timer:send_interval(30000, garbage_collect),

@@ -35,7 +35,6 @@
 -include("../include/mp4.hrl").
 -include("../include/srt.hrl").
 -include("../include/video_frame.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
@@ -738,7 +737,6 @@ unpack_track(#mp4_track{} = Mp4Track) ->
   
 fill_track(Mp4Track) ->
   Track = unpack_track(Mp4Track),
-  % Frames = ets:new(frames, [ordered_set, {keypos, #mp4_frame.id}]),
   Frames = <<>>,
   
   #mp4_track{
@@ -750,15 +748,12 @@ fill_track(Mp4Track) ->
     timescale = Timescale
   } = Track,
   {Filled, MaxDTS} = fill_track(Frames, SampleSizes, Offsets, Keyframes, Timestamps, Compositions, Timescale, 0, 0),
-  % ?D({max_dts, MaxDTS, size(Filled) div ?FRAMESIZE}),
   {Filled, MaxDTS}.
 
 fill_track(Frames, [], [], [], [], [], _, _, DTS) ->
   {Frames, DTS};
 
 fill_track(Frames, [Size|SampleSizes], [Offset|Offsets], [Keyframe|Keyframes], [DTS|Timestamps], [CTime|Compositions], Timescale, Id, _) ->
-  % Frame = #mp4_frame{id = Id, dts = DTS*1000/Timescale, pts = (DTS+PTS)*1000/Timescale, size = Size, offset = Offset, keyframe = Keyframe},
-  % ets:insert(Frames, Frame),
   FDTS = DTS*1000/Timescale,
   FPTS = (DTS+CTime)*1000/Timescale,
   FKeyframe = case Keyframe of

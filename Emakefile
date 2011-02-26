@@ -1,3 +1,4 @@
+{"deps/erlmedia/src/gen_format.erl", [encrypt_debug_info, {outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"src/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/crypt/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/core/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
@@ -22,9 +23,9 @@
 {"deps/shoutcast/src/*", [encrypt_debug_info, {outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}, {i, "deps"}]}.
 {"deps/mpegts/src/*", [encrypt_debug_info, {outdir, "deps/mpegts/ebin"}, {i, "deps/mpegts/src"}, {i, "deps"},native,{hipe,o3}]}.
 {"deps/rtmp/src/*", [encrypt_debug_info, {outdir, "deps/rtmp/ebin"}, {i, "deps/rtmp/src"},{i,"deps"}]}.
+{"deps/rtsp/src/rtsp.erl", [encrypt_debug_info, {outdir, "deps/rtsp/ebin"}, {i, "deps/rtsp/src"}, {i, "deps"}]}.
 {"deps/rtsp/src/*", [encrypt_debug_info, {outdir, "deps/rtsp/ebin"}, {i, "deps/rtsp/src"}, {i, "deps"}]}.
 {"deps/rtp/src/*", [encrypt_debug_info, {outdir, "deps/rtp/ebin"}, {i, "deps/rtp/src"}, {i, "deps/rtp/include"}, {i, "deps"}]}.
 {"deps/esip/src/*", [encrypt_debug_info, {outdir, "deps/esip/ebin"}, {i,".."}, {i, "deps/ertp/include"}, {i,"deps/esip/include"}, {i, "deps"}]}.
 {"deps/log4erl/src/*", [encrypt_debug_info, {outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.
 {"deps/erlydtl/src/erlydtl/*", [encrypt_debug_info, {outdir, "deps/erlydtl/ebin"}, {i, "deps/erlydtl/include"}]}.
-% , bin_opt_info, 

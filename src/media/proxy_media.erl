@@ -154,7 +154,15 @@ handle_frame(#video_frame{content = video, stream_id = StreamId, flavor = Flavor
   
   ?D({switch, self(), DTS, LastDTS, Media#ems_media.ts_delta}),
   
-  {reply, Frame#video_frame{dts = LastDTS + 20, pts = LastDTS + 20}, 
+  self() ! #video_frame{
+    content = audio,
+    flavor = frame,
+    codec = empty,
+    dts = 0,
+    pts = 0,
+    stream_id = StreamId
+  },
+  {reply, Frame#video_frame{dts = 0, pts = 0}, 
   Media#ems_media{state = Proxy#proxy{next = undefined, stream_id = StreamId + 1}, 
                   source = Source, source_ref = Ref, ts_delta = LastDTS - DTS + 20}};
 
