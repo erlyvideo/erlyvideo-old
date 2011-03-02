@@ -68,7 +68,7 @@ accept(Parent, Sock, Loop) ->
   proc_lib:init_ack(Parent, {ok, self()}),
   receive
     socket ->
-      inet:setopts(Sock, [{active, once}]),
+      inet:setopts(Sock, [{active, once}, {keepalive, true}, {send_timeout, RecvTimeout}, {send_timeout_close, true}]),
       ?DEBUG(debug, "activated controlling process", [])
   after 60000 ->
     exit({error, controlling_failed})
@@ -216,6 +216,7 @@ handle_post(C, #req{} = Req) ->
 call_mfa(#c{sock = Sock, loop = Loop} = _C, Request) ->
 	% spawn listening process for Request messages [only used to support stream requests]
 	% create request
+	inet:setopts(Sock, [{active, once}]),
 	Req = misultin_req:new(Request),
 	% call loop
 	try Loop(Req) of
