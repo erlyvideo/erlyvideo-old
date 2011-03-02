@@ -27,8 +27,7 @@ function embedFlowplayer(server, path) {
 		plugins: { 
 			rtmp: { 
 				url: '/flowplayer/flowplayer.rtmp-3.1.3.swf', 
-				netConnectionUrl: server,
-				durationFunc: 'getStreamLength'
+				netConnectionUrl: server
 			},
       captions: {
       	url: '/flowplayer/flowplayer.captions-3.2.2.swf?'+(Math.random(10000)),
@@ -57,7 +56,8 @@ function embedFlowplayer(server, path) {
     clip: {
       provider: 'rtmp',
       cuepointMultiplier: 1,
-      autoPlay: true
+      autoPlay: true,
+      live: true
       //, onCuepoint: function(clip, event) {
       //   alert("hi");
       //   // console.dir(event);
