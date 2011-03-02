@@ -1016,7 +1016,11 @@ metadata_frame(#ems_media{} = Media, Options) ->
 
 
 video_parameters(#ems_media{video_config = #video_frame{body = Config}}, Options) ->
-  lists:ukeymerge(1, [{duration,proplists:get_value(duration, Options, 0)}], lists:keysort(1, h264:metadata(Config)));
+  DurationProp = case proplists:get_value(duration, Options) of
+    undefined -> [];
+    Duration -> [{duration,Duration}]
+  end,
+  lists:ukeymerge(1, DurationProp, lists:keysort(1, h264:metadata(Config)));
   
 video_parameters(#ems_media{}, Options) ->  
   [{duration,proplists:get_value(duration, Options, 0)}].
