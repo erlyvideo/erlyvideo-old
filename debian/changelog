@@ -1,3 +1,9 @@
+erlyvideo (2.6.6) unstable; urgency=low
+
+  proxy_media fixes. HTTP leak
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 02 Mar 2011 03:43:12 +0300
+
 erlyvideo (2.6.5) unstable; urgency=low
 
   license storage
