@@ -55,6 +55,13 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
 
 send_frame(Frame, #ems_media{module = M} = Media) ->
   case M:handle_frame(Frame, Media) of
+    {reply, Frames, Media1} when is_list(Frames) ->
+      lists:foldl(fun
+        (_, {stop,_,_} = Stop) -> 
+          Stop;
+        (OutFrame, {noreply, State, _}) ->
+          shift_dts(OutFrame, State)
+      end, {noreply, Media1, ?TIMEOUT}, Frames);
     {reply, F, Media1} ->
       shift_dts(F, Media1);
     {noreply, Media1} ->
