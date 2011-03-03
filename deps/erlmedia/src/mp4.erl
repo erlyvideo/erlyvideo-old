@@ -268,8 +268,7 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
   Media#mp4_media{timescale = TimeScale, duration = Duration/TimeScale}.
 
 udta(Value, Media) ->
-  ?D(Value),
-  Media.
+  parse_atom(Value, Media).
 
 % Track box
 trak(<<>>, MediaInfo) ->
