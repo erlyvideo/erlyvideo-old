@@ -380,7 +380,6 @@ encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = vi
   
 encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, body = AudioConfig}) ->
   Config = aac:decode_config(AudioConfig),
-  % ?D({"Audio config", Config}),
   {Streamer#streamer{audio_config = Config}, none};
 
 encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio}) ->
