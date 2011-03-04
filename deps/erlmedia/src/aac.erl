@@ -26,7 +26,7 @@
 -include("log.hrl").
 -include("../include/aac.hrl").
 
--export([decode_config/1, encode_config/1, unpack_adts/1, pack_adts/2, config/1]).
+-export([decode_config/1, encode_config/1, unpack_adts/1, pack_adts/2, adts_to_config/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary(), Config::aac_config()) -> ADTS::binary()
@@ -142,7 +142,7 @@ pack_config(#aac_config{samples_per_frame = FrameLength, type = ObjectType, samp
 %% @doc Convert ADTS frame into AAC config
 %% @end 
 %%--------------------------------------------------------------------
-config(<<16#FFF:12, _ID:1, _Layer:2, _:1, Profile:2, SampleRate:4,
+adts_to_config(<<16#FFF:12, _ID:1, _Layer:2, _:1, Profile:2, SampleRate:4,
            _Private:1, Channels:3, _Original:1, _Home:1, _Copyright:1, _CopyrightStart:1,
            _FrameLength:13, _ADTS:11, _Count:2, _/binary>>) ->
   _Samples = 0,
