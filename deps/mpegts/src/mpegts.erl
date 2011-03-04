@@ -42,7 +42,7 @@
 -define(PMT_PID, 66).
 -define(AUDIO_PID, 258).
 -define(VIDEO_PID, 257).
--define(PCR_PID, ?VIDEO_PID).
+-define(PCR_PID, ?AUDIO_PID).
 -define(PAT_TABLEID, 0).
 -define(PMT_TABLEID, 2).
 
@@ -117,11 +117,13 @@ adaptation_field({Timestamp, Keyframe, Data}, Pid) ->
   {HasPCR, PCR} = case Pid of
     ?PCR_PID ->
       FullPCR = round(Timestamp * 27000),
-      PCR1 = round(Timestamp * 90),
+      PCR1 = FullPCR div 300,
       PCR2 = FullPCR rem 300,
       PCRBin = <<PCR1:33, 2#111111:6, PCR2:9>>,
+      % ?D({pcr,Timestamp, PCR1}),
       {1, PCRBin};
     _ ->
+      % ?D({dts,Timestamp}),
       {0, <<>>}
   end,
   HasOPCR = 0,
@@ -317,7 +319,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
     keyframe -> 1;
     _ -> 0
   end,
-  mux({DTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
+  mux({PTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
   PtsDts = 2#10,
