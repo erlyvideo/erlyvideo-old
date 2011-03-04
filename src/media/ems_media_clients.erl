@@ -175,7 +175,7 @@ send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
 send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, State) ->
   [Repeater ! {Frame, State} || Repeater <- Repeaters],
   Clients.
-  % repeater_send_frame(Frame, Clients, State).
+  % repeater_send_frame(Frame, Clients, State, undefined).
 
 repeater_send_frame(#video_frame{} = VideoFrame, Clients, State, Key) ->
   case flv_video_frame:is_good_flv(VideoFrame) of
