@@ -110,7 +110,7 @@ json_encode(F, _State) when is_float(F) ->
     mochinum:digits(F);
 json_encode(S, State) when is_binary(S); is_atom(S) ->
     json_encode_string(S, State);
-json_encode([{_Key, _Value}|_] = Props, State) ->
+json_encode([{_Key, _Value}|_] = Props, State) when _Key =/= object andalso _Key =/= struct ->
     json_encode_proplist(Props, State);
 json_encode(Array, State) when is_list(Array) ->
     json_encode_array(Array, State);
