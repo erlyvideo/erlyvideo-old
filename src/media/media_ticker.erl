@@ -2,6 +2,16 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
 %%% @doc        Media ticker
+% 
+% 1. Стартуем
+% 2. Запоминаем реальное время старта
+% 3. Считываем N кадров
+% 4. Запоминаем время первого кадра
+% 5. Запоминаем время и next_id последнего кадра
+% 6. Посылаем все кадры
+% 7. Спим сколько надо
+% 8. Идем на 3
+% 
 %%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
@@ -28,13 +38,14 @@
 -export([start_link/3, init/3, loop/1, handle_message/2]).
 -export([start/1, pause/1, resume/1, seek/2, stop/1, play_setup/2]).
 
+-define(BURST_SIZE, 40).
+
 -record(ticker, {
   media,
   consumer,
   stream_id,
   pos,
   dts,
-  frame,
   client_buffer,
   timer_start,
   playing_from,
@@ -114,8 +125,8 @@ safe_handle_message(Message, Ticker) ->
       error_logger:error_report("** Media ticker ~p terminating \n"
              "** Last message in was ~s~n"
              "** When Server state == ~s~n"
-             "** Reason for termination == ~n** ~s~n",
-  	   [self(), Msg1, State, Reason]),
+             "** Reason for termination == ~n** ~s~n~p~n",
+  	   [self(), Msg1, State, Reason, erlang:get_stacktrace()]),
   	  {Class,Error}
   end.
 
@@ -148,7 +159,7 @@ handle_message(start, Ticker) ->
   
 handle_message(pause, Ticker) ->
   flush_tick(),
-  {noreply, Ticker#ticker{paused = true, frame = undefined}};
+  {noreply, Ticker#ticker{paused = true, timer_start = undefined}};
   
 handle_message({seek, DTS}, #ticker{media = Media, paused = Paused, stream_id = StreamId, consumer = Consumer, options = Options} = Ticker) ->
   {Pos,NewDTS} = ems_media:seek_info(Media, DTS, Options),
@@ -158,7 +169,7 @@ handle_message({seek, DTS}, #ticker{media = Media, paused = Paused, stream_id = 
     false -> self() ! tick
   end,
   Consumer ! {ems_stream, StreamId, seek_success, DTS},
-  {noreply, Ticker#ticker{pos = Pos, dts = NewDTS, frame = undefined}};
+  {noreply, Ticker#ticker{pos = Pos, dts = NewDTS, timer_start = undefined}};
 
 handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Media, paused = Paused} = Ticker) ->
   ?D({play_setup, self(), Options}),
@@ -169,48 +180,64 @@ handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Me
   end,
   {noreply, Ticker#ticker{client_buffer = ClientBuffer}};
 
-handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, paused = Paused, client_buffer = ClientBuffer, consumer = Consumer} = Ticker) ->
-  Frame = ems_media:read_frame(Media, Consumer, Pos),
-  #video_frame{dts = NewDTS, next_id = NewPos} = Frame,
-  self() ! tick,
+
+handle_message(tick, #ticker{media = Media, dts = DTS, pos = Pos, consumer = Consumer, stream_id = StreamId,
+                             playing_till = PlayingTill} = Ticker) ->
+  case load_frames(Media, Consumer, Pos, PlayingTill, ?BURST_SIZE, []) of
+    {eof, Frames} ->
+      send_frames(Frames, Consumer, StreamId),
+      Consumer ! {ems_stream, StreamId, play_complete, DTS},
+      notify_about_stop(Ticker),
+      {noreply, Ticker};
+  
+    {ok, [#video_frame{dts = NewDTS, next_id = NewPos} = Frame|_] = Frames} ->
+      send_frames(Frames, Consumer, StreamId),
+      Ticker1 = save_start_time(Ticker, Frames),
+      Timeout = tick_timeout(Ticker1, Frame),
+      % ?D({burst, length(Frames), NewPos, round(NewDTS)}),
+      Ticker2 = Ticker1#ticker{pos = NewPos, dts = NewDTS},
+      receive
+        Message ->
+          {restart, Message, Ticker2}
+      after
+        Timeout -> 
+          self() ! tick,
+          {noreply, Ticker2}
+      end
+  end.
+
+save_start_time(#ticker{timer_start = undefined, client_buffer = ClientBuffer, paused = Paused} = Ticker, Frames) ->
+  [#video_frame{dts = NewDTS}|_] = lists:reverse(Frames),
   TimerStart = os:timestamp(),
   
   PlayingFrom = case Paused of
     true -> NewDTS - ClientBuffer;
     false -> send_metadata(Ticker, NewDTS), NewDTS
   end,
-  {noreply, Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame, timer_start = TimerStart, playing_from = PlayingFrom}};
+  Ticker#ticker{timer_start = TimerStart, playing_from = PlayingFrom};
   
-  
-handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFrame, consumer = Consumer, stream_id = StreamId,
-                             playing_till = PlayingTill} = Ticker) ->
-  Consumer ! PrevFrame#video_frame{stream_id = StreamId},
+save_start_time(Ticker, _) ->
+  Ticker.
+
+load_frames(Media, Consumer, Pos, PlayingTill, Count, Frames) when Count > 0 ->
   case ems_media:read_frame(Media, Consumer, Pos) of
     eof ->
-      % ?D(play_complete),
-      Consumer ! {ems_stream, StreamId, play_complete, DTS},
-      notify_about_stop(Ticker),
-      {noreply, Ticker};
+      {eof, Frames};
     
     #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
-      % ?D({play_complete_limit, PlayingTill, NewDTS}),
-      Consumer ! {ems_stream, StreamId, play_complete, DTS},
-      notify_about_stop(Ticker),
-      {noreply, Ticker};
+      {eof, Frames};
       
-    #video_frame{dts = NewDTS, next_id = NewPos} = Frame ->
-      Timeout = tick_timeout(Ticker, Frame),
-      Ticker1 = Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame},
-      receive
-        Message ->
-          {restart, Message, Ticker1}
-      after
-        Timeout -> 
-          self() ! tick,
-          {noreply, Ticker1}
-      end
-  end.
+    #video_frame{next_id = NewPos} = Frame ->
+      % ?D({read, NewPos, round(Frame#video_frame.dts)}),
+      load_frames(Media, Consumer, NewPos, PlayingTill, Count - 1, [Frame|Frames])
+  end;
+  
+load_frames(_Media, _Consumer, _Pos, _PlayingTill, 0, Frames) ->
+  {ok, Frames}.
 
+
+send_frames(Frames, Consumer, StreamId) ->
+  [Consumer ! Frame#video_frame{stream_id = StreamId} || Frame <- lists:reverse(Frames)].
 
 send_metadata(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, options = Options}, DTS) ->
   OptKeys = [duration],
