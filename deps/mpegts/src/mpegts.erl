@@ -39,7 +39,7 @@
 
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
 -define(PAT_PID, 0).
--define(PMT_PID, 66).
+-define(PMT_PID, 256).
 -define(AUDIO_PID, 258).
 -define(VIDEO_PID, 257).
 -define(PCR_PID, ?AUDIO_PID).
@@ -72,6 +72,7 @@ read(URL, Options) ->
   pmt_counter = 0,
   audio_counter = 0,
   video_counter = 0,
+  sent_pat = false,
   length_size = 32,
   audio_config = undefined,
   video_config = undefined
@@ -109,10 +110,10 @@ adaptation_field(Data, _Pid) when is_binary(Data) ->
 adaptation_field({Timestamp, Data}, Pid) ->
   adaptation_field({Timestamp, 0, Data}, Pid);
   
-adaptation_field({Timestamp, Keyframe, Data}, Pid) ->
+adaptation_field({Timestamp, _Keyframe, Data}, Pid) ->
   % ?D({"PCR", PCR}),
   Discontinuity = 0,
-  RandomAccess = Keyframe,
+  RandomAccess = 0,
   Priority = 0,
   {HasPCR, PCR} = case Pid of
     ?PCR_PID ->
@@ -192,8 +193,8 @@ padding(Padding, Size) when size(Padding) < Size ->
   
 send_pat(Streamer, _DTS) ->
   Programs = <<1:16, 111:3, ?PMT_PID:13>>,
-  TSStream = 29998, % Just the same, as VLC does
-  Version = 2,
+  TSStream = 1, % Just the same, as VLC does
+  Version = 0,
   CNI = 1,
   Section = 0,
   LastSection = 0,
@@ -271,7 +272,27 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   %                               224,68,240,6,10,4,101,110,103,0,27,224,69,240,6,
   %                               10,4,101,110,103,0,219,45,131,210>>.
   % 
+
+timestamps(DTS, PTS) ->
+  timestamps(DTS, PTS, undefined).
+
+timestamps(DTS, PTS, Force) when DTS == PTS andalso Force =/= different ->
+  PTS1 = round(PTS*90),
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<PTS1:33>>,
+  AddPesHeader = <<2#0010:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  {2#10, AddPesHeader};
   
+timestamps(DTS, PTS, _Force) ->
+  DTS1 = round(DTS*90),
+  PTS1 = round(PTS*90),
+  % ?D({"Video", PTS, DTS, "--", DTS1, PTS1}),
+  % ?D({video, round(DTS), round(PTS), FrameType}),
+  <<Pts1:3, Pts2:15, Pts3:15>> = <<PTS1:33>>,
+  <<Dts1:3, Dts2:15, Dts3:15>> = <<DTS1:33>>,
+  AddPesHeader = <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
+                   2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1>>,
+  {2#11, AddPesHeader}.
+
   
 send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Flavor} = _F) ->
   Marker = 2#10,
@@ -288,23 +309,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
   CRC = 0,
   Extension = 0,
   
-
-  DTS1 = round(DTS*90),
-  PTS1 = round(PTS*90),
-  % ?D({"Video", PTS, DTS, "--", DTS1, PTS1}),
-  % ?D({video, round(DTS), round(PTS), FrameType}),
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<PTS1:33>>,
-  <<Dts1:3, Dts2:15, Dts3:15>> = <<DTS1:33>>,
-
-  case DTS1 of
-    PTS1 ->
-      PtsDts = 2#10,
-      AddPesHeader = <<2#10:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>;
-    _ ->
-      PtsDts = 2#11,
-      AddPesHeader = <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
-                       2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1>>
-  end,
+  {PtsDts, AddPesHeader} = timestamps(DTS, PTS, different),
   PesHeader = <<Marker:2, Scrambling:2, Priority:1, Alignment:1, Copyright:1, Original:1, PtsDts:2, 
                 ESCR:1,ESRate:1,DSMTrick:1,CopyInfo:1,CRC:1,Extension:1,  % All these bits are usually zero
                 (size(AddPesHeader)):8, AddPesHeader/binary>>,
@@ -321,15 +326,11 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
   end,
   mux({PTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
-send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = Timestamp, body = Body}) ->
-  PtsDts = 2#10,
+send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = DTS, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
-  Alignment = 0,
-  Pts = round(Timestamp * 90),
-  % ?D({audio, round(Timestamp*90)}),
-  <<Pts1:3, Pts2:15, Pts3:15>> = <<Pts:33>>,
-  AddPesHeader = <<PtsDts:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1>>,
+  Alignment = 1,
+  {PtsDts, AddPesHeader} = timestamps(DTS, DTS),
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Audio", Timestamp}),
@@ -337,7 +338,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   
   PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
-  mux({Timestamp, PES}, Streamer, ?AUDIO_PID).
+  mux({DTS, PES}, Streamer, ?AUDIO_PID).
 
 
 
@@ -353,13 +354,21 @@ unpack_nals(Body, LengthSize, NALS) ->
 
 
 
+encode(#streamer{sent_pat = false} = Streamer, #video_frame{dts = DTS} = Frame) ->
+  {Streamer1, PATBin} = send_pat(Streamer, DTS),
+  {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
+  case encode(Streamer2#streamer{sent_pat = true}, Frame) of
+    {Streamer3, none} ->
+      {Streamer3, <<PATBin/binary, PMTBin/binary>>};
+    {Streamer3, Bin} ->
+      {Streamer3, <<PATBin/binary, PMTBin/binary, Bin/binary>>}
+  end;  
+
 encode(#streamer{} = Streamer, #video_frame{content = video, flavor = config, body = Config}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
   {Streamer#streamer{video_config = Config, length_size = NewLengthSize*8}, none};
 
-encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{content = video, flavor = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
-  {Streamer1, PATBin} = send_pat(Streamer, DTS),
-  {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
+encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{content = video, flavor = keyframe, body = Body} = Frame) when VideoConfig =/= undefined ->
 
   BodyNALS = unpack_nals(Body, LengthSize),
   {_, ConfigNALS} = h264:unpack_config(VideoConfig),
@@ -369,8 +378,7 @@ encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streame
   Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
   % Packed = lists:foldl(F, undefined, ConfigNALS ++ BodyNALS),
 
-  {Streamer3, VideoBin} = send_video(Streamer2, Frame#video_frame{body = Packed}),
-  {Streamer3, <<PATBin/binary, PMTBin/binary, VideoBin/binary>>};
+  send_video(Streamer, Frame#video_frame{body = Packed});
 
 encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = video, body = Body} = Frame) ->
   BodyNALS = unpack_nals(Body, LengthSize),
