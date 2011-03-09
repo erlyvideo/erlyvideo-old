@@ -148,11 +148,7 @@ timeshift_segments(Info) ->
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
-      MS1 = erlang:now(),
-      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}]),
-      MS2 = erlang:now(),
-      ?D({end_iphone_segment, Name, Number, time, timer:now_diff(MS2,MS1) div 1000}),
-      ok;
+      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}]);
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
     Reason ->

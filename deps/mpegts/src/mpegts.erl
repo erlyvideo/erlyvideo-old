@@ -31,7 +31,8 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([init/0, init/1, encode/2, pad_continuity_counters/1, continuity_counters/1]).
+-export([init/0, init/1, encode/2, pad_continuity_counters/1]).
+-export([continuity_counters/1, video_config/1, audio_config/1]).
 -export([autostart/0, start/0, stop/0]).
 
 -export([read/2]).
@@ -334,7 +335,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec 
   {PtsDts, AddPesHeader} = timestamps(DTS, DTS),
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
-  % ?D({"Audio", Timestamp}),
+  % ?D({"Audio", round(DTS), size(Body)}),
   ADTS = case Codec of
     aac -> aac:pack_adts(Body, AudioConfig);
     adts -> Body
@@ -407,6 +408,9 @@ encode(#streamer{} = Streamer, #video_frame{content = audio, dts = DTS} = Frame)
 encode(#streamer{} = Streamer, #video_frame{content = metadata}) ->
   {Streamer, none}.
 
+
+video_config(#streamer{video_config = V}) -> V.
+audio_config(#streamer{audio_config = A}) -> A.
 
 -define(END_COUNTER, 15).
 

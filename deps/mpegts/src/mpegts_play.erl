@@ -35,7 +35,8 @@
   streamer,
   req,
   buffer = [],
-  audio_buffer = []
+  audio_buffer = [],
+  audio_dts
 }).
 
 -define(TIMEOUT, 6000).
@@ -50,54 +51,90 @@ play(_Name, Player, Req, Options) ->
   MS1 = erlang:now(),
   case proplists:get_value(buffered, Options) of
     true -> 
-      {NextCounters, #http_player{buffer = MPEGTSBuffer} = Streamer1} = ?MODULE:play(Streamer#http_player{buffer = []}),
+      #http_player{buffer = MPEGTSBuffer} = Streamer1 = ?MODULE:play(Streamer#http_player{buffer = []}),
       {_Streamer2, Padding} = mpegts:pad_continuity_counters(Streamer1#http_player.streamer),
       Buffer = [Padding|MPEGTSBuffer],
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
+      MS2 = erlang:now(),
       Req:stream(lists:reverse(Buffer));
     _ ->
       Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-      {NextCounters, _} = ?MODULE:play(Streamer#http_player{req = Req})
+      MS2 = erlang:now(),
+      ?MODULE:play(Streamer#http_player{req = Req})
   end,      
-  MS2 = erlang:now(),
-  
-  Req:stream(close),
+  % Req:stream(close),
   MS3 = erlang:now(),
   ?D({mpegts, _Name, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000}),
-  NextCounters.
+  ok.
 
-play(#http_player{streamer = Streamer} = Player) ->
+play(#http_player{} = Player) ->
   receive
-    Message -> handle_msg(Player, Message)
+    Message ->
+      case handle_msg(Player, Message) of
+        {ok, Player1} -> ?MODULE:play(Player1);
+        {stop, Player1} -> 
+          {ok, Player2} = flush_audio(Player1),
+          Player2
+      end
   after
     ?TIMEOUT ->
       ?D("MPEG TS player timeout, no frames received"),
-      {mpegts:continuity_counters(Streamer), Player}
+      Player
   end.
+  
+-define(AUDIO_BUFFER, 20).
 
-handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+handle_msg(#http_player{audio_dts = undefined} = Player, #video_frame{content = audio, dts = DTS} = Frame) ->
+  handle_msg(Player#http_player{audio_dts = DTS}, Frame);
+
+handle_msg(#http_player{audio_buffer = Audio, streamer = Streamer} = Player, 
+           #video_frame{content = audio, codec = aac, flavor = Flavor, body = Body}) when length(Audio) < ?AUDIO_BUFFER andalso Flavor =/= config ->
+  ADTS = aac:pack_adts(Body, mpegts:audio_config(Streamer)),
+  % ?D({buffering, length(Audio)}),
+  {ok, Player#http_player{audio_buffer = [ADTS|Audio]}};
+  
+handle_msg(#http_player{audio_buffer = Audio} = Player, #video_frame{content = audio, codec = aac} = Frame) when length(Audio) == ?AUDIO_BUFFER ->
+  {ok, Player1} = flush_audio(Player),
+  handle_msg(Player1#http_player{audio_buffer = [], audio_dts = undefined}, Frame);
+
+handle_msg(#http_player{} = HTTPPlayer, #video_frame{} = Frame) ->
   % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,round(Frame#video_frame.dts)}),
-  case mpegts:encode(Streamer, Frame) of
-    {Streamer1, none} -> 
-      ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
-    {Streamer1, Bin} when Req == undefined ->
-      ?MODULE:play(HTTPPlayer#http_player{buffer = [Bin|Buffer], streamer = Streamer1});
-    {Streamer1, Bin} ->
-      Req:stream(Bin),
-      ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1})
-  end;
+  send_frame(HTTPPlayer, Frame);
 
 handle_msg(#http_player{streamer = Streamer} = State, {'DOWN', _, process, Pid, _}) ->
-  Counters = mpegts:continuity_counters(Streamer),
-  ?D({"MPEG TS reader disconnected", Pid, Streamer, Counters}),
-  {Counters, State};
+  ?D({"MPEG TS reader disconnected", Pid, Streamer}),
+  {stop, State};
 
-handle_msg(#http_player{streamer = Streamer} = State, {ems_stream, _,play_complete,_}) ->
-  {mpegts:continuity_counters(Streamer), State};
+handle_msg(#http_player{} = State, {ems_stream, _,play_complete,_}) ->
+  {stop, State};
 
-handle_msg(#http_player{streamer = Streamer} = State, {tcp_closed, _Socket}) ->
-  {mpegts:continuity_counters(Streamer), State};
+handle_msg(#http_player{} = State, {tcp_closed, _Socket}) ->
+  {stop, State};
 
 handle_msg(#http_player{} = Streamer, Message) ->
   ?D(Message),
-  ?MODULE:play(Streamer).
+  {ok, Streamer}.
+
+flush_audio(#http_player{audio_buffer = Audio, audio_dts = DTS} = Player) ->
+  % ?D({flush_adts, length(Audio)}),
+  send_frame(Player, #video_frame{
+    content = audio,
+    codec = adts,
+    flavor = frame,
+    dts = DTS,
+    pts = DTS,
+    body = iolist_to_binary(lists:reverse(Audio))
+  }).
+
+send_frame(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+  case mpegts:encode(Streamer, Frame) of
+    {Streamer1, none} -> 
+      {ok, HTTPPlayer#http_player{streamer = Streamer1}};
+    {Streamer1, Bin} when Req == undefined ->
+      {ok, HTTPPlayer#http_player{buffer = [Bin|Buffer], streamer = Streamer1}};
+    {Streamer1, Bin} ->
+      Req:stream(Bin),
+      {ok, HTTPPlayer#http_player{streamer = Streamer1}}
+  end.
+  
+
