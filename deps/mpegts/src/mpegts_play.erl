@@ -34,7 +34,8 @@
   player,
   streamer,
   req,
-  buffer = []
+  buffer = [],
+  audio_buffer = []
 }).
 
 -define(TIMEOUT, 6000).

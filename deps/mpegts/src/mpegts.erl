@@ -327,7 +327,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
   end,
   mux({PTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
-send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = DTS, body = Body}) ->
+send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec = Codec, dts = DTS, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
   Alignment = 1,
@@ -335,8 +335,10 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Audio", Timestamp}),
-  ADTS = aac:pack_adts(Body, AudioConfig),
-  
+  ADTS = case Codec of
+    aac -> aac:pack_adts(Body, AudioConfig);
+    adts -> Body
+  end,
   PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
   mux({DTS, PES}, Streamer, ?AUDIO_PID).
