@@ -73,6 +73,7 @@ read(URL, Options) ->
   audio_counter = 0,
   video_counter = 0,
   sent_pat = false,
+  last_dts,
   length_size = 32,
   audio_config = undefined,
   video_config = undefined
@@ -357,18 +358,20 @@ unpack_nals(Body, LengthSize, NALS) ->
 encode(#streamer{sent_pat = false} = Streamer, #video_frame{dts = DTS} = Frame) ->
   {Streamer1, PATBin} = send_pat(Streamer, DTS),
   {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
-  case encode(Streamer2#streamer{sent_pat = true}, Frame) of
+  case encode(Streamer2#streamer{sent_pat = true, last_dts = DTS}, Frame) of
     {Streamer3, none} ->
       {Streamer3, <<PATBin/binary, PMTBin/binary>>};
     {Streamer3, Bin} ->
       {Streamer3, <<PATBin/binary, PMTBin/binary, Bin/binary>>}
   end;  
 
-encode(#streamer{} = Streamer, #video_frame{content = video, flavor = config, body = Config}) ->
+encode(#streamer{} = Streamer, #video_frame{content = video, flavor = config, body = Config, dts = DTS}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
-  {Streamer#streamer{video_config = Config, length_size = NewLengthSize*8}, none};
+  {Streamer#streamer{video_config = Config, length_size = NewLengthSize*8, last_dts = DTS}, none};
 
-encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{content = video, flavor = keyframe, body = Body} = Frame) when VideoConfig =/= undefined ->
+encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streamer, #video_frame{content = video, flavor = keyframe, body = Body, dts = DTS} = Frame) when VideoConfig =/= undefined ->
+  {Streamer1, PATBin} = send_pat(Streamer, DTS),
+  {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
 
   BodyNALS = unpack_nals(Body, LengthSize),
   {_, ConfigNALS} = h264:unpack_config(VideoConfig),
@@ -378,25 +381,26 @@ encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streame
   Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
   % Packed = lists:foldl(F, undefined, ConfigNALS ++ BodyNALS),
 
-  send_video(Streamer, Frame#video_frame{body = Packed});
+  {Streamer3, Video} = send_video(Streamer2, Frame#video_frame{body = Packed}),
+  {Streamer3#streamer{last_dts = DTS}, <<PATBin/binary, PMTBin/binary, Video/binary>>};
 
-encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = video, body = Body} = Frame) ->
+encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = video, body = Body, dts = DTS} = Frame) ->
   BodyNALS = unpack_nals(Body, LengthSize),
   F = fun(NAL, S) ->
     <<S/binary, 1:24, NAL/binary>>
   end,
   Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
-  send_video(Streamer, Frame#video_frame{body = Packed});
+  send_video(Streamer#streamer{last_dts = DTS}, Frame#video_frame{body = Packed});
   
-encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, body = AudioConfig}) ->
+encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, body = AudioConfig, dts = DTS}) ->
   Config = aac:decode_config(AudioConfig),
-  {Streamer#streamer{audio_config = Config}, none};
+  {Streamer#streamer{audio_config = Config, last_dts = DTS}, none};
 
-encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio}) ->
-  {Streamer, none};
+encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio, dts = DTS}) ->
+  {Streamer#streamer{last_dts = DTS}, none};
 
-encode(#streamer{} = Streamer, #video_frame{content = audio} = Frame) ->
-  send_audio(Streamer, Frame);
+encode(#streamer{} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
+  send_audio(Streamer#streamer{last_dts = DTS}, Frame);
 
 encode(#streamer{} = Streamer, #video_frame{content = metadata}) ->
   {Streamer, none}.
@@ -410,25 +414,25 @@ continuity_counters(#streamer{video_counter = Video, audio_counter = Audio, pmt_
 pad_continuity_counters(Streamer) ->
   pad_continuity_counters(Streamer, <<>>).
 
-% pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-%   ?D({pad, audio, Streamer#streamer.audio_counter}),
-%   {Streamer1, Bin} = mux_parts(<<0>>, Streamer, ?AUDIO_PID, 0, <<>>),
-%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+  ?D({pad, audio, Streamer#streamer.audio_counter}),
+  {Streamer1, Bin} = mux_parts(<<0,0,1>>, Streamer, ?AUDIO_PID, 0, <<>>),
+  pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
 pad_continuity_counters(#streamer{video_counter = Counter} = Streamer, Accum) when Counter > 0 ->
   ?D({pad, video, Streamer#streamer.video_counter}),
-  {Streamer1, Bin} = mux_parts(<<0,0,0,1>>, Streamer, ?VIDEO_PID, 0, <<>>),
+  {Streamer1, Bin} = mux_parts(<<0,0,1>>, Streamer, ?VIDEO_PID, 0, <<>>),
   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
-% pad_continuity_counters(#streamer{pat_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-%   ?D({pad, pat, Streamer#streamer.pat_counter}),
-%   {Streamer1, Bin} = mux_parts(<<>>, Streamer, ?PAT_PID, 0, <<>>),
-%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
-% 
-% pad_continuity_counters(#streamer{pmt_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-%   ?D({pad, pmt, Streamer#streamer.pmt_counter}),
-%   {Streamer1, Bin} = mux_parts(<<>>, Streamer, ?PMT_PID, 0, <<>>),
-%   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+pad_continuity_counters(#streamer{pat_counter = Counter, last_dts = DTS} = Streamer, Accum) when Counter > 0 ->
+  ?D({pad, pat, Streamer#streamer.pat_counter}),
+  {Streamer1, Bin} = send_pat(Streamer, DTS),
+  pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
+
+pad_continuity_counters(#streamer{pmt_counter = Counter} = Streamer, Accum) when Counter > 0 ->
+  ?D({pad, pmt, Streamer#streamer.pmt_counter}),
+  {Streamer1, Bin} = send_pmt(Streamer, DTS),
+  pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
 pad_continuity_counters(Streamer, Accum) ->
   {Streamer, Accum}.
