@@ -156,25 +156,25 @@ handle_frame(#video_frame{content = video, stream_id = StreamId, flavor = Flavor
     
   Ref = erlang:monitor(process, Source),
   
-  ?D({switch, self(), DTS, LastDTS, Media#ems_media.ts_delta}),
+  ?D({switch, self(), DTS, LastDTS, Media#ems_media.ts_delta, Flavor}),
   
   Frames = [#video_frame{
     content = audio,
     flavor = frame,
     codec = empty,
-    dts = 0,
-    pts = 0,
+    dts = DTS,
+    pts = DTS,
     stream_id = StreamId
   }] ++
   case Audio of
     undefined -> [];
-    #video_frame{} -> [Audio#video_frame{dts = 0, pts = 0, stream_id = StreamId }]
+    #video_frame{} -> [Audio#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}]
   end ++ 
   case Video of
     undefined -> [];
-    #video_frame{} -> [Video#video_frame{dts = 0, pts = 0, stream_id = StreamId }]
+    #video_frame{} -> [Video#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}]
   end ++ 
-  [Frame#video_frame{dts = 0, pts = 0}],
+  [Frame],
   {reply, Frames, 
   Media#ems_media{state = Proxy#proxy{next = undefined, stream_id = StreamId + 1}, audio_config = undefined, video_config = undefined, 
                   source = Source, source_ref = Ref, ts_delta = LastDTS - DTS + 20}};
