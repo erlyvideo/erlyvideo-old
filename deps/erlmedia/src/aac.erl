@@ -117,7 +117,6 @@ extract_sample_rate(<<SampleRate:4, AAC/bitstring>>, Config) ->
   extract_channels(AAC, Config#aac_config{sample_rate = decode_sample_rate(SampleRate)}).
 
 extract_channels(<<Channels:4, FrameLength:1, _DependsCore:1, _Extension:1, _/binary>>, Config) ->
-  ?D({reading, Config, decode_channels(Channels), Channels, decode_samples_per_frame(FrameLength)}),
   Config#aac_config{channels = decode_channels(Channels), channel_count = Channels, samples_per_frame = decode_samples_per_frame(FrameLength)}.
 
 
