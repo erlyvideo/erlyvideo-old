@@ -412,25 +412,26 @@ continuity_counters(#streamer{video_counter = Video, audio_counter = Audio, pmt_
   {Video, Audio, PMT, PAT}.
 
 pad_continuity_counters(Streamer) ->
+  % ?D({padding, continuity_counters(Streamer)}),
   pad_continuity_counters(Streamer, <<>>).
 
 pad_continuity_counters(#streamer{audio_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-  ?D({pad, audio, Streamer#streamer.audio_counter}),
+  % ?D({pad, audio, Streamer#streamer.audio_counter}),
   {Streamer1, Bin} = mux_parts(<<0,0,1>>, Streamer, ?AUDIO_PID, 0, <<>>),
   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
 pad_continuity_counters(#streamer{video_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-  ?D({pad, video, Streamer#streamer.video_counter}),
+  % ?D({pad, video, Streamer#streamer.video_counter}),
   {Streamer1, Bin} = mux_parts(<<0,0,1>>, Streamer, ?VIDEO_PID, 0, <<>>),
   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
 pad_continuity_counters(#streamer{pat_counter = Counter, last_dts = DTS} = Streamer, Accum) when Counter > 0 ->
-  ?D({pad, pat, Streamer#streamer.pat_counter}),
+  % ?D({pad, pat, Streamer#streamer.pat_counter}),
   {Streamer1, Bin} = send_pat(Streamer, DTS),
   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 
-pad_continuity_counters(#streamer{pmt_counter = Counter} = Streamer, Accum) when Counter > 0 ->
-  ?D({pad, pmt, Streamer#streamer.pmt_counter}),
+pad_continuity_counters(#streamer{pmt_counter = Counter, last_dts = DTS} = Streamer, Accum) when Counter > 0 ->
+  % ?D({pad, pmt, Streamer#streamer.pmt_counter}),
   {Streamer1, Bin} = send_pmt(Streamer, DTS),
   pad_continuity_counters(Streamer1, <<Accum/binary, Bin/binary>>);
 

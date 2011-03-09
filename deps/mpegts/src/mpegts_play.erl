@@ -45,14 +45,16 @@ play(Name, Player, Req) ->
 play(Name, Player, Req, Options) ->
   play(Name, Player, Req, Options, {0,0,0,0}).
 
-play(_Name, Player, Req, Options, Counters) ->
+play(_Name, Player, Req, Options) ->
   % ?D({"Player starting", _Name, Player}),
   erlang:monitor(process,Player),
-  Streamer = #http_player{player = Player, streamer = mpegts:init(Counters)},
+  Streamer = #http_player{player = Player, streamer = mpegts:init()},
   MS1 = erlang:now(),
   case proplists:get_value(buffered, Options) of
     true -> 
-      {NextCounters, #http_player{buffer = Buffer}} = ?MODULE:play(Streamer#http_player{buffer = []}),
+      {NextCounters, #http_player{buffer = MPEGTSBuffer} = Streamer1} = ?MODULE:play(Streamer#http_player{buffer = []}),
+      {_Streamer2, Padding} = mpegts:pad_continuity_counters(Streamer1#http_player.streamer),
+      Buffer = [Padding|MPEGTSBuffer],
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       Req:stream(lists:reverse(Buffer));
     _ ->
@@ -76,7 +78,7 @@ play(#http_player{streamer = Streamer} = Player) ->
   end.
 
 handle_msg(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
-  % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.dts}),
+  % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,round(Frame#video_frame.dts)}),
   case mpegts:encode(Streamer, Frame) of
     {Streamer1, none} -> 
       ?MODULE:play(HTTPPlayer#http_player{streamer = Streamer1});
