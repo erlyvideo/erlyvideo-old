@@ -28,7 +28,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 
 
--export([play/3, play/4, play/5, play/1]).
+-export([play/3, play/4, play/1]).
 
 -record(http_player, {
   player,
@@ -41,9 +41,6 @@
 
 play(Name, Player, Req) ->
   play(Name, Player, Req, []).
-
-play(Name, Player, Req, Options) ->
-  play(Name, Player, Req, Options, {0,0,0,0}).
 
 play(_Name, Player, Req, Options) ->
   % ?D({"Player starting", _Name, Player}),

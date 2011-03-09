@@ -30,8 +30,6 @@
 %% External API
 -export([find/3, segments/2, play/4, playlist/2, playlist/3]).
 
--export([save_counters/4, get_counters/3]).
-
 
 
 
@@ -151,7 +149,7 @@ play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
       MS1 = erlang:now(),
-      NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}]),
+      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}]),
       MS2 = erlang:now(),
       ?D({end_iphone_segment, Name, Number, time, timer:now_diff(MS2,MS1) div 1000}),
       ok;
