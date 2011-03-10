@@ -268,8 +268,7 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
   Media#mp4_media{timescale = TimeScale, duration = Duration/TimeScale}.
 
 udta(Value, Media) ->
-  ?D(Value),
-  Media.
+  parse_atom(Value, Media).
 
 % Track box
 trak(<<>>, MediaInfo) ->
@@ -477,7 +476,7 @@ config_from_esds_tag(Data, ESDS) ->
         object_type = mp4_object_type(ObjectType), stream_type = StreamType, buffer_size = BufferSize,
         max_bitrate = MaxBitrate, avg_bitrate = AvgBitrate}),
       config_from_esds_tag(Rest2, ESDS1);
-    {?MP4DecSpecificDescrTag, <<Config:2/binary, _/binary>>, _} ->
+    {?MP4DecSpecificDescrTag, <<Config/binary>>, _} ->
       ESDS#esds{specific = Config};
     {?MP4Unknown6Tag, _Body, Rest} ->
       config_from_esds_tag(Rest, ESDS);

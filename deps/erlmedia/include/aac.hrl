@@ -1,7 +1,8 @@
 -record(aac_config, {
   type,
-  frequency,
+  sample_rate,
   channels,
+  channel_count,
   samples_per_frame
 }).
 

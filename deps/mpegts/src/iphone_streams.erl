@@ -28,16 +28,9 @@
 -define(STREAM_TIME, ems:get_var(iphone_segment_size, 10000)).
 
 %% External API
--export([start_link/1, find/3, segments/2, play/4, playlist/2, playlist/3]).
-
--export([save_counters/4, get_counters/3]).
+-export([find/3, segments/2, play/4, playlist/2, playlist/3]).
 
 
-
-
-
-start_link(Options) ->
-  gen_cache:start_link([{local, ?MODULE}|Options]).
 
 
 %%--------------------------------------------------------------------
@@ -97,7 +90,7 @@ segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
   case ems_media:seek_info(Media, Number * ?STREAM_TIME) of
     {_Key, StartDTS} ->
       Info = ems_media:info(Media),
-      Duration = proplists:get_value(length, Info, ?STREAM_TIME*Count),
+      Duration = proplists:get_value(timeshift_duration, Info, proplists:get_value(length, Info, ?STREAM_TIME*Count)),
       % ?D({"Last segment", Number, StartDTS, Duration}),
       Generator(round((Duration - StartDTS)/1000), Name, Number);
     undefined ->
@@ -140,7 +133,7 @@ file_segments(Info) ->
 
 
 timeshift_segments(Info) ->
-  Duration = proplists:get_value(length, Info, 0),
+  Duration = proplists:get_value(timeshift_duration, Info, proplists:get_value(length, Info, 0)),
   StartTime = proplists:get_value(start, Info, 0),
   Start = trunc(StartTime / ?STREAM_TIME) + 1,
   SegmentLength = ?STREAM_TIME div 1000,
@@ -155,15 +148,7 @@ timeshift_segments(Info) ->
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
-      MS1 = erlang:now(),
-      Counters = iphone_streams:get_counters(Host, Name, Number),
-      MS2 = erlang:now(),
-      NextCounters = mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}], Counters),
-      MS3 = erlang:now(),
-      iphone_streams:save_counters(Host, Name, Number+1, NextCounters),
-      MS4 = erlang:now(),
-      ?D({end_iphone_segment, Name, Number, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000, timer:now_diff(MS4,MS3) div 1000}),
-      ok;
+      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}]);
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
     Reason ->
@@ -171,10 +156,3 @@ play(Host, Name, Number, Req) ->
   end.
   
   
-  
-save_counters(Host, Name, Number, Counters) ->
-  gen_cache:set(?MODULE, {Host, Name, Number}, Counters).
-
-get_counters(Host, Name, Number) ->
-  gen_cache:get(?MODULE, {Host, Name, Number}, {0,0,0,0}).
-

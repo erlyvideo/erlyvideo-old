@@ -30,7 +30,6 @@ class ErlmediaTest < Test::Unit::TestCase
   rtmp
   rtmp_handshake
   rtsp_socket
-  gen_cache
   ems
   media_ticker).each do |mod|
     build_test mod

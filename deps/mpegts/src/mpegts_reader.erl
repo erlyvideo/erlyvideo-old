@@ -193,6 +193,7 @@ synchronizer(<<16#47, _:187/binary, 16#47, _/binary>> = Bin, TSLander) ->
   synchronizer(Rest, Lander);
 
 synchronizer(<<_, Bin/binary>>, TSLander) when size(Bin) >= 374 ->
+  ?D(desync),
   synchronizer(Bin, TSLander);
 
 synchronizer(Bin, TSLander) ->
@@ -476,7 +477,7 @@ normalize_timestamp(Stream) ->
 
 % <<18,16,6>>
 decode_aac(#stream{send_audio_config = false, es_buffer = AAC, dts = DTS, pts = PTS, consumer = Consumer} = Stream) ->
-  Config = aac:config(AAC),
+  Config = aac:adts_to_config(AAC),
   AudioConfig = #video_frame{       
    	content = audio,
    	flavor  = config,
@@ -541,7 +542,7 @@ handle_nal(#stream{consumer = Consumer, dts = DTS, pts = PTS, h264 = H264} = Str
     _ -> ok
   end,
   lists:foreach(fun(Frame) ->
-    % ?D({Frame#video_frame.flavor, round(PTS - DTS)}),
+    % ?D({Frame#video_frame.flavor, round(DTS)}),
     Consumer ! Frame#video_frame{dts = DTS, pts = PTS}
   end, Frames),
   Stream#stream{h264 = H264_1}.

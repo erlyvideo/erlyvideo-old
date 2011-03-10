@@ -19,6 +19,8 @@
   storage,
   format,
   
+  last_gop = undefined,
+  
   transcoder,
   trans_state,
 

@@ -27,8 +27,7 @@ function embedFlowplayer(server, path) {
 		plugins: { 
 			rtmp: { 
 				url: '/flowplayer/flowplayer.rtmp-3.1.3.swf', 
-				netConnectionUrl: server,
-				durationFunc: 'getStreamLength'
+				netConnectionUrl: server
 			},
       captions: {
       	url: '/flowplayer/flowplayer.captions-3.2.2.swf?'+(Math.random(10000)),
@@ -56,8 +55,10 @@ function embedFlowplayer(server, path) {
     },
     clip: {
       provider: 'rtmp',
+      bufferLength: 1,
       cuepointMultiplier: 1,
-      autoPlay: true
+      autoPlay: true,
+      live: true
       //, onCuepoint: function(clip, event) {
       //   alert("hi");
       //   // console.dir(event);
@@ -68,7 +69,7 @@ function embedFlowplayer(server, path) {
 }
 
 function embedJWPlayer(server, path) {
-  var flashvars = "provider=rtmp&autostart=true&streamer="+server+"&file="+path;
+  var flashvars = "provider=rtmp&bufferlength=1&autostart=true&streamer="+server+"&file="+path;
   document.getElementById('jwplayer').innerHTML = '\
   <object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="800" height="600"> \
 		<param name="movie" value="/jwplayer/player.swf" /> \
@@ -197,7 +198,7 @@ function parseQueryString() {
 Ext.onReady(function(){
   
   
-  window.currentRTMPServer = "rtmp://"+window.location.hostname;
+  window.currentRTMPServer = "rtmp://"+window.location.hostname+"/live";
 
 
 

@@ -88,9 +88,15 @@ table(#clients{active = Table}, active) -> Table;
 table(#clients{passive = Table}, passive) -> Table;
 table(#clients{starting = Table}, starting) -> Table.
 
-insert_client(Clients, State, Entry) ->
+
+insert_client(_Clients, paused, _Entry) ->
+  ?D({"Wasn't inserted"}),
+  ok;
+
+insert_client(Clients, State, Entry)  ->
   ets:insert(table(Clients, State), Entry#cached_entry{key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1}),
   ok.
+
 
 remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
   ets:delete(A, Client),
@@ -173,9 +179,13 @@ send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
   repeater_send_frame(Frame, Clients, starting, undefined);
 
 send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, State) ->
+%  case Frame#video_frame.content of
+% 	video -> ?D({"video",Frame#video_frame.flavor});
+%	Other -> ok
+%  end,	
   [Repeater ! {Frame, State} || Repeater <- Repeaters],
   Clients.
-  % repeater_send_frame(Frame, Clients, State).
+  % repeater_send_frame(Frame, Clients, State, undefined).
 
 repeater_send_frame(#video_frame{} = VideoFrame, Clients, State, Key) ->
   case flv_video_frame:is_good_flv(VideoFrame) of

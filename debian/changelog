@@ -1,3 +1,15 @@
+erlyvideo (2.6.7) unstable; urgency=low
+
+  proxy_media and mochijson2
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 09 Mar 2011 21:39:55 +0300
+
+erlyvideo (2.6.6) unstable; urgency=low
+
+  proxy_media fixes. HTTP leak
+
+ -- Max Lapshin <max@maxidoors.ru>  Wed, 02 Mar 2011 03:43:12 +0300
+
 erlyvideo (2.6.5) unstable; urgency=low
 
   license storage

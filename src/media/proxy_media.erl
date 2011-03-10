@@ -143,27 +143,40 @@ handle_frame(#video_frame{content = audio, stream_id = StreamId, flavor = config
              #ems_media{state = #proxy{stream_id = StreamId}, last_dts = LastDTS} = Media) ->
   {noreply, Media#ems_media{audio_config = Frame#video_frame{dts = LastDTS, pts = LastDTS}}};
 
+handle_frame(#video_frame{content = video, stream_id = StreamId, flavor = config} = Frame, 
+             #ems_media{state = #proxy{stream_id = StreamId}, last_dts = LastDTS} = Media) ->
+  {noreply, Media#ems_media{video_config = Frame#video_frame{dts = LastDTS, pts = LastDTS}}};
+
 handle_frame(#video_frame{content = video, stream_id = StreamId, flavor = Flavor, dts = DTS} = Frame, 
-             #ems_media{source = OldSource, source_ref = OldRef, last_dts = LastDTS,
+             #ems_media{source = OldSource, source_ref = OldRef, last_dts = LastDTS, audio_config = Audio, video_config = Video,
                         state = #proxy{next = Source, stream_id = StreamId} = Proxy} = Media) 
-             when Flavor == keyframe orelse Flavor == config ->
+             when Flavor == keyframe ->
   (catch ems_media:stop(OldSource)),
   (catch erlang:demonitor(OldRef, [flush])),
     
   Ref = erlang:monitor(process, Source),
   
-  ?D({switch, self(), DTS, LastDTS, Media#ems_media.ts_delta}),
+  ?D({switch, self(), DTS, LastDTS, Media#ems_media.ts_delta, Flavor}),
   
-  self() ! #video_frame{
+  Frames = [#video_frame{
     content = audio,
     flavor = frame,
     codec = empty,
-    dts = 0,
-    pts = 0,
+    dts = DTS,
+    pts = DTS,
     stream_id = StreamId
-  },
-  {reply, Frame#video_frame{dts = 0, pts = 0}, 
-  Media#ems_media{state = Proxy#proxy{next = undefined, stream_id = StreamId + 1}, 
+  }] ++
+  case Audio of
+    undefined -> [];
+    #video_frame{} -> [Audio#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}]
+  end ++ 
+  case Video of
+    undefined -> [];
+    #video_frame{} -> [Video#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}]
+  end ++ 
+  [Frame],
+  {reply, Frames, 
+  Media#ems_media{state = Proxy#proxy{next = undefined, stream_id = StreamId + 1}, audio_config = undefined, video_config = undefined, 
                   source = Source, source_ref = Ref, ts_delta = LastDTS - DTS + 20}};
 
 handle_frame(#video_frame{stream_id = StreamId, content = _C, flavor = _F, dts = _DTS}, #ems_media{state = #proxy{stream_id = StreamId}} = Media) ->

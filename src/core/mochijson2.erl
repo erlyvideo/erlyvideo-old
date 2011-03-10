@@ -99,6 +99,8 @@ json_encode(false, _State) ->
     <<"false">>;
 json_encode(null, _State) ->
     <<"null">>;
+json_encode(undefined, _State) ->
+    <<"null">>;
 json_encode(I, _State) when is_integer(I) andalso I >= -2147483648 andalso I =< 2147483647 ->
     %% Anything outside of 32-bit integers should be encoded as a float
     integer_to_list(I);
@@ -108,7 +110,7 @@ json_encode(F, _State) when is_float(F) ->
     mochinum:digits(F);
 json_encode(S, State) when is_binary(S); is_atom(S) ->
     json_encode_string(S, State);
-json_encode([{_Key, _Value}|_] = Props, State) ->
+json_encode([{_Key, _Value}|_] = Props, State) when _Key =/= object andalso _Key =/= struct ->
     json_encode_proplist(Props, State);
 json_encode(Array, State) when is_list(Array) ->
     json_encode_array(Array, State);

@@ -55,6 +55,13 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
 
 send_frame(Frame, #ems_media{module = M} = Media) ->
   case M:handle_frame(Frame, Media) of
+    {reply, Frames, Media1} when is_list(Frames) ->
+      lists:foldl(fun
+        (_, {stop,_,_} = Stop) -> 
+          Stop;
+        (OutFrame, {noreply, State, _}) ->
+          shift_dts(OutFrame, State)
+      end, {noreply, Media1, ?TIMEOUT}, Frames);
     {reply, F, Media1} ->
       shift_dts(F, Media1);
     {noreply, Media1} ->
@@ -117,12 +124,13 @@ handle_config(Frame, Media) ->
 
 handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
   Media1 = reply_with_decoder_config(Media),
+  Media2 = store_last_gop(Media1, Frame),
   case Content of
     audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
     _ -> ok
   end,
   ems_media_clients:send_frame(Frame, Clients, active),
-  {noreply, Media1, ?TIMEOUT}.
+  {noreply, Media2, ?TIMEOUT}.
 
 
 save_frame(undefined, Storage, _) ->
@@ -133,6 +141,23 @@ save_frame(Format, Storage, Frame) ->
     {ok, Storage1} -> Storage1;
     _ -> Storage
   end.
+  
+  
+  
+store_last_gop(#ems_media{last_gop = undefined} = Media, _Frame) ->
+  Media;
+  
+store_last_gop(#ems_media{last_gop = GOP} = Media, #video_frame{content = video, flavor = keyframe} = Frame) when is_list(GOP) ->
+  Media#ems_media{last_gop = [Frame]};
+
+store_last_gop(#ems_media{last_gop = GOP} = Media, _) when length(GOP) == 500 ->
+  Media#ems_media{last_gop = []};
+
+store_last_gop(#ems_media{last_gop = GOP} = Media, Frame) when is_list(GOP) ->
+  Media#ems_media{last_gop = [Frame | GOP]}.
+
+
+  
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
