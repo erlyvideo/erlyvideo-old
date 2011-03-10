@@ -51,7 +51,8 @@
   playing_from,
   playing_till,
   paused = false,
-  options
+  options,
+  burst_size = ?BURST_SIZE
 }).
 
 start(Ticker) ->
@@ -80,6 +81,7 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
   StreamId = proplists:get_value(stream_id, Options),
+  BurstSize = proplists:get_value(burst_size, Options, ?BURST_SIZE),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
   SeekInfo = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
   % ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
@@ -105,7 +107,7 @@ init(Media, Consumer, Options) ->
     Duration -> Start + Duration
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options}).
+                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize}).
   
 loop(Ticker) ->
   receive
@@ -182,8 +184,8 @@ handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Me
 
 
 handle_message(tick, #ticker{media = Media, dts = DTS, pos = Pos, consumer = Consumer, stream_id = StreamId,
-                             playing_till = PlayingTill} = Ticker) ->
-  case load_frames(Media, Consumer, Pos, PlayingTill, ?BURST_SIZE, []) of
+                             playing_till = PlayingTill, burst_size = BurstSize} = Ticker) ->
+  case load_frames(Media, Consumer, Pos, PlayingTill, BurstSize, []) of
     {eof, Frames} ->
       send_frames(Frames, Consumer, StreamId),
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
