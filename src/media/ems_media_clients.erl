@@ -90,8 +90,8 @@ table(#clients{starting = Table}, starting) -> Table.
 
 
 insert_client(_Clients, paused, _Entry) ->
-        ?D({"Wasn't inserted"}),
-        ok;
+  ?D({"Wasn't inserted"}),
+  ok;
 
 insert_client(Clients, State, Entry)  ->
   ets:insert(table(Clients, State), Entry#cached_entry{key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1}),
