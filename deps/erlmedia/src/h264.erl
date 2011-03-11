@@ -259,14 +259,14 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) w
   {SPS_ID, Rest} = exp_golomb_read(Data),
   {ChromaFormat, Rest1} = exp_golomb_read(Rest),
   case ChromaFormat of
-    3 -> <<_:1, Rest2/bitstring>> = Rest1;
-    _ -> Rest2 = Rest1
+    3 -> <<_ColorTransformFlag:1, Rest2/bitstring>> = Rest1;
+    1 -> Rest2 = Rest1
   end,
   {_BitDepthLuma, Rest3} = exp_golomb_read(Rest2),
   {_BitDepthChroma, Rest4} = exp_golomb_read(Rest3),
-  <<_:2, Rest5/bitstring>> = Rest4,
-  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
-  parse_sps_data(Rest5, SPS);
+  <<_TransformBypass:1, ScalingMatrixPresent:1, Rest5/bitstring>> = Rest4,
+  {Rest6, SPS} = parse_scaling_matrix(Rest5, ScalingMatrixPresent, #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID}),
+  parse_sps_data(Rest6, SPS);
 
 parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
   {SPS_ID, Rest1} = exp_golomb_read(Data),
@@ -274,6 +274,25 @@ parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) -
   SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
   parse_sps_data(Rest1, SPS).
 
+
+parse_scaling_matrix(Data, 0, SPS) ->
+  {Data, SPS};
+  
+parse_scaling_matrix(R0, 1, SPS) ->
+  R1 = decode_scaling_list(R0, 16), 
+  R2 = decode_scaling_list(R1, 16), 
+  R3 = decode_scaling_list(R2, 16), 
+  R4 = decode_scaling_list(R3, 16), 
+  R5 = decode_scaling_list(R4, 16), 
+  R6 = decode_scaling_list(R5, 16), 
+  R7 = decode_scaling_list(R6, 64), 
+  R8 = decode_scaling_list(R7, 64),
+  {R8, SPS}.
+  
+decode_scaling_list(<<0:1, Rest/bitstring>>, _Size) -> 
+  Rest.
+% decode_scaling_list(<<1:1, )
+  
 
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
@@ -288,7 +307,7 @@ parse_sps_pic_order(Data, 0, SPS) ->
 parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
   {_OffsetNonRef, Rest1} = exp_golomb_read_s(Data),
   {_OffsetTopBottom, Rest2} = exp_golomb_read_s(Rest1),
-  {NumRefFrames, Rest3} = exp_golomb_read_s(Rest2),
+  {NumRefFrames, Rest3} = exp_golomb_read(Rest2),
   NumRefFrames = 0,
   parse_sps_ref_frames(Rest3, SPS);
 
@@ -299,8 +318,11 @@ parse_sps_ref_frames(Data, SPS) ->
   {_NumRefFrames, <<_Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
   {PicWidth, Rest2} = exp_golomb_read(Rest1),
   Width = (PicWidth + 1)*16,
-  {PicHeight, <<_FrameMbsOnly:1, _Rest3/bitstring>>} = exp_golomb_read(Rest2),
-  Height = (PicHeight + 1)*16,
+  {PicHeight, <<FrameMbsOnly:1, _Rest3/bitstring>>} = exp_golomb_read(Rest2),
+  Height = case FrameMbsOnly of
+    1 -> (PicHeight + 1)*16;
+    0 -> (PicHeight + 1)*16*2
+  end,
   SPS#h264_sps{width = Width, height = Height}.
 
 
@@ -424,6 +446,12 @@ parse_sps_for_low_profile_test() ->
 
 parse_sps_for_rtsp_test() ->
   ?assertEqual(#h264_sps{profile = 66, level = 20, sps_id = 0, max_frame_num = 4, width = 352, height = 288}, parse_sps(<<103,66,224,20,218,5,130,81>>)).
+
+parse_sps_40_level_test() ->
+  ?assertEqual(#h264_sps{profile = 100, level = 40, sps_id = 0, max_frame_num = 4, width = 640, height = 480}, parse_sps(<<103,100,0,40,173,0,206,80,40,15,108,4,64,
+                                       0,3,132,0,0,175,200,56,0,0,48,0,0,3,0,11,
+                                       235,194,98,247,227,0,0,6,0,0,3,0,1,125,
+                                       120,76,94,252,27,65,16,137,75>>)).
 
 unpack_config_1_test() ->
   Config = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>,
