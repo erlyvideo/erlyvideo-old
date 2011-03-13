@@ -33,7 +33,7 @@
 -export([call_modules/2]).
 -export([stats/1]).
 -export([vhosts/0]).
--export([main/1]).
+-export([main/1, test/0]).
 
 
 -export([edoc/0, edoc/1]).
@@ -45,6 +45,33 @@ main([]) ->
   receive
     {'DOWN', Ref, process, _Client, _Reason} -> ok
   end.
+
+
+test() ->
+  eunit:test([
+    ems_network_lag_monitor,
+    ems,
+    ems_media,
+    ems_media_clients,
+    media_ticker,
+    amf0_tests,
+    amf3_tests,
+    aac,
+    flv_video_frame,
+    h264,
+    http_uri2,
+    mp4,
+    mp4_writer,
+    packet_codec,
+    srt_parser,
+    mpeg2_crc32,
+    mpegts_reader,
+    rtmp,
+    rtmp_handshake,
+    sdp,
+    rtsp_socket
+  ]).
+
 
 
 start(normal, []) ->
