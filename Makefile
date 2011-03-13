@@ -6,9 +6,19 @@ ERL_LIBS:=deps:lib:plugins:..
 
 
 
-NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
-NIF_FLAGS := `ruby -rrbconfig -e 'puts Config::CONFIG["LDSHARED"]'` -O3 -fPIC -fno-common -Wall
-
+# NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
+# 
+# ifeq ($(shell uname), Linux)
+# NIF_FLAGS := gcc -shared -O3 -fPIC -fno-common -Wall
+# endif
+# 
+# ifeq ($(shell uname), Darwin)
+# NIF_FLAGS := cc -arch i386 -arch x86_64 -pipe -bundle -undefined dynamic_lookup -O3 -fPIC -fno-common -Wall
+# endif
+# 
+# ifeq ($(shell uname), FreeBSD)
+# NIF_FLAGS := cc -shared -O3 -fPIC -fno-common -Wall
+# endif
 
 ERL=erl +A 4 +K true
 APP_NAME=ems
@@ -19,7 +29,7 @@ update:
 	git pull
 
 
-compile: ebin/mmap.so
+compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/ibrowse && make)
 	(cd deps/erlydtl && make)
