@@ -31,6 +31,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/h264.hrl").
 -include("log.hrl").
+-define(DBG(X,A), ok).
 
 
 %%

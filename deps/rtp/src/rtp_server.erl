@@ -26,7 +26,7 @@
 
 -include_lib("erlmedia/include/h264.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
--include("sdp.hrl").
+-include_lib("erlmedia/include/sdp.hrl").
 -include("rtp.hrl").
 -include("log.hrl").
 
