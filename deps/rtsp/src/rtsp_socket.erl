@@ -116,7 +116,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 
 
 init([Callback]) ->
-  {ok, #rtsp_socket{callback = Callback}}.
+  {ok, #rtsp_socket{callback = Callback, timeout = ?DEFAULT_TIMEOUT}}.
 
 
 %%-------------------------------------------------------------------------
