@@ -27,6 +27,7 @@
 -behaviour(gen_format).
 -include("../include/video_frame.hrl").
 -include("../include/mp4.hrl").
+-include("../include/media_info.hrl").
 -include("log.hrl").
 
 
