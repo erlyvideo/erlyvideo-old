@@ -74,15 +74,16 @@ read_header(Reader) ->
 read_srt_files(Media, Url) when is_binary(Url) ->
   read_srt_files(Media, binary_to_list(Url));
 
-read_srt_files(Media, [$/|_] = Url) ->
-  Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
-  lists:foldl(fun(SrtFile, Mp4Media) ->
-     read_srt_file(Mp4Media, SrtFile)
-  end, Media, filelib:wildcard(Wildcard));
-  
-read_srt_files(Media, _Url) ->
-  % ?D({will_not_read, _Url}),
-  Media.
+read_srt_files(Media, Url) ->
+  case filelib:is_file(Url) of
+    true ->
+      Wildcard = filename:dirname(Url) ++ "/" ++ filename:basename(Url, ".mp4") ++ ".*" ++ ".srt",
+      lists:foldl(fun(SrtFile, Mp4Media) ->
+         read_srt_file(Mp4Media, SrtFile)
+      end, Media, filelib:wildcard(Wildcard));
+    _ ->
+      Media
+  end.
 
 
 read_srt_file(#mp4_media{tracks = Tracks, duration = Duration} = Media, SrtFile) ->
@@ -182,7 +183,7 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
     <<_:IndexOffset/binary, Audio, _:1, AudioId:23, _/binary>> -> 
       (unpack_frame(element(Audio,Tracks), AudioId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = audio};
     <<_:IndexOffset/binary, Text, _:1, TextId:23, _/binary>> -> 
-      ?D({read_text,Text,TextId}),
+      % ?D({read_text,Text,TextId}),
       (unpack_frame(element(Text,Tracks), TextId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = text};
     <<_:IndexOffset/binary, Video, _:1, VideoId:23, _/binary>> -> 
       (unpack_frame(element(Video,Tracks), VideoId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = video};
