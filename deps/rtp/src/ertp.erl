@@ -8,7 +8,7 @@
 
 
 start() ->
-  application:start(ertp).
+  application:start(rtp).
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()

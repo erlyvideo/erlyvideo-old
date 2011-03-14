@@ -1,4 +1,4 @@
-{application, ertp,
+{application, rtp,
 [{description, "RTP handling library"},
  {vsn, "0.1"},
  {modules, [
