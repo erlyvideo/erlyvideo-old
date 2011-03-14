@@ -81,7 +81,7 @@ read_srt_files(Media, [$/|_] = Url) ->
   end, Media, filelib:wildcard(Wildcard));
   
 read_srt_files(Media, _Url) ->
-  ?D({will_not_read, _Url}),
+  % ?D({will_not_read, _Url}),
   Media.
 
 
@@ -329,7 +329,10 @@ mdhd(<<1:8, _Flags:24, _Ctime:64, _Mtime:64, TimeScale:32, Duration:64,
   Mp4Track#mp4_track{timescale = TimeScale, duration = Duration, language = extract_language(Language)}.
   
 extract_language(<<L1:5, L2:5, L3:5>>) ->
-  list_to_binary([L1+16#60, L2+16#60, L3+16#60]).
+  case list_to_binary([L1+16#60, L2+16#60, L3+16#60]) of
+    <<"und">> -> undefined;
+    Else -> Else
+  end.
 
 
 %% Handler Reference Box
