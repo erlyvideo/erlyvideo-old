@@ -226,7 +226,7 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 % 
 
-file_path(Host, _Name) -> "shared_objects/"++atom_to_list(Host)++".db".
+file_path(Host, _Name) -> "/tmp/"++atom_to_list(Host)++".db".
 table_name(Host, _Name) -> list_to_atom("shared_objects_"++atom_to_list(Host)).
 
 
