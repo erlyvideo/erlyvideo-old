@@ -194,7 +194,10 @@ handle_call({add_stream,
                    video = VideoDesc} = State) ->
   ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
 
-  [BaseMethod] = [M || #desc{method = M} <- [AudioDesc, VideoDesc]],
+  BaseMethod = case Type of
+    audio -> AudioDesc#desc.method;
+    video -> VideoDesc#desc.method
+  end,
   case Method of
     ports ->
       case Params of

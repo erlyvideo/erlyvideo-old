@@ -385,7 +385,7 @@ handle_request({request, 'PLAY', URL, Headers, Body},
                ++ ";seq=" ++ integer_to_list(Seq)
                ++ ";rtptime=" ++ integer_to_list(RtpTime) ||
                 {Track, Seq, RtpTime} <- Info],
-      reply(State#rtsp_socket{timeout = 5}, "200 OK",
+      reply(State, "200 OK",
             [
              {'Cseq', seq(Headers)},
              {'Cache-control', "no-cache"},
@@ -501,7 +501,8 @@ handle_request({request, 'SETUP', URL, Headers, _},
                   ServerPorts = [";server_port=", integer_to_list(SRTPPort), "-", integer_to_list(SRTCPPort)],
                   NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;client_port=", Val0s, "-", Val1s, ServerPorts]);
                 interleaved ->
-                  {ok, {TagVal, ok}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {TagVal, {self(), Val0, Val1}}, {rtsp, Headers}),
+                  rtp_server:listen_ports(ProdCtlPid, Stream, Proto, TagVal),
+                  ok = rtp_server:add_stream(ProdCtlPid, Stream, {TagVal, {self(), Val0, Val1}}, {rtsp, Headers}),
                   NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;interleaved=", Val0s, "-", Val1s])
               end
           end;
@@ -567,7 +568,7 @@ reply(#rtsp_socket{socket = Socket, session = SessionId, timeout = TimeOut} = St
   end]),
   io:format("[RTSP Response to Client]~n~s", [Reply]),
   gen_tcp:send(Socket, Reply),
-  State#rtsp_socket{timeout = undefined}.
+  State.
 
 
 binarize_header({Key, Value}) when is_atom(Key) ->
