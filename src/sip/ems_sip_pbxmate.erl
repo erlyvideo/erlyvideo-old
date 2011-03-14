@@ -24,7 +24,7 @@
 -module(ems_sip_pbxmate).
 -include_lib("esip/include/esip.hrl").
 -include_lib("esip/include/esip_records.hrl").
--include_lib("rtp/include/sdp.hrl").
+-include_lib("erlmedia/include/sdp.hrl").
 -include("../log.hrl").
 
 -export([
