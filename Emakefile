@@ -12,7 +12,6 @@
 {"src/rtmp/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/rtmp/shared_objects/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/plugins/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/test/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/http/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/hooks/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}]}.
@@ -28,4 +27,5 @@
 {"deps/esip/src/*", [debug_info, {outdir, "deps/esip/ebin"}, {i,".."}, {i, "deps/ertp/include"}, {i,"deps/esip/include"}, {i, "deps"}]}.
 {"deps/log4erl/src/*", [debug_info, {outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.
 {"deps/erlydtl/src/erlydtl/*", [debug_info, {outdir, "deps/erlydtl/ebin"}, {i, "deps/erlydtl/include"}]}.
+{"test/erlang/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 % , bin_opt_info, 
