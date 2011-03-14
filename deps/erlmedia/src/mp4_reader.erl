@@ -102,7 +102,8 @@ media_info(#mp4_media{additional = Additional, width = Width, height = Height, d
         height = Track#mp4_track.height
       };
       audio -> #audio_params{
-      }
+      };
+      _ -> undefined
     end,
     #stream_info{
       content   = Track#mp4_track.content,
@@ -119,7 +120,7 @@ media_info(#mp4_media{additional = Additional, width = Width, height = Height, d
     flow_type = file,
     audio = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == audio],
     video = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == video],
-    metadata = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == metadata],
+    metadata = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == metadata orelse Content == text],
     duration = Duration,
     options  = Additional
   }.

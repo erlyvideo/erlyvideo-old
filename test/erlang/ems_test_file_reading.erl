@@ -27,10 +27,12 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
 
+-export([read_file/1]).
+
 read_file(Path) ->
   {ok, F} = file:open(ems_test_helper:file_path(Path), [read,binary]),
   Reader = file_media:file_format(Path),
-  {ok, Media} = Reader:init({file,F}, []),
+  {ok, Media} = Reader:init({file,F}, [{url,ems_test_helper:file_path(Path)}]),
   read_all_frames(Media, [], Reader, undefined).
 
 read_all_frames(Media, Frames, Reader, Key) ->
@@ -55,7 +57,6 @@ test_file(Id) ->
 h264_aac_1_mp4_test() ->
   {ok, Media, Frames} = read_file("h264_aac_1.mp4"),
   test_duration(Frames, 20000),
-  io:format("~p~n", [mp4_reader:media_info(Media)]),
   ?assertMatch(#media_info{
     flow_type = file,
     duration = 19989.333333333332,
@@ -82,6 +83,48 @@ h264_aac_1_mp4_test() ->
     ],
     metadata = []
   }, mp4_reader:media_info(Media)).
+
+h264_aac_2_mp4_test() ->
+  {ok, Media, Frames} = read_file("h264_aac_2.mp4"),
+  test_duration(Frames, 20000),
+  ?assertMatch(#media_info{
+    flow_type = file,
+    duration = 19989.333333333332,
+    video = [
+      #stream_info{
+        content = video,
+        stream_id = 1,
+        codec = h264,
+        config = <<1,66,192,13,255,225,0,25,103,66,192,13,171,32,40,51,243,224,34,
+                   0,0,3,0,2,0,0,3,0,97,30,40,84,144,1,0,4,104,206,60,128>>,
+        language = undefined,
+        params = #video_params{width = 320, height = 180}
+      }
+    ],
+    audio = [
+      #stream_info{
+        content = audio,
+        stream_id = 2,
+        codec = aac,
+        config = <<17,144>>,
+        bitrate = undefined,
+        language = <<"eng">>
+      },
+      #stream_info{
+        content = audio,
+        stream_id = 3,
+        codec = aac,
+        config = <<17,144>>,
+        bitrate = undefined,
+        language = <<"ger">>
+      }
+    ],
+    metadata = [
+      #stream_info{content = text, stream_id = 4, codec = srt, language = <<"eng">>},
+      #stream_info{content = text, stream_id = 5, codec = srt, language = <<"rus">>}
+    ]
+  }, mp4_reader:media_info(Media)).
+
 
 ?CHECK(h264_aac_1_flv_test).
 ?CHECK(h264_mp3_1_mp4_test).
