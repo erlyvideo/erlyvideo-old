@@ -48,27 +48,27 @@ main([]) ->
 
 
 test() ->
+  % ems_network_lag_monitor,
+  % ems_media,
+  % ems_media_clients,
+  
   eunit:test([
-    ems_network_lag_monitor,
     ems,
-    ems_media,
-    ems_media_clients,
-    media_ticker,
     amf0_tests,
     amf3_tests,
     aac,
-    flv_video_frame,
     h264,
-    http_uri2,
     mp4,
     mp4_writer,
+    flv_video_frame,
+    sdp,
+    http_uri2,
     packet_codec,
     srt_parser,
     mpeg2_crc32,
     mpegts_reader,
     rtmp,
     rtmp_handshake,
-    sdp,
     rtsp_socket
   ]).
 
