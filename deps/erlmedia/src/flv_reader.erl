@@ -106,11 +106,11 @@ read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Met
 			    read_frame_list(MediaInfo1#media_info{metadata_offset = Offset} , NextOffset, Limit - 1)
 			end;
 		#video_frame{content = video, flavor = config, next_id = NextOffset} = V ->
-		  ?D({"Save flash video_config"}),
+      % ?D({"Save flash video_config"}),
 			read_frame_list(MediaInfo#media_info{video_config = V}, NextOffset, Limit - 1);
 
 		#video_frame{content = audio, flavor = config, next_id = NextOffset} = A ->
-		  ?D({"Save flash audio config"}),
+      % ?D({"Save flash audio config"}),
 			read_frame_list(MediaInfo#media_info{audio_config = A}, NextOffset, Limit - 1);
 		  
   	#video_frame{content = video, flavor = keyframe, dts = DTS, next_id = NextOffset} ->
@@ -121,7 +121,7 @@ read_frame_list(#media_info{reader = Reader, frames = FrameTable, metadata = Met
 			read_frame_list(MediaInfo#media_info{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
 
     eof ->
-      ?D({duration, MediaInfo#media_info.duration, Offset}),
+      % ?D({duration, MediaInfo#media_info.duration, Offset}),
       {ok, MediaInfo#media_info{
         metadata = lists:ukeymerge(1, [{duration, MediaInfo#media_info.duration}], Metadata)
       }};
@@ -249,7 +249,7 @@ read_frame(Media, undefined) ->
   read_frame(Media, first(Media));
 
 read_frame(#media_info{metadata_offset = Offset, reader = Reader} = Media, Offset) ->
-  ?D({"Skip metadata", Offset}),
+  % ?D({"Skip metadata", Offset}),
   case flv:read_frame(Reader, Offset) of
     #video_frame{next_id = Next} -> read_frame(Media, Next);
     Else -> Else
