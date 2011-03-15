@@ -72,7 +72,6 @@ unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, _Skip1:6, LengthSize
   {PPS, <<>>} = parse_h264_config(Rest1, PPSCount, SPS),
   {LengthSize + 1, lists:reverse(PPS)}.
 
-
 init() -> #h264{}.
 
 
@@ -419,7 +418,6 @@ to_fmtp(Body) ->
   {_, [SPS, PPS]} = h264:unpack_config(Body),
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {RC, _} = h264:decode_nal(PPS, H264),
-  io:format("RC: ~p", [RC]),
   PLI =
     case RC of
       #h264{profile = Profile,
@@ -433,8 +431,7 @@ to_fmtp(Body) ->
    "packetization-mode=", integer_to_list(PktMode),";",
    PLI,
    "sprop-parameter-sets=",
-   base64:encode(SPS), $,, base64:encode(PPS),
-   ";"
+   base64:encode(SPS), $,, base64:encode(PPS)
   ].
 
 %%

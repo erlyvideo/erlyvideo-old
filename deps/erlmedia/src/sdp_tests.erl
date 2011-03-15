@@ -377,7 +377,24 @@ a=rtpmap:97 MP4A-LATM/48000
 ">>.
 
 
-encoder_test() ->
+
+encode_avc_test() ->
+  ?assertEqual(<<"m=video 0 RTP/AVP 96\r
+a=control:trackID=1\r
+a=rtpmap:96 H264/90000\r
+a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
+">>, 
+  sdp:encode(#stream_info{
+    content = video,
+    stream_id = 1,
+    codec = h264,
+    config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
+      21,1,0,4,104,206,60,128>>, 
+    params = #video_params{width = 640, height = 480},
+    timescale = 1000
+  })).
+
+encoder_test1() ->
   Sess =
     #session_desc{version = <<"0">>,
                   originator = #sdp_o{username = <<"-">>,
@@ -393,22 +410,21 @@ encoder_test() ->
                            {control, "*"},
                            {range, "npt=0-"}
                           ]},
-  MediaV =
-    #media_desc{type = video,
-                connect = {inet4, "10.11.12.13"},
-                port = 1500,
-                payloads = [#payload{num = 8, codec = pcma, clock_map = 90000}],
-                track_control = <<"trackID=1">>,
-                pps = undefined,
-                sps = undefined,
-                config = undefined},
-  MediaA =
-    #media_desc{type = audio,
-                connect = {inet4, "10.11.12.13"},
-                port = 1600,
-                payloads = [#payload{num = 97, codec = mp4a, clock_map = 48000}],
-                track_control = <<"trackID=2">>,
-                pps = undefined,
-                sps = undefined,
-                config = undefined},
-  ?assertEqual(some_random_sdp(), sdp:encode(Sess, [MediaV, MediaA])).
+  MediaV = #stream_info{
+    content = video,
+    options = [{connect, {inet4, "10.11.12.13"}}, {port, 1500}, {control, <<"trackID=1">>}],
+    codec = pcma,
+    timescale = 90,
+    stream_id = 1,
+    params = #video_params{}
+  },
+  MediaA = #stream_info{
+    content = audio,
+    options = [{connect, {inet4, "10.11.12.13"}}, {port, 1600}, {control, <<"trackID=2">>}],
+    codec = aac,
+    stream_id = 2,
+    timescale = 48,
+    params = #audio_params{channels = 2, sample_rate = 48000},
+    config = <<14,23>>
+  },
+  ?assertEqual(some_random_sdp(), sdp:encode(Sess, #media_info{audio = [MediaA], video = [MediaV]})).

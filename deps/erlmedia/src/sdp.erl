@@ -26,7 +26,7 @@
 
 -export([
          decode/1,
-         encode/2,
+         encode/2, encode/1,
          prep_media_config/2
         ]).
 
@@ -182,6 +182,9 @@ parse_announce([{a, {fmtp, Opts}} | Announce], MediaInfo, #stream_info{content =
 parse_announce([_ | Announce], Streams, Stream) ->
   parse_announce(Announce, Streams, Stream).
 
+
+encode(Info) ->
+  sdp_encoder:encode(Info).
 
 encode(Session, MediaSeq) ->
   sdp_encoder:encode(Session, MediaSeq).
