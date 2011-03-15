@@ -30,9 +30,13 @@
 -include("../include/h264.hrl").
 -include("../include/video_frame.hrl").
 
--export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
+-export([decode_nal/2, video_config/1, decoder_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([parse_sps/1, init/0]).
+-export([type/1]).
+
+
+
 
 
 video_config(H264) ->
@@ -94,6 +98,9 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
     2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
     (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
 
+
+type(<<0:1, _:2, Type:5, _/binary>>) ->
+  nal_unit_type(Type).
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
   Header = slice_header(Data),

@@ -25,8 +25,11 @@
 -module(sdp_tests).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("../include/video_frame.hrl").
+-include_lib("../include/media_info.hrl").
 -include_lib("../include/sdp.hrl").
 
+-compile(export_all).
 
 beward_sdp() ->
   <<"v=0
@@ -53,16 +56,39 @@ a=control:track2">>.
 
 %% Tests with rtsp_stream temporary broken due to replacement this record with media_desc and change its structure
 beward_test() ->
-  ?assertEqual([{media_desc,video,undefined,0,
-               [{payload,99,h264,90.0,undefined,undefined,[]}],
-               "track1",
-               <<40,238,60,128>>,
-               <<39,77,0,40,141,141,40,10,0,183,96,45,64,64,64,80,0,0,62,128,0,12,53,6,134,0,
-                 80,0,0,89,244,187,203,141,12,0,160,0,0,179,233,119,151,4,250,44,0>>,
-               undefined},
-   {media_desc,audio,undefined,7878,
-               [{payload,8,pcma,8.0,undefined,undefined,[]}],
-               "track2",undefined,undefined,undefined}], sdp:decode(beward_sdp())).
+  ?assertMatch(#media_info{
+    flow_type = stream,
+    options = [{connect, {inet4, "0.0.0.0"}}],
+    video = [#stream_info{
+      content = video,
+      stream_id = 1,
+      codec = h264,
+      config = <<1,77,0,40,255,225,0,47,39,77,0,40,141,141,40,10,0,183,96,45,64,
+                    64,64,80,0,0,62,128,0,12,53,6,134,0,80,0,0,89,244,187,203,141,
+                    12,0,160,0,0,179,233,119,151,4,250,44,0,1,0,4,40,238,60,128>>, 
+      params = #video_params{width = 1280, height = 720},
+      timescale = 90
+    }],
+    audio = [#stream_info{
+      content = audio,
+      stream_id = 2,
+      codec = pcma,
+      config = undefined,
+      params = #audio_params{channels = 1, sample_rate = 8000},
+      timescale = 8
+    }]
+  }, sdp:decode(beward_sdp())).
+  
+  % ?assertEqual([{media_desc,video,undefined,0,
+  %              [{payload,99,h264,90.0,undefined,undefined,[]}],
+  %              "track1",
+  %              <<40,238,60,128>>,
+  %              <<39,77,0,40,141,141,40,10,0,183,96,45,64,64,64,80,0,0,62,128,0,12,53,6,134,0,
+  %                80,0,0,89,244,187,203,141,12,0,160,0,0,179,233,119,151,4,250,44,0>>,
+  %              undefined},
+  %  {media_desc,audio,undefined,7878,
+  %              [{payload,8,pcma,8.0,undefined,undefined,[]}],
+  %              "track2",undefined,undefined,undefined}], sdp:decode(beward_sdp())).
 
 
 
@@ -93,20 +119,28 @@ a=control:trackid=2
 ">>.
 
 quicktime_broadcaster_test() ->
-  ?assertEqual([{media_desc,audio,
-               {inet4,"127.0.0.1"},
-               0,
-               [{payload,96,aac,8.0,undefined,undefined,[]}],
-               "trackid=1",undefined,undefined,
-               <<21,136>>},
-   {media_desc,video,
-               {inet4,"127.0.0.1"},
-               0,
-               [{payload,97,h264,90.0,undefined,undefined,[]}],
-               "trackid=2",
-               <<40,222,9,23,160>>,
-               <<39,77,64,12,169,24,80,143,203,128,53,6,1,6,182,194,181,239,124,4>>,
-               undefined}], sdp:decode(quicktime_broadcaster_sdp())).
+  ?assertMatch(#media_info{
+    flow_type = stream,
+    options = [{connect, {inet4, "127.0.0.1"}}],
+    video = [#stream_info{
+      content = video,
+      stream_id = 2,
+      codec = h264,
+      config = <<1,77,0,12,255,225,0,20,39,77,64,12,169,24,80,143,203,128,53,6,1,6,182,194,
+        181,239,124,4,1,0,5,40,222,9,23,160>>, 
+      params = #video_params{width = 160, height = 128},
+      timescale = 90,
+      options = [{control,"trackid=2"}]
+    }],
+    audio = [#stream_info{
+      content = audio,
+      stream_id = 1,
+      codec = aac,
+      config = <<21,136>>,
+      timescale = 8,
+      options = [{control,"trackid=1"}]
+    }]
+  }, sdp:decode(quicktime_broadcaster_sdp())).
 
 
 axis_m1011_sdp() ->
@@ -128,18 +162,25 @@ a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0
 
 
 axis_m1011_test() ->
-  ?assertEqual([{media_desc,video,
-               {inet4,"0.0.0.0"},
-               0,
-               [{payload,96,h264,90.0,undefined,undefined,[]}],
-               "trackID=1",
-               <<104,206,60,128>>,
-               <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
-               undefined}], sdp:decode(axis_m1011_sdp())).
+  ?assertMatch(#media_info{
+    flow_type = stream,
+    options = [{connect, {inet4, "0.0.0.0"}}],
+    video = [#stream_info{
+      content = video,
+      stream_id = 1,
+      codec = h264,
+      config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
+        21,1,0,4,104,206,60,128>>, 
+      params = #video_params{width = 640, height = 480},
+      timescale = 90,
+      options = [{control,"trackID=1"}]
+    }],
+    audio = []
+  }, sdp:decode(axis_m1011_sdp())).
 
 
-axis_p1311_test() ->
-  SDP = <<"v=0
+axis_p1311_sdp() ->
+  <<"v=0
 o=- 1269257289197834 1269257289197834 IN IP4 10.10.11.48
 s=Media Presentation
 e=NONE
@@ -158,38 +199,71 @@ m=audio 0 RTP/AVP 97
 b=AS:32
 a=control:rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264
 a=rtpmap:97 mpeg4-generic/16000/1
-a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;">>,
-  ?assertEqual([{media_desc,video,
-               {inet4,"0.0.0.0"},
-               0,
-               [{payload,96,h264,90.0,undefined,undefined,[]}],
-               "rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264",
-               <<104,206,60,128>>,
-               <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
-               undefined},
-   {media_desc,audio,
-               {inet4,"0.0.0.0"},
-               0,
-               [{payload,97,aac,16.0,undefined,undefined,[]}],
-               "rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264",
-               undefined,undefined,
-               <<20,8>>}], sdp:decode(SDP)).
+a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLength=3;IndexDeltaLength=3; Profile=1; bitrate=32000;">>.
+
+axis_p1311_test() ->
+  ?assertMatch(#media_info{
+    flow_type = stream,
+    options = [{connect, {inet4, "0.0.0.0"}}],
+    video = [#stream_info{
+      content = video,
+      stream_id = 1,
+      codec = h264,
+      config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
+        21,1,0,4,104,206,60,128>>, 
+      params = #video_params{width = 640, height = 480},
+      timescale = 90,
+      options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264"}]
+    }],
+    audio = [#stream_info{
+      content = audio,
+      stream_id = 2,
+      codec = aac,
+      config = <<20,8>>,
+      timescale = 16,
+      options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264"}]
+    }]
+  }, sdp:decode(axis_p1311_sdp())).
+  
 
 
-axis_test() ->
-  ?assertEqual([{media_desc,video,
-               {inet4,"0.0.0.0"},
-               0,
-               [{payload,96,h264,90.0,undefined,undefined,[]}],
-               "trackID=1",
-               <<104,206,60,128>>,
-               <<103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,21>>,
-               undefined}], sdp:decode(<<"v=0\r\no=- 1266472632763124 1266472632763124 IN IP4 192.168.4.1\r\ns=Media Presentation\r\ne=NONE\r\nc=IN IP4 0.0.0.0\r\nb=AS:50000\r\nt=0 0\r\na=control:*\r\na=range:npt=0.000000-\r\nm=video 0 RTP/AVP 96\r\nb=AS:50000\r\na=framerate:25.0\r\na=control:trackID=1\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r\n">>)).
+axis_server_sdp() ->
+  <<"v=0
+o=- 1266472632763124 1266472632763124 IN IP4 192.168.4.1
+s=Media Presentation
+e=NONE
+c=IN IP4 0.0.0.0
+b=AS:50000
+t=0 0
+a=control:*
+a=range:npt=0.000000-
+m=video 0 RTP/AVP 96
+b=AS:50000
+a=framerate:25.0
+a=control:trackID=1
+a=rtpmap:96 H264/90000
+a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==">>.
 
-
+axis_server_test() ->
+  ?assertMatch(#media_info{
+    flow_type = stream,
+    options = [{connect, {inet4, "0.0.0.0"}}],
+    video = [#stream_info{
+      content = video,
+      stream_id = 1,
+      codec = h264,
+      config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
+        21,1,0,4,104,206,60,128>>, 
+      params = #video_params{width = 640, height = 480},
+      timescale = 90,
+      options = [{control,"trackID=1"}]
+    }],
+    audio = []
+  }, sdp:decode(axis_server_sdp())).
+  
 % D-Link is an IP-camera, not AVC-camera. ertsp doesn't currently support it.
 % http://github.com/erlyvideo/erlyvideo/issues/issue/5
-dlink_dcs_2121_test() ->
+dlink_dcs_2121_test1() ->
   ?assertEqual([{media_desc,video,
                {inet4,"0.0.0.0"},
                0,
@@ -203,7 +277,7 @@ dlink_dcs_2121_test() ->
 
 
 
-darwinss_test() ->
+darwinss_test1() ->
   ?assertEqual([{media_desc,video,undefined,10000,
                [{payload,96,h264,90.0,undefined,undefined,[]}],
                undefined,undefined,undefined,undefined}], sdp:decode(<<"v=0\r\no=- 1188340656180883 1 IN IP4 224.1.2.3\r\ns=Session streamed by GStreamer\r\ni=server.sh\r\nt=0 0\r\na=tool:GStreamer\r\na=type:broadcast\r\nm=video 10000 RTP/AVP 96\r\nc=IN IP4 224.1.2.3\r\na=rtpmap:96 H264/90000\r\na=framerate:30">>)).
@@ -234,7 +308,7 @@ a=range:npt=0-3973.8240
 a=fmtp:97 profile-level-id=15;object=2;cpresent=0;config=400023203FC0
 ">>.
 
-darwin_test() ->
+darwin_test1() ->
   ?assertEqual([{media_desc,video,
                {inet4,"0.0.0.0"},
                0,
@@ -271,7 +345,7 @@ a=rtpmap:111 octet-stream/1
 a=fmtp:111 Mac=08007b88d4ec; Model=VCC-HD2300P; TargetBitRate=975; FirmVer=010202; CameraSeries=2;
 ">>.
 
-  sanyo_hd2300_test() ->
+  sanyo_hd2300_test1() ->
     ?assertEqual([{media_desc,video,
                  {inet4,"0.0.0.0"},
                  0,
