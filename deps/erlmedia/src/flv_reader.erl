@@ -156,6 +156,9 @@ read_frame_list(#flv_media{reader = Reader, frames = FrameTable, metadata = Meta
   	  ets:insert(FrameTable, {DTS, Offset}),
 			read_frame_list(MediaInfo#flv_media{duration = max_duration(MediaInfo, DTS), video_codec = Codec}, NextOffset, Limit - 1);
 
+		#video_frame{content = audio, codec = Codec, next_id = NextOffset, dts = DTS} ->
+			read_frame_list(MediaInfo#flv_media{audio_codec = Codec, duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
+
 		#video_frame{next_id = NextOffset, dts = DTS} ->
 			read_frame_list(MediaInfo#flv_media{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
 
