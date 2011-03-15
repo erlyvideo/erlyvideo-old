@@ -98,7 +98,10 @@ media_info(#flv_media{width = Width, height = Height, duration = Duration} = FLV
       content = video,
       stream_id = 1,
       codec = FLV#flv_media.video_codec,
-      config = FLV#flv_media.video_config,
+      config = case FLV#flv_media.video_config of
+        #video_frame{body = VideoBody} -> VideoBody;
+        _ -> undefined
+      end,
       params = #video_params{width = Width, height = Height}
     }]
   end,
@@ -108,7 +111,10 @@ media_info(#flv_media{width = Width, height = Height, duration = Duration} = FLV
       content = audio,
       stream_id = 2,
       codec = FLV#flv_media.audio_codec,
-      config = FLV#flv_media.audio_config,
+      config = case FLV#flv_media.audio_config of
+        #video_frame{body = AudioBody} -> AudioBody;
+        _ -> undefined
+      end,
       params = #audio_params{}
     }]
   end,
