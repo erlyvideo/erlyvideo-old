@@ -26,9 +26,10 @@
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
--include_lib("erlmedia/include/sdp.hrl").
 -include("log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
+-include_lib("erlmedia/include/sdp.hrl").
 
 -export([start_link/1, set_socket/2]).
 %% gen_server callbacks
@@ -64,7 +65,7 @@
   pending,
   pending_reply = ok,
   seq,
-  timeout,
+  timeout = ?DEFAULT_TIMEOUT,
   session
 }).
 
@@ -169,7 +170,8 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
 
 handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
   ?D({"Setup", Num, Streams}),
-  #media_desc{track_control = Control} = lists:nth(Num, Streams),
+  #stream_info{options = Options} = lists:nth(Num, Streams),
+  Control = proplists:get_value(control, Options),
 
   Sess = case RTSP#rtsp_socket.session of
     undefined -> "";
@@ -246,7 +248,7 @@ handle_info({interleaved, Channel, {Type, RTP}}, #rtsp_socket{socket = Sock, tim
   Data = packet_codec:encode({Type, Channel, RTP}),
   gen_tcp:send(Sock, Data),
   {noreply, Socket, Timeout};
-  
+
 handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
   lists:foreach(fun(Frame) ->
     % ?D({Frame#video_frame.content, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
@@ -496,7 +498,8 @@ handle_request({request, 'SETUP', URL, Headers, _},
               ?DBG("Add Stream: ~p", [{Stream, Proto, Addr, TagVal, {Val0, Val1}}]),
               case TagVal of
                 ports ->
-                  {ok, {TagVal, {SRTPPort, SRTCPPort}}} = rtp_server:add_stream(ProdCtlPid, Stream, Proto, Addr, {TagVal, {Val0, Val1}}, {rtsp, Headers}),
+                  {ok, {TagVal, {SRTPPort, SRTCPPort}}} = rtp_server:listen_ports(ProdCtlPid, Stream, Proto, TagVal),
+                  ok = rtp_server:add_stream(ProdCtlPid, Stream, {TagVal, {Addr, Val0, Val1}}, {rtsp, Headers}),
                   ?DBG("Server Ports: ~p", [{SRTPPort, SRTCPPort}]),
                   ServerPorts = [";server_port=", integer_to_list(SRTPPort), "-", integer_to_list(SRTCPPort)],
                   NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;client_port=", Val0s, "-", Val1s, ServerPorts]);

@@ -27,10 +27,11 @@
 -behaviour(gen_format).
 -include("../include/video_frame.hrl").
 -include("../include/mp4.hrl").
+-include("../include/media_info.hrl").
 -include("log.hrl").
 
 
--export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, media_info/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 -export([track_for_bitrate/2, track_for_language/2]).
 
 -define(FRAMESIZE, 8).
@@ -92,6 +93,38 @@ properties(#mp4_media{additional = Additional, width = Width, height = Height, d
    {languages, Languages}] ++ Additional.
 
 
+
+media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tracks} = MP4Media) -> 
+  Streams = lists:map(fun(#mp4_track{content = Content} = Track) ->
+    Params = case Content of
+      video -> #video_params{
+        width = Track#mp4_track.width,
+        height = Track#mp4_track.height
+      };
+      audio -> #audio_params{
+      };
+      _ -> undefined
+    end,
+    #stream_info{
+      content   = Track#mp4_track.content,
+      stream_id = Track#mp4_track.track_id,
+      codec     = Track#mp4_track.data_format,
+      config    = Track#mp4_track.decoder_config,
+      bitrate   = Track#mp4_track.bitrate,
+      language  = Track#mp4_track.language,
+      params    = Params
+    }
+  end, tuple_to_list(MP4Media#mp4_media.tracks)),
+  
+  #media_info{
+    flow_type = file,
+    audio = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == audio],
+    video = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == video],
+    metadata = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == metadata orelse Content == text],
+    duration = Duration,
+    options  = Additional
+  }.
+  
 
 track_for_bitrate(#mp4_media{tracks = Tracks}, Bitrate) ->
   find_track(Tracks, #mp4_track.bitrate, Bitrate, video).

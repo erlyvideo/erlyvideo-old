@@ -8,7 +8,7 @@
 
 
 start() ->
-  application:start(ertp).
+  application:start(rtp).
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
@@ -38,5 +38,5 @@ config_change(_Changed, _New, _Remove) ->
   ok.
 
 %%
-start_server(Name) ->
-  ertp_sup:start_server(Name).
+start_server(Args) ->
+  ertp_sup:start_server(Args).

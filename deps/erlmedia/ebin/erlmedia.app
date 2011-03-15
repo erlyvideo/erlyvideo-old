@@ -27,6 +27,7 @@
              mp4_writer,
              packet_codec,
              shoutcast_reader,
+             video_frame,
              wav
             ]},
   {env, []}
