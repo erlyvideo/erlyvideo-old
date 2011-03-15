@@ -29,7 +29,7 @@
 -behaviour(gen_format).
 -export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
--record(media_info, {
+-record(mp3_media, {
   reader,
   offset = 0,
   version,
@@ -60,25 +60,25 @@ write_frame(_Device, _Frame) ->
 %% @end 
 %%--------------------------------------------------------------------
 init(Reader, _Options) ->
-  {ok, read_header(#media_info{reader = Reader})}.
+  {ok, read_header(#mp3_media{reader = Reader})}.
 
 
-read_header(#media_info{reader = {Module,Device}} = Media) -> 
+read_header(#mp3_media{reader = {Module,Device}} = Media) -> 
   case Module:pread(Device, 0, 10) of
     {ok, <<"ID3", Major, Minor, _Unsync:1, _Extended:1, _Experimental:1, _Footer:1, 0:4, 
            _:1, S1:7, _:1, S2:7, _:1, S3:7, _:1, S4:7>>} ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
-      Media1 = Media#media_info{format = id3, version = {Major, Minor}},
+      Media1 = Media#mp3_media{format = id3, version = {Major, Minor}},
       Offset = sync(<<>>, Media1, Size + 10),
-      read_properties(Media1#media_info{header_size = Offset});
+      read_properties(Media1#mp3_media{header_size = Offset});
     {ok, <<"ID3", _/binary>>} ->
       ?D({id3,unsupported}),
       erlang:error(unknown_mp3);
     {ok, <<2#11111111111:11, _:5, _/binary>>} ->
-      read_properties(Media#media_info{format = raw, header_size = 0});
+      read_properties(Media#mp3_media{format = raw, header_size = 0});
     {ok, Binary} ->
       Offset = sync(Binary, Media, 0),
-      read_properties(Media#media_info{header_size = Offset})
+      read_properties(Media#mp3_media{header_size = Offset})
   end.  
 
 
@@ -88,7 +88,7 @@ sync(<<2#11111111111:11, _:5, _/binary>>, _Media, Offset) ->
 sync(<<_, Binary/binary>>, Media, Offset) ->
   sync(Binary, Media, Offset + 1);
   
-sync(<<>>, #media_info{reader = {Module, Device}} = Media, Offset) ->
+sync(<<>>, #mp3_media{reader = {Module, Device}} = Media, Offset) ->
   case Module:pread(Device, Offset, 256) of
     {ok, Block} ->
       sync(Block, Media, Offset);
@@ -96,17 +96,17 @@ sync(<<>>, #media_info{reader = {Module, Device}} = Media, Offset) ->
       eof
   end.
     
-read_properties(#media_info{reader = {Module,Device}, header_size = Offset} = Media) ->
+read_properties(#mp3_media{reader = {Module,Device}, header_size = Offset} = Media) ->
   {ok, Header} = Module:pread(Device, Offset, mp3:header_size()),
   Length = mp3:frame_length(Header),
   {ok, Body} = Module:pread(Device, Offset, Length),
   {ok, MP3, <<>>} = mp3:read(Body),
   #mp3_frame{samples = Samples} = MP3,
-  Media#media_info{header = MP3#mp3_frame{body = body}, samples = Samples}.
+  Media#mp3_media{header = MP3#mp3_frame{body = body}, samples = Samples}.
 
 
 
-first(#media_info{header_size = Size}) ->
+first(#mp3_media{header_size = Size}) ->
   {Size,0}.
   
   
@@ -119,14 +119,14 @@ duration(Media, Key, DTS) ->
     #video_frame{next_id = NextKey, dts = NextDTS} -> duration(Media, NextKey, NextDTS)
   end.
 
-properties(#media_info{duration = undefined} = Media) -> properties(Media#media_info{duration = duration(Media)});
-properties(#media_info{duration = Duration}) -> [{duration, Duration}].
+properties(#mp3_media{duration = undefined} = Media) -> properties(Media#mp3_media{duration = duration(Media)});
+properties(#mp3_media{duration = Duration}) -> [{duration, Duration}].
 
 
-seek(#media_info{} = Media, undefined, _Options) ->
+seek(#mp3_media{} = Media, undefined, _Options) ->
   {first(Media), 0};
 
-seek(#media_info{} = Media, Timestamp, _Options) ->
+seek(#mp3_media{} = Media, Timestamp, _Options) ->
   ?D({"mp3 seek", Timestamp}),
   find_frame(Media, Timestamp, first(Media), undefined).
 
@@ -154,7 +154,7 @@ read_frame(Media, undefined) ->
 read_frame(_Media, {eof, _N}) ->
   eof;
 
-read_frame(#media_info{reader = {Module,Device}} = Media, {Offset, N}) ->
+read_frame(#mp3_media{reader = {Module,Device}} = Media, {Offset, N}) ->
   case Module:pread(Device, Offset, mp3:header_size()) of
     eof -> eof;
     {ok, <<2#11111111111:11, _:5, _/binary>> = Header} ->
