@@ -69,7 +69,8 @@ test() ->
     mpegts_reader,
     rtmp,
     rtmp_handshake,
-    rtsp_socket
+    rtsp_socket,
+    ems_test_file_reading
   ]).
 
 
