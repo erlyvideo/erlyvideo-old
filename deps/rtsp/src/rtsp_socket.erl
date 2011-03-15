@@ -26,9 +26,10 @@
 -behaviour(gen_server).
 
 -include("../include/rtsp.hrl").
--include_lib("erlmedia/include/sdp.hrl").
 -include("log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
+-include_lib("erlmedia/include/sdp.hrl").
 
 -export([start_link/1, set_socket/2]).
 %% gen_server callbacks
@@ -64,7 +65,7 @@
   pending,
   pending_reply = ok,
   seq,
-  timeout,
+  timeout = ?DEFAULT_TIMEOUT,
   session
 }).
 
@@ -169,7 +170,8 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
 
 handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
   ?D({"Setup", Num, Streams}),
-  #media_desc{track_control = Control} = lists:nth(Num, Streams),
+  #stream_info{options = Options} = lists:nth(Num, Streams),
+  Control = proplists:get_value(control, Options),
 
   Sess = case RTSP#rtsp_socket.session of
     undefined -> "";
