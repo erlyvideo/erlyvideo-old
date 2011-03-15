@@ -239,8 +239,29 @@ flv_mp3_1_flv_test() ->
     ],
     metadata = []
   }, flv_reader:media_info(Media)).
+
+
+
+
+mp3_1_mp3_test() ->
+  {ok, Media, Frames} = read_file("mp3_1.mp3"),
+  test_duration(Frames, 10000),
+  ?assertMatch(#media_info{
+    flow_type = file,
+    duration = 10083,
+    video = [],
+    audio = [
+      #stream_info{
+        content = audio,
+        stream_id = 1,
+        codec = mp3,
+        config = undefined,
+        params = #audio_params{channels = 2, sample_rate = 44100}
+      }
+    ],
+    metadata = []
+  }, mp3_reader:media_info(Media)).
   
-% ?CHECK(mp3_1_mp3_test).
   
 
 

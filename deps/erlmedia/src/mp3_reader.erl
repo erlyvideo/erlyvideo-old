@@ -23,11 +23,14 @@
 -module(mp3_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
+-include("../include/media_info.hrl").
 -include("../include/mp3.hrl").
 -include("log.hrl").
+-include_lib("kernel/include/file.hrl").
+
 
 -behaviour(gen_format).
--export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, read_frame/2, media_info/1, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(mp3_media, {
   reader,
@@ -37,6 +40,9 @@
   format,
   duration,
   header,
+  path,
+  channels,
+  sample_rate,
   samples
 }).
 
@@ -59,8 +65,8 @@ write_frame(_Device, _Frame) ->
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init(Reader, _Options) ->
-  {ok, read_header(#mp3_media{reader = Reader})}.
+init(Reader, Options) ->
+  {ok, read_header(#mp3_media{reader = Reader, path = proplists:get_value(url, Options)})}.
 
 
 read_header(#mp3_media{reader = {Module,Device}} = Media) -> 
@@ -96,15 +102,46 @@ sync(<<>>, #mp3_media{reader = {Module, Device}} = Media, Offset) ->
       eof
   end.
     
-read_properties(#mp3_media{reader = {Module,Device}, header_size = Offset} = Media) ->
+read_properties(#mp3_media{reader = {Module,Device}, header_size = Offset, path = Path} = Media) ->
   {ok, Header} = Module:pread(Device, Offset, mp3:header_size()),
   Length = mp3:frame_length(Header),
   {ok, Body} = Module:pread(Device, Offset, Length),
   {ok, MP3, <<>>} = mp3:read(Body),
-  #mp3_frame{samples = Samples} = MP3,
-  Media#mp3_media{header = MP3#mp3_frame{body = body}, samples = Samples}.
+  #mp3_frame{samples = Samples, channels = Channels, sample_rate = SampleRate} = MP3,
+  Duration = case Module of
+    file when is_list(Path) orelse is_binary(Path) -> 
+      case filelib:is_file(Path) of
+        true ->
+          {ok, FileInfo} = file:read_file_info(Path),
+          N = FileInfo#file_info.size div Length,
+          N*1000*MP3#mp3_frame.samples div MP3#mp3_frame.sample_rate;
+        false ->
+          undefined
+      end;
+    _ ->
+      undefined
+  end,
+  Media#mp3_media{header = MP3#mp3_frame{body = body}, samples = Samples, duration = Duration, sample_rate = SampleRate, channels = Channels}.
 
 
+
+media_info(#mp3_media{duration = Duration} = Media) ->
+  AudioStream = #stream_info{
+    content = audio,
+    stream_id = 1,
+    codec = mp3,
+    config = undefined,
+    params = #audio_params{channels = Media#mp3_media.channels, sample_rate = Media#mp3_media.sample_rate}
+  },
+  
+  #media_info{
+    flow_type = file,
+    audio = [AudioStream],
+    video = [],
+    metadata = [],
+    duration = Duration
+  }.
+  
 
 first(#mp3_media{header_size = Size}) ->
   {Size,0}.

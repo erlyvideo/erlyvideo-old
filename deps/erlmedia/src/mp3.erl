@@ -53,7 +53,8 @@ read(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2, _
       BRate = bitrate({Version,Layer}, BitRate),
       SRate = samplerate({Version,Layer}, SampleRate),
       Samples = samples({Version,Layer}),
-      {ok, #mp3_frame{sample_rate = SRate, bitrate = BRate, channels = Channels, joint = Joint, samples = Samples, body = Frame}, Rest};
+      Chan = decode_channels(Channels),
+      {ok, #mp3_frame{sample_rate = SRate, bitrate = BRate, channels = Chan, joint = Joint, samples = Samples, body = Frame}, Rest};
     _ ->
       {more, Length - size(Packet)}
   end.
@@ -81,6 +82,12 @@ decode(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2,
 
 decode(_) ->
   {error, unknown}.
+
+
+decode_channels(0) -> 2;
+decode_channels(1) -> 2;
+decode_channels(2) -> 2;
+decode_channels(3) -> 1.
 
 % 2.5 and 2 have the same bitrate table
 bitrate({{2,5}, Sub},Bitrate) ->
