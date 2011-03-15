@@ -48,8 +48,10 @@ test_duration(Frames, Nearby) ->
 test_file(Id) ->
   [_,Ext|Rest] = lists:reverse(string:tokens(atom_to_list(Id), "_")),
   Path = string:join(lists:reverse(Rest), "_")++"."++Ext,
-  {ok, _, Frames} = read_file(Path),
-  fun() -> test_duration(Frames, 20000) end.
+  Reader = file_media:file_format(Path),
+  {ok, Media, Frames} = read_file(Path),
+  test_duration(Frames, 20000),
+  ?assertMatch(#media_info{flow_type = file}, Reader:media_info(Media)).
 
 -define(CHECK(X), X() -> test_file(X), ok).
 
@@ -133,7 +135,7 @@ h264_aac_2_mp4_test() ->
 ?CHECK(h264_1_flv_test).
 % ?CHECK(flv_aac_1_flv_test).
 ?CHECK(flv_mp3_1_flv_test).
-?CHECK(mp3_1_mp3_test).
+% ?CHECK(mp3_1_mp3_test).
   
 
 
