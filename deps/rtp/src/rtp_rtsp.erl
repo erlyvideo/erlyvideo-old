@@ -63,6 +63,7 @@ configure(Body, RTPStreams) ->
   configure(Body, RTPStreams, self()).
 
 configure(Body, RTPStreams, Media) ->
+  ?D(Body),
   #media_info{audio = A, video = V} = sdp:decode(Body),
   Streams = A ++ V,
   
@@ -152,9 +153,11 @@ wait_data(#rtp_state{rtp_socket = RTPSocket, rtcp_socket = RTCPSocket, state = S
   end.
 
 decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_SR, _/binary>> = SR) ->
+  ?D({rtcp, sr, SR}),
   ?MODULE:rtcp_sr(State, SR);
 
 decode(rtcp, State, <<2:2, 0:1, _Count:5, ?RTCP_RR, _/binary>> = RR) ->
+  ?D({rtcp, rr, RR}),
   ?MODULE:rtcp_rr(State, RR);
 
 decode(rtcp, _State, <<2:2, 0:1, _Count:5, Type, _/binary>>) ->
@@ -169,7 +172,8 @@ decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _
 %   ?MODULE:Type(State1, {data, Data, Sequence, Timecode});
 %   % {State, []};
 
-decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>)  ->
+decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>> = RTP)  ->
+  ?D({Type, RTP}),
   % ?D({Type, Sequence, Timecode, element(#base_rtp.base_timecode, State), element(#base_rtp.wall_clock, State)}),
   ?MODULE:Type(State, {data, Data, Sequence, Timecode}).
 

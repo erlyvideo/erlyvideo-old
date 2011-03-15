@@ -4,6 +4,7 @@
  {modules, [
             ertp,
             ertp_sup,
+            rtp_decoder,
             rtp_server,
             sdp,
             sdp_tests

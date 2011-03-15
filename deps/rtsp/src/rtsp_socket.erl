@@ -476,48 +476,49 @@ handle_request({request, 'SETUP', URL, Headers, _},
     fun(tcp) -> "TCP";
        (udp) -> "UDP"
     end,
-
-  if ((Proto =/= undefined) andalso (TagVal =/= undefined)) ->
-      case re:run(URL, "trackID=(\\d+)", [{capture, all, list}]) of
-        {match, [_, _TrackID_S]} ->
-          ?DBG("URL: ~p~nSDP:~n~p", [URL, SDP]),
-          case lists:keyfind(binary_to_list(URL), #media_desc.track_control, SDP) of
-            #media_desc{} = Stream ->
-              {Val0, Val1} = {list_to_integer(Val0s), list_to_integer(Val1s)},
-              if is_pid(ProducerCtl) ->
-                  ProdCtlPid = ProducerCtl,
-                  NewState = State;
-                 true ->
-                  ?DBG("Start RTP process with media ~p", [Media]),
-                  {ok, ProdCtlPid} =
-                    rtp_server:start_link({producer, [{media, Media}]}),
-                  ProducerRef = erlang:monitor(process, ProdCtlPid),
-                  NewState = State#rtsp_socket{rtp = ProdCtlPid,
-                                               rtp_ref = ProducerRef}
-              end,
-              ?DBG("Add Stream: ~p", [{Stream, Proto, Addr, TagVal, {Val0, Val1}}]),
-              case TagVal of
-                ports ->
-                  {ok, {TagVal, {SRTPPort, SRTCPPort}}} = rtp_server:listen_ports(ProdCtlPid, Stream, Proto, TagVal),
-                  ok = rtp_server:add_stream(ProdCtlPid, Stream, {TagVal, {Addr, Val0, Val1}}, {rtsp, Headers}),
-                  ?DBG("Server Ports: ~p", [{SRTPPort, SRTCPPort}]),
-                  ServerPorts = [";server_port=", integer_to_list(SRTPPort), "-", integer_to_list(SRTCPPort)],
-                  NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;client_port=", Val0s, "-", Val1s, ServerPorts]);
-                interleaved ->
-                  rtp_server:listen_ports(ProdCtlPid, Stream, Proto, TagVal),
-                  ok = rtp_server:add_stream(ProdCtlPid, Stream, {TagVal, {self(), Val0, Val1}}, {rtsp, Headers}),
-                  NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;interleaved=", Val0s, "-", Val1s])
-              end
-          end;
-        _ ->
-          NewTransport = OldTransport,
-          NewState = State
-      end;
-     true ->
-      ?DBG("Error: Proto: ~p, TagVal: ~p", [Proto, TagVal]),
-      NewTransport = OldTransport,
-      NewState = State
-  end,
+    NewTransport = OldTransport,
+    NewState = State,
+  % if ((Proto =/= undefined) andalso (TagVal =/= undefined)) ->
+  %     case re:run(URL, "trackID=(\\d+)", [{capture, all, list}]) of
+  %       {match, [_, _TrackID_S]} ->
+  %         ?DBG("URL: ~p~nSDP:~n~p", [URL, SDP]),
+  %         case lists:keyfind(binary_to_list(URL), #media_desc.track_control, SDP) of
+  %           #media_desc{} = Stream ->
+  %             {Val0, Val1} = {list_to_integer(Val0s), list_to_integer(Val1s)},
+  %             if is_pid(ProducerCtl) ->
+  %                 ProdCtlPid = ProducerCtl,
+  %                 NewState = State;
+  %                true ->
+  %                 ?DBG("Start RTP process with media ~p", [Media]),
+  %                 {ok, ProdCtlPid} =
+  %                   rtp_server:start_link({producer, [{media, Media}]}),
+  %                 ProducerRef = erlang:monitor(process, ProdCtlPid),
+  %                 NewState = State#rtsp_socket{rtp = ProdCtlPid,
+  %                                              rtp_ref = ProducerRef}
+  %             end,
+  %             ?DBG("Add Stream: ~p", [{Stream, Proto, Addr, TagVal, {Val0, Val1}}]),
+  %             case TagVal of
+  %               ports ->
+  %                 {ok, {TagVal, {SRTPPort, SRTCPPort}}} = rtp_server:listen_ports(ProdCtlPid, Stream, Proto, TagVal),
+  %                 ok = rtp_server:add_stream(ProdCtlPid, Stream, {TagVal, {Addr, Val0, Val1}}, {rtsp, Headers}),
+  %                 ?DBG("Server Ports: ~p", [{SRTPPort, SRTCPPort}]),
+  %                 ServerPorts = [";server_port=", integer_to_list(SRTPPort), "-", integer_to_list(SRTCPPort)],
+  %                 NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;client_port=", Val0s, "-", Val1s, ServerPorts]);
+  %               interleaved ->
+  %                 rtp_server:listen_ports(ProdCtlPid, Stream, Proto, TagVal),
+  %                 ok = rtp_server:add_stream(ProdCtlPid, Stream, {TagVal, {self(), Val0, Val1}}, {rtsp, Headers}),
+  %                 NewTransport = iolist_to_binary(["RTP/AVP/", Proto2List(Proto), ";unicast;interleaved=", Val0s, "-", Val1s])
+  %             end
+  %         end;
+  %       _ ->
+  %         NewTransport = OldTransport,
+  %         NewState = State
+  %     end;
+  %    true ->
+  %     ?DBG("Error: Proto: ~p, TagVal: ~p", [Proto, TagVal]),
+  %     NewTransport = OldTransport,
+  %     NewState = State
+  % end,
 
   NewSession =
     case Session of
