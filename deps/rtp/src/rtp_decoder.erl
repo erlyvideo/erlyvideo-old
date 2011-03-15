@@ -40,6 +40,7 @@
   timecode = undefined,
   timescale,
   codec,
+  buffer,
   stream_info
 }).
 
@@ -52,7 +53,27 @@ decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _Sequence:16, T
 
 
 decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_state{codec = aac} = RTP, Timecode) ->
-  decode_aac(AudioData, AUHeaders, RTP, Timecode, []).
+  decode_aac(AudioData, AUHeaders, RTP, Timecode, []);
+  
+decode(Body, #rtp_state{codec = h264} = RTP, Timecode) ->
+  decode_h264(Body, RTP, Timecode).
+  
+
+decode_h264(_Body, #rtp_state{codec = h264, buffer = undefined} = RTP, Timecode) -> 
+  {ok, RTP#rtp_state{buffer = Timecode}, []}; % Here we are entering sync-wait state which will last till current FUA frame is over
+  
+decode_h264(_Body, #rtp_state{codec = h264, buffer = Timecode} = RTP, Timecode) -> 
+  {ok, RTP, []}; % Here we are still in sync-wait state untill new timecode starts
+
+decode_h264(Body, #rtp_state{codec = h264, buffer = {H264, Timecode, Frames}} = RTP, Timecode) ->
+  {H264_1, NewFrames} = h264:decode_nal(Body, H264),
+  {ok, RTP#rtp_state{buffer = {H264_1, Timecode, Frames ++ NewFrames}}, []};
+
+decode_h264(Body, #rtp_state{codec = h264, buffer = {H264, Timecode, Frames}} = RTP, NewTimecode) ->
+  {H264_1, NewFrames} = h264:decode_nal(Body, H264),
+  DTS = timecode_to_dts(RTP, Timecode),
+  Frames1 = [F#video_frame{dts = DTS, pts = DTS} || F <- Frames],
+  {ok, RTP#rtp_state{buffer = {H264_1, NewTimecode, NewFrames}}, Frames1}. % This is flush-buffer case
 
 decode_aac(<<>>, <<>>, RTP, _, Frames) ->
   {ok, RTP, lists:reverse(Frames)};
@@ -71,11 +92,11 @@ decode_aac(AudioData, <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, RTP, Timecod
   },
   decode_aac(Rest, AUHeaders, RTP, Timecode + 1024, [Frame|Frames]).
 
-timecode_to_dts(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock} = RTP, Timecode) ->
+timecode_to_dts(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, Timecode) ->
   WallClock + (Timecode - BaseTimecode)/Scale.
 
 
-rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
+rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
   {NTP, Timecode}.
 
 rtcp_sr(SR, #rtp_state{} = RTP) ->
@@ -89,7 +110,9 @@ rtcp_sr(SR, #rtp_state{} = RTP) ->
 decode_video_h264_test() ->
   #media_info{video = [Video]} = sdp:decode(wirecast_sdp()),
   {ok, Decoder} = rtp_decoder:init(Video),
-  decode(wirecast_video_rtp(), Decoder).
+  ?assertMatch({ok, #rtp_state{}, [
+    
+  ]}, decode(wirecast_video_rtp(), Decoder)).
 
 decode_audio_aac_test() ->
   #media_info{audio = [Audio]} = sdp:decode(wirecast_sdp()),

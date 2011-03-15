@@ -22,8 +22,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(h264).
 
-% -include("log.hrl").
--define(D(X), ok).
+-include("log.hrl").
+% -define(D(X), ok).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 % -include("../../include/ems.hrl").
@@ -149,7 +149,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) -
 		codec   = h264,
 		sound   = slice_header(Data)
   },
-  ?D({"I-frame", VideoFrame}),
+  % ?D({"I-frame", VideoFrame}),
   {H264, [VideoFrame]};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) ->
@@ -300,7 +300,7 @@ decode_scaling_list(<<0:1, Rest/bitstring>>, _Size) ->
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
-  ?D({"Pic order", PicOrder}),
+  % ?D({"Pic order", PicOrder}),
   parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
 
 parse_sps_pic_order(Data, 0, SPS) ->

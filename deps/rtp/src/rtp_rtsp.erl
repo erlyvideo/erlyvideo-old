@@ -173,7 +173,7 @@ decode(_Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _
 %   % {State, []};
 
 decode(Type, State, <<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>> = RTP)  ->
-  ?D({Type, RTP}),
+  % ?D({Type, RTP}),
   % ?D({Type, Sequence, Timecode, element(#base_rtp.base_timecode, State), element(#base_rtp.wall_clock, State)}),
   ?MODULE:Type(State, {data, Data, Sequence, Timecode}).
 
