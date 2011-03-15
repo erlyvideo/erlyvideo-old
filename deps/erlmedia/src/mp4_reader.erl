@@ -94,7 +94,7 @@ properties(#mp4_media{additional = Additional, width = Width, height = Height, d
 
 
 
-media_info(#mp4_media{additional = Additional, width = Width, height = Height, duration = Duration, tracks = Tracks} = MP4Media) -> 
+media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tracks} = MP4Media) -> 
   Streams = lists:map(fun(#mp4_track{content = Content} = Track) ->
     Params = case Content of
       video -> #video_params{

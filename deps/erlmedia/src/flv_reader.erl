@@ -23,12 +23,13 @@
 -module(flv_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
+-include("../include/media_info.hrl").
 -include("../include/flv.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
 
 -behaviour(gen_format).
--export([init/2, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([init/2, read_frame/2, media_info/1, properties/1, seek/3, can_open_file/1, write_frame/2]).
 
 -record(flv_media, {
   reader,
@@ -40,7 +41,9 @@
   height,
   width,
   audio_config,
-  video_config
+  audio_codec,
+  video_config,
+  video_codec
 }).
 
 
@@ -88,6 +91,36 @@ first(_, Id, _DTS) ->
 properties(#flv_media{metadata = Meta}) -> Meta.
 
 
+media_info(#flv_media{width = Width, height = Height, duration = Duration} = FLV) ->
+  VideoStreams = case FLV#flv_media.video_codec of
+    undefined -> [];
+    _ -> [#stream_info{
+      content = video,
+      stream_id = 1,
+      codec = FLV#flv_media.video_codec,
+      config = FLV#flv_media.video_config,
+      params = #video_params{width = Width, height = Height}
+    }]
+  end,
+  AudioStreams = case FLV#flv_media.audio_codec of
+    undefined -> [];
+    _ -> [#stream_info{
+      content = audio,
+      stream_id = 2,
+      codec = FLV#flv_media.audio_codec,
+      config = FLV#flv_media.audio_config,
+      params = #audio_params{}
+    }]
+  end,
+  
+  #media_info{
+    flow_type = file,
+    audio = AudioStreams,
+    video = VideoStreams,
+    metadata = [],
+    duration = Duration
+  }.
+
 max_duration(#flv_media{duration = D1}, D2) when D2 > D1 -> D2;
 max_duration(#flv_media{duration = D1}, _D2) -> D1.
 
@@ -105,17 +138,17 @@ read_frame_list(#flv_media{reader = Reader, frames = FrameTable, metadata = Meta
 			  {MediaInfo1, false} ->
 			    read_frame_list(MediaInfo1#flv_media{metadata_offset = Offset} , NextOffset, Limit - 1)
 			end;
-		#video_frame{content = video, flavor = config, next_id = NextOffset} = V ->
+		#video_frame{content = video, flavor = config, codec = Codec, next_id = NextOffset} = V ->
       % ?D({"Save flash video_config"}),
-			read_frame_list(MediaInfo#flv_media{video_config = V}, NextOffset, Limit - 1);
+			read_frame_list(MediaInfo#flv_media{video_config = V, video_codec = Codec}, NextOffset, Limit - 1);
 
-		#video_frame{content = audio, flavor = config, next_id = NextOffset} = A ->
+		#video_frame{content = audio, flavor = config, codec = Codec, next_id = NextOffset} = A ->
       % ?D({"Save flash audio config"}),
-			read_frame_list(MediaInfo#flv_media{audio_config = A}, NextOffset, Limit - 1);
+			read_frame_list(MediaInfo#flv_media{audio_config = A, audio_codec = Codec}, NextOffset, Limit - 1);
 		  
-  	#video_frame{content = video, flavor = keyframe, dts = DTS, next_id = NextOffset} ->
+  	#video_frame{content = video, flavor = keyframe, codec = Codec, dts = DTS, next_id = NextOffset} ->
   	  ets:insert(FrameTable, {DTS, Offset}),
-			read_frame_list(MediaInfo#flv_media{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
+			read_frame_list(MediaInfo#flv_media{duration = max_duration(MediaInfo, DTS), video_codec = Codec}, NextOffset, Limit - 1);
 
 		#video_frame{next_id = NextOffset, dts = DTS} ->
 			read_frame_list(MediaInfo#flv_media{duration = max_duration(MediaInfo, DTS)}, NextOffset, Limit - 1);
