@@ -129,7 +129,42 @@ h264_aac_2_mp4_test() ->
 
 
 ?CHECK(h264_aac_1_flv_test).
-?CHECK(h264_mp3_1_mp4_test).
+
+
+h264_mp3_1_mp4_test() ->
+  {ok, Media, Frames} = read_file("h264_mp3_1.mp4"),
+  test_duration(Frames, 20000),
+  ?assertMatch(#media_info{
+    flow_type = file,
+    duration = 20016.0,
+    video = [
+      #stream_info{
+        content = video,
+        stream_id = 1,
+        codec = h264,
+        config = <<1,66,192,13,255,225,0,25,103,66,192,13,171,32,40,51,243,224,34,
+                   0,0,3,0,2,0,0,3,0,97,30,40,84,144,1,0,4,104,206,60,128>>,
+        language = undefined,
+        params = #video_params{width = 320, height = 180}
+      }
+    ],
+    audio = [
+      #stream_info{
+        content = audio,
+        stream_id = 2,
+        codec = mp3,
+        config = undefined,
+        bitrate = undefined,
+        language = undefined
+      }
+    ],
+    metadata = []
+  }, mp4_reader:media_info(Media)).
+  
+
+
+
+
 ?CHECK(h264_mp3_1_flv_test).
 
 
@@ -178,7 +213,33 @@ h264_1_flv_test() ->
   }, flv_reader:media_info(Media)).
   
 % ?CHECK(flv_aac_1_flv_test).
-?CHECK(flv_mp3_1_flv_test).
+flv_mp3_1_flv_test() ->
+  {ok, Media, Frames} = read_file("flv_mp3_1.flv"),
+  test_duration(Frames, 20000),
+  ?assertMatch(#media_info{
+    flow_type = file,
+    duration = 20062.0,
+    video = [
+      #stream_info{
+        content = video,
+        stream_id = 1,
+        codec = sorensen,
+        config = undefined,
+        params = #video_params{width = 320, height = 180}
+      }
+    ],
+    audio = [
+      #stream_info{
+        content = audio,
+        stream_id = 2,
+        codec = mp3,
+        config = undefined,
+        params = #audio_params{}
+      }
+    ],
+    metadata = []
+  }, flv_reader:media_info(Media)).
+  
 % ?CHECK(mp3_1_mp3_test).
   
 
