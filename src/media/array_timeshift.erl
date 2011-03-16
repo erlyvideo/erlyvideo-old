@@ -59,7 +59,7 @@ properties(#shift{first = First, last = Last, frames = Frames, max_len = Size}) 
   [{timeshift_duration,(LastDTS - FirstDTS)},{start,FirstDTS},{timeshift_size,Size}];
   
 properties(#shift{max_len = Size}) ->
-  [{duration,0},{timeshift_size,Size},{type,stream}];
+  [{timeshift_duration,0},{timeshift_size,Size},{type,stream}];
   
 properties(_) ->
   [].
