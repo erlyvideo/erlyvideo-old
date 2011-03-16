@@ -26,8 +26,7 @@
 
 -export([
          decode/1,
-         encode/2, encode/1,
-         prep_media_config/2
+         encode/2, encode/1
         ]).
 
 -export([
@@ -188,9 +187,6 @@ encode(Info) ->
 
 encode(Session, MediaSeq) ->
   sdp_encoder:encode(Session, MediaSeq).
-
-prep_media_config(Config, Options) ->
-  sdp_encoder:prep_media_config(Config, Options).
 
 % Example of SDP:
 %

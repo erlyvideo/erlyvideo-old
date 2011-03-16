@@ -63,9 +63,37 @@ encode(#stream_info{content = Content, codec = Codec, stream_id = Id, options = 
     io_lib:format("a=rtpmap:~p ~s/~p", [payload_type(Codec), codec_to_sdp(Codec), round(Timescale*1000)]), additional_codec_params(Stream), ?LSEP,
     FMTP
   ],
-  iolist_to_binary(SDP).
+  iolist_to_binary(SDP);
+
+encode(#media_info{video = Video, audio = Audio, options = Options}) ->
+  iolist_to_binary([
+    encode_sdp_session(proplists:get_value(sdp_session, Options)),
+    [encode(V) || V <- Video],
+    [encode(A) || A <- Audio]
+  ]).
 
 
+net(inet6) -> "IN IP6";
+net(_) -> "IN IP4".
+
+encode_sdp_session(#sdp_session{
+  name = SessName,
+  connect = {ConnectNet, ConnectAddr},
+  originator = #sdp_o{
+    username = User,
+    sessionid = SessionId,
+    version = SessVersion,
+    netaddrtype = NetType,
+    address = OriginAddr
+  }, attrs = Attrs} = Sess) ->
+  [
+    "v=", integer_to_list(Sess#sdp_session.version), ?LSEP,
+    io_lib:format("o=~s ~s ~s ~s ~s", [User, SessionId, SessVersion, net(NetType), OriginAddr]), ?LSEP,
+    io_lib:format("s=~s", [SessName]), ?LSEP,
+    io_lib:format("c=~s ~s", [net(ConnectNet), ConnectAddr]), ?LSEP,
+    "t=0 0", ?LSEP,
+    [io_lib:format("a=~s:~s\r\n", [K,V]) || {K,V} <- Attrs]
+  ].
 
 codec_to_sdp(Codec) -> 
   case lists:keyfind(Codec, 1, sdp_codecs()) of
@@ -96,139 +124,6 @@ sdp_codecs() ->
   {speex, "speex"}
   ].
   
-
-
-% encode_media(#stream_info{content = Type, codec = Codec, timescale = ClockMap, stream_id = StreamId, options = Options, config = Config}, _GConnect, _A) ->
-%   Tb = type2bin(Type),
-%   Port = proplists:get_value(port, Options),
-%   TControl = proplists:get_value(control, Options),
-%   M = ["m=", Tb, $ , integer_to_list(Port), $ , "RTP/AVP", $ , integer_to_list(StreamId), ?LSEP],
-%   AC = case TControl of undefined -> []; _ -> ["a=", "control:", TControl, ?LSEP] end,
-%   %% TODO: support of several payload types
-%   
-%   Codecb = codec2bin(Codec),
-%   CMapb = integer_to_list(ClockMap),
-%   MSb = ms2bin(MS),
-%   if is_list(PTConfig) ->
-%     PTC = [["a=", "fmtp:", integer_to_list(PTnum), $ , C, ?LSEP] || C <- PTConfig];
-%   true ->
-%     PTC = []
-%   end,
-%   if is_integer(PTime) ->
-%       PTimeS = ["a=", "ptime:", integer_to_list(PTime), ?LSEP];
-%      true ->
-%       PTimeS = []
-%   end,
-%   AR = [["a=", "rtpmap:", integer_to_list(PTnum), $ , Codecb, $/, CMapb, MSb, ?LSEP], PTC, PTimeS],
-%   
-%   ACfg = case Config of
-%            %% _ when (is_list(Config) or
-%            %%         is_binary(Config)) ->
-%            _ when ((is_list(Config) and (length(Config) > 0))
-%                    or (is_binary(Config) and (size(Config) > 0))) ->
-%              [["a=", "fmtp:", integer_to_list(PTnum), $ , Config, ?LSEP] || #payload{num = PTnum} <- PayLoads];
-%            _ ->
-%              []
-%          end,
-%   AttrL = encode_attrs(Attrs),
-%   iolist_to_binary([M, AR, ACfg, AC, AttrL]);
-% encode_media(_, _, _) ->
-%   <<>>.
-% 
-% 
-% type2bin(T) ->
-%   case T of
-%     audio -> <<"audio">>;
-%     video -> <<"video">>
-%   end.
-% 
-% at2bin(AT) ->
-%   case AT of
-%     inet4 -> <<"IN IP4">>;
-%     inet6 -> <<"IN IP6">>
-%   end.
-% 
-% codec2bin(C) ->
-%   case C of
-%   end.
-% 
-% ms2bin(MS) ->
-%   case MS of
-%     undefined -> <<>>;
-%     mono -> <<$/,$1>>;
-%     stereo -> <<$/,$2>>
-%   end.
-% 
-% prep_media_config({video,
-%                    #video_frame{content = video,
-%                                 flavor = config,
-%                                 codec = h264 = Codec,
-%                                 body = Body}}, Opts) ->
-%   AFmtp = h264:to_fmtp(Body),
-%   #media_desc{type = video,
-%               port = proplists:get_value(video_port, Opts, 0),
-%               payloads = [#payload{num = 97, codec = Codec, clock_map = 90000,
-%                                    config = [iolist_to_binary(AFmtp)]
-%                                   }],
-%               track_control = proplists:get_value(video, Opts, "2")
-%              };
-% prep_media_config({audio,
-%                    #video_frame{content = audio,
-%                                 flavor = config,
-%                                 codec = aac = Codec,
-%                                 sound = {_Channs, _Size, Rate},
-%                                 body = <<ConfigVal:2/big-integer-unit:8>>}}, Opts) ->
-%   #media_desc{type = audio,
-%               port = proplists:get_value(audio_port, Opts, 0),
-%               payloads = [#payload{num = 96, codec = Codec, clock_map = rate2num(Rate),
-%                                    ptime = proplists:get_value(audio_ptime, Opts),
-%                                    config = [iolist_to_binary([
-%                                                                %%"streamtype=5;"
-%                                                                "profile-level-id=1;"
-%                                                                "mode=AAC-hbr;"
-%                                                                "config=",
-%                                                                erlang:integer_to_list(ConfigVal, 16) ++ ";",
-%                                                                "SizeLength=13;"
-%                                                                "IndexLength=3;"
-%                                                                "IndexDeltaLength=3;"
-%                                                                "Profile=1;"
-% 
-%                                                                %% "profile-level-id=1;"
-%                                                                %% "mode=AAC-hbr;"
-%                                                                %% "sizelength=13;"
-%                                                                %% "indexlength=3;"
-%                                                                %% "indexdeltalength=3;"
-%                                                                %% "config=", erlang:integer_to_list(ConfigVal, 16) ++ ";"
-%                                                               ])]}],
-%               track_control = proplists:get_value(audio, Opts, "1")
-%              };
-% prep_media_config({audio,
-%                    #video_frame{content = audio,
-%                                 flavor = config,
-%                                 codec = speex = Codec,
-%                                 sound = {_Channs, _Size, Rate},
-%                                 body = _Body}}, Opts) ->
-%   #media_desc{type = audio,
-%               port = proplists:get_value(audio_port, Opts, 0),
-%               payloads = [#payload{num = 111, codec = Codec,
-%                                    clock_map = rate2num(Rate), ms = mono,
-%                                    config = ["vbr=vad"]}],
-%               track_control = undefined};
-% prep_media_config({audio, _}, _) ->
-%     undefined;
-% prep_media_config({video, _}, _) ->
-%     undefined;
-% prep_media_config({data, _}, _) ->
-%   undefined.
-% 
-% 
-% rate2num(Rate) ->
-%   case Rate of
-%     rate11 -> 11025;
-%     rate22 -> 22050;
-%     rate44 -> 44100;
-%     R when is_integer(R) -> R
-%   end.
 
 
 % 
