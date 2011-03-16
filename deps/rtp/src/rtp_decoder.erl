@@ -32,7 +32,7 @@
 -include("log.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([init/1, decode/2, rtcp_sr/1, rtcp_sr/2]).
+-export([init/1, decode/2, sync/2, rtcp_sr/1, rtcp/2, config_frame/1]).
 
 -record(rtp_state, {
   sequence = undefined,
@@ -40,19 +40,53 @@
   timecode = undefined,
   timescale,
   codec,
+  buffer,
   stream_info
 }).
 
 init(#stream_info{codec = Codec, timescale = Scale} = Stream) ->
-  {ok, #rtp_state{codec = Codec, stream_info = Stream, timescale = Scale}}.
+  #rtp_state{codec = Codec, stream_info = Stream, timescale = Scale}.
+
+config_frame(#rtp_state{stream_info = Stream}) ->
+  video_frame:config_frame(Stream).
 
 
-decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, _Sequence:16, Timecode:32, _StreamId:32, Data/binary>>, #rtp_state{} = RTP) ->
-  decode(Data, RTP, Timecode).
+sync(#rtp_state{} = RTP, Headers) ->
+  % Seq = proplists:get_value("seq", Headers),
+  Time = proplists:get_value("rtptime", Headers),
+  ?D({sync, Headers}),
+  RTP#rtp_state{wall_clock = 0, timecode = list_to_integer(Time)}.
+
+decode(_, #rtp_state{timecode = TC, wall_clock = Clock} = RTP) when TC == undefined orelse Clock == undefined ->
+  ?D(unsynced),
+  {ok, RTP, []};
+
+decode(<<_:16, Sequence:16, _/binary>> = Data, #rtp_state{sequence = undefined} = RTP) ->
+  decode(Data, RTP#rtp_state{sequence = Sequence});
+
+decode(<<_:16, OldSeq:16, _/binary>>, #rtp_state{sequence = Sequence} = RTP) when OldSeq < Sequence ->
+  ?D({drop_sequence, Sequence}),
+  {ok, RTP, []};
+
+decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>, #rtp_state{} = RTP) ->
+  decode(Data, RTP#rtp_state{sequence = (Sequence + 1) rem 65536}, Timecode).
 
 
 decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_state{codec = aac} = RTP, Timecode) ->
-  decode_aac(AudioData, AUHeaders, RTP, Timecode, []).
+  decode_aac(AudioData, AUHeaders, RTP, Timecode, []);
+  
+decode(Body, #rtp_state{codec = h264} = RTP, Timecode) ->
+  decode_h264(Body, RTP, Timecode).
+  
+
+decode_h264(_Body, #rtp_state{buffer = undefined, stream_info = Stream} = RTP, _Timecode) -> 
+  {ok, RTP#rtp_state{buffer = h264:init()}, []}; % Here we are entering sync-wait state which will last till current FUA frame is over
+  
+decode_h264(Body, #rtp_state{buffer = H264} = RTP, Timecode) ->
+  {H264_1, Frames} = h264:decode_nal(Body, H264),
+  DTS = timecode_to_dts(RTP, Timecode),
+  Frames1 = [F#video_frame{dts = DTS, pts = DTS} || F <- Frames],
+  {ok, RTP#rtp_state{buffer = H264_1}, Frames1}.
 
 decode_aac(<<>>, <<>>, RTP, _, Frames) ->
   {ok, RTP, lists:reverse(Frames)};
@@ -71,14 +105,19 @@ decode_aac(AudioData, <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, RTP, Timecod
   },
   decode_aac(Rest, AUHeaders, RTP, Timecode + 1024, [Frame|Frames]).
 
-timecode_to_dts(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock} = RTP, Timecode) ->
+timecode_to_dts(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, Timecode) ->
   WallClock + (Timecode - BaseTimecode)/Scale.
 
 
-rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
+rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
   {NTP, Timecode}.
 
-rtcp_sr(SR, #rtp_state{} = RTP) ->
+
+
+rtcp(<<_, ?RTCP_SR, _/binary>>, #rtp_state{timecode = TC} = RTP) when TC =/= undefined->
+  RTP;
+  
+rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{} = RTP) ->
   {NTP, Timecode} = rtcp_sr(SR),
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
   RTP#rtp_state{wall_clock = WallClock, timecode = Timecode}.
@@ -88,18 +127,18 @@ rtcp_sr(SR, #rtp_state{} = RTP) ->
 
 decode_video_h264_test() ->
   #media_info{video = [Video]} = sdp:decode(wirecast_sdp()),
-  {ok, Decoder} = rtp_decoder:init(Video),
-  decode(wirecast_video_rtp(), Decoder).
+  ?assertMatch({ok, #rtp_state{}, [
+    
+  ]}, decode(wirecast_video_rtp(), rtp_decoder:init(Video))).
 
 decode_audio_aac_test() ->
   #media_info{audio = [Audio]} = sdp:decode(wirecast_sdp()),
-  {ok, Decoder} = rtp_decoder:init(Audio),
-  Decoder1 = rtp_decoder:rtcp_sr(wirecast_sr1(), Decoder),
+  Decoder = rtp_decoder:rtcp_sr(wirecast_sr1(), rtp_decoder:init(Audio)),
   ?assertMatch({ok, #rtp_state{}, [
     #video_frame{codec = aac, dts = 1300205206513.9092},
     #video_frame{codec = aac, dts = 1300205206537.182},
     #video_frame{codec = aac, dts = 1300205206560.4546}
-  ]}, decode(wirecast_audio_rtp(), Decoder1)).
+  ]}, decode(wirecast_audio_rtp(), Decoder)).
 
 
 decode_sr_test_() ->
@@ -108,7 +147,7 @@ decode_sr_test_() ->
     ?_assertMatch(#rtp_state{
       wall_clock = 1300205206607,
       timecode = 338381
-    }, rtcp_sr(wirecast_sr1(), #rtp_state{}))
+    }, rtcp(wirecast_sr1(), #rtp_state{}))
   ].
 
 
