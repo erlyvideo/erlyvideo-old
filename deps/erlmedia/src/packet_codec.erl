@@ -217,7 +217,7 @@ encode_transport_header([{proto,udp}|H], Acc) -> encode_transport_header(H, ["RT
 encode_transport_header([{mode,'receive'}|H], Acc) -> encode_transport_header(H, ["mode=receive"|Acc]);
 encode_transport_header([{mode,'play'}|H], Acc) -> encode_transport_header(H, ["mode=play"|Acc]);
 encode_transport_header([{unicast,true}|H], Acc) -> encode_transport_header(H, ["unicast"|Acc]);
-encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++integer_to_list(SSRC, 16)|Acc]);
+encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++erlang:integer_to_list(SSRC, 16)|Acc]);
 encode_transport_header([{interleaved,{Chan0,Chan1}}|H], Acc) -> encode_transport_header(H, ["interleaved="++integer_to_list(Chan0)++"-"++integer_to_list(Chan1)|Acc]).
 
 binarize_header({'Transport', TransportHeader}) ->
