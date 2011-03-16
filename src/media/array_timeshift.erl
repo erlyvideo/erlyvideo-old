@@ -56,10 +56,10 @@ can_open_file(_) ->
 properties(#shift{first = First, last = Last, frames = Frames, max_len = Size}) when First =/= Last ->
   #video_frame{dts = FirstDTS} = array:get(First, Frames),
   #video_frame{dts = LastDTS} = array:get((Last-1+array:size(Frames)) rem array:size(Frames), Frames),
-  [{duration,(LastDTS - FirstDTS)},{start,FirstDTS},{timeshift_size,Size}];
+  [{timeshift_duration,(LastDTS - FirstDTS)},{start,FirstDTS},{timeshift_size,Size}];
   
 properties(#shift{max_len = Size}) ->
-  [{duration,0},{timeshift_size,Size},{type,stream}];
+  [{timeshift_duration,0},{timeshift_size,Size},{type,stream}];
   
 properties(_) ->
   [].
