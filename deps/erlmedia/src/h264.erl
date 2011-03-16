@@ -22,8 +22,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(h264).
 
--include("log.hrl").
-% -define(D(X), ok).
+% -include("log.hrl").
+-define(D(X), ok).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 % -include("../../include/ems.hrl").
@@ -222,17 +222,20 @@ decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, Type:5, Rest/binary>>, H2
   ?D("FUA start"),
   {H264#h264{buffer = <<0:1, NRI:2, Type:5, Rest/binary>>}, []};
 
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, _/binary>>, #h264{buffer = undefined} = H264) ->
+  {H264, []};
+
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   ?D("FUA cont"),
   {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, []};
 
 decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 1:1, 0:1, Type:5, Rest/binary>>, H264) ->
   ?D("FUA one"),
-  decode_nal(<<0:1, NRI:2, Type:5, Rest/binary>>, H264#h264{buffer = <<>>});
+  decode_nal(<<0:1, NRI:2, Type:5, Rest/binary>>, H264#h264{buffer = undefined});
 
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   ?D("FUA end"),
-  decode_nal(<<Buf/binary, Rest/binary>>, H264#h264{buffer = <<>>});
+  decode_nal(<<Buf/binary, Rest/binary>>, H264#h264{buffer = undefined});
 
 
 % decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, S:1, E:1, R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->

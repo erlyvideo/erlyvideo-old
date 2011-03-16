@@ -30,7 +30,7 @@
   length_size = 32,
   sps,
   pps,
-  buffer = <<>>
+  buffer = undefined
 }).
 
 -record(h264_nal, {

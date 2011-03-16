@@ -1,6 +1,16 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
 %%% @doc        RTSP socket module
+%%%
+%%% 
+%%% 1. connect
+%%% 2. describe
+%%% 3. each setup
+%%% 4. play, possible Rtp-Sync
+%%% 5. get each packet
+%%% 6. decode
+%%% 
+%%% 
 %%% @end
 %%% @reference  See <a href="http://erlyvideo.org/rtsp" target="_top">http://erlyvideo.org</a> for common information.
 %%% @end
@@ -54,13 +64,15 @@
   auth = "",
   frames = [],
   socket,
-  sdp_config = [],
   options,
-  rtp_streams = {undefined,undefined,undefined,undefined},
-  sdp,                                          % FIXME
+  rtp_streams = {},
   media         :: pid(),
+  media_info,
   rtp           :: pid(),
   rtp_ref       :: reference(),
+  sent_audio_config = false,
+  audio_rtp_stream,
+  video_rtp_stream,
   state,
   pending,
   pending_reply = ok,
@@ -168,9 +180,9 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   io:format("~s~n", [Call]),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = 1}, Timeout};
 
-handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_config = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
+handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
   ?D({"Setup", Num, Streams}),
-  #stream_info{options = Options} = lists:nth(Num, Streams),
+  Stream = #stream_info{options = Options} = element(Num, Streams),
   Control = proplists:get_value(control, Options),
 
   Sess = case RTSP#rtsp_socket.session of
@@ -182,7 +194,7 @@ handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, sdp_confi
         [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
   gen_tcp:send(Socket, Call),
   io:format("~s~n", [Call]),
-  {noreply, RTSP#rtsp_socket{pending = From, seq = Seq+1}, Timeout};
+  {noreply, RTSP#rtsp_socket{pending = From, rtp_streams = setelement(Num, Streams, rtp_decoder:init(Stream)), seq = Seq+1}, Timeout};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
@@ -299,22 +311,43 @@ configure_rtp(Socket, _Headers, undefined) ->
 configure_rtp(#rtsp_socket{rtp_streams = RTPStreams, media = Consumer} = Socket, Headers, Body) ->
   case proplists:get_value('Content-Type', Headers) of
     <<"application/sdp">> ->
-      io:format("~s~n", [Body]),
-      {SDPConfig, RtpStreams1, Frames} = rtp_rtsp:configure(Body, RTPStreams, Consumer),
-      StreamNums = lists:seq(1, length([Desc || Desc <- tuple_to_list(RtpStreams1), element(1, Desc) == audio orelse element(1,Desc) == video])),
-
-      lists:foreach(fun(Frame) ->
-        Consumer ! Frame#video_frame{dts = undefined, pts = undefined}
-      end, Frames),
-
-      ?D({"Streams", RtpStreams1, StreamNums}),
-      Socket#rtsp_socket{sdp_config = SDPConfig, rtp_streams = RtpStreams1, pending_reply = {ok, StreamNums}};
+      #media_info{audio = Audio, video = Video} = sdp:decode(Body),
+      
+      StreamNums = lists:seq(1, length(Audio)+length(Video)),
+      {RtpStreams, AudioNum, VideoNum} = case {Audio, Video} of
+        {[A], [V]} -> {{A, V}, 1, 2};
+        {[], [V]} -> {{V}, undefined, 1};
+        {[A], []} -> {{A}, undefined, 1}
+      end,  
+      ?D({"Streams", RtpStreams, StreamNums}),
+      Socket#rtsp_socket{rtp_streams = RtpStreams, pending_reply = {ok, StreamNums}, audio_rtp_stream = AudioNum, video_rtp_stream = VideoNum};
     undefined ->
       Socket;
     Else ->
       ?D({"Unknown body type", Else}),
       Socket
   end.
+
+
+
+sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, RtpHeaders) ->
+  case proplists:get_value(<<"Rtp-Info">>, RtpHeaders) of
+    undefined ->
+      Socket;
+    Info ->
+      {ok, Re} = re:compile("([^=]+)=(.*)"),
+      F = fun(S) ->
+        {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
+        {K, V}
+      end,
+      RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
+      % ?D({"Rtp", RtpInfo}),
+      Streams1 = lists:zipwith(fun(Stream, Headers) ->
+        rtp_decoder:sync(Stream, Headers)
+      end, tuple_to_list(Streams), RtpInfo),
+      Socket#rtsp_socket{rtp_streams = list_to_tuple(Streams1)}
+  end.
+
 
 
 seq(Headers) ->
@@ -350,7 +383,7 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
       ?DBG("MediaConfig:~n~p", [MediaConfig]),
       SDP = sdp:encode(SessionDesc, MediaConfig),
       %%?DBG("SDP:~n~p", [SDP]),
-      reply(State#rtsp_socket{sdp = sdp:decode(SDP), media = Media, direction = out}, "200 OK",
+      reply(State#rtsp_socket{media = Media, direction = out}, "200 OK",
             [
              {'Server', ?SERVER_NAME},
              {'Cseq', seq(Headers)},
@@ -362,6 +395,7 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
 handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
   case Callback:record(URL, Headers, Body) of
     ok ->
+      
       reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
@@ -425,7 +459,7 @@ handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Cons
 
 handle_request({request, 'SETUP', URL, Headers, _},
                #rtsp_socket{addr = Addr, port = OPort,
-                            sdp = SDP, session = Session,
+                            session = Session,
                             rtp = ProducerCtl,
                             media = Media} = State) ->
   ?DBG("Addr: ~p, OPort: ~p", [Addr, OPort]),
@@ -601,68 +635,47 @@ extract_session(Socket, Headers) ->
       Socket#rtsp_socket{session = hd(string:tokens(binary_to_list(FullSession), ";"))}
   end.
 
-sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, Headers) ->
-  case proplists:get_value(<<"Rtp-Info">>, Headers) of
-    undefined ->
-      ?D({"No Rtp-Info on play command"}),
-      Socket;
-    Info ->
-      {ok, Re} = re:compile("([^=]+)=(.*)"),
-      F = fun(S) ->
-        {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
-        {K, V}
-      end,
-      RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
-      % ?D({"Rtp", RtpInfo}),
-      Streams1 = rtp_rtsp:presync(Streams, RtpInfo),
-      Socket#rtsp_socket{rtp_streams = Streams1}
-  end.
+
+audio_stream(#rtsp_socket{audio_rtp_stream = undefined}) -> undefined;
+audio_stream(#rtsp_socket{audio_rtp_stream = AudioNum, rtp_streams = Streams}) -> element(AudioNum, Streams).
+
+video_stream(#rtsp_socket{video_rtp_stream = undefined}) -> undefined;
+video_stream(#rtsp_socket{video_rtp_stream = VideoNum, rtp_streams = Streams}) -> element(VideoNum, Streams).
 
 handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} = Socket, {rtp, Channel, Packet}) ->
-  % ?D({rtp,Channel,Streams}),
-  {Streams1, NewFrames} =
-    case element(Channel+1, Streams) of
-      {rtcp, RTPNum} ->
-        %% ?D({rtcp, RTPNum}),
-        {Type, RtpState} = element(RTPNum+1, Streams),
-        {RtpState1, _} = rtp_rtsp:decode(rtcp, RtpState, Packet),
-        {RtpState2, RtcpData} = rtp_rtsp:encode(receiver_report, RtpState1),
-        RTCP_RR = packet_codec:encode({rtcp, RTPNum, RtcpData}),
-        gen_tcp:send(Sock, RTCP_RR),
-        {setelement(RTPNum+1, Streams, {Type, RtpState2}), []};
-      {Type, RtpState} ->
-        %% ?D({"Decode rtp on", Channel, Type, size(Packet), element(1, RtpState)}),
-        %% ?D(RtpState),
-        {RtpState1, RtpFrames} = rtp_rtsp:decode(Type, RtpState, Packet),
-        %% ?D({"Frame", Frames}),
-        {setelement(Channel+1, Streams, {Type, RtpState1}), RtpFrames};
-      undefined ->
-        {Streams, []}
-    end,
+  % ?D({rtp,Channel}),
+  {Streams1, NewFrames} = case Channel rem 2 of
+    0 ->
+      RtpState = element(Channel div 2 + 1, Streams),
+      {ok, RtpState1, RtpFrames} = rtp_decoder:decode(Packet, RtpState),
+      {setelement(Channel+1, Streams, RtpState1), RtpFrames};
+    1 ->
+      RtpState = element((Channel - 1) div 2 + 1, Streams),
+      RtpState1 = rtp_decoder:rtcp(Packet, RtpState),
+      RtpState2 = RtpState1,
+      % {RtpState2, RtcpData} = rtp_rtsp:encode(receiver_report, RtpState1),
+      % RTCP_RR = packet_codec:encode({rtcp, RTPNum, RtcpData}),
+      % gen_tcp:send(Sock, RTCP_RR),
+      {setelement((Channel - 1) div 2 + 1, Streams, RtpState2), []}
+  end,
   reorder_frames(Socket#rtsp_socket{rtp_streams = Streams1, frames = Frames ++ NewFrames}).
 
 reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FRAMES_BUFFER ->
   Socket;
 
-reorder_frames(#rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
+reorder_frames(#rtsp_socket{frames = Frames, media = Consumer, sent_audio_config = SentAC} = Socket) ->
   Ordered = lists:sort(fun frame_sort/2, Frames),
-  % case Ordered of
-  %   Frames -> ok;
-  %   _ ->
-  %     ?D("Reorder"),
-  %     lists:foreach(fun(#video_frame{content = C, flavor = F, dts = DTS, sound = S}) ->
-  %       % io:format("~p~n", [{C,F,round(DTS),S}]),
-  %       ok
-  %     end, Frames)
-  % end,
   {ToSend, NewFrames} = lists:split(?REORDER_FRAMES, Ordered),
-  % ToSend = Frames,
-  % NewFrames = [],
-  lists:foreach(fun(Frame) ->
-    % ?D({Frame#video_frame.content, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
-    Consumer ! Frame
+  lists:foreach(fun
+    (#video_frame{codec = aac, dts = DTS} = Frame) when SentAC == false -> 
+      Consumer ! (rtp_decoder:config_frame(audio_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
+      Consumer ! Frame;
+    (#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame) ->
+      Consumer ! (rtp_decoder:config_frame(video_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
+      Consumer ! Frame;
+    (Frame) -> Consumer ! Frame
   end, ToSend),
-  Socket#rtsp_socket{frames = NewFrames}.
+  Socket#rtsp_socket{frames = NewFrames, sent_audio_config = true}.
 
 frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 

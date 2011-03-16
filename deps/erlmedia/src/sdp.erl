@@ -54,7 +54,7 @@
 decode(Announce) when is_binary(Announce) ->
   Lines = string:tokens(binary_to_list(Announce), "\r\n"),
   % Just to announce atoms;
-  _ValidAtoms = [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z],
+  put(valid_atoms, [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z]),
   KeyValues = [{list_to_existing_atom([K]), parse_value(list_to_existing_atom([K]), Value)} || [K,$=|Value] <- Lines],
   % ?D(KeyValues),
   decode(KeyValues);
