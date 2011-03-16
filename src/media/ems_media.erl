@@ -297,10 +297,15 @@ set_media_info(Media, #media_info{} = Info) when is_pid(Media) ->
 set_media_info(#ems_media{media_info = Info} = Media, Info) ->
   Media;
   
-set_media_info(#ems_media{waiting_for_config = Waiting} = Media, #media_info{} = Info) ->
-  Reply = reply_with_media_info(Media, Info),
-  [gen_server:reply(From, Reply) || From <- Waiting],
-  Media#ems_media{media_info = Info, waiting_for_config = []}.
+set_media_info(#ems_media{waiting_for_config = Waiting} = Media, #media_info{audio = A, video = V} = Info) ->
+  case A == wait orelse V == wait of
+    true -> 
+      Media#ems_media{media_info = Info};
+    false ->
+      Reply = reply_with_media_info(Media, Info),
+      [gen_server:reply(From, Reply) || From <- Waiting],
+      Media#ems_media{media_info = Info, waiting_for_config = []}
+  end.
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
@@ -358,7 +363,7 @@ metadata(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 metadata(Media, Options) when is_pid(Media) ->
-  MediaInfo = #media_info{audio = A, video = V} = media_info(Media),
+  MediaInfo = media_info(Media),
   Info1 = add_metadata_options(MediaInfo, Options),
   metadata_frame(Info1).
 
@@ -427,6 +432,7 @@ init([Module, Options]) ->
                      created_at = ems:now(utc)},
                      
   timer:send_interval(30000, garbage_collect),
+  timer:send_after(5000, stop_wait_for_config),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),
@@ -515,7 +521,7 @@ handle_call(stop, _From, Media) ->
   
 
 
-handle_call(media_info, _From, #ems_media{media_info = #media_info{} = Info} = Media) ->
+handle_call(media_info, _From, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) when A =/= wait andalso V =/= wait ->
   {reply, reply_with_media_info(Media, Info), Media, ?TIMEOUT};
 
 
@@ -710,6 +716,13 @@ handle_info(no_clients, Media) ->
   ems_media_client_control:handle_info(no_clients, Media);
   
 
+handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = [_], video = [_]}} = Media) ->
+  {noreply, Media};
+
+handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) -> % 
+  Info1 = Info#media_info{audio = case A of wait -> []; _ -> A end, video = case V of wait -> []; _ -> V end},
+  ?D({flush_media_info, Info, Info1}),
+  {noreply, set_media_info(Media, Info1)};
 
 
 % handle_info(timeout, #ems_media{timeout_ref = Ref} = Media) when Ref =/= undefined ->

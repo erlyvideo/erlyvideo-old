@@ -24,6 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../include/ems_media.hrl").
 -include("../log.hrl").
 -include("ems_media_client.hrl").
@@ -60,15 +61,27 @@ send_frame(Frame, #ems_media{module = M} = Media) ->
         (_, {stop,_,_} = Stop) -> 
           Stop;
         (OutFrame, {noreply, State, _}) ->
-          shift_dts(OutFrame, State)
+          define_media_info(OutFrame, State)
       end, {noreply, Media1, ?TIMEOUT}, Frames);
     {reply, F, Media1} ->
-      shift_dts(F, Media1);
+      define_media_info(F, Media1);
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
       {stop, Reason, Media1}
   end.
+  
+  
+define_media_info(#video_frame{content = Content} = F, #ems_media{media_info = #media_info{audio = A, video = V} = MediaInfo} = Media) when
+  (Content == audio andalso (A == [] orelse A == wait)) orelse (Content == video andalso (V == [] orelse V == wait)) ->
+  case video_frame:define_media_info(MediaInfo, F) of
+    MediaInfo -> shift_dts(F, Media);
+    MediaInfo1 -> shift_dts(F, ems_media:set_media_info(Media, MediaInfo1))
+  end;
+
+define_media_info(F, M) ->
+  shift_dts(F, M).
+  
   
 
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
@@ -93,18 +106,6 @@ handle_shifted_frame(#video_frame{dts = DTS} = Frame,
   Storage1 = save_frame(Format, Storage, Frame),
   handle_config(Frame, Media1#ems_media{storage = Storage1, last_dts = DTS, frame_number = Number + 1}).
 
-reply_with_decoder_config(#ems_media{frame_number = Number, audio_config = A, video_config = V,
-  waiting_for_config = Waiting} = Media) 
-  when length(Waiting) > 0 andalso ((A =/= undefined andalso V =/= undefined) orelse (Number >= ?WAIT_FOR_CONFIG)) ->
-  ?D({"Received live config replying to", Number, Waiting}),
-  Reply = {ok, [{audio,A},{video,V}]},
-  [gen_server:reply(From, Reply) || From <- Waiting],
-  Media#ems_media{waiting_for_config = []};
-
-reply_with_decoder_config(Media) ->
-  % ?D({ignoring, Media#ems_media.frame_number}),
-  Media.
-
 
 
 handle_config(#video_frame{content = video, body = Config}, #ems_media{video_config = #video_frame{body = Config}} = Media) -> 
@@ -124,13 +125,12 @@ handle_config(Frame, Media) ->
 
 
 handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
-  Media1 = reply_with_decoder_config(Media),
   case Content of
     audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
     _ -> ok
   end,
   ems_media_clients:send_frame(Frame, Clients, active),
-  {noreply, Media1, ?TIMEOUT}.
+  {noreply, Media, ?TIMEOUT}.
 
 
 save_frame(undefined, Storage, _) ->
