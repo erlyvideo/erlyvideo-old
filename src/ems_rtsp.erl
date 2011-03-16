@@ -50,7 +50,7 @@ hostpath(URL) ->
   {ems:host(HostPort), Path}.
 
 
-announce(URL, Headers, _Body) ->
+announce(URL, Headers, MediaInfo) ->
   {Host, Path} = hostpath(URL),
   ?D({"ANNOUNCE", Host, Path, Headers}),
   {Module, Function} = ems:check_app(Host, auth, 3),
@@ -60,6 +60,7 @@ announce(URL, Headers, _Body) ->
       {error, authentication};
     _Session ->
       {ok, Media} = media_provider:open(Host, Path, [{type, live}]),
+      ems_media:set_media_info(Media, MediaInfo),
       ems_media:set_source(Media, self()),
       {ok, Media}
   end.

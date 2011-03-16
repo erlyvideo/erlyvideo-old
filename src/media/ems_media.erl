@@ -558,6 +558,10 @@ handle_call(media_info, From, #ems_media{media_info = undefined, waiting_for_con
 
 handle_call(media_info, _From, #ems_media{media_info = Info} = Media) ->
   {reply, reply_with_media_info(Media, Info), Media, ?TIMEOUT};
+  
+handle_call({set_media_info, Info}, _From, #ems_media{} = Media) ->
+  {reply, ok, set_media_info(Media, Info), ?TIMEOUT};
+  
 
 handle_call(decoder_config, From, #ems_media{video_config = undefined, audio_config = undefined, storage = undefined,
             frame_number = Number, waiting_for_config = Waiting} = Media) when Number < ?WAIT_FOR_CONFIG ->

@@ -496,8 +496,8 @@ handle_play_request(#rtsp_socket{callback = Callback, session = _Session, media 
   
 
 handle_announce_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers, Body) ->
-  Socket1 = handle_sdp(Socket, Headers, Body),
-  case Callback:announce(URL, Headers, Body) of
+  Socket1 = #rtsp_socket{pending_reply = {ok, MediaInfo, _}} = handle_sdp(Socket, Headers, Body),
+  case Callback:announce(URL, Headers, MediaInfo) of
     {ok, Media} ->
       ?D({"Announced to", Media}),
       erlang:monitor(process, Media),
