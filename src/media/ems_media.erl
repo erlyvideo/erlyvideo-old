@@ -1049,44 +1049,6 @@ mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
 client_count(#ems_media{clients = Clients}) ->
   ems_media_clients:count(Clients).
 
-<<<<<<< HEAD
-
-storage_properties(Media) ->
-  storage_properties(Media, []).
-
-storage_properties(#ems_media{format = undefined}, Options) ->
-  Options;
-
-storage_properties(#ems_media{format = Format, storage = Storage}, Options) ->
-  Props = lists:ukeymerge(1, lists:ukeysort(1,Options), lists:ukeysort(1,Format:properties(Storage))),
-  case proplists:get_value(duration, Props) of
-    undefined -> Props;
-    Duration -> lists:ukeymerge(1, [{duration,Duration/1000},{length,Duration}], lists:ukeysort(1,Props))
-  end.
-
-metadata_frame(#ems_media{} = Media) ->
-  metadata_frame(Media, []).
-
-metadata_frame(#ems_media{format = undefined} = M, Options) ->
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, video_parameters(M, Options)}]};
-  % undefined;
-  
-metadata_frame(#ems_media{} = Media, Options) ->
-  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
-                      (Else) -> Else end, storage_properties(Media, Options)),
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media, Options))}]}.
-
-
-
-video_parameters(#ems_media{video_config = #video_frame{body = Config}}, Options) ->
-  lists:ukeymerge(1, [{duration,proplists:get_value(duration, Options,0)}], lists:keysort(1, h264:metadata(Config)));
-  
-video_parameters(#ems_media{}, Options) ->  
-  [{duration,proplists:get_value(duration, Options, 0)}].
-
-
-
-
 reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
     (type, Props)         -> [{type,Type}|Props];
