@@ -67,7 +67,7 @@ beward_test() ->
                     64,64,80,0,0,62,128,0,12,53,6,134,0,80,0,0,89,244,187,203,141,
                     12,0,160,0,0,179,233,119,151,4,250,44,0,1,0,4,40,238,60,128>>, 
       params = #video_params{width = 1280, height = 720},
-      timescale = 90
+      timescale = 90.0
     }],
     audio = [#stream_info{
       content = audio,
@@ -75,7 +75,7 @@ beward_test() ->
       codec = pcma,
       config = undefined,
       params = #audio_params{channels = 1, sample_rate = 8000},
-      timescale = 8
+      timescale = 8.0
     }]
   }, sdp:decode(beward_sdp())).
   
@@ -128,7 +128,7 @@ quicktime_broadcaster_test() ->
       config = <<1,77,0,12,255,225,0,20,39,77,64,12,169,24,80,143,203,128,53,6,1,6,182,194,
         181,239,124,4,1,0,5,40,222,9,23,160>>, 
       params = #video_params{width = 160, height = 128},
-      timescale = 90,
+      timescale = 90.0,
       options = [{control,"trackid=2"}]
     }],
     audio = [#stream_info{
@@ -136,7 +136,7 @@ quicktime_broadcaster_test() ->
       stream_id = 1,
       codec = aac,
       config = <<21,136>>,
-      timescale = 8,
+      timescale = 8.0,
       options = [{control,"trackid=1"}]
     }]
   }, sdp:decode(quicktime_broadcaster_sdp())).
@@ -171,7 +171,7 @@ axis_m1011_test() ->
       config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
         21,1,0,4,104,206,60,128>>, 
       params = #video_params{width = 640, height = 480},
-      timescale = 90,
+      timescale = 90.0,
       options = [{control,"trackID=1"}]
     }],
     audio = []
@@ -211,7 +211,7 @@ axis_p1311_test() ->
       config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
         21,1,0,4,104,206,60,128>>, 
       params = #video_params{width = 640, height = 480},
-      timescale = 90,
+      timescale = 90.0,
       options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264"}]
     }],
     audio = [#stream_info{
@@ -219,7 +219,7 @@ axis_p1311_test() ->
       stream_id = 2,
       codec = aac,
       config = <<20,8>>,
-      timescale = 16,
+      timescale = 16.0,
       options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264"}]
     }]
   }, sdp:decode(axis_p1311_sdp())).
@@ -254,7 +254,7 @@ axis_server_test() ->
       config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
         21,1,0,4,104,206,60,128>>, 
       params = #video_params{width = 640, height = 480},
-      timescale = 90,
+      timescale = 90.0,
       options = [{control,"trackID=1"}]
     }],
     audio = []
