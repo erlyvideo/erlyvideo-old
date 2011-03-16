@@ -26,6 +26,7 @@
 -include("log.hrl").
 
 -export([parse/2, decode/1, encode/1]).
+-export([encode_headers/1]).
 
 -export([edoc/1, edoc/0]).
 
@@ -205,6 +206,42 @@ parse_transport_header(Header) ->
 encode({Type, Channel, Bin}) when Type =:= rtp;
                                   Type =:= rtcp ->
   <<$$, Channel, (size(Bin)):16, Bin/binary>>.
+
+
+encode_transport_header(TransportHeader) ->
+  encode_transport_header(TransportHeader, []).
+
+encode_transport_header([], Acc) -> string:join(lists:reverse(Acc),";");
+encode_transport_header([{proto,tcp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP/TCP"|Acc]);
+encode_transport_header([{proto,udp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP/UDP"|Acc]);
+encode_transport_header([{mode,'receive'}|H], Acc) -> encode_transport_header(H, ["mode=receive"|Acc]);
+encode_transport_header([{mode,'play'}|H], Acc) -> encode_transport_header(H, ["mode=play"|Acc]);
+encode_transport_header([{unicast,true}|H], Acc) -> encode_transport_header(H, ["unicast"|Acc]);
+encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++integer_to_list(SSRC, 16)|Acc]);
+encode_transport_header([{interleaved,{Chan0,Chan1}}|H], Acc) -> encode_transport_header(H, ["interleaved="++integer_to_list(Chan0)++"-"++integer_to_list(Chan1)|Acc]).
+
+binarize_header({'Transport', TransportHeader}) ->
+  [<<"Transport: ">>, encode_transport_header(TransportHeader), <<"\r\n">>];
+
+binarize_header({Key, Value}) when is_atom(Key) ->
+  binarize_header({atom_to_binary(Key, latin1), Value});
+
+binarize_header({Key, Value}) when is_list(Key) ->
+  binarize_header({list_to_binary(Key), Value});
+
+binarize_header({Key, Value}) when is_integer(Value) ->
+  binarize_header({Key, integer_to_list(Value)});
+
+binarize_header({Key, Value}) ->
+  [Key, <<": ">>, Value, <<"\r\n">>];
+
+binarize_header([Key, Value]) ->
+  [Key, <<" ">>, Value, <<"\r\n">>].
+
+
+
+encode_headers(Headers) ->
+  iolist_to_binary([binarize_header({K,V}) || {K,V} <- Headers]).
 
 %%
 %% Tests
