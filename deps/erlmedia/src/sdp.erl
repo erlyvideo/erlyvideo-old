@@ -147,7 +147,7 @@ parse_announce([{a, {"rtpmap", Value}} | Announce], MediaInfo, #stream_info{para
     {pcmu, ["1"]} -> #audio_params{sample_rate = list_to_integer(ClockMap), channels = 1};
     _ -> Params
   end,
-  parse_announce(Announce, MediaInfo, Stream#stream_info{codec = Codec, timescale = list_to_integer(ClockMap) div 1000, params = Params1});
+  parse_announce(Announce, MediaInfo, Stream#stream_info{codec = Codec, timescale = list_to_integer(ClockMap)/1000, params = Params1});
 
 
 parse_announce([{a, {"control", Value}} | Announce], MediaInfo, #stream_info{options = Options} = Stream) ->
