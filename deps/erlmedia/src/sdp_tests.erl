@@ -382,7 +382,7 @@ encode_avc_test() ->
 a=control:trackID=1\r
 a=rtpmap:96 H264/90000\r
 a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
-">>, 
+">>,
   sdp:encode(#stream_info{
     content = video,
     stream_id = 1,
@@ -390,7 +390,23 @@ a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IA
     config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
       21,1,0,4,104,206,60,128>>, 
     params = #video_params{width = 640, height = 480},
-    timescale = 1000
+    timescale = 90
+  })).
+
+
+encode_aac_test() ->
+  ?assertEqual(<<"m=audio 0 RTP/AVP 97\r
+a=control:trackID=2\r
+a=rtpmap:97 mpeg4-generic/44100/2\r
+a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210\r
+">>, 
+  sdp:encode(#stream_info{
+    content = audio,
+    stream_id = 2,
+    codec = aac,
+    config = <<18,16>>, 
+    params = #audio_params{channels = 2, sample_rate = 44100},
+    timescale = 44.1
   })).
 
 encoder_test1() ->
