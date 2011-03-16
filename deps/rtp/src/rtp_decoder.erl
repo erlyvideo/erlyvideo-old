@@ -52,13 +52,13 @@ config_frame(#rtp_state{stream_info = Stream}) ->
 
 
 sync(#rtp_state{} = RTP, Headers) ->
-  % Seq = proplists:get_value("seq", Headers),
+  Seq = proplists:get_value("seq", Headers),
   Time = proplists:get_value("rtptime", Headers),
   ?D({sync, Headers}),
-  RTP#rtp_state{wall_clock = 0, timecode = list_to_integer(Time)}.
+  RTP#rtp_state{wall_clock = 0, timecode = list_to_integer(Time), sequence = list_to_integer(Seq)}.
 
 decode(_, #rtp_state{timecode = TC, wall_clock = Clock} = RTP) when TC == undefined orelse Clock == undefined ->
-  ?D(unsynced),
+  % ?D({unsynced, RTP}),
   {ok, RTP, []};
 
 decode(<<_:16, Sequence:16, _/binary>> = Data, #rtp_state{sequence = undefined} = RTP) ->
@@ -79,7 +79,7 @@ decode(Body, #rtp_state{codec = h264} = RTP, Timecode) ->
   decode_h264(Body, RTP, Timecode).
   
 
-decode_h264(_Body, #rtp_state{buffer = undefined, stream_info = Stream} = RTP, _Timecode) -> 
+decode_h264(_Body, #rtp_state{buffer = undefined} = RTP, _Timecode) -> 
   {ok, RTP#rtp_state{buffer = h264:init()}, []}; % Here we are entering sync-wait state which will last till current FUA frame is over
   
 decode_h264(Body, #rtp_state{buffer = H264} = RTP, Timecode) ->
