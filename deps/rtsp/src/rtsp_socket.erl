@@ -181,7 +181,7 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = Seq+1}, Timeout};
 
 handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
-  ?D({"Setup", Num, Streams}),
+  % ?D({"Setup", Num, Streams}),
   Stream = #stream_info{options = Options} = element(Num, Streams),
   Control = proplists:get_value(control, Options),
 
@@ -271,12 +271,24 @@ handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) -
 handle_info(Message, #rtsp_socket{} = Socket) ->
   {stop, {uknown_message, Message}, Socket}.
 
-dump_request({request, Method, URL, Headers, Body}) ->
+dump_io({request, Method, URL, Headers, undefined}) ->
   HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
-  io:format("~s ~s RTSP/1.0~n~s~n~n~s~n", [Method, URL, HeaderS, Body]).
+  io:format("~s ~s RTSP/1.0~n~s~n", [Method, URL, HeaderS]);
+
+dump_io({request, Method, URL, Headers, Body}) ->
+  HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
+  io:format("~s ~s RTSP/1.0~n~s~n~s~n", [Method, URL, HeaderS, Body]);
+
+dump_io({response, Code, Message, Headers, undefined}) ->
+  HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
+  io:format("RTSP/1.0 ~p ~s~n~s~n", [Code, Message, HeaderS]);
+
+dump_io({response, Code, Message, Headers, Body}) ->
+  HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
+  io:format("RTSP/1.0 ~p ~s~n~s~n~s~n", [Code, Message, HeaderS, Body]).
   
--define(DUMP_REQUEST(X), dump_request(X)).
--define(DUMP_RESPONSE(X), ok).
+-define(DUMP_REQUEST(X), dump_io(X)).
+-define(DUMP_RESPONSE(X), dump_io(X)).
 
 handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
   case packet_codec:decode(Data) of
@@ -286,7 +298,7 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, _Body} = Response, Rest} ->
-      ?DUMP_RESPONSE(_Response),
+      ?DUMP_RESPONSE(Response),
       Socket1 = handle_response(extract_session(Socket#rtsp_socket{buffer = Rest}, Headers), Response),
       handle_packet(Socket1);
     {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
@@ -302,7 +314,7 @@ handle_response(#rtsp_socket{state = describe} = Socket, {response, _Code, _Mess
 
 handle_response(#rtsp_socket{state = play} = Socket, {response, _Code, _Message, Headers, _Body}) ->
   Socket1 = sync_rtp(Socket, Headers),
-  reply_pending(Socket#rtsp_socket{state = undefined});
+  reply_pending(Socket1#rtsp_socket{state = undefined});
 
 handle_response(Socket, {response, _Code, _Message, Headers, Body} = Response) ->
   reply_pending(Socket).
