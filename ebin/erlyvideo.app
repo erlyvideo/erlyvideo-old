@@ -32,6 +32,7 @@
     ems_license_client,
     ems_media,
     ems_media_clients,
+    ems_media_client_control,
     ems_media_frame,
     ems_media_tests,
     ems_network_lag_monitor,
