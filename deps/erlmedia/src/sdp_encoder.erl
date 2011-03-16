@@ -39,7 +39,8 @@
 -define(LSEP, <<$\r,$\n>>).
 
 payload_type(h264) -> 96;
-payload_type(aac) -> 97.
+payload_type(aac) -> 97;
+payload_type(pcma) -> 8.
 
 additional_codec_params(#stream_info{content = audio, params = #audio_params{channels = Channels}}) ->
   "/"++integer_to_list(Channels);

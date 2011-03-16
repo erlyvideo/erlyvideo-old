@@ -409,6 +409,23 @@ a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdelta
     timescale = 44.1
   })).
 
+encode_pcma_test() ->
+  ?assertEqual(<<"m=audio 7878 RTP/AVP 8\r
+a=control:trackID=2\r
+a=rtpmap:8 PCMA/8000/1\r
+">>, 
+  sdp:encode(#stream_info{
+    content = audio,
+    stream_id = 2,
+    codec = pcma,
+    params = #audio_params{channels = 1, sample_rate = 8000},
+    timescale = 8,
+    options = [{port, 7878}]
+  })).
+
+
+
+
 encoder_test1() ->
   Sess =
     #session_desc{version = <<"0">>,
