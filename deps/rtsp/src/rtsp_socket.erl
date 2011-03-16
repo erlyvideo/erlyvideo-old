@@ -87,7 +87,7 @@ read(URL, Options) when is_binary(URL) ->
 
 read(URL, Options) ->
   try read_raw(URL, Options) of
-    {ok, RTSP} -> {ok, RTSP}
+    {ok, RTSP, MediaInfo} -> {ok, RTSP, MediaInfo}
   catch
     _Class:{error,Reason} -> {error, Reason};
     exit:Reason -> {error, Reason};
@@ -98,10 +98,10 @@ read_raw(URL, Options) ->
   {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
   ConnectResult = rtsp_socket:connect(RTSP, URL, Options),
   ok == ConnectResult orelse erlang:error(ConnectResult),
-  {ok, Streams} = rtsp_socket:describe(RTSP, Options),
+  {ok, MediaInfo, Streams} = rtsp_socket:describe(RTSP, Options),
   [ok = rtsp_socket:setup(RTSP, Stream, Options) || Stream <- Streams],
   ok = rtsp_socket:play(RTSP, Options),
-  {ok, RTSP}.
+  {ok, RTSP, MediaInfo}.
 
 
 describe(RTSP, Options) ->
@@ -332,7 +332,7 @@ reply_pending(#rtsp_socket{pending = From, pending_reply = Reply} = Socket) ->
 
 handle_sdp(#rtsp_socket{} = Socket, Headers, Body) ->
   <<"application/sdp">> = proplists:get_value('Content-Type', Headers),
-  #media_info{audio = Audio, video = Video} = sdp:decode(Body),
+  MediaInfo = #media_info{audio = Audio, video = Video} = sdp:decode(Body),
       
   StreamNums = lists:seq(1, length(Audio)+length(Video)),
   % TODO: Отрефакторить это уродство
@@ -343,7 +343,7 @@ handle_sdp(#rtsp_socket{} = Socket, Headers, Body) ->
     {[A], []} -> {{A}, undefined, 1, [{proplists:get_value(control, A#stream_info.options),1}]}
   end,  
   ?D({"Streams", StreamInfos, StreamNums, ControlMap}),
-  Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, StreamNums}, audio_rtp_stream = AudioNum, video_rtp_stream = VideoNum}.
+  Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}, audio_rtp_stream = AudioNum, video_rtp_stream = VideoNum}.
 
 
 
@@ -438,7 +438,7 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
   end.
   
 handle_authorized_describe(Socket, URL, Headers, Media) ->  
-  {ok, MediaParams} = ems_media:decoder_config(Media),
+  MediaInfo = ems_media:media_info(Media),
   ?DBG("Describe INFO (~p): ~p", [self(), MediaParams]),
 
   SessionDesc =
