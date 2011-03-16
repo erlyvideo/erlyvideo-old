@@ -360,18 +360,6 @@ metadata(Media, Options) when is_pid(Media) ->
   gen_server:call(Media, {metadata, Options}).  
 
 
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> proplist()
-%%
-%% @doc Returns decoder config, extracted from media. Important: it can block for some time
-%% or return undefined, when there may be config.
-%% @end
-%%----------------------------------------------------------------------
-decoder_config(Media) when is_pid(Media) ->
-  Timeout = 8000,
-  gen_server:call(Media, decoder_config, Timeout).
-
-
   
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
