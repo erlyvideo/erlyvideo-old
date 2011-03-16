@@ -48,7 +48,7 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
     {ok, Line, Rest} ->
       {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
       {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
-      {ok, {rtsp_response, list_to_integer(binary_to_list(Code)), Message}, Rest};
+      {ok, {rtsp_response, erlang:list_to_integer(binary_to_list(Code)), Message}, Rest};
     _ ->
       {more, ready, Data}
   end;
@@ -58,7 +58,7 @@ parse(ready, <<"SIP/2.0 ", Response/binary>> = Data) ->
     {ok, Line, Rest} ->
       {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
       {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
-      {ok, {sip_response, list_to_integer(binary_to_list(Code)), Message}, Rest};
+      {ok, {sip_response, erlang:list_to_integer(binary_to_list(Code)), Message}, Rest};
     _ ->
       {more, ready, Data}
   end;
@@ -190,7 +190,7 @@ parse_transport_header(Header) ->
     ("mode=receive", Opts) -> [{mode, 'receive'}|Opts];
     ("mode=\"PLAY\"", Opts) -> [{mode, play}|Opts];
     ("unicast", Opts) -> [{unicast, true}|Opts];
-    ("ssrc="++SSRC, Opts) -> [{ssrc, list_to_integer(SSRC, 16)}|Opts];
+    ("ssrc="++SSRC, Opts) -> [{ssrc, erlang:list_to_integer(SSRC, 16)}|Opts];
     (_Else, Opts) -> Opts
   end, [], string:tokens(binary_to_list(Header), ";")),
   lists:reverse(Fields).
