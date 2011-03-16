@@ -60,10 +60,12 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/2, seek/3]).
--export([metadata/1, metadata/2, play_setup/2, seek_info/2, seek_info/3]).
--export([info/1, info/2, status/1]).
+-export([play_setup/2, seek_info/2, seek_info/3]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
--export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
+
+
+-export([status/1, info/1, info/2]).
+-export([decoder_config/1, metadata/1, metadata/2, metadata_frame/1, metadata_frame/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
@@ -252,6 +254,33 @@ seek_info(Media, DTS) when is_number(DTS) ->
 
 
 %%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::list()) -> ok
+%%
+%% @doc One day will set same options as in {@link subscribe/2.} dynamically
+%% Available options:
+%% buffer_size : BufferSize - size of prepush in seconds
+%% send_video : boolean() - send video or not
+%% send_audio : boolean() - send audio or not
+%% @end
+%%----------------------------------------------------------------------
+play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
+  gen_server:cast(Media, {play_setup, self(), Options}).
+
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Frame::video_frame()) -> any()
+%%
+%% @doc Publishes frame to media
+%% @end
+%%----------------------------------------------------------------------
+publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
+  Media ! Frame.
+
+
+
+
+
+%%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
 %%  
 %% @end
@@ -308,30 +337,6 @@ metadata(Media) when is_pid(Media) ->
 %%----------------------------------------------------------------------
 metadata(Media, Options) when is_pid(Media) ->
   gen_server:call(Media, {metadata, Options}).  
-
-
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Options::list()) -> ok
-%%
-%% @doc One day will set same options as in {@link subscribe/2.} dynamically
-%% Available options:
-%% buffer_size : BufferSize - size of prepush in seconds
-%% send_video : boolean() - send video or not
-%% send_audio : boolean() - send audio or not
-%% @end
-%%----------------------------------------------------------------------
-play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:cast(Media, {play_setup, self(), Options}).
-  
-  
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Frame::video_frame()) -> any()
-%%
-%% @doc Publishes frame to media
-%% @end
-%%----------------------------------------------------------------------
-publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
-  Media ! Frame.
 
 
 %%----------------------------------------------------------------------
