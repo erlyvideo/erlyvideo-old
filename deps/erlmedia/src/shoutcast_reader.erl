@@ -195,10 +195,10 @@ decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3, b
 
 
 decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, buffer = <<_, Rest/binary>>} = State) ->
-  case aac:decode(State#shoutcast.buffer) of
+  case aac:unpack_adts(State#shoutcast.buffer) of
     {ok, _Frame, Second} ->
       ?D({"Presync AAC"}),
-      case aac:decode(Second) of
+      case aac:unpack_adts(Second) of
         {more, undefined} ->
           ?D({"Want more AAC for second frame"}),
           State;
@@ -207,7 +207,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
           decode(State#shoutcast{buffer = Rest, sync_count = SyncCount + 1});
         {ok, _, _} ->
           ?D({"Synced AAC"}),
-          AACConfig = aac:config(Second),
+          AACConfig = aac:config_from_adts(Second),
           AudioConfig = #video_frame{       
            	content   = audio,
            	flavor    = config,
@@ -218,7 +218,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
         	  sound	    = {stereo, bit16, rate44}
         	},
         	Config = aac:decode_config(AACConfig),
-        	SampleRate = Config#aac_config.frequency / 1000,
+        	SampleRate = Config#aac_config.sample_rate / 1000,
         	send_frame(AudioConfig, State),
           decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0, sample_rate = SampleRate})
       end;
@@ -239,7 +239,7 @@ decode(#shoutcast{state = unsynced_body, buffer = <<>>} = State) ->
 
 decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp, sample_rate = SampleRate} = State) ->
   % ?D({"Decode"}),
-  case aac:decode(Data) of
+  case aac:unpack_adts(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
         content    = audio,

@@ -476,7 +476,7 @@ normalize_timestamp(Stream) ->
 
 % <<18,16,6>>
 decode_aac(#stream{send_audio_config = false, es_buffer = AAC, dts = DTS, pts = PTS, consumer = Consumer} = Stream) ->
-  Config = aac:config(AAC),
+  Config = aac:adts_to_config(AAC),
   AudioConfig = #video_frame{       
    	content = audio,
    	flavor  = config,

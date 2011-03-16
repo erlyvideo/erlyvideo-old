@@ -331,7 +331,7 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{dts = 
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Audio", Timestamp}),
-  ADTS = aac:encode(Body, AudioConfig),
+  ADTS = aac:pack_adts(Body, AudioConfig),
   
   PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,

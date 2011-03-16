@@ -57,6 +57,7 @@
 -include("../include/flv.hrl").
 -include("../include/mp4.hrl").
 -include("../include/mp3.hrl").
+-include("../include/aac.hrl").
 -include("../include/video_frame.hrl").
 -include("log.hrl").
 
@@ -501,7 +502,7 @@ pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame
 
   {ObjectType, ChannelsCount} = case Codec of
     aac ->
-      {_AACType, _SampleRate, AACChannels, _SamplesPerFrame} = aac:pack_config(aac:decode_config(Config)),
+      #aac_config{channel_count = AACChannels} = aac:decode_config(Config),
       {64, AACChannels};
     mp3 ->
       #mp3_frame{channels = Channels} = Config,
