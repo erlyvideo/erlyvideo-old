@@ -271,7 +271,12 @@ handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) -
 handle_info(Message, #rtsp_socket{} = Socket) ->
   {stop, {uknown_message, Message}, Socket}.
 
-
+dump_request({request, Method, URL, Headers, Body}) ->
+  HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
+  io:format("~s ~s RTSP/1.0~n~s~n~n~s~n", [Method, URL, HeaderS, Body]).
+  
+-define(DUMP_REQUEST(X), dump_request(X)).
+-define(DUMP_RESPONSE(X), ok).
 
 handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
   case packet_codec:decode(Data) of
@@ -281,14 +286,14 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, Body} = _Response, Rest} ->
-      io:format("--------------------------~n[RTSP Response]~n~p ~s~n~p~n", [_Code, _Message, Headers]),
+      ?DUMP_RESPONSE(_Response),
       Socket1 = configure_rtp(Socket#rtsp_socket{buffer = Rest}, Headers, Body),
       Socket2 = extract_session(Socket1, Headers),
       Socket3 = sync_rtp(Socket2, Headers),
       Socket4 = reply_pending(Socket3),
       handle_packet(Socket4);
     {ok, {request, _Method, _URL, Headers, Body} = Request, Rest} ->
-      io:format("--------------------------~n[RTSP Request]~n~s ~s~n~p~n", [_Method, _URL, Headers]),
+      ?DUMP_REQUEST(Request),
       Socket1 = handle_request(Request, Socket),
       Socket2 = configure_rtp(Socket1#rtsp_socket{buffer = Rest}, Headers, Body),
       handle_packet(Socket2)
@@ -395,7 +400,6 @@ handle_request({request, 'DESCRIBE', URL, Headers, Body}, #rtsp_socket{callback 
 handle_request({request, 'RECORD', URL, Headers, Body}, #rtsp_socket{callback = Callback} = State) ->
   case Callback:record(URL, Headers, Body) of
     ok ->
-      
       reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       reply(State, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
