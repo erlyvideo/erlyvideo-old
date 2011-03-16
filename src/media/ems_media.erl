@@ -53,6 +53,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../include/ems_media.hrl").
 -include("ems_media_client.hrl").
 -include("../log.hrl").
@@ -64,6 +65,7 @@
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
 
 
+-export([media_info/1, set_media_info/2]).
 -export([status/1, info/1, info/2]).
 -export([decoder_config/1, metadata/1, metadata/2, metadata_frame/1, metadata_frame/2]).
 
@@ -279,6 +281,25 @@ publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
 
 
 
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Status::list()
+%%  
+%% @end
+%%----------------------------------------------------------------------
+media_info(Media) ->
+  gen_server:call(Media, media_info, 120000).
+
+
+
+set_media_info(Media, #media_info{} = Info) when is_pid(Media) ->
+  gen_server:call(Media, {set_media_info, Info});
+
+set_media_info(#ems_media{media_info = Info} = Media, Info) ->
+  Media;
+  
+set_media_info(#ems_media{waiting_for_config = Waiting} = Media, #media_info{} = Info) ->
+  [gen_server:reply(From, Info) || From <- Waiting],
+  Media#ems_media{media_info = Info, waiting_for_config = []}.
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
@@ -388,6 +409,7 @@ init([Module, Options]) ->
   end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
+                     media_info = proplists:get_value(media_info, Options),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
                      created_at = ems:now(utc)},
                      
@@ -515,6 +537,14 @@ handle_call({unsubscribe, Client}, _From, Media) ->
 
 handle_call({start, Client}, From, Media) ->
   handle_call({resume, Client}, From, Media);
+
+
+handle_call(media_info, From, #ems_media{media_info = undefined, waiting_for_config = Waiting} = Media) ->
+  ?D({"No decoder config in live stream, waiting"}),
+  {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}, ?TIMEOUT};
+
+handle_call(media_info, _From, #ems_media{media_info = Info} = Media) ->
+  {reply, Info, Media, ?TIMEOUT};
 
 handle_call(decoder_config, From, #ems_media{video_config = undefined, audio_config = undefined, storage = undefined,
             frame_number = Number, waiting_for_config = Waiting} = Media) when Number < ?WAIT_FOR_CONFIG ->
