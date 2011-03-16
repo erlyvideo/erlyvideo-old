@@ -67,7 +67,7 @@
 
 -export([media_info/1, set_media_info/2]).
 -export([status/1, info/1, info/2]).
--export([decoder_config/1, metadata/1, metadata/2, metadata_frame/1, metadata_frame/2]).
+-export([metadata/1, metadata/2, metadata_frame/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
@@ -298,7 +298,8 @@ set_media_info(#ems_media{media_info = Info} = Media, Info) ->
   Media;
   
 set_media_info(#ems_media{waiting_for_config = Waiting} = Media, #media_info{} = Info) ->
-  [gen_server:reply(From, Info) || From <- Waiting],
+  Reply = reply_with_media_info(Media, Info),
+  [gen_server:reply(From, Reply) || From <- Waiting],
   Media#ems_media{media_info = Info, waiting_for_config = []}.
 
 %%----------------------------------------------------------------------
@@ -357,7 +358,31 @@ metadata(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 metadata(Media, Options) when is_pid(Media) ->
-  gen_server:call(Media, {metadata, Options}).  
+  MediaInfo = #media_info{audio = A, video = V} = media_info(Media),
+  Info1 = add_metadata_options(MediaInfo, Options),
+  metadata_frame(Info1).
+
+
+add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
+add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options).
+
+
+metadata_frame(#ems_media{media_info = MediaInfo}) -> metadata_frame(MediaInfo);
+
+metadata_frame(#media_info{options = Options, duration = Duration} = Media) ->
+  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+                      ({K,V}) when is_tuple(V) -> {K, iolist_to_binary(io_lib:format("~p", [V]))};
+                      (Else) -> Else end, Options),
+  Meta1 = lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media)),                    
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, [{duration, Duration}|Meta1]}]}.
+
+
+video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
+  [{height, Height}, {width, Width}];
+
+video_parameters(#media_info{}) ->  
+  [].
+
 
 
   
@@ -532,7 +557,7 @@ handle_call(media_info, From, #ems_media{media_info = undefined, waiting_for_con
   {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}, ?TIMEOUT};
 
 handle_call(media_info, _From, #ems_media{media_info = Info} = Media) ->
-  {reply, Info, Media, ?TIMEOUT};
+  {reply, reply_with_media_info(Media, Info), Media, ?TIMEOUT};
 
 handle_call(decoder_config, From, #ems_media{video_config = undefined, audio_config = undefined, storage = undefined,
             frame_number = Number, waiting_for_config = Waiting} = Media) when Number < ?WAIT_FOR_CONFIG ->
@@ -620,9 +645,6 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
     _ -> Media
   end,
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
-
-handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
-  {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
 handle_call({info, Properties}, _From, Media) ->
   {reply, reply_with_info(Media, Properties), Media, ?TIMEOUT};
@@ -863,6 +885,19 @@ handle_info(Message, #ems_media{module = M} = Media) ->
   end.
 
 
+reply_with_media_info(#ems_media{} = Media, #media_info{options = Options} = Info) ->
+  Props = storage_properties(Media),
+  case lists:keytake(duration, 1, Props) of
+    {value, {duration, Duration}, Props1} -> 
+      Info#media_info{duration = Duration, options = lists:ukeymerge(1, Props1, lists:ukeysort(1, Options))};
+    false ->
+      Info#media_info{options = lists:ukeymerge(1, Props, lists:ukeysort(1, Options))}
+  end.
+
+storage_properties(#ems_media{format = undefined}) -> [];
+storage_properties(#ems_media{format = Format, storage = Storage}) -> lists:ukeysort(1,Format:properties(Storage)).
+
+  
 try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = undefined} = Media) ->
   Media;
 
@@ -1010,6 +1045,7 @@ mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
 client_count(#ems_media{clients = Clients}) ->
   ems_media_clients:count(Clients).
 
+<<<<<<< HEAD
 
 storage_properties(Media) ->
   storage_properties(Media, []).

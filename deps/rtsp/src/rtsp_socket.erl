@@ -439,7 +439,7 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
   
 handle_authorized_describe(Socket, URL, Headers, Media) ->  
   MediaInfo = ems_media:media_info(Media),
-  ?DBG("Describe INFO (~p): ~p", [self(), MediaParams]),
+  ?DBG("Describe INFO (~p): ~p", [self(), MediaInfo]),
 
   SessionDesc =
     #session_desc{version = "0",
@@ -459,7 +459,7 @@ handle_authorized_describe(Socket, URL, Headers, Media) ->
                            {range, " npt=0-"}
                           ]},
   Opts = [{video, <<URL/binary, "/trackID=0">>},{audio, <<URL/binary, "/trackID=1">>}],
-  MediaConfig = [sdp:prep_media_config(F, Opts) || F <- MediaParams],
+  MediaConfig = [sdp:prep_media_config(F, Opts) || F <- MediaInfo],
   ?DBG("MediaConfig:~n~p", [MediaConfig]),
   SDP = sdp:encode(SessionDesc, MediaConfig),
   %%?DBG("SDP:~n~p", [SDP]),
