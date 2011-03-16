@@ -25,9 +25,10 @@
 -include("log.hrl").
 -include("../include/video_frame.hrl").
 -include("../include/media_info.hrl").
+-include("../include/aac.hrl").
 
 
--export([config_frame/1]).
+-export([config_frame/1, define_media_info/2]).
 
 
 config_frame(#stream_info{codec = aac, config = Config}) ->
@@ -54,3 +55,53 @@ config_frame(#stream_info{codec = h264, config = Config}) ->
 config_frame(_) ->
   undefined.
 
+
+define_media_info(#media_info{audio = A} = Media, #video_frame{codec = aac, flavor = config, body = Body}) when A == [] orelse A == wait ->
+  #aac_config{channel_count = Channels, sample_rate = Rate} = aac:decode_config(Body),
+  Info = #stream_info{
+    content = audio,
+    codec = aac,
+    config = Body,
+    params = #audio_params{channels = Channels, sample_rate = Rate}
+  },
+  Media#media_info{audio = [Info]};
+
+define_media_info(#media_info{} = Media, #video_frame{codec = aac}) ->
+  Media;
+
+define_media_info(#media_info{video = V} = Media, #video_frame{codec = h264, flavor = config, body = Body}) when V == [] orelse V == wait  ->
+  [{width,Width},{height,Height}] = h264:metadata(Body),
+  Info = #stream_info{
+    content = video,
+    codec = h264,
+    config = Body,
+    params = #video_params{width = Width, height = Height}
+  },
+  Media#media_info{video = [Info]};
+
+define_media_info(#media_info{} = Media, #video_frame{codec = h264}) ->
+  Media;
+
+
+define_media_info(#media_info{video = V} = Media, #video_frame{content = video, codec = Codec, body = Body}) when V == [] orelse V == wait  ->
+  {Width, Height} = case flv:video_size(Body, Codec) of
+     {ok, {W, H}} -> {W, H};
+     {more, _} -> {undefined, undefined}
+  end,
+  Info = #stream_info{
+    content = video,
+    codec = Codec,
+    params = #video_params{width = Width, height = Height}
+  },
+  Media#media_info{video = [Info]};
+
+define_media_info(#media_info{audio = A} = Media, #video_frame{content = audio, codec = Codec, sound = {Channels, _, Rate}}) when A == [] orelse A == wait  ->
+  Info = #stream_info{
+    content = audio,
+    codec = Codec,
+    params = #audio_params{channels = Channels, sample_rate = Rate}
+  },
+  Media#media_info{audio = [Info]};
+
+define_media_info(Media, _) ->
+  Media.
