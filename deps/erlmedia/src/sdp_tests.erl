@@ -357,33 +357,15 @@ a=fmtp:111 Mac=08007b88d4ec; Model=VCC-HD2300P; TargetBitRate=975; FirmVer=01020
     
 
 
-some_random_sdp() ->
-  <<"v=0
-o=- 234234 546456 IN IP4 10.11.12.13
-s=Test
-c=IN IP4 10.11.12.13
-t=0 0
-a=tool:LIVE555 Streaming Media v2008.04.09
-a=type:broadcast
-a=control:*
-a=range:npt=0-
-m=video 1500 RTP/AVP 8
-a=control:trackID=1
-a=rtpmap:8 PCMA/90000
-m=audio 1600 RTP/AVP 97
-a=control:trackID=2
-a=rtpmap:97 MP4A-LATM/48000
-">>.
-
-
-
-encode_avc_test() ->
-  ?assertEqual(<<"m=video 0 RTP/AVP 96\r
+h264_sdp() ->
+  <<"m=video 0 RTP/AVP 96\r
 a=control:trackID=1\r
 a=rtpmap:96 H264/90000\r
 a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
-">>,
-  sdp:encode(#stream_info{
+">>.
+
+h264_stream_info() ->
+  #stream_info{
     content = video,
     stream_id = 1,
     codec = h264,
@@ -391,23 +373,31 @@ a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IA
       21,1,0,4,104,206,60,128>>, 
     params = #video_params{width = 640, height = 480},
     timescale = 90
-  })).
+  }.
+  
+encode_h264_test() ->
+  ?assertEqual(h264_sdp(), sdp:encode(h264_stream_info())).
 
 
-encode_aac_test() ->
-  ?assertEqual(<<"m=audio 0 RTP/AVP 97\r
+aac_sdp() ->
+  <<"m=audio 0 RTP/AVP 97\r
 a=control:trackID=2\r
 a=rtpmap:97 mpeg4-generic/44100/2\r
 a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210\r
-">>, 
-  sdp:encode(#stream_info{
+">>.
+
+aac_stream_info() ->
+  #stream_info{
     content = audio,
     stream_id = 2,
     codec = aac,
     config = <<18,16>>, 
     params = #audio_params{channels = 2, sample_rate = 44100},
     timescale = 44.1
-  })).
+  }.
+  
+encode_aac_test() ->
+  ?assertEqual(aac_sdp(), sdp:encode(aac_stream_info())).
 
 encode_pcma_test() ->
   ?assertEqual(<<"m=audio 7878 RTP/AVP 8\r
@@ -424,24 +414,49 @@ a=rtpmap:8 PCMA/8000/1\r
   })).
 
 
+full_server_sdp() ->
+  <<"v=0\r
+o=- 234234 546456 IN IP4 10.11.12.13\r
+s=ErlySession\r
+c=IN IP4 10.11.12.13\r
+t=0 0\r
+a=tool:LIVE555 Streaming Media v2008.04.09\r
+a=type:broadcast\r
+a=control:*\r
+a=range:npt=0-\r
+m=video 0 RTP/AVP 96\r
+a=control:trackID=1\r
+a=rtpmap:96 H264/90000\r
+a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
+m=audio 0 RTP/AVP 97\r
+a=control:trackID=2\r
+a=rtpmap:97 mpeg4-generic/44100/2\r
+a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210\r
+">>.
+
+
+encoder_test() ->
+  Session = #sdp_session{version = 0,
+                originator = #sdp_o{username = <<"-">>,
+                                    sessionid = <<"234234">>,
+                                    version = <<"546456">>,
+                                    netaddrtype = inet4,
+                                    address = "10.11.12.13"},
+                name = <<"ErlySession">>,
+                connect = {inet4,"10.11.12.13"},
+                attrs = [
+                         {tool, "LIVE555 Streaming Media v2008.04.09"},
+                         {type, "broadcast"},
+                         {control, "*"},
+                         {range, "npt=0-"}
+                        ]},
+  Media = #media_info{audio = [aac_stream_info()], video = [h264_stream_info()], options = [{sdp_session, Session}]},
+  io:format("~p~n", [sdp:encode(Media)]),
+  ?assertEqual(full_server_sdp(), sdp:encode(Media)).
 
 
 encoder_test1() ->
   Sess =
-    #session_desc{version = <<"0">>,
-                  originator = #sdp_o{username = <<"-">>,
-                                      sessionid = <<"234234">>,
-                                      version = <<"546456">>,
-                                      netaddrtype = inet4,
-                                      address = "10.11.12.13"},
-                  name = <<"Test">>,
-                  connect = {inet4,"10.11.12.13"},
-                  attrs = [
-                           {tool, "LIVE555 Streaming Media v2008.04.09"},
-                           {type, "broadcast"},
-                           {control, "*"},
-                           {range, "npt=0-"}
-                          ]},
   MediaV = #stream_info{
     content = video,
     options = [{connect, {inet4, "10.11.12.13"}}, {port, 1500}, {control, <<"trackID=1">>}],
@@ -459,4 +474,4 @@ encoder_test1() ->
     params = #audio_params{channels = 2, sample_rate = 48000},
     config = <<14,23>>
   },
-  ?assertEqual(some_random_sdp(), sdp:encode(Sess, #media_info{audio = [MediaA], video = [MediaV]})).
+  ?assertEqual(full_server_sdp(), sdp:encode(Sess, #media_info{audio = [MediaA], video = [MediaV]})).

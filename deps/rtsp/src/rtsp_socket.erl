@@ -442,7 +442,7 @@ handle_authorized_describe(Socket, URL, Headers, Media) ->
   ?DBG("Describe INFO (~p): ~p", [self(), MediaInfo]),
 
   SessionDesc =
-    #session_desc{version = "0",
+    #sdp_session{version = "0",
                   originator = #sdp_o{username = "-",
                                       sessionid = "1275067839203788",
                                       version = "1",
