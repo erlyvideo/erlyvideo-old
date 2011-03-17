@@ -94,12 +94,19 @@ shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, glue
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
   shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS + GlueDelta}); %% Lets glue new instance of stream to old one plus small glue time
 
-shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
-  handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+%shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) when 
+%(DTS + Delta < 0 andalso DTS + Delta >= -1000) orelse (PTS + Delta < 0 andalso PTS + Delta >= -1000) ->
+%  handle_shifted_frame(Frame#video_frame{dts = 0, pts = 0}, Media);
 
-handle_shifted_frame(#video_frame{dts = DTS} = Frame, 
-  #ems_media{format = Format, storage = Storage, frame_number = Number} = Media) ->
+shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
+  %?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
+      handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+
+
+handle_shifted_frame(#video_frame{dts = DTS, pts = PTS} = Frame,  Media) when (DTS < 0 andalso DTS >= -1000) orelse (PTS < 0 andalso PTS >= -1000) ->
+  handle_shifted_frame(Frame#video_frame{dts = 0, pts = 0}, Media);
+
+handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format, storage = Storage, frame_number = Number} = Media)  ->
   % ?D({Frame#video_frame.content, Number, Frame#video_frame.flavor, Frame#video_frame.dts}),
   Media1 = start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
