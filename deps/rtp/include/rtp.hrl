@@ -43,6 +43,7 @@
   codec,
   buffer,
   stream_info,
+  length_size, % H264 stuff: how long is NAL size
   last_sr  % NTP Time then last sender report was received
 }).
 

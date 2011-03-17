@@ -157,12 +157,19 @@ rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timeco
 rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{timecode = TC} = RTP) when TC =/= undefined->
   {NTP, _Timecode} = rtcp_sr(SR),
   RTP#rtp_state{last_sr = NTP};
-  
+
 rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{} = RTP) ->
   {NTP, Timecode} = rtcp_sr(SR),
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  RTP#rtp_state{wall_clock = WallClock, timecode = Timecode, last_sr = NTP}.
+  RTP#rtp_state{wall_clock = WallClock, timecode = Timecode, last_sr = NTP};
 
+rtcp(<<_, ?RTCP_RR, _/binary>>, #rtp_state{} = RTP) ->
+  RTP.
+
+
+
+rtcp_rr(#rtp_state{last_sr = undefined} = RTP) ->
+  rtcp_rr(RTP#rtp_state{last_sr = 0});
 
 rtcp_rr(#rtp_state{stream_info = #stream_info{stream_id = StreamId}, sequence = Seq, last_sr = LSR} = RTP) ->
   Count = 0,
@@ -175,6 +182,7 @@ rtcp_rr(#rtp_state{stream_info = #stream_info{stream_id = StreamId}, sequence = 
   end,
   Jitter = 0,
   DLSR = 0,
+  ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
   {RTP, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.
 
 

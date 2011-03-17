@@ -38,9 +38,13 @@
 
 -export([init/1, rtp_info/1, encode/2]).
 
-init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId} = Stream) ->
-  #rtp_state{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, 
-             payload_type = sdp:payload_type(Codec), sequence = 0, wall_clock = 0, timecode = 0}.
+init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId, config = Config} = Stream) ->
+  LengthSize = case Codec of
+    h264 -> proplists:get_value(length_size, h264:metadata(Config));
+    _ -> undefined
+  end,
+  #rtp_state{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, length_size = LengthSize,
+             payload_type = sdp_encoder:payload_type(Codec), sequence = 0, wall_clock = 0, timecode = 0}.
 
 
 rtp_info(#rtp_state{stream_info = #stream_info{stream_id = Id}, sequence = Sequence, timecode = Timecode}) ->
@@ -48,10 +52,22 @@ rtp_info(#rtp_state{stream_info = #stream_info{stream_id = Id}, sequence = Seque
 
 
 
-encode(#video_frame{body = Data}, #rtp_state{codec = pcm_le} = RTP) ->
+dts_to_timecode(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, DTS) ->
+  round((DTS - WallClock)*Scale + BaseTimecode).
+
+
+encode(#video_frame{flavor = config}, #rtp_state{} = RTP) ->
+  {ok, RTP, []};
+
+encode(#video_frame{dts = DTS, body = Data}, #rtp_state{} = RTP) ->
+  encode_data(Data, RTP#rtp_state{timecode = dts_to_timecode(RTP, DTS)}).
+
+
+
+encode_data(Data, #rtp_state{codec = pcm_le} = RTP) ->
   compose_rtp(RTP, l2b(Data), ?RTP_SIZE);
 
-encode(#video_frame{body = Data}, #rtp_state{codec = mp3} = RTP) ->
+encode_data(Data, #rtp_state{codec = mp3} = RTP) ->
   Size = size(Data),
   %% Add support of frames with size more than 14 bit
   %% (set continuating flag, split to several RTP: http://tools.ietf.org/html/rfc5219#section-4.2)
@@ -67,39 +83,40 @@ encode(#video_frame{body = Data}, #rtp_state{codec = mp3} = RTP) ->
   MP3 = <<ADU/binary, Data/binary>>,
   compose_rtp(RTP, MP3);
   
-encode(#video_frame{body = Data}, #rtp_state{codec = aac} = RTP) ->
-  AH = 16#00,
-  ASsize = 16#10,                           % TODO: size of > 16#ff
-  DataSize = bit_size(Data),
-  Size = <<DataSize:2/big-integer-unit:8>>,
-  AS = <<ASsize:8, Size/binary>>,
-  Header = <<AH:8,AS/binary>>,
-  AAC = <<Header/binary,Data/binary>>,
+encode_data(Data, #rtp_state{codec = aac} = RTP) ->
+  AUHeader = <<(size(Data)):13, 0:3>>,
+  AULength = bit_size(AUHeader),
+  AAC = <<AULength:16, AUHeader/binary, Data/binary>>,
   compose_rtp(RTP, AAC);
   
 
-encode(#video_frame{body = Data}, #rtp_state{codec = speex} = RTP) ->
+encode_data(Data, #rtp_state{codec = speex} = RTP) ->
   compose_rtp(RTP, <<Data/binary, 16#7f:8 >>);
   
 
-encode(#video_frame{dts = DTS, body = Data}, #rtp_state{codec = h264} = RTP) ->
-  FUA_NALS = lists:flatten([h264:fua_split(NAL, 1387) || NAL <- split_h264_frame(Data)]),
+encode_data(Data, #rtp_state{codec = h264, length_size = LengthSize} = RTP) ->
+  FUA_NALS = lists:flatten([h264:fua_split(NAL, 1387) || NAL <- split_h264_frame(Data, LengthSize)]),
   compose_rtp(RTP, FUA_NALS);
   
-encode(#video_frame{body = Data}, #rtp_state{codec = mpeg4} = RTP) ->
+encode_data(Data, #rtp_state{codec = mpeg4} = RTP) ->
   compose_rtp(RTP, Data, 1388);
 
-encode(#video_frame{body = Data}, #rtp_state{} = RTP) ->
+encode_data(Data, #rtp_state{} = RTP) ->
   compose_rtp(RTP, Data).
 
 
-split_h264_frame(Frame) ->
-  split_h264_frame(Frame, []).
+split_h264_frame(Frame, LengthSize) ->
+  split_h264_frame(Frame, LengthSize, []).
 
-split_h264_frame(<<>>, Acc) ->
+split_h264_frame(<<>>, _LengthSize, Acc) ->
   lists:reverse(Acc);
-split_h264_frame(<<Size:32, NAL:Size/binary, Rest/binary>>, Acc) ->
-  split_h264_frame(Rest, [NAL|Acc]).
+split_h264_frame(<<Size:16, NAL:Size/binary, Rest/binary>>, 2, Acc) ->
+  split_h264_frame(Rest, 2, [NAL|Acc]);
+split_h264_frame(<<Size:32, NAL:Size/binary, Rest/binary>>, 4, Acc) ->
+  split_h264_frame(Rest, 4, [NAL|Acc]).
+
+compose_rtp(RTP, Bin) when is_binary(Bin) ->
+  compose_rtp(RTP, [Bin]);
 
 compose_rtp(RTP, Parts) ->
   compose_rtp(RTP, Parts, []).
@@ -112,7 +129,7 @@ compose_rtp(#rtp_state{sequence = Sequence} = RTP, [Part|Parts], Acc) ->
   compose_rtp(RTP#rtp_state{sequence = inc_seq(Sequence)}, Parts, [Pack|Acc]). 
   
 
-make_rtp_pack(#rtp_state{codec = PayloadType,
+make_rtp_pack(#rtp_state{payload_type = PayloadType,
                         sequence = Sequence,
                         timecode = Timestamp,
                         stream_id = SSRC}, Marker, Payload) ->
@@ -120,7 +137,7 @@ make_rtp_pack(#rtp_state{codec = PayloadType,
   Padding = 0,
   Extension = 0,
   CSRC = 0,
-  % ?D({rtp,Sequence,PayloadType,Timestamp}),
+  % ?D({rtp,Sequence,PayloadType,Timestamp,SSRC}),
   <<Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, SSRC:32, Payload/binary>>.
 
 

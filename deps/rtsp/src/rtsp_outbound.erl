@@ -118,12 +118,12 @@ encode_frame(#video_frame{content = audio} = Frame, #rtsp_socket{audio_rtp_strea
 encode_frame(#video_frame{content = video} = Frame, #rtsp_socket{video_rtp_stream = Num} = Socket) ->
   encode_frame(Frame, Socket, Num);
 
-encode_frame(#video_frame{}, #rtsp_socket{} = Socket) ->
+encode_frame(#video_frame{content = metadata}, #rtsp_socket{} = Socket) ->
   Socket.
 
 encode_frame(#video_frame{} = Frame, #rtsp_socket{rtp_streams = Streams, socket = Sock} = Socket, Num) ->
   RTP = element(Num, Streams),
-  {RTP1, [Packets]} = rtp_encoder:encode(Frame, RTP),
+  {ok, RTP1, Packets} = rtp_encoder:encode(Frame, RTP),
   RTPData = [packet_codec:encode({rtp, (Num-1)*2, Packet}) || Packet <- Packets],
   gen_tcp:send(Sock, RTPData),
   Socket#rtsp_socket{rtp_streams = setelement(Num, Streams, RTP1)}.
