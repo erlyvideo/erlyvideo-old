@@ -419,11 +419,23 @@ linphone_mediainfo() ->
         timescale = 90.0,
         options = [{port, 9078}]
       }
-    ]
+    ],
+    options = [{sdp_session, #session_desc{
+      version = 0,
+      originator = #sdp_o{
+        username = "zert",
+        sessionid = "123456",
+        version = "654321",
+        netaddrtype = inet4,
+        address = "192.168.1.2"
+      },
+      name = "A conversation",
+      connect = {inet4, "192.168.1.2"}
+    }}]
   }.
 
 linphone_decode_test() ->
-  ?assertMatch(a,b).
+  ?assertEqual(linphone_mediainfo(), sdp:decode(linphone_sdp())).
 
 
 some_random_sdp() ->

@@ -132,6 +132,7 @@ parse_announce([{a, {"rtpmap", Value}} | Announce], MediaInfo, #stream_info{para
   [CodecCode, ClockMap | EncodingParams] = string:tokens(CodecInfo, "/"),
   Codec = case string:to_lower(CodecCode) of
     "h264" -> h264;
+    "h263" -> h263;
     "mpeg4-generic" -> aac;
     "mpa-robust" -> mp3;
     "mp4a-latm" -> mp4a;
