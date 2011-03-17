@@ -42,6 +42,6 @@
   buffer,
   stream_info,
   marker = false,
-  last_sr   % NTP Time then last sender report was received
+  last_sr  % NTP Time then last sender report was received
 }).
 

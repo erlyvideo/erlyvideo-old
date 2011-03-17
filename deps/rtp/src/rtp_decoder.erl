@@ -118,8 +118,9 @@ rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timeco
 
 
 
-rtcp(<<_, ?RTCP_SR, _/binary>>, #rtp_state{timecode = TC} = RTP) when TC =/= undefined->
-  RTP;
+rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{timecode = TC} = RTP) when TC =/= undefined->
+  {NTP, _Timecode} = rtcp_sr(SR),
+  RTP#rtp_state{last_sr = NTP};
   
 rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{} = RTP) ->
   {NTP, Timecode} = rtcp_sr(SR),
