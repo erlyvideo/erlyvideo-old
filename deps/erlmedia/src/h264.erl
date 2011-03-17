@@ -51,9 +51,9 @@ video_config(H264) ->
   end.
 
 metadata(Config) ->
-  {_, [SPSBin, _]} = unpack_config(Config),
+  {LengthSize, [SPSBin, _]} = unpack_config(Config),
   #h264_sps{width = Width, height = Height} = parse_sps(SPSBin),
-  [{width,Width},{height,Height}].
+  [{width,Width},{height,Height},{length_size,LengthSize}].
 
 
 metadata_frame(Config) ->
