@@ -4,10 +4,9 @@
  {modules, [
             ertp,
             ertp_sup,
-            rtp_server,
-            sdp,
-            sdp_tests
-           ]},
+            rtp_decoder,
+            rtp_server
+            ]},
  {registered,[]},
  {applications, [kernel,stdlib]},
  {mod, {ertp,[]}}

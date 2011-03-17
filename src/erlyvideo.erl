@@ -62,6 +62,7 @@ test() ->
     mp4_writer,
     flv_video_frame,
     sdp,
+    rtp_decoder,
     http_uri2,
     packet_codec,
     srt_parser,
@@ -69,7 +70,8 @@ test() ->
     mpegts_reader,
     rtmp,
     rtmp_handshake,
-    rtsp_socket
+    rtsp_socket,
+    ems_test_file_reading
   ]).
 
 

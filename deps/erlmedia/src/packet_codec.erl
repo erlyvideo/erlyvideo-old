@@ -26,6 +26,7 @@
 -include("log.hrl").
 
 -export([parse/2, decode/1, encode/1]).
+-export([encode_headers/1]).
 
 -export([edoc/1, edoc/0]).
 
@@ -153,7 +154,7 @@ decode_headers(Data, Headers, BodyLength) ->
       NewPair =
         case HKey of
           <<"Cseq">> -> {'Cseq', HVal};
-          <<"Transport">> -> {'Transport', HVal};
+          <<"Transport">> -> {'Transport', parse_transport_header(HVal)};
           <<"Session">> -> {'Session', HVal};
           <<"Call-Id">> -> {'Call-Id', HVal};
           <<"To">> -> {'To', HVal};
@@ -180,6 +181,24 @@ decode_headers(Data, Headers, BodyLength) ->
       more
   end.
 
+% <<"RTP/AVP/TCP;unicast;mode=receive;interleaved=2-3">>
+parse_transport_header(Header) ->
+  Fields = lists:foldl(fun
+    ("interleaved="++Interleaved, Opts) -> 
+      [Chan0, Chan1] = string:tokens(Interleaved, "-"),
+      [{interleaved, {list_to_integer(Chan0), list_to_integer(Chan1)}}|Opts];
+    ("RTP/AVP/TCP", Opts) -> [{proto, tcp}|Opts];
+    ("RTP/AVP/UDP", Opts) -> [{proto, udp}|Opts];
+    ("mode=receive", Opts) -> [{mode, 'receive'}|Opts];
+    ("mode=\"PLAY\"", Opts) -> [{mode, play}|Opts];
+    ("unicast", Opts) -> [{unicast, true}|Opts];
+    ("ssrc="++SSRC, Opts) -> [{ssrc, list_to_integer(SSRC, 16)}|Opts];
+    (_Else, Opts) -> Opts
+  end, [], string:tokens(binary_to_list(Header), ";")),
+  lists:reverse(Fields).
+
+
+
 %%----------------------------------------------------------------------
 %% @spec ({rtcp, Channel::integer(), Bin::binary()}) -> Data::binary()
 %%
@@ -190,10 +209,52 @@ encode({Type, Channel, Bin}) when Type =:= rtp;
                                   Type =:= rtcp ->
   <<$$, Channel, (size(Bin)):16, Bin/binary>>.
 
+
+encode_transport_header(TransportHeader) ->
+  encode_transport_header(TransportHeader, []).
+
+encode_transport_header([], Acc) -> string:join(lists:reverse(Acc),";");
+encode_transport_header([{proto,tcp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP/TCP"|Acc]);
+encode_transport_header([{proto,udp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP/UDP"|Acc]);
+encode_transport_header([{mode,'receive'}|H], Acc) -> encode_transport_header(H, ["mode=receive"|Acc]);
+encode_transport_header([{mode,'play'}|H], Acc) -> encode_transport_header(H, ["mode=play"|Acc]);
+encode_transport_header([{unicast,true}|H], Acc) -> encode_transport_header(H, ["unicast"|Acc]);
+encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++integer_to_list(SSRC, 16)|Acc]);
+encode_transport_header([{interleaved,{Chan0,Chan1}}|H], Acc) -> encode_transport_header(H, ["interleaved="++integer_to_list(Chan0)++"-"++integer_to_list(Chan1)|Acc]).
+
+binarize_header({'Transport', TransportHeader}) ->
+  [<<"Transport: ">>, encode_transport_header(TransportHeader), <<"\r\n">>];
+
+binarize_header({Key, Value}) when is_atom(Key) ->
+  binarize_header({atom_to_binary(Key, latin1), Value});
+
+binarize_header({Key, Value}) when is_list(Key) ->
+  binarize_header({list_to_binary(Key), Value});
+
+binarize_header({Key, Value}) when is_integer(Value) ->
+  binarize_header({Key, integer_to_list(Value)});
+
+binarize_header({Key, Value}) ->
+  [Key, <<": ">>, Value, <<"\r\n">>];
+
+binarize_header([Key, Value]) ->
+  [Key, <<" ">>, Value, <<"\r\n">>].
+
+
+
+encode_headers(Headers) ->
+  iolist_to_binary([binarize_header({K,V}) || {K,V} <- Headers]).
+
 %%
 %% Tests
 %%
 -include_lib("eunit/include/eunit.hrl").
+
+
+
+parse_transport_header_test() ->
+  ?assertEqual([{proto,tcp},{unicast,true},{mode,'receive'},{interleaved,{2,3}}],
+                 parse_transport_header(<<"RTP/AVP/TCP;unicast;mode=receive;interleaved=2-3">>)).
 
 parse_rtp_test() ->
   ?assertEqual({ok, {rtp, 0, <<1,2,3,4,5,6>>}, <<7,8>>}, parse(ready, <<$$, 0, 6:16, 1,2,3,4,5,6,7,8>>)),
@@ -250,7 +311,7 @@ decode_request_test() ->
                                                {'Cseq', <<"2">>},
                                                {'Date', <<"Thu, 18 Feb 2010 06:21:00 GMT">>},
                                                {'Session', <<"94544680; timeout=60">>},
-                                               {'Transport', <<"RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"">>}
+                                               {'Transport', [{proto,tcp},{unicast,true},{interleaved,{0,1}},{ssrc, 4195826707},{mode,play}]}
                                               ], undefined}, <<>>},
                decode(<<"RTSP/1.0 200 OK\r\nCSeq: 2\r\nSession: 94544680; timeout=60\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=FA173C13;mode=\"PLAY\"\r\nDate: Thu, 18 Feb 2010 06:21:00 GMT\r\n\r\n">>)).
 

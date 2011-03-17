@@ -30,9 +30,10 @@
 -include("../include/h264.hrl").
 -include("../include/video_frame.hrl").
 
--export([decode_nal/2, video_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
+-export([decode_nal/2, video_config/1, decoder_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([parse_sps/1, to_fmtp/1, init/0]).
+-export([type/1]).
 
 
 video_config(H264) ->
@@ -71,7 +72,6 @@ unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, _Skip1:6, LengthSize
   {PPS, <<>>} = parse_h264_config(Rest1, PPSCount, SPS),
   {LengthSize + 1, lists:reverse(PPS)}.
 
-
 init() -> #h264{}.
 
 
@@ -94,6 +94,9 @@ decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = P
     2#111:3, (length(SPS)):5, (size(SPSBin)):16, SPSBin/binary,
     (length(PPS)), (size(PPSBin)):16, PPSBin/binary>>.
 
+
+type(<<0:1, _:2, Type:5, _/binary>>) ->
+  nal_unit_type(Type).
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SINGLE:5, _/binary>> = Data, #h264{} = H264) ->
   Header = slice_header(Data),
@@ -146,7 +149,7 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) -
 		codec   = h264,
 		sound   = slice_header(Data)
   },
-  ?D({"I-frame", VideoFrame}),
+  % ?D({"I-frame", VideoFrame}),
   {H264, [VideoFrame]};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) ->
@@ -219,17 +222,20 @@ decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, Type:5, Rest/binary>>, H2
   ?D("FUA start"),
   {H264#h264{buffer = <<0:1, NRI:2, Type:5, Rest/binary>>}, []};
 
+decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, _/binary>>, #h264{buffer = undefined} = H264) ->
+  {H264, []};
+
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   ?D("FUA cont"),
   {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, []};
 
 decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 1:1, 0:1, Type:5, Rest/binary>>, H264) ->
   ?D("FUA one"),
-  decode_nal(<<0:1, NRI:2, Type:5, Rest/binary>>, H264#h264{buffer = <<>>});
+  decode_nal(<<0:1, NRI:2, Type:5, Rest/binary>>, H264#h264{buffer = undefined});
 
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
   ?D("FUA end"),
-  decode_nal(<<Buf/binary, Rest/binary>>, H264#h264{buffer = <<>>});
+  decode_nal(<<Buf/binary, Rest/binary>>, H264#h264{buffer = undefined});
 
 
 % decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, S:1, E:1, R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
@@ -297,7 +303,7 @@ decode_scaling_list(<<0:1, Rest/bitstring>>, _Size) ->
 parse_sps_data(Data, SPS) ->
   {Log2FrameNum, Rest2} = exp_golomb_read(Data),
   {PicOrder, Rest3} = exp_golomb_read(Rest2),
-  ?D({"Pic order", PicOrder}),
+  % ?D({"Pic order", PicOrder}),
   parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
 
 parse_sps_pic_order(Data, 0, SPS) ->
@@ -415,7 +421,6 @@ to_fmtp(Body) ->
   {_, [SPS, PPS]} = h264:unpack_config(Body),
   {H264, _} = h264:decode_nal(SPS, #h264{}),
   {RC, _} = h264:decode_nal(PPS, H264),
-  io:format("RC: ~p", [RC]),
   PLI =
     case RC of
       #h264{profile = Profile,
@@ -429,8 +434,7 @@ to_fmtp(Body) ->
    "packetization-mode=", integer_to_list(PktMode),";",
    PLI,
    "sprop-parameter-sets=",
-   base64:encode(SPS), $,, base64:encode(PPS),
-   ";"
+   base64:encode(SPS), $,, base64:encode(PPS)
   ].
 
 %%

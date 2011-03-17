@@ -25,7 +25,8 @@
   bitrate        = undefined ::non_neg_integer(),
   language       = undefined ::string()|undefined,
   params         = undefined ::audio_params()|video_params(),
-  timescale      = 1000      ::non_neg_integer() % How many DTS units are in one second. Erlyvideo uses milliseconds everywhere
+  timescale      = 1         ::non_neg_integer(), % How many DTS units are in one millisecond. Erlyvideo uses milliseconds everywhere
+  options        = []        ::any()
 }).
 
 -type(stream_info() :: #stream_info{}).

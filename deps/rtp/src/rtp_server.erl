@@ -134,117 +134,117 @@ handle_call({play, Fun, Media}, _From,
   %%timer:send_interval(100, {dump_pack}),
   {reply, {ok, Info}, State};
 
-handle_call({listen_ports,
-             #media_desc{type = Type,
-                         payloads = [#payload{num = PTnum,
-                                              codec = _Codec,
-                                              clock_map = ClockMap}|_],
-                         track_control = TCtl},
-             Proto, Method}, _From,
-           #state{type = RtpType} = State) ->
-  Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
-  BaseRTP = #base_rtp{codec = PTnum,
-                      media = Type,
-                      clock_map = ClockMap,
-                      sequence = init_rnd_seq(),
-                      base_timecode = Timecode,
-                      timecode = Timecode,
-                      base_wall_clock = 0,
-                      wall_clock = 0,
-                      last_sr = get_date(),
-                      stream_id = init_rnd_ssrc()},
-  case Method of
-    ports ->
-      OP = open_ports(Type),
-      ?DBG("OP: ~p", [OP]),
-      {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
-      gen_udp:controlling_process(RTPSocket, self()),
-      gen_udp:controlling_process(RTCPSocket, self()),
-      Result = {RTP, RTCP},
-      MethodDesc = #ports_desc{
-        proto = Proto,
-        socket_rtp = RTPSocket,
-        socket_rtcp = RTCPSocket
-       };
-    interleaved ->
-      Result = ok,
-      MethodDesc = #interleaved_desc{}
-  end,
-  NewState =
-    case Type of
-      audio ->
-        State#state{audio = #desc{method = MethodDesc,
-                                  track_control = TCtl,
-                                  state = BaseRTP}};
-      video ->
-        State#state{video = #desc{method = MethodDesc,
-                                  track_control = TCtl,
-                                  state = BaseRTP}}
-    end,
-  ?DBG("NewState:~n~p", [NewState]),
-  {reply, {ok, {Method, Result}}, NewState};
-
-handle_call({add_stream,
-             #media_desc{type = Type,
-                         connect = Connect,
-                         port = RemotePort,
-                         track_control = TCtl} = MS,
-             {Method, Params}, Extra}, _From,
-            #state{audio = AudioDesc,
-                   video = VideoDesc} = State) ->
-  ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
-
-  BaseMethod = case Type of
-    audio -> AudioDesc#desc.method;
-    video -> VideoDesc#desc.method
-  end,
-  case Method of
-    ports ->
-      case Params of
-        {Addr, PortRTP_p, PortRTCP_p} ->
-          ConnAddr = Addr,
-          PortRTP = PortRTP_p,
-          PortRTCP = PortRTCP_p;
-        _ ->
-          ConnAddr =
-            case Connect of
-              {inet4, Address} -> Address;
-              _ -> undefined
-            end,
-          if is_number(RemotePort) andalso (RemotePort>0) ->
-              PortRTP = RemotePort,
-              PortRTCP = RemotePort+1;
-             true ->
-              PortRTP = undefined,
-              PortRTCP = undefined
-          end
-      end,
-
-      MethodDesc = BaseMethod#ports_desc{
-                     addr = ConnAddr,
-                     port_rtp = PortRTP,
-                     port_rtcp = PortRTCP};
-    interleaved ->
-      {SocketOwner, ChanRTP, ChanRTCP} = Params,
-      MethodDesc = BaseMethod#interleaved_desc{
-                     socket_owner = SocketOwner,
-                     channel_rtp = ChanRTP,
-                     channel_rtcp = ChanRTCP}
-  end,
-  TCFun = compose_tc_fun(Extra),
-  NewState =
-    case Type of
-      audio ->
-        State#state{audio = AudioDesc#desc{method = MethodDesc,
-                                           track_control = TCtl},
-                    tc_fun = TCFun};
-      video ->
-        State#state{video = VideoDesc#desc{method = MethodDesc,
-                                           track_control = TCtl},
-                    tc_fun = TCFun}
-    end,
-  ?DBG("NewState:~n~p", [NewState]),
-  {reply, ok, NewState};
+% handle_call({listen_ports,
+%              #media_desc{type = Type,
+%                          payloads = [#payload{num = PTnum,
+%                                               codec = _Codec,
+%                                               clock_map = ClockMap}|_],
+%                          track_control = TCtl},
+%              Proto, Method}, _From,
+%            #state{type = RtpType} = State) ->
+%   Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
+%   BaseRTP = #base_rtp{codec = PTnum,
+%                       media = Type,
+%                       clock_map = ClockMap,
+%                       sequence = init_rnd_seq(),
+%                       base_timecode = Timecode,
+%                       timecode = Timecode,
+%                       base_wall_clock = 0,
+%                       wall_clock = 0,
+%                       last_sr = get_date(),
+%                       stream_id = init_rnd_ssrc()},
+%   case Method of
+%     ports ->
+%       OP = open_ports(Type),
+%       ?DBG("OP: ~p", [OP]),
+%       {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
+%       gen_udp:controlling_process(RTPSocket, self()),
+%       gen_udp:controlling_process(RTCPSocket, self()),
+%       Result = {RTP, RTCP},
+%       MethodDesc = #ports_desc{
+%         proto = Proto,
+%         socket_rtp = RTPSocket,
+%         socket_rtcp = RTCPSocket
+%        };
+%     interleaved ->
+%       Result = ok,
+%       MethodDesc = #interleaved_desc{}
+%   end,
+%   NewState =
+%     case Type of
+%       audio ->
+%         State#state{audio = #desc{method = MethodDesc,
+%                                   track_control = TCtl,
+%                                   state = BaseRTP}};
+%       video ->
+%         State#state{video = #desc{method = MethodDesc,
+%                                   track_control = TCtl,
+%                                   state = BaseRTP}}
+%     end,
+%   ?DBG("NewState:~n~p", [NewState]),
+%   {reply, {ok, {Method, Result}}, NewState};
+% 
+% handle_call({add_stream,
+%              #media_desc{type = Type,
+%                          connect = Connect,
+%                          port = RemotePort,
+%                          track_control = TCtl} = MS,
+%              {Method, Params}, Extra}, _From,
+%             #state{audio = AudioDesc,
+%                    video = VideoDesc} = State) ->
+%   ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
+% 
+%   BaseMethod = case Type of
+%     audio -> AudioDesc#desc.method;
+%     video -> VideoDesc#desc.method
+%   end,
+%   case Method of
+%     ports ->
+%       case Params of
+%         {Addr, PortRTP_p, PortRTCP_p} ->
+%           ConnAddr = Addr,
+%           PortRTP = PortRTP_p,
+%           PortRTCP = PortRTCP_p;
+%         _ ->
+%           ConnAddr =
+%             case Connect of
+%               {inet4, Address} -> Address;
+%               _ -> undefined
+%             end,
+%           if is_number(RemotePort) andalso (RemotePort>0) ->
+%               PortRTP = RemotePort,
+%               PortRTCP = RemotePort+1;
+%              true ->
+%               PortRTP = undefined,
+%               PortRTCP = undefined
+%           end
+%       end,
+% 
+%       MethodDesc = BaseMethod#ports_desc{
+%                      addr = ConnAddr,
+%                      port_rtp = PortRTP,
+%                      port_rtcp = PortRTCP};
+%     interleaved ->
+%       {SocketOwner, ChanRTP, ChanRTCP} = Params,
+%       MethodDesc = BaseMethod#interleaved_desc{
+%                      socket_owner = SocketOwner,
+%                      channel_rtp = ChanRTP,
+%                      channel_rtcp = ChanRTCP}
+%   end,
+%   TCFun = compose_tc_fun(Extra),
+%   NewState =
+%     case Type of
+%       audio ->
+%         State#state{audio = AudioDesc#desc{method = MethodDesc,
+%                                            track_control = TCtl},
+%                     tc_fun = TCFun};
+%       video ->
+%         State#state{video = VideoDesc#desc{method = MethodDesc,
+%                                            track_control = TCtl},
+%                     tc_fun = TCFun}
+%     end,
+%   ?DBG("NewState:~n~p", [NewState]),
+%   {reply, ok, NewState};
 
 handle_call({stop}, _From, State) ->
   ?DBG("Stop RTP Process ~p", [self()]),
@@ -481,11 +481,13 @@ code_change(_OldVsn, State, _Extra) ->
 play(Pid, Fun, Media) when is_function(Fun) ->
   gen_server:call(Pid, {play, Fun, Media}).
 
-listen_ports(Pid, #media_desc{} = Stream, Proto, Method) ->
-  gen_server:call(Pid, {listen_ports, Stream, Proto, Method}).
-
-add_stream(Pid, #media_desc{} = Stream, {Method, Params}, Extra) ->
-  gen_server:call(Pid, {add_stream, Stream, {Method, Params}, Extra}).
+listen_ports(_, _, _, _) -> ok.
+add_stream(_, _, _, _) -> ok.
+% listen_ports(Pid, #media_desc{} = Stream, Proto, Method) ->
+%   gen_server:call(Pid, {listen_ports, Stream, Proto, Method}).
+% 
+% add_stream(Pid, #media_desc{} = Stream, {Method, Params}, Extra) ->
+%   gen_server:call(Pid, {add_stream, Stream, {Method, Params}, Extra}).
 
 stop(Pid) ->
   gen_server:call(Pid, {stop}).
