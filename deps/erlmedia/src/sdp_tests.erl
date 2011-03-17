@@ -420,7 +420,7 @@ linphone_mediainfo() ->
         options = [{port, 9078}]
       }
     ],
-    options = [{sdp_session, #session_desc{
+    options = [{sdp_session, #sdp_session{
       version = 0,
       originator = #sdp_o{
         username = "zert",
