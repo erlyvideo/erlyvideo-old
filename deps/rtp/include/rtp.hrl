@@ -30,3 +30,17 @@
   packets = 0  :: integer(),
   bytes   = 0  :: integer()
 }).
+
+
+
+-record(rtp_state, {
+  sequence = undefined,
+  wall_clock = undefined,
+  timecode = undefined,
+  timescale,
+  codec,
+  buffer,
+  stream_info,
+  marker = false
+}).
+

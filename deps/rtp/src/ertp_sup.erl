@@ -15,8 +15,8 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_server(Name) ->
-  supervisor:start_child(rtp_server_sup, [Name]).
+start_server(Args) ->
+  supervisor:start_child(rtp_server_sup, [Args]).
 
 init([rtp_server]) ->
   {ok,
