@@ -48,7 +48,7 @@
 -export([read/2, connect/3, describe/2, setup/3, play/2]).
 
 
--export([handle_sdp/3, reply/3, save_media_info/2]).
+-export([handle_sdp/3, reply/3, reply/4, save_media_info/2]).
 
 read(URL, Options) when is_binary(URL) ->
   read(binary_to_list(URL), Options);

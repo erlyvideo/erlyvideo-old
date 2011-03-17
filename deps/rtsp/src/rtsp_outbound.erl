@@ -50,8 +50,8 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
       handle_authorized_describe(Socket, URL, Headers, Media)
   end.
   
-handle_authorized_describe(Socket, URL, Headers, Media) ->  
-  MediaInfo = #media_info{options = Options} = ems_media:media_info(Media),
+handle_authorized_describe(Socket, _URL, Headers, Media) ->  
+  MediaInfo = #media_info{} = ems_media:media_info(Media),
   Info1 = add_rtsp_options(MediaInfo),
   SDP = sdp:encode(Info1),
   rtsp_socket:reply(rtsp_socket:save_media_info(Socket#rtsp_socket{media = Media, direction = out}, Info1), "200 OK",
@@ -92,7 +92,7 @@ add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info) ->
   
 
 
-handle_play_setup(#rtsp_socket{} = Socket, URL, Headers, Body) ->
+handle_play_setup(#rtsp_socket{} = Socket, URL, Headers, _Body) ->
   {match, [Control]} = re:run(URL, "/([^/]+)$", [{capture, all_but_first, list}]),
   Transport = proplists:get_value('Transport', Headers),
   StreamNum = proplists:get_value(Control, Socket#rtsp_socket.control_map),
@@ -112,16 +112,21 @@ handle_play_request(#rtsp_socket{callback = Callback, rtp_streams = RtpStreams} 
   end.
 
 
-encode_frame(#video_frame{content = audio} = Frame, #rtsp_socket{rtp_streams = Streams, audio_rtp_stream = Num} = Socket) ->
-  encode_frame(Frame, Socket, element(Num, Streams));
+encode_frame(#video_frame{content = audio} = Frame, #rtsp_socket{audio_rtp_stream = Num} = Socket) ->
+  encode_frame(Frame, Socket, Num);
 
-encode_frame(#video_frame{content = video} = Frame, #rtsp_socket{rtp_streams = Streams, video_rtp_stream = Num} = Socket) ->
-  encode_frame(Frame, Socket, element(Num, Streams));
+encode_frame(#video_frame{content = video} = Frame, #rtsp_socket{video_rtp_stream = Num} = Socket) ->
+  encode_frame(Frame, Socket, Num);
 
-encode_frame(#video_frame{} = Frame, #rtsp_socket{} = Socket) ->
+encode_frame(#video_frame{}, #rtsp_socket{} = Socket) ->
   Socket.
 
-encode_frame(_, _, _) -> ok.
+encode_frame(#video_frame{} = Frame, #rtsp_socket{rtp_streams = Streams, socket = Sock} = Socket, Num) ->
+  RTP = element(Num, Streams),
+  {RTP1, [Packets]} = rtp_encoder:encode(Frame, RTP),
+  RTPData = [packet_codec:encode({rtp, (Num-1)*2, Packet}) || Packet <- Packets],
+  gen_tcp:send(Sock, RTPData),
+  Socket#rtsp_socket{rtp_streams = setelement(Num, Streams, RTP1)}.
 
 
 

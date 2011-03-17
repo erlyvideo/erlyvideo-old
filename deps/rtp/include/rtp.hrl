@@ -13,7 +13,7 @@
 -define(SDES_PRIV, 8).
 
 
--record(base_rtp, {
+-record(base_rtp1, {
   media,
   clock_map,
   base_timecode = undefined,
@@ -37,11 +37,12 @@
   sequence = undefined,
   wall_clock = undefined,
   timecode = undefined,
+  stream_id,
+  payload_type,
   timescale,
   codec,
   buffer,
   stream_info,
-  marker = false,
   last_sr  % NTP Time then last sender report was received
 }).
 
