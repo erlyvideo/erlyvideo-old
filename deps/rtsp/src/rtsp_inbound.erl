@@ -105,7 +105,7 @@ sync_rtp(#rtsp_socket{rtp_streams = RtpStreams, control_map = ControlMap, url = 
     undefined ->
       Socket;
     Info ->
-      ?D(RtpStreams),
+      % ?D(RtpStreams),
       {ok, Re} = re:compile("([^=]+)=(.*)"),
       F = fun(S) ->
         {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
