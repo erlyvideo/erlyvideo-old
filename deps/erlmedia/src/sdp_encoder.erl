@@ -24,7 +24,7 @@
 -module(sdp_encoder).
 -author('Maxim Treskin <zerthud@gmail.com>').
 
--export([encode/1]).
+-export([encode/1, payload_type/1]).
 %, prep_media_config/2]).
 
 -include("../include/sdp.hrl").
@@ -39,8 +39,13 @@
 -define(LSEP, <<$\r,$\n>>).
 
 payload_type(h264) -> 96;
+payload_type(h263) -> 98;
 payload_type(aac) -> 97;
-payload_type(pcma) -> 8.
+payload_type(pcma) -> 8;
+payload_type(pcmu) -> 0;
+payload_type(g726_16) -> 99;
+payload_type(speex) -> 100.
+
 
 additional_codec_params(#stream_info{content = audio, params = #audio_params{channels = Channels}}) ->
   "/"++integer_to_list(Channels);
@@ -60,7 +65,7 @@ encode(#stream_info{content = Content, codec = Codec, stream_id = Id, options = 
   SDP = [
     io_lib:format("m=~s ~p RTP/AVP ~p", [Content, proplists:get_value(port, Options, 0), payload_type(Codec)]), ?LSEP,
     io_lib:format("a=control:trackID=~p", [Id]), ?LSEP,
-    io_lib:format("a=rtpmap:~p ~s/~p", [payload_type(Codec), codec_to_sdp(Codec), round(Timescale*1000)]), additional_codec_params(Stream), ?LSEP,
+    io_lib:format("a=rtpmap:~p ~s/~p", [payload_type(Codec), sdp:codec_to_sdp(Codec), round(Timescale*1000)]), additional_codec_params(Stream), ?LSEP,
     FMTP
   ],
   iolist_to_binary(SDP);
@@ -103,35 +108,6 @@ encode_attrs(Attrs) ->
   end, Attrs).
 
 
-codec_to_sdp(Codec) -> 
-  case lists:keyfind(Codec, 1, sdp_codecs()) of
-    false -> undefined;
-    {Codec, SDP} -> SDP
-  end.
-
-
-
-sdp_to_codec(SDP) -> 
-  case lists:keyfind(SDP, 2, sdp_codecs()) of
-    false -> undefined;
-    {Codec, SDP} -> Codec
-  end.
-
-sdp_codecs() ->
-  [
-  {h264, "H264"},
-  {aac, "mpeg4-generic"},
-  {pcma, "PCMA"},
-  {pcmu, "PCMU"},
-  {g726_16, "G726-16"},
-  {mpa, "MPA"},
-  {mp4a, "MP4A-LATM"},
-  {mp4v, "MP4V-ES"},
-  {mp3, "mpa-robust"},
-  {pcm, "L16"},
-  {speex, "speex"}
-  ].
-  
 
 
 % 
