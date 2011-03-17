@@ -132,7 +132,7 @@ handle_announce_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
       rtsp_socket:reply(Socket1, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end.
 
-handle_receive_setup(#rtsp_socket{} = Socket, URL, Headers, Body) ->
+handle_receive_setup(#rtsp_socket{} = Socket, URL, Headers, _Body) ->
   {match, [Control]} = re:run(URL, "/([^/]+)$", [{capture, all_but_first, list}]),
   StreamNum = proplists:get_value(Control, Socket#rtsp_socket.control_map),
   StreamInfo = element(StreamNum, Socket#rtsp_socket.rtp_streams),
@@ -176,10 +176,9 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
       RtpNum = (Channel - 1) div 2 + 1,
       RtpState = element(RtpNum, Streams),
       RtpState1 = rtp_decoder:rtcp(Packet, RtpState),
-      RtpState2 = RtpState1,
-      % {RtpState2, RtcpData} = rtp_rtsp:encode(receiver_report, RtpState1),
-      % RTCP_RR = packet_codec:encode({rtcp, RTPNum, RtcpData}),
-      % gen_tcp:send(Sock, RTCP_RR),
+      {RtpState2, RtcpData} = rtp_decoder:rtcp_rr(RtpState1),
+      RTCP_RR = packet_codec:encode({rtcp, RtpNum, RtcpData}),
+      gen_tcp:send(Sock, RTCP_RR),
       {setelement(RtpNum, Streams, RtpState2), []}
   end,
   reorder_frames(Socket#rtsp_socket{rtp_streams = Streams1, frames = Frames ++ NewFrames}).
@@ -202,6 +201,7 @@ reorder_frames(#rtsp_socket{frames = Frames, media = Consumer, sent_audio_config
   Socket#rtsp_socket{frames = NewFrames, sent_audio_config = true}.
 
 frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
+
 
 
 %%

@@ -32,7 +32,7 @@
 -include("log.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([init/1, decode/2, sync/2, rtcp_sr/1, rtcp/2, config_frame/1]).
+-export([init/1, decode/2, sync/2, rtcp_rr/1, rtcp_sr/1, rtcp/2, config_frame/1]).
 
 init(#stream_info{codec = Codec, timescale = Scale} = Stream) ->
   #rtp_state{codec = Codec, stream_info = Stream, timescale = Scale}.
@@ -124,7 +124,22 @@ rtcp(<<_, ?RTCP_SR, _/binary>>, #rtp_state{timecode = TC} = RTP) when TC =/= und
 rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{} = RTP) ->
   {NTP, Timecode} = rtcp_sr(SR),
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  RTP#rtp_state{wall_clock = WallClock, timecode = Timecode}.
+  RTP#rtp_state{wall_clock = WallClock, timecode = Timecode, last_sr = NTP}.
+
+
+rtcp_rr(#rtp_state{stream_info = #stream_info{stream_id = StreamId}, sequence = Seq, last_sr = LSR} = RTP) ->
+  Count = 0,
+  Length = 16,
+  FractionLost = 0,
+  LostPackets = 0,
+  MaxSeq = case Seq of
+    undefined -> 0;
+    MS -> MS
+  end,
+  Jitter = 0,
+  DLSR = 0,
+  {RTP, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.
+
 
 
 %%%%%%%%%  Tests %%%%%%%%%

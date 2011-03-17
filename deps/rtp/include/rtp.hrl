@@ -41,6 +41,7 @@
   codec,
   buffer,
   stream_info,
-  marker = false
+  marker = false,
+  last_sr   % NTP Time then last sender report was received
 }).
 
