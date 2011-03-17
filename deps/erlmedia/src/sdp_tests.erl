@@ -356,6 +356,75 @@ a=fmtp:111 Mac=08007b88d4ec; Model=VCC-HD2300P; TargetBitRate=975; FirmVer=01020
                  undefined}], sdp:decode(sanyo_hd2300_sdp())).
     
 
+linphone_sdp() ->
+<<"v=0\r
+o=zert 123456 654321 IN IP4 192.168.1.2\r
+s=A conversation\r
+c=IN IP4 192.168.1.2\r
+t=0 0\r
+m=audio 7078 RTP/AVP 111 110 0 8\r
+a=rtpmap:111 speex/16000/1\r
+a=fmtp:111 vbr=on\r
+a=rtpmap:110 speex/8000/1\r
+a=fmtp:110 vbr=on\r
+a=rtpmap:0 PCMU/8000/1\r
+a=rtpmap:8 PCMA/8000/1\r
+m=video 9078 RTP/AVP 0\r
+a=rtpmap:0 H263/90000\r
+">>.
+
+linphone_mediainfo() ->
+  #media_info{
+    flow_type = stream,
+    audio = [
+      #stream_info{
+        content = audio,
+        codec = speex,
+        stream_id = 111,
+        params = #audio_params{channels = 1, sample_rate = 16000},
+        timescale = 16.0,
+        options = [{port, 7078},{vbr,true}]
+      },
+      #stream_info{
+        content = audio,
+        codec = speex,
+        stream_id = 110,
+        params = #audio_params{channels = 1, sample_rate = 8000},
+        timescale = 8.0,
+        options = [{port, 7078},{vbr,true}]
+      },
+      #stream_info{
+        content = audio,
+        codec = pcmu,
+        stream_id = 0,
+        params = #audio_params{channels = 1, sample_rate = 8000},
+        timescale = 8.0,
+        options = [{port, 7078}]
+      },
+      #stream_info{
+        content = audio,
+        codec = pcma,
+        stream_id = 8,
+        params = #audio_params{channels = 1, sample_rate = 8000},
+        timescale = 8.0,
+        options = [{port, 7078}]
+      }
+    ],
+    video = [
+      #stream_info{
+        content = video,
+        codec = h263,
+        stream_id = 0,
+        params = #video_params{},
+        timescale = 90.0,
+        options = [{port, 9078}]
+      }
+    ]
+  }.
+
+linphone_decode_test() ->
+  ?assertMatch(a,b).
+
 
 some_random_sdp() ->
   <<"v=0
