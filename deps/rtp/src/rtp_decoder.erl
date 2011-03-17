@@ -32,6 +32,13 @@
 -include("log.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-record(h264_buffer, {
+  time,
+  h264,
+  buffer,
+  flavor
+}).
+
 -export([init/1, decode/2, sync/2, rtcp_rr/1, rtcp_sr/1, rtcp/2, config_frame/1]).
 
 init(#stream_info{codec = Codec, timescale = Scale} = Stream) ->
@@ -65,8 +72,10 @@ decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Ti
 decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_state{codec = aac} = RTP, Timecode) ->
   decode_aac(AudioData, AUHeaders, RTP, Timecode, []);
   
-decode(Body, #rtp_state{codec = h264} = RTP, Timecode) ->
-  decode_h264(Body, RTP, Timecode);
+decode(Body, #rtp_state{codec = h264, buffer = Buffer} = RTP, Timecode) ->
+  DTS = timecode_to_dts(RTP, Timecode),
+  {ok, Buffer1, Frames} = decode_h264(Body, Buffer, DTS),
+  {ok, RTP#rtp_state{buffer = Buffer1}, Frames};
 
 decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Content} = Info} = RTP, Timecode) ->
   DTS = timecode_to_dts(RTP, Timecode),
@@ -81,16 +90,40 @@ decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Cont
   },
   {ok, RTP, [Frame]}.
   
-  
 
-decode_h264(_Body, #rtp_state{buffer = undefined} = RTP, _Timecode) -> 
-  {ok, RTP#rtp_state{buffer = h264:init()}, []}; % Here we are entering sync-wait state which will last till current FUA frame is over
-  
-decode_h264(Body, #rtp_state{buffer = H264} = RTP, Timecode) ->
+decode_h264(Body, undefined, DTS) ->
+  decode_h264(Body, #h264_buffer{}, DTS);
+
+decode_h264(_Body, #h264_buffer{time = undefined} = RTP, DTS) ->
+  {ok, RTP#h264_buffer{time = DTS}, []}; % Here we are entering sync-wait state which will last till current inteleaved frame is over
+
+decode_h264(_Body, #h264_buffer{time = OldDTS, h264 = undefined} = RTP, DTS) when OldDTS =/= DTS ->
+  {ok, RTP#h264_buffer{time = DTS, h264 = h264:init(), buffer = <<>>}, []};
+
+decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
-  DTS = timecode_to_dts(RTP, Timecode),
-  Frames1 = [F#video_frame{dts = DTS, pts = DTS} || F <- Frames],
-  {ok, RTP#rtp_state{buffer = H264_1}, Frames1}.
+  Buf1 = lists:foldl(fun(#video_frame{body = AVC}, Buf) -> <<Buf/binary, AVC/binary>> end, Buffer, Frames),
+  Flavor1 = case Frames of
+    [#video_frame{flavor = Fl}|_] -> Fl;
+    [] -> Flavor
+  end,
+  {ok, RTP#h264_buffer{h264 = H264_1, buffer = Buf1, flavor = Flavor1}, []};
+  
+decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) when OldDTS < DTS ->
+  OldH264#h264.buffer == <<>> orelse erlang:error({non_decoded_h264_left, OldH264}),
+
+  Frame = #video_frame{
+    content = video,
+    codec = h264,
+    body = Buffer,
+    flavor = Flavor,
+    dts = DTS, 
+    pts = DTS
+  },
+
+  {ok, RTP1, []} = decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), time = DTS, buffer = <<>>}, DTS),
+  {ok, RTP1, [Frame]}.
+
 
 decode_aac(<<>>, <<>>, RTP, _, Frames) ->
   {ok, RTP, lists:reverse(Frames)};
