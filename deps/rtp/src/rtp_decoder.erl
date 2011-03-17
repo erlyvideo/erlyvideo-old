@@ -34,16 +34,6 @@
 
 -export([init/1, decode/2, sync/2, rtcp_sr/1, rtcp/2, config_frame/1]).
 
--record(rtp_state, {
-  sequence = undefined,
-  wall_clock = undefined,
-  timecode = undefined,
-  timescale,
-  codec,
-  buffer,
-  stream_info
-}).
-
 init(#stream_info{codec = Codec, timescale = Scale} = Stream) ->
   #rtp_state{codec = Codec, stream_info = Stream, timescale = Scale}.
 
@@ -76,7 +66,21 @@ decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_sta
   decode_aac(AudioData, AUHeaders, RTP, Timecode, []);
   
 decode(Body, #rtp_state{codec = h264} = RTP, Timecode) ->
-  decode_h264(Body, RTP, Timecode).
+  decode_h264(Body, RTP, Timecode);
+
+decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Content} = Info} = RTP, Timecode) ->
+  DTS = timecode_to_dts(RTP, Timecode),
+  Frame = #video_frame{
+    content = Content,
+    dts     = DTS,
+    pts     = DTS,
+    body    = Body,
+	  codec	  = Codec,
+	  flavor  = frame,
+	  sound	  = video_frame:frame_sound(Info)
+  },
+  {ok, RTP, [Frame]}.
+  
   
 
 decode_h264(_Body, #rtp_state{buffer = undefined} = RTP, _Timecode) -> 

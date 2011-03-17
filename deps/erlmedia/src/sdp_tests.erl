@@ -423,6 +423,7 @@ t=0 0\r
 a=tool:LIVE555 Streaming Media v2008.04.09\r
 a=type:broadcast\r
 a=control:*\r
+a=recvonly\r
 a=range:npt=0-\r
 m=video 0 RTP/AVP 96\r
 a=control:trackID=1\r
@@ -448,6 +449,7 @@ encoder_test() ->
                          {tool, "LIVE555 Streaming Media v2008.04.09"},
                          {type, "broadcast"},
                          {control, "*"},
+                         recvonly,
                          {range, "npt=0-"}
                         ]},
   Media = #media_info{audio = [aac_stream_info()], video = [h264_stream_info()], options = [{sdp_session, Session}]},

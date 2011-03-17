@@ -5,7 +5,7 @@
             ertp,
             ertp_sup,
             rtp_decoder,
-            rtp_server
+            rtp_encoder
             ]},
  {registered,[]},
  {applications, [kernel,stdlib]},

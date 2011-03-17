@@ -92,8 +92,16 @@ encode_sdp_session(#sdp_session{
     io_lib:format("s=~s", [SessName]), ?LSEP,
     io_lib:format("c=~s ~s", [net(ConnectNet), ConnectAddr]), ?LSEP,
     "t=0 0", ?LSEP,
-    [io_lib:format("a=~s:~s\r\n", [K,V]) || {K,V} <- Attrs]
+    encode_attrs(Attrs)
   ].
+
+
+encode_attrs(Attrs) ->
+  lists:map(fun
+    ({K, V}) -> io_lib:format("a=~s:~s\r\n", [K,V]);
+    (K) when is_atom(K) -> io_lib:format("a=~s\r\n", [K])
+  end, Attrs).
+
 
 codec_to_sdp(Codec) -> 
   case lists:keyfind(Codec, 1, sdp_codecs()) of
