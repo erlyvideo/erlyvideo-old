@@ -100,23 +100,28 @@ handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq 
 
 
 
-
-sync_rtp(#rtsp_socket{rtp_streams = Streams} = Socket, RtpHeaders) ->
+sync_rtp(#rtsp_socket{rtp_streams = RtpStreams, control_map = ControlMap, url = URL} = Socket, RtpHeaders) ->
   case proplists:get_value(<<"Rtp-Info">>, RtpHeaders) of
     undefined ->
       Socket;
     Info ->
+      ?D(RtpStreams),
       {ok, Re} = re:compile("([^=]+)=(.*)"),
       F = fun(S) ->
         {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
         {K, V}
       end,
       RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
-      % ?D({"Rtp", RtpInfo}),
-      Streams1 = lists:zipwith(fun(Stream, Headers) ->
-        rtp_decoder:sync(Stream, Headers)
-      end, tuple_to_list(Streams), RtpInfo),
-      Socket#rtsp_socket{rtp_streams = list_to_tuple(Streams1)}
+
+      Streams1 = lists:foldl(fun(Headers, Streams) ->
+        case extract_control(proplists:get_value("url", Headers), URL, ControlMap) of
+          undefined -> ?D({unsynced, Headers}), Streams;
+          StreamNum ->
+            Stream = rtp_decoder:sync(element(StreamNum, Streams), Headers),
+            setelement(StreamNum, Streams, Stream)
+        end
+      end, RtpStreams, RtpInfo),
+      Socket#rtsp_socket{rtp_streams = Streams1}
   end.
 
 
@@ -204,6 +209,17 @@ frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 
 
 
+extract_control(ControlUrl, URL, ControlMap) ->
+  case proplists:get_value(ControlUrl, ControlMap) of
+    undefined ->
+      {_Proto, _Auth, _Addr, _Port, Path1, _Query1} = http_uri2:parse(ControlUrl),
+      {_Proto, _Auth, _Addr, _Port, Path2, _Query2} = http_uri2:parse(URL),
+      Control = string:sub_string(Path1, length(string:strip(Path2, right, $/)) + 2),
+      proplists:get_value(Control, ControlMap);
+    Else ->
+      Else
+  end.  
+
 %%
 %% Tests
 %%
@@ -217,7 +233,17 @@ append_trackid_test_() ->
    ?_assertEqual("rtsp://cam1:554/h264.sdp/track1?res=half&x0=0", append_trackid("rtsp://cam1:554/h264.sdp?res=half&x0=0", "rtsp://cam1:554/h264.sdp/track1?res=half&x0=0"))
   ].
 
-
+extract_control_test_() ->
+  [
+    ?_assertEqual(1, extract_control("track1", "rtsp://95.34.123.4:554/h264", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("track1", "rtsp://95.34.123.4/h264", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4:554/h264", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4:554/h264/", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4/h264/track1", "rtsp://95.34.123.4:554/h264", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4/h264/track1", "rtsp://95.34.123.4:554/h264/", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4/h264", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4/h264/", [{"track1",1}]))
+  ].
 
 
 
