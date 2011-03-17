@@ -24,7 +24,7 @@
 -module(sdp).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--export([
+-export([sdp_codecs/0, sdp_to_codec/1, codec_to_sdp/1,
          decode/1,
          encode/2, encode/1
         ]).
@@ -49,6 +49,37 @@
 %% in incoming headers. Returns list of preconfigured, but unsynced rtsp streams
 %% @end
 %%----------------------------------------------------------------------
+
+codec_to_sdp(Codec) -> 
+  case lists:keyfind(Codec, 1, sdp_codecs()) of
+    false -> undefined;
+    {Codec, SDP} -> SDP
+  end.
+
+
+
+sdp_to_codec(SDP) -> 
+  case lists:keyfind(string:to_lower(SDP), 2, [{K,string:to_lower(V)} || {K,V} <- sdp_codecs()]) of
+    false -> undefined;
+    {Codec, _SDP} -> Codec
+  end.
+
+sdp_codecs() ->
+  [
+  {h264, "H264"},
+  {h263, "H263"},
+  {aac, "mpeg4-generic"},
+  {pcma, "PCMA"},
+  {pcmu, "PCMU"},
+  {g726_16, "G726-16"},
+  {mpa, "MPA"},
+  {mp4a, "MP4A-LATM"},
+  {mp4v, "MP4V-ES"},
+  {mp3, "mpa-robust"},
+  {pcm, "L16"},
+  {speex, "speex"}
+  ].
+  
 
 decode(Announce) when is_binary(Announce) ->
   Lines = string:tokens(binary_to_list(Announce), "\r\n"),
@@ -129,19 +160,7 @@ parse_announce([{m, [Type |_ ]} | Announce], MediaInfo, undefined) when Type == 
 parse_announce([{a, {"rtpmap", Value}} | Announce], MediaInfo, #stream_info{params = Params} = Stream) ->
   [_PayLoadNum, CodecInfo] = string:tokens(Value, " "),
   [CodecCode, ClockMap | EncodingParams] = string:tokens(CodecInfo, "/"),
-  Codec = case string:to_lower(CodecCode) of
-    "h264" -> h264;
-    "h263" -> h263;
-    "mpeg4-generic" -> aac;
-    "mpa-robust" -> mp3;
-    "mp4a-latm" -> mp4a;
-    "mp4v-es" -> mp4v;
-    "pcma" -> pcma;
-    "pcmu" -> pcmu;
-    "g726-16" -> g726_16;
-    "l16" -> pcm;
-    "speex" -> speex
-  end,
+  Codec = sdp_to_codec(CodecCode),
   Params1 = case {Codec, EncodingParams} of
     {pcma, ["1"]} -> #audio_params{sample_rate = list_to_integer(ClockMap), channels = 1};
     {pcmu, ["1"]} -> #audio_params{sample_rate = list_to_integer(ClockMap), channels = 1};
