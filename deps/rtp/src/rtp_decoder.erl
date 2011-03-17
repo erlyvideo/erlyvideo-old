@@ -100,6 +100,9 @@ decode_h264(_Body, #h264_buffer{time = undefined} = RTP, DTS) ->
 decode_h264(_Body, #h264_buffer{time = OldDTS, h264 = undefined} = RTP, DTS) when OldDTS =/= DTS ->
   {ok, RTP#h264_buffer{time = DTS, h264 = h264:init(), buffer = <<>>}, []};
 
+decode_h264(_Body, #h264_buffer{time = DTS, h264 = undefined} = RTP, DTS) ->
+  {ok, RTP, []};
+
 decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
   Buf1 = lists:foldl(fun(#video_frame{body = AVC}, Buf) -> <<Buf/binary, AVC/binary>> end, Buffer, Frames),
