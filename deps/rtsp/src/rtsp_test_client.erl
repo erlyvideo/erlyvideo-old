@@ -65,7 +65,7 @@ inc_seq() ->
   put(seq, get(seq) + 1).
 
 capture_camera_describe() ->
-  {ok, Headers, Body} = send_and_receive("DESCRIBE ~s RTSP/1.0\r\nCseq: ~p\r\n~s\r\n", [get(url), get(seq), get(auth)]),
+  {ok, Headers, Body} = send_and_receive("DESCRIBE", "~s RTSP/1.0\r\nCseq: ~p\r\n~s\r\n", [get(url), get(seq), get(auth)]),
   SDP = string:tokens(binary_to_list(Body), "\r\n"),
   StreamDesc = lists:dropwhile(fun
     ("m="++_) -> false;
@@ -89,31 +89,31 @@ capture_camera_setup(Control) ->
     undefined -> "";
     Else -> "Session: "++Else++"\r\n"
   end,
-  {ok, Headers, _Body} = send_and_receive("SETUP ~s RTSP/1.0\r\nCseq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved-~p-~p\r\n~s~s\r\n", 
+  {ok, Headers, _Body} = send_and_receive("SETUP", "~s RTSP/1.0\r\nCseq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved-~p-~p\r\n~s~s\r\n", 
                         [Control, get(seq), Chan, Chan+1, get(auth), Session]),
   put(interleave, Chan + 2),
   ok.
 
 capture_camera_play() ->
-  {ok, Headers, Body} = send_and_receive("PLAY ~s RTSP/1.0\r\nCseq: ~p\r\nSession: ~s\r\n~s\r\n", [get(url), get(seq), get(session), get(auth)]),
+  {ok, Headers, Body} = send_and_receive("PLAY", "~s RTSP/1.0\r\nCseq: ~p\r\nSession: ~s\r\n~s\r\n", [get(url), get(seq), get(session), get(auth)]),
   ok.
 
 
-send_and_receive(Format, Args) ->
-  Out = io_lib:format(Format, Args),
-  capture(out, Out),
+send_and_receive(Method, Format, Args) ->
+  Out = io_lib:format(Method ++ " " ++ Format, Args),
+  capture(out, Out, Method),
   gen_tcp:send(get(socket), Out),
   {ok, Headers, Body, Raw} = read_reply(),
   case proplists:get_value("Session", Headers) of
     undefined -> ok;
     Else -> put(session, Else)
   end,
-  capture(in, Raw),
+  capture(in, Raw, Method),
   inc_seq(),
   {ok, Headers, Body}.
   
-capture(Direction, Data) ->
-  Filename = lists:flatten(io_lib:format("~s/~p-~p.txt", [get(capture_dir), get(seq), Direction])),
+capture(Direction, Data, Method) ->
+  Filename = lists:flatten(io_lib:format("~s/~p-~p-~s.txt", [get(capture_dir), get(seq), Direction, Method])),
   Data1 = re:replace(Data, get(url), "{{URL}}", [{return,binary},global]),
   filelib:ensure_dir(Filename),
   case Direction of
@@ -177,26 +177,27 @@ simulate_camera(Name, Port) ->
   ?D({accepting,Name,Port}),
   {ok, Socket} = gen_tcp:accept(Listen),
   put(socket, Socket),
-  wait_for_describe().
+  speak_to_camera_client().
 
-wait_for_describe() ->
-  read_and_send_request(1, in, "DESCRIBE"),
-  read_and_send_request(2, in, "SETUP"),
-  % read_and_send_request(3, in, "SETUP"),
-  read_and_send_request(3, in, "PLAY"),
-  send_interleaved_reply(4).
+speak_to_camera_client() ->
+  case read_and_send_request() of
+    "PLAY" -> send_interleaved_reply(4);
+    "TEARDOWN" -> ok;
+    _ -> speak_to_camera_client()
+  end.
   
   
-read_and_send_request(Seq, Direction, Method) ->
-  ?D({wait_for, Seq, Method}),
+  
+read_and_send_request() ->
   {ok, Method, URL, Headers, Body, Raw} = read_request(),
-  Reply = load_capture(1, in, URL),
+  Seq = list_to_integer(proplists:get_value("Cseq", Headers)),
+  Reply = load_capture(Seq, Method, in, URL),
 
   io:format("<<<<<<<<<<   IN <<<<<<<<<\r\n~s", [Raw]),
   io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n~s", [Reply]),
 
   gen_tcp:send(get(socket), Reply),
-  ok.
+  Method.
   
 send_interleaved_reply(Seq) ->
   Filename = lists:flatten(io_lib:format("~s/~p-interleaved-in.txt", [get(capture_dir), Seq])),
@@ -210,8 +211,9 @@ send_interleaved_reply(<<Data:1540/binary, Bin/binary>>, Socket) ->
 send_interleaved_reply(Bin, Socket) ->
   gen_tcp:send(Socket, Bin).
 
-load_capture(Num, Direction, URL) ->
-  Filename = lists:flatten(io_lib:format("~s/~p-~p.txt", [get(capture_dir), Num, Direction])),
+load_capture(Num, Method, Direction, URL) ->
+  Filename = lists:flatten(io_lib:format("~s/~p-~p-~s.txt", [get(capture_dir), Num, Direction, Method])),
+  ?D({request,Method,Num, URL, Filename}),
   {ok, Data} = file:read_file(Filename),
   re:replace(Data, "{{URL}}", URL, [{return,binary},global]).
   
