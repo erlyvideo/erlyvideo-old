@@ -24,6 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../../include/ems_media.hrl").
 -include("../log.hrl").
 
@@ -140,7 +141,7 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
         {ok, Reader} ->  
           erlang:monitor(process,Reader),
           ems_media:set_source(self(), Reader),
-          {noreply, Media#ems_media{retry_count = 0}};
+          {noreply, ems_media:set_media_info(Media#ems_media{retry_count = 0}, #media_info{flow_type = stream, audio = wait, video = wait})};
         {error, _Error} ->
           Timer = ?TIMEOUT_RESTART,
           ?D({failed_open_mpegts, URL, Timer}),

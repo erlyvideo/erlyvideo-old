@@ -3,6 +3,7 @@
 -record(ems_media, {
   url,
   name,
+  media_info,
   host,
   module,
   state,

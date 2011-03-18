@@ -55,7 +55,8 @@ init(State, Options) ->
     {error, Reason} ->
       {stop, Reason};
     {Format, Storage} ->
-      {ok, State#ems_media{format = Format, storage = Storage, source_timeout = false, clients_timeout = ClientsTimeout}}
+      State1 = State#ems_media{format = Format, storage = Storage, source_timeout = false, clients_timeout = ClientsTimeout},
+      {ok, ems_media:set_media_info(State1, Format:media_info(Storage))}
   end.
   
 

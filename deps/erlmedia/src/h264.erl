@@ -33,7 +33,7 @@
 -export([decode_nal/2, video_config/1, decoder_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([parse_sps/1, to_fmtp/1, init/0]).
--export([type/1]).
+-export([type/1, fua_split/2]).
 
 
 video_config(H264) ->
@@ -415,6 +415,24 @@ exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
   <<ReadBits:LeadingZeros, Rest/bitstring>> = Data,
   CodeNum = (1 bsl LeadingZeros) -1 + ReadBits,
   {CodeNum, Rest}.
+
+
+
+fua_split(<<0:1, NRI:2, Type:5, _/binary>> = Bin, Size) -> fua_split(Bin, Size, NRI, Type, []).
+
+%  Start:1, End:1, R:1, Type:1,
+
+fua_split(Bin, Size, NRI, Type, Acc) ->
+  case Bin of
+    <<Part:Size/binary, Rest/binary>> when Acc == [] ->
+      fua_split(Rest, Size, NRI, Type, [<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 0:1, 0:1, Type:5, Part/binary>>|Acc]);
+    <<Part:Size/binary, Rest/binary>> ->
+      fua_split(Rest, Size, NRI, Type, [<<0:1, NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, Type:5, Part/binary>>|Acc]);
+    _ when size(Bin) =< Size ->
+      lists:reverse([<<0:1, NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, Type:5, Bin/binary>>|Acc])
+  end.
+    
+  
 
 %% http://www.rfc-editor.org/rfc/rfc3984.txt
 to_fmtp(Body) ->

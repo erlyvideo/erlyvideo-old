@@ -21,8 +21,8 @@
 %   attrs          = []   :: [sdp_attr()]
 % }).
 
--record(session_desc, {
-  version = <<"0">>,
+-record(sdp_session, {
+  version = 0,
   originator,
   name,
   connect,

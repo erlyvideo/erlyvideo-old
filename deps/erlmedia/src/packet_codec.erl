@@ -48,7 +48,7 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
     {ok, Line, Rest} ->
       {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
       {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
-      {ok, {rtsp_response, list_to_integer(binary_to_list(Code)), Message}, Rest};
+      {ok, {rtsp_response, erlang:list_to_integer(binary_to_list(Code)), Message}, Rest};
     _ ->
       {more, ready, Data}
   end;
@@ -58,7 +58,7 @@ parse(ready, <<"SIP/2.0 ", Response/binary>> = Data) ->
     {ok, Line, Rest} ->
       {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
       {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
-      {ok, {sip_response, list_to_integer(binary_to_list(Code)), Message}, Rest};
+      {ok, {sip_response, erlang:list_to_integer(binary_to_list(Code)), Message}, Rest};
     _ ->
       {more, ready, Data}
   end;
@@ -192,7 +192,7 @@ parse_transport_header(Header) ->
     ("mode=receive", Opts) -> [{mode, 'receive'}|Opts];
     ("mode=\"PLAY\"", Opts) -> [{mode, play}|Opts];
     ("unicast", Opts) -> [{unicast, true}|Opts];
-    ("ssrc="++SSRC, Opts) -> [{ssrc, list_to_integer(SSRC, 16)}|Opts];
+    ("ssrc="++SSRC, Opts) -> [{ssrc, erlang:list_to_integer(SSRC, 16)}|Opts];
     (_Else, Opts) -> Opts
   end, [], string:tokens(binary_to_list(Header), ";")),
   lists:reverse(Fields).
@@ -219,7 +219,7 @@ encode_transport_header([{proto,udp}|H], Acc) -> encode_transport_header(H, ["RT
 encode_transport_header([{mode,'receive'}|H], Acc) -> encode_transport_header(H, ["mode=receive"|Acc]);
 encode_transport_header([{mode,'play'}|H], Acc) -> encode_transport_header(H, ["mode=play"|Acc]);
 encode_transport_header([{unicast,true}|H], Acc) -> encode_transport_header(H, ["unicast"|Acc]);
-encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++integer_to_list(SSRC, 16)|Acc]);
+encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++erlang:integer_to_list(SSRC, 16)|Acc]);
 encode_transport_header([{interleaved,{Chan0,Chan1}}|H], Acc) -> encode_transport_header(H, ["interleaved="++integer_to_list(Chan0)++"-"++integer_to_list(Chan1)|Acc]).
 
 binarize_header({'Transport', TransportHeader}) ->

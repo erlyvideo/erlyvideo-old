@@ -26,7 +26,7 @@
 -include("log.hrl").
 -include("../include/aac.hrl").
 
--export([decode_config/1, encode_config/1, unpack_adts/1, pack_adts/2, adts_to_config/1]).
+-export([decode_config/1, encode_config/1, unpack_adts/1, pack_adts/2, adts_to_config/1, to_fmtp/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary(), Config::aac_config()) -> ADTS::binary()
@@ -219,7 +219,12 @@ encode_channels(flcr_blr_lfe) -> 6;
 encode_channels(flcr_slr_blr_lfe) -> 7.
 
 
+to_fmtp(#aac_config{} = Config) ->
+  to_fmtp(encode_config(Config));
 
+to_fmtp(<<B1, B2>>) ->
+  io_lib:format("profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=~2.16.0B~2.16.0B", [B1, B2]).
+  
 
 %%
 %% Tests
