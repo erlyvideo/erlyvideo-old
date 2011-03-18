@@ -65,7 +65,7 @@ inc_seq() ->
   put(seq, get(seq) + 1).
 
 capture_camera_describe() ->
-  {ok, Headers, Body} = send_and_receive("DESCRIBE", "~s RTSP/1.0\r\nCseq: ~p\r\n~s\r\n", [get(url), get(seq), get(auth)]),
+  {ok, Headers, Body} = send_and_receive("DESCRIBE", "~s RTSP/1.0\r\nCSeq: ~p\r\n~s\r\n", [get(url), get(seq), get(auth)]),
   SDP = string:tokens(binary_to_list(Body), "\r\n"),
   StreamDesc = lists:dropwhile(fun
     ("m="++_) -> false;
@@ -89,13 +89,13 @@ capture_camera_setup(Control) ->
     undefined -> "";
     Else -> "Session: "++Else++"\r\n"
   end,
-  {ok, Headers, _Body} = send_and_receive("SETUP", "~s RTSP/1.0\r\nCseq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved-~p-~p\r\n~s~s\r\n", 
+  {ok, Headers, _Body} = send_and_receive("SETUP", "~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved-~p-~p\r\n~s~s\r\n", 
                         [Control, get(seq), Chan, Chan+1, get(auth), Session]),
   put(interleave, Chan + 2),
   ok.
 
 capture_camera_play() ->
-  {ok, Headers, Body} = send_and_receive("PLAY", "~s RTSP/1.0\r\nCseq: ~p\r\nSession: ~s\r\n~s\r\n", [get(url), get(seq), get(session), get(auth)]),
+  {ok, Headers, Body} = send_and_receive("PLAY", "~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n~s\r\n", [get(url), get(seq), get(session), get(auth)]),
   ok.
 
 
