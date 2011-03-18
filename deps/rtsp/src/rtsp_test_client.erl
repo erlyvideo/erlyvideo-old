@@ -183,8 +183,8 @@ simulate_camera(Name, Port) ->
 
 speak_to_camera_client() ->
   case read_and_send_request() of
-    "PLAY" -> send_interleaved_reply(4);
-    "TEARDOWN" -> ok;
+    {ok, "PLAY", _Url, Headers} -> send_interleaved_reply(list_to_integer(proplists:get_value("Cseq", Headers))+1);
+    {ok, "TEARDOWN", _Url, _Headers} -> ok;
     _ -> speak_to_camera_client()
   end.
   
@@ -199,7 +199,7 @@ read_and_send_request() ->
   io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n~s", [Reply]),
 
   gen_tcp:send(get(socket), Reply),
-  Method.
+  {ok, Method, URL, Headers}.
   
 send_interleaved_reply(Seq) ->
   Filename = lists:flatten(io_lib:format("~s/~p-interleaved-in.txt", [get(capture_dir), Seq])),
