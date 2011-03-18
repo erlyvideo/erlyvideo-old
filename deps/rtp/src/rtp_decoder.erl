@@ -75,6 +75,7 @@ decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_sta
 decode(Body, #rtp_state{codec = h264, buffer = Buffer} = RTP, Timecode) ->
   DTS = timecode_to_dts(RTP, Timecode),
   {ok, Buffer1, Frames} = decode_h264(Body, Buffer, DTS),
+  % ?D({decode,h264,Timecode,DTS, length(Frames), size(Body), size(Buffer1#h264_buffer.buffer)}),
   {ok, RTP#rtp_state{buffer = Buffer1}, Frames};
 
 decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Content} = Info} = RTP, Timecode) ->
@@ -92,39 +93,52 @@ decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Cont
   
 
 decode_h264(Body, undefined, DTS) ->
-  decode_h264(Body, #h264_buffer{}, DTS);
+%   decode_h264(Body, #h264_buffer{}, DTS);
+% 
+% decode_h264(_Body, #h264_buffer{time = undefined} = RTP, DTS) ->
+  % {ok, RTP#h264_buffer{time = DTS}, []}; % Here we are entering sync-wait state which will last till current inteleaved frame is over
+  % ?D(init_h264_buffer),
+  decode_h264(Body, #h264_buffer{h264 = h264:init(), time = DTS, buffer = <<>>}, DTS);
 
-decode_h264(_Body, #h264_buffer{time = undefined} = RTP, DTS) ->
-  {ok, RTP#h264_buffer{time = DTS}, []}; % Here we are entering sync-wait state which will last till current inteleaved frame is over
-
-decode_h264(_Body, #h264_buffer{time = OldDTS, h264 = undefined} = RTP, DTS) when OldDTS =/= DTS ->
-  {ok, RTP#h264_buffer{time = DTS, h264 = h264:init(), buffer = <<>>}, []};
-
-decode_h264(_Body, #h264_buffer{time = DTS, h264 = undefined} = RTP, DTS) ->
-  {ok, RTP, []};
+% decode_h264(_Body, #h264_buffer{time = OldDTS, h264 = undefined} = RTP, DTS) when OldDTS =/= DTS ->
+%   {ok, RTP#h264_buffer{time = DTS, h264 = h264:init(), buffer = <<>>}, []};
+% 
+% decode_h264(_Body, #h264_buffer{time = DTS, h264 = undefined} = RTP, DTS) ->
+%   {ok, RTP, []};
 
 decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
+  % ?D({avc, h264:type(Body), [{F#video_frame.flavor, size(F#video_frame.body)} || F <- Frames]}),
   Buf1 = lists:foldl(fun(#video_frame{body = AVC}, Buf) -> <<Buf/binary, AVC/binary>> end, Buffer, Frames),
+  [F#video_frame.flavor =/= undefined orelse erlang:error(h264_decoder_flavor_undefined) || F <- Frames],
   Flavor1 = case Frames of
     [#video_frame{flavor = Fl}|_] -> Fl;
     [] -> Flavor
   end,
+  % ?D({h264_decode_fragment, DTS, Flavor1, size(Buf1)}),
   {ok, RTP#h264_buffer{h264 = H264_1, buffer = Buf1, flavor = Flavor1}, []};
+
+
+% decode_h264(Body, #h264_buffer{time = OldDTS, buffer = <<>>} = RTP, DTS) when OldDTS < DTS ->
+%   ?D(zerobuf),
+%   decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), time = DTS}, DTS);
+  
   
 decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) when OldDTS < DTS ->
-  OldH264#h264.buffer == <<>> orelse erlang:error({non_decoded_h264_left, OldH264}),
+  OldH264#h264.buffer == <<>> orelse OldH264#h264.buffer == undefined orelse erlang:error({non_decoded_h264_left, OldH264}),
 
   Frame = #video_frame{
     content = video,
     codec = h264,
     body = Buffer,
     flavor = Flavor,
-    dts = DTS, 
-    pts = DTS
+    dts = OldDTS, 
+    pts = OldDTS
   },
+  Flavor =/= undefined orelse erlang:error({h264_frame_flavor_undefined, size(Buffer)}),
 
-  {ok, RTP1, []} = decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), time = DTS, buffer = <<>>}, DTS),
+  % ?D({flush_frame, OldDTS}),
+  {ok, RTP1, []} = decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), flavor = undefined, time = DTS, buffer = <<>>}, DTS),
   {ok, RTP1, [Frame]}.
 
 
@@ -146,6 +160,7 @@ decode_aac(AudioData, <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, RTP, Timecod
   decode_aac(Rest, AUHeaders, RTP, Timecode + 1024, [Frame|Frames]).
 
 timecode_to_dts(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, Timecode) ->
+  % ?D({tdts, WallClock, BaseTimecode, Scale, WallClock + (Timecode - BaseTimecode)/Scale, Timecode}),
   WallClock + (Timecode - BaseTimecode)/Scale.
 
 
