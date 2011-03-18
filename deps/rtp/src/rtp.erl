@@ -28,7 +28,7 @@
 
 
 -export([start/0, start/2, stop/1, config_change/3]).
--export([start_server/1]).
+-export([start_server/1, test/0]).
 
 
 start() ->
@@ -63,15 +63,11 @@ config_change(_Changed, _New, _Remove) ->
 
 %%
 start_server(Args) ->
-  ertp_sup:start_server(Args).
+  rtp_sup:start_server(Args).
 
 
-
-%%
-%% Tests
-%%
--include_lib("eunit/include/eunit.hrl").
-
+test() ->
+  eunit:test([rtp_decoder]).
 
 
 

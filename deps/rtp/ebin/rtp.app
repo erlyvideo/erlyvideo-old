@@ -3,9 +3,10 @@
  {vsn, "0.1"},
  {modules, [
             rtp,
-            rtp_sup,
             rtp_decoder,
-            rtp_encoder
+            rtp_decoder_tests,
+            rtp_encoder,
+            rtp_sup            
             ]},
  {registered,[]},
  {applications, [kernel,stdlib]},
