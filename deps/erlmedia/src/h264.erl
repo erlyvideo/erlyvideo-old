@@ -32,7 +32,7 @@
 
 -export([decode_nal/2, video_config/1, decoder_config/1, has_config/1, unpack_config/1, metadata_frame/1, metadata/1]).
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
--export([parse_sps/1, to_fmtp/1, init/0]).
+-export([parse_sps/1, to_fmtp/1, init/0, init/1]).
 -export([type/1, fua_split/2]).
 
 
@@ -74,6 +74,12 @@ unpack_config(<<_Version, _Profile, _ProfileCompat, _Level, _Skip1:6, LengthSize
 
 init() -> #h264{}.
 
+init(Config) when is_binary(Config) -> 
+  {LengthSize, NALS} = unpack_config(Config),
+  SPS = [NAL || NAL <- NALS, type(NAL) == sps],
+  PPS = [NAL || NAL <- NALS, type(NAL) == pps],
+  #h264_sps{profile = Profile, level = Level} = parse_sps(hd(SPS)),
+  #h264{length_size = LengthSize*8, sps = SPS, pps = PPS, profile = Profile, level = Level}.
 
 parse_h264_config(Rest, 0, List) -> {List, Rest};
 parse_h264_config(<<Length:16, NAL:Length/binary, Rest/binary>>, Count, List) ->
@@ -223,6 +229,7 @@ decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, Type:5, Rest/binary>>, H2
   {H264#h264{buffer = <<0:1, NRI:2, Type:5, Rest/binary>>}, []};
 
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, _/binary>>, #h264{buffer = undefined} = H264) ->
+  ?D({skip_broken_fua}),
   {H264, []};
 
 decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
@@ -418,13 +425,15 @@ exp_golomb_read(<<1:1, Data/bitstring>>, LeadingZeros) ->
 
 
 
-fua_split(<<0:1, NRI:2, Type:5, _/binary>> = Bin, Size) -> fua_split(Bin, Size, NRI, Type, []).
+fua_split(NAL, Size) when size(NAL) =< Size -> NAL;
+
+fua_split(<<0:1, NRI:2, Type:5, _/binary>> = NAL, Size) -> fua_split(NAL, Size, NRI, Type, []).
 
 %  Start:1, End:1, R:1, Type:1,
 
 fua_split(Bin, Size, NRI, Type, Acc) ->
   case Bin of
-    <<Part:Size/binary, Rest/binary>> when Acc == [] ->
+    <<_StartByte, Part:Size/binary, Rest/binary>> when Acc == [] ->
       fua_split(Rest, Size, NRI, Type, [<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 0:1, 0:1, Type:5, Part/binary>>|Acc]);
     <<Part:Size/binary, Rest/binary>> ->
       fua_split(Rest, Size, NRI, Type, [<<0:1, NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, Type:5, Part/binary>>|Acc]);
