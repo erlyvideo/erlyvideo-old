@@ -62,7 +62,7 @@ decode(<<_:16, Sequence:16, _/binary>> = Data, #rtp_state{sequence = undefined} 
   decode(Data, RTP#rtp_state{sequence = Sequence});
 
 decode(<<_:16, OldSeq:16, _/binary>>, #rtp_state{sequence = Sequence} = RTP) when OldSeq < Sequence ->
-  ?D({drop_sequence, Sequence}),
+  ?D({drop_sequence, OldSeq, Sequence}),
   {ok, RTP, []};
 
 decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>, #rtp_state{} = RTP) ->

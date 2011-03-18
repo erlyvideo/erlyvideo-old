@@ -30,10 +30,10 @@
 axis_m1011_test_() ->
   run_camera_test("axis-m1011", 8092).
 
-beward_test_1() ->
+beward_test_() ->
   run_camera_test("beward", 8092).
 
-sanyo_hd2100_test_1() ->
+sanyo_hd2100_test_() ->
   run_camera_test("sanyo-hd2100", 8092).
 
 run_camera_test(Name, Port) ->
@@ -43,15 +43,17 @@ run_camera_test(Name, Port) ->
     [fun() ->
       {ok, _P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}]),
       timer:send_after(40000, stop),
-      read_frames()
+      Frames = read_frames([]),
+      Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
+      true = Delta >= 20000
     end]
   }}.
 
 
-read_frames() ->
+read_frames(Acc) ->
   receive
-    #video_frame{} -> read_frames();
-    stop -> ok
+    #video_frame{} = F -> read_frames([F|Acc]);
+    stop -> lists:reverse(Acc)
   after
-    1000 -> timeout
+    1000 -> lists:reverse(Acc)
   end.
