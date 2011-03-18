@@ -33,7 +33,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtsp_test_client).
 -author('Max Lapshin <max@maxidoors.ru>').
--export([capture_camera/2]).
+-export([capture_camera/2, simulate_camera/2]).
 -define(D(X), io:format("~p:~p ~p~n", [?MODULE,?LINE,X])).
 
 capture_camera(Name, URL) ->
@@ -49,7 +49,11 @@ capture_camera(Name, URL) ->
   put(auth, AuthHeader),
   put(seq, 1),
   put(socket, Socket),
-  put(url, URL),
+  RawURL = case Auth of
+    [] -> URL;
+    _ -> re:replace(URL, "rtsp://([^@]+@)", "rtsp://", [{return,list}])
+  end,
+  put(url, RawURL),
   put(interleave, 0),
   {ok, Streams} = capture_camera_describe(),
   [capture_camera_setup(Stream) || Stream <- Streams],
@@ -110,13 +114,14 @@ send_and_receive(Format, Args) ->
   
 capture(Direction, Data) ->
   Filename = lists:flatten(io_lib:format("~s/~p-~p.txt", [get(capture_dir), get(seq), Direction])),
+  Data1 = re:replace(Data, get(url), "{{URL}}", [{return,binary},global]),
   filelib:ensure_dir(Filename),
   case Direction of
     out -> io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n");
     in  -> io:format("<<<<<<<<<<   IN <<<<<<<<<\r\n")
   end,
   io:format("~s", [Data]),
-  file:write_file(Filename, Data).
+  file:write_file(Filename, Data1).
 
 
 capture_interleaved_data(Timeout) ->
@@ -138,18 +143,9 @@ loop_capture(F) ->
   end.
 
 read_reply() ->
-  Socket = get(socket),
-  {ok,<<"RTSP/1.0 200 OK\r\n">>} = gen_tcp:recv(Socket, 0),
+  {ok,<<"RTSP/1.0 200 OK\r\n">>} = gen_tcp:recv(get(socket), 0),
   {Headers, Raw} = read_headers([], [<<"RTSP/1.0 200 OK\r\n">>]),
-  Body = case proplists:get_value('Content-Length', Headers) of
-    undefined -> <<>>;
-    "0" -> <<>>;
-    Length ->
-      inet:setopts(Socket, [{packet,raw}]),
-      {ok, Bin} = gen_tcp:recv(Socket, list_to_integer(Length)),
-      inet:setopts(Socket, [{packet,line}]),
-      Bin
-  end,
+  Body = read_body(Headers),
   {ok, Headers, Body, iolist_to_binary([Raw, Body])}.
   
 read_headers(Acc, Raw) ->
@@ -159,3 +155,73 @@ read_headers(Acc, Raw) ->
       {ok, {http_header, _, Key, _, Value}, <<"\r\n">>} = erlang:decode_packet(httph, <<Bin/binary, "\r\n">>, []),
       read_headers([{Key,Value}|Acc], [Bin|Raw])
   end.
+
+read_body(Headers) ->
+  Socket = get(socket),
+  case proplists:get_value('Content-Length', Headers) of
+    undefined -> <<>>;
+    "0" -> <<>>;
+    Length ->
+      inet:setopts(Socket, [{packet,raw}]),
+      {ok, Bin} = gen_tcp:recv(Socket, list_to_integer(Length)),
+      inet:setopts(Socket, [{packet,line}]),
+      Bin
+  end.
+  
+
+
+simulate_camera(Name, Port) ->
+  CaptureDir = "test/rtsp_capture/"++Name,
+  put(capture_dir, CaptureDir),
+  {ok, Listen} = gen_tcp:listen(Port, [binary, {reuseaddr,true},{active,false},{packet,line}]),
+  ?D({accepting,Name,Port}),
+  {ok, Socket} = gen_tcp:accept(Listen),
+  put(socket, Socket),
+  wait_for_describe().
+
+wait_for_describe() ->
+  read_and_send_request(1, in, "DESCRIBE"),
+  read_and_send_request(2, in, "SETUP"),
+  % read_and_send_request(3, in, "SETUP"),
+  read_and_send_request(3, in, "PLAY"),
+  send_interleaved_reply(4).
+  
+  
+read_and_send_request(Seq, Direction, Method) ->
+  ?D({wait_for, Seq, Method}),
+  {ok, Method, URL, Headers, Body, Raw} = read_request(),
+  Reply = load_capture(1, in, URL),
+
+  io:format("<<<<<<<<<<   IN <<<<<<<<<\r\n~s", [Raw]),
+  io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n~s", [Reply]),
+
+  gen_tcp:send(get(socket), Reply),
+  ok.
+  
+send_interleaved_reply(Seq) ->
+  Filename = lists:flatten(io_lib:format("~s/~p-interleaved-in.txt", [get(capture_dir), Seq])),
+  {ok, Bin} = file:read_file(Filename),
+  send_interleaved_reply(Bin, get(socket)).
+
+send_interleaved_reply(<<Data:1540/binary, Bin/binary>>, Socket) ->
+  gen_tcp:send(Socket, Data),
+  send_interleaved_reply(Bin, Socket);
+
+send_interleaved_reply(Bin, Socket) ->
+  gen_tcp:send(Socket, Bin).
+
+load_capture(Num, Direction, URL) ->
+  Filename = lists:flatten(io_lib:format("~s/~p-~p.txt", [get(capture_dir), Num, Direction])),
+  {ok, Data} = file:read_file(Filename),
+  re:replace(Data, "{{URL}}", URL, [{return,binary},global]).
+  
+
+
+read_request() ->
+  Socket = get(socket),
+  {ok, RequestLine} = gen_tcp:recv(Socket, 0),
+  {match, [Method, URL]} = re:run(RequestLine, "([^ ]+) ([^ ]+) RTSP/1.0", [{capture,all_but_first,list}]),
+  {Headers, Raw} = read_headers([], [RequestLine]),
+  Body = read_body(Headers),
+  {ok, Method, URL, Headers, Body, iolist_to_binary([Raw,Body])}.
+  
