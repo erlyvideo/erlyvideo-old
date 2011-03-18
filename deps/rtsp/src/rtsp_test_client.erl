@@ -36,10 +36,12 @@
 -export([capture_camera/2, simulate_camera/2]).
 -define(D(X), io:format("~p:~p ~p~n", [?MODULE,?LINE,X])).
 
+-define(CAPTURE_DIR, "test/files/rtsp_capture/").
+
 capture_camera(Name, URL) ->
   {rtsp, Auth, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active,false},{packet,line}]),
-  CaptureDir = "test/rtsp_capture/"++Name,
+  CaptureDir = ?CAPTURE_DIR++Name,
   put(capture_dir, CaptureDir),
   io:format("Save session to ~s~n", [CaptureDir]),
   AuthHeader = case Auth of
@@ -171,7 +173,7 @@ read_body(Headers) ->
 
 
 simulate_camera(Name, Port) ->
-  CaptureDir = "test/rtsp_capture/"++Name,
+  CaptureDir = ?CAPTURE_DIR++Name,
   put(capture_dir, CaptureDir),
   {ok, Listen} = gen_tcp:listen(Port, [binary, {reuseaddr,true},{active,false},{packet,line}]),
   ?D({accepting,Name,Port}),
