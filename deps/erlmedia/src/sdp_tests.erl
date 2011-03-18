@@ -442,6 +442,7 @@ h264_sdp() ->
   <<"m=video 0 RTP/AVP 96\r
 a=control:trackID=1\r
 a=rtpmap:96 H264/90000\r
+a=cliprect:0,0,640,480\r
 a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
 ">>.
 
@@ -453,7 +454,7 @@ h264_stream_info() ->
     config = <<1,66,0,41,255,225,0,18,103,66,0,41,227,80,20,7,182,2,220,4,4,6,144,120,145,
       21,1,0,4,104,206,60,128>>, 
     params = #video_params{width = 640, height = 480},
-    timescale = 90
+    timescale = 90.0
   }.
   
 encode_h264_test() ->
@@ -509,6 +510,7 @@ a=range:npt=0-\r
 m=video 0 RTP/AVP 96\r
 a=control:trackID=1\r
 a=rtpmap:96 H264/90000\r
+a=cliprect:0,0,640,480\r
 a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
 m=audio 0 RTP/AVP 97\r
 a=control:trackID=2\r
