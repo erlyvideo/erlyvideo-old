@@ -81,13 +81,13 @@ add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info) ->
       ]
   },
   
-  AddControl = fun(Streams) ->
+  AddControl = fun(Streams, Timescale) ->
     lists:map(fun(#stream_info{options = Opts, stream_id = Id} = Stream) ->
       Control = "trackID="++integer_to_list(Id),
-      Stream#stream_info{options = [{control,Control}|Opts]}
+      Stream#stream_info{options = [{control,Control}|Opts], timescale = Timescale}
     end, Streams)
   end,
-  Info#media_info{options = [{sdp_session, SessionDesc}|Options], audio = AddControl(A), video = AddControl(V)}.
+  Info#media_info{options = [{sdp_session, SessionDesc}|Options], audio = AddControl(A, 44.1), video = AddControl(V, 90)}.
 
   
 
@@ -121,7 +121,12 @@ encode_frame(#video_frame{content = video} = Frame, #rtsp_socket{video_rtp_strea
 encode_frame(#video_frame{content = metadata}, #rtsp_socket{} = Socket) ->
   Socket.
 
+% d(<<B:10/binary, _/binary>>) -> B;
+% d(B) ->B.
+% 
+
 encode_frame(#video_frame{} = Frame, #rtsp_socket{rtp_streams = Streams, socket = Sock} = Socket, Num) ->
+  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.dts, d(Frame#video_frame.body)}),
   RTP = element(Num, Streams),
   {ok, RTP1, Packets} = rtp_encoder:encode(Frame, RTP),
   RTPData = [packet_codec:encode({rtp, (Num-1)*2, Packet}) || Packet <- Packets],
