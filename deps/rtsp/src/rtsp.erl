@@ -25,12 +25,11 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(application).
 -include("log.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
--export([start/0, stop/0, start/2, stop/1, config_change/3, test_all/0]).
--export([start_server/3, behaviour_info/1]).
-
--export([edoc/1, edoc/0]).
+-export([start/0, stop/0, start/2, stop/1, config_change/3]).
+-export([start_server/3, behaviour_info/1, test/0]).
 
 
 start() ->
@@ -66,11 +65,6 @@ stop(_S) ->
 config_change(_Changed, _New, _Remove) ->
   ok.
 
-
-test_all() ->
-  packet_codec:test(),
-  rtsp_socket:test(),
-  sdp:test().
 
 
 %%-------------------------------------------------------------------------
