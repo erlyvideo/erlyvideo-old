@@ -23,17 +23,17 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtsp_tests).
 -author('Max Lapshin <max@maxidoors.ru>').
-
+-include_lib("erlmedia/include/video_frame.hrl").
 -compile(export_all).
 
 
 axis_m1011_test_() ->
   run_camera_test("axis-m1011", 8092).
 
-beward_test_() ->
+beward_test_1() ->
   run_camera_test("beward", 8092).
 
-sanyo_hd2100_test_() ->
+sanyo_hd2100_test_1() ->
   run_camera_test("sanyo-hd2100", 8092).
 
 run_camera_test(Name, Port) ->
@@ -41,6 +41,17 @@ run_camera_test(Name, Port) ->
     fun() -> _Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]) end,
     fun(Pid) -> erlang:exit(Pid, kill) end,
     [fun() ->
-      {ok, _P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}])
+      {ok, _P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}]),
+      timer:send_after(40000, stop),
+      read_frames()
     end]
   }}.
+
+
+read_frames() ->
+  receive
+    #video_frame{} -> read_frames();
+    stop -> ok
+  after
+    1000 -> timeout
+  end.

@@ -160,14 +160,13 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_IDR:5, _/binary>> = Data, #h264{} = H264) -
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SEI:5, _/binary>> = Data, #h264{} = H264) ->
   ?D({"SEI", Data}),
-  _VideoFrame = #video_frame{
+  VideoFrame = #video_frame{
    	content = video,
 		body    = nal_with_size(Data),
 		flavor  = frame,
 		codec   = h264
   },
-
-  {H264, []};
+  {H264, [VideoFrame]};
 
 decode_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{} = H264) ->
   % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),

@@ -139,7 +139,10 @@ add_stream(#media_info{audio = Audio} = Media, #stream_info{content = audio} = S
   Media#media_info{audio = Audio ++ [Stream#stream_info{stream_id = stream_count(Media)+1}]};
 
 add_stream(#media_info{video = Video} = Media, #stream_info{content = video} = Stream) ->
-  Media#media_info{video = Video ++ [Stream#stream_info{stream_id = stream_count(Media)+1}]}.
+  Media#media_info{video = Video ++ [Stream#stream_info{stream_id = stream_count(Media)+1}]};
+
+add_stream(#media_info{} = Media, #stream_info{}) ->
+  Media.
 
 stream_count(#media_info{audio = A, video = V}) -> length(A) + length(V).
 
@@ -166,10 +169,11 @@ parse_media_announce([{m, Info} | Announce], MediaInfo, #stream_info{} = Stream)
 parse_media_announce([{c, Connect} | Announce], #media_info{options = Options} = MediaInfo, Stream) ->
   parse_media_announce(Announce, MediaInfo#media_info{options = [{connect,Connect}|Options]}, Stream);
 
-parse_media_announce([{m, [Type |_ ]} | Announce], MediaInfo, undefined) when Type == video orelse Type == audio ->
+parse_media_announce([{m, [Type |_ ]} | Announce], MediaInfo, undefined) ->
   Params = case Type of
     video -> #video_params{};
-    audio -> #audio_params{}
+    audio -> #audio_params{};
+    _ -> undefined
   end,
   parse_media_announce(Announce, MediaInfo, #stream_info{content = Type, params = Params});
 

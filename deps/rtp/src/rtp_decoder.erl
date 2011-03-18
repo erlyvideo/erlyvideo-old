@@ -92,6 +92,15 @@ decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Cont
   {ok, RTP, [Frame]}.
   
 
+decode_h264(Body, #h264_buffer{time = OldDTS} = RTP, DTS) when OldDTS > DTS ->
+  Reply = case h264:decode_nal(Body, h264:init()) of
+    {#h264{buffer = undefined}, Frames} -> [F#video_frame{dts = DTS, pts = DTS} || F <- Frames];
+    _ ->
+      ?D({drop_late_h264, DTS, OldDTS, h264:type(Body), size(Body)}),
+      []
+  end,
+  {ok, RTP, Reply};
+
 decode_h264(Body, undefined, DTS) ->
 %   decode_h264(Body, #h264_buffer{}, DTS);
 % 
@@ -108,8 +117,8 @@ decode_h264(Body, undefined, DTS) ->
 
 decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) ->
   {H264_1, Frames} = h264:decode_nal(Body, H264),
-  % ?D({avc, h264:type(Body), [{F#video_frame.flavor, size(F#video_frame.body)} || F <- Frames]}),
   Buf1 = lists:foldl(fun(#video_frame{body = AVC}, Buf) -> <<Buf/binary, AVC/binary>> end, Buffer, Frames),
+  % ?D({avc, h264:type(Body), [{F#video_frame.flavor, size(F#video_frame.body)} || F <- Frames], size(Buf1)}),
   [F#video_frame.flavor =/= undefined orelse erlang:error(h264_decoder_flavor_undefined) || F <- Frames],
   Flavor1 = case Frames of
     [#video_frame{flavor = Fl}|_] -> Fl;
@@ -127,19 +136,23 @@ decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor 
 decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) when OldDTS < DTS ->
   OldH264#h264.buffer == <<>> orelse OldH264#h264.buffer == undefined orelse erlang:error({non_decoded_h264_left, OldH264}),
 
-  Frame = #video_frame{
-    content = video,
-    codec = h264,
-    body = Buffer,
-    flavor = Flavor,
-    dts = OldDTS, 
-    pts = OldDTS
-  },
-  Flavor =/= undefined orelse erlang:error({h264_frame_flavor_undefined, size(Buffer)}),
+  Frames = case Buffer of
+    <<>> -> [];
+    _ ->
+      Flavor =/= undefined orelse erlang:error({h264_frame_flavor_undefined, size(Buffer)}),
+      [#video_frame{
+        content = video,
+        codec = h264,
+        body = Buffer,
+        flavor = Flavor,
+        dts = OldDTS, 
+        pts = OldDTS
+      }]
+  end,
 
   % ?D({flush_frame, OldDTS}),
   {ok, RTP1, []} = decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), flavor = undefined, time = DTS, buffer = <<>>}, DTS),
-  {ok, RTP1, [Frame]}.
+  {ok, RTP1, Frames}.
 
 
 decode_aac(<<>>, <<>>, RTP, _, Frames) ->
@@ -197,7 +210,7 @@ rtcp_rr(#rtp_state{stream_info = #stream_info{stream_id = StreamId}, sequence = 
   end,
   Jitter = 0,
   DLSR = 0,
-  ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
+  % ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
   {RTP, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.
 
 

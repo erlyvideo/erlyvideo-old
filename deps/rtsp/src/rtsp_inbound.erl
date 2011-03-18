@@ -175,7 +175,6 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
     0 ->
       RtpNum = Channel div 2 + 1,
       RtpState = element(RtpNum, Streams),
-      % ?D({rtp, Channel, RtpState, Packet}),
       {ok, RtpState1, RtpFrames} = rtp_decoder:decode(Packet, RtpState),
       {setelement(RtpNum, Streams, RtpState1), RtpFrames};
     1 ->
