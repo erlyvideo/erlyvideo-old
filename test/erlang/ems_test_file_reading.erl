@@ -26,7 +26,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
-
+-include("../../src/log.hrl").
 -export([read_file/1]).
 
 read_file(Path) ->
@@ -42,8 +42,11 @@ read_all_frames(Media, Frames, Reader, Key) ->
   end.
 
 test_duration(Frames, Nearby) ->
-  [#video_frame{dts = DTS}|_] = lists:reverse(Frames),
-  true = DTS >= Nearby - 1000 andalso DTS =< Nearby + 1000.
+  [#video_frame{dts = FDTS}|_] = Frames,
+  [#video_frame{dts = LDTS}|_] = lists:reverse(Frames),
+  TDTS = LDTS - FDTS, 
+  %?D({"Delta DTS ",TDTS}),
+  true = TDTS >= Nearby - 1000 andalso TDTS =< Nearby + 1000.
 
 test_file(Id) ->
   [_,Ext|Rest] = lists:reverse(string:tokens(atom_to_list(Id), "_")),
@@ -85,6 +88,38 @@ h264_aac_1_mp4_test() ->
     ],
     metadata = []
   }, mp4_reader:media_info(Media)).
+
+%mpegts_file_reader_test() ->
+%  Pid = spawn_link(?MODULE, mpegts_file_reader,[self()]).
+%  St = erlang:monitor(process,Pid),
+%  receive 
+%    #video_frame{} = F -> ?D("asd")
+%   {'DOWN', _Ref, process, Pid, _Reason} -> ?D("Crash")
+%  end.
+
+%mpegts_file_reader_test() ->
+% Reader = spawn_link(?MODULE,mpegts_read_frame,[[],self()]),  
+%  {ok,Cons}=mpegts_sup:start_file_reader("/home/tthread/a.ts",[{consumer,self()},{no_delay,true}]),
+%  erlang:monitor(process,Cons),
+%  {ok,Frames} = mpegts_read_frame([],self()),
+%  [First|Tail] = Frames, [Last|LTail] = lists:reverse(Frames),
+%  Nur = Last#video_frame.dts - First#video_frame.dts,
+%  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
+%  test_duration(Frames,20000).
+
+%mpegts_read_frame(Frames,Pid) ->
+%  erlang:monitor(process,Pid),
+%  link(Pid),
+%  receive 
+%   #video_frame{} = F ->
+%         ?D({F#video_frame.flavor, F#video_frame.content, round(F#video_frame.dts - 31600000)}),
+%         mpegts_read_frame([F|Frames],Pid);
+%  Else -> 
+%    ?D({stop,Pid,Else}),
+%    {ok,lists:reverse(Frames)}
+%  end. 
+
+  
 
 h264_aac_2_mp4_test() ->
   {ok, Media, Frames} = read_file("h264_aac_2.mp4"),
