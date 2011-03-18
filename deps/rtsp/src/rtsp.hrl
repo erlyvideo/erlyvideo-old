@@ -9,6 +9,8 @@
   callback,
   direction,
   buffer = <<>>,
+  user_agent,
+  transport = interleaved :: interleaved | udp,
   addr,
   port,
   url,

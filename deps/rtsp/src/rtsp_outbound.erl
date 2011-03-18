@@ -42,6 +42,8 @@
 
 -export([encode_frame/2, handle_describe_request/4, handle_play_setup/4, handle_play_request/4]).
 
+
+
 handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers, Body) ->
   case Callback:describe(URL, Headers, Body) of
     {error, authentication} ->
@@ -50,34 +52,37 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
       handle_authorized_describe(Socket, URL, Headers, Media)
   end.
   
-handle_authorized_describe(Socket, _URL, Headers, Media) ->  
+handle_authorized_describe(#rtsp_socket{} = Socket, URL, Headers, Media) ->
+  Socket1 = Socket#rtsp_socket{session = rtsp_socket:generate_session()},
   MediaInfo = #media_info{} = ems_media:media_info(Media),
-  Info1 = add_rtsp_options(MediaInfo),
+  Info1 = add_rtsp_options(MediaInfo, Socket1),
   SDP = sdp:encode(Info1),
-  rtsp_socket:reply(rtsp_socket:save_media_info(Socket#rtsp_socket{media = Media, direction = out}, Info1), "200 OK",
-        [{'Cseq', seq(Headers)}, {'Server', ?SERVER_NAME}, {'Cache-Control', "no-cache"}], SDP).
+  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out}, Info1),
+  rtsp_socket:reply(Socket2, "200 OK", [{'Cseq', seq(Headers)}, {'Server', ?SERVER_NAME}, 
+      {'Date', httpd_util:rfc1123_date()}, {'Expires', httpd_util:rfc1123_date()},
+      {'Content-Base', io_lib:format("~s/", [URL])}], SDP).
 
 
 
 
-add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info) ->
+add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info, #rtsp_socket{transport = Transport, session = Session} = Socket) ->
   % ?DBG("Describe INFO (~p): ~p", [self(), MediaInfo]),
 
   SessionDesc = #sdp_session{version = 0,
     originator = #sdp_o{username = "-",
-                        sessionid = "1275067839203788",
-                        version = "1",
+                        sessionid = Session,
+                        version = Session,
                         netaddrtype = inet4,
-                        address = "0.0.0.0"},
+                        address = "127.0.0.1"},
     name = "Test",
     connect = {inet4, "0.0.0.0"},
     attrs = [
        {tool, "LIVE555 Streaming Media v2008.04.09"},
-       recvonly,
-       {type, "broadcast"},
+       % recvonly,
+       % {type, "broadcast"},
        {control, "*"},
-       {charset, "UTF-8"},
-       {range, " npt=0-"}
+       % {charset, "UTF-8"},
+       {range, "npt=0-"}
       ]
   },
   
@@ -98,7 +103,7 @@ handle_play_setup(#rtsp_socket{} = Socket, URL, Headers, _Body) ->
   StreamNum = proplists:get_value(Control, Socket#rtsp_socket.control_map),
   StreamInfo = element(StreamNum, Socket#rtsp_socket.rtp_streams),
   Streams = setelement(StreamNum, Socket#rtsp_socket.rtp_streams, rtp_encoder:init(StreamInfo)),
-  rtsp_socket:reply(Socket#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Session', 42}, {'Transport', Transport}]).
+  rtsp_socket:reply(Socket#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', Transport}]).
 
   
 handle_play_request(#rtsp_socket{callback = Callback, rtp_streams = RtpStreams} = Socket, URL, Headers, Body) ->
