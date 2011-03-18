@@ -79,7 +79,6 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created 
  %% {stop, Reason, State} -> stop with Reason
-  ?D("Source LOSTT!!!"),
   self() ! make_request,
   {noreply, State};
 
@@ -139,7 +138,6 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
       ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Module, Count}),
       case Module:read(URL, []) of
         {ok, Reader} ->  
-          ?D(Reader),
           erlang:monitor(process,Reader),
           ems_media:set_source(self(), Reader),
           {noreply, Media#ems_media{retry_count = 0}};
