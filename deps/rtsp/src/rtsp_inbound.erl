@@ -175,6 +175,7 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
     0 ->
       RtpNum = Channel div 2 + 1,
       RtpState = element(RtpNum, Streams),
+      % ?D({rtp, Channel, RtpState, Packet}),
       {ok, RtpState1, RtpFrames} = rtp_decoder:decode(Packet, RtpState),
       {setelement(RtpNum, Streams, RtpState1), RtpFrames};
     1 ->
@@ -188,22 +189,36 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
   end,
   reorder_frames(Socket#rtsp_socket{rtp_streams = Streams1, frames = Frames ++ NewFrames}).
 
+  % d(<<B:10/binary, _/binary>>) -> B;
+  % d(B) ->B.
+  % 
+
 reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FRAMES_BUFFER ->
   Socket;
-
-reorder_frames(#rtsp_socket{frames = Frames, media = Consumer, sent_audio_config = SentAC} = Socket) ->
+  
+  
+reorder_frames(#rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
   Ordered = lists:sort(fun frame_sort/2, Frames),
   {ToSend, NewFrames} = lists:split(?REORDER_FRAMES, Ordered),
-  lists:foreach(fun
-    (#video_frame{codec = aac, dts = DTS} = Frame) when SentAC == false -> 
-      Consumer ! (rtp_decoder:config_frame(audio_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
-      Consumer ! Frame;
-    (#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame) ->
-      Consumer ! (rtp_decoder:config_frame(video_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
-      Consumer ! Frame;
-    (Frame) -> Consumer ! Frame
-  end, ToSend),
-  Socket#rtsp_socket{frames = NewFrames, sent_audio_config = true}.
+  {Socket1, ClientFrames} = add_configs(Socket#rtsp_socket{frames = NewFrames}, ToSend, []),
+  % [?D({F#video_frame.codec,F#video_frame.flavor,F#video_frame.dts, d(F#video_frame.body)}) || F <- ClientFrames],
+  [Consumer ! Frame || Frame <- ClientFrames],
+  Socket1.
+
+add_configs(#rtsp_socket{sent_audio_config = false} = Socket, [#video_frame{codec = aac, dts = DTS} = Frame|Frames], Acc) ->
+  Config = (rtp_decoder:config_frame(audio_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
+  add_configs(Socket#rtsp_socket{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
+  
+add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
+  Config = (rtp_decoder:config_frame(video_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
+  add_configs(Socket, Frames, [Frame,Config|Acc]);
+  
+add_configs(Socket, [], Acc) ->
+  {Socket, lists:reverse(Acc)};
+
+add_configs(Socket, [Frame|Frames], Acc) ->
+  add_configs(Socket, Frames, [Frame|Acc]).
+
 
 frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 
