@@ -132,7 +132,7 @@ handle_announce_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
     {ok, Media} ->
       ?D({"Announced to", Media}),
       erlang:monitor(process, Media),
-      rtsp_socket:reply(Socket1#rtsp_socket{session = 42, media = Media, direction = in}, "200 OK", [{'Cseq', seq(Headers)}]);
+      rtsp_socket:reply(Socket1#rtsp_socket{session = rtsp_socket:generate_session(), media = Media, direction = in}, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket1, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end.
@@ -142,7 +142,7 @@ handle_receive_setup(#rtsp_socket{} = Socket, URL, Headers, _Body) ->
   StreamNum = proplists:get_value(Control, Socket#rtsp_socket.control_map),
   StreamInfo = element(StreamNum, Socket#rtsp_socket.rtp_streams),
   Streams = setelement(StreamNum, Socket#rtsp_socket.rtp_streams, rtp_decoder:init(StreamInfo)),
-  rtsp_socket:reply(Socket#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Session', 42}, {'Transport', proplists:get_value('Transport', Headers)}]).
+  rtsp_socket:reply(Socket#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', proplists:get_value('Transport', Headers)}]).
 
 
 
@@ -188,22 +188,36 @@ handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} =
   end,
   reorder_frames(Socket#rtsp_socket{rtp_streams = Streams1, frames = Frames ++ NewFrames}).
 
+  % d(<<B:10/binary, _/binary>>) -> B;
+  % d(B) ->B.
+  % 
+
 reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FRAMES_BUFFER ->
   Socket;
-
-reorder_frames(#rtsp_socket{frames = Frames, media = Consumer, sent_audio_config = SentAC} = Socket) ->
+  
+  
+reorder_frames(#rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
   Ordered = lists:sort(fun frame_sort/2, Frames),
   {ToSend, NewFrames} = lists:split(?REORDER_FRAMES, Ordered),
-  lists:foreach(fun
-    (#video_frame{codec = aac, dts = DTS} = Frame) when SentAC == false -> 
-      Consumer ! (rtp_decoder:config_frame(audio_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
-      Consumer ! Frame;
-    (#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame) ->
-      Consumer ! (rtp_decoder:config_frame(video_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
-      Consumer ! Frame;
-    (Frame) -> Consumer ! Frame
-  end, ToSend),
-  Socket#rtsp_socket{frames = NewFrames, sent_audio_config = true}.
+  {Socket1, ClientFrames} = add_configs(Socket#rtsp_socket{frames = NewFrames}, ToSend, []),
+  % [?D({F#video_frame.codec,F#video_frame.flavor,F#video_frame.dts, d(F#video_frame.body)}) || F <- ClientFrames],
+  [Consumer ! Frame || Frame <- ClientFrames],
+  Socket1.
+
+add_configs(#rtsp_socket{sent_audio_config = false} = Socket, [#video_frame{codec = aac, dts = DTS} = Frame|Frames], Acc) ->
+  Config = (rtp_decoder:config_frame(audio_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
+  add_configs(Socket#rtsp_socket{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
+  
+add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
+  Config = (rtp_decoder:config_frame(video_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
+  add_configs(Socket, Frames, [Frame,Config|Acc]);
+  
+add_configs(Socket, [], Acc) ->
+  {Socket, lists:reverse(Acc)};
+
+add_configs(Socket, [Frame|Frames], Acc) ->
+  add_configs(Socket, Frames, [Frame|Acc]).
+
 
 frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 

@@ -1,56 +1,52 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2010 Max Lapshin
-%%% @doc        RTSP decoder module
+%%% @copyright  2010-2011 Max Lapshin
+%%% @doc        RTP module
 %%% @end
-%%% @reference  See <a href="http://erlyvideo.org/rtsp" target="_top">http://erlyvideo.org</a> for common information.
+%%% @reference  See <a href="http://erlyvideo.org/ertp" target="_top">http://erlyvideo.org</a> for common information.
 %%% @end
 %%%
-%%% This file is part of erlang-rtsp.
+%%% This file is part of erlang-rtp.
 %%%
-%%% erlang-rtsp is free software: you can redistribute it and/or modify
+%%% erlang-rtp is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
 %%% (at your option) any later version.
 %%%
-%%% erlang-rtsp is distributed in the hope that it will be useful,
+%%% erlang-rtp is distributed in the hope that it will be useful,
 %%% but WITHOUT ANY WARRANTY; without even the implied warranty of
 %%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 %%% GNU General Public License for more details.
 %%%
 %%% You should have received a copy of the GNU General Public License
-%%% along with erlang-rtsp.  If not, see <http://www.gnu.org/licenses/>.
+%%% along with erlang-rtp.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(rtsp).
--author('Max Lapshin <max@maxidoors.ru>').
+-module(rtp).
 -behaviour(application).
 -include("log.hrl").
--include_lib("eunit/include/eunit.hrl").
+-author('Max Lapshin <max@maxidoors.ru>').
 
 
--export([start/0, stop/0, start/2, stop/1, config_change/3]).
--export([start_server/3, behaviour_info/1, test/1]).
+-export([start/0, start/2, stop/1, config_change/3]).
+-export([start_server/1, test/0]).
 
 
 start() ->
-  ems_rtsp:start().
-
-stop() ->
-  ems_rtsp:stop().
+  application:start(rtp).
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()
-%% @doc Starts RTSP library
+%% @doc Starts RTP library
 %% @end
 %%--------------------------------------------------------------------
 start(_Type, _Args) ->
-  rtsp_sup:start_link().
+  rtp_sup:start_link().
 
 
 
 %%--------------------------------------------------------------------
 %% @spec (Any::any()) -> ok()
-%% @doc Stop RTSP library
+%% @doc Stop RTP library
 %% @end
 %%--------------------------------------------------------------------
 stop(_S) ->
@@ -59,28 +55,21 @@ stop(_S) ->
 
 %%--------------------------------------------------------------------
 %% @spec (Any::any(),Any::any(),Any::any()) -> any()
-%% @doc Reload RTSP config
+%% @doc Reload RTP config
 %% @end
 %%--------------------------------------------------------------------
 config_change(_Changed, _New, _Remove) ->
   ok.
 
+%%
+start_server(Args) ->
+  rtp_sup:start_server(Args).
 
 
-%%-------------------------------------------------------------------------
-%% @spec (Callbacks::atom()) -> CallBackList::list()
-%% @doc  List of require functions in a video file reader
-%% @hidden
-%% @end
-%%-------------------------------------------------------------------------
-behaviour_info(callbacks) -> [{record,2}, {announce,3}];
-behaviour_info(_Other) -> undefined.
-
-
-start_server(Port, Name, Callback) ->
-  rtsp_sup:start_rtsp_listener(Port, Name, Callback).
+test() ->
+  eunit:test([rtp_decoder]).
 
 
 
-test(Camera) ->
-  rtsp_tests:test_camera(Camera).
+
+

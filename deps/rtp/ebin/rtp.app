@@ -2,12 +2,13 @@
 [{description, "RTP handling library"},
  {vsn, "0.1"},
  {modules, [
-            ertp,
-            ertp_sup,
+            rtp,
             rtp_decoder,
-            rtp_encoder
+            rtp_decoder_tests,
+            rtp_encoder,
+            rtp_sup            
             ]},
  {registered,[]},
  {applications, [kernel,stdlib]},
- {mod, {ertp,[]}}
+ {mod, {rtp,[]}}
 ]}.
