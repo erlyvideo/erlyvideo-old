@@ -122,7 +122,7 @@ start() ->
   start_http(),
   start_rtmp(),
   mpegts:start(),
-  ertp:start(),
+  rtp:start(),
   rtsp:start(),
 	start_modules(),
   media_provider:start_static_streams(),
