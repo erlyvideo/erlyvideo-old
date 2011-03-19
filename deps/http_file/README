@@ -1,0 +1,17 @@
+
+h1. Usage with Erlyvideo
+
+
+edit priv/erlyvideo.conf
+
+In vhost section add file_access variable:
+
+{vhosts, [
+  {default, [
+    {file_access, http_file},
+    ...
+  ]}
+}.
+
+
+Then go to http://localhost:8082/?file=http://localhost/video.mp4
