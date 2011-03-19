@@ -26,8 +26,7 @@
 
 -export([sdp_codecs/0, sdp_to_codec/1, codec_to_sdp/1,
          decode/1,
-         encode/2, encode/1,
-         prep_media_config/2
+         encode/2, encode/1
         ]).
 
 -export([
@@ -91,14 +90,14 @@ decode(Announce) when is_binary(Announce) ->
   decode(KeyValues);
 
 decode(Announce) ->
-  parse_announce(Announce, #media_info{flow_type = stream}, undefined).
+  parse_announce(Announce, #media_info{flow_type = stream}).
 
 
 
 parse_value(v, Version) -> list_to_integer(Version);
 
 parse_value(a, "fmtp:" ++ String) ->
-  {match, [FMTP]} = re:run(String, "[\\d]+ +(.*)", [{capture, all_but_first, list}]),
+  {match, [PayloadNum, FMTP]} = re:run(String, "([\\d]+) +(.*)", [{capture, all_but_first, list}]),
   Opts = lists:map(fun(Opt) ->
     case re:run(Opt, " *([^=]+)=(.*)", [{capture, all_but_first, list}]) of
       {match, [Key, Value]} ->
@@ -106,7 +105,12 @@ parse_value(a, "fmtp:" ++ String) ->
       _ -> Opt
     end
   end, string:tokens(FMTP, ";")),
-  {fmtp, Opts};
+  {fmtp, list_to_integer(PayloadNum), Opts};
+
+parse_value(a, "rtpmap:" ++ String) ->
+  [PayloadNum, CodecInfo] = string:tokens(String, " "),
+  {rtpmap, list_to_integer(PayloadNum), string:tokens(CodecInfo, "/")};
+
 
 parse_value(a, String) ->
   case re:run(String, "([^:]+):(.+)", [{capture, all_but_first, list}]) of
@@ -135,72 +139,86 @@ add_stream(#media_info{audio = Audio} = Media, #stream_info{content = audio} = S
   Media#media_info{audio = Audio ++ [Stream#stream_info{stream_id = stream_count(Media)+1}]};
 
 add_stream(#media_info{video = Video} = Media, #stream_info{content = video} = Stream) ->
-  Media#media_info{video = Video ++ [Stream#stream_info{stream_id = stream_count(Media)+1}]}.
+  Media#media_info{video = Video ++ [Stream#stream_info{stream_id = stream_count(Media)+1}]};
+
+add_stream(#media_info{} = Media, #stream_info{}) ->
+  Media.
 
 stream_count(#media_info{audio = A, video = V}) -> length(A) + length(V).
 
-parse_announce([], MediaInfo, undefined) ->
+parse_announce([], MediaInfo) ->
   MediaInfo;
 
-parse_announce([], Streams, Stream) ->
-  add_stream(Streams, Stream);
+parse_announce([{c, Connect} | Announce], #media_info{options = Options} = MediaInfo) ->
+  parse_announce(Announce, MediaInfo#media_info{options = [{connect,Connect}|Options]});
 
-parse_announce([{c, Connect} | Announce], #media_info{options = Options} = MediaInfo, Stream) ->
-  parse_announce(Announce, MediaInfo#media_info{options = [{connect,Connect}|Options]}, Stream);
+parse_announce([{m, MediaAnnounce} | Announce], MediaInfo) ->
+  parse_media_announce([{m, MediaAnnounce}|Announce], MediaInfo, undefined);
 
-parse_announce([{m, Info} | Announce], MediaInfo, #stream_info{} = Stream) ->
-  parse_announce([{m, Info} | Announce], add_stream(MediaInfo, Stream), undefined);
+parse_announce([_ | Announce], Streams) ->
+  parse_announce(Announce, Streams).
 
-parse_announce([{m, [Type |_ ]} | Announce], MediaInfo, undefined) when Type == video orelse Type == audio ->
+
+parse_media_announce([], MediaInfo, #stream_info{} = Stream) ->
+  add_stream(MediaInfo, Stream);
+
+parse_media_announce([{m, Info} | Announce], MediaInfo, #stream_info{} = Stream) ->
+  parse_media_announce([{m, Info} | Announce], add_stream(MediaInfo, Stream), undefined);
+
+
+parse_media_announce([{c, Connect} | Announce], #media_info{options = Options} = MediaInfo, Stream) ->
+  parse_media_announce(Announce, MediaInfo#media_info{options = [{connect,Connect}|Options]}, Stream);
+
+parse_media_announce([{m, [Type |_ ]} | Announce], MediaInfo, undefined) ->
   Params = case Type of
     video -> #video_params{};
-    audio -> #audio_params{}
+    audio -> #audio_params{};
+    _ -> undefined
   end,
-  parse_announce(Announce, MediaInfo, #stream_info{content = Type, params = Params});
+  parse_media_announce(Announce, MediaInfo, #stream_info{content = Type, params = Params});
 
-parse_announce([{a, {"rtpmap", Value}} | Announce], MediaInfo, #stream_info{params = Params} = Stream) ->
-  [_PayLoadNum, CodecInfo] = string:tokens(Value, " "),
-  [CodecCode, ClockMap | EncodingParams] = string:tokens(CodecInfo, "/"),
+parse_media_announce([{a, {rtpmap, _PayloadNum, [CodecCode, ClockMap | EncodingParams]}} | Announce], MediaInfo, #stream_info{params = Params} = Stream) ->
   Codec = sdp_to_codec(CodecCode),
   Params1 = case {Codec, EncodingParams} of
     {pcma, ["1"]} -> #audio_params{sample_rate = list_to_integer(ClockMap), channels = 1};
     {pcmu, ["1"]} -> #audio_params{sample_rate = list_to_integer(ClockMap), channels = 1};
     _ -> Params
   end,
-  parse_announce(Announce, MediaInfo, Stream#stream_info{codec = Codec, timescale = list_to_integer(ClockMap)/1000, params = Params1});
+  parse_media_announce(Announce, MediaInfo, Stream#stream_info{codec = Codec, timescale = list_to_integer(ClockMap)/1000, params = Params1});
 
 
-parse_announce([{a, {"control", Value}} | Announce], MediaInfo, #stream_info{options = Options} = Stream) ->
-  parse_announce(Announce, MediaInfo, Stream#stream_info{options = [{control, Value}|Options]});
+parse_media_announce([{a, {"control", Value}} | Announce], MediaInfo, #stream_info{options = Options} = Stream) ->
+  parse_media_announce(Announce, MediaInfo, Stream#stream_info{options = [{control, Value}|Options]});
 
-parse_announce([{a, {fmtp, Opts}} | Announce], MediaInfo, #stream_info{content = video, codec = Codec} = Stream) ->
+parse_media_announce([{a, {fmtp, _PayloadNum, Opts}} | Announce], MediaInfo, #stream_info{content = video, codec = Codec} = Stream) ->
   Stream1 = case proplists:get_value("sprop-parameter-sets", Opts) of
     undefined -> Stream;
     Sprop when is_list(Sprop) andalso Codec == h264 ->
       ProfileLevelId = proplists:get_value("profile-level-id", Opts),
       Profile = erlang:list_to_integer(string:sub_string(ProfileLevelId, 1, 2), 16),
       Level = erlang:list_to_integer(string:sub_string(ProfileLevelId, 5, 6), 16),
-      
+
       NALS = [base64:decode(S) || S <- string:tokens(Sprop, ",")],
       [SPS|_] = [NAL || NAL <- NALS, h264:type(NAL) == sps],
       #h264_sps{width = Width, height = Height} = h264:parse_sps(SPS),
-      
+
       H264 = #h264{profile = Profile, level = Level, sps = [NAL || NAL <- NALS, h264:type(NAL) == sps], pps = [NAL || NAL <- NALS, h264:type(NAL) == pps]},
       Stream#stream_info{config = h264:decoder_config(H264), params = #video_params{width = Width, height = Height}};
     _ ->
       Stream
   end,
-  parse_announce(Announce, MediaInfo, Stream1);
+  parse_media_announce(Announce, MediaInfo, Stream1);
 
-parse_announce([{a, {fmtp, Opts}} | Announce], MediaInfo, #stream_info{content = audio} = Stream) ->
+parse_media_announce([{a, {fmtp, _PayloadNum, Opts}} | Announce], MediaInfo, #stream_info{content = audio} = Stream) ->
   Config = case proplists:get_value("config", Opts) of
     undefined -> undefined;
     HexConfig -> ssl_debug:unhex(HexConfig)
   end,
-  parse_announce(Announce, MediaInfo, Stream#stream_info{config = Config});
+  parse_media_announce(Announce, MediaInfo, Stream#stream_info{config = Config});
 
-parse_announce([_ | Announce], Streams, Stream) ->
-  parse_announce(Announce, Streams, Stream).
+parse_media_announce([_|Announce], MediaInfo, Stream) ->
+  parse_media_announce(Announce, MediaInfo, Stream).
+
 
 
 encode(Info) ->
@@ -208,9 +226,6 @@ encode(Info) ->
 
 encode(Session, MediaSeq) ->
   sdp_encoder:encode(Session, MediaSeq).
-
-prep_media_config(Config, Options) ->
-  sdp_encoder:prep_media_config(Config, Options).
 
 % Example of SDP:
 %

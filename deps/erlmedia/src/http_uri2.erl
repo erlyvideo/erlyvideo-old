@@ -1,23 +1,23 @@
 %%
 %% %CopyrightBegin%
-%% 
+%%
 %% Copyright Ericsson AB 2006-2009. All Rights Reserved.
-%% 
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/EPLICENSE.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 %%
-%% Copyright 2010 Max Lapshin <max@maxidoors.ru> for changes, applied to 
+%% Copyright 2010 Max Lapshin <max@maxidoors.ru> for changes, applied to
 %% recognizing non-http protocols, such as rtsp or rtmp
 
 -module(http_uri2).
@@ -29,7 +29,7 @@
 %%%=========================================================================
 parse(AbsURI) when is_binary(AbsURI) ->
   parse(binary_to_list(AbsURI));
-  
+
 parse(AbsURI) when is_list(AbsURI) ->
     case parse_scheme(AbsURI) of
 	{error, Reason} ->
@@ -39,7 +39,7 @@ parse(AbsURI) when is_list(AbsURI) ->
 		{UserInfo, Host, Port, Path, Query} ->
 		    {Scheme, UserInfo, Host, Port, Path, Query};
 		_  ->
-		    {error, {malformed_url, AbsURI}}    
+		    {error, {malformed_url, AbsURI}}
 	    end
     end.
 
@@ -65,7 +65,7 @@ parse_scheme(AbsURI) ->
 
 parse_uri_rest(Scheme, "//" ++ URIPart) ->
 
-    {Authority, PathQuery} = 
+    {Authority, PathQuery} =
 	case split_uri(URIPart, "/", URIPart, 1, 0) of
 	    Split = {_, _} ->
 		Split;
@@ -77,7 +77,7 @@ parse_uri_rest(Scheme, "//" ++ URIPart) ->
 			{URIPart,""}
 		end
 	end,
-    
+
     {UserInfo, HostPort} = split_uri(Authority, "@", {"", Authority}, 1, 1),
     {Host, Port} = parse_host_port(Scheme, HostPort),
     {Path, Query} = parse_path_query(PathQuery),
@@ -86,11 +86,11 @@ parse_uri_rest(Scheme, "//" ++ URIPart) ->
 
 parse_path_query(PathQuery) when is_binary(PathQuery) ->
     parse_path_query(binary_to_list(PathQuery));
-    
+
 parse_path_query(PathQuery) ->
     {Path, Query} =  split_uri(PathQuery, "\\?", {PathQuery, ""}, 1, 1),
     {path(Path), parse_query(Query)}.
-    
+
 
 parse_host_port(Scheme,"[" ++ HostPort) -> %ipv6
     DefaultPort = default_port(Scheme),
@@ -102,12 +102,12 @@ parse_host_port(Scheme, HostPort) ->
     DefaultPort = default_port(Scheme),
     {Host, Port} = split_uri(HostPort, ":", {HostPort, DefaultPort}, 1, 1),
     {Host, int_port(Port)}.
-    
+
 split_uri(UriPart, SplitChar, NoMatchResult, SkipLeft, SkipRight) ->
     case inets_regexp:first_match(UriPart, SplitChar) of
 	{match, Match, _} ->
 	    {string:substr(UriPart, 1, Match - SkipLeft),
-	     string:substr(UriPart, Match + SkipRight, length(UriPart))}; 
+	     string:substr(UriPart, Match + SkipRight, length(UriPart))};
 	nomatch ->
 	    NoMatchResult
     end.

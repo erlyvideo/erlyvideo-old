@@ -19,6 +19,9 @@
 -define(NAL_FUA, 28).
 -define(NAL_FUB, 29).
 
+-define(H264_PKT_NONE, 0).
+-define(H264_PKT_NONINT, 1).
+-define(H264_PKT_INT, 2).
 
 -record(h264, {
   profile,
@@ -27,7 +30,7 @@
   length_size = 32,
   sps,
   pps,
-  buffer = <<>>
+  buffer = undefined
 }).
 
 -record(h264_nal, {

@@ -38,8 +38,8 @@
 -include("log.hrl").
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
--export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2]).
--export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2, udta/2]).
+-export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2, udta/2]).
+-export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
 -export([extract_language/1]).
 
@@ -480,7 +480,7 @@ config_from_esds_tag(Data, ESDS) ->
         object_type = mp4_object_type(ObjectType), stream_type = StreamType, buffer_size = BufferSize,
         max_bitrate = MaxBitrate, avg_bitrate = AvgBitrate}),
       config_from_esds_tag(Rest2, ESDS1);
-    {?MP4DecSpecificDescrTag, Config, _} ->
+    {?MP4DecSpecificDescrTag, <<Config/binary>>, _} ->
       ESDS#esds{specific = Config};
     {?MP4Unknown6Tag, _Body, Rest} ->
       config_from_esds_tag(Rest, ESDS);
