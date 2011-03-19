@@ -18,6 +18,7 @@
 {"test/erlang/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}]}.
 {"lib/misultin/src/*", [encrypt_debug_info, {outdir, "ebin"}, {i, "lib/misultin/include"}]}.
+{"deps/http_file/src/*", [encrypt_debug_info, {outdir, "deps/http_file/ebin"}, {i, "deps/http_file/src"}, {i, "deps"},native,{hipe,o3}]}.
 {"deps/erlmedia/src/*", [encrypt_debug_info, {outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"deps/amf/src/*", [encrypt_debug_info, {outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
 {"deps/shoutcast/src/*", [encrypt_debug_info, {outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}, {i, "deps"}]}.
