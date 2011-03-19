@@ -29,7 +29,7 @@
 
 
 -export([start/0, stop/0, start/2, stop/1, config_change/3]).
--export([start_server/3, behaviour_info/1, test/0]).
+-export([start_server/3, behaviour_info/1, test/1]).
 
 
 start() ->
@@ -77,11 +77,10 @@ behaviour_info(callbacks) -> [{record,2}, {announce,3}];
 behaviour_info(_Other) -> undefined.
 
 
-edoc() ->
-  edoc([{dir,"doc/html"}]).
-
-edoc(Options) ->
-  edoc:application(?MODULE,".",[{packages,false} | Options]).
-
 start_server(Port, Name, Callback) ->
   rtsp_sup:start_rtsp_listener(Port, Name, Callback).
+
+
+
+test(Camera) ->
+  rtsp_tests:test_camera(Camera).

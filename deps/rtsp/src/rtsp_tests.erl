@@ -36,10 +36,50 @@ beward_test_() ->
 sanyo_hd2100_test_() ->
   run_camera_test("sanyo-hd2100", 8092).
 
+beward1_test_() ->
+  run_camera_test("beward_w20100722NS", 8092).
+
+capture_output(Acc) ->
+  receive
+    stop -> ok;
+    {io_request, From, ReplyAs, Request} ->
+      Reply = ok,
+      % io:format("io_request: ~p~n", [Request]),
+      From ! {io_reply, ReplyAs, Reply}, capture_output(Acc);
+    Msg -> io:format("msg: ~p~n", [Msg]), capture_output(Acc)
+  end.
+    
+
+test_camera(Name) ->
+  log4erl:change_log_level(error),
+  Logger = spawn_link(?MODULE, capture_output, [[]]),
+  Port = 8092,
+  Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]),
+  OldLeader = erlang:group_leader(),
+  erlang:group_leader(Logger, Pid),
+  erlang:group_leader(Logger, self()),
+  io:format("Launched ~p~n", [Pid]),
+  {ok, P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}]),
+  timer:send_after(40000, stop),
+  Frames = read_frames([]),
+  Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
+  true = Delta >= 20000,
+  ems_media:unsubscribe(P),
+  (catch unlink(Pid)),
+  (catch erlang:exit(Pid)),
+  log4erl:change_log_level(debug),
+  erlang:group_leader(OldLeader, self()).
+  
+    
+
 run_camera_test(Name, Port) ->
   {spawn, {setup,
-    fun() -> _Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]) end,
-    fun(Pid) -> erlang:exit(Pid, kill) end,
+    fun() -> 
+      log4erl:change_log_level(error),
+      _Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]) end,
+    fun(Pid) ->
+      log4erl:change_log_level(debug),
+      erlang:exit(Pid, kill) end,
     [fun() ->
       {ok, _P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}]),
       timer:send_after(40000, stop),

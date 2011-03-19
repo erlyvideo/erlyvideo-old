@@ -33,17 +33,18 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtsp_test_client).
 -author('Max Lapshin <max@maxidoors.ru>').
+
 -export([capture_camera/2, simulate_camera/2]).
+-export([capture_server/4]).
+
+
 -define(D(X), io:format("~p:~p ~p~n", [?MODULE,?LINE,X])).
 
 -define(CAPTURE_DIR, "test/files/rtsp_capture/").
 
-capture_camera(Name, URL) ->
+prepare_connect_socket(URL) ->
   {rtsp, Auth, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active,false},{packet,line}]),
-  CaptureDir = ?CAPTURE_DIR++Name,
-  put(capture_dir, CaptureDir),
-  io:format("Save session to ~s~n", [CaptureDir]),
   AuthHeader = case Auth of
     [] -> "";
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(Auth))++"\r\n"
@@ -56,6 +57,13 @@ capture_camera(Name, URL) ->
     _ -> re:replace(URL, "rtsp://([^@]+@)", "rtsp://", [{return,list}])
   end,
   put(url, RawURL),
+  ok.
+
+capture_camera(Name, URL) ->
+  CaptureDir = ?CAPTURE_DIR++Name,
+  put(capture_dir, CaptureDir),
+  io:format("Save session to ~s~n", [CaptureDir]),
+  prepare_connect_socket(URL),
   put(interleave, 0),
   {ok, Streams} = capture_camera_describe(),
   [capture_camera_setup(Stream) || Stream <- Streams],
@@ -105,18 +113,25 @@ send_and_receive(Method, Format, Args) ->
   Out = io_lib:format(Method ++ " " ++ Format, Args),
   capture(out, Out, Method),
   gen_tcp:send(get(socket), Out),
+  {ok, Headers, Body, _Raw} = receive_reply(Method),
+  inc_seq(),
+  {ok, Headers, Body}.
+
+receive_reply(Method) ->
   {ok, Headers, Body, Raw} = read_reply(),
   case proplists:get_value("Session", Headers) of
     undefined -> ok;
     Else -> put(session, Else)
   end,
   capture(in, Raw, Method),
-  inc_seq(),
-  {ok, Headers, Body}.
+  {ok, Headers, Body, Raw}.
   
 capture(Direction, Data, Method) ->
   Filename = lists:flatten(io_lib:format("~s/~p-~p-~s.txt", [get(capture_dir), get(seq), Direction, Method])),
-  Data1 = re:replace(Data, get(url), "{{URL}}", [{return,binary},global]),
+  Data1 = case get(url) of
+    undefined -> Data;
+    URL -> re:replace(Data, URL, "{{URL}}", [{return,binary},global])
+  end,
   filelib:ensure_dir(Filename),
   case Direction of
     out -> io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n");
@@ -146,16 +161,16 @@ loop_capture(F) ->
 
 read_reply() ->
   {ok,<<"RTSP/1.0 200 OK\r\n">>} = gen_tcp:recv(get(socket), 0),
-  {Headers, Raw} = read_headers([], [<<"RTSP/1.0 200 OK\r\n">>]),
+  {Headers, Raw} = read_headers(get(socket), [], [<<"RTSP/1.0 200 OK\r\n">>]),
   Body = read_body(Headers),
   {ok, Headers, Body, iolist_to_binary([Raw, Body])}.
   
-read_headers(Acc, Raw) ->
-  case gen_tcp:recv(get(socket), 0) of
+read_headers(Socket, Acc, Raw) ->
+  case gen_tcp:recv(Socket, 0) of
     {ok, <<"\r\n">>} -> {lists:reverse(Acc), lists:reverse([<<"\r\n">>|Raw])};
     {ok, Bin} ->
       {ok, {http_header, _, Key, _, Value}, <<"\r\n">>} = erlang:decode_packet(httph, <<Bin/binary, "\r\n">>, []),
-      read_headers([{Key,Value}|Acc], [Bin|Raw])
+      read_headers(Socket, [{Key,Value}|Acc], [Bin|Raw])
   end.
 
 read_body(Headers) ->
@@ -171,14 +186,16 @@ read_body(Headers) ->
   end.
   
 
+prepare_listen_socket(Port) ->
+  {ok, Listen} = gen_tcp:listen(Port, [binary, {reuseaddr,true},{active,false},{packet,line}]),
+  ?D({accepting, Port}),
+  {ok, Socket} = gen_tcp:accept(Listen),
+  put(listen_socket, Socket).
 
 simulate_camera(Name, Port) ->
   CaptureDir = ?CAPTURE_DIR++Name,
   put(capture_dir, CaptureDir),
-  {ok, Listen} = gen_tcp:listen(Port, [binary, {reuseaddr,true},{active,false},{packet,line}]),
-  ?D({accepting,Name,Port}),
-  {ok, Socket} = gen_tcp:accept(Listen),
-  put(socket, Socket),
+  prepare_listen_socket(Port),
   speak_to_camera_client().
 
 speak_to_camera_client() ->
@@ -198,13 +215,13 @@ read_and_send_request() ->
   io:format("<<<<<<<<<<   IN <<<<<<<<<\r\n~s", [Raw]),
   io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n~s", [Reply]),
 
-  gen_tcp:send(get(socket), Reply),
+  gen_tcp:send(get(listen_socket), Reply),
   {ok, Method, URL, Headers}.
   
 send_interleaved_reply(Seq) ->
   Filename = lists:flatten(io_lib:format("~s/~p-interleaved-in.txt", [get(capture_dir), Seq])),
   {ok, Bin} = file:read_file(Filename),
-  send_interleaved_reply(Bin, get(socket)).
+  send_interleaved_reply(Bin, get(listen_socket)).
 
 send_interleaved_reply(<<Data:1540/binary, Bin/binary>>, Socket) ->
   gen_tcp:send(Socket, Data),
@@ -222,10 +239,49 @@ load_capture(Num, Method, Direction, URL) ->
 
 
 read_request() ->
-  Socket = get(socket),
+  Socket = get(listen_socket),
   {ok, RequestLine} = gen_tcp:recv(Socket, 0),
   {match, [Method, URL]} = re:run(RequestLine, "([^ ]+) ([^ ]+) RTSP/1.0", [{capture,all_but_first,list}]),
-  {Headers, Raw} = read_headers([], [RequestLine]),
+  {Headers, Raw} = read_headers(Socket, [], [RequestLine]),
   Body = read_body(Headers),
   {ok, Method, URL, Headers, Body, iolist_to_binary([Raw,Body])}.
-  
+
+
+capture_server(Name, ListenPort, Host, Port) ->
+  put(capture_dir, ?CAPTURE_DIR++Name),
+  prepare_listen_socket(ListenPort),
+  put(connect_host, Host),
+  put(connect_port, Port),
+  capture_proxied_server().
+
+capture_proxied_server() ->
+  {ok, Method, URL, Headers, Body, Request} = read_request(),
+  capture(out, Request, Method),
+  io:format("<<<<<<<<<<   IN <<<<<<<<<\r\n~s", [Request]),
+  case get(url) of
+    undefined ->
+      {_Proto, _Auth, _Addr, _Port, Path, Query} = http_uri2:parse(URL),
+      prepare_connect_socket("rtsp://"++get(connect_host)++":"++integer_to_list(get(connect_port))++Path++"?"++Query);
+    _ -> ok
+  end,
+  gen_tcp:send(get(socket), Request),
+  {ok, Headers1, Body1, Reply} = receive_reply(Method),
+  io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n~s", [Reply]),
+  gen_tcp:send(get(listen_socket), Reply),
+  case Method of
+    "PLAY" ->
+      {ok, F} = file:open(get(capture_dir)++"/interleaved.txt", [write, binary]),
+      capture_interleave_traffic(F);
+    _ -> capture_proxied_server()
+  end.
+
+capture_interleave_traffic(F) ->
+  case gen_tcp:recv(get(socket), 0) of
+    {ok, Bin} -> 
+      file:write(F, Bin),
+      gen_tcp:send(get(listen_socket), Bin),
+      capture_interleave_traffic(F);
+    _Else -> ok
+  end.
+
+

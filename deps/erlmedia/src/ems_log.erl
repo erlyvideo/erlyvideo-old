@@ -25,7 +25,6 @@
 
 -export([start/0, stop/0, access/2, error/2, access/3, error/3, debug/1, debug/2, debug/3, debug/4]).
 
-
 %%-------------------------------------------------------------------------
 %% @spec start() -> any()
 %% @doc Starts all preconfigured loggers for all vhosts.
