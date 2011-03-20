@@ -32,6 +32,7 @@
 -include("log.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-compile(export_all).
 
 rtp_state1() ->
   {rtp_state,11143,1300433001498,193161,undefined,
@@ -68,11 +69,11 @@ decode_video_h264_test() ->
 
 decode_audio_aac_test() ->
   #media_info{audio = [Audio]} = sdp:decode(wirecast_sdp()),
-  Decoder = rtp_decoder:rtcp_sr(wirecast_sr1(), rtp_decoder:init(Audio)),
+  Decoder = rtp_decoder:rtcp(wirecast_sr1(), rtp_decoder:init(Audio)),
   ?assertMatch({ok, #rtp_state{}, [
-    #video_frame{codec = aac, dts = 1300205206513.9092},
-    #video_frame{codec = aac, dts = 1300205206537.182},
-    #video_frame{codec = aac, dts = 1300205206560.4546}
+    #video_frame{codec = aac, dts = 1300205206514.12},
+    #video_frame{codec = aac, dts = 1300205206537.34},
+    #video_frame{codec = aac, dts = 1300205206560.56}
   ]}, rtp_decoder:decode(wirecast_audio_rtp(), Decoder)).
 
 
@@ -243,5 +244,4 @@ wirecast_audio_rtp() ->
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,55,167,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,112>>.
-
 
