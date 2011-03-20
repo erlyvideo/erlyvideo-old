@@ -53,10 +53,12 @@ rtp_state1() ->
 
 
 rtp_decode_test() ->
-  Packet = <<128,97,43,135,0,3,21,177,0,201,89,153,6,5,17,3,
-                              135,244,78,205,10,75,220,161,148,58,195,212,155,
-                              23,31,0,128>>,
-  ?assertMatch({ok, #rtp_state{}, #video_frame{flavor = frame}}, rtp_decoder:decode(Packet, rtp_state1())).
+  Packet1 = <<128,97,43,135,0,3,21,177,0,201,89,153,6,5,17,3,135,244,78,205,10,75,220,161,148,58,195,212,155,23,31,0,128>>,
+  Packet2 = <<128,97,43,136,0,3,21,176,0,201,89,153,6,5,17,3,135,244,78,205,10,75,220,161,148,58,195,212,155,23,31,0,128>>,
+  {ok, RTP1, Frames1} = rtp_decoder:decode(Packet1, rtp_state1()),
+  {ok, RTP2, Frames2} = rtp_decoder:decode(Packet2, RTP1),
+  ?assertMatch({ok, #rtp_state{}, []}, {ok, RTP1, Frames1}),
+  ?assertMatch({ok, #rtp_state{}, [#video_frame{flavor = frame}]}, {ok, RTP2, Frames2}).
 
 
 %%%%%%%%%  Tests %%%%%%%%%
