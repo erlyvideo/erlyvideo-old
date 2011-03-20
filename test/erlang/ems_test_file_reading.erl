@@ -32,14 +32,7 @@
 read_file(Path) ->
   {ok, F} = file:open(ems_test_helper:file_path(Path), [read,binary]),
   Reader = file_media:file_format(Path),
-  {ok, Media} = Reader:init({file,F}, [{url,ems_test_helper:file_path(Path)}]),
-  read_all_frames(Media, [], Reader, undefined).
-
-read_all_frames(Media, Frames, Reader, Key) ->
-  case Reader:read_frame(Media, Key) of
-    #video_frame{next_id = Next} = F -> read_all_frames(Media, [F|Frames], Reader, Next);
-    eof -> {ok, Media, lists:reverse(Frames)}
-  end.
+  ems_test_helper:read_all_frames(Reader, {file, F}, [{url,ems_test_helper:file_path(Path)}]).
 
 test_duration(Frames, Nearby) ->
   [#video_frame{dts = DTS}|_] = lists:reverse(Frames),

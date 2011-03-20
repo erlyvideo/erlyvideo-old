@@ -21,38 +21,43 @@
 %%% along with erlmedia.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_test_helper).
+-module(rtmp_publish_tests).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
-
+-include("../../src/log.hrl").
 
 -compile(export_all).
 
-file_dir() ->
-  code:lib_dir(erlyvideo, test) ++ "/files".
 
-file_path(File) ->
-  filename:join(file_dir(), File).
+publish_file(Path, URL) ->
+  rtmp_publish:publish(ems_test_helper:file_path(Path), URL, [{no_timeout, true}]).
 
+check_publish(Name) ->
+  log4erl:change_log_level(error),
+  {ok, Media} = media_provider:open(default, "testStream", [{type,live},{source_timeout,0},{clients_timeout, 0}]),
+  link(Media),
+  publish_file(Name, "rtmp://localhost/testStream"),
+  (catch ems_media:stop_stream(Media)),
+  log4erl:change_log_level(debug),
+  Frames = ems_test_helper:receive_all_frames(),
+  ?assert(length(Frames) > 50).
 
-read_all_frames(Reader, Accessor, Options) ->
-  {ok, Media} = Reader:init(Accessor, Options),
-  read_all_frames(Media, [], Reader, undefined).
+check_publish_(Name) ->
+  fun() -> check_publish(Name) end.
 
-read_all_frames(Media, Frames, Reader, Key) ->
-  case Reader:read_frame(Media, Key) of
-    #video_frame{next_id = Next} = F -> read_all_frames(Media, [F|Frames], Reader, Next);
-    eof -> {ok, Media, lists:reverse(Frames)}
-  end.
-
-receive_all_frames() ->
-  receive_all_frames([]).
-
-receive_all_frames(Acc) ->
-  receive
-    #video_frame{} = F -> receive_all_frames([F|Acc])
-  after
-    10 -> lists:reverse(Acc)
-  end.
+publish_test_() ->
+  {spawn, [
+    check_publish_("h264_aac_1.flv"),
+    % check_publish_("flv_aac_1.flv")
+    % check_publish_("flv_mp3_1.flv"),
+    % check_publish_("h264_1.flv"),
+    % check_publish_("h264_mp3_1.flv"),
+    % check_publish_("vp6_mp3_1.flv"),
+    % check_publish_("vp6_mp3_2.flv"),
+    % check_publish_("vp6_nelly_1.flv"),
+    % check_publish_("vp6_nelly_2.flv"),
+    check_publish_("vp6_nelly_3.flv")
+  ]}.
 
