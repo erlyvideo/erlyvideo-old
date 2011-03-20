@@ -92,7 +92,6 @@ init([Path, URL, Options]) ->
 	{ok, File} = file:open(Path, [read, binary, {read_ahead, 100000}, raw]),
 	{#flv_header{} = _Header, Offset} = flv:read_header(File),
 	{rtmp, _UserInfo, Host, Port, [$/ | ServerPath], _Query} = http_uri2:parse(URL),
-	self() ! tick,
 	Publisher = #publisher{path = Path, file = File, offset = Offset, url = URL, host = Host, port = Port, server_path = ServerPath},
 	{_Frame, Publisher1} = read_frame(Publisher),
 	
@@ -155,28 +154,40 @@ handle_info({rtmp, RTMP, connected}, #publisher{server_path = Path} = Server) ->
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:publish(RTMP, Stream, Path),
   self() ! timeout,
-  io:format("Connected, publishing to ~s~n", [Path]),
+  io:format("Connected, publishing to ~s (~p)~n", [Path, Stream]),
   {noreply, Server#publisher{stream = Stream}};
 
 handle_info(timeout, #publisher{frame = Frame1, stream = Stream, rtmp = RTMP, counter = Counter, no_timeout = NoTimeout} = Server) ->
   Message = rtmp_message(Frame1, Stream),
 	rtmp_socket:send(RTMP, Message),
   
-  {Frame2, Server2} = read_frame(Server),
+  case read_frame(Server) of
+    {Frame2, Server2} ->
+      Timeout = case NoTimeout of
+        true -> 0;
+        _ -> Frame2#video_frame.dts - Frame1#video_frame.dts
+      end,
   
-  Timeout = case NoTimeout of
-    true -> 0;
-    _ -> Frame2#video_frame.dts - Frame1#video_frame.dts
-  end,
-  
-  case Counter rem 1000 of
-    0 -> io:format("Publishing second ~p~n", [round(Frame1#video_frame.dts/1000)]);
-    _ -> ok
-  end,
-  {noreply, Server2#publisher{counter = Counter + 1}, Timeout};
+      case Counter rem 1000 of
+        0 -> io:format("Publishing second ~p~n", [round(Frame1#video_frame.dts/1000)]);
+        _ -> ok
+      end,
+      {noreply, Server2#publisher{counter = Counter + 1}, Timeout};
+    eof ->
+      % io:format("Stopping on ~p~n", [Server#publisher.offset]),
+      {stop, normal, Server}
+  end;
+
+handle_info({rtmp, _Socket, disconnect}, State) ->
+  {stop, normal, State};
+
+handle_info({rtmp, _Socket, _Message}, State) ->
+  io:format("RMTP: ~p~n", [_Message]),
+  self() ! timeout,
+  {noreply, State};
 
 handle_info(_Info, State) ->
-  {noreply, State}.
+  {stop, {unknown_message,_Info}, State}.
 
 rtmp_message(#video_frame{dts = DTS, content = Type} = Frame, StreamId) ->
   #rtmp_message{

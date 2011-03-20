@@ -36,20 +36,25 @@ publish_file(Path, URL) ->
 
 check_publish(Name) ->
   log4erl:change_log_level(error),
-  {ok, Media} = media_provider:open(default, "testStream", [{type,live},{source_timeout,0},{clients_timeout, 0}]),
+  {ok, Media} = media_provider:play(default, "testStream", [{type,live},{source_timeout,0},{clients_timeout, 0},{stream_id,1}]),
   link(Media),
   publish_file(Name, "rtmp://localhost/testStream"),
   (catch ems_media:stop_stream(Media)),
   log4erl:change_log_level(debug),
   Frames = ems_test_helper:receive_all_frames(),
-  ?assert(length(Frames) > 50).
+  ?assert(length(Frames) > 0).
 
 check_publish_(Name) ->
   fun() -> check_publish(Name) end.
 
-publish_test_() ->
+h264_aac_1_test() ->
+  check_publish("h264_aac_1.flv").
+
+vp6_nelly_3_test() ->
+  check_publish("vp6_nelly_3.flv").
+
+publish_test1_() ->
   {spawn, [
-    check_publish_("h264_aac_1.flv"),
     % check_publish_("flv_aac_1.flv")
     % check_publish_("flv_mp3_1.flv"),
     % check_publish_("h264_1.flv"),
@@ -58,6 +63,6 @@ publish_test_() ->
     % check_publish_("vp6_mp3_2.flv"),
     % check_publish_("vp6_nelly_1.flv"),
     % check_publish_("vp6_nelly_2.flv"),
-    check_publish_("vp6_nelly_3.flv")
+    
   ]}.
 
