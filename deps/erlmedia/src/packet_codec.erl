@@ -28,15 +28,6 @@
 -export([parse/2, decode/1, encode/1]).
 -export([encode_headers/1]).
 
--export([edoc/1, edoc/0]).
-
-
-edoc() ->
-  edoc([{dir,"doc/html"}]).
-
-edoc(Options) ->
-  edoc:application(?MODULE,".",[{packages,false} | Options]).
-
 parse(ready, <<$$, ChannelId, Length:16, RTP:Length/binary, Rest/binary>>) ->
   {ok, {rtp, ChannelId, RTP}, Rest};
 

@@ -1,3 +1,15 @@
+erlyvideo (2.7.4) unstable; urgency=low
+
+  Added tests for rtmp publish. H264 publish fixed
+
+ -- Max Lapshin <max@maxidoors.ru>  Sun, 20 Mar 2011 12:57:33 +0300
+
+erlyvideo (2.7.3) unstable; urgency=low
+
+  regression tests for rtsp cameras
+
+ -- Max Lapshin <max@maxidoors.ru>  Sat, 19 Mar 2011 15:31:46 +0300
+
 erlyvideo (2.7.2) unstable; urgency=low
 
   Interlaced H264 demux
