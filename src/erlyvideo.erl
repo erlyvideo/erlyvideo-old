@@ -71,7 +71,8 @@ test() ->
     rtmp,
     rtmp_handshake,
     rtsp,
-    ems_test_file_reading
+    ems_test_file_reading,
+    rtmp_publish_tests
   ]).
 
 

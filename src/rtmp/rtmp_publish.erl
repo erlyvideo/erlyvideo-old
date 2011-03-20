@@ -31,7 +31,7 @@
 
 
 %% External API
--export([start_link/2]).
+-export([start_link/2, start_link/3, publish/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -48,11 +48,26 @@
   rtmp,
   frame,
   stream,
-  counter = 0
+  counter = 0,
+  no_timeout = false
 }).
 
+
+publish(Path, URL, Options) ->
+  {ok, Pid} = start_link(Path, URL, Options),
+  erlang:monitor(process, Pid),
+  receive
+    {'DOWN', _Ref, process, Pid, normal} -> ok;
+    {'DOWN', _Ref, process, Pid, Reason} -> {error, Reason}
+  end.
+    
+  
+
 start_link(Path, URL) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Path, URL], []).
+  start_link(Path, URL, []).
+
+start_link(Path, URL, Options) ->
+  gen_server:start_link(?MODULE, [Path, URL, Options], []).
 
 
 
@@ -73,7 +88,7 @@ start_link(Path, URL) ->
 %%----------------------------------------------------------------------
 
 
-init([Path, URL]) ->
+init([Path, URL, Options]) ->
 	{ok, File} = file:open(Path, [read, binary, {read_ahead, 100000}, raw]),
 	{#flv_header{} = _Header, Offset} = flv:read_header(File),
 	{rtmp, _UserInfo, Host, Port, [$/ | ServerPath], _Query} = http_uri2:parse(URL),
@@ -85,7 +100,7 @@ init([Path, URL]) ->
   {ok, RTMP} = rtmp_socket:connect(Socket),
   io:format("Connecting to ~s~n", [URL]),
   
-  {ok, Publisher1#publisher{socket = Socket, rtmp = RTMP, counter = 1}}.
+  {ok, Publisher1#publisher{socket = Socket, rtmp = RTMP, counter = 1, no_timeout = proplists:get_value(no_timeout, Options, false)}}.
 
 
 read_frame(#publisher{file = File, offset = Offset} = Publisher) ->
@@ -143,13 +158,16 @@ handle_info({rtmp, RTMP, connected}, #publisher{server_path = Path} = Server) ->
   io:format("Connected, publishing to ~s~n", [Path]),
   {noreply, Server#publisher{stream = Stream}};
 
-handle_info(timeout, #publisher{frame = Frame1, stream = Stream, rtmp = RTMP, counter = Counter} = Server) ->
+handle_info(timeout, #publisher{frame = Frame1, stream = Stream, rtmp = RTMP, counter = Counter, no_timeout = NoTimeout} = Server) ->
   Message = rtmp_message(Frame1, Stream),
 	rtmp_socket:send(RTMP, Message),
   
   {Frame2, Server2} = read_frame(Server),
   
-  Timeout = Frame2#video_frame.dts - Frame1#video_frame.dts,
+  Timeout = case NoTimeout of
+    true -> 0;
+    _ -> Frame2#video_frame.dts - Frame1#video_frame.dts
+  end,
   
   case Counter rem 1000 of
     0 -> io:format("Publishing second ~p~n", [round(Frame1#video_frame.dts/1000)]);
