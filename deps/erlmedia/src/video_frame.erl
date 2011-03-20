@@ -83,12 +83,15 @@ define_media_info(#media_info{} = Media, #video_frame{codec = aac}) ->
   Media;
 
 define_media_info(#media_info{video = V} = Media, #video_frame{codec = h264, flavor = config, body = Body}) when V == [] orelse V == wait  ->
-  [{width,Width},{height,Height}] = h264:metadata(Body),
+  Metadata = h264:metadata(Body),
   Info = #stream_info{
     content = video,
     codec = h264,
     config = Body,
-    params = #video_params{width = Width, height = Height}
+    params = #video_params{
+      width = proplists:get_value(width, Metadata),
+      height = proplists:get_value(height, Metadata)
+    }
   },
   Media#media_info{video = [Info]};
 
