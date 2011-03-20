@@ -32,5 +32,6 @@
   pending_reply = ok,
   seq = 0,
   timeout = ?DEFAULT_TIMEOUT,
-  session
+  session,
+  dump_traffic = true
 }).

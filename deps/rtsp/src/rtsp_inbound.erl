@@ -42,6 +42,11 @@
 
 -export([handle_call/3, sync_rtp/2, handle_announce_request/4, handle_receive_setup/4, handle_rtp/2]).
 
+
+dump_io(#rtsp_socket{dump_traffic = false}, _) -> ok;
+dump_io(_, Call) -> io:format(">>>>>> RTSP OUT (~p:~p) >>>>>~n~s~n", [?MODULE, ?LINE, Call]).
+  
+
 handle_call({connect, URL, Options}, _From, RTSP) ->
   Consumer = proplists:get_value(consumer, Options),
   Ref = erlang:monitor(process, Consumer),
@@ -72,7 +77,7 @@ handle_call({consume, Consumer}, _From, #rtsp_socket{rtp_ref = OldRef, timeout =
 handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth, seq = Seq, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Auth++"\r\n", [URL, Seq+1]),
   gen_tcp:send(Socket, Call),
-  io:format("~s~n", [Call]),
+  dump_io(RTSP, Call),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = Seq+1}, Timeout};
 
 handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
@@ -88,13 +93,13 @@ handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp_strea
         "Transport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n",
         [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
   gen_tcp:send(Socket, Call),
-  io:format("~s~n", [Call]),
+  dump_io(RTSP, Call),
   {noreply, RTSP#rtsp_socket{pending = From, rtp_streams = setelement(Num, Streams, rtp_decoder:init(Stream)), seq = Seq+1}, Timeout};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
   gen_tcp:send(Socket, Call),
-  io:format("~s~n", [Call]),
+  dump_io(RTSP, Call),
   {noreply, RTSP#rtsp_socket{pending = From, state = play, seq = Seq + 1}, Timeout}.
 
 
