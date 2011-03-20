@@ -136,6 +136,7 @@ quicktime_broadcaster_test() ->
       stream_id = 1,
       codec = aac,
       config = <<21,136>>,
+      params = #audio_params{channels = 1, sample_rate = 8000},
       timescale = 8.0,
       options = [{control,"trackid=1"}]
     }]

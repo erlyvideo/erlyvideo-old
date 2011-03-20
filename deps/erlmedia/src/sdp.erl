@@ -39,6 +39,7 @@
 -include("../include/video_frame.hrl").
 -include("../include/media_info.hrl").
 -include("../include/h264.hrl").
+-include("../include/aac.hrl").
 -include("log.hrl").
 -define(DBG(X,A), ok).
 
@@ -209,12 +210,19 @@ parse_media_announce([{a, {fmtp, _PayloadNum, Opts}} | Announce], MediaInfo, #st
   end,
   parse_media_announce(Announce, MediaInfo, Stream1);
 
-parse_media_announce([{a, {fmtp, _PayloadNum, Opts}} | Announce], MediaInfo, #stream_info{content = audio} = Stream) ->
+parse_media_announce([{a, {fmtp, _PayloadNum, Opts}} | Announce], MediaInfo, #stream_info{content = audio, codec = Codec} = Stream) ->
   Config = case proplists:get_value("config", Opts) of
     undefined -> undefined;
     HexConfig -> ssl_debug:unhex(HexConfig)
   end,
-  parse_media_announce(Announce, MediaInfo, Stream#stream_info{config = Config});
+  Stream1 = case Codec of
+    aac ->
+      #aac_config{channel_count = Channels, sample_rate = SampleRate} = aac:decode_config(Config),
+      Stream#stream_info{params = #audio_params{channels = Channels, sample_rate = SampleRate}};
+    _ ->
+      Stream
+  end,  
+  parse_media_announce(Announce, MediaInfo, Stream1#stream_info{config = Config});
 
 parse_media_announce([_|Announce], MediaInfo, Stream) ->
   parse_media_announce(Announce, MediaInfo, Stream).
