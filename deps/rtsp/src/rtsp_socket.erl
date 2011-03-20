@@ -115,8 +115,8 @@ init([Callback]) ->
 %%-------------------------------------------------------------------------
 
 
-handle_call({connect, _, _} = Call, From, RTSP) ->
-  rtsp_inbound:handle_call(Call, From, RTSP);
+handle_call({connect, _, Options} = Call, From, #rtsp_socket{} = RTSP) ->
+  rtsp_inbound:handle_call(Call, From, RTSP#rtsp_socket{dump_traffic = proplists:get_value(dump_traffic, Options, true)});
 
 handle_call({consume, _Consumer} = Call, From, RTSP) ->
   rtsp_inbound:handle_call(Call, From, RTSP);
@@ -193,26 +193,29 @@ handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) -
 handle_info(Message, #rtsp_socket{} = Socket) ->
   {stop, {uknown_message, Message}, Socket}.
 
+dump_io(false, _) -> ok;
+dump_io(true, IO) -> dump_io(IO).
+
 dump_io({request, Method, URL, Headers, undefined}) ->
   HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
-  io:format("~s ~s RTSP/1.0~n~s~n", [Method, URL, HeaderS]);
+  io:format("<<<<<< RTSP IN (~p:~p)  <<<<<~n~s ~s RTSP/1.0~n~s~n", [?MODULE, ?LINE, Method, URL, HeaderS]);
 
 dump_io({request, Method, URL, Headers, Body}) ->
   HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
-  io:format("~s ~s RTSP/1.0~n~s~n~s~n", [Method, URL, HeaderS, Body]);
+  io:format("<<<<<< RTSP IN (~p:~p)  <<<<<~n~s ~s RTSP/1.0~n~s~n~s~n", [?MODULE, ?LINE, Method, URL, HeaderS, Body]);
 
 dump_io({response, Code, Message, Headers, undefined}) ->
   HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
-  io:format("RTSP/1.0 ~p ~s~n~s~n", [Code, Message, HeaderS]);
+  io:format("<<<<<< RTSP IN (~p:~p)  <<<<<~nRTSP/1.0 ~p ~s~n~s~n", [?MODULE, ?LINE, Code, Message, HeaderS]);
 
 dump_io({response, Code, Message, Headers, Body}) ->
   HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
-  io:format("RTSP/1.0 ~p ~s~n~s~n~s~n", [Code, Message, HeaderS, Body]).
+  io:format("<<<<<< RTSP IN (~p:~p)  <<<<<~nRTSP/1.0 ~p ~s~n~s~n~s~n", [?MODULE, ?LINE, Code, Message, HeaderS, Body]).
   
--define(DUMP_REQUEST(X), dump_io(X)).
--define(DUMP_RESPONSE(X), dump_io(X)).
+-define(DUMP_REQUEST(Flag, X), dump_io(Flag, X)).
+-define(DUMP_RESPONSE(Flag, X), dump_io(Flag, X)).
 
-handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
+handle_packet(#rtsp_socket{buffer = Data, dump_traffic = Dump} = Socket) ->
   case packet_codec:decode(Data) of
     {more, Data} ->
       Socket;
@@ -220,11 +223,11 @@ handle_packet(#rtsp_socket{buffer = Data} = Socket) ->
       Socket1 = rtsp_inbound:handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
       handle_packet(Socket1);
     {ok, {response, _Code, _Message, Headers, _Body} = Response, Rest} ->
-      ?DUMP_RESPONSE(Response),
+      ?DUMP_RESPONSE(Dump, Response),
       Socket1 = handle_response(extract_session(Socket#rtsp_socket{buffer = Rest}, Headers), Response),
       handle_packet(Socket1);
     {ok, {request, _Method, _URL, _Headers, _Body} = Request, Rest} ->
-      ?DUMP_REQUEST(Request),
+      ?DUMP_REQUEST(Dump, Request),
       Socket1 = handle_request(Request, Socket#rtsp_socket{buffer = Rest}),
       handle_packet(Socket1)
   end.

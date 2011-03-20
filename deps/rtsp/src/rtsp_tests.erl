@@ -24,6 +24,7 @@
 -module(rtsp_tests).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
 
@@ -39,20 +40,26 @@ sanyo_hd2100_test_() ->
 beward1_test_() ->
   run_camera_test("beward_w20100722NS", 8092).
 
-capture_output(Acc) ->
+capture_output() ->
   receive
     stop -> ok;
-    {io_request, From, ReplyAs, Request} ->
+    {io_request, From, ReplyAs, _Request} ->
       Reply = ok,
       % io:format("io_request: ~p~n", [Request]),
-      From ! {io_reply, ReplyAs, Reply}, capture_output(Acc);
-    Msg -> io:format("msg: ~p~n", [Msg]), capture_output(Acc)
+      From ! {io_reply, ReplyAs, Reply}, capture_output();
+    else ->
+      ok  
+    % Msg -> io:format("msg: ~p~n", [Msg]), capture_output()
   end.
     
 
 test_camera(Name) ->
   log4erl:change_log_level(error),
-  Logger = spawn_link(?MODULE, capture_output, [[]]),
+  Self = self(),
+  Logger = spawn_link(fun() ->
+    erlang:monitor(process, Self),
+    capture_output()
+  end),
   Port = 8092,
   Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]),
   OldLeader = erlang:group_leader(),
@@ -76,16 +83,26 @@ run_camera_test(Name, Port) ->
   {spawn, {setup,
     fun() -> 
       log4erl:change_log_level(error),
-      _Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]) end,
+      Self = self(),
+      Logger = spawn_link(fun() ->
+        erlang:monitor(process, Self),
+        capture_output()
+      end),
+      Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]),
+      erlang:group_leader(Logger, Pid),
+      Pid
+    end,
     fun(Pid) ->
       log4erl:change_log_level(debug),
       erlang:exit(Pid, kill) end,
     [fun() ->
-      {ok, _P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}]),
+      {ok, Media} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0},{dump_traffic,false}]),
       timer:send_after(40000, stop),
       Frames = read_frames([]),
+      ?assert(length(Frames) > 40),
       Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
-      true = Delta >= 20000
+      (catch ems_media:stop_stream(Media)),
+      ?assert(Delta >= 20000)
     end]
   }}.
 
