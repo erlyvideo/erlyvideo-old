@@ -264,14 +264,18 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #rtmp_funcall{command = CommandBin} = AMF,
   Command = binary_to_atom(CommandBin, utf8),
   call_function(State, AMF#rtmp_funcall{command = Command});
-  
-handle_rtmp_message(#rtmp_session{} = State, 
-   #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  #rtmp_stream{pid = Recorder} = get_stream(StreamId, State),
-  
-  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
-  ems_media:publish(Recorder, Frame),
-  State;
+
+handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) 
+  when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
+  case get_stream(StreamId, State) of
+    #rtmp_stream{pid = Recorder} ->
+      Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
+      ems_media:publish(Recorder, Frame),
+      State;
+    false ->
+      rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Failed">>),
+      State
+  end;  
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
   #so_message{name = Name, persistent = Persistent} = SOEvent,
