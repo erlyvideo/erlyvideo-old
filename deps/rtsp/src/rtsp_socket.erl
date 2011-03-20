@@ -264,11 +264,21 @@ save_media_info(#rtsp_socket{} = Socket, #media_info{audio = Audio, video = Vide
   StreamNums = lists:seq(1, length(Audio)+length(Video)),
   % TODO: Отрефакторить это уродство
   
-  {StreamInfos, VideoNum, AudioNum, ControlMap} = case {Video, Audio} of
-    {[V], [A]} -> {{V, A}, 1, 2, [{proplists:get_value(control, V#stream_info.options),1}, {proplists:get_value(control, A#stream_info.options),2}]};
-    {[V], []} -> {{V}, 1, undefined, [{proplists:get_value(control, V#stream_info.options),1}]};
-    {[], [A]} -> {{A}, undefined, 1, [{proplists:get_value(control, A#stream_info.options),1}]}
-  end,  
+  Streams = lists:sort(fun(#stream_info{stream_id = Id1}, #stream_info{stream_id = Id2}) ->
+    Id1 =< Id2
+  end, Audio ++ Video),
+  
+  StreamInfos = list_to_tuple(Streams),
+  VideoNum = case Video of
+    [#stream_info{stream_id = V_ID}] -> V_ID;
+    _ -> undefined
+  end,
+  AudioNum = case Audio of
+    [#stream_info{stream_id = A_ID}] -> A_ID;
+    _ -> undefined
+  end,
+  ControlMap = [{proplists:get_value(control, Opt),S} || #stream_info{options = Opt, stream_id = S} <- Streams],
+  
   % ?D({"Streams", StreamInfos, StreamNums, ControlMap}),
   Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}, audio_rtp_stream = AudioNum, video_rtp_stream = VideoNum}.
 
