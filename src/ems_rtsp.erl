@@ -81,7 +81,6 @@ record(URL, Headers, _Body) ->
 
 describe(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
-  ?D({"DESCRIBE", Host, Path, Headers}),
   {Module, Function} = ems:check_app(Host, auth, 3),
   case Module:Function(Host, rtsp, proplists:get_value('Authorization', Headers)) of
     undefined ->
@@ -91,9 +90,8 @@ describe(URL, Headers, _Body) ->
       {ok, Media}
   end.
 
-play(URL, Headers, _Body) ->
+play(URL, _Headers, _Body) ->
   {Host, Path} = hostpath(URL),
-  ?D({"PLAY", Host, Path, Headers}),
   % {Module, Function} = ems:check_app(Host, auth, 3),
   ems_log:access(Host, "RTSP PLAY ~s ~s", [Host, Path]),
   {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}, {client_buffer,100}]),
