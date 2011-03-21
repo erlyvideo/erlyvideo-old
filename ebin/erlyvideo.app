@@ -20,7 +20,6 @@
     ems_event,
     ems_event_consumer,
     ems_event_hook,
-    ems_flv_streams,
     ems_hook_http,
     ems_http,
     ems_http_file,
