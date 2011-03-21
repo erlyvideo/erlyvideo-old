@@ -77,7 +77,8 @@ open_ports(Type) ->
   gen_udp:controlling_process(RTPSocket, self()),
   gen_udp:controlling_process(RTCPSocket, self()),
   {ok, {Addr, _}} = inet:sockname(RTPSocket),
-  Source = lists:flatten(io_lib:format("~p.~p.~p.~p", tuple_to_list(Addr))),
+  % Source = lists:flatten(io_lib:format("~p.~p.~p.~p", tuple_to_list(Addr))),
+  Source = "127.0.0.1",
   #rtp_udp{
     server_rtp_port = RTP,
     rtp_socket = RTPSocket,

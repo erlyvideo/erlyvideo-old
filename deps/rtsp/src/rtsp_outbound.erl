@@ -125,7 +125,7 @@ handle_play_request(#rtsp_socket{callback = Callback, rtp_streams = RtpStreams} 
     {ok, Media} ->
       RtpInfo = string:join([rtp_encoder:rtp_info(Encoder) || Encoder <- tuple_to_list(RtpStreams)], ","),
       rtsp_socket:reply(Socket#rtsp_socket{media = Media}, "200 OK",
-            [{'Cseq', seq(Headers)}, {'Cache-control', "no-cache"}, {'RTP-Info', RtpInfo}]);
+            [{'Cseq', seq(Headers)}, {'Cache-control', "no-cache"}, {'Range', "npt=0-"}, {'RTP-Info', RtpInfo}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}])
   end.

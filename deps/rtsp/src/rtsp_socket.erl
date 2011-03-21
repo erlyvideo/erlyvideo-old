@@ -167,9 +167,9 @@ handle_info({tcp_closed, _Socket}, State) ->
   ?D({"RTSP socket closed"}),
   {stop, normal, State};
 
-handle_info({udp, Socket, Addr, Port, Bin}, #rtsp_socket{timeout = Timeout} = Socket) ->
+handle_info({udp, Socket, Addr, Port, Bin}, #rtsp_socket{timeout = Timeout} = RTSP) ->
   ?D({ignoring,udp,size(Bin)}),
-  {noreply, Socket, Timeout};
+  {noreply, RTSP, Timeout};
 
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf, timeout = Timeout} = RTSPSocket) ->
   inet:setopts(Socket, [{active, once}]),
