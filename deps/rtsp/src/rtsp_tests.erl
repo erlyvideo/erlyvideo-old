@@ -40,6 +40,8 @@ sanyo_hd2100_test_() ->
 beward1_test_() ->
   run_camera_test("beward_w20100722NS", 8092).
 
+  
+
 capture_output() ->
   receive
     stop -> ok;
