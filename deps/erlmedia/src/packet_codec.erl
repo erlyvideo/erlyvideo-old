@@ -181,6 +181,7 @@ parse_transport_header(Header) ->
     ("RTP/AVP/TCP", Opts) -> [{proto, tcp}|Opts];
     ("RTP/AVP/UDP", Opts) -> [{proto, udp}|Opts];
     ("RTP/AVP", Opts) -> [{proto, udp}|Opts];
+    ("mode=record", Opts) -> [{mode, 'receive'}|Opts];
     ("mode=receive", Opts) -> [{mode, 'receive'}|Opts];
     ("mode=\"PLAY\"", Opts) -> [{mode, play}|Opts];
     ("unicast", Opts) -> [{unicast, true}|Opts];
