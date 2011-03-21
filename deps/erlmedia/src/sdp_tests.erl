@@ -58,7 +58,16 @@ a=control:track2">>.
 beward_test() ->
   ?assertMatch(#media_info{
     flow_type = stream,
-    options = [{connect, {inet4, "0.0.0.0"}}],
+    options = [{sdp_session, #sdp_session{
+      version = 0,
+      originator = #sdp_o{
+        username = "-",
+        sessionid = "1275067839203788",
+        version = "1",
+        netaddrtype = inet4,
+        address = "0.0.0.0"
+      }
+    }}],
     video = [#stream_info{
       content = video,
       stream_id = 1,
@@ -120,7 +129,6 @@ a=control:trackid=2
 quicktime_broadcaster_test() ->
   ?assertMatch(#media_info{
     flow_type = stream,
-    options = [{connect, {inet4, "127.0.0.1"}}],
     video = [#stream_info{
       content = video,
       stream_id = 2,
@@ -129,7 +137,7 @@ quicktime_broadcaster_test() ->
         181,239,124,4,1,0,5,40,222,9,23,160>>, 
       params = #video_params{width = 160, height = 128},
       timescale = 90.0,
-      options = [{control,"trackid=2"}]
+      options = [{control,"trackid=2"},{payload_num, 97}]
     }],
     audio = [#stream_info{
       content = audio,
@@ -138,7 +146,7 @@ quicktime_broadcaster_test() ->
       config = <<21,136>>,
       params = #audio_params{channels = 1, sample_rate = 8000},
       timescale = 8.0,
-      options = [{control,"trackid=1"}]
+      options = [{control,"trackid=1"},{payload_num, 96}]
     }]
   }, sdp:decode(quicktime_broadcaster_sdp())).
 
@@ -164,7 +172,6 @@ a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0
 axis_m1011_test() ->
   ?assertMatch(#media_info{
     flow_type = stream,
-    options = [{connect, {inet4, "0.0.0.0"}}],
     video = [#stream_info{
       content = video,
       stream_id = 1,
@@ -173,7 +180,7 @@ axis_m1011_test() ->
         21,1,0,4,104,206,60,128>>, 
       params = #video_params{width = 640, height = 480},
       timescale = 90.0,
-      options = [{control,"trackID=1"}]
+      options = [{control,"trackID=1"},{payload_num, 96}]
     }],
     audio = []
   }, sdp:decode(axis_m1011_sdp())).
@@ -204,7 +211,6 @@ a=fmtp:97 profile-level-id=15; mode=AAC-hbr;config=1408; SizeLength=13; IndexLen
 axis_p1311_test() ->
   ?assertMatch(#media_info{
     flow_type = stream,
-    options = [{connect, {inet4, "0.0.0.0"}}],
     video = [#stream_info{
       content = video,
       stream_id = 1,
@@ -213,7 +219,7 @@ axis_p1311_test() ->
         21,1,0,4,104,206,60,128>>, 
       params = #video_params{width = 640, height = 480},
       timescale = 90.0,
-      options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264"}]
+      options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=1?videocodec=h264"},{payload_num,96}]
     }],
     audio = [#stream_info{
       content = audio,
@@ -221,7 +227,7 @@ axis_p1311_test() ->
       codec = aac,
       config = <<20,8>>,
       timescale = 16.0,
-      options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264"}]
+      options = [{control,"rtsp://10.10.11.48:554/axis-media/media.amp/trackID=2?videocodec=h264"},{payload_num,97}]
     }]
   }, sdp:decode(axis_p1311_sdp())).
   
@@ -247,7 +253,6 @@ a=fmtp:96 packetization-mode=1; profile-level-id=420029; sprop-parameter-sets=Z0
 axis_server_test() ->
   ?assertMatch(#media_info{
     flow_type = stream,
-    options = [{connect, {inet4, "0.0.0.0"}}],
     video = [#stream_info{
       content = video,
       stream_id = 1,
@@ -256,7 +261,7 @@ axis_server_test() ->
         21,1,0,4,104,206,60,128>>, 
       params = #video_params{width = 640, height = 480},
       timescale = 90.0,
-      options = [{control,"trackID=1"}]
+      options = [{control,"trackID=1"},{payload_num,96}]
     }],
     audio = []
   }, sdp:decode(axis_server_sdp())).
@@ -381,44 +386,44 @@ linphone_mediainfo() ->
       #stream_info{
         content = audio,
         codec = speex,
-        stream_id = 111,
+        stream_id = 1,
         params = #audio_params{channels = 1, sample_rate = 16000},
         timescale = 16.0,
-        options = [{port, 7078},{vbr,true}]
+        options = [{vbr,true},{payload_num,111},{port, 7078}]
       },
       #stream_info{
         content = audio,
         codec = speex,
-        stream_id = 110,
+        stream_id = 2,
         params = #audio_params{channels = 1, sample_rate = 8000},
         timescale = 8.0,
-        options = [{port, 7078},{vbr,true}]
+        options = [{vbr,true},{payload_num,110},{port, 7078}]
       },
       #stream_info{
         content = audio,
         codec = pcmu,
-        stream_id = 0,
+        stream_id = 3,
         params = #audio_params{channels = 1, sample_rate = 8000},
         timescale = 8.0,
-        options = [{port, 7078}]
+        options = [{payload_num,0},{port, 7078}]
       },
       #stream_info{
         content = audio,
         codec = pcma,
-        stream_id = 8,
+        stream_id = 4,
         params = #audio_params{channels = 1, sample_rate = 8000},
         timescale = 8.0,
-        options = [{port, 7078}]
+        options = [{payload_num,8},{port, 7078}]
       }
     ],
     video = [
       #stream_info{
         content = video,
         codec = h263,
-        stream_id = 0,
+        stream_id = 5,
         params = #video_params{},
         timescale = 90.0,
-        options = [{port, 9078}]
+        options = [{payload_num,0},{port, 9078}]
       }
     ],
     options = [{sdp_session, #sdp_session{
