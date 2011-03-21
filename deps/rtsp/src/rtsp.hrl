@@ -33,5 +33,6 @@
   seq = 0,
   timeout = ?DEFAULT_TIMEOUT,
   session,
+  rtp_udp,
   dump_traffic = true
 }).

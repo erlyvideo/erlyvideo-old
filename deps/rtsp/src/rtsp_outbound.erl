@@ -38,6 +38,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
 -include_lib("erlmedia/include/sdp.hrl").
+-include_lib("rtp/include/rtp.hrl").
 -include("rtsp.hrl").
 
 -export([encode_frame/2, handle_describe_request/4, handle_play_setup/4, handle_play_request/4]).
@@ -54,10 +55,11 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
   
 handle_authorized_describe(#rtsp_socket{} = Socket, URL, Headers, Media) ->
   Socket1 = Socket#rtsp_socket{session = rtsp_socket:generate_session()},
-  MediaInfo = #media_info{} = ems_media:media_info(Media),
+  MediaInfo = #media_info{audio = A, video = V} = ems_media:media_info(Media),
   Info1 = add_rtsp_options(MediaInfo, Socket1),
   SDP = sdp:encode(Info1),
-  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out}, Info1),
+  RtpUdp = list_to_tuple([undefined || _ <- lists:seq(1, length(A)+length(V))]),
+  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out, rtp_udp = RtpUdp}, Info1),
   rtsp_socket:reply(Socket2, "200 OK", [{'Cseq', seq(Headers)}, {'Server', ?SERVER_NAME}, 
       {'Date', httpd_util:rfc1123_date()}, {'Expires', httpd_util:rfc1123_date()},
       {'Content-Base', io_lib:format("~s/", [URL])}], SDP).
@@ -103,7 +105,19 @@ handle_play_setup(#rtsp_socket{} = Socket, URL, Headers, _Body) ->
   StreamNum = proplists:get_value(Control, Socket#rtsp_socket.control_map),
   StreamInfo = element(StreamNum, Socket#rtsp_socket.rtp_streams),
   Streams = setelement(StreamNum, Socket#rtsp_socket.rtp_streams, rtp_encoder:init(StreamInfo)),
-  rtsp_socket:reply(Socket#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', Transport}]).
+  {Socket1, Transport1} = case proplists:get_value(proto, Transport) of
+    udp -> setup_udp_transport(Socket, StreamInfo, Transport);
+    tcp -> {Socket#rtsp_socket{transport = interleaved}, Transport}
+  end,
+  rtsp_socket:reply(Socket1#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', Transport1}]).
+
+setup_udp_transport(#rtsp_socket{rtp_udp = RtpUdp} = Socket, #stream_info{content = Content, stream_id = Id} = StreamInfo, Transport) ->
+  RTP = #rtp_udp{server_rtp_port = SPort1, server_rtcp_port = SPort2, source = Source} = rtp:open_ports(Content),
+  {CPort1, CPort2} = proplists:get_value(client_port, Transport),
+  RTP1 = #rtp_udp{client_rtp_port = CPort1, client_rtcp_port = CPort2},
+  
+  Transport1 = [{proto,udp},{unicast,true},{client_port,{CPort1, CPort2}},{server_port,{SPort1, SPort2}},{source, Source}],
+  {Socket#rtsp_socket{rtp_udp = setelement(Id, RtpUdp, RTP1), transport = udp}, Transport1}.
 
   
 handle_play_request(#rtsp_socket{callback = Callback, rtp_streams = RtpStreams} = Socket, URL, Headers, Body) ->

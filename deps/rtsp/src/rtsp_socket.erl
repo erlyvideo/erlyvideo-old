@@ -167,6 +167,10 @@ handle_info({tcp_closed, _Socket}, State) ->
   ?D({"RTSP socket closed"}),
   {stop, normal, State};
 
+handle_info({udp, Socket, Addr, Port, Bin}, #rtsp_socket{timeout = Timeout} = Socket) ->
+  ?D({ignoring,udp,size(Bin)}),
+  {noreply, Socket, Timeout};
+
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf, timeout = Timeout} = RTSPSocket) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>}), Timeout};
@@ -182,6 +186,8 @@ handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{media = Consum
 handle_info(#video_frame{} = Frame, #rtsp_socket{timeout = Timeout} = Socket) ->
   {noreply, rtsp_outbound:encode_frame(Frame, Socket), Timeout};
 
+handle_info({ems_stream, _, play_complete, _}, Socket) ->
+  {stop, normal, Socket};
 
 handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
   lists:foreach(fun(Frame) ->
