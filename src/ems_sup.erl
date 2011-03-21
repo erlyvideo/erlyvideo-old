@@ -165,7 +165,6 @@ init([mjpeg_reader_sup]) ->
 init([ems_user_sessions_sup]) ->
   {ok, {{one_for_one, 1000, 20},[
     ?NAMED_SERVER(ems_users_sup, ems_users, []),
-    ?NAMED_SERVER(ems_flv_streams_sup, ems_flv_streams, []),
     ?SUPERVISOR_LINK(ems_http_worker_sup),
     ?SUPERVISOR_LINK(rtmp_session_sup)
   ]}};
