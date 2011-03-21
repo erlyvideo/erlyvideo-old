@@ -449,6 +449,7 @@ h264_sdp() ->
 a=control:trackID=1\r
 a=rtpmap:96 H264/90000\r
 a=cliprect:0,0,640,480\r
+a=framesize:96 640-480\r
 a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
 ">>.
 
@@ -517,6 +518,7 @@ m=video 0 RTP/AVP 96\r
 a=control:trackID=1\r
 a=rtpmap:96 H264/90000\r
 a=cliprect:0,0,640,480\r
+a=framesize:96 640-480\r
 a=fmtp:96 packetization-mode=1;profile-level-id=42E029;sprop-parameter-sets=Z0IAKeNQFAe2AtwEBAaQeJEV,aM48gA==\r
 m=audio 0 RTP/AVP 97\r
 a=control:trackID=2\r
