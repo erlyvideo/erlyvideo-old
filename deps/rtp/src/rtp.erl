@@ -24,11 +24,13 @@
 -module(rtp).
 -behaviour(application).
 -include("log.hrl").
+-include("../include/rtp.hrl").
 -author('Max Lapshin <max@maxidoors.ru>').
 
 
 -export([start/0, start/2, stop/1, config_change/3]).
 -export([start_server/1, test/0]).
+-export([open_ports/1]).
 
 
 start() ->
@@ -70,6 +72,46 @@ test() ->
   eunit:test([rtp_decoder]).
 
 
+open_ports(Type) ->
+  {RTP, RTPSocket, RTCP, RTCPSocket} = try_ports(Type),
+  gen_udp:controlling_process(RTPSocket, self()),
+  gen_udp:controlling_process(RTCPSocket, self()),
+  {ok, {Addr, _}} = inet:sockname(RTPSocket),
+  Source = lists:flatten(io_lib:format("~p.~p.~p.~p", tuple_to_list(Addr))),
+  #rtp_udp{
+    server_rtp_port = RTP,
+    rtp_socket = RTPSocket,
+    server_rtcp_port = RTCP,
+    rtcp_socket = RTCPSocket,
+    source = Source
+  }.
+  
 
+try_ports(audio) ->
+  try_rtp(8000);
+
+try_ports(video) ->
+  try_rtp(5000).
+
+try_rtp(40000) ->
+  error;
+
+try_rtp(Port) ->
+  case gen_udp:open(Port, [binary, {active, true}, {recbuf, 1048576}]) of
+    {ok, RTPSocket} ->
+      try_rtcp(Port, RTPSocket);
+    {error, _} ->
+      try_rtp(Port + 2)
+  end.
+
+try_rtcp(RTP, RTPSocket) ->
+  RTCP = RTP+1,
+  case gen_udp:open(RTCP, [binary, {active, true}]) of
+    {ok, RTCPSocket} ->
+      {RTP, RTPSocket, RTCP, RTCPSocket};
+    {error, _} ->
+      gen_udp:close(RTPSocket),
+      try_rtp(RTP + 2)
+  end.
 
 

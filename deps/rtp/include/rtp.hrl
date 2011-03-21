@@ -31,7 +31,15 @@
   bytes   = 0  :: integer()
 }).
 
-
+-record(rtp_udp, {
+  server_rtp_port,
+  client_rtp_port,
+  rtp_socket,
+  server_rtcp_port,
+  client_rtcp_port,
+  rtcp_socket,
+  source
+}).
 
 -record(rtp_state, {
   sequence = undefined,
