@@ -180,11 +180,19 @@ parse_transport_header(Header) ->
       [{interleaved, {list_to_integer(Chan0), list_to_integer(Chan1)}}|Opts];
     ("RTP/AVP/TCP", Opts) -> [{proto, tcp}|Opts];
     ("RTP/AVP/UDP", Opts) -> [{proto, udp}|Opts];
+    ("RTP/AVP", Opts) -> [{proto, udp}|Opts];
     ("mode=receive", Opts) -> [{mode, 'receive'}|Opts];
     ("mode=\"PLAY\"", Opts) -> [{mode, play}|Opts];
     ("unicast", Opts) -> [{unicast, true}|Opts];
+    ("source="++Source, Opts) -> [{source, Source}|Opts];
+    ("client_port="++Ports, Opts) ->
+      [Port0,Port1] = string:tokens(Ports, "-"),
+      [{client_port, {list_to_integer(Port0),list_to_integer(Port1)}}|Opts];
+    ("server_port="++Ports, Opts) ->
+      [Port0,Port1] = string:tokens(Ports, "-"),
+      [{server_port, {list_to_integer(Port0),list_to_integer(Port1)}}|Opts];
     ("ssrc="++SSRC, Opts) -> [{ssrc, erlang:list_to_integer(SSRC, 16)}|Opts];
-    (_Else, Opts) -> Opts
+    (Else, Opts) -> Parts = string:tokens(Else, "="), [{hd(Parts),string:join(tl(Parts),"=")}|Opts]
   end, [], string:tokens(binary_to_list(Header), ";")),
   lists:reverse(Fields).
 
@@ -206,12 +214,15 @@ encode_transport_header(TransportHeader) ->
 
 encode_transport_header([], Acc) -> string:join(lists:reverse(Acc),";");
 encode_transport_header([{proto,tcp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP/TCP"|Acc]);
-encode_transport_header([{proto,udp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP/UDP"|Acc]);
+encode_transport_header([{proto,udp}|H], Acc) -> encode_transport_header(H, ["RTP/AVP"|Acc]);
 encode_transport_header([{mode,'receive'}|H], Acc) -> encode_transport_header(H, ["mode=receive"|Acc]);
 encode_transport_header([{mode,'play'}|H], Acc) -> encode_transport_header(H, ["mode=play"|Acc]);
 encode_transport_header([{unicast,true}|H], Acc) -> encode_transport_header(H, ["unicast"|Acc]);
 encode_transport_header([{ssrc,SSRC}|H], Acc) -> encode_transport_header(H, ["ssrc="++erlang:integer_to_list(SSRC, 16)|Acc]);
-encode_transport_header([{interleaved,{Chan0,Chan1}}|H], Acc) -> encode_transport_header(H, ["interleaved="++integer_to_list(Chan0)++"-"++integer_to_list(Chan1)|Acc]).
+encode_transport_header([{interleaved,{Chan0,Chan1}}|H], Acc) -> encode_transport_header(H, ["interleaved="++integer_to_list(Chan0)++"-"++integer_to_list(Chan1)|Acc]);
+encode_transport_header([{client_port,{P0,P1}}|H], Acc) -> encode_transport_header(H, ["client_port="++integer_to_list(P0)++"-"++integer_to_list(P1)|Acc]);
+encode_transport_header([{server_port,{P0,P1}}|H], Acc) -> encode_transport_header(H, ["server_port="++integer_to_list(P0)++"-"++integer_to_list(P1)|Acc]);
+encode_transport_header([{Key,Value}|H], Acc) -> encode_transport_header(H, [io_lib:format("~s=~s", [Key,Value])|Acc]).
 
 binarize_header({'Transport', TransportHeader}) ->
   [<<"Transport: ">>, encode_transport_header(TransportHeader), <<"\r\n">>];
