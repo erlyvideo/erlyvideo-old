@@ -33,7 +33,10 @@
   tcp_socket,
   udp = {undefined, undefined},
   content_map,
-  direction
+  direction,
+  sent_audio_config = false,
+  frames = [],
+  reorder_length = 0
 }).
 
 -record(rtp_channel, {

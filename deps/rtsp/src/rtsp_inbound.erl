@@ -40,7 +40,7 @@
 -include_lib("erlmedia/include/sdp.hrl").
 -include("rtsp.hrl").
 
--export([handle_call/3, sync_rtp/2, handle_announce_request/4, handle_receive_setup/4, handle_rtp/2]).
+-export([handle_call/3, sync_rtp/2, handle_announce_request/4, handle_receive_setup/4]).
 
 
 dump_io(#rtsp_socket{dump_traffic = false}, _) -> ok;
@@ -80,9 +80,9 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   dump_io(RTSP, Call),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = Seq+1}, Timeout};
 
-handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
+handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp = RTP, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
   % ?D({"Setup", Num, Streams}),
-  Stream = #stream_info{options = Options} = element(Num, Streams),
+  _Stream = #stream_info{options = Options} = element(Num, Streams),
   Control = proplists:get_value(control, Options),
 
   Sess = case RTSP#rtsp_socket.session of
@@ -94,7 +94,8 @@ handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp_strea
         [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
   gen_tcp:send(Socket, Call),
   dump_io(RTSP, Call),
-  {noreply, RTSP#rtsp_socket{pending = From, rtp_streams = setelement(Num, Streams, rtp_decoder:init(Stream)), seq = Seq+1}, Timeout};
+  {ok, RTP1, _Reply} = rtp:setup_channel(RTP, Num, [{proto,tcp},{tcp_socket,Socket}]),
+  {noreply, RTSP#rtsp_socket{pending = From, rtp = RTP1, seq = Seq+1}, Timeout};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
@@ -105,7 +106,7 @@ handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq 
 
 
 
-sync_rtp(#rtsp_socket{rtp_streams = RtpStreams, control_map = ControlMap, url = URL} = Socket, RtpHeaders) ->
+sync_rtp(#rtsp_socket{rtp = RTP, control_map = ControlMap, url = URL} = Socket, RtpHeaders) ->
   case proplists:get_value(<<"Rtp-Info">>, RtpHeaders) of
     undefined ->
       Socket;
@@ -118,15 +119,17 @@ sync_rtp(#rtsp_socket{rtp_streams = RtpStreams, control_map = ControlMap, url = 
       end,
       RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
 
-      Streams1 = lists:foldl(fun(Headers, Streams) ->
+      RTP1 = lists:foldl(fun(Headers, RTP_) ->
         case extract_control(proplists:get_value("url", Headers), URL, ControlMap) of
-          undefined -> ?D({unsynced, Headers}), Streams;
+          undefined -> ?D({unsynced, Headers}), RTP_;
           StreamNum ->
-            Stream = rtp_decoder:sync(element(StreamNum, Streams), Headers),
-            setelement(StreamNum, Streams, Stream)
+            rtp:sync(RTP, StreamNum, [
+              {seq, list_to_integer(proplists:get_value("seq", Headers))},
+              {rtptime, list_to_integer(proplists:get_value("rtptime", Headers))}
+            ])
         end
-      end, RtpStreams, RtpInfo),
-      Socket#rtsp_socket{rtp_streams = Streams1}
+      end, RTP, RtpInfo),
+      Socket#rtsp_socket{rtp = RTP1}
   end.
 
 
@@ -168,63 +171,6 @@ append_trackid(URL, TrackID) ->
 
 
 
-audio_stream(#rtsp_socket{audio_rtp_stream = undefined}) -> undefined;
-audio_stream(#rtsp_socket{audio_rtp_stream = AudioNum, rtp_streams = Streams}) -> element(AudioNum, Streams).
-
-video_stream(#rtsp_socket{video_rtp_stream = undefined}) -> undefined;
-video_stream(#rtsp_socket{video_rtp_stream = VideoNum, rtp_streams = Streams}) -> element(VideoNum, Streams).
-
-handle_rtp(#rtsp_socket{socket = Sock, rtp_streams = Streams, frames = Frames} = Socket, {rtp, Channel, Packet}) ->
-  % ?D({rtp,Channel}),
-  {Streams1, NewFrames} = case Channel rem 2 of
-    0 ->
-      RtpNum = Channel div 2 + 1,
-      RtpState = element(RtpNum, Streams),
-      {ok, RtpState1, RtpFrames} = rtp_decoder:decode(Packet, RtpState),
-      {setelement(RtpNum, Streams, RtpState1), RtpFrames};
-    1 ->
-      RtpNum = (Channel - 1) div 2 + 1,
-      RtpState = element(RtpNum, Streams),
-      RtpState1 = rtp_decoder:rtcp(Packet, RtpState),
-      {RtpState2, RtcpData} = rtp_decoder:rtcp_rr(RtpState1),
-      RTCP_RR = packet_codec:encode({rtcp, RtpNum, RtcpData}),
-      gen_tcp:send(Sock, RTCP_RR),
-      {setelement(RtpNum, Streams, RtpState2), []}
-  end,
-  reorder_frames(Socket#rtsp_socket{rtp_streams = Streams1, frames = Frames ++ NewFrames}).
-
-  % d(<<B:10/binary, _/binary>>) -> B;
-  % d(B) ->B.
-  % 
-
-reorder_frames(#rtsp_socket{frames = Frames} = Socket) when length(Frames) < ?FRAMES_BUFFER ->
-  Socket;
-  
-  
-reorder_frames(#rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
-  Ordered = lists:sort(fun frame_sort/2, Frames),
-  {ToSend, NewFrames} = lists:split(?REORDER_FRAMES, Ordered),
-  {Socket1, ClientFrames} = add_configs(Socket#rtsp_socket{frames = NewFrames}, ToSend, []),
-  % [?D({F#video_frame.codec,F#video_frame.flavor,F#video_frame.dts, d(F#video_frame.body)}) || F <- ClientFrames],
-  [Consumer ! Frame || Frame <- ClientFrames],
-  Socket1.
-
-add_configs(#rtsp_socket{sent_audio_config = false} = Socket, [#video_frame{codec = aac, dts = DTS} = Frame|Frames], Acc) ->
-  Config = (rtp_decoder:config_frame(audio_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
-  add_configs(Socket#rtsp_socket{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
-  
-add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
-  Config = (rtp_decoder:config_frame(video_stream(Socket)))#video_frame{dts = DTS, pts = DTS},
-  add_configs(Socket, Frames, [Frame,Config|Acc]);
-  
-add_configs(Socket, [], Acc) ->
-  {Socket, lists:reverse(Acc)};
-
-add_configs(Socket, [Frame|Frames], Acc) ->
-  add_configs(Socket, Frames, [Frame|Acc]).
-
-
-frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 
 
 

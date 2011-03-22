@@ -56,7 +56,7 @@ capture_output() ->
     
 
 test_camera(Name) ->
-  log4erl:change_log_level(error),
+  % log4erl:change_log_level(error),
   Self = self(),
   Logger = spawn_link(fun() ->
     erlang:monitor(process, Self),

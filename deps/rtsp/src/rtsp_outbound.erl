@@ -55,7 +55,7 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
   
 handle_authorized_describe(#rtsp_socket{} = Socket, URL, Headers, Media) ->
   Socket1 = Socket#rtsp_socket{session = rtsp_socket:generate_session()},
-  MediaInfo = #media_info{audio = A, video = V} = ems_media:media_info(Media),
+  MediaInfo = ems_media:media_info(Media),
   Info1 = add_rtsp_options(MediaInfo, Socket1),
   SDP = sdp:encode(Info1),
   Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out, rtp = rtp:init(out, Info1)}, Info1),
@@ -66,7 +66,7 @@ handle_authorized_describe(#rtsp_socket{} = Socket, URL, Headers, Media) ->
 
 
 
-add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info, #rtsp_socket{transport = Transport, session = Session} = Socket) ->
+add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info, #rtsp_socket{session = Session}) ->
   % ?DBG("Describe INFO (~p): ~p", [self(), MediaInfo]),
 
   SessionDesc = #sdp_session{version = 0,
@@ -134,23 +134,12 @@ handle_play_request(#rtsp_socket{callback = Callback, control_map = ControlMap} 
   end.
 
 
-encode_frame(#video_frame{content = audio} = Frame, #rtsp_socket{audio_rtp_stream = Num} = Socket) ->
-  encode_frame(Frame, Socket, Num);
-
-encode_frame(#video_frame{content = video} = Frame, #rtsp_socket{video_rtp_stream = Num} = Socket) ->
-  encode_frame(Frame, Socket, Num);
+encode_frame(#video_frame{content = Content} = Frame, #rtsp_socket{rtp = RTP} = Socket) when Content == audio orelse Content == video ->
+  {ok, RTP1} = rtp:handle_frame(RTP, Frame),
+  Socket#rtsp_socket{rtp = RTP1};
 
 encode_frame(#video_frame{content = metadata}, #rtsp_socket{} = Socket) ->
   Socket.
-
-% d(<<B:10/binary, _/binary>>) -> B;
-% d(B) ->B.
-% 
-
-encode_frame(#video_frame{} = Frame, #rtsp_socket{rtp = RTP} = Socket, Num) ->
-  {ok, RTP1} = rtp:handle_frame(RTP, Frame),
-  Socket#rtsp_socket{rtp = RTP1}.
-
 
 
 seq(Headers) ->

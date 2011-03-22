@@ -167,9 +167,9 @@ handle_info({tcp_closed, _Socket}, State) ->
   ?D({"RTSP socket closed"}),
   {stop, normal, State};
 
-handle_info({udp, Socket, Addr, Port, Bin}, #rtsp_socket{timeout = Timeout} = RTSP) ->
-  ?D({ignoring,udp,size(Bin)}),
-  {noreply, RTSP, Timeout};
+handle_info({udp, _Socket, Addr, Port, Bin}, #rtsp_socket{timeout = Timeout, rtp = RTP} = RTSP) ->
+  {ok, RTP1, _} = rtp:handle_data(RTP, {Addr, Port}, Bin),
+  {noreply, RTSP#rtsp_socket{rtp = RTP1}, Timeout};
 
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf, timeout = Timeout} = RTSPSocket) ->
   inet:setopts(Socket, [{active, once}]),
@@ -189,12 +189,8 @@ handle_info(#video_frame{} = Frame, #rtsp_socket{timeout = Timeout} = Socket) ->
 handle_info({ems_stream, _, play_complete, _}, Socket) ->
   {stop, normal, Socket};
 
-handle_info(timeout, #rtsp_socket{frames = Frames, media = Consumer} = Socket) ->
-  lists:foreach(fun(Frame) ->
-    % ?D({Frame#video_frame.content, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
-    Consumer ! Frame
-  end, Frames),
-  {stop, timeout, Socket#rtsp_socket{frames = []}};
+handle_info(timeout, #rtsp_socket{} = Socket) ->
+  {stop, timeout, Socket};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
   {stop, {uknown_message, Message}, Socket}.
@@ -221,13 +217,14 @@ dump_io({response, Code, Message, Headers, Body}) ->
 -define(DUMP_REQUEST(Flag, X), dump_io(Flag, X)).
 -define(DUMP_RESPONSE(Flag, X), dump_io(Flag, X)).
 
-handle_packet(#rtsp_socket{buffer = Data, dump_traffic = Dump} = Socket) ->
+handle_packet(#rtsp_socket{buffer = Data, rtp = RTP, media = Consumer, dump_traffic = Dump} = Socket) ->
   case packet_codec:decode(Data) of
     {more, Data} ->
       Socket;
-    {ok, {rtp, _Channel, _} = RTP, Rest} ->
-      Socket1 = rtsp_inbound:handle_rtp(Socket#rtsp_socket{buffer = Rest}, RTP),
-      handle_packet(Socket1);
+    {ok, {rtp, Channel, Packet}, Rest} ->
+      {ok, RTP1, NewFrames} = rtp:handle_data(RTP, Channel, Packet),
+      [Consumer ! Frame || Frame <- NewFrames],
+      handle_packet(Socket#rtsp_socket{buffer = Rest, rtp = RTP1});
     {ok, {response, _Code, _Message, Headers, _Body} = Response, Rest} ->
       ?DUMP_RESPONSE(Dump, Response),
       Socket1 = handle_response(extract_session(Socket#rtsp_socket{buffer = Rest}, Headers), Response),
@@ -237,6 +234,7 @@ handle_packet(#rtsp_socket{buffer = Data, dump_traffic = Dump} = Socket) ->
       Socket1 = handle_request(Request, Socket#rtsp_socket{buffer = Rest}),
       handle_packet(Socket1)
   end.
+
 
 
 handle_response(#rtsp_socket{state = describe} = Socket, {response, _Code, _Message, Headers, Body}) ->
@@ -264,7 +262,8 @@ reply_pending(#rtsp_socket{pending = From, pending_reply = Reply} = Socket) ->
 handle_sdp(#rtsp_socket{} = Socket, Headers, Body) ->
   <<"application/sdp">> = proplists:get_value('Content-Type', Headers),
   MediaInfo = sdp:decode(Body),
-  save_media_info(Socket, MediaInfo).
+  RTP = rtp:init(in, MediaInfo),
+  save_media_info(Socket#rtsp_socket{rtp = RTP}, MediaInfo).
 
 save_media_info(#rtsp_socket{} = Socket, #media_info{audio = Audio, video = Video} = MediaInfo) ->
   StreamNums = lists:seq(1, length(Audio)+length(Video)),
@@ -274,18 +273,10 @@ save_media_info(#rtsp_socket{} = Socket, #media_info{audio = Audio, video = Vide
   end, Audio ++ Video),
   
   StreamInfos = list_to_tuple(Streams),
-  VideoNum = case Video of
-    [#stream_info{stream_id = V_ID}] -> V_ID;
-    _ -> undefined
-  end,
-  AudioNum = case Audio of
-    [#stream_info{stream_id = A_ID}] -> A_ID;
-    _ -> undefined
-  end,
   ControlMap = [{proplists:get_value(control, Opt),S} || #stream_info{options = Opt, stream_id = S} <- Streams],
   
   % ?D({"Streams", StreamInfos, StreamNums, ControlMap}),
-  Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}, audio_rtp_stream = AudioNum, video_rtp_stream = VideoNum}.
+  Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}}.
 
 
 generate_session() ->

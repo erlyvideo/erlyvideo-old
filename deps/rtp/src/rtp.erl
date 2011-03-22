@@ -35,7 +35,8 @@
 -export([open_ports/1]).
 
 
--export([init/2, setup_channel/3, handle_frame/2, handle_data/3]).
+-export([init/2, setup_channel/3, handle_frame/2, handle_data/3, sync/3]).
+-export([rtcp/2, rtcp_sr/1]).
 
 init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Direction == in orelse Direction == out ->
   Streams = lists:sort(fun(#stream_info{stream_id = Id1}, #stream_info{stream_id = Id2}) ->
@@ -43,6 +44,10 @@ init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Dir
   end, Audio ++ Video),
   ContentMap = [{Content,Id} || #stream_info{content = Content, stream_id = Id} <- Streams],
   #rtp_state{streams = Streams, direction = Direction, content_map = ContentMap}.
+
+sync(#rtp_state{channels = Channels} = State, Id, Headers) ->
+  Channel1 = rtp_decoder:sync(element(Id,Channels), Headers),
+  State#rtp_state{channels = setelement(Id, Channels, Channel1)}.
 
 
 setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Channels, udp = UDPMap} = State, StreamId, Transport) ->
@@ -81,8 +86,107 @@ handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channel
   {ok, State#rtp_state{channels = setelement(Num, Channels, Channel1)}}.
 
 
-handle_data(#rtp_state{} = State, Addr, Data) ->
-  {ok, State, []}.
+
+handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_addr = Addr, remote_rtp_port = Port},_}} = State, {Addr, Port}, Packet) ->
+  handle_data(State, 0, Packet);
+
+handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_addr = Addr, remote_rtcp_port = Port},_}} = State, {Addr, Port}, Packet) ->
+  handle_data(State, 1, Packet);
+
+handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, remote_rtp_port = Port}}} = State, {Addr, Port}, Packet) ->
+  handle_data(State, 2, Packet);
+
+handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, remote_rtcp_port = Port}}} = State, {Addr, Port}, Packet) ->
+  handle_data(State, 3, Packet);
+
+handle_data(#rtp_state{transport = Transport, channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP
+  Id = (Num - 1) div 2 + 1,
+  Channel1 = rtcp(Packet, element(Id, Channels)),
+  {Channel2, RtcpData} = rtcp_rr(Channel1),
+  case Transport of
+    tcp -> gen_tcp:send(State#rtp_state.tcp_socket, packet_codec:encode({rtcp, Num, RtcpData}));
+    udp ->
+      UDP = element(Id, State#rtp_state.udp),
+      gen_udp:send(UDP#rtp_udp.rtcp_socket, UDP#rtp_udp.remote_addr, UDP#rtp_udp.remote_rtcp_port, RtcpData)
+  end,
+  {ok, State#rtp_state{channels = setelement(Id, Channels, Channel2)}, []};
+  
+handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 0 -> % RTP
+  Id = Num div 2 + 1,
+  {ok, Channel1, NewFrames} = rtp_decoder:decode(Packet, element(Id, Channels)),
+  % ?D({rtp,Num, size(Packet), length(NewFrames)}),
+  reorder_frames(State#rtp_state{channels = setelement(Id, Channels, Channel1)}, NewFrames).
+
+
+
+
+stream(#rtp_state{streams = Streams}, C) -> hd([Stream || #stream_info{content = Content} = Stream <- Streams, C == Content]).
+
+
+reorder_frames(#rtp_state{frames = OldFrames, reorder_length = ReorderLength} = RTP, NewFrames) ->
+  Ordered = lists:sort(fun frame_sort/2, OldFrames++NewFrames),
+  {Store, Send} = lists:split(ReorderLength, Ordered),
+  {RTP1, ClientFrames} = add_configs(RTP#rtp_state{frames = Store}, Send, []),
+  % [?D({F#video_frame.codec,F#video_frame.flavor,F#video_frame.dts, d(F#video_frame.body)}) || F <- ClientFrames],
+  {ok, RTP1, ClientFrames}.
+
+add_configs(#rtp_state{sent_audio_config = false} = Socket, [#video_frame{codec = aac, dts = DTS} = Frame|Frames], Acc) ->
+  Config = (video_frame:config_frame(stream(Socket, audio)))#video_frame{dts = DTS, pts = DTS},
+  add_configs(Socket#rtp_state{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
+
+add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
+  Config = (video_frame:config_frame(stream(Socket, video)))#video_frame{dts = DTS, pts = DTS},
+  add_configs(Socket, Frames, [Frame,Config|Acc]);
+
+add_configs(Socket, [], Acc) ->
+  {Socket, lists:reverse(Acc)};
+
+add_configs(Socket, [Frame|Frames], Acc) ->
+  add_configs(Socket, Frames, [Frame|Acc]).
+
+
+frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
+
+
+
+
+rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
+  {NTP, Timecode}.
+
+
+rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_channel{timecode = TC} = RTP) when TC =/= undefined->
+  {NTP, _Timecode} = rtcp_sr(SR),
+  RTP#rtp_channel{last_sr = NTP};
+
+rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_channel{} = RTP) ->
+  {NTP, Timecode} = rtcp_sr(SR),
+  WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
+  RTP#rtp_channel{wall_clock = WallClock, timecode = Timecode, last_sr = NTP};
+
+rtcp(<<_, ?RTCP_RR, _/binary>>, #rtp_channel{} = RTP) ->
+  RTP.
+
+
+
+
+
+rtcp_rr(#rtp_channel{last_sr = undefined} = RTP) ->
+  rtcp_rr(RTP#rtp_channel{last_sr = 0});
+
+rtcp_rr(#rtp_channel{stream_info = #stream_info{stream_id = StreamId}, sequence = Seq, last_sr = LSR} = RTP) ->
+  Count = 0,
+  Length = 16,
+  FractionLost = 0,
+  LostPackets = 0,
+  MaxSeq = case Seq of
+    undefined -> 0;
+    MS -> MS
+  end,
+  Jitter = 0,
+  DLSR = 0,
+  % ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
+  {RTP, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.
+
 
 
 
