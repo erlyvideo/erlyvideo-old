@@ -326,15 +326,9 @@ find_user_agent(UA, [{Match, Name}|Matches]) ->
   end.
   
 
-select_transport(mplayer) -> udp;
-select_transport(vlc) -> udp;
-select_transport(_Other) -> interleaved.
-
-
 setup_user_agent_preferences(#rtsp_socket{} = Socket, Headers) ->
   UserAgent = detect_user_agent(Headers),
-  Transport = select_transport(UserAgent),
-  Socket#rtsp_socket{user_agent = UserAgent, transport = Transport}.
+  Socket#rtsp_socket{user_agent = UserAgent}.
 
 
 handle_request({request, 'DESCRIBE', URL, Headers, Body}, Socket) ->
