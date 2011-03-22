@@ -43,33 +43,33 @@ init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId, config
     h264 -> proplists:get_value(length_size, h264:metadata(Config));
     _ -> undefined
   end,
-  #rtp_state{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, length_size = LengthSize,
+  #rtp_channel{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, length_size = LengthSize,
              payload_type = sdp_encoder:payload_type(Codec), sequence = 0, wall_clock = 0, timecode = 0}.
 
 
-rtp_info(#rtp_state{stream_info = #stream_info{stream_id = Id}, sequence = Sequence, timecode = Timecode}) ->
+rtp_info(#rtp_channel{stream_info = #stream_info{stream_id = Id}, sequence = Sequence, timecode = Timecode}) ->
   io_lib:format("url=trackID=~p;seq=~p;rtptime=~p", [Id, Sequence, Timecode]).
 
 
 
-dts_to_timecode(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, DTS) ->
+dts_to_timecode(#rtp_channel{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, DTS) ->
   % ?D({dtst_, WallClock, BaseTimecode, Scale, DTS, round((DTS - WallClock)*Scale + BaseTimecode)}),
   round((DTS - WallClock)*Scale + BaseTimecode).
 
 
-encode(#video_frame{flavor = config}, #rtp_state{} = RTP) ->
+encode(#video_frame{flavor = config}, #rtp_channel{} = RTP) ->
   {ok, RTP, []};
 
-encode(#video_frame{dts = DTS, body = Data} = _F, #rtp_state{} = RTP) ->
+encode(#video_frame{dts = DTS, body = Data} = _F, #rtp_channel{} = RTP) ->
   % ?D({dts,_F#video_frame.codec,_F#video_frame.flavor, DTS,dts_to_timecode(RTP, DTS)}),
   encode_data(Data, RTP, dts_to_timecode(RTP, DTS)).
 
 
 
-% encode_data(Data, #rtp_state{codec = pcm_le} = RTP, Timecode) ->
+% encode_data(Data, #rtp_channel{codec = pcm_le} = RTP, Timecode) ->
 %   compose_rtp(RTP, l2b(Data), ?RTP_SIZE, Timecode);
 
-encode_data(Data, #rtp_state{codec = mp3} = RTP, Timecode) ->
+encode_data(Data, #rtp_channel{codec = mp3} = RTP, Timecode) ->
   Size = size(Data),
   %% Add support of frames with size more than 14 bit
   %% (set continuating flag, split to several RTP: http://tools.ietf.org/html/rfc5219#section-4.2)
@@ -85,25 +85,25 @@ encode_data(Data, #rtp_state{codec = mp3} = RTP, Timecode) ->
   MP3 = <<ADU/binary, Data/binary>>,
   compose_rtp(RTP, MP3, Timecode);
   
-encode_data(Data, #rtp_state{codec = aac} = RTP, Timecode) ->
+encode_data(Data, #rtp_channel{codec = aac} = RTP, Timecode) ->
   AUHeader = <<(size(Data)):13, 0:3>>,
   AULength = bit_size(AUHeader),
   AAC = <<AULength:16, AUHeader/binary, Data/binary>>,
   compose_rtp(RTP, AAC, Timecode);
   
 
-encode_data(Data, #rtp_state{codec = speex} = RTP, Timecode) ->
+encode_data(Data, #rtp_channel{codec = speex} = RTP, Timecode) ->
   compose_rtp(RTP, <<Data/binary, 16#7f:8 >>, Timecode);
   
 
-encode_data(Data, #rtp_state{codec = h264, length_size = LengthSize} = RTP, Timecode) ->
+encode_data(Data, #rtp_channel{codec = h264, length_size = LengthSize} = RTP, Timecode) ->
   FUA_NALS = lists:flatten([h264:fua_split(NAL, 1387) || NAL <- split_h264_frame(Data, LengthSize)]),
   compose_rtp(RTP, FUA_NALS, Timecode);
   
-% encode_data(Data, #rtp_state{codec = mpeg4} = RTP, Timecode) ->
+% encode_data(Data, #rtp_channel{codec = mpeg4} = RTP, Timecode) ->
 %   compose_rtp(RTP, Data, 1388, Timecode);
 
-encode_data(Data, #rtp_state{} = RTP, Timecode) ->
+encode_data(Data, #rtp_channel{} = RTP, Timecode) ->
   compose_rtp(RTP, Data, Timecode).
 
 
@@ -126,12 +126,12 @@ compose_rtp(RTP, Parts, Timecode) ->
 compose_rtp(RTP, [], Acc, _Timecode) ->
   {ok, RTP, lists:reverse(Acc)};
   
-compose_rtp(#rtp_state{sequence = Sequence} = RTP, [Part|Parts], Acc, Timecode) ->
+compose_rtp(#rtp_channel{sequence = Sequence} = RTP, [Part|Parts], Acc, Timecode) ->
   Pack = make_rtp_pack(RTP, case length(Parts) of 0 -> 1; _ -> 0 end, Part, Timecode),
-  compose_rtp(RTP#rtp_state{sequence = inc_seq(Sequence)}, Parts, [Pack|Acc], Timecode). 
+  compose_rtp(RTP#rtp_channel{sequence = inc_seq(Sequence)}, Parts, [Pack|Acc], Timecode). 
   
 
-make_rtp_pack(#rtp_state{payload_type = PayloadType,
+make_rtp_pack(#rtp_channel{payload_type = PayloadType,
                         sequence = Sequence,
                         stream_id = SSRC}, Marker, Payload, Timecode) ->
   Version = 2,
@@ -149,8 +149,8 @@ make_rtp_pack(#rtp_state{payload_type = PayloadType,
 % 
 % compose_rtp(Base, <<>>, _, Acc, _) -> % Return new Sequence ID and list of RTP-binaries
 %   %%?DBG("New Sequence: ~p", [Sequence]),
-%   {Base#rtp_state{marker = false}, lists:reverse(Acc)};
-% compose_rtp(#rtp_state{sequence = Sequence, marker = _Marker,
+%   {Base#rtp_channel{marker = false}, lists:reverse(Acc)};
+% compose_rtp(#rtp_channel{sequence = Sequence, marker = _Marker,
 %                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal)
 %   when (is_integer(Size) andalso (size(Data) > Size)) ->
 %   <<P:Size/binary,Rest/binary>> = Data,
@@ -159,10 +159,10 @@ make_rtp_pack(#rtp_state{payload_type = PayloadType,
 %   {PFrag, NewNal} = fragment_nal(P, Nal, Start, End),
 %   M = 0,
 %   Pack = make_rtp_pack(Base, M, PFrag),
-%   compose_rtp(Base#rtp_state{sequence = inc_seq(Sequence),
+%   compose_rtp(Base#rtp_channel{sequence = inc_seq(Sequence),
 %                             packets = inc_packets(Packets, 1),
 %                             bytes = inc_bytes(Bytes, size(Pack))}, Rest, Size, [Pack | Acc], NewNal);
-% compose_rtp(#rtp_state{sequence = Sequence, marker = Marker,
+% compose_rtp(#rtp_channel{sequence = Sequence, marker = Marker,
 %                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal) ->
 %   if Marker -> M = 1; true -> M = 0 end,
 %   ResData =
@@ -174,7 +174,7 @@ make_rtp_pack(#rtp_state{payload_type = PayloadType,
 %         FN
 %     end,
 %   Pack = make_rtp_pack(Base, M, ResData),
-%   compose_rtp(Base#rtp_state{sequence = inc_seq(Sequence),
+%   compose_rtp(Base#rtp_channel{sequence = inc_seq(Sequence),
 %                             packets = inc_packets(Packets, 1),
 %                             bytes = inc_bytes(Bytes, size(Pack))}, <<>>, Size, [Pack | Acc], Nal).
 

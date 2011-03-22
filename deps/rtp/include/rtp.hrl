@@ -13,24 +13,6 @@
 -define(SDES_PRIV, 8).
 
 
--record(base_rtp1, {
-  media,
-  clock_map,
-  base_timecode = undefined,
-  sequence = undefined,
-  wall_clock = undefined,
-  base_wall_clock = undefined,
-  timecode = undefined,
-  synced = false,
-  stream_id,
-  last_sr,
-  codec,
-  marker  = false     :: undefined | true | false,
-  framelens    :: integer(),                    % Size of frame length in bytes
-  packets = 0  :: integer(),
-  bytes   = 0  :: integer()
-}).
-
 -record(rtp_udp, {
   server_rtp_port,
   client_rtp_port,
@@ -41,7 +23,7 @@
   source
 }).
 
--record(rtp_state, {
+-record(rtp_channel, {
   sequence = undefined,
   wall_clock = undefined,
   timecode = undefined,
