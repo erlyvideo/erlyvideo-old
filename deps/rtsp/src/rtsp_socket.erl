@@ -175,9 +175,9 @@ handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf, timeout = Timeout} = 
   inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(RTSPSocket#rtsp_socket{buffer = <<Buf/binary, Bin/binary>>}), Timeout};
 
-handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{rtp = Consumer} = Socket) ->
-  ?D({"RTSP RTP process died", Consumer}),
-  {stop, normal, Socket};
+% handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{rtp = Consumer} = Socket) ->
+%   ?D({"RTSP RTP process died", Consumer}),
+%   {stop, normal, Socket};
 
 handle_info({'DOWN', _, process, Consumer, _Reason}, #rtsp_socket{media = Consumer} = Socket) ->
   ?D({"RTSP consumer died", Consumer}),
@@ -268,7 +268,6 @@ handle_sdp(#rtsp_socket{} = Socket, Headers, Body) ->
 
 save_media_info(#rtsp_socket{} = Socket, #media_info{audio = Audio, video = Video} = MediaInfo) ->
   StreamNums = lists:seq(1, length(Audio)+length(Video)),
-  % TODO: Отрефакторить это уродство
   
   Streams = lists:sort(fun(#stream_info{stream_id = Id1}, #stream_info{stream_id = Id2}) ->
     Id1 =< Id2
@@ -358,12 +357,12 @@ handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
 handle_request({request, 'ANNOUNCE', URL, Headers, Body}, Socket) ->
   rtsp_inbound:handle_announce_request(Socket, URL, Headers, Body);
 
-handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = undefined} = State) ->
-  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
-
-handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Consumer} = State) ->
-  gen_server:call(Consumer, {pause, self()}),
-  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+% handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = undefined} = State) ->
+%   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+% 
+% handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Consumer} = State) ->
+%   gen_server:call(Consumer, {pause, self()}),
+%   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 
 handle_request({request, 'SETUP', URL, Headers, Body}, #rtsp_socket{} = Socket) ->
   Transport = proplists:get_value('Transport', Headers),

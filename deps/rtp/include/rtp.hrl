@@ -14,13 +14,26 @@
 
 
 -record(rtp_udp, {
-  server_rtp_port,
-  client_rtp_port,
+  local_rtp_port,
+  remote_rtp_port,
   rtp_socket,
-  server_rtcp_port,
-  client_rtcp_port,
+  local_rtcp_port,
+  remote_rtcp_port,
   rtcp_socket,
-  source
+  
+  local_addr,
+  remote_addr
+}).
+
+-record(rtp_state, {
+  streams = [],
+  channels = {undefined, undefined},
+  transport,
+  ports,
+  tcp_socket,
+  udp = {undefined, undefined},
+  content_map,
+  direction
 }).
 
 -record(rtp_channel, {

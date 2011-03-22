@@ -22,7 +22,6 @@
   control_map,
   media         :: pid(),
   media_info,
-  rtp           :: pid(),
   rtp_ref       :: reference(),
   sent_audio_config = false,
   audio_rtp_stream,
@@ -34,5 +33,8 @@
   timeout = ?DEFAULT_TIMEOUT,
   session,
   rtp_udp,
-  dump_traffic = true
+  dump_traffic = true,
+  
+  rtp           :: pid()
+  
 }).
