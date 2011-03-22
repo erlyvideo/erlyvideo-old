@@ -124,7 +124,7 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Ty
     State#mpegts.make_request == false ->
       {noreply, Media#ems_media{retry_count = Count + 1}};
     true ->
-      FailoverURLs = [NativeURL] ++ proplists:get_value(failover,Options),
+      FailoverURLs = [NativeURL] ++ proplists:get_value(failover,Options,[]),
       URL = lists:nth(Count rem length(FailoverURLs) + 1,FailoverURLs),
       ems_event:stream_source_requested(Host, URL, []),
       Module = case Type of
