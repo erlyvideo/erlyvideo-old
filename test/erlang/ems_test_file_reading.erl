@@ -102,20 +102,47 @@ h264_aac_1_mp4_test() ->
 %  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
 %  test_duration(Frames,20000).
 
+test_mono([#video_frame{dts = FDTS}, #video_frame{dts = SDTS} = F|Frames]) when FDTS < SDTS -> 
+  test_mono([F|Frames]);
+test_mono([F]) -> true;
+test_mono([]) -> true;
+test_mono(_) -> true = false.
+
+run_test_interval(Frames, Length) ->
+  Sum = 0,
+  test_interval(Frames, Sum, Length).
+
+test_interval([#video_frame{dts = FDTS, content = audio}, #video_frame{dts = SDTS} = F| Frames],Sum,Length) ->
+  test_interval([F|Frames], Sum + SDTS - FDTS, Length);
+test_interval([#video_frame{}, #video_frame{} = F| Frames],Sum,Length) ->
+  ?D({"Sumary audio frame",Sum}),
+  true = Sum > Length orelse Sum == 0,
+  test_interval([F|Frames], 0,Length);
+test_interval([F],Sum, Length) -> 
+  ?D({"Sumary audio frame",Sum}),
+  true = Sum > Length orelse Sum == 0;
+test_interval([],Sum,Length) -> 
+  ?D({"Sumary audio frame",Sum}),
+  true = Sum > Length;
+test_interval(_,Sum,Length) ->
+  true = false.
+  
+
 mpegts_reader_test () ->
   ems_test_helper:enable_timeouts(true),
   {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/Sea.mp4",[]),
   erlang:monitor(process, Pid),
   Frames = mpegts_reader_frame([]),
-  test_duration(Frames,20000).
-
+  [F|Frame] = Frames,
+  ?D(F#video_frame.dts),
+  run_test_interval(Frames,300).
+%  test_mono(Frames).
 
 mpegts_reader_frame(Frames) -> 
   receive
    #video_frame{} = F ->
-     ?D({F#video_frame.content}),
      mpegts_reader_frame([F|Frames]);
-   Else -> ?D(Else)
+   Else -> lists:reverse(Frames)
   end.
 %mpegts_read_frame(Frames,Pid) ->
 %  erlang:monitor(process,Pid),
