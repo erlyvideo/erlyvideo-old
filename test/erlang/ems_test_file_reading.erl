@@ -29,7 +29,9 @@
 -include("../../src/log.hrl").
 -export([read_file/1]).
 
+
 read_file(Path) ->
+  ems_test_helper:enable_timeouts(true),
   {ok, F} = file:open(ems_test_helper:file_path(Path), [read,binary]),
   Reader = file_media:file_format(Path),
   ems_test_helper:read_all_frames(Reader, {file, F}, [{url,ems_test_helper:file_path(Path)}]).
@@ -100,6 +102,21 @@ h264_aac_1_mp4_test() ->
 %  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
 %  test_duration(Frames,20000).
 
+mpegts_reader_test () ->
+  ems_test_helper:enable_timeouts(true),
+  {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/Sea.mp4",[]),
+  erlang:monitor(process, Pid),
+  Frames = mpegts_reader_frame([]),
+  test_duration(Frames,20000).
+
+
+mpegts_reader_frame(Frames) -> 
+  receive
+   #video_frame{} = F ->
+     ?D({F#video_frame.content}),
+     mpegts_reader_frame([F|Frames]);
+   Else -> ?D(Else)
+  end.
 %mpegts_read_frame(Frames,Pid) ->
 %  erlang:monitor(process,Pid),
 %  link(Pid),
