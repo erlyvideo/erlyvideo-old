@@ -81,7 +81,10 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
-  TimeoutState = application:get_env(no_timeouts),
+  TimeoutState = case application:get_env(erlyvideo, no_timeouts) of
+    {ok, Val} -> Val;
+    undefined -> undefined
+  end,
   StreamId = proplists:get_value(stream_id, Options),
   BurstSize = proplists:get_value(burst_size, Options, ?BURST_SIZE),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
@@ -197,7 +200,8 @@ handle_message(tick, #ticker{media = Media, dts = DTS, pos = Pos, consumer = Con
     {ok, [#video_frame{dts = NewDTS, next_id = NewPos} = Frame|_] = Frames} ->
       send_frames(Frames, Consumer, StreamId),
       Ticker1 = save_start_time(Ticker, Frames),
-      Timeout = tick_timeout(Ticker1, Frame),
+      Timeout = tick_timeout(Ticker1, Frame), 
+      ?D({"aa",Timeout}),
       % ?D({burst, length(Frames), NewPos, round(NewDTS)}),
       Ticker2 = Ticker1#ticker{pos = NewPos, dts = NewDTS},
       receive
