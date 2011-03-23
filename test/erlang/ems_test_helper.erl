@@ -25,7 +25,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
-
+-include_lib("../../src/log.hrl").
 
 -compile(export_all).
 
@@ -55,4 +55,7 @@ receive_all_frames(Acc) ->
   after
     10 -> lists:reverse(Acc)
   end.
+
+enable_timeouts(TimeoutState) ->
+  application:set_env(erlyvideo,no_timeouts, TimeoutState).
 
