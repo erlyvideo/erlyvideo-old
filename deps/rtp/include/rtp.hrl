@@ -13,27 +13,33 @@
 -define(SDES_PRIV, 8).
 
 
--record(base_rtp1, {
-  media,
-  clock_map,
-  base_timecode = undefined,
-  sequence = undefined,
-  wall_clock = undefined,
-  base_wall_clock = undefined,
-  timecode = undefined,
-  synced = false,
-  stream_id,
-  last_sr,
-  codec,
-  marker  = false     :: undefined | true | false,
-  framelens    :: integer(),                    % Size of frame length in bytes
-  packets = 0  :: integer(),
-  bytes   = 0  :: integer()
+-record(rtp_udp, {
+  local_rtp_port,
+  remote_rtp_port,
+  rtp_socket,
+  local_rtcp_port,
+  remote_rtcp_port,
+  rtcp_socket,
+  
+  local_addr,
+  remote_addr
 }).
 
-
-
 -record(rtp_state, {
+  streams = [],
+  channels = {undefined, undefined},
+  transport,
+  ports,
+  tcp_socket,
+  udp = {undefined, undefined},
+  content_map,
+  direction,
+  sent_audio_config = false,
+  frames = [],
+  reorder_length = 0
+}).
+
+-record(rtp_channel, {
   sequence = undefined,
   wall_clock = undefined,
   timecode = undefined,

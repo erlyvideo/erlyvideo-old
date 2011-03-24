@@ -113,7 +113,8 @@ send_and_receive(Method, Format, Args) ->
   Out = io_lib:format(Method ++ " " ++ Format, Args),
   capture(out, Out, Method),
   gen_tcp:send(get(socket), Out),
-  {ok, Headers, Body, _Raw} = receive_reply(Method),
+  {ok, Headers, Body, Raw} = receive_reply(Method),
+  capture(in, Raw, Method),
   inc_seq(),
   {ok, Headers, Body}.
 
@@ -123,7 +124,6 @@ receive_reply(Method) ->
     undefined -> ok;
     Else -> put(session, Else)
   end,
-  capture(in, Raw, Method),
   {ok, Headers, Body, Raw}.
   
 capture(Direction, Data, Method) ->
@@ -256,8 +256,7 @@ capture_server(Name, ListenPort, Host, Port) ->
 
 capture_proxied_server() ->
   {ok, Method, URL, Headers, Body, Request} = read_request(),
-  capture(out, Request, Method),
-  io:format("<<<<<<<<<<   IN <<<<<<<<<\r\n~s", [Request]),
+  capture(in, Request, Method),
   case get(url) of
     undefined ->
       {_Proto, _Auth, _Addr, _Port, Path, Query} = http_uri2:parse(URL),
@@ -266,12 +265,26 @@ capture_proxied_server() ->
   end,
   gen_tcp:send(get(socket), Request),
   {ok, Headers1, Body1, Reply} = receive_reply(Method),
-  io:format(">>>>>>>>>>  OUT >>>>>>>>>\r\n~s", [Reply]),
+  capture(out, Reply, Method),
   gen_tcp:send(get(listen_socket), Reply),
   case Method of
+    "SETUP" ->
+      Transport = proplists:get_value("Transport", Headers1),
+      case re:run(Transport, "interleaved") of
+        nomatch -> put(transport, udp);
+        _ -> put(transport, tcp)
+      end,
+      capture_proxied_server();
     "PLAY" ->
-      {ok, F} = file:open(get(capture_dir)++"/interleaved.txt", [write, binary]),
-      capture_interleave_traffic(F);
+      case get(transport) of
+        tcp ->
+          {ok, F} = file:open(get(capture_dir)++"/interleaved.txt", [write, binary]),
+          capture_interleave_traffic(F);
+        udp ->
+          capture_proxied_server()
+      end;
+    "TEARDOWN" ->
+      ok;
     _ -> capture_proxied_server()
   end.
 

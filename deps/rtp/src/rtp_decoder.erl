@@ -39,46 +39,42 @@
   flavor
 }).
 
--export([init/1, decode/2, sync/2, rtcp_rr/1, rtcp_sr/1, rtcp/2, config_frame/1]).
+-export([init/1, decode/2, sync/2]).
 
 init(#stream_info{codec = Codec, timescale = Scale} = Stream) ->
-  #rtp_state{codec = Codec, stream_info = Stream, timescale = Scale}.
+  #rtp_channel{codec = Codec, stream_info = Stream, timescale = Scale}.
 
-config_frame(#rtp_state{stream_info = Stream}) ->
-  video_frame:config_frame(Stream).
-
-
-sync(#rtp_state{} = RTP, Headers) ->
-  Seq = proplists:get_value("seq", Headers),
-  Time = proplists:get_value("rtptime", Headers),
+sync(#rtp_channel{} = RTP, Headers) ->
+  Seq = proplists:get_value(seq, Headers),
+  Time = proplists:get_value(rtptime, Headers),
   ?D({sync, Headers}),
-  RTP#rtp_state{wall_clock = 0, timecode = list_to_integer(Time), sequence = list_to_integer(Seq)}.
+  RTP#rtp_channel{wall_clock = 0, timecode = Time, sequence = Seq}.
 
-decode(_, #rtp_state{timecode = TC, wall_clock = Clock} = RTP) when TC == undefined orelse Clock == undefined ->
+decode(_, #rtp_channel{timecode = TC, wall_clock = Clock} = RTP) when TC == undefined orelse Clock == undefined ->
   % ?D({unsynced, RTP}),
   {ok, RTP, []};
 
-decode(<<_:16, Sequence:16, _/binary>> = Data, #rtp_state{sequence = undefined} = RTP) ->
-  decode(Data, RTP#rtp_state{sequence = Sequence});
+decode(<<_:16, Sequence:16, _/binary>> = Data, #rtp_channel{sequence = undefined} = RTP) ->
+  decode(Data, RTP#rtp_channel{sequence = Sequence});
 
-decode(<<_:16, OldSeq:16, _/binary>>, #rtp_state{sequence = Sequence} = RTP) when OldSeq < Sequence ->
+decode(<<_:16, OldSeq:16, _/binary>>, #rtp_channel{sequence = Sequence} = RTP) when OldSeq < Sequence ->
   ?D({drop_sequence, OldSeq, Sequence}),
   {ok, RTP, []};
 
-decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>, #rtp_state{} = RTP) ->
-  decode(Data, RTP#rtp_state{sequence = (Sequence + 1) rem 65536}, Timecode).
+decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Timecode:32, _StreamId:32, Data/binary>>, #rtp_channel{} = RTP) ->
+  decode(Data, RTP#rtp_channel{sequence = (Sequence + 1) rem 65536}, Timecode).
 
 
-decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_state{codec = aac} = RTP, Timecode) ->
+decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_channel{codec = aac} = RTP, Timecode) ->
   decode_aac(AudioData, AUHeaders, RTP, Timecode, []);
   
-decode(Body, #rtp_state{codec = h264, buffer = Buffer} = RTP, Timecode) ->
+decode(Body, #rtp_channel{codec = h264, buffer = Buffer} = RTP, Timecode) ->
   DTS = timecode_to_dts(RTP, Timecode),
   {ok, Buffer1, Frames} = decode_h264(Body, Buffer, DTS),
   % ?D({decode,h264,Timecode,DTS, length(Frames), size(Body), size(Buffer1#h264_buffer.buffer)}),
-  {ok, RTP#rtp_state{buffer = Buffer1}, Frames};
+  {ok, RTP#rtp_channel{buffer = Buffer1}, Frames};
 
-decode(Body, #rtp_state{stream_info = #stream_info{codec = Codec, content = Content} = Info} = RTP, Timecode) ->
+decode(Body, #rtp_channel{stream_info = #stream_info{codec = Codec, content = Content} = Info} = RTP, Timecode) ->
   DTS = timecode_to_dts(RTP, Timecode),
   Frame = #video_frame{
     content = Content,
@@ -150,7 +146,6 @@ decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, f
       }]
   end,
 
-  % ?D({flush_frame, OldDTS}),
   {ok, RTP1, []} = decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), flavor = undefined, time = DTS, buffer = <<>>}, DTS),
   {ok, RTP1, Frames}.
 
@@ -172,46 +167,11 @@ decode_aac(AudioData, <<AUSize:13, _Delta:3, AUHeaders/bitstring>>, RTP, Timecod
   },
   decode_aac(Rest, AUHeaders, RTP, Timecode + 1024, [Frame|Frames]).
 
-timecode_to_dts(#rtp_state{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, Timecode) ->
+timecode_to_dts(#rtp_channel{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, Timecode) ->
   % ?D({tdts, WallClock, BaseTimecode, Scale, WallClock + (Timecode - BaseTimecode)/Scale, Timecode}),
   WallClock + (Timecode - BaseTimecode)/Scale.
 
 
-rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
-  {NTP, Timecode}.
-
-
-
-rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{timecode = TC} = RTP) when TC =/= undefined->
-  {NTP, _Timecode} = rtcp_sr(SR),
-  RTP#rtp_state{last_sr = NTP};
-
-rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_state{} = RTP) ->
-  {NTP, Timecode} = rtcp_sr(SR),
-  WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  RTP#rtp_state{wall_clock = WallClock, timecode = Timecode, last_sr = NTP};
-
-rtcp(<<_, ?RTCP_RR, _/binary>>, #rtp_state{} = RTP) ->
-  RTP.
-
-
-
-rtcp_rr(#rtp_state{last_sr = undefined} = RTP) ->
-  rtcp_rr(RTP#rtp_state{last_sr = 0});
-
-rtcp_rr(#rtp_state{stream_info = #stream_info{stream_id = StreamId}, sequence = Seq, last_sr = LSR} = RTP) ->
-  Count = 0,
-  Length = 16,
-  FractionLost = 0,
-  LostPackets = 0,
-  MaxSeq = case Seq of
-    undefined -> 0;
-    MS -> MS
-  end,
-  Jitter = 0,
-  DLSR = 0,
-  % ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
-  {RTP, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.
 
 
 
