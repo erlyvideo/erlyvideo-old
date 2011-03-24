@@ -348,8 +348,8 @@ handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
 handle_request({request, 'ANNOUNCE', URL, Headers, Body}, Socket) ->
   rtsp_inbound:handle_announce_request(Socket, URL, Headers, Body);
 
-% handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = undefined} = State) ->
-%   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
+handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{} = State) ->
+  reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
 % 
 % handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Consumer} = State) ->
 %   gen_server:call(Consumer, {pause, self()}),
