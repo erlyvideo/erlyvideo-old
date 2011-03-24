@@ -101,47 +101,74 @@ h264_aac_1_mp4_test() ->
 %  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
 %  test_duration(Frames,20000).
 
-test_mono([#video_frame{dts = FDTS}, #video_frame{dts = SDTS} = F|Frames])  -> 
-  true = FDTS < SDTS,
-  test_mono([F|Frames]);
-test_mono([_F]) -> true;
-test_mono([]) -> true.
+is_monotonic([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames]) when DTS1 > DTS2 -> false;
+is_monotonic([#video_frame{}, #video_frame{} = F|Frames]) -> is_monotonic([F|Frames]);
+is_monotonic([_F]) -> true;
+is_monotonic([]) -> true.
 
 
-run_test_interval(Frames, Length) ->
-  Sum = 0,
-  test_interval(Frames, Sum, Length).
+is_interleaved(Frames, Length) ->
+  Counts = is_interleaved(Frames),
+  % ?D({zz, Counts, [C || #video_frame{content = C} <- Frames]}),
+  length([Count || Count <- Counts, Count > Length]) > length(Counts) div 3.
 
-test_interval([#video_frame{dts = FDTS, content = audio}, #video_frame{dts = SDTS} = F| Frames],Sum,Length) ->
-  test_interval([F|Frames], Sum + SDTS - FDTS, Length);
-test_interval([#video_frame{}, #video_frame{} = F| Frames],Sum,Length) ->
-  ?D({"Sumary audio frame",Sum}),
-  true = Sum > Length orelse Sum == 0,
-  test_interval([F|Frames], 0,Length);
-test_interval([_F],Sum, Length) -> 
-  ?D({"Sumary audio frame",Sum}),
-  true = Sum > Length orelse Sum == 0;
-test_interval([],Sum,Length) -> 
-  ?D({"Sumary audio frame",Sum}),
-  true = Sum > Length.
+is_interleaved(Frames) ->
+  is_interleaved(Frames, 0, []).
+
+
+is_interleaved([#video_frame{content = Content}, #video_frame{content = Content} = F| Frames], Count, Acc) ->
+  is_interleaved([F|Frames], Count+1, Acc);
+
+is_interleaved([#video_frame{content = Content1}, #video_frame{content = Content2} = F| Frames], Count, Acc) when Content1 =/= Content2 ->
+  is_interleaved([F|Frames], 0, [Count+1|Acc]);
+
+is_interleaved([#video_frame{}], Count, Acc) ->
+  lists:reverse([Count+1|Acc]);
+
+is_interleaved([], 0, Acc) ->
+  Acc.
   
 
-mpegts_reader_test_() ->
+mpegts_reader_file_test_() ->
   {spawn, {setup,
     fun() ->
       ems_test_helper:set_ticker_timeouts(true),
-      log4erl:change_log_level(error)
+      % log4erl:change_log_level(error),
+      ok
     end,
     fun(_) ->
       ems_test_helper:set_ticker_timeouts(false),
-      log4erl:change_log_level(debug)
+      % log4erl:change_log_level(debug),
+      ok
     end,
     [fun() ->
       {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/video.mp4",[]),
       erlang:monitor(process, Pid),
       Frames = ems_test_helper:receive_all_frames(),
-      run_test_interval(Frames,300),
-      test_mono(Frames)
+      ?assertNot(is_interleaved(Frames,15)),
+      ?assert(is_monotonic(Frames))
+    end]
+  }}.
+
+
+mpegts_reader_iphone_test_() ->
+  {spawn, {setup,
+    fun() ->
+      ems_test_helper:set_ticker_timeouts(true),
+      % log4erl:change_log_level(error),
+      ok
+    end,
+    fun(_) ->
+      ems_test_helper:set_ticker_timeouts(false),
+      % log4erl:change_log_level(debug),
+      ok
+    end,
+    [fun() ->
+      {ok,Pid} = mpegts:read("http://127.0.0.1:8082/iphone/segments/video.mp4/3.ts",[]),
+      erlang:monitor(process, Pid),
+      Frames = ems_test_helper:receive_all_frames(),
+      ?assert(is_interleaved(Frames,10)),
+      ?assertNot(is_monotonic(Frames))
     end]
   }}.
 

@@ -121,15 +121,15 @@ segments(Host, Name) ->
   end.
   
 file_segments(Info) ->
-  Duration = proplists:get_value(length, Info, 0),
-  Start = trunc(proplists:get_value(start, Info, 0) / ?STREAM_TIME),
-  SegmentLength = ?STREAM_TIME div 1000,
-  DurationLimit = 2*?STREAM_TIME,
+  SegmentLength = ?STREAM_TIME,
+  Duration = proplists:get_value(duration, Info, 0),
+  Start = trunc(proplists:get_value(start, Info, 0) / SegmentLength),
+  DurationLimit = 2*SegmentLength,
   Count = if 
-    Duration > DurationLimit -> round(Duration/?STREAM_TIME);
+    Duration > DurationLimit -> round(Duration/SegmentLength);
     true -> 1
   end,
-  {Start,Count,SegmentLength,file}.
+  {Start,Count,SegmentLength div 1000,file}.
 
 
 timeshift_segments(Info) ->
@@ -148,7 +148,7 @@ timeshift_segments(Info) ->
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
-      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true}]);
+      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true},{interleave,20}]);
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
     Reason ->
