@@ -140,17 +140,19 @@ handle_announce_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
     {ok, Media} ->
       ?D({"Announced to", Media}),
       erlang:monitor(process, Media),
-      rtsp_socket:reply(Socket1#rtsp_socket{session = rtsp_socket:generate_session(), media = Media, direction = in}, "200 OK", [{'Cseq', seq(Headers)}]);
+      rtsp_socket:reply(Socket1#rtsp_socket{session = rtsp_socket:generate_session(), rtp = rtp:init(out,MediaInfo),
+                        media = Media, direction = in}, "200 OK", [{'Cseq', seq(Headers)}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket1, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}, {'Cseq', seq(Headers)}])
   end.
 
-handle_receive_setup(#rtsp_socket{} = Socket, URL, Headers, _Body) ->
+handle_receive_setup(#rtsp_socket{socket = Sock, rtp = RTP} = Socket, URL, Headers, _Body) ->
   {match, [Control]} = re:run(URL, "/([^/]+)$", [{capture, all_but_first, list}]),
-  StreamNum = proplists:get_value(Control, Socket#rtsp_socket.control_map),
-  StreamInfo = element(StreamNum, Socket#rtsp_socket.rtp_streams),
-  Streams = setelement(StreamNum, Socket#rtsp_socket.rtp_streams, rtp_decoder:init(StreamInfo)),
-  rtsp_socket:reply(Socket#rtsp_socket{rtp_streams = Streams}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', proplists:get_value('Transport', Headers)}]).
+  StreamId = proplists:get_value(Control, Socket#rtsp_socket.control_map),
+  Transport = proplists:get_value('Transport', Headers),
+  {ok, RTP1, _Reply} = rtp:setup_channel(RTP, StreamId, [{tcp_socket,Sock}|Transport]),
+  
+  rtsp_socket:reply(Socket#rtsp_socket{rtp = RTP1}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', proplists:get_value('Transport', Headers)}]).
 
 
 
