@@ -56,6 +56,6 @@ receive_all_frames(Acc) ->
     10 -> lists:reverse(Acc)
   end.
 
-enable_timeouts(TimeoutState) ->
-  application:set_env(erlyvideo,no_timeouts, TimeoutState).
+set_ticker_timeouts(NoTimeouts) ->
+  application:set_env(erlyvideo,no_timeouts, NoTimeouts).
 

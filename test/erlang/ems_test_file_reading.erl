@@ -31,7 +31,6 @@
 
 
 read_file(Path) ->
-  ems_test_helper:enable_timeouts(true),
   {ok, F} = file:open(ems_test_helper:file_path(Path), [read,binary]),
   Reader = file_media:file_format(Path),
   ems_test_helper:read_all_frames(Reader, {file, F}, [{url,ems_test_helper:file_path(Path)}]).
@@ -127,20 +126,25 @@ test_interval([],Sum,Length) ->
   true = Sum > Length.
   
 
-mpegts_reader_test () ->
-  ems_test_helper:enable_timeouts(true),
-  {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/Sea.mp4",[]),
-  erlang:monitor(process, Pid),
-  Frames = mpegts_reader_frame([]),
-  run_test_interval(Frames,300),
-  test_mono(Frames).
+mpegts_reader_test_() ->
+  {spawn, {setup,
+    fun() ->
+      ems_test_helper:set_ticker_timeouts(true),
+      log4erl:change_log_level(error)
+    end,
+    fun(_) ->
+      ems_test_helper:set_ticker_timeouts(false),
+      log4erl:change_log_level(debug)
+    end,
+    [fun() ->
+      {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/video.mp4",[]),
+      erlang:monitor(process, Pid),
+      Frames = ems_test_helper:receive_all_frames(),
+      run_test_interval(Frames,300),
+      test_mono(Frames)
+    end]
+  }}.
 
-mpegts_reader_frame(Frames) -> 
-  receive
-   #video_frame{} = F ->
-     mpegts_reader_frame([F|Frames]);
-   _Else -> lists:reverse(Frames)
-  end.
 %mpegts_read_frame(Frames,Pid) ->
 %  erlang:monitor(process,Pid),
 %  link(Pid),

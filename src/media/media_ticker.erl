@@ -81,9 +81,9 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
-  TimeoutState = case application:get_env(erlyvideo, no_timeouts) of
+  NoTimeouts = case application:get_env(erlyvideo, no_timeouts) of
     {ok, Val} -> Val;
-    undefined -> undefined
+    undefined -> false
   end,
   StreamId = proplists:get_value(stream_id, Options),
   BurstSize = proplists:get_value(burst_size, Options, ?BURST_SIZE),
@@ -112,7 +112,7 @@ init(Media, Consumer, Options) ->
     Duration -> Start + Duration
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize, no_timeouts = TimeoutState}).
+                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize, no_timeouts = NoTimeouts}).
   
 loop(Ticker) ->
   receive
@@ -201,7 +201,6 @@ handle_message(tick, #ticker{media = Media, dts = DTS, pos = Pos, consumer = Con
       send_frames(Frames, Consumer, StreamId),
       Ticker1 = save_start_time(Ticker, Frames),
       Timeout = tick_timeout(Ticker1, Frame), 
-      ?D({"aa",Timeout}),
       % ?D({burst, length(Frames), NewPos, round(NewDTS)}),
       Ticker2 = Ticker1#ticker{pos = NewPos, dts = NewDTS},
       receive
@@ -256,13 +255,12 @@ send_metadata(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, 
   ok.
 
 
+tick_timeout(#ticker{no_timeouts = true}, _Frame) ->
+  0;
 
-tick_timeout(#ticker{no_timeouts = TimeoutState} = Ticker, Frame) when TimeoutState =/= true ->
+tick_timeout(#ticker{} = Ticker, Frame) ->
   Now = os:timestamp(),
-  tick_timeout(Ticker, Frame, Now);
-
-tick_timeout(_Ticker,_Frame) ->
-  0.
+  tick_timeout(Ticker, Frame, Now).
 
 tick_timeout(#ticker{playing_from = PlayingFrom, timer_start = TimerStart, client_buffer = ClientBuffer},
              #video_frame{dts = DTS}, Now) ->
