@@ -38,6 +38,15 @@
 -export([init/2, setup_channel/3, handle_frame/2, handle_data/3, sync/3]).
 -export([rtcp/2, rtcp_sr/1]).
 
+
+%%--------------------------------------------------------------------
+%% @spec (Direction::in|out, MediaInfo::media_info()) -> rtp_state()
+%% @doc Initializes non-clean RTP object.
+%% Should pass #media_info{} record with not more than one video and not more than one audio stream
+%% Also mention about stream_id in #stream_info{} records, it will be used to indicate number of stream
+%%
+%% @end
+%%--------------------------------------------------------------------
 init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Direction == in orelse Direction == out ->
   Streams = lists:sort(fun(#stream_info{stream_id = Id1}, #stream_info{stream_id = Id2}) ->
     Id1 =< Id2
@@ -45,11 +54,34 @@ init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Dir
   ContentMap = [{Content,Id} || #stream_info{content = Content, stream_id = Id} <- Streams],
   #rtp_state{streams = Streams, direction = Direction, content_map = ContentMap}.
 
+%%--------------------------------------------------------------------
+%% @spec (RtpState::rtp_state(), StreamId::integer(), Headers::proplist) -> rtp_state()
+%% @doc Synchronize stream StreamId from RTSP Rtp-Info header
+%% @end
+%%--------------------------------------------------------------------
 sync(#rtp_state{channels = Channels} = State, Id, Headers) ->
   Channel1 = rtp_decoder:sync(element(Id,Channels), Headers),
   State#rtp_state{channels = setelement(Id, Channels, Channel1)}.
 
 
+%%--------------------------------------------------------------------
+%% @spec (RtpState::rtp_state(), StreamId::integer(), Transport::proplist) -> {ok, rtp_state(), Reply::proplist()}
+%% @doc Initialize stream StreamId with transport specification Transport.
+%% There are two options: UDP and TCP interleaved:
+%%
+%% 1. UDP
+%% {ok, RTP1, Reply} = rtp:setup_channel(RTP, 1, [{proto,udp},{remote_rtp_port,RPort1},{remote_rtcp_port,RPort2},{remote_addr,RAddr}])
+%% 
+%% Mention that remote_addr should be in erlang notation: {IP1,IP2,IP4,IP4}
+%% setup_channel will open required ports itself, remember inside and reply with
+%% [{local_rtp_port, LPort1}, {local_rtcp_port, LPort2}, {local_addr, LAddr}]
+%% 
+%% 2. TCP
+%% {ok, RTP1, Reply} = rtp:setup_channel(RTP, 1, [{proto,tcp},{tcp_socket,Socket}])
+%% in this case RTP will work with interleaved RTSP notation and will write bytes to tcpsocket itself
+%%  
+%% @end
+%%--------------------------------------------------------------------
 setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Channels, udp = UDPMap} = State, StreamId, Transport) ->
   Stream = #stream_info{content = Content} = lists:nth(StreamId, Streams),
   Channel = case Direction of
@@ -71,6 +103,11 @@ setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Ch
       {ok, State1#rtp_state{transport = udp, udp = UDPMap1}, [{local_rtp_port, SPort1}, {local_rtcp_port, SPort2}, {local_addr, Source}]}
   end.
 
+%%--------------------------------------------------------------------
+%% @spec (RtpState::rtp_state(), VideoFrame::video_frame()) -> {ok, rtp_state()}
+%% @doc Encode and send video_frame
+%% @end
+%%--------------------------------------------------------------------
 handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channels = Channels, direction = out} = State, #video_frame{content = Content} = Frame) ->
   Num = proplists:get_value(Content, ContentMap),
   Channel = element(Num, Channels),
@@ -86,7 +123,15 @@ handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channel
   {ok, State#rtp_state{channels = setelement(Num, Channels, Channel1)}}.
 
 
-
+%%--------------------------------------------------------------------
+%% @spec (RtpState::rtp_state(), Channel, Data) -> {ok, rtp_state(), [video_frame()]}
+%% @doc Decode network data. If you are working with tcp interleaved mode, second argument should be channel
+%% In case of UDP it must be {Addr, Port}
+%% Third argument is network data.
+%%
+%% Replies with new RTP state and possible list of decoded frames
+%% @end
+%%--------------------------------------------------------------------
 handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_addr = Addr, remote_rtp_port = Port},_}} = State, {Addr, Port}, Packet) ->
   handle_data(State, 0, Packet);
 

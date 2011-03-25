@@ -83,7 +83,6 @@ define_media_info(F, M) ->
   shift_dts(F, M).
   
   
-
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
   shift_dts(Frame, Media#ems_media{last_dts = 0});
 
@@ -95,12 +94,19 @@ shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, glue
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
   shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS + GlueDelta}); %% Lets glue new instance of stream to old one plus small glue time
 
-shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
-  handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+%shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) when 
+%(DTS + Delta < 0 andalso DTS + Delta >= -1000) orelse (PTS + Delta < 0 andalso PTS + Delta >= -1000) ->
+%  handle_shifted_frame(Frame#video_frame{dts = 0, pts = 0}, Media);
 
-handle_shifted_frame(#video_frame{dts = DTS} = Frame, 
-  #ems_media{format = Format, storage = Storage, frame_number = Number} = Media) ->
+shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
+  %?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
+      handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+
+
+handle_shifted_frame(#video_frame{dts = DTS, pts = PTS} = Frame,  Media) when (DTS < 0 andalso DTS >= -1000) orelse (PTS < 0 andalso PTS >= -1000) ->
+  handle_shifted_frame(Frame#video_frame{dts = 0, pts = 0}, Media);
+
+handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format, storage = Storage, frame_number = Number} = Media)  ->
   % ?D({Frame#video_frame.content, Number, Frame#video_frame.flavor, Frame#video_frame.dts}),
   Media1 = start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
@@ -127,6 +133,7 @@ handle_config(Frame, Media) ->
 handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
   case Content of
     audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
+    metadata -> ems_media_clients:send_frame(Frame, Clients, starting);
     _ -> ok
   end,
   ems_media_clients:send_frame(Frame, Clients, active),
@@ -141,20 +148,17 @@ save_frame(Format, Storage, Frame) ->
     {ok, Storage1} -> Storage1;
     _ -> Storage
   end.
+ 
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
-  Clients1 = case ems_media:metadata_frame(M) of
-    undefined -> Clients;
-    Meta -> ems_media_clients:send_frame(Meta#video_frame{dts = DTS, pts = DTS}, Clients, starting)
-  end,
   Clients2 = case A of
-    undefined -> Clients1;
-    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+    undefined -> Clients;
+    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients, starting)
   end,
   Clients3 = case V of
     undefined -> Clients2;
-    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients2, starting)
   end,
     
   Clients4 = ems_media_clients:mass_update_state(Clients3, starting, active),

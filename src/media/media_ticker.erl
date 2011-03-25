@@ -40,7 +40,8 @@
   playing_from,
   playing_till,
   paused = false,
-  options
+  options,
+  no_timeouts
 }).
 
 start(Ticker) ->
@@ -68,6 +69,10 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
+  NoTimeouts = case application:get_env(erlyvideo, no_timeouts) of
+    {ok, Val} -> Val;
+    undefined -> false
+  end,
   StreamId = proplists:get_value(stream_id, Options),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
   SeekInfo = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
@@ -94,7 +99,7 @@ init(Media, Consumer, Options) ->
     Duration -> Start + Duration
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options}).
+                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, no_timeouts = NoTimeouts}).
   
 loop(Ticker) ->
   receive
@@ -114,8 +119,8 @@ safe_handle_message(Message, Ticker) ->
       error_logger:error_report("** Media ticker ~p terminating \n"
              "** Last message in was ~s~n"
              "** When Server state == ~s~n"
-             "** Reason for termination == ~n** ~s~n",
-  	   [self(), Msg1, State, Reason]),
+             "** Reason for termination == ~n** ~s~n~p~n",
+  	   [self(), Msg1, State, Reason, erlang:get_stacktrace()]),
   	  {Class,Error}
   end.
 
@@ -177,7 +182,7 @@ handle_message(tick, #ticker{media = Media, pos = Pos, frame = undefined, paused
   
   PlayingFrom = case Paused of
     true -> NewDTS - ClientBuffer;
-    false -> send_metadata(Ticker, NewDTS), NewDTS
+    false -> NewDTS
   end,
   {noreply, Ticker#ticker{pos = NewPos, dts = NewDTS, frame = Frame, timer_start = TimerStart, playing_from = PlayingFrom}};
   
@@ -212,13 +217,9 @@ handle_message(tick, #ticker{media = Media, pos = Pos, dts = DTS, frame = PrevFr
   end.
 
 
-send_metadata(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, options = Options}, DTS) ->
-  OptKeys = [duration],
-  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys) andalso is_number(V)],
-  Metadata = ems_media:metadata(Media, MetaOptions),
-  % ?D({tick, NewDTS, NewPos}),
-  Consumer ! Metadata#video_frame{dts = DTS, pts = DTS, stream_id = StreamId},
-  ok.
+
+tick_timeout(#ticker{no_timeouts = true}, _Frame) ->
+  0;
 
 tick_timeout(Ticker, Frame) ->
   Now = os:timestamp(),

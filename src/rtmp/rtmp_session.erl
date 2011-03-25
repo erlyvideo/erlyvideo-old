@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlyvideo is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -24,6 +24,7 @@
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../log.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
@@ -38,7 +39,8 @@
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([send/2, flush_stream/1]).
+-export([send/2, send_frame/2, flush_stream/1]).
+-export([metadata/1, metadata/2]).
 
 %% FSM States
 -export([
@@ -52,7 +54,7 @@
 -export([accept_connection/1, reject_connection/1, close_connection/1]).
 -export([message/4, collect_stats/1]).
 
--export([reply/2, fail/2]).
+-export([reply/2, fail/2, stop/1]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 -export([get_socket/1]).
 -export([get/2, set/3, set/2]).
@@ -81,8 +83,11 @@ collect_stats(_Host) ->
   Pids = [Pid || {_, Pid, _, _} <- supervisor:which_children(rtmp_session_sup), Pid =/= self()],
   Info = ems:multicall(Pids, info, 1000),
   lists:sort(fun({_,Inf1}, {_,Inf2}) -> proplists:get_value(addr, Inf1) < proplists:get_value(addr, Inf2) end, Info).
-  
 
+
+
+stop(Pid) when is_pid(Pid) ->
+  gen_fsm:send_event(Pid, exit).
 
 
 accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
@@ -91,10 +96,10 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
-  rtmp_socket:setopts(Socket, [{chunk_size, 4096}]),
-  
+  rtmp_socket:setopts(Socket, [{chunk_size, 16#200000}]),
+
   ConnectObj = [{fmsVer, <<"FMS/",?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
-  StatusObj = [{level, <<"status">>}, 
+  StatusObj = [{level, <<"status">>},
                {code, <<"NetConnection.Connect.Success">>},
                {description, <<"Connection succeeded.">>},
                {data,[{<<"version">>, <<?FMS_VERSION>>}]},
@@ -103,20 +108,20 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
   ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
   Session;
-  
+
 accept_connection(Session) when is_pid(Session) ->
   gen_fsm:send_event(Session, accept_connection).
 
 
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
   ConnectObj = [{fmsVer, <<"FMS/", ?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
-  StatusObj = [{level, <<"status">>}, 
+  StatusObj = [{level, <<"status">>},
                {code, <<"NetConnection.Connect.Rejected">>},
                {description, <<"Connection rejected.">>}],
   fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
   gen_fsm:send_event(self(), exit),
   Session;
-  
+
 reject_connection(Session) when is_pid(Session) ->
   gen_fsm:send_event(Session, reject_connection).
 
@@ -128,8 +133,8 @@ close_connection(#rtmp_session{} = Session) ->
 close_connection(Session) when is_pid(Session) ->
   gen_fsm:send_event(Session, close_connection).
 
-  
-  
+
+
 reply(#rtmp_session{socket = Socket}, AMF) ->
   rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke});
 reply(Socket, AMF) when is_pid(Socket) ->
@@ -146,7 +151,49 @@ fail(Socket, AMF) when is_pid(Socket) ->
 message(Pid, Stream, Code, Body) ->
   gen_fsm:send_event(Pid, {message, Stream, Code, Body}).
 
-  
+
+
+
+metadata(Media) when is_pid(Media) ->
+  metadata(Media, []).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
+%%
+%% @doc Returns video_frame, prepared to send into flash
+%% @end
+%%----------------------------------------------------------------------
+metadata(Media, Options) when is_pid(Media) ->
+  MediaInfo = ems_media:media_info(Media),
+  Info1 = add_metadata_options(MediaInfo, Options),
+  metadata_frame(Info1, Options).
+
+
+add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
+add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options);
+add_metadata_options(#media_info{} = MediaInfo, [_|Options]) -> add_metadata_options(MediaInfo, Options).
+
+
+metadata_frame(#media_info{options = Options, duration = Duration} = Media, Opts) ->
+  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+                      ({K,V}) when is_tuple(V) -> {K, iolist_to_binary(io_lib:format("~p", [V]))};
+                      (Else) -> Else end, Options),
+  Meta1 = lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media)),
+  DurationMeta = case Duration of
+    undefined -> [];
+    _ -> [{duration, Duration / 1000}]
+  end,
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}], 
+               stream_id = proplists:get_value(stream_id, Opts, 0), dts = 0, pts = 0}.
+
+
+video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
+  [{height, Height}, {width, Width}];
+
+video_parameters(#media_info{}) ->  
+  [].
+
+
 %%%------------------------------------------------------------------------
 %%% API
 %%%------------------------------------------------------------------------
@@ -183,7 +230,7 @@ send(Session, Message) ->
   %   _ -> ok
   % end,
   Session ! Message.
-  
+
 
 
 
@@ -207,7 +254,7 @@ send(Session, Message) ->
   {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 
 
-    
+
 'WAIT_FOR_SOCKET'(Other, State) ->
   error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
   {next_state, 'WAIT_FOR_SOCKET', State}.
@@ -248,17 +295,17 @@ send(Session, Message) ->
 
 %% Sync event
 
-  
+
 'WAIT_FOR_DATA'(Data, _From, State) ->
 	io:format("~p Ignoring data: ~p\n", [self(), Data]),
   {next_state, 'WAIT_FOR_DATA', State}.
-    
-    
+
+
 % send(#rtmp_session{server_chunk_size = ChunkSize} = State, {#channel{} = Channel, Data}) ->
 %   Packet = rtmp:encode(Channel#channel{chunk_size = ChunkSize}, Data),
 %   % ?D({"Channel", Channel#channel.type, Channel#channel.timestamp, Channel#channel.length}),
 %   send_data(State, Packet).
-	
+
 
 handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   #rtmp_funcall{command = CommandBin} = AMF,
@@ -317,23 +364,23 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
   URL = proplists:get_value(tcUrl, PlayerInfo),
   {match, [_Proto, HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
   Host = ems:host(HostName),
-  
+
   % ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
 
   AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
     {objectEncoding, 0.0} -> 0;
     {objectEncoding, 3.0} -> 3;
-    {objectEncoding, _N} -> 
+    {objectEncoding, _N} ->
       error_logger:error_msg("Warning! Cannot work with clients, using not AMF0/AMF3 encoding.
       Assume _connection.objectEncoding = ObjectEncoding.AMF0; in your flash code is used version ~p~n", [_N]),
       throw(invalid_amf3_encoding);
     _ -> 0
   end,
-  
+
   SessionId = timer:now_diff(erlang:now(),{0,0,0}),
 
 	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion, session_id = SessionId},
-	
+
 	call_function(Host, NewState1, AMF);
 
 
@@ -345,17 +392,17 @@ call_function(Host, #rtmp_session{} = State, #rtmp_funcall{command = Command} = 
 
 call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) andalso is_list(Args) ->
   call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), Command, Args).
-  
-  
+
+
 call_mfa([], Command, Args) ->
   % ?D({"MFA failed", Command}),
   case Args of
-    [#rtmp_session{host = Host} = State, #rtmp_funcall{args = AMFArgs} = AMF] -> 
+    [#rtmp_session{host = Host} = State, #rtmp_funcall{args = AMFArgs} = AMF] ->
       ems_log:error(Host, "Failed RTMP funcall: ~p(~p)", [Command, AMFArgs]),
       rtmp_session:fail(State, AMF);
     _ -> ok
   end;
-  
+
 call_mfa([Module|Modules], Command, Args) ->
   case code:is_loaded(mod_name(Module)) of
     false -> code:load_file(mod_name(Module));
@@ -375,14 +422,14 @@ call_mfa([Module|Modules], Command, Args) ->
     false ->
       call_mfa(Modules, Command, Args)
   end.
-  
+
 
 
 mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
 mod_name(Mod) -> Mod.
 
 
-	
+
 %%-------------------------------------------------------------------------
 %% Func: handle_event/3
 %% Returns: {next_state, NextStateName, NextStateData}          |
@@ -407,7 +454,7 @@ handle_event(Event, StateName, StateData) ->
 
 handle_sync_event(info, _From, StateName, #rtmp_session{} = State) ->
   {reply, session_stats(State), StateName, State};
-  
+
 handle_sync_event({get_field, Field}, _From, StateName, State) ->
   {reply, get(State, Field), StateName, State};
 
@@ -434,7 +481,7 @@ handle_info({rtmp, Socket, #rtmp_message{} = Message}, StateName, State) ->
   % io:format("messages=~p,memory=~p~n", [Messages, Memory]),
   rtmp_socket:setopts(Socket, [{active, once}]),
   {next_state, StateName, State2};
-  
+
 handle_info({rtmp, Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
   rtmp_socket:setopts(Socket, [{active, once}]),
   {next_state, 'WAIT_FOR_DATA', State};
@@ -445,11 +492,11 @@ handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, use
 
 handle_info({'DOWN', _Ref, process, Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
   {stop,normal,State};
-  
+
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket} = State) ->
   %FIXME: add passing down this message to plugins
   case find_stream_by_pid(PlayerPid, State) of
-    undefined -> 
+    undefined ->
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {next_state, StateName, State};
     #rtmp_stream{stream_id = StreamId} ->
@@ -472,7 +519,7 @@ handle_info(#rtmp_message{} = Message, StateName, State) ->
 
 handle_info(exit, _StateName, StateData) ->
   {stop, normal, StateData};
-  
+
 handle_info({'$gen_call', From, Request}, StateName, StateData) ->
   case ?MODULE:handle_sync_event(Request, From, StateName, StateData) of
     {reply, Reply, NewStateName, NewState} ->
@@ -482,12 +529,17 @@ handle_info({'$gen_call', From, Request}, StateName, StateData) ->
       {next_state, NewStateName, NewState}
   end;
 
+handle_info({rtmp_lag, _Media}, _StateName, State) ->
+  ?D("Client stop due to rtmp_lag"),
+  {stop, normal, State};
+
 handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
   case ems:try_method_chain(Host, handle_info, [Message, State]) of
     {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
     unhandled -> {next_state, 'WAIT_FOR_DATA', State};
     #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1}
   end;
+
 
 handle_info(_Info, StateName, StateData) ->
   ?D({"Some info handled", _Info, StateName, StateData}),
@@ -499,8 +551,8 @@ handle_frame(#video_frame{} = Frame, Session) ->
     true -> send_frame(Frame, Session);
     _ -> Session
   end.
-  
-send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame, 
+
+send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame,
              #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{base_dts = DTS_, receive_audio = false} when Type == audio ->
@@ -510,6 +562,7 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
     #rtmp_stream{pid = Media, started = false} = Stream ->
+      % ?D({start_stream, Frame}),
       MediaType = proplists:get_value(type, ems_media:info(Media)),
       rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
       % put(stream_start, erlang:now()),
@@ -519,13 +572,13 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
     Else ->
       erlang:error({old_frame, Else,StreamId})
   end,
-  
+
   % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
   % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
   % case Frame#video_frame.content of
   %   metadata -> ?D(Frame);
   %   _ ->
-  %     ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)}),
+  %     ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), rtmp:justify_ts(DTS - BaseDts), BaseDts, size(Frame#video_frame.body)}),
   %     % case get(stream_start) of
   %     %   undefined -> put(stream_start, erlang:now());
   %     %   _ -> ok
@@ -537,7 +590,7 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
   case Allow of
     true ->
       Message = #rtmp_message{
-        channel_id = rtmp_lib:channel_id(Type, StreamId), 
+        channel_id = rtmp_lib:channel_id(Type, StreamId),
         timestamp = DTS - BaseDts,
         type = Type,
         stream_id = StreamId,
@@ -547,11 +600,11 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
     	  S -> S
     	catch
     	  _:_ -> 0
-    	end,    
+    	end,
       State1#rtmp_session{bytes_sent = Sent + Size};
     false ->
       State1
-  end.  
+  end.
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive
@@ -600,10 +653,10 @@ flush_stream(StreamId) ->
 code_change(_OldVersion, _StateName, _State, _Extra) ->
   ok.
 
-find_stream_by_pid(PlayerPid, #rtmp_session{streams1 = Streams}) -> 
+find_stream_by_pid(PlayerPid, #rtmp_session{streams1 = Streams}) ->
   find_stream_by_pid(PlayerPid, Streams);
 
-find_stream_by_pid(PlayerPid, Streams) -> 
+find_stream_by_pid(PlayerPid, Streams) ->
   lists:keyfind(PlayerPid, #rtmp_stream.pid, Streams).
 
 get_stream(StreamId, #rtmp_session{streams1 = Streams}) ->
@@ -612,10 +665,10 @@ get_stream(StreamId, #rtmp_session{streams1 = Streams}) ->
 set_stream(#rtmp_stream{stream_id = StreamId} = Stream, #rtmp_session{streams1 = Streams} = State) ->
   Streams1 = lists:keystore(StreamId, #rtmp_stream.stream_id, Streams, Stream),
   State#rtmp_session{streams1 = Streams1}.
-  
+
 alloc_stream(#rtmp_session{streams1 = Streams}) ->
   alloc_stream(Streams, 1).
-  
+
 alloc_stream([], N) -> #rtmp_stream{stream_id = N};
 alloc_stream([undefined|_], N) -> #rtmp_stream{stream_id = N};
 alloc_stream([#rtmp_stream{}|Streams], N) -> alloc_stream(Streams, N+1).
