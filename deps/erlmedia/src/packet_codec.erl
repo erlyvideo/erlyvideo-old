@@ -146,6 +146,8 @@ decode_headers(Data, Headers, BodyLength) ->
         case HKey of
           <<"Cseq">> -> {'Cseq', HVal};
           <<"Transport">> -> {'Transport', parse_transport_header(HVal)};
+          <<"Rtp-Info">> -> {'Rtp-Info', parse_rtp_info_header(HVal)};
+          <<"RTP-Info">> -> {'Rtp-Info', parse_rtp_info_header(HVal)};
           <<"Session">> -> {'Session', HVal};
           <<"Call-Id">> -> {'Call-Id', HVal};
           <<"To">> -> {'To', HVal};
@@ -198,6 +200,24 @@ parse_transport_header(Header) ->
   lists:reverse(Fields).
 
 
+parse_rtp_info_header(String) when is_binary(String) ->
+  parse_rtp_info_header(binary_to_list(String));
+
+parse_rtp_info_header(String) when is_list(String) ->
+  {ok, Re} = re:compile(" *([^=]+)=(.*)"),
+  F = fun(S) ->
+    {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
+    Key = list_to_existing_atom(K),
+    Value = case Key of
+      seq -> list_to_integer(V);
+      rtptime -> list_to_integer(V);
+      _ -> V
+    end,
+    {Key, Value}
+  end,
+  [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(String, ",")].
+  
+  
 
 %%----------------------------------------------------------------------
 %% @spec ({rtcp, Channel::integer(), Bin::binary()}) -> Data::binary()
@@ -258,6 +278,10 @@ encode_headers(Headers) ->
 parse_transport_header_test() ->
   ?assertEqual([{proto,tcp},{unicast,true},{mode,'receive'},{interleaved,{2,3}}],
                  parse_transport_header(<<"RTP/AVP/TCP;unicast;mode=receive;interleaved=2-3">>)).
+
+parse_rtp_info_test() ->
+  ?assertEqual([[{url,"rtsp://erlyvideo.org/h264/trackID=1"},{seq,60183},{rtptime,4274184387}], [{url,"rtsp://erlyvideo.org/h264/trackID=2"},{seq,51194},{rtptime,1003801948}]], 
+    parse_rtp_info_header(<<"url=rtsp://erlyvideo.org/h264/trackID=1;seq=60183;rtptime=4274184387, url=rtsp://erlyvideo.org/h264/trackID=2;seq=51194;rtptime=1003801948">>)).
 
 parse_rtp_test() ->
   ?assertEqual({ok, {rtp, 0, <<1,2,3,4,5,6>>}, <<7,8>>}, parse(ready, <<$$, 0, 6:16, 1,2,3,4,5,6,7,8>>)),
