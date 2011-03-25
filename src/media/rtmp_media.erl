@@ -132,13 +132,16 @@ handle_info(start, #ems_media{state = #rtmp{url = URL} = State} = Media) ->
   {noreply, Media#ems_media{state = State#rtmp{socket = Socket, demuxer = RTMP}}};
   
 
+handle_info({rtmp, RTMP, connected}, #ems_media{state = #rtmp{url = URL} = R} = State) when is_list(URL) ->
+  handle_info({rtmp, RTMP, connected}, State#ems_media{state = R#rtmp{url = list_to_binary(URL)}});
+  
 handle_info({rtmp, RTMP, connected}, #ems_media{state = #rtmp{url = URL}} = State) ->
   ?D({"Connected to RTMP source", URL}),
   {rtmp, _UserInfo, _Host, _Port, FullPath, _Query} = http_uri2:parse(URL),
   [App|PathParts] = string:tokens(FullPath, "/"),
   Path = list_to_binary(string:join(PathParts, "/")),
   ?D({"App,path", App, Path}),
-  rtmp_lib:connect(RTMP, [{app, list_to_binary(App)}, {tcUrl, list_to_binary(URL)}]),
+  rtmp_lib:connect(RTMP, [{app, list_to_binary(App)}, {tcUrl, URL}]),
   Stream = rtmp_lib:createStream(RTMP),
   ?D({"Stream",Stream}),
   rtmp_lib:play(RTMP, Stream, Path),
@@ -147,10 +150,10 @@ handle_info({rtmp, RTMP, connected}, #ems_media{state = #rtmp{url = URL}} = Stat
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body}}, Recorder) when (Type == audio orelse Type == video) andalso size(Body) > 0 ->
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
-  case Frame#video_frame.flavor of
-    command -> ?D(Frame);
-    _ -> ok %?D({Frame#video_frame.content, Frame#video_frame.codec, Frame#video_frame.flavor, Timestamp})
-  end,
+  % case Frame#video_frame.flavor of
+  %   command -> ?D(Frame);
+  %   _ -> ok %?D({Frame#video_frame.content, Frame#video_frame.codec, Frame#video_frame.flavor, Timestamp})
+  % end,
   self() ! Frame,
   {noreply, Recorder};
 
