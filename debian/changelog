@@ -1,3 +1,9 @@
+erlyvideo (2.7.7) unstable; urgency=low
+
+  Axis-1031 fix
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 25 Mar 2011 10:24:19 +0300
+
 erlyvideo (2.7.6) unstable; urgency=low
 
   New RTP
