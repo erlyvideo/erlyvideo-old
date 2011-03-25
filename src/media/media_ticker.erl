@@ -219,7 +219,7 @@ save_start_time(#ticker{timer_start = undefined, client_buffer = ClientBuffer, p
   
   PlayingFrom = case Paused of
     true -> NewDTS - ClientBuffer;
-    false -> send_metadata(Ticker, NewDTS), NewDTS
+    false -> NewDTS
   end,
   Ticker#ticker{timer_start = TimerStart, playing_from = PlayingFrom};
   
@@ -245,14 +245,6 @@ load_frames(_Media, _Consumer, _Pos, _PlayingTill, 0, Frames) ->
 
 send_frames(Frames, Consumer, StreamId) ->
   [Consumer ! Frame#video_frame{stream_id = StreamId} || Frame <- lists:reverse(Frames)].
-
-send_metadata(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, options = Options}, DTS) ->
-  OptKeys = [duration],
-  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys) andalso is_number(V)],
-  Metadata = ems_media:metadata(Media, MetaOptions),
-  % ?D({tick, NewDTS, NewPos}),
-  Consumer ! Metadata#video_frame{dts = DTS, pts = DTS, stream_id = StreamId},
-  ok.
 
 
 tick_timeout(#ticker{no_timeouts = true}, _Frame) ->

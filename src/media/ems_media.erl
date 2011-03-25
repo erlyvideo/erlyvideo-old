@@ -67,7 +67,6 @@
 
 -export([media_info/1, set_media_info/2]).
 -export([status/1, info/1, info/2]).
--export([metadata/1, metadata/2, metadata_frame/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
@@ -347,46 +346,7 @@ properties_are_valid(Properties) ->
   lists:subtract(Properties, known_properties()) == [].
   
   
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> Metadata::video_frame()
-%%
-%% @doc Returns video_frame, prepared to send into flash
-%% @end
-%%----------------------------------------------------------------------
-metadata(Media) when is_pid(Media) ->
-  metadata(Media, []).
 
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
-%%
-%% @doc Returns video_frame, prepared to send into flash
-%% @end
-%%----------------------------------------------------------------------
-metadata(Media, Options) when is_pid(Media) ->
-  MediaInfo = media_info(Media),
-  Info1 = add_metadata_options(MediaInfo, Options),
-  metadata_frame(Info1).
-
-
-add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
-add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options).
-
-
-metadata_frame(#ems_media{media_info = MediaInfo}) -> metadata_frame(MediaInfo);
-
-metadata_frame(#media_info{options = Options, duration = Duration} = Media) ->
-  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
-                      ({K,V}) when is_tuple(V) -> {K, iolist_to_binary(io_lib:format("~p", [V]))};
-                      (Else) -> Else end, Options),
-  Meta1 = lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media)),                    
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, [{duration, Duration}|Meta1]}]}.
-
-
-video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
-  [{height, Height}, {width, Width}];
-
-video_parameters(#media_info{}) ->  
-  [].
 
 
 

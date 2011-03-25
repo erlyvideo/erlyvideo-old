@@ -35,27 +35,27 @@ metadata_duration_test_() ->
   {spawn, {setup,
     fun() -> 
       ems_test_helper:set_ticker_timeouts(true),
-      % log4erl:change_log_level(error),
+      log4erl:change_log_level(error),
       ok
     end,
     fun(_) ->
       ems_test_helper:set_ticker_timeouts(false),
-      % log4erl:change_log_level(debug),
+      log4erl:change_log_level(debug),
       ok
     end,
     [fun() ->
       {ok, _Media} = media_provider:play(default, "rtmp://localhost/rtmp/video.mp4", [{clients_timeout,0}]),
-      receive
-        stop -> ok
+      First = receive
+        #video_frame{content = metadata} = F_ -> [F_]
       after
-        500 -> ok
+        500 -> []
       end,
-      Frames = ems_test_helper:receive_all_frames(),
+      Frames = First ++ ems_test_helper:receive_all_frames(),
       ?assert(length(Frames) > 20),
-      ?D({read_frames,length(Frames)}),
       Metadata = [F || #video_frame{content = Content, body = [Command|_]} = F <- Frames, Content == metadata andalso Command == <<"onMetaData">>],
-      ?D({meta,length(Metadata)}),
-      [#video_frame{content = metadata, body = [<<"onMetaData">>|{object, Body}]}] = Metadata,
-      undefined = Body
+      [#video_frame{content = metadata, body = [<<"onMetaData">>, {object, Body}]}] = Metadata,
+      Duration = proplists:get_value(duration, Body),
+      ?assert(Duration > 10),
+      ?assert(Duration < 1000)
     end
   ]}}.

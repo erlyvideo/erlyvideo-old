@@ -24,6 +24,7 @@
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../log.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
@@ -38,7 +39,8 @@
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([send/2, flush_stream/1]).
+-export([send/2, send_frame/2, flush_stream/1]).
+-export([metadata/1, metadata/2]).
 
 %% FSM States
 -export([
@@ -148,6 +150,48 @@ fail(Socket, AMF) when is_pid(Socket) ->
 
 message(Pid, Stream, Code, Body) ->
   gen_fsm:send_event(Pid, {message, Stream, Code, Body}).
+
+
+
+
+metadata(Media) when is_pid(Media) ->
+  metadata(Media, []).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
+%%
+%% @doc Returns video_frame, prepared to send into flash
+%% @end
+%%----------------------------------------------------------------------
+metadata(Media, Options) when is_pid(Media) ->
+  MediaInfo = ems_media:media_info(Media),
+  Info1 = add_metadata_options(MediaInfo, Options),
+  metadata_frame(Info1, Options).
+
+
+add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
+add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options);
+add_metadata_options(#media_info{} = MediaInfo, [_|Options]) -> add_metadata_options(MediaInfo, Options).
+
+
+metadata_frame(#media_info{options = Options, duration = Duration} = Media, Opts) ->
+  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+                      ({K,V}) when is_tuple(V) -> {K, iolist_to_binary(io_lib:format("~p", [V]))};
+                      (Else) -> Else end, Options),
+  Meta1 = lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media)),
+  DurationMeta = case Duration of
+    undefined -> [];
+    _ -> [{duration, Duration / 1000}]
+  end,
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}], 
+               stream_id = proplists:get_value(stream_id, Opts, 0), dts = 0, pts = 0}.
+
+
+video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
+  [{height, Height}, {width, Width}];
+
+video_parameters(#media_info{}) ->  
+  [].
 
 
 %%%------------------------------------------------------------------------

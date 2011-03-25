@@ -134,6 +134,7 @@ handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = 
   Media2 = store_last_gop(Media, Frame),
   case Content of
     audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
+    metadata -> ems_media_clients:send_frame(Frame, Clients, starting);
     _ -> ok
   end,
   ems_media_clients:send_frame(Frame, Clients, active),
@@ -168,17 +169,13 @@ store_last_gop(#ems_media{last_gop = GOP} = Media, Frame) when is_list(GOP) ->
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
-  Clients1 = case ems_media:metadata_frame(M) of
-    undefined -> Clients;
-    Meta -> ems_media_clients:send_frame(Meta#video_frame{dts = DTS, pts = DTS}, Clients, starting)
-  end,
   Clients2 = case A of
-    undefined -> Clients1;
-    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+    undefined -> Clients;
+    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients, starting)
   end,
   Clients3 = case V of
     undefined -> Clients2;
-    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients2, starting)
   end,
     
   Clients4 = ems_media_clients:mass_update_state(Clients3, starting, active),

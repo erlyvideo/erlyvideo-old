@@ -116,8 +116,7 @@ deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, socket = Socket} = State, 
-     #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   Options1 = extract_play_args(Args),
   
   {RawName, Args2} = http_uri2:parse_path_query(FullName),
@@ -140,8 +139,10 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State;
     {ok, Media} ->
+      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId}, State),
+      State2 = rtmp_session:send_frame(rtmp_session:metadata(Media, [{stream_id,StreamId}|Options]), State1),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId}, State)
+      State2
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
   

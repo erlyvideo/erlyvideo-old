@@ -25,6 +25,7 @@
 -behaviour(ems_media).
 -include("../log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/ems_media.hrl").
 
@@ -52,7 +53,7 @@
 init(Media, Options) ->
   URL = proplists:get_value(url, Options),
   self() ! start,
-  {ok, Media#ems_media{state = #rtmp{url = URL}}}.
+  {ok, Media#ems_media{state = #rtmp{url = URL}, media_info = #media_info{flow_type = stream, audio = wait, video = wait}}}.
 
 
 %%----------------------------------------------------------------------
@@ -158,7 +159,7 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body
   {noreply, Recorder};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = metadata, timestamp = Timestamp, body = Meta}}, Recorder)  ->
-  ?D(Meta),
+  % ?D(Meta),
   % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
   Frame = #video_frame{content = metadata, dts = Timestamp, pts = Timestamp, body = Meta},
   self() ! Frame,
