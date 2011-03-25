@@ -1,3 +1,21 @@
+erlyvideo (2.7.7) unstable; urgency=low
+
+  Axis-1031 fix
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 25 Mar 2011 10:24:19 +0300
+
+erlyvideo (2.7.6) unstable; urgency=low
+
+  New RTP
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 24 Mar 2011 20:25:53 +0300
+
+erlyvideo (2.7.5) unstable; urgency=low
+
+  Again SDP refactoring. Working wirecast.
+
+ -- Max Lapshin <max@maxidoors.ru>  Tue, 22 Mar 2011 08:36:43 +0300
+
 erlyvideo (2.7.4) unstable; urgency=low
 
   Added tests for rtmp publish. H264 publish fixed

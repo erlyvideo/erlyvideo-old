@@ -39,7 +39,6 @@
 -export([rtcp/2, rtcp_sr/1]).
 
 
-
 %%--------------------------------------------------------------------
 %% @spec (Direction::in|out, MediaInfo::media_info()) -> rtp_state()
 %% @doc Initializes non-clean RTP object.
@@ -54,7 +53,6 @@ init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Dir
   end, Audio ++ Video),
   ContentMap = [{Content,Id} || #stream_info{content = Content, stream_id = Id} <- Streams],
   #rtp_state{streams = Streams, direction = Direction, content_map = ContentMap}.
-
 
 %%--------------------------------------------------------------------
 %% @spec (RtpState::rtp_state(), StreamId::integer(), Headers::proplist) -> rtp_state()
@@ -104,7 +102,6 @@ setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Ch
       UDPMap1 = setelement(StreamId, UDPMap, UDP1),
       {ok, State1#rtp_state{transport = udp, udp = UDPMap1}, [{local_rtp_port, SPort1}, {local_rtcp_port, SPort2}, {local_addr, Source}]}
   end.
-
 
 %%--------------------------------------------------------------------
 %% @spec (RtpState::rtp_state(), VideoFrame::video_frame()) -> {ok, rtp_state()}
