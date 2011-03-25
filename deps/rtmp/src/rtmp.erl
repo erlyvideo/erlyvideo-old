@@ -211,7 +211,7 @@ encode_bin(#rtmp_socket{server_chunk_size = ChunkSize, out_channels = Channels, 
 -define(MAX_TS, 16#1000000).
 
 justify_ts(TS) when is_float(TS) -> justify_ts(trunc(TS));
-justify_ts(TS) when TS < 0 -> justify_ts(TS + ?MAX_TS);
+justify_ts(TS) when TS < 0 -> 0;
 justify_ts(TS) when TS >= ?MAX_TS -> justify_ts(TS - ?MAX_TS);
 justify_ts(TS) when TS >= 0 andalso TS < ?MAX_TS -> TS.
 

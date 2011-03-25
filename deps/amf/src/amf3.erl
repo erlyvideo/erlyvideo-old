@@ -15,7 +15,7 @@
 
 -module(amf3).
 -export([decode/1, encode/1]).
-
+-export([read_uint29/1, write_uint29/1]).
 
 %% @type amf3()      =   undefined | null | bool() |
 %%                       integer() | float() | binary() | 

@@ -26,8 +26,9 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
-
+-include("../../src/log.hrl").
 -export([read_file/1]).
+
 
 read_file(Path) ->
   {ok, F} = file:open(ems_test_helper:file_path(Path), [read,binary]),
@@ -35,8 +36,11 @@ read_file(Path) ->
   ems_test_helper:read_all_frames(Reader, {file, F}, [{url,ems_test_helper:file_path(Path)}]).
 
 test_duration(Frames, Nearby) ->
-  [#video_frame{dts = DTS}|_] = lists:reverse(Frames),
-  true = DTS >= Nearby - 1000 andalso DTS =< Nearby + 1000.
+  [#video_frame{dts = FDTS}|_] = Frames,
+  [#video_frame{dts = LDTS}|_] = lists:reverse(Frames),
+  TDTS = LDTS - FDTS, 
+  %?D({"Delta DTS ",TDTS}),
+  true = TDTS >= Nearby - 1000 andalso TDTS =< Nearby + 1000.
 
 test_file(Id) ->
   [_,Ext|Rest] = lists:reverse(string:tokens(atom_to_list(Id), "_")),
@@ -78,6 +82,109 @@ h264_aac_1_mp4_test() ->
     ],
     metadata = []
   }, mp4_reader:media_info(Media)).
+
+%mpegts_file_reader_test() ->
+%  Pid = spawn_link(?MODULE, mpegts_file_reader,[self()]).
+%  St = erlang:monitor(process,Pid),
+%  receive 
+%    #video_frame{} = F -> ?D("asd")
+%   {'DOWN', _Ref, process, Pid, _Reason} -> ?D("Crash")
+%  end.
+
+%mpegts_file_reader_test() ->
+% Reader = spawn_link(?MODULE,mpegts_read_frame,[[],self()]),  
+%  {ok,Cons}=mpegts_sup:start_file_reader("/home/tthread/a.ts",[{consumer,self()},{no_delay,true}]),
+%  erlang:monitor(process,Cons),
+%  {ok,Frames} = mpegts_read_frame([],self()),
+%  [First|Tail] = Frames, [Last|LTail] = lists:reverse(Frames),
+%  Nur = Last#video_frame.dts - First#video_frame.dts,
+%  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
+%  test_duration(Frames,20000).
+
+is_monotonic([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames]) when DTS1 > DTS2 -> false;
+is_monotonic([#video_frame{}, #video_frame{} = F|Frames]) -> is_monotonic([F|Frames]);
+is_monotonic([_F]) -> true;
+is_monotonic([]) -> true.
+
+
+is_interleaved(Frames, Length) ->
+  Counts = is_interleaved(Frames),
+  % ?D({zz, Counts, [C || #video_frame{content = C} <- Frames]}),
+  length([Count || Count <- Counts, Count > Length]) > length(Counts) div 3.
+
+is_interleaved(Frames) ->
+  is_interleaved(Frames, 0, []).
+
+
+is_interleaved([#video_frame{content = Content}, #video_frame{content = Content} = F| Frames], Count, Acc) ->
+  is_interleaved([F|Frames], Count+1, Acc);
+
+is_interleaved([#video_frame{content = Content1}, #video_frame{content = Content2} = F| Frames], Count, Acc) when Content1 =/= Content2 ->
+  is_interleaved([F|Frames], 0, [Count+1|Acc]);
+
+is_interleaved([#video_frame{}], Count, Acc) ->
+  lists:reverse([Count+1|Acc]);
+
+is_interleaved([], 0, Acc) ->
+  Acc.
+  
+
+mpegts_reader_file_test_() ->
+  {spawn, {setup,
+    fun() ->
+      ems_test_helper:set_ticker_timeouts(true),
+      % log4erl:change_log_level(error),
+      ok
+    end,
+    fun(_) ->
+      ems_test_helper:set_ticker_timeouts(false),
+      % log4erl:change_log_level(debug),
+      ok
+    end,
+    [fun() ->
+      {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/video.mp4",[]),
+      erlang:monitor(process, Pid),
+      Frames = ems_test_helper:receive_all_frames(),
+      ?assertNot(is_interleaved(Frames,15)),
+      ?assert(is_monotonic(Frames))
+    end]
+  }}.
+
+
+mpegts_reader_iphone_test_() ->
+  {spawn, {setup,
+    fun() ->
+      ems_test_helper:set_ticker_timeouts(true),
+      % log4erl:change_log_level(error),
+      ok
+    end,
+    fun(_) ->
+      ems_test_helper:set_ticker_timeouts(false),
+      % log4erl:change_log_level(debug),
+      ok
+    end,
+    [fun() ->
+      {ok,Pid} = mpegts:read("http://127.0.0.1:8082/iphone/segments/video.mp4/3.ts",[]),
+      erlang:monitor(process, Pid),
+      Frames = ems_test_helper:receive_all_frames(),
+      ?assert(is_interleaved(Frames,10)),
+      ?assertNot(is_monotonic(Frames))
+    end]
+  }}.
+
+%mpegts_read_frame(Frames,Pid) ->
+%  erlang:monitor(process,Pid),
+%  link(Pid),
+%  receive 
+%   #video_frame{} = F ->
+%         ?D({F#video_frame.flavor, F#video_frame.content, round(F#video_frame.dts - 31600000)}),
+%         mpegts_read_frame([F|Frames],Pid);
+%  Else -> 
+%    ?D({stop,Pid,Else}),
+%    {ok,lists:reverse(Frames)}
+%  end. 
+
+  
 
 h264_aac_2_mp4_test() ->
   {ok, Media, Frames} = read_file("h264_aac_2.mp4"),

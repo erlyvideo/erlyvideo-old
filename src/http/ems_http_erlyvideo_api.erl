@@ -43,7 +43,7 @@ http(Host, 'GET', ["erlyvideo", "api", "filelist"], Req) ->
   FileList = lists:foldr(fun(Path, List) ->
     case lists:member(filename:extension(Path), Allowed) of
       true ->
-        BinPath = list_to_binary(Path),
+        BinPath = unicode:characters_to_binary(Path),
         [[{id,BinPath},{text,BinPath},{leaf,true}]|List];
       _ ->
         List

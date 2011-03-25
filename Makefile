@@ -23,16 +23,17 @@ ERL_LIBS:=deps:lib:plugins:..
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: compile 
+all: compile
 
 update:
 	git pull
-
 
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/ibrowse && make)
 	(cd deps/erlydtl && make)
+
+
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
@@ -90,5 +91,5 @@ install: compile
 	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
-.PHONY: doc debian compile 
+.PHONY: doc debian compile
 

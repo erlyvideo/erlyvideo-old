@@ -321,7 +321,7 @@ status(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 info(Media) ->
-  info(Media, [client_count, url, type, storage, last_dts, ts_delay]).
+  info(Media, [client_count, url, type, storage, last_dts, ts_delay, options]).
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
@@ -341,7 +341,7 @@ info(Media, Properties) ->
   gen_server:call(Media, {info, Properties}).
   
 known_properties() ->
-  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at].
+  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at, options].
   
 properties_are_valid(Properties) ->
   lists:subtract(Properties, known_properties()) == [].
@@ -782,7 +782,7 @@ mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
 
 
 
-reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_at = CreatedAt} = Media, Properties) ->
+reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
     (type, Props)         -> [{type,Type}|Props];
     (url, Props)          -> [{url,URL}|Props];
@@ -792,7 +792,8 @@ reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_a
     (ts_delay, Props)     -> [{ts_delay,(ems:now(utc) - CreatedAt)*1000 - LastDTS}|Props];
     (client_count, Props) -> [{client_count,ems_media_client_control:client_count(Media)}|Props];
     (storage, Props)      -> storage_properties(Media) ++ Props;
-    (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props]
+    (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props];
+    (options, Props)      -> Props ++ Options
   end, [], Properties).
 
 
