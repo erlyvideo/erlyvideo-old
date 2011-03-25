@@ -133,12 +133,12 @@ mpegts_reader_file_test_() ->
   {spawn, {setup,
     fun() ->
       ems_test_helper:set_ticker_timeouts(true),
-      % log4erl:change_log_level(error),
+      log4erl:change_log_level(error),
       ok
     end,
     fun(_) ->
       ems_test_helper:set_ticker_timeouts(false),
-      % log4erl:change_log_level(debug),
+      log4erl:change_log_level(debug),
       ok
     end,
     [fun() ->
