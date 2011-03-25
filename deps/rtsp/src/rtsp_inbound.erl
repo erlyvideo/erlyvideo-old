@@ -107,26 +107,14 @@ handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq 
 
 
 sync_rtp(#rtsp_socket{rtp = RTP, control_map = ControlMap, url = URL} = Socket, RtpHeaders) ->
-  case proplists:get_value(<<"Rtp-Info">>, RtpHeaders) of
+  case proplists:get_value('Rtp-Info', RtpHeaders) of
     undefined ->
       Socket;
-    Info ->
-      % ?D(RtpStreams),
-      {ok, Re} = re:compile("([^=]+)=(.*)"),
-      F = fun(S) ->
-        {match, [_, K, V]} = re:run(S, Re, [{capture, all, list}]),
-        {K, V}
-      end,
-      RtpInfo = [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(binary_to_list(Info), ",")],
-
+    RtpInfo ->
       RTP1 = lists:foldl(fun(Headers, RTP_) ->
-        case extract_control(proplists:get_value("url", Headers), URL, ControlMap) of
+        case extract_control(proplists:get_value(url, Headers), URL, ControlMap) of
           undefined -> ?D({unsynced, Headers}), RTP_;
-          StreamNum ->
-            rtp:sync(RTP, StreamNum, [
-              {seq, list_to_integer(proplists:get_value("seq", Headers))},
-              {rtptime, list_to_integer(proplists:get_value("rtptime", Headers))}
-            ])
+          StreamNum -> rtp:sync(RTP_, StreamNum, Headers)
         end
       end, RTP, RtpInfo),
       Socket#rtsp_socket{rtp = RTP1}

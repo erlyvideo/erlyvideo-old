@@ -31,6 +31,9 @@
 axis_m1011_test_() ->
   run_camera_test("axis-m1011", 8092).
 
+axis_m1031_w_test_() ->
+  run_camera_test("axis-m1031-w", 8092).
+
 beward_test_() ->
   run_camera_test("beward", 8092).
 
