@@ -34,6 +34,9 @@ play(Session, #rtmp_funcall{args = [null, <<"flv:", FullName/binary>> | Args]} =
 play(Session, #rtmp_funcall{args = [null, <<"mp4:", FullName/binary>> | Args]} = AMF) ->
   {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
 
+play(Session, #rtmp_funcall{args = [null, <<"mp3:", FullName/binary>> | Args]} = AMF) ->
+  {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
+
 play(Session, #rtmp_funcall{args = [null, <<"*flv:", FullName/binary>> | Args]} = AMF) ->
   {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
   
@@ -44,6 +47,9 @@ getStreamLength(Session, #rtmp_funcall{args = [null, <<"flv:", FullName/binary>>
   {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
 
 getStreamLength(Session, #rtmp_funcall{args = [null, <<"mp4:", FullName/binary>> | Args]} = AMF) ->
+  {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
+
+getStreamLength(Session, #rtmp_funcall{args = [null, <<"mp3:", FullName/binary>> | Args]} = AMF) ->
   {unhandled, Session, AMF#rtmp_funcall{args = [null, FullName, Args]}};
 
 getStreamLength(Session, #rtmp_funcall{args = [null, <<"*flv:", FullName/binary>> | Args]} = AMF) ->
