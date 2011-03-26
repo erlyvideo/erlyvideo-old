@@ -20,39 +20,29 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(anonymous_time_limit, [Timer]).
+-module(anonymous_seek_protection).
 -author('Ilya Shcherbak <ilya@erlyvideo.org>').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("../log.hrl").
 -include_lib("../../include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--export([pauseRaw/2, play/2, seek/2]).
+-export([pauseRaw/2, seek/2]).
 
-
-play(#rtmp_session{user_id = undefined} = Session, #rtmp_funcall{args = [null,FullName|Args]}) ->
-  {_Name,Options} = apps_streaming:parse_play(FullName, Args),
-  case proplists:get_value(start, Options) of
-    undefined ->
-      timer:send_after(Timer, exit),
-      unhandled;
-    Num when is_integer(Num) andalso Num >= Timer ->
-      Session;
-    Num when is_integer(Num) andalso Num >= Timer ->
-      timer:send_after(Timer - Num, exit),
-      unhandled
- end;
-
-play(_State, _Funcall) ->
-  unhandled.
  
 pauseRaw(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
  State;
 
-pauseRaw(_Session,_Funcall_) -> 
-  unhandled.
+pauseRaw(Session,_Funcall_) ->
+  case get(auth_time_limit) of
+    undefined -> unhandled;
+    _ -> Session
+  end.
 
 seek(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
  State;
 
-seek(_Session,_Funcall_) -> 
-  unhandled.
+seek(Session,_Funcall_) -> 
+  case get(auth_time_limit) of
+    undefined -> unhandled;
+    _ -> Session
+  end.

@@ -5,7 +5,7 @@
   {id, "erlyvideo"},
   {modules,
    [
-   anonymous_time_limit,
+   anonymous_seek_protection,
    apps_push,
    apps_recording,
    apps_rewrite_play,
