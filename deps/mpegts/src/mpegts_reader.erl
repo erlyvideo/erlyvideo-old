@@ -295,7 +295,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
     _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #ts_lander{pids = Pids, consumer = Consumer} = TSLander, _, _) ->
   % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
   PMTLength = round(SectionLength - 13 - ProgramInfoLength),
-  ?D({"Selecting MPEG-TS program", Program}),
+  ?D({"Selecting MPEG-TS program", ProgramNum}),
   % io:format("Program info: ~p~n", [ProgramInfo]),
   % ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
   Descriptors = extract_pmt(PMT, PMTLength, []),
