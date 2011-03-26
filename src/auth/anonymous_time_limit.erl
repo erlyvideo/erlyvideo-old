@@ -20,37 +20,39 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(limited_unlogin_connections, [Timer]).
+-module(anonymous_time_limit, [Timer]).
 -author('Ilya Shcherbak <ilya@erlyvideo.org>').
+-author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("../log.hrl").
 -include_lib("../../include/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--export([pauseRaw/2,play/2]).
+-export([pauseRaw/2, play/2, seek/2]).
 
-parse_start_args(RawArgs) ->
-  [null, FullName|Args] = RawArgs,
-  {_RawName, Args2} = http_uri2:parse_path_query(FullName),
-  Options1 = apps_streaming:extract_play_args(Args),
-  Options2 = apps_streaming:extract_url_args(Args2),
-  Options = lists:ukeymerge(1,Options2,Options1),
-  proplists:get_value("start ", Options).
 
-play(#rtmp_session{user_id = undefined} = _State, Funcall) ->
-  Start = parse_start_args(Funcall#rtmp_funcall.args),
-  case Start of
-    Num when Num >= Timer  ->
-     {ok, _Ref} = timer:send_after(0, self(),exit),
-     unhandled;
-    _ -> 
-      {ok,_Ref} = timer:send_after(Timer, self(), exit),
+play(#rtmp_session{user_id = undefined} = Session, #rtmp_funcall{args = [null,FullName|Args]}) ->
+  {_Name,Options} = apps_streaming:parse_play(FullName, Args),
+  case proplists:get_value(start, Options) of
+    undefined ->
+      timer:send_after(Timer, exit),
+      unhandled;
+    Num when is_integer(Num) andalso Num >= Timer ->
+      Session;
+    Num when is_integer(Num) andalso Num >= Timer ->
+      timer:send_after(Timer - Num, exit),
       unhandled
  end;
 
 play(_State, _Funcall) ->
   unhandled.
  
-pauseRaw(#rtmp_session{user_id = 123} = State, _Funcall) -> 
+pauseRaw(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
  State;
 
 pauseRaw(_Session,_Funcall_) -> 
+  unhandled.
+
+seek(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
+ State;
+
+seek(_Session,_Funcall_) -> 
   unhandled.
