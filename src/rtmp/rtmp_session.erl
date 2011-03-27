@@ -405,7 +405,11 @@ call_mfa([], Command, Args) ->
 
 call_mfa([Module|Modules], Command, Args) ->
   case code:is_loaded(mod_name(Module)) of
-    false -> code:load_file(mod_name(Module));
+    false -> 
+      case code:load_file(mod_name(Module)) of
+        {module, _ModName} -> ok;
+        _ -> erlang:error({cant_load_file, Module})
+      end;
     _ -> ok
   end,
   % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
