@@ -29,20 +29,22 @@
 -export([pauseRaw/2, seek/2]).
 
  
-pauseRaw(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
- State;
+pauseRaw(#rtmp_session{user_id = undefined} = State, _Funcall) ->
+  ?D(reject_forbidden_pause),
+  State;
 
 pauseRaw(#rtmp_session{} = Session,_Funcall_) ->
-  case get(auth_time_limit) of
+  case get(auth_play_limit) of
     undefined -> unhandled;
-    _ -> Session
+    _ -> ?D(reject_forbidden_pause), Session
   end.
 
 seek(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
- State;
+  ?D(reject_forbidden_seek),
+  State;
 
 seek(#rtmp_session{} = Session,_Funcall_) -> 
-  case get(auth_time_limit) of
+  case get(auth_play_limit) of
     undefined -> unhandled;
-    _ -> Session
+    _ -> ?D(reject_forbidden_seek), Session
   end.
