@@ -81,7 +81,10 @@ stream(close) ->
 stream(head) ->
 	stream(head, 200, []);
 stream(Template) ->
-  gen_tcp:send(Req#req.socket, Template).
+  case gen_tcp:send(Req#req.socket, Template) of
+    ok -> ok;
+    {error, Reason} -> exit(Reason)
+  end.
   
 stream(head, Headers) ->
 	stream(head, 200, Headers);
