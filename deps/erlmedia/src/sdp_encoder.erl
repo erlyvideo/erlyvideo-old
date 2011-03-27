@@ -64,7 +64,7 @@ encode(#stream_info{content = Content, codec = Codec, stream_id = Id, options = 
   end,
   Cliprect = case Params of
     #video_params{width = Width, height = Height} when Width >= 0 andalso Height >= 0 ->
-      io_lib:format("a=cliprect:0,0,~p,~p\r\na=framesize:~p ~p-~p\r\n", [Width, Height, payload_type(Codec),Width, Height]);
+      io_lib:format("a=cliprect:0,0,~p,~p\r\na=framesize:~p ~p-~p\r\na=x-dimensions:~p,~p\r\n", [Width, Height, payload_type(Codec),Width, Height,Width,Height]);
     _ -> ""
   end,
   SDP = [
