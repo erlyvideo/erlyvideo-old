@@ -59,7 +59,7 @@ play(_Name, Player, Req, Options) ->
       #http_player{buffer = MPEGTSBuffer} = Streamer1 = ?MODULE:play(Streamer#http_player{buffer = []}),
       {_Streamer2, Padding} = mpegts:pad_continuity_counters(Streamer1#http_player.streamer),
       Buffer = [Padding|MPEGTSBuffer],
-      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
+      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       MS2 = erlang:now(),
       Req:stream(lists:reverse(Buffer));
     _ ->
