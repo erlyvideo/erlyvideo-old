@@ -148,7 +148,7 @@ handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2
   Id = (Num - 1) div 2 + 1,
   Channel1 = rtcp(Packet, element(Id, Channels)),
   {Channel2, RtcpData} = rtcp_rr(Channel1),
-  send_rtcp_data(State, Num, RtcpData),
+  send_rtcp_data(State, Id, RtcpData),
   {ok, State#rtp_state{channels = setelement(Id, Channels, Channel2)}, []};
   
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 0 -> % RTP
@@ -157,8 +157,8 @@ handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2
   % ?D({rtp,Num, size(Packet), length(NewFrames)}),
   reorder_frames(State#rtp_state{channels = setelement(Id, Channels, Channel1)}, NewFrames).
 
-send_rtcp_data(#rtp_state{transport = Transport} = State, Num, Packet) ->
-  Id = (Num - 1) div 2 + 1,
+send_rtcp_data(#rtp_state{transport = Transport} = State, Id, Packet) ->
+  Num = (Id - 1)*2 + 1,
   case Transport of
     tcp -> gen_tcp:send(State#rtp_state.tcp_socket, packet_codec:encode({rtcp, Num, Packet}));
     udp ->
