@@ -36,7 +36,7 @@
 -define(RTP_SIZE, 1100).
 
 
--export([init/1, rtp_info/1, encode/2]).
+-export([init/1, rtp_info/1, encode/2, encode_rtcp/3]).
 
 init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId, config = Config} = Stream) ->
   LengthSize = case Codec of
@@ -44,7 +44,7 @@ init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId, config
     _ -> undefined
   end,
   #rtp_channel{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, length_size = LengthSize,
-             payload_type = sdp_encoder:payload_type(Codec), sequence = 0, wall_clock = 0, timecode = 0}.
+             payload_type = sdp_encoder:payload_type(Codec), sequence = 1, wall_clock = 0, timecode = 1}.
 
 
 rtp_info(#rtp_channel{stream_info = #stream_info{stream_id = Id}, sequence = Sequence, timecode = Timecode}) ->
@@ -62,9 +62,25 @@ encode(#video_frame{flavor = config}, #rtp_channel{} = RTP) ->
 
 encode(#video_frame{dts = DTS, body = Data} = _F, #rtp_channel{} = RTP) ->
   % ?D({dts,_F#video_frame.codec,_F#video_frame.flavor, DTS,dts_to_timecode(RTP, DTS)}),
-  encode_data(Data, RTP, dts_to_timecode(RTP, DTS)).
+  {ok, RTP1, Packets} = encode_data(Data, RTP, dts_to_timecode(RTP, DTS)),
+  RTP2 = RTP1#rtp_channel{
+    packet_count = RTP1#rtp_channel.packet_count + length(Packets),
+    octet_count = RTP1#rtp_channel.octet_count + iolist_size(Packets)
+  },
+  {ok, RTP2, Packets}.
 
 
+encode_rtcp(#rtp_channel{stream_id = StreamId, packet_count = PacketCount, octet_count = OctetCount, timescale = Scale}, sender_report, _) ->
+  Count = 0,
+  Length = 6, % StreamId, 2*NTP, Timecode, Packet, Octet words
+  {Mega, Sec, Micro} = erlang:now(),
+  MSW = (Mega*1000000 + Sec + ?YEARS_70) band 16#FFFFFFFF,
+  LSW = Micro * 1000,
+  NTP = MSW + Micro / 1000000,
+  Timecode = round((NTP - ?YEARS_100)*1000*Scale),
+  <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, StreamId:32, MSW:32, LSW:32, Timecode:32, PacketCount:32, OctetCount:32>>.
+  
+  
 
 % encode_data(Data, #rtp_channel{codec = pcm_le} = RTP, Timecode) ->
 %   compose_rtp(RTP, l2b(Data), ?RTP_SIZE, Timecode);
@@ -84,8 +100,14 @@ encode_data(Data, #rtp_channel{codec = mp3} = RTP, Timecode) ->
     end,
   MP3 = <<ADU/binary, Data/binary>>,
   compose_rtp(RTP, MP3, Timecode);
-  
-encode_data(Data, #rtp_channel{codec = aac} = RTP, Timecode) ->
+
+encode_data(Data, #rtp_channel{codec = aac, buffer = undefined} = RTP, _Timecode) ->
+  {ok, RTP#rtp_channel{buffer = Data}, []};
+
+encode_data(Data, #rtp_channel{codec = aac, buffer = Bin} = RTP, Timecode) when is_binary(Bin) ->
+  encode_data(<<Bin/binary, Data/binary>>, RTP#rtp_channel{buffer = done}, Timecode);
+
+encode_data(Data, #rtp_channel{codec = aac, buffer = done} = RTP, Timecode) ->
   AUHeader = <<(size(Data)):13, 0:3>>,
   AULength = bit_size(AUHeader),
   AAC = <<AULength:16, AUHeader/binary, Data/binary>>,

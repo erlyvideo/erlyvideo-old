@@ -35,7 +35,7 @@
 -export([open_ports/1]).
 
 
--export([init/2, setup_channel/3, handle_frame/2, handle_data/3, sync/3]).
+-export([init/2, setup_channel/3, handle_frame/2, handle_data/3, sync/3, send_rtcp/3]).
 -export([rtcp/2, rtcp_sr/1]).
 
 
@@ -144,16 +144,11 @@ handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, re
 handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, remote_rtcp_port = Port}}} = State, {Addr, Port}, Packet) ->
   handle_data(State, 3, Packet);
 
-handle_data(#rtp_state{transport = Transport, channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP
+handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP
   Id = (Num - 1) div 2 + 1,
   Channel1 = rtcp(Packet, element(Id, Channels)),
   {Channel2, RtcpData} = rtcp_rr(Channel1),
-  case Transport of
-    tcp -> gen_tcp:send(State#rtp_state.tcp_socket, packet_codec:encode({rtcp, Num, RtcpData}));
-    udp ->
-      UDP = element(Id, State#rtp_state.udp),
-      gen_udp:send(UDP#rtp_udp.rtcp_socket, UDP#rtp_udp.remote_addr, UDP#rtp_udp.remote_rtcp_port, RtcpData)
-  end,
+  send_rtcp_data(State, Num, RtcpData),
   {ok, State#rtp_state{channels = setelement(Id, Channels, Channel2)}, []};
   
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 0 -> % RTP
@@ -162,6 +157,34 @@ handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2
   % ?D({rtp,Num, size(Packet), length(NewFrames)}),
   reorder_frames(State#rtp_state{channels = setelement(Id, Channels, Channel1)}, NewFrames).
 
+send_rtcp_data(#rtp_state{transport = Transport} = State, Num, Packet) ->
+  Id = (Num - 1) div 2 + 1,
+  case Transport of
+    tcp -> gen_tcp:send(State#rtp_state.tcp_socket, packet_codec:encode({rtcp, Num, Packet}));
+    udp ->
+      UDP = element(Id, State#rtp_state.udp),
+      gen_udp:send(UDP#rtp_udp.rtcp_socket, UDP#rtp_udp.remote_addr, UDP#rtp_udp.remote_rtcp_port, Packet)
+  end.
+  
+
+%%--------------------------------------------------------------------
+%% @spec (RtpState::rtp_state(), Type, Options) -> {ok, rtp_state()}
+%% @doc Sends requested RTCP
+%%
+%% Replies with new RTP state
+%% @end
+%%--------------------------------------------------------------------
+send_rtcp(#rtp_state{channels = Channels} = State, sender_report, Options) ->
+  EncodeAndSend = fun(Num) when element(Num, Channels) == undefined -> ok;
+    (Num) ->
+      Channel = element(Num, Channels),
+      Packet = rtp_encoder:encode_rtcp(Channel, sender_report, Options),
+      send_rtcp_data(State, Num, Packet)
+  end,
+  EncodeAndSend(1),
+  EncodeAndSend(2),
+  {ok, State}.
+  
 
 
 

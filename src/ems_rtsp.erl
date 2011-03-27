@@ -46,8 +46,8 @@ stop() ->
   ok.
 
 hostpath(URL) ->
-  {HostPort, [$/|Path]} = http_uri2:extract_path_with_query(URL),
-  {ems:host(HostPort), Path}.
+  {HostPort, Path} = http_uri2:extract_path_with_query(URL),
+  {ems:host(HostPort), string:strip(Path,both,$/)}.
 
 
 announce(URL, Headers, MediaInfo) ->

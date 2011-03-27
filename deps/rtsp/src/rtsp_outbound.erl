@@ -124,10 +124,11 @@ handle_play_setup(#rtsp_socket{rtp = RTP, addr = Addr, socket = Sock} = Socket, 
 
 
   
-handle_play_request(#rtsp_socket{callback = Callback, control_map = ControlMap} = Socket, URL, Headers, Body) ->
+handle_play_request(#rtsp_socket{callback = Callback, control_map = ControlMap, rtp = RTP} = Socket, URL, Headers, Body) ->
   case Callback:play(URL, Headers, Body) of
     {ok, Media} ->
       RtpInfo = string:join([io_lib:format("url=trackID=~p;seq=0;rtptime=0", [Id]) || Id <- lists:seq(1,length(ControlMap))], ","),
+      rtp:send_rtcp(RTP, sender_report, []),
       rtsp_socket:reply(Socket#rtsp_socket{media = Media}, "200 OK", [{'Cseq', seq(Headers)}, {'Range', "npt=0-"}, {'RTP-Info', RtpInfo}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}])
