@@ -69,13 +69,21 @@ frame_sound(#stream_info{}) ->
   undefined.
 
 
+stream_count(#media_info{audio = A, video = V}) ->
+  Count = fun
+    (L) when is_list(L) -> length(L);
+    (_) -> 0
+  end,
+  Count(A) + Count(V).
+
 define_media_info(#media_info{audio = A} = Media, #video_frame{codec = aac, flavor = config, body = Body}) when A == [] orelse A == wait ->
   #aac_config{channel_count = Channels, sample_rate = Rate} = aac:decode_config(Body),
   Info = #stream_info{
     content = audio,
     codec = aac,
     config = Body,
-    params = #audio_params{channels = Channels, sample_rate = Rate}
+    params = #audio_params{channels = Channels, sample_rate = Rate},
+    stream_id = stream_count(Media) + 1
   },
   Media#media_info{audio = [Info]};
 
@@ -91,7 +99,8 @@ define_media_info(#media_info{video = V} = Media, #video_frame{codec = h264, fla
     params = #video_params{
       width = proplists:get_value(width, Metadata),
       height = proplists:get_value(height, Metadata)
-    }
+    },
+    stream_id = stream_count(Media) + 1
   },
   Media#media_info{video = [Info]};
 
