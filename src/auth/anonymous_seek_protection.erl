@@ -32,7 +32,7 @@
 pauseRaw(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
  State;
 
-pauseRaw(Session,_Funcall_) ->
+pauseRaw(#rtmp_session{} = Session,_Funcall_) ->
   case get(auth_time_limit) of
     undefined -> unhandled;
     _ -> Session
@@ -41,7 +41,7 @@ pauseRaw(Session,_Funcall_) ->
 seek(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
  State;
 
-seek(Session,_Funcall_) -> 
+seek(#rtmp_session{} = Session,_Funcall_) -> 
   case get(auth_time_limit) of
     undefined -> unhandled;
     _ -> Session
