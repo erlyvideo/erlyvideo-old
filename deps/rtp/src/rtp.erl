@@ -35,7 +35,7 @@
 -export([open_ports/1]).
 
 
--export([init/2, setup_channel/3, handle_frame/2, handle_data/3, sync/3, send_rtcp/3]).
+-export([init/2, setup_channel/3, handle_frame/2, handle_data/3, sync/3, rtp_info/1, send_rtcp/3]).
 -export([rtcp/2, rtcp_sr/1]).
 
 
@@ -62,6 +62,14 @@ init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Dir
 sync(#rtp_state{channels = Channels} = State, Id, Headers) ->
   Channel1 = rtp_decoder:sync(element(Id,Channels), Headers),
   State#rtp_state{channels = setelement(Id, Channels, Channel1)}.
+
+%%--------------------------------------------------------------------
+%% @spec (RtpState::rtp_state()) -> Rtp-Info Header
+%% @doc Returns Rtp-Info header
+%% @end
+%%--------------------------------------------------------------------
+rtp_info(#rtp_state{channels = Channels} = _State) ->
+  string:join([rtp_encoder:rtp_info(Chan) || Chan <- tuple_to_list(Channels)], ",").
 
 
 %%--------------------------------------------------------------------
@@ -147,9 +155,7 @@ handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, re
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP
   Id = (Num - 1) div 2 + 1,
   Channel1 = rtcp(Packet, element(Id, Channels)),
-  {Channel2, RtcpData} = rtcp_rr(Channel1),
-  send_rtcp_data(State, Id, RtcpData),
-  {ok, State#rtp_state{channels = setelement(Id, Channels, Channel2)}, []};
+  {ok, State#rtp_state{channels = setelement(Id, Channels, Channel1)}, []};
   
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 0 -> % RTP
   Id = Num div 2 + 1,
@@ -183,8 +189,19 @@ send_rtcp(#rtp_state{channels = Channels} = State, sender_report, Options) ->
   end,
   EncodeAndSend(1),
   EncodeAndSend(2),
-  {ok, State}.
+  {ok, State};
   
+
+send_rtcp(#rtp_state{channels = Channels} = State, receiver_report, _Options) ->
+  EncodeAndSend = fun(Num) when element(Num, Channels) == undefined -> ok;
+    (Num) ->
+      Channel = element(Num, Channels),
+      Packet = rtcp_rr(Channel),
+      send_rtcp_data(State, Num, Packet)
+  end,
+  EncodeAndSend(1),
+  EncodeAndSend(2),
+  {ok, State}.
 
 
 
@@ -219,6 +236,8 @@ frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 
 
 rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, _StreamId:32, NTP:64, Timecode:32, _PacketCount:32, _OctetCount:32, _Rest/binary>>) ->
+  <<MSW:32, LSW:32>> = <<NTP:64>>,
+  ?D({rtcp_sr, _Length, _StreamId, MSW, LSW, Timecode, _PacketCount, _OctetCount}),
   {NTP, Timecode}.
 
 
@@ -241,7 +260,7 @@ rtcp(<<_, ?RTCP_RR, _/binary>>, #rtp_channel{} = RTP) ->
 rtcp_rr(#rtp_channel{last_sr = undefined} = RTP) ->
   rtcp_rr(RTP#rtp_channel{last_sr = 0});
 
-rtcp_rr(#rtp_channel{stream_info = #stream_info{stream_id = StreamId}, sequence = Seq, last_sr = LSR} = RTP) ->
+rtcp_rr(#rtp_channel{stream_info = #stream_info{stream_id = StreamId}, sequence = Seq, last_sr = LSR} = _RTP) ->
   Count = 0,
   Length = 16,
   FractionLost = 0,
@@ -253,7 +272,7 @@ rtcp_rr(#rtp_channel{stream_info = #stream_info{stream_id = StreamId}, sequence 
   Jitter = 0,
   DLSR = 0,
   % ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
-  {RTP, <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>}.
+  <<2:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
 
 
 

@@ -44,7 +44,7 @@ init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId, config
     _ -> undefined
   end,
   #rtp_channel{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, length_size = LengthSize,
-             payload_type = sdp_encoder:payload_type(Codec), sequence = 1, wall_clock = 0, timecode = 1}.
+             payload_type = sdp_encoder:payload_type(Codec), sequence = 1, wall_clock = 0, timecode = 0}.
 
 
 rtp_info(#rtp_channel{stream_info = #stream_info{stream_id = Id}, sequence = Sequence, timecode = Timecode}) ->
@@ -65,27 +65,24 @@ encode(#video_frame{dts = DTS, body = Data} = _F, #rtp_channel{} = RTP) ->
   Timecode = dts_to_timecode(RTP, DTS),
   {ok, RTP1, Packets} = encode_data(Data, RTP, Timecode),
   RTP2 = RTP1#rtp_channel{
-    packet_count = RTP1#rtp_channel.packet_count + length(Packets),
-    octet_count = RTP1#rtp_channel.octet_count + iolist_size(Packets),
+    packet_count = inc_packets(RTP1#rtp_channel.packet_count, length(Packets)),
+    octet_count = inc_bytes(RTP1#rtp_channel.octet_count, iolist_size(Packets)),
     timecode = Timecode
   },
   {ok, RTP2, Packets}.
 
 
-encode_rtcp(#rtp_channel{stream_id = StreamId, packet_count = PacketCount, octet_count = OctetCount, timecode = Timecode, timescale = Scale}, sender_report, _) ->
+encode_rtcp(#rtp_channel{stream_id = StreamId, packet_count = PacketCount, octet_count = OctetCount, timecode = Timecode}, sender_report, _) ->
   Count = 0,
   Length = 6, % StreamId, 2*NTP, Timecode, Packet, Octet words
   {Mega, Sec, Micro} = erlang:now(),
   MSW = (Mega*1000000 + Sec + ?YEARS_70) band 16#FFFFFFFF,
   LSW = Micro * 1000,
-  NTP = MSW + Micro / 1000000,
+  % NTP = MSW + Micro / 1000000,
   % Timecode = round((NTP - ?YEARS_100)*1000*Scale),
   <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, StreamId:32, MSW:32, LSW:32, Timecode:32, PacketCount:32, OctetCount:32>>.
   
   
-
-% encode_data(Data, #rtp_channel{codec = pcm_le} = RTP, Timecode) ->
-%   compose_rtp(RTP, l2b(Data), ?RTP_SIZE, Timecode);
 
 encode_data(Data, #rtp_channel{codec = mp3} = RTP, Timecode) ->
   Size = size(Data),
@@ -165,53 +162,6 @@ make_rtp_pack(#rtp_channel{payload_type = PayloadType,
   % ?D({rtp,Sequence,PayloadType,Timecode,SSRC}),
   <<Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timecode:32, SSRC:32, Payload/binary>>.
 
-
-% %% Compose number of RTP-packets from splitten Data to Size
-% compose_rtp(Base, Data, Size)
-%   when is_integer(Size) ->
-%   compose_rtp(Base, Data, Size, [], undefined).
-% 
-% compose_rtp(Base, <<>>, _, Acc, _) -> % Return new Sequence ID and list of RTP-binaries
-%   %%?DBG("New Sequence: ~p", [Sequence]),
-%   {Base#rtp_channel{marker = false}, lists:reverse(Acc)};
-% compose_rtp(#rtp_channel{sequence = Sequence, marker = _Marker,
-%                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal)
-%   when (is_integer(Size) andalso (size(Data) > Size)) ->
-%   <<P:Size/binary,Rest/binary>> = Data,
-%   Start = if Acc == [] -> 1; true -> 0 end,
-%   End = 0,
-%   {PFrag, NewNal} = fragment_nal(P, Nal, Start, End),
-%   M = 0,
-%   Pack = make_rtp_pack(Base, M, PFrag),
-%   compose_rtp(Base#rtp_channel{sequence = inc_seq(Sequence),
-%                             packets = inc_packets(Packets, 1),
-%                             bytes = inc_bytes(Bytes, size(Pack))}, Rest, Size, [Pack | Acc], NewNal);
-% compose_rtp(#rtp_channel{sequence = Sequence, marker = Marker,
-%                       packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal) ->
-%   if Marker -> M = 1; true -> M = 0 end,
-%   ResData =
-%     if ((Acc == []) or (Nal == undefined)) ->
-%         Data;
-%        true ->
-%         Start = 0, End = 1,
-%         {FN, _Nal} = fragment_nal(Data, Nal, Start, End),
-%         FN
-%     end,
-%   Pack = make_rtp_pack(Base, M, ResData),
-%   compose_rtp(Base#rtp_channel{sequence = inc_seq(Sequence),
-%                             packets = inc_packets(Packets, 1),
-%                             bytes = inc_bytes(Bytes, size(Pack))}, <<>>, Size, [Pack | Acc], Nal).
-
-
-l2b(List) when is_list(List) ->
-  [l2b(B) || B <- List];
-l2b(Bin) when is_binary(Bin) ->
-    l2b(Bin, []).
-
-l2b(<<>>, Acc) ->
-    iolist_to_binary(lists:reverse(Acc));
-l2b(<<A:2/little-unit:8,Rest/binary>>, Acc) ->
-    l2b(Rest, [<<A:2/big-unit:8>> | Acc]).
 
 
 
