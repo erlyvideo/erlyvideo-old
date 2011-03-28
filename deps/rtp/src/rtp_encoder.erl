@@ -100,13 +100,7 @@ encode_data(Data, #rtp_channel{codec = mp3} = RTP, Timecode) ->
   MP3 = <<ADU/binary, Data/binary>>,
   compose_rtp(RTP, MP3, Timecode);
 
-encode_data(Data, #rtp_channel{codec = aac, buffer = undefined} = RTP, _Timecode) ->
-  {ok, RTP#rtp_channel{buffer = Data}, []};
-
-encode_data(Data, #rtp_channel{codec = aac, buffer = Bin} = RTP, Timecode) when is_binary(Bin) ->
-  encode_data(<<Bin/binary, Data/binary>>, RTP#rtp_channel{buffer = done}, Timecode);
-
-encode_data(Data, #rtp_channel{codec = aac, buffer = done} = RTP, Timecode) ->
+encode_data(Data, #rtp_channel{codec = aac} = RTP, Timecode) ->
   AUHeader = <<(size(Data)):13, 0:3>>,
   AULength = bit_size(AUHeader),
   AAC = <<AULength:16, AUHeader/binary, Data/binary>>,
