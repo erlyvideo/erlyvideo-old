@@ -52,9 +52,9 @@ rtp_info(#rtp_channel{stream_info = #stream_info{stream_id = Id}, sequence = Seq
 
 
 
-dts_to_timecode(#rtp_channel{timescale = Scale, timecode = BaseTimecode, wall_clock = WallClock}, DTS) ->
+dts_to_timecode(#rtp_channel{timescale = Scale}, DTS) ->
   % ?D({dtst_, WallClock, BaseTimecode, Scale, DTS, round((DTS - WallClock)*Scale + BaseTimecode)}),
-  round((DTS - WallClock)*Scale + BaseTimecode).
+  round(DTS*Scale).
 
 
 encode(#video_frame{flavor = config}, #rtp_channel{} = RTP) ->
@@ -62,22 +62,24 @@ encode(#video_frame{flavor = config}, #rtp_channel{} = RTP) ->
 
 encode(#video_frame{dts = DTS, body = Data} = _F, #rtp_channel{} = RTP) ->
   % ?D({dts,_F#video_frame.codec,_F#video_frame.flavor, DTS,dts_to_timecode(RTP, DTS)}),
-  {ok, RTP1, Packets} = encode_data(Data, RTP, dts_to_timecode(RTP, DTS)),
+  Timecode = dts_to_timecode(RTP, DTS),
+  {ok, RTP1, Packets} = encode_data(Data, RTP, Timecode),
   RTP2 = RTP1#rtp_channel{
     packet_count = RTP1#rtp_channel.packet_count + length(Packets),
-    octet_count = RTP1#rtp_channel.octet_count + iolist_size(Packets)
+    octet_count = RTP1#rtp_channel.octet_count + iolist_size(Packets),
+    timecode = Timecode
   },
   {ok, RTP2, Packets}.
 
 
-encode_rtcp(#rtp_channel{stream_id = StreamId, packet_count = PacketCount, octet_count = OctetCount, timescale = Scale}, sender_report, _) ->
+encode_rtcp(#rtp_channel{stream_id = StreamId, packet_count = PacketCount, octet_count = OctetCount, timecode = Timecode, timescale = Scale}, sender_report, _) ->
   Count = 0,
   Length = 6, % StreamId, 2*NTP, Timecode, Packet, Octet words
   {Mega, Sec, Micro} = erlang:now(),
   MSW = (Mega*1000000 + Sec + ?YEARS_70) band 16#FFFFFFFF,
   LSW = Micro * 1000,
   NTP = MSW + Micro / 1000000,
-  Timecode = round((NTP - ?YEARS_100)*1000*Scale),
+  % Timecode = round((NTP - ?YEARS_100)*1000*Scale),
   <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, StreamId:32, MSW:32, LSW:32, Timecode:32, PacketCount:32, OctetCount:32>>.
   
   
