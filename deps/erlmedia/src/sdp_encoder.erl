@@ -67,9 +67,10 @@ encode(#stream_info{content = Content, codec = Codec, stream_id = Id, options = 
       io_lib:format("a=cliprect:0,0,~p,~p\r\na=framesize:~p ~p-~p\r\na=x-dimensions:~p,~p\r\n", [Width, Height, payload_type(Codec),Width, Height,Width,Height]);
     _ -> ""
   end,
+  Control = proplists:get_value(control, Options, io_lib:format("trackID=~p", [Id])),
   SDP = [
     io_lib:format("m=~s ~p RTP/AVP ~p", [Content, proplists:get_value(port, Options, 0), payload_type(Codec)]), ?LSEP,
-    io_lib:format("a=control:trackID=~p", [Id]), ?LSEP,
+    "a=control:", Control, ?LSEP,
     io_lib:format("a=rtpmap:~p ~s/~p", [payload_type(Codec), sdp:codec_to_sdp(Codec), round(Timescale*1000)]), additional_codec_params(Stream), ?LSEP,
     Cliprect,
     FMTP

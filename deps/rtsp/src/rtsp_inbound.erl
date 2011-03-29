@@ -162,18 +162,18 @@ append_trackid(URL, TrackID) ->
 
 
 
+lookup_in_control_map(_ControlUrl, []) -> undefined;
+lookup_in_control_map(ControlUrl, [{Track,Number}|ControlMap]) ->
+  Postfix = string:substr(ControlUrl, length(ControlUrl) - length(Track) + 1),
+  if
+    Postfix == Track -> Number;
+    true -> lookup_in_control_map(ControlUrl, ControlMap)
+  end.
 
 
-extract_control(ControlUrl, URL, ControlMap) ->
-  case proplists:get_value(ControlUrl, ControlMap) of
-    undefined ->
-      {_Proto, _Auth, _Addr, _Port, Path1, _Query1} = http_uri2:parse(ControlUrl),
-      {_Proto, _Auth, _Addr, _Port, Path2, _Query2} = http_uri2:parse(URL),
-      Control = string:sub_string(Path1, length(string:strip(Path2, right, $/)) + 2),
-      proplists:get_value(Control, ControlMap);
-    Else ->
-      Else
-  end.  
+
+extract_control(ControlUrl, _URL, ControlMap) ->
+  lookup_in_control_map(ControlUrl, ControlMap).
 
 %%
 %% Tests
@@ -197,7 +197,8 @@ extract_control_test_() ->
     ?_assertEqual(1, extract_control("rtsp://95.34.123.4/h264/track1", "rtsp://95.34.123.4:554/h264", [{"track1",1}])),
     ?_assertEqual(1, extract_control("rtsp://95.34.123.4/h264/track1", "rtsp://95.34.123.4:554/h264/", [{"track1",1}])),
     ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4/h264", [{"track1",1}])),
-    ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4/h264/", [{"track1",1}]))
+    ?_assertEqual(1, extract_control("rtsp://95.34.123.4:554/h264/track1", "rtsp://95.34.123.4/h264/", [{"track1",1}])),
+    ?_assertEqual(1, extract_control("rtsp://192.168.0.74/h264/track1", "rtsp://user:password@192.168.23.43/554/h264", [{"track1",1}]))
   ].
 
 

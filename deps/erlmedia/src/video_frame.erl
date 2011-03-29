@@ -28,7 +28,7 @@
 -include("../include/aac.hrl").
 
 
--export([config_frame/1, define_media_info/2, frame_sound/1]).
+-export([config_frame/1, config_frames/1, define_media_info/2, frame_sound/1]).
 
 
 config_frame(#stream_info{codec = aac, config = Config}) ->
@@ -55,6 +55,9 @@ config_frame(#stream_info{codec = h264, config = Config}) ->
 config_frame(_) ->
   undefined.
 
+config_frames(#media_info{audio = A, video = V}) ->
+  Frames = [config_frame(S) || S <- A ++ V],
+  [F || F <- Frames, F =/= undefined].
 
 frame_sound(#stream_info{content = audio, codec = Codec, params = #audio_params{channels = 1, sample_rate = Rate}}) when Codec == pcma orelse Codec == pcmu ->
   {mono, bit8, Rate};

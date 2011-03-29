@@ -192,6 +192,14 @@ handle_info({ems_stream, _, play_complete, _}, Socket) ->
 handle_info(timeout, #rtsp_socket{} = Socket) ->
   {stop, timeout, Socket};
 
+handle_info(send_sr, #rtsp_socket{rtp = RTP} = Socket) ->
+  rtp:send_rtcp(RTP, sender_report, []),
+  {noreply, Socket};
+
+handle_info(send_rr, #rtsp_socket{rtp = RTP} = Socket) ->
+  rtp:send_rtcp(RTP, receiver_report, []),
+  {noreply, Socket};
+
 handle_info(Message, #rtsp_socket{} = Socket) ->
   {stop, {uknown_message, Message}, Socket}.
 
@@ -243,6 +251,7 @@ handle_response(#rtsp_socket{state = describe} = Socket, {response, _Code, _Mess
 
 handle_response(#rtsp_socket{state = play} = Socket, {response, _Code, _Message, Headers, _Body}) ->
   Socket1 = rtsp_inbound:sync_rtp(Socket, Headers),
+  timer:send_interval(5000, send_rr),
   reply_pending(Socket1#rtsp_socket{state = undefined});
 
 handle_response(Socket, {response, _Code, _Message, _Headers, _Body}) ->
