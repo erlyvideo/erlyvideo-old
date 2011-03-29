@@ -31,13 +31,13 @@
 -define(LICENSE_TABLE, license_storage).
 
 %% External API
--export([start_link/0]).
+-export([start_link/0,list/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([ping/0, ping/1, applications/0, restore/0]).
--export([writeable_cache_dir/0]).
+-export([writeable_cache_dir/0, read_license/0, request_licensed/3]).
 
 
 -record(client, {
@@ -58,6 +58,9 @@ ping() ->
   
 ping([sync]) ->
   gen_server:call(?MODULE, ping, 60000).
+
+list() ->
+  gen_server:call(?MODULE, list).
   
 applications() ->
   gen_server:call(?MODULE, applications).
@@ -107,7 +110,12 @@ init([]) ->
 %%-------------------------------------------------------------------------
 handle_call(ping, _From, State) ->
   State1 = make_request_internal(State),
-  {reply, ok, State1};
+  {reply, {ok, State1}, State1};
+
+handle_call(list, _From, State) -> 
+  State1 = make_request_internal(State),
+  State2 = request_licensed(State1#client.license, State1, list),
+  {reply, State2, State2};
 
 handle_call(applications, _From, #client{memory_applications = Mem, storage_opened = false} = State) ->
   {reply, Mem, State};
@@ -184,14 +192,15 @@ make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = Stat
       error_logger:info_msg("Reading license key from ~s", [LicensePath]),
       {Env,proplists:get_value(timeout,Env,OldTimeout)}
   end,
-  request_licensed(License, State),
-  State#client{license = License, timeout = Timeout}.
+  State#client{license = License, timeout = Timeout};
 
+make_request_internal(State) ->
+  State.  
 
 read_license() ->
   case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
     {ok, Env, LicensePath} ->
-      {Env,LicensePath};
+       {Env,LicensePath};
     {error, enoent} ->
       undefined;
     {error, Reason} ->
@@ -199,19 +208,18 @@ read_license() ->
       undefined
   end.
 
-request_licensed(undefined, _State) ->
+request_licensed(undefined, _State, _Command) ->
   ok;
   
-request_licensed(Env, State) ->
-  case proplists:get_value(license, Env) of
+request_licensed(Env, State, Command) ->
+  case proplists:get_value(license, Env) of 
     undefined -> ok;
     License ->
       LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.org/license"),
-      request_code_from_server(LicenseUrl, License, State)
+      request_code_from_server(LicenseUrl, License, State, Command)
   end.
   
-request_code_from_server(LicenseUrl, License, State) ->
-  Command = "save",
+request_code_from_server(LicenseUrl, License, State, Command) ->
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin} ->
@@ -228,7 +236,8 @@ read_license_response(Bin, State) ->
         1 ->
           Commands = proplists:get_value(commands, Reply),
           Startup = execute_commands_v1(Commands, [], State),
-          handle_loaded_modules_v1(lists:reverse(Startup));
+          handle_loaded_modules_v1(lists:reverse(Startup)),
+          {ok,Commands};
         Version ->
           {error,{unknown_license_version, Version}}
       end;
