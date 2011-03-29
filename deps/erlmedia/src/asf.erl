@@ -4,6 +4,7 @@
 %%% http://download.microsoft.com/download/9/5/E/95EF66AF-9026-4BB0-A41D-A4F81802D92C/%5BMS-WMSP%5D.pdf
 %%%
 %%% http://download.microsoft.com/download/7/9/0/790fecaa-f64a-4a5e-a430-0bccdab3f1b4/ASF_Specification.doc
+%%% http://www.microsoft.com/windows/windowsmedia/forpros/format/asfspec.aspx
 %%% http://msdn.microsoft.com/en-us/library/ms983668(loband).aspx
 %%% http://msdn.microsoft.com/en-us/library/dd757562(VS.85).aspx
 %%% http://www.digitalpreservation.gov/formats/fdd/fdd000067.shtml
@@ -38,7 +39,7 @@ guids() ->
   ].
 
 decode_guid(GUID) ->
-  UUID = list_to_binary(uuid:to_string(GUID)),
+  UUID = list_to_binary(string:to_upper(uuid:to_string(GUID))),
   case lists:keyfind(UUID, 2, guids()) of
     false -> UUID;
     {Key, UUID} -> Key
@@ -81,16 +82,26 @@ asf_packet(<<GUID:16/binary, Len:64/little, ASF/binary>>) ->
   ?D({GUID, Len, size(ASF)}),
   ok.
 
+read_asf_object(F, Pos) ->
+  case file:pread(F, Pos, 16) of
+    eof -> eof;
+    {ok, <<G1:32/little, G2:16/little, G3:16/little, G4:16, G5:48>>} ->
+      GUID = <<G1:32, G2:16, G3:16, G4:16, G5:48>>,
+      {ok, <<Len:64/little>>} = file:pread(F, Pos + 16, 8),
+      {ok, ASF} = file:pread(F, Pos + 24, Len - 24),
+      {ok, {GUID, ASF}, Pos + Len}
+  end.
 
-read_wmv_file(F) ->
-  {ok, GUID} = file:read(F, 16),
-  {ok, <<Len:64/little>>} = file:read(F, 8),
-  {ok, ASF} = file:read(F, Len),
-  ?D({decode_guid(GUID), Len}),
-  read_wmv_file(F).
+read_wmv_file(F, Pos) ->
+  case read_asf_object(F, Pos) of
+    eof -> ok;
+    {ok, {GUID, ASF}, NewPos} ->
+      ?D({decode_guid(GUID), size(ASF)}),
+      read_wmv_file(F, NewPos)
+  end.
 
 read_file_test() ->
   {ok, F} = file:open(ems_test_helper:file_path("v.wmv"), [read,binary]),
-  read_wmv_file(F).
+  read_wmv_file(F, 0).
 
 
