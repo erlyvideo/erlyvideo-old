@@ -21,6 +21,7 @@
 -module(asf).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 
@@ -35,6 +36,22 @@ guids() ->
     {media_object_index, <<"FEB103F8-12AD-4C64-840F-2A1D2F7AD48C">>},
     {timecode_index, <<"3CB73FD0-0C4A-4803-953D-EDF7B6228F0C">>}
   ].
+
+decode_guid(GUID) ->
+  UUID = list_to_binary(uuid:to_string(GUID)),
+  case lists:keyfind(UUID, 2, guids()) of
+    false -> UUID;
+    {Key, UUID} -> Key
+  end.  
+
+encode_guid(Key) when is_atom(Key) ->
+  encode_guid(proplists:get_value(Key, guids()));
+
+encode_guid(GUID) when is_list(GUID) ->
+  encode_guid(list_to_binary(GUID));
+
+encode_guid(GUID) ->
+  ok.
 
 get(URL) ->
   RequestHeaders = [
@@ -63,3 +80,17 @@ mms_header(<<$$, $H, Length:16/little, Packet:Length/binary>>) ->
 asf_packet(<<GUID:16/binary, Len:64/little, ASF/binary>>) ->
   ?D({GUID, Len, size(ASF)}),
   ok.
+
+
+read_wmv_file(F) ->
+  {ok, GUID} = file:read(F, 16),
+  {ok, <<Len:64/little>>} = file:read(F, 8),
+  {ok, ASF} = file:read(F, Len),
+  ?D({decode_guid(GUID), Len}),
+  read_wmv_file(F).
+
+read_file_test() ->
+  {ok, F} = file:open(ems_test_helper:file_path("v.wmv"), [read,binary]),
+  read_wmv_file(F).
+
+
