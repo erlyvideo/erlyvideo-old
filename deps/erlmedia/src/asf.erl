@@ -35,7 +35,24 @@ guids() ->
     {simple_index, <<"33000890-E5B1-11CF-89F4-00A0C90349CB">>},
     {index, <<"D6E229D3-35DA-11D1-9034-00A0C90349BE">>},
     {media_object_index, <<"FEB103F8-12AD-4C64-840F-2A1D2F7AD48C">>},
-    {timecode_index, <<"3CB73FD0-0C4A-4803-953D-EDF7B6228F0C">>}
+    {timecode_index, <<"3CB73FD0-0C4A-4803-953D-EDF7B6228F0C">>},
+
+    {file_properties, <<"8CABDCA1-A947-11CF-8EE4-00C00C205365">>},
+    {stream_properties, <<"B7DC0791-A9B7-11CF-8EE6-00C00C205365">>},
+    {header_extension, <<"5FBF03B5-A92E-11CF-8EE3-00C00C205365">>},
+    {codec_list, <<"86D15240-311D-11D0-A3A4-00A0C90348F6">>},
+    {script_command, <<"1EFB1A30-0B62-11D0-A39B-00A0C90348F6">>},
+    {marker, <<"F487CD01-A951-11CF-8EE6-00C00C205365">>},
+    {bitrate_mutual_exclusion, <<"D6E229DC-35DA-11D1-9034-00A0C90349BE">>},
+    {error_correction, <<"75B22635-668E-11CF-A6D9-00AA0062CE6C">>},
+    {content_description, <<"75B22633-668E-11CF-A6D9-00AA0062CE6C">>},
+    {extended_content_description, <<"D2D0A440-E307-11D2-97F0-00A0C95EA850">>},
+    {content_branding, <<"2211B3FA-BD23-11D2-B4B7-00A0C955FC6E">>},
+    {stream_bitrate_properties, <<"7BF875CE-468D-11D1-8D82-006097C9A2B2">>},
+    {content_encryption, <<"2211B3FB-BD23-11D2-B4B7-00A0C955FC6E">>},
+    {extended_content_encryption, <<"298AE614-2622-4C17-B935-DAE07EE9289C">>},
+    {digital_signature, <<"2211B3FC-BD23-11D2-B4B7-00A0C955FC6E">>},
+    {padding, <<"1806D474-CADF-4509-A4BA-9AABCB96AAE8">>}
   ].
 
 decode_guid(GUID) ->
