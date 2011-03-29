@@ -31,7 +31,7 @@
 -define(LICENSE_TABLE, license_storage).
 
 %% External API
--export([start_link/0,list/0]).
+-export([start_link/0,list/0, load/0, select/0, load_config/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -59,9 +59,18 @@ ping() ->
 ping([sync]) ->
   gen_server:call(?MODULE, ping, 60000).
 
-list() ->
-  gen_server:call(?MODULE, list).
-  
+select() ->
+  gen_server:call(?MODULE, select).
+
+list() -> 
+  gen_server:call(?MODULE,list).
+
+load() -> 
+  gen_server:call(?MODULE,load).
+
+load_config(ConfigPath) ->
+  gen_server:call(?MODULE,{load_config, ConfigPath}).
+
 applications() ->
   gen_server:call(?MODULE, applications).
 
@@ -115,7 +124,21 @@ handle_call(ping, _From, State) ->
 handle_call(list, _From, State) -> 
   State1 = make_request_internal(State),
   State2 = request_licensed(State1#client.license, State1, list),
-  {reply, State2, State2};
+  {reply, State2, State1};
+
+handle_call(load, _From, State) ->
+  State1 = make_request_internal(State),
+  State2 = request_licensed(State1#client.license,State1, load),
+  {reply, State2, State1};
+
+handle_call({load_config,[Path|FullName]}, _From, State) ->
+  application:set_env(erlyvideo,license_config,[Path|FullName],600),
+  {reply,[Path|FullName],State};
+
+handle_call(select, _From, State) ->
+  State1 = make_request_internal(State),
+  State2 = request_licensed(State1#client.license,State1, select),
+  {reply, State2, State1};
 
 handle_call(applications, _From, #client{memory_applications = Mem, storage_opened = false} = State) ->
   {reply, Mem, State};
@@ -197,8 +220,16 @@ make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = Stat
 make_request_internal(State) ->
   State.  
 
+get_config_path() ->
+  ConfigPath = case application:get_env(erlyvideo,license_config)of 
+    {ok, [Path|FileName]} -> [Path|FileName];
+    undefined -> [["priv", "/etc/erlyvideo"],"license.txt"]
+  end,
+  ConfigPath.
+
 read_license() ->
-  case file:path_consult(["priv", "/etc/erlyvideo"], "license.txt") of
+  [Path|FileName] = get_config_path(),
+  case file:path_consult([Path], FileName) of
     {ok, Env, LicensePath} ->
        {Env,LicensePath};
     {error, enoent} ->
@@ -237,7 +268,7 @@ read_license_response(Bin, State) ->
           Commands = proplists:get_value(commands, Reply),
           Startup = execute_commands_v1(Commands, [], State),
           handle_loaded_modules_v1(lists:reverse(Startup)),
-          {ok,Commands};
+          {ok, Commands};
         Version ->
           {error,{unknown_license_version, Version}}
       end;
