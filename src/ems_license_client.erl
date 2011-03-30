@@ -118,16 +118,17 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_call(ping, _From, State) ->
-  State1 = make_request_internal(State),
-  {reply, {ok, State1}, State1};
+  State1 = reload_config(State),
+  State2 = request_licensed(State1#client.license, State1, save),
+  {reply, {ok, State2}, State1};
 
 handle_call(list, _From, State) -> 
-  State1 = make_request_internal(State),
+  State1 = reload_config(State),
   State2 = request_licensed(State1#client.license, State1, list),
   {reply, State2, State1};
 
 handle_call(load, _From, State) ->
-  State1 = make_request_internal(State),
+  State1 = reload_config(State),
   State2 = request_licensed(State1#client.license,State1, load),
   {reply, State2, State1};
 
@@ -136,7 +137,7 @@ handle_call({load_config,[Path|FullName]}, _From, State) ->
   {reply,[Path|FullName],State};
 
 handle_call(select, _From, State) ->
-  State1 = make_request_internal(State),
+  State1 = reload_config(State),
   State2 = request_licensed(State1#client.license,State1, select),
   {reply, State2, State1};
 
@@ -176,7 +177,8 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info(ping, State) ->
-  State1 = make_request_internal(State),
+  State1 = reload_config(State),
+  State2 = request_licensed(State1#client.license, State1, save),
   {noreply, State1};
 
 handle_info(_Info, State) ->
@@ -207,7 +209,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 %%%%%%%%%%%%%%%%%%% Make license request logic
-make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = State) ->
+reload_config(#client{license = OldLicense, timeout = OldTimeout} = State) ->
   {License, Timeout} = case read_license() of
     {OldLicense, _} -> {OldLicense,OldTimeout};
     undefined -> {undefined,OldTimeout};
@@ -217,7 +219,7 @@ make_request_internal(#client{license = OldLicense, timeout = OldTimeout} = Stat
   end,
   State#client{license = License, timeout = Timeout};
 
-make_request_internal(State) ->
+reload_config(State) ->
   State.  
 
 get_config_path() ->
@@ -253,18 +255,21 @@ request_licensed(Env, State, Command) ->
 request_code_from_server(LicenseUrl, License, State, Command) ->
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
-    {ok, "200", _ResponseHeaders, Bin} ->
-      read_license_response(Bin, State#client{key = License});
+    {ok, "200", _ResponseHeaders, Bin}  ->
+      read_license_response(Bin, State#client{key = License}, Command);
     _Else ->
       ?D({license_error, _Else}),
       _Else
   end.    
   
-read_license_response(Bin, State) ->
+read_license_response(Bin, State,Command) ->
   case erlang:binary_to_term(Bin) of
     {reply, Reply} ->
       case proplists:get_value(version, Reply) of
-        1 ->
+        1 when Command == list -> 
+          Commands = proplists:get_value(commands, Reply),
+          {ok, Commands};
+        1 when Command =/= list  ->
           Commands = proplists:get_value(commands, Reply),
           Startup = execute_commands_v1(Commands, [], State),
           handle_loaded_modules_v1(lists:reverse(Startup)),
@@ -350,7 +355,6 @@ execute_commands_v1([{load,ModInfo}|Commands], Startup, State) ->
 execute_commands_v1([_Command|Commands], Startup, State) ->
   error_logger:error_msg("Unknown license server command"),
   execute_commands_v1(Commands, Startup, State).
-
 
 is_new_version(ModInfo) ->
   Code = proplists:get_value(code, ModInfo),
