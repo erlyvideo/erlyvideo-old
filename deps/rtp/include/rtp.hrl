@@ -27,8 +27,6 @@
 }).
 
 -record(rtcp, {
-  msw,
-  lsw,
   ntp,
   stream_id,
   timecode,

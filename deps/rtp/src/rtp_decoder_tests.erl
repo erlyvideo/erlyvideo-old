@@ -79,8 +79,8 @@ decode_audio_aac_test() ->
 
 
 decode_sr_test_() ->
-  [ ?_assertEqual({15071873493697523644,338381}, rtp:rtcp_sr(wirecast_sr1())),
-    ?_assertEqual({15071873493656068605,913426}, rtp:rtcp_sr(wirecast_sr2())),
+  [ ?_assertMatch(#rtcp{ntp = 15071873493697523644, timecode = 338381}, rtp:rtcp_sr(wirecast_sr1())),
+    ?_assertMatch(#rtcp{ntp = 15071873493656068605, timecode = 913426}, rtp:rtcp_sr(wirecast_sr2())),
     ?_assertMatch(#rtp_channel{
       wall_clock = 1300205206607,
       timecode = 338381

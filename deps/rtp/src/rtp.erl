@@ -155,7 +155,11 @@ handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, re
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP
   Id = (Num - 1) div 2 + 1,
   Channel1 = rtcp(Packet, element(Id, Channels)),
-  {ok, State#rtp_state{channels = setelement(Id, Channels, Channel1)}, []};
+  
+  State1 = State#rtp_state{channels = setelement(Id, Channels, Channel1)},
+  {ok, State2} = send_rtcp(State1, receiver_report, [{channel, Id}]),
+  
+  {ok, State2, []};
   
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 0 -> % RTP
   Id = Num div 2 + 1,
@@ -164,7 +168,14 @@ handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2
   reorder_frames(State#rtp_state{channels = setelement(Id, Channels, Channel1)}, NewFrames).
 
 send_rtcp_data(#rtp_state{transport = Transport} = State, Id, Packet) ->
-  Num = (Id - 1)*2 + 1,
+  Num = Id,
+  %%%%%%%%%%%%%%%%%%%%%%%%%%  WARNING %%%%%%%%%%%%%%%%%%%%%%%%%%
+  %%%% FIXME!!!!!!!!!!
+  %%%%
+  %%%% Суть в том, что камеры бевард требуют обратный RTCP по тем же каналам, что и RTP
+  %%%% Т.е. не по 1,3 а по 0,2
+  %%%% По идее надо так:
+  %%%% Num = (Id - 1)*2 + 1
   case Transport of
     tcp -> gen_tcp:send(State#rtp_state.tcp_socket, packet_codec:encode({rtcp, Num, Packet}));
     udp ->
@@ -192,7 +203,7 @@ send_rtcp(#rtp_state{channels = Channels} = State, sender_report, Options) ->
   {ok, State};
   
 
-send_rtcp(#rtp_state{channels = Channels} = State, receiver_report, _Options) ->
+send_rtcp(#rtp_state{channels = Channels} = State, receiver_report, Options) ->
   EncodeAndSend = fun(Num) when element(Num, Channels) == undefined -> ok;
     (Num) ->
       Channel = element(Num, Channels),
@@ -203,8 +214,7 @@ send_rtcp(#rtp_state{channels = Channels} = State, receiver_report, _Options) ->
           send_rtcp_data(State, Num, Packet)
       end
   end,
-  EncodeAndSend(1),
-  EncodeAndSend(2),
+  EncodeAndSend(proplists:get_value(channel, Options)),
   {ok, State}.
 
 
@@ -240,19 +250,18 @@ frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
 
 
 rtcp_sr(<<2:2, 0:1, _Count:5, ?RTCP_SR, _Length:16, StreamId:32, NTP:64, Timecode:32, PacketCount:32, OctetCount:32, _Rest/binary>>) ->
-  <<MSW:32, LSW:32>> = <<NTP:64>>,
-  % ?D({rtcp_sr, StreamId, MSW, Timecode, PacketCount, OctetCount}),
-  #rtcp{msw = MSW, lsw = LSW, ntp = NTP, stream_id = StreamId, timecode = Timecode, packet_count = PacketCount, octet_count = OctetCount}.
+  % ?D({rtcp_sr, StreamId, NTP, Timecode, PacketCount, OctetCount}),
+  #rtcp{ntp = NTP, stream_id = StreamId, timecode = Timecode, packet_count = PacketCount, octet_count = OctetCount}.
 
 
 rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_channel{timecode = TC} = RTP) when TC =/= undefined->
-  #rtcp{msw = MSW, stream_id = StreamId} = rtcp_sr(SR),
-  RTP#rtp_channel{last_sr = MSW, stream_id = StreamId};
+  #rtcp{ntp = NTP, stream_id = StreamId} = rtcp_sr(SR),
+  RTP#rtp_channel{last_sr = NTP, stream_id = StreamId};
 
 rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_channel{} = RTP) ->
-  #rtcp{ntp = NTP, msw = MSW, stream_id = StreamId, timecode = Timecode} = rtcp_sr(SR),
+  #rtcp{ntp = NTP, stream_id = StreamId, timecode = Timecode} = rtcp_sr(SR),
   WallClock = round((NTP / 16#100000000 - ?YEARS_70) * 1000),
-  RTP#rtp_channel{wall_clock = WallClock, timecode = Timecode, last_sr = MSW, stream_id = StreamId};
+  RTP#rtp_channel{wall_clock = WallClock, timecode = Timecode, last_sr = NTP, stream_id = StreamId};
 
 rtcp(<<_, ?RTCP_RR, _/binary>>, #rtp_channel{} = RTP) ->
   RTP.
@@ -265,8 +274,7 @@ rtcp_rr(#rtp_channel{last_sr = undefined} = RTP) ->
   rtcp_rr(RTP#rtp_channel{last_sr = 0});
 
 rtcp_rr(#rtp_channel{stream_id = StreamId, sequence = Seq, last_sr = LSR} = _RTP) ->
-  Version = 2,
-  Count = 1,
+  Count = 0,
   Length = 16,
   FractionLost = 0,
   LostPackets = 0,
@@ -277,7 +285,7 @@ rtcp_rr(#rtp_channel{stream_id = StreamId, sequence = Seq, last_sr = LSR} = _RTP
   Jitter = 0,
   DLSR = 0,
   % ?D({send_rr, StreamId, Seq, LSR, MaxSeq}),
-  <<Version:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
+  <<1:2, 0:1, Count:5, ?RTCP_RR, Length:16, StreamId:32, FractionLost, LostPackets:24, MaxSeq:32, Jitter:32, LSR:32, DLSR:32>>.
 
 
 
