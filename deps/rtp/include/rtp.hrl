@@ -26,6 +26,16 @@
   remote_addr
 }).
 
+-record(rtcp, {
+  msw,
+  lsw,
+  ntp,
+  stream_id,
+  timecode,
+  packet_count,
+  octet_count
+}).
+
 -record(rtp_state, {
   streams = [],
   channels = {undefined, undefined},
