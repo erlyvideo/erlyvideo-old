@@ -57,10 +57,18 @@ http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
   Streams = [ clean_values([{name,Name}|Info]) || {Name, _Pid, Info} <- media_provider:entries(Host)],
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
+http(_Host, 'GET', ["erlyvideo","api","license"], Req) -> 
+  {ok,License} = ems_license_client:list(), 
+  Project = proplists:get_value(project,License),
+  Versions = proplists:get_value(versions,Project),
+  Name = proplists:get_value(name, Project),
+  Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{name,Name},{versions,Versions}]), "\n"]);
+
+
 http(_, _, _, _) ->
   unhandled.
   
-  
+
 clean_values(Info) ->
   clean_values(lists:ukeysort(1, lists:reverse(Info)), []).
   
