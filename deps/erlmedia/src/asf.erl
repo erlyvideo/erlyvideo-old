@@ -125,6 +125,8 @@ get(_URL) ->
     {"Connection", "Close"}
   ],
   {ok, _Headers, MMSHeader} = http_stream:get_with_body("http://live.rfn.ru/vesti_24", [{send_hostpath,true}, {headers, RequestHeaders}]),
+  ?D({reply, _Headers}),
+  file:write("vesti_24.asf", MMSHeader),
   mms_header(MMSHeader).
   
 mms_header(<<>>) ->
@@ -133,7 +135,7 @@ mms_header(<<>>) ->
 mms_header(<<$$, $H, Length:16/little, Packet:Length/binary>>) ->
   <<LocationId:32/little, Incarnation, AFFlags, PacketSize:16/little, ASF/binary>> = Packet,
   ?D({Length, LocationId, Incarnation, AFFlags, PacketSize, size(ASF)}),
-  asf_object(ASF),
+  ?D(asf_objects(ASF)),
   ok.
   
 % mms_header(<<$$, $H, Length:16/little, Packet:Length/binary, Rest/binary>>) ->
@@ -213,6 +215,11 @@ language_list(<<_Count:16/little, Languages/binary>>, _) ->
 metadata(<<_Count:16/little, Meta/binary>>, _) ->
   unpack_metadata(Meta, []).
 
+
+content_description(<<TitleLen:16/little, AuthorLen:16/little, CopyrightLen:16/little, DescLen:16/little, RatingLen:16/little,
+                      Title:TitleLen/binary, Author:AuthorLen/binary, Copyright:CopyrightLen/binary, Desc:DescLen/binary, Rating:RatingLen/binary>>, _) ->
+  [{title, unpack_unicode(Title)}, {author, unpack_unicode(Author)}, {copyright, unpack_unicode(Copyright)}, {description, unpack_unicode(Desc)},
+   {rating, unpack_unicode(Rating)}].
 
 extended_content_description(<<_Count:16/little, Desc/binary>>, _) ->
   unpack_ext_content_desc(Desc, []).
@@ -347,7 +354,7 @@ read_payload_parsing_data(<<MultiplePayload:1, SeqType:2, PadLenType:2, PacketLe
     (3, <<I:32/little, Bin_/binary>>) -> {I, 4, Bin_}
   end,
   {PacketLen, PacketLenSize, BinWithRest1} = Word(PacketLenType, Bin),
-  RestPacketLen = PacketLenType - PacketLenSize,
+  RestPacketLen = PacketLen - PacketLenSize,
   <<OnePacket:RestPacketLen/binary, Rest/binary>> = BinWithRest1,
   {Sequence, _, Rest2} = Word(SeqType, OnePacket),
   {PaddingLen, _, <<SendTime:32/little, Duration:32/little, StreamId, Rest3/binary>>} = Word(PadLenType, Rest2),
