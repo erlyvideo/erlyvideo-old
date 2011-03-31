@@ -280,7 +280,7 @@ argument_to_url(Versions,AttrURL) ->
 request_code_from_server(LicenseUrl, License, State, Command) ->
   RawURL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License,Command#command.name])),
   URL = case Command#command.name of
-    "save" -> RawURL ++ argument_to_url(Command#command.versions);
+    "save" when Command#command.versions =/= undefined -> RawURL ++ argument_to_url(Command#command.versions);
     _ ->  RawURL
   end,
   ?D(URL),
