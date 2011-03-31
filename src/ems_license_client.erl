@@ -361,10 +361,12 @@ execute_commands_v1([{save_app, {application,Name,Desc} = AppDescr}|Commands], S
   end,
   execute_commands_v1(Commands, Startup, State);
   
-execute_commands_v1([{load_app, {application,Name,_Desc} = AppDescr}|Commands], Startup, State) ->
+execute_commands_v1([{load_app, {application,Name,Desc} = AppDescr}|Commands], Startup, State) ->
+  Version = proplists:get_value(vsn, Desc),
   case application:load(AppDescr) of
-    ok -> error_logger:info_msg("License load application ~p", [Name]);
-    _ -> ok
+    ok -> error_logger:info_msg("License load application ~p(~p)", [Name, Version]);
+    {error, {already_loaded, AppDescr}} -> error_logger:info_msg("License already loaded application ~p(~p)", [Name, Version]);
+    _Else -> error_logger:error_msg("License failed to load application: ~p", [_Else]), ok
   end,
   execute_commands_v1(Commands, Startup, State);
   
@@ -427,7 +429,8 @@ need_to_update_application(AppName, Version) ->
     
     
 save_or_update_application(AppName, Desc) ->
-  error_logger:info_msg("Saving license application ~p~n", [AppName]),
+  Version = proplists:get_value(vsn, Desc),
+  error_logger:info_msg("Saving license application ~p(~p)~n", [AppName, Version]),
   SavedApps = saved_applications(),
   Modules = lists:foldl(fun
     (_Name, undefined) -> undefined;
