@@ -136,6 +136,8 @@ headers(_C, _Req, _H, _HeaderCount) ->
 % Depending on whether the request is persistent transition back to state request to await the next request or exit.
 body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, #req{content_length = ContentLength} = Req) ->
 	case Req#req.method of
+	  'HEAD' ->
+			handle_get(C, Req);
 		'GET' ->
 			handle_get(C, Req);
 		'POST' ->
