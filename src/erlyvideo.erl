@@ -119,7 +119,7 @@ start() ->
 	application:start(erlyvideo),
 	
 	ems_license_client:restore(),
-	ems_license_client:ping([sync]),
+	ems_license_client:load([sync]),
 	
   start_http(),
   start_rtmp(),
