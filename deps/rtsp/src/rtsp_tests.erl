@@ -40,6 +40,9 @@ beward_test_() ->
 sanyo_hd2100_test_() ->
   run_camera_test("sanyo-hd2100", 8092).
 
+sanyo_hd2500_test_() ->
+  run_camera_test("sanyo-hd2500", 8092).
+
 beward1_test_() ->
   run_camera_test("beward_w20100722NS", 8092).
 

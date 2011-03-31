@@ -129,17 +129,27 @@ decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor 
 %   decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), time = DTS}, DTS);
   
   
-decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) when OldDTS < DTS ->
-  OldH264#h264.buffer == <<>> orelse OldH264#h264.buffer == undefined orelse erlang:error({non_decoded_h264_left, OldH264}),
+decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = OldFlavor} = RTP, DTS) when OldDTS < DTS ->
+  
+   % orelse erlang:error({non_decoded_h264_left, OldH264, Buffer}),
+   
+  {H264, Flavor} = case {OldH264#h264.buffer, Buffer} of
+    {<<>>, <<>>} -> {undefined, undefined};
+    {undefined, <<>>} -> {undefined, undefined};
+    {Bin, <<>>} ->
+      {_, [#video_frame{flavor = Fl}]} = h264:decode_nal(Bin, OldH264),
+      {<<(size(Bin)):32, Bin/binary>>, Fl};
+    {_, Bin} when size(Bin) > 0 -> {Bin, OldFlavor}
+  end,
 
-  Frames = case Buffer of
-    <<>> -> [];
+  Frames = case H264 of
+    undefined -> [];
     _ ->
       Flavor =/= undefined orelse erlang:error({h264_frame_flavor_undefined, size(Buffer)}),
       [#video_frame{
         content = video,
         codec = h264,
-        body = Buffer,
+        body = H264,
         flavor = Flavor,
         dts = OldDTS, 
         pts = OldDTS
