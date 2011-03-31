@@ -4,7 +4,8 @@
  {modules, [
 	erlyvideo_http_file,
 	http_file,
-	http_file_sup
+	http_file_sup,
+	http_file_tracker
   ]},
  {registered,[http_file]},
  {applications, [kernel,stdlib]},
