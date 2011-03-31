@@ -231,7 +231,7 @@ get_config_path() ->
 
 read_license() ->
   [Path|FileName] = get_config_path(),
-  case file:path_consult([Path], FileName) of
+  case file:path_consult(Path, FileName) of
     {ok, Env, LicensePath} ->
        {Env,LicensePath};
     {error, enoent} ->
