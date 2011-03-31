@@ -29,14 +29,14 @@
 
 -define(TIMEOUT, 20*60000).
 -define(LICENSE_TABLE, license_storage).
-
+-define(CONFIG_TABLE, config_table).
 %% External API
--export([start_link/0,list/0, load/0, select/0, load_config/1]).
+-export([start_link/0,list/0, load/0, load/1, select/0, load_config/1, save/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([ping/0, ping/1, applications/0, restore/0]).
+-export([applications/0, restore/0]).
 -export([writeable_cache_dir/0, read_license/0, request_licensed/3]).
 
 
@@ -48,25 +48,29 @@
   memory_applications = []
 }).
 
+-record(command, {
+  name,
+  versions  
+}).
+
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
-ping() ->
-  ?MODULE ! ping,
-  ok.
+load() ->
+  gen_server:call(?MODULE, load).
   
-ping([sync]) ->
-  gen_server:call(?MODULE, ping, 60000).
+load([sync]) ->
+  gen_server:call(?MODULE, load, 60000).
+
+save() ->
+  gen_server:call(?MODULE, save).
 
 select() ->
   gen_server:call(?MODULE, select).
 
 list() -> 
   gen_server:call(?MODULE,list).
-
-load() -> 
-  gen_server:call(?MODULE,load).
 
 load_config(ConfigPath) ->
   gen_server:call(?MODULE,{load_config, ConfigPath}).
@@ -117,19 +121,22 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call(ping, _From, State) ->
-  State1 = reload_config(State),
-  State2 = request_licensed(State1#client.license, State1, save),
+handle_call(load, _From, State) ->
+  {State1, Versions} = reload_config(State),
+  Command = #command{name = "save", versions = Versions},
+  State2 = request_licensed(State1#client.license, State1, Command),
   {reply, {ok, State2}, State1};
 
 handle_call(list, _From, State) -> 
-  State1 = reload_config(State),
-  State2 = request_licensed(State1#client.license, State1, list),
-  {reply, State2, State1};
+  {State1,Versions} = reload_config(State),
+  Command = #command{name = "list", versions = Versions},
+  State2 = request_licensed(State1#client.license, State1, Command),
+  {reply, {Versions,State2}, State1};
 
-handle_call(load, _From, State) ->
-  State1 = reload_config(State),
-  State2 = request_licensed(State1#client.license,State1, load),
+handle_call(save, _From, State) -> 
+  {State1,Versions} = reload_config(State),
+  Command = #command{name = "save", versions = Versions},
+  State2 = request_licensed(State1#client.license, State1, Command),
   {reply, State2, State1};
 
 handle_call({load_config,[Path|FullName]}, _From, State) ->
@@ -137,8 +144,9 @@ handle_call({load_config,[Path|FullName]}, _From, State) ->
   {reply,[Path|FullName],State};
 
 handle_call(select, _From, State) ->
-  State1 = reload_config(State),
-  State2 = request_licensed(State1#client.license,State1, select),
+  {State1,Versions} = reload_config(State),
+  Command = #command{name = "select", versions = Versions},
+  State2 = request_licensed(State1#client.license,State1, Command),
   {reply, State2, State1};
 
 handle_call(applications, _From, #client{memory_applications = Mem, storage_opened = false} = State) ->
@@ -176,9 +184,10 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info(ping, State) ->
-  State1 = reload_config(State),
-  State2 = request_licensed(State1#client.license, State1, save),
+handle_info(load, State) ->
+  {State1,Versions} = reload_config(State),
+  Command = #command{name = "save", versions = Versions},
+  request_licensed(State1#client.license, State1, Command),
   {noreply, State1};
 
 handle_info(_Info, State) ->
@@ -217,10 +226,14 @@ reload_config(#client{license = OldLicense, timeout = OldTimeout} = State) ->
       error_logger:info_msg("Reading license key from ~s", [LicensePath]),
       {Env,proplists:get_value(timeout,Env,OldTimeout)}
   end,
-  State#client{license = License, timeout = Timeout};
+  Versions = case proplists:get_value(projects,License) of 
+    undefined -> read_config_storage();
+    FileValue -> FileValue
+  end,
+  {State#client{license = License, timeout = Timeout},Versions};
 
 reload_config(State) ->
-  State.  
+  {State,undefined}.  
 
 get_config_path() ->
   ConfigPath = case application:get_env(erlyvideo,license_config)of 
@@ -252,8 +265,25 @@ request_licensed(Env, State, Command) ->
       request_code_from_server(LicenseUrl, License, State, Command)
   end.
   
+argument_to_url(Versions) ->
+  AttrURL = argument_to_url(Versions,[]),
+  AttrURL.
+
+argument_to_url([],AttrURL) ->
+  AttrURL;
+
+argument_to_url(Versions,AttrURL) ->
+  [{Name,Version}|Tail] = Versions,  
+  NewAttrURL = AttrURL ++ lists:flatten(io_lib:format("&version[~s]=~s",[Name,Version])),
+  argument_to_url(Tail,NewAttrURL).
+  
 request_code_from_server(LicenseUrl, License, State, Command) ->
-  URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License, Command])),
+  RawURL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License,Command#command.name])),
+  URL = case Command#command.name of
+    "save" -> RawURL ++ argument_to_url(Command#command.versions);
+    _ ->  RawURL
+  end,
+  ?D(URL),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin}  ->
       read_license_response(Bin, State#client{key = License}, Command);
@@ -266,10 +296,10 @@ read_license_response(Bin, State,Command) ->
   case erlang:binary_to_term(Bin) of
     {reply, Reply} ->
       case proplists:get_value(version, Reply) of
-        1 when Command == list -> 
+        1 when Command#command.name == "list" -> 
           Commands = proplists:get_value(commands, Reply),
           {ok, Commands};
-        1 when Command =/= list  ->
+        1 when Command#command.name =/= "list"  ->
           Commands = proplists:get_value(commands, Reply),
           Startup = execute_commands_v1(Commands, [], State),
           handle_loaded_modules_v1(lists:reverse(Startup)),
@@ -438,7 +468,23 @@ open_license_storage() ->
         {error, Reason} -> {error, Reason} 
       end
   end.
-  
+
+
+open_config_storage() ->
+  case dets:open_file(?CONFIG_TABLE,[{file,["conf.db"]}]) of
+    {ok, ?CONFIG_TABLE} -> {ok, ?CONFIG_TABLE};
+    {error, Reason} -> {error, Reason} 
+  end.
+
+test_insert_table() ->
+  open_config_storage(),
+  dets:insert_new(?CONFIG_TABLE,{projects,[{erlyvideo, "1.2"},{registrator, "HEAD"}]}).
+
+read_config_storage() ->
+  open_config_storage(),
+  Config = dets:lookup(?CONFIG_TABLE,projects),
+  Versions = proplists:get_value(projects,Config),
+  Versions.
   
 saved_applications() ->
   [{saved_apps,SavedApps}] = dets:lookup(?LICENSE_TABLE, saved_apps),
