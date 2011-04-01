@@ -23,7 +23,9 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_test_helper).
 -author('Max Lapshin <max@maxidoors.ru>').
-
+-include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
+-include_lib("../../src/log.hrl").
 
 -compile(export_all).
 
@@ -32,3 +34,28 @@ file_dir() ->
 
 file_path(File) ->
   filename:join(file_dir(), File).
+
+
+read_all_frames(Reader, Accessor, Options) ->
+  {ok, Media} = Reader:init(Accessor, Options),
+  read_all_frames(Media, [], Reader, undefined).
+
+read_all_frames(Media, Frames, Reader, Key) ->
+  case Reader:read_frame(Media, Key) of
+    #video_frame{next_id = Next} = F -> read_all_frames(Media, [F|Frames], Reader, Next);
+    eof -> {ok, Media, lists:reverse(Frames)}
+  end.
+
+receive_all_frames() ->
+  receive_all_frames([]).
+
+receive_all_frames(Acc) ->
+  receive
+    #video_frame{} = F -> receive_all_frames([F|Acc])
+  after
+    10 -> lists:reverse(Acc)
+  end.
+
+set_ticker_timeouts(NoTimeouts) ->
+  application:set_env(erlyvideo,no_timeouts, NoTimeouts).
+

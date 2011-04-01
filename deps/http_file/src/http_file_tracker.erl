@@ -1,76 +1,52 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2009 Max Lapshin
-%%% @doc        Endless http FLV streams registrator
+%%% @doc        Tracker of opened http files
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
-%%% This file is part of erlyvideo.
+%%% This file is part of http_file.
 %%% 
-%%% erlyvideo is free software: you can redistribute it and/or modify
+%%% http_file is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
 %%% (at your option) any later version.
 %%%
-%%% erlyvideo is distributed in the hope that it will be useful,
+%%% http_file is distributed in the hope that it will be useful,
 %%% but WITHOUT ANY WARRANTY; without even the implied warranty of
 %%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 %%% GNU General Public License for more details.
 %%%
 %%% You should have received a copy of the GNU General Public License
-%%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
+%%% along with http_file.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(ems_flv_streams).
+-module(http_file_tracker).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 
--record(flv_streams, {
-  streams = []
-}).
+-include("log.hrl").
 
 %% External API
--export([start_link/0, register/2, stream/1, command/2]).
+-export([start_link/1, open/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
 
-start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @spec (Name) -> undefined | {ok,Pid::pid()}
-%%
-%% @doc Find stream by name
-%% @end
-%%----------------------------------------------------------------------
-stream(Name) ->
-  gen_server:call(?MODULE, {stream, Name}).
+start_link(CachePath) ->
+  gen_server_ems:start_link({local, ?MODULE}, ?MODULE, [CachePath], []).
 
 
-%%--------------------------------------------------------------------
-%% @spec (Name,Command) -> undefined|Command
-%%
-%% @doc Send command to stream if exists
-%% @end
-%%----------------------------------------------------------------------
-command(Name,Command) ->
-  case stream(Name) of
-    undefined -> undefined;
-    {ok, Pid, Client} -> Pid ! {Command, Client}
-  end.
+-record(tracker, {
+  files,
+  cache_path
+}).
 
 
-%%--------------------------------------------------------------------
-%% @spec (Name,Pid) -> ok
-%%
-%% @doc register stream under Name
-%% @end
-%%----------------------------------------------------------------------
-register(Name, Pid) ->
-  gen_server:call(?MODULE, {register, Name, Pid}).
 
+open(URL, Options) ->
+  gen_server:call(?MODULE, {open, URL, Options, self()}).
 
 
 %%%------------------------------------------------------------------------
@@ -89,8 +65,8 @@ register(Name, Pid) ->
 %%----------------------------------------------------------------------
 
 
-init([]) ->
-  {ok, #flv_streams{}}.
+init([CachePath]) ->
+  {ok, #tracker{files = [], cache_path = CachePath}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -104,20 +80,31 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-
-handle_call({register, Name, Pid}, _From, #flv_streams{streams = Streams} = Server) ->
-  erlang:monitor(process, Pid),
-  {reply, ok, Server#flv_streams{streams = lists:keystore(Name, 1, Streams, {Name, Pid})}};
-
-handle_call({stream, Name}, _From, #flv_streams{streams = Streams} = Server) ->
-  Reply = case proplists:get_value(Name, Streams) of
-    undefined -> undefined;
-    Pid -> {ok, Pid}
-  end,
-  {reply, Reply, Server};
-
+handle_call({open, URL, Options, Opener}, _From, #tracker{files = Files, cache_path = CachePath} = State) ->
+  CacheName = http_file:cache_path(CachePath, URL),
+  case filelib:is_regular(CacheName) of
+    true ->
+      % ?D({"Returning cached file from disk", CacheName}),
+      {ok, Cached} = file:open(CacheName, [read,binary]),
+      {reply, {ok, {cached,Cached}}, State};
+    false ->
+      case proplists:get_value(URL, Files) of
+        undefined ->
+          {ok, File} = http_file_sup:start_file(URL, [{cache_path,CachePath}|Options]),
+          {ok, Ref} = http_file:add_client(File, Opener),
+          erlang:monitor(process, File),
+          % ?D({"starting new file", URL, CachePath}),
+          {reply, {ok, {http_file,File,Ref}}, State#tracker{files = [{URL, File}|Files]}};
+        File ->
+          % ?D({"reply with existing tracker", File}),
+          {ok, Ref} = http_file:add_client(File, Opener),
+          {reply, {ok, {http_file,File,Ref}}, State}
+      end
+  end;
+    
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -141,8 +128,8 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'DOWN', _, process, Client, _Reason}, #flv_streams{streams = Streams} = Server) ->
-  {noreply, Server#flv_streams{streams = lists:keydelete(Client, 2, Streams)}};
+handle_info({'DOWN', _, process, File, _Reason}, #tracker{files = Files} = Server) ->
+  {noreply, Server#tracker{files = lists:keydelete(File, 2, Files)}};
 
 handle_info(_Info, State) ->
   {noreply, State}.

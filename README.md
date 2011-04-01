@@ -19,3 +19,11 @@ Erlyvideo has runtime dependencies from other packages:
 * [misultin](http://github.com/ostinelli/misultin) distributed under BSD license and packaged inside Erlyvideo
 * src/mochijson2.erl distributed under MIT license and packaged inside Erlyvideo
 
+To run tests don't forget to add test vhost:
+
+  {test, [
+    {hostname, ["test.local"]},
+    {rtmp_handlers, [trusted_login, remove_useless_prefix, apps_streaming, apps_recording, apps_shared_objects]},
+    {www_handlers, [ems_http_rtmpt, ems_http_templates, ems_http_erlyvideo_api, ems_http_mpegts, ems_http_flv, {ems_http_file, "wwwroot"}]},
+    {file_dir, "test/files"}
+  ]}

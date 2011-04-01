@@ -159,151 +159,117 @@ handle_call({play, Fun, Media}, _From,
   %%timer:send_interval(100, {dump_pack}),
   {reply, {ok, Info}, State};
 
-handle_call({listen_ports,
-             %% #media_desc{type = Type,
-             %%             payloads = [#payload{num = PTnum,
-             %%                                  codec = _Codec,
-             %%                                  clock_map = ClockMap}|_],
-             %%             track_control = TCtl},
-             Proto, Method}, _From,
-            #state{type = _RtpType,
-                   descs = Descs
-                  } = State) ->
-  %%Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
-
-  %% BaseRTP = #base_rtp{codec = PTnum,
-  %%                     media = Type,
-  %%                     clock_map = ClockMap,
-  %%                     sequence = init_rnd_seq(),
-  %%                     base_timecode = Timecode,
-  %%                     timecode = Timecode,
-  %%                     base_wall_clock = 0,
-  %%                     wall_clock = 0,
-  %%                     last_sr = get_date(),
-  %%                     stream_id = init_rnd_ssrc()},
-
-  case Method of
-    ports ->
-      OP = open_ports(),
-      ?DBG("OP: ~p", [OP]),
-      {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
-      gen_udp:controlling_process(RTPSocket, self()),
-      gen_udp:controlling_process(RTCPSocket, self()),
-      Result = {RTP, RTCP},
-      MethodDesc = #ports_desc{
-        proto = Proto,
-        socket_rtp = RTPSocket,
-        socket_rtcp = RTCPSocket
-       };
-    interleaved ->
-      Result = ok,
-      MethodDesc = #interleaved_desc{}
-  end,
-  %% NewState =
-  %%   case Type of
-  %%     audio ->
-  %%       State#state{audio = AudioDesc#desc{method = MethodDesc,
-  %%                                          track_control = TCtl,
-  %%                                          state = BaseRTP}};
-  %%     video ->
-  %%       State#state{video = VideoDesc#desc{method = MethodDesc,
-  %%                                          track_control = TCtl,
-  %%                                          state = BaseRTP}}
-  %%   end,
-
-  ListenRef = make_ref(),
-  NewDescs = [{ListenRef,
-               #desc{method = MethodDesc}} | Descs],
-  NewState = State#state{descs = NewDescs},
-
-  ?DBG("NewState (~p):~n~p", [self(), NewState]),
-  {reply, {ok, {Method, Result}, ListenRef}, NewState};
-
-handle_call({add_stream, ListenRef,
-             #media_desc{type = Type,
-                         payloads = [#payload{num = PTnum,
-                                              codec = _Codec,
-                                              clock_map = ClockMap}|_],
-                         connect = Connect,
-                         port = RemotePort,
-                         track_control = TCtl} = MS,
-             {Method, Params}, Extra}, _From,
-            #state{type = _RtpProcType,
-                   descs = Descs
-                   %% audio = Audioesc,
-                   %% video = VideoDesc
-                  } = State) ->
-  ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
-
-  %% ?DBG("AudioDesc:~n~p", [AudioDesc]),
-  %% ?DBG("VideoDesc:~n~p", [VideoDesc]),
-  {ListenRef, Desc} = proplists:lookup(ListenRef, Descs),
-  NewDescs = proplists:delete(ListenRef, Descs),
-  BaseMethod = Desc#desc.method,
-  case BaseMethod of
-    #ports_desc{} ->
-      case Params of
-        {Addr, PortRTP_p, PortRTCP_p} ->
-          ConnAddr = Addr,
-          PortRTP = PortRTP_p,
-          PortRTCP = PortRTCP_p;
-        _ ->
-          ConnAddr =
-            case Connect of
-              {inet4, Address} -> Address;
-              _ -> undefined
-            end,
-          if is_number(RemotePort) andalso (RemotePort>0) ->
-              PortRTP = RemotePort,
-              PortRTCP = RemotePort+1;
-             true ->
-              PortRTP = undefined,
-              PortRTCP = undefined
-          end
-      end,
-
-      MethodDesc = BaseMethod#ports_desc{
-                     addr = ConnAddr,
-                     port_rtp = PortRTP,
-                     port_rtcp = PortRTCP};
-    #interleaved_desc{} ->
-      {SocketOwner, ChanRTP, ChanRTCP} = Params,
-      MethodDesc = BaseMethod#interleaved_desc{
-                     socket_owner = SocketOwner,
-                     channel_rtp = ChanRTP,
-                     channel_rtcp = ChanRTCP}
-  end,
-  TCFun = compose_tc_fun(Extra),
-  %%Timecode = if RtpProcType == consumer -> undefined; true -> init_rnd_timecode() end,
-  Timecode = init_rnd_timecode(),
-  BaseRTP = #base_rtp{codec = PTnum,
-                      media = Type,
-                      clock_map = ClockMap,
-                      sequence = init_rnd_seq(),
-                      base_timecode = Timecode,
-                      timecode = Timecode,
-                      base_wall_clock = 0,
-                      wall_clock = 0,
-                      last_sr = get_date(),
-                      stream_id = init_rnd_ssrc()},
-
-  NewDesc = Desc#desc{method = MethodDesc,
-                      track_control = TCtl,
-                      state = BaseRTP},
-
-  NewState =
-    case Type of
-      audio ->
-        State#state{audio = NewDesc,
-                    descs = NewDescs,
-                    tc_fun = TCFun};
-      video ->
-        State#state{video = NewDesc,
-                    descs = NewDescs,
-                    tc_fun = TCFun}
-    end,
-  ?DBG("NewState (~p):~n~p", [self(), NewState]),
-  {reply, ok, NewState};
+% handle_call({listen_ports,
+%              #media_desc{type = Type,
+%                          payloads = [#payload{num = PTnum,
+%                                               codec = _Codec,
+%                                               clock_map = ClockMap}|_],
+%                          track_control = TCtl},
+%              Proto, Method}, _From,
+%            #state{type = RtpType} = State) ->
+%   Timecode = if RtpType == consumer -> undefined; true -> init_rnd_timecode() end,
+%   BaseRTP = #base_rtp{codec = PTnum,
+%                       media = Type,
+%                       clock_map = ClockMap,
+%                       sequence = init_rnd_seq(),
+%                       base_timecode = Timecode,
+%                       timecode = Timecode,
+%                       base_wall_clock = 0,
+%                       wall_clock = 0,
+%                       last_sr = get_date(),
+%                       stream_id = init_rnd_ssrc()},
+%   case Method of
+%     ports ->
+%       OP = open_ports(Type),
+%       ?DBG("OP: ~p", [OP]),
+%       {RTP, RTPSocket, RTCP, RTCPSocket} = OP,
+%       gen_udp:controlling_process(RTPSocket, self()),
+%       gen_udp:controlling_process(RTCPSocket, self()),
+%       Result = {RTP, RTCP},
+%       MethodDesc = #ports_desc{
+%         proto = Proto,
+%         socket_rtp = RTPSocket,
+%         socket_rtcp = RTCPSocket
+%        };
+%     interleaved ->
+%       Result = ok,
+%       MethodDesc = #interleaved_desc{}
+%   end,
+%   NewState =
+%     case Type of
+%       audio ->
+%         State#state{audio = #desc{method = MethodDesc,
+%                                   track_control = TCtl,
+%                                   state = BaseRTP}};
+%       video ->
+%         State#state{video = #desc{method = MethodDesc,
+%                                   track_control = TCtl,
+%                                   state = BaseRTP}}
+%     end,
+%   ?DBG("NewState:~n~p", [NewState]),
+%   {reply, {ok, {Method, Result}}, NewState};
+% 
+% handle_call({add_stream,
+%              #media_desc{type = Type,
+%                          connect = Connect,
+%                          port = RemotePort,
+%                          track_control = TCtl} = MS,
+%              {Method, Params}, Extra}, _From,
+%             #state{audio = AudioDesc,
+%                    video = VideoDesc} = State) ->
+%   ?DBG("DS: Add Stream:~n~p~n~p, ~p, ~p", [MS, Method, Params, Extra]),
+% 
+%   BaseMethod = case Type of
+%     audio -> AudioDesc#desc.method;
+%     video -> VideoDesc#desc.method
+%   end,
+%   case Method of
+%     ports ->
+%       case Params of
+%         {Addr, PortRTP_p, PortRTCP_p} ->
+%           ConnAddr = Addr,
+%           PortRTP = PortRTP_p,
+%           PortRTCP = PortRTCP_p;
+%         _ ->
+%           ConnAddr =
+%             case Connect of
+%               {inet4, Address} -> Address;
+%               _ -> undefined
+%             end,
+%           if is_number(RemotePort) andalso (RemotePort>0) ->
+%               PortRTP = RemotePort,
+%               PortRTCP = RemotePort+1;
+%              true ->
+%               PortRTP = undefined,
+%               PortRTCP = undefined
+%           end
+%       end,
+% 
+%       MethodDesc = BaseMethod#ports_desc{
+%                      addr = ConnAddr,
+%                      port_rtp = PortRTP,
+%                      port_rtcp = PortRTCP};
+%     interleaved ->
+%       {SocketOwner, ChanRTP, ChanRTCP} = Params,
+%       MethodDesc = BaseMethod#interleaved_desc{
+%                      socket_owner = SocketOwner,
+%                      channel_rtp = ChanRTP,
+%                      channel_rtcp = ChanRTCP}
+%   end,
+%   TCFun = compose_tc_fun(Extra),
+%   NewState =
+%     case Type of
+%       audio ->
+%         State#state{audio = AudioDesc#desc{method = MethodDesc,
+%                                            track_control = TCtl},
+%                     tc_fun = TCFun};
+%       video ->
+%         State#state{video = VideoDesc#desc{method = MethodDesc,
+%                                            track_control = TCtl},
+%                     tc_fun = TCFun}
+%     end,
+%   ?DBG("NewState:~n~p", [NewState]),
+%   {reply, ok, NewState};
 
 handle_call({set_media, Media}, _From, State) ->
   ?DBG("Set Media Process ~p", [Media]),
@@ -552,14 +518,13 @@ code_change(_OldVsn, State, _Extra) ->
 play(Pid, Fun, Media) when is_function(Fun) ->
   gen_server:call(Pid, {play, Fun, Media}).
 
-listen_ports(Pid, Proto, Method) ->
-  gen_server:call(Pid, {listen_ports, Proto, Method}).
-
-add_stream(Pid, ListenRef, #media_desc{} = Stream, {Method, Params}, Extra) ->
-  gen_server:call(Pid, {add_stream, ListenRef, Stream, {Method, Params}, Extra}).
-
-set_media(Pid, Media) ->
-  gen_server:call(Pid, {set_media, Media}).
+listen_ports(_, _, _, _) -> ok.
+add_stream(_, _, _, _) -> ok.
+% listen_ports(Pid, #media_desc{} = Stream, Proto, Method) ->
+%   gen_server:call(Pid, {listen_ports, Stream, Proto, Method}).
+% 
+% add_stream(Pid, #media_desc{} = Stream, {Method, Params}, Extra) ->
+%   gen_server:call(Pid, {add_stream, Stream, {Method, Params}, Extra}).
 
 stop(Pid) ->
   gen_server:call(Pid, {stop}).
@@ -670,148 +635,6 @@ compose_tc_fun(_) ->
 
 -define(RTP_SIZE, 1100).
 
-encode(rtp, BaseRTP, Codec, Data) ->
-  case Codec of
-    pcm_le ->
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, l2b(Data), ?RTP_SIZE);
-    mp3 ->
-      Size = size(Data),
-      %% Add support of frames with size more than 14 bit
-      %% (set continuating flag, split to several RTP: http://tools.ietf.org/html/rfc5219#section-4.2)
-      ADU =
-        if Size < 16#40 ->                           % more than 6 bit
-            <<0:1,0:1,Size:6>>;
-           Size < 16#4000 ->
-            <<0:1,1:1,Size:14>>;
-           true ->
-            ?DBG("Error: big frame", []),
-            <<>>
-        end,
-      MP3 = <<ADU/binary, Data/binary>>,
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MP3);
-    %% mp3 ->
-    %%   MPEG = <<0:16,0:16,Data/binary>>,
-    %%   {NewBaseRTP, Packs} = compose_rtp(BaseRTP, MPEG);
-    aac ->
-      AH = 16#00,
-      ASsize = 16#10,                           % TODO: size of > 16#ff
-      DataSize = bit_size(Data),
-      Size = <<DataSize:2/big-integer-unit:8>>,
-      AS = <<ASsize:8, Size/binary>>,
-      Header = <<AH:8,AS/binary>>,
-      AAC = <<Header/binary,Data/binary>>,
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP#base_rtp{marker = true}, AAC);
-    speex ->
-      SPEEX = <<Data/binary, 16#7f:8 >>,        % Padding?
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP#base_rtp{marker = false}, SPEEX);
-    h264 ->
-      Fun =
-        fun({config, [SPS, PPS]}, {BRtp, Accum}) ->
-            {BR1, [Pack1]} = compose_rtp(BRtp, SPS),
-            {BR2, [Pack2]} = compose_rtp(BR1#base_rtp{marker = false}, PPS),
-            {BR2, [Pack2, Pack1 | Accum]};
-           ({KF, Frame}, {BRtp, Accum}) when KF =:= frame;
-                                           KF =:= keyframe ->
-            {BaseRTP1, RevPacks} =
-              lists:foldl(fun({M, F}, {BR, Acc}) ->
-                              {NewBR, Ps} = compose_rtp(BR#base_rtp{marker = M}, F, 1387),
-                              {NewBR, [Ps | Acc]}
-                          end, {BRtp, Accum},
-                          split_h264_frame(BaseRTP#base_rtp.framelens, Frame)),
-            {BaseRTP1#base_rtp{marker = false}, RevPacks}
-        end,
-      if is_list(Data) ->
-          {NewBaseRTP, RevPacks} = lists:foldl(Fun, {BaseRTP, []}, Data),
-          Packs = lists:reverse(RevPacks);
-         true ->
-          {NewBaseRTP, RevPacks} = Fun(Data, {BaseRTP, []}),
-          Packs = lists:reverse(RevPacks)
-      end;
-    mpeg4 ->
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, Data, 1388);
-    _ ->
-      {NewBaseRTP, Packs} = compose_rtp(BaseRTP, Data) % STUB
-  end,
-  {NewBaseRTP, Packs}.
-
-split_h264_frame(FLS, Frame) ->
-  split_h264_frame(FLS, Frame, []).
-
-split_h264_frame(_FLS, <<>>, Acc) ->
-  lists:reverse(Acc);
-split_h264_frame(FLS, Frame, Acc) ->
-  Len = (8*FLS),
-  <<Size:Len, FrameRest/binary>> = Frame,
-  <<D:Size/binary-unit:8, Rest/binary>> = FrameRest,
-  M = (Rest =:= <<>>),
-  split_h264_frame(FLS, Rest, [{M, D} | Acc]).
-
-
-make_rtp_pack(#base_rtp{codec = PayloadType,
-                        sequence = Sequence,
-                        timecode = Timestamp,
-                        stream_id = SSRC}, Marker, Payload) ->
-  Version = 2,
-  Padding = 0,
-  Extension = 0,
-  CSRC = 0,
-  % ?D({rtp,Sequence,PayloadType,Timestamp}),
-  <<Version:2, Padding:1, Extension:1, CSRC:4, Marker:1, PayloadType:7, Sequence:16, Timestamp:32, SSRC:32, Payload/binary>>.
-
-
-%% Compose one RTP-packet from whole Data
-compose_rtp(Base, Data) ->
-  compose_rtp(Base, Data, undefined, [], undefined).
-
-%% Compose number of RTP-packets from splitten Data to Size
-compose_rtp(Base, Data, Size)
-  when is_integer(Size) ->
-  compose_rtp(Base, Data, Size, [], undefined).
-
-compose_rtp(Base, <<>>, _, Acc, _) -> % Return new Sequence ID and list of RTP-binaries
-  %%?DBG("New Sequence: ~p", [Sequence]),
-  {Base#base_rtp{marker = false}, lists:reverse(Acc)};
-compose_rtp(#base_rtp{sequence = Sequence, marker = _Marker,
-                      packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal)
-  when (is_integer(Size) andalso (size(Data) > Size)) ->
-  <<P:Size/binary,Rest/binary>> = Data,
-  Start = if Acc == [] -> 1; true -> 0 end,
-  End = 0,
-  {PFrag, NewNal} = fragment_nal(P, Nal, Start, End),
-  M = 0,
-  Pack = make_rtp_pack(Base, M, PFrag),
-  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence),
-                            packets = inc_packets(Packets, 1),
-                            bytes = inc_bytes(Bytes, size(Pack))}, Rest, Size, [Pack | Acc], NewNal);
-compose_rtp(#base_rtp{sequence = Sequence, marker = Marker,
-                      packets = Packets, bytes = Bytes} = Base, Data, Size, Acc, Nal) ->
-  if Marker -> M = 1; true -> M = 0 end,
-  ResData =
-    if ((Acc == []) or (Nal == undefined)) ->
-        Data;
-       true ->
-        Start = 0, End = 1,
-        {FN, _Nal} = fragment_nal(Data, Nal, Start, End),
-        FN
-    end,
-  Pack = make_rtp_pack(Base, M, ResData),
-  compose_rtp(Base#base_rtp{sequence = inc_seq(Sequence),
-                            packets = inc_packets(Packets, 1),
-                            bytes = inc_bytes(Bytes, size(Pack))}, <<>>, Size, [Pack | Acc], Nal).
-
-fragment_nal(Data, Nal, S, E) ->
-  if (S == 1) orelse (Nal == undefined) ->
-      <<_:1, NRI:2, Type:5, Payload/binary>> = Data;
-     true ->
-      {NRI, Type} = Nal,
-      Payload = Data
-  end,
-  FUInd = <<0:1, NRI:2, 28:5>>,
-  R = 0,
-  FUHeader = <<S:1, E:1, R:1, Type:5>>,
-  PFrag = <<FUInd/binary, FUHeader/binary, Payload/binary>>,
-  {PFrag, {NRI, Type}}.
-
 
 init_rnd_seq() ->
   random:uniform(16#FFFE) + 1.
@@ -822,26 +645,6 @@ init_rnd_ssrc() ->
 init_rnd_timecode() ->
   Range = 1000000000,
   random:uniform(Range) + Range.
-
-inc_seq(S) ->
-  (S+1) band 16#FFFF.
-
-inc_packets(S, V) ->
-  (S+V) band 16#FFFFFFFF.
-
-inc_bytes(S, V) ->
-  (S+V) band 16#FFFFFFFF.
-
-
-l2b(List) when is_list(List) ->
-  [l2b(B) || B <- List];
-l2b(Bin) when is_binary(Bin) ->
-    l2b(Bin, []).
-
-l2b(<<>>, Acc) ->
-    iolist_to_binary(lists:reverse(Acc));
-l2b(<<A:2/little-unit:8,Rest/binary>>, Acc) ->
-    l2b(Rest, [<<A:2/big-unit:8>> | Acc]).
 
 
 encode({receiver_report, LocalStreamId},

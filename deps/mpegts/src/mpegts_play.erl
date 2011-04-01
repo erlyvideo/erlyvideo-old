@@ -36,7 +36,8 @@
   req,
   buffer = [],
   audio_buffer = [],
-  audio_dts
+  audio_dts,
+  interleave 
 }).
 
 -define(TIMEOUT, 6000).
@@ -47,14 +48,18 @@ play(Name, Player, Req) ->
 play(_Name, Player, Req, Options) ->
   % ?D({"Player starting", _Name, Player}),
   erlang:monitor(process,Player),
-  Streamer = #http_player{player = Player, streamer = mpegts:init()},
   MS1 = erlang:now(),
+  Interleave = case proplists:get_value(interleave, Options) of
+    Num when is_number(Num) andalso Num > 0 -> Num;
+    _ -> false
+  end,
+  Streamer = #http_player{player = Player, interleave = Interleave, streamer = mpegts:init()},
   case proplists:get_value(buffered, Options) of
     true -> 
       #http_player{buffer = MPEGTSBuffer} = Streamer1 = ?MODULE:play(Streamer#http_player{buffer = []}),
       {_Streamer2, Padding} = mpegts:pad_continuity_counters(Streamer1#http_player.streamer),
       Buffer = [Padding|MPEGTSBuffer],
-      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
+      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       MS2 = erlang:now(),
       Req:stream(lists:reverse(Buffer));
     _ ->
@@ -82,20 +87,25 @@ play(#http_player{} = Player) ->
       Player
   end.
   
--define(AUDIO_BUFFER, 20).
 
 handle_msg(#http_player{audio_dts = undefined} = Player, #video_frame{content = audio, dts = DTS} = Frame) ->
   handle_msg(Player#http_player{audio_dts = DTS}, Frame);
 
-handle_msg(#http_player{audio_buffer = Audio, streamer = Streamer} = Player, 
-           #video_frame{content = audio, codec = aac, flavor = Flavor, body = Body}) when length(Audio) < ?AUDIO_BUFFER andalso Flavor =/= config ->
+handle_msg(#http_player{} = Player, #video_frame{content = audio, flavor = config} = F) ->
+  send_frame(Player, F);
+
+handle_msg(#http_player{interleave = false} = Player, #video_frame{content = audio, codec = aac} = Frame) ->
+  send_frame(Player, Frame);
+
+handle_msg(#http_player{audio_buffer = Audio, streamer = Streamer, interleave = Interleave} = Player,
+           #video_frame{content = audio, codec = aac, body = Body}) when length(Audio) < Interleave->
+  % ?D({audio,length(Audio)+1}),
   ADTS = aac:pack_adts(Body, mpegts:audio_config(Streamer)),
-  % ?D({buffering, length(Audio)}),
   {ok, Player#http_player{audio_buffer = [ADTS|Audio]}};
   
-handle_msg(#http_player{audio_buffer = Audio} = Player, #video_frame{content = audio, codec = aac} = Frame) when length(Audio) == ?AUDIO_BUFFER ->
+handle_msg(#http_player{} = Player, #video_frame{content = audio, codec = aac} = Frame) ->
   {ok, Player1} = flush_audio(Player),
-  handle_msg(Player1#http_player{audio_buffer = [], audio_dts = undefined}, Frame);
+  handle_msg(Player1, Frame);
 
 handle_msg(#http_player{} = HTTPPlayer, #video_frame{} = Frame) ->
   % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,round(Frame#video_frame.dts)}),
@@ -117,7 +127,7 @@ handle_msg(#http_player{} = Streamer, Message) ->
 
 flush_audio(#http_player{audio_buffer = Audio, audio_dts = DTS} = Player) ->
   % ?D({flush_adts, length(Audio)}),
-  send_frame(Player, #video_frame{
+  send_frame(Player#http_player{audio_buffer = [], audio_dts = undefined}, #video_frame{
     content = audio,
     codec = adts,
     flavor = frame,

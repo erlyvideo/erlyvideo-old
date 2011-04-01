@@ -1,0 +1,45 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -smp enable -name reverse_mpegts -mnesia debug verbose -pa ebin -pa deps
+
+prepare() ->
+  Root = filename:join(filename:dirname(escript:script_name()), "..")++"/",
+  code:add_pathz(Root ++ "ebin"),
+  code:add_pathz(Root ++ "deps/rtmp/ebin"),
+  code:add_pathz(Root ++ "deps/log4erl/ebin"),
+  code:add_pathz(Root ++ "deps/amf/ebin"),
+  code:add_pathz(Root ++ "deps/rtp/ebin"),
+  code:add_pathz(Root ++ "deps/rtsp/ebin"),
+  code:add_pathz(Root ++ "deps/erlmedia/ebin"),
+  rtsp:start(),
+  ems:rebuild().
+
+
+main(Command) ->
+  run_command(Command).
+  
+run_command(["capture_camera", Name, URL]) ->
+  prepare(),
+  rtsp_test_client:capture_camera(Name, URL);
+
+run_command(["capture_camera"|_]) ->
+  io:format("~s capture_camera Name URL~n", [escript:script_name()]);
+
+run_command(["simulate_camera", Name, Port]) ->
+  prepare(),
+  rtsp_test_client:simulate_camera(Name, list_to_integer(Port));
+
+run_command(["simulate_camera"|_]) ->
+  io:format("~s simulate_camera Name Port~n", [escript:script_name()]);
+
+run_command(["capture_server", Name, ListenPort, Host, Port]) ->
+  prepare(),
+  rtsp_test_client:capture_server(Name, list_to_integer(ListenPort), Host, list_to_integer(Port));
+
+run_command(["capture_server"|_]) ->
+  io:format("~s capture_server Name ListenPort ServerHost ServerPort~n", [escript:script_name()]);
+  
+run_command(_) ->
+  io:format("~s [capture_camera|simulate_camera|capture_server] ~n", [escript:script_name()]).
+
+  

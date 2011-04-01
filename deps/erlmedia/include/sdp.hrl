@@ -1,28 +1,28 @@
--record(payload, {
-          num,
-          codec,
-          clock_map,
-          ms      :: undefined | mono | stereo,
-          ptime   :: integer(),
-          config = []
-         }).
-
+% -record(payload, {
+%           num,
+%           codec,
+%           clock_map,
+%           ms      :: undefined | mono | stereo,
+%           ptime   :: integer(),
+%           config = []
+%          }).
+% 
 -type(sdp_attr() :: atom() | {atom(), string() | binary()}).
+% 
+% -record(media_desc, {
+%   type,
+%   connect,
+%   port,
+%   payloads       = []    :: [#payload{}],
+%   track_control,
+%   pps,
+%   sps,
+%   config,
+%   attrs          = []   :: [sdp_attr()]
+% }).
 
--record(media_desc, {
-  type,
-  connect,
-  port,
-  payloads       = []    :: [#payload{}],
-  track_control,
-  pps,
-  sps,
-  config,
-  attrs          = []   :: [sdp_attr()]
-}).
-
--record(session_desc, {
-  version = <<"0">>,
+-record(sdp_session, {
+  version = 0,
   originator,
   name,
   connect,

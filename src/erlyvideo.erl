@@ -62,6 +62,7 @@ test() ->
     mp4_writer,
     flv_video_frame,
     sdp,
+    rtp_decoder,
     http_uri2,
     packet_codec,
     srt_parser,
@@ -69,8 +70,10 @@ test() ->
     mpegts_reader,
     rtmp,
     rtmp_handshake,
-    rtsp_socket,
-    ems_test_file_reading
+    rtsp,
+    ems_test_file_reading,
+    rtmp_publish_tests,
+    rtmp_read_tests
   ]).
 
 
@@ -116,12 +119,12 @@ start() ->
 	application:start(erlyvideo),
 	
 	ems_license_client:restore(),
-	ems_license_client:ping([sync]),
+	ems_license_client:load([sync]),
 	
   start_http(),
   start_rtmp(),
   mpegts:start(),
-  ertp:start(),
+  rtp:start(),
   rtsp:start(),
 	start_modules(),
   media_provider:start_static_streams(),

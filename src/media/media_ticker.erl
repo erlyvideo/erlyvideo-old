@@ -52,7 +52,8 @@
   playing_till,
   paused = false,
   options,
-  burst_size = ?BURST_SIZE
+  burst_size = ?BURST_SIZE,
+  no_timeouts
 }).
 
 start(Ticker) ->
@@ -80,6 +81,10 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
+  NoTimeouts = case application:get_env(erlyvideo, no_timeouts) of
+    {ok, Val} -> Val;
+    undefined -> false
+  end,
   StreamId = proplists:get_value(stream_id, Options),
   BurstSize = proplists:get_value(burst_size, Options, ?BURST_SIZE),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
@@ -107,7 +112,7 @@ init(Media, Consumer, Options) ->
     Duration -> Start + Duration
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize}).
+                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize, no_timeouts = NoTimeouts}).
   
 loop(Ticker) ->
   receive
@@ -195,7 +200,7 @@ handle_message(tick, #ticker{media = Media, dts = DTS, pos = Pos, consumer = Con
     {ok, [#video_frame{dts = NewDTS, next_id = NewPos} = Frame|_] = Frames} ->
       send_frames(Frames, Consumer, StreamId),
       Ticker1 = save_start_time(Ticker, Frames),
-      Timeout = tick_timeout(Ticker1, Frame),
+      Timeout = tick_timeout(Ticker1, Frame), 
       % ?D({burst, length(Frames), NewPos, round(NewDTS)}),
       Ticker2 = Ticker1#ticker{pos = NewPos, dts = NewDTS},
       receive
@@ -214,7 +219,7 @@ save_start_time(#ticker{timer_start = undefined, client_buffer = ClientBuffer, p
   
   PlayingFrom = case Paused of
     true -> NewDTS - ClientBuffer;
-    false -> send_metadata(Ticker, NewDTS), NewDTS
+    false -> NewDTS
   end,
   Ticker#ticker{timer_start = TimerStart, playing_from = PlayingFrom};
   
@@ -241,15 +246,11 @@ load_frames(_Media, _Consumer, _Pos, _PlayingTill, 0, Frames) ->
 send_frames(Frames, Consumer, StreamId) ->
   [Consumer ! Frame#video_frame{stream_id = StreamId} || Frame <- lists:reverse(Frames)].
 
-send_metadata(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, options = Options}, DTS) ->
-  OptKeys = [duration],
-  MetaOptions = [{K,V} || {K,V} <- Options, lists:member(K, OptKeys) andalso is_number(V)],
-  Metadata = ems_media:metadata(Media, MetaOptions),
-  % ?D({tick, NewDTS, NewPos}),
-  Consumer ! Metadata#video_frame{dts = DTS, pts = DTS, stream_id = StreamId},
-  ok.
 
-tick_timeout(Ticker, Frame) ->
+tick_timeout(#ticker{no_timeouts = true}, _Frame) ->
+  0;
+
+tick_timeout(#ticker{} = Ticker, Frame) ->
   Now = os:timestamp(),
   tick_timeout(Ticker, Frame, Now).
 

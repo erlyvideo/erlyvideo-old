@@ -1,5 +1,6 @@
 {rtmp_port, 1935}.
 {rtsp_port, 8081}.
+{rtsp_callback, ems_rtsp}.
 {http_port, 8082}.
 {iphone_segment_size, 10000}.
 {rtmp_default_wait, false}.

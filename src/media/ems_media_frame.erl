@@ -24,6 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../include/ems_media.hrl").
 -include("../log.hrl").
 -include("ems_media_client.hrl").
@@ -60,16 +61,28 @@ send_frame(Frame, #ems_media{module = M} = Media) ->
         (_, {stop,_,_} = Stop) -> 
           Stop;
         (OutFrame, {noreply, State, _}) ->
-          shift_dts(OutFrame, State)
+          define_media_info(OutFrame, State)
       end, {noreply, Media1, ?TIMEOUT}, Frames);
     {reply, F, Media1} ->
-      shift_dts(F, Media1);
+      define_media_info(F, Media1);
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {stop, Reason, Media1} ->
       {stop, Reason, Media1}
   end.
+  
+  
+define_media_info(#video_frame{content = Content} = F, #ems_media{media_info = #media_info{audio = A, video = V} = MediaInfo} = Media) when
+  (Content == audio andalso (A == [] orelse A == wait)) orelse (Content == video andalso (V == [] orelse V == wait)) ->
+  case video_frame:define_media_info(MediaInfo, F) of
+    MediaInfo -> shift_dts(F, Media);
+    MediaInfo1 -> shift_dts(F, ems_media:set_media_info(Media, MediaInfo1))
+  end;
 
+define_media_info(F, M) ->
+  shift_dts(F, M).
+  
+  
 shift_dts(#video_frame{} = Frame, #ems_media{last_dts = undefined} = Media) ->
   shift_dts(Frame, Media#ems_media{last_dts = 0});
 
@@ -81,28 +94,23 @@ shift_dts(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta = undefined, glue
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
   shift_dts(Frame, Media#ems_media{ts_delta = LastDTS - DTS + GlueDelta}); %% Lets glue new instance of stream to old one plus small glue time
 
-shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  % ?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
-  handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+%shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) when 
+%(DTS + Delta < 0 andalso DTS + Delta >= -1000) orelse (PTS + Delta < 0 andalso PTS + Delta >= -1000) ->
+%  handle_shifted_frame(Frame#video_frame{dts = 0, pts = 0}, Media);
 
-handle_shifted_frame(#video_frame{dts = DTS} = Frame, 
-  #ems_media{format = Format, storage = Storage, frame_number = Number} = Media) ->
+shift_dts(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
+  %?D({Frame#video_frame.content, round(Frame#video_frame.dts), round(Delta), round(DTS + Delta)}),
+      handle_shifted_frame(Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media).
+
+
+handle_shifted_frame(#video_frame{dts = DTS, pts = PTS} = Frame,  Media) when (DTS < 0 andalso DTS >= -1000) orelse (PTS < 0 andalso PTS >= -1000) ->
+  handle_shifted_frame(Frame#video_frame{dts = 0, pts = 0}, Media);
+
+handle_shifted_frame(#video_frame{dts = DTS} = Frame, #ems_media{format = Format, storage = Storage, frame_number = Number} = Media)  ->
   % ?D({Frame#video_frame.content, Number, Frame#video_frame.flavor, Frame#video_frame.dts}),
   Media1 = start_on_keyframe(Frame, Media),
   Storage1 = save_frame(Format, Storage, Frame),
   handle_config(Frame, Media1#ems_media{storage = Storage1, last_dts = DTS, frame_number = Number + 1}).
-
-reply_with_decoder_config(#ems_media{frame_number = Number, audio_config = A, video_config = V,
-  waiting_for_config = Waiting} = Media) 
-  when length(Waiting) > 0 andalso ((A =/= undefined andalso V =/= undefined) orelse (Number >= ?WAIT_FOR_CONFIG)) ->
-  ?D({"Received live config replying to", Number, Waiting}),
-  Reply = {ok, [{audio,A},{video,V}]},
-  [gen_server:reply(From, Reply) || From <- Waiting],
-  Media#ems_media{waiting_for_config = []};
-
-reply_with_decoder_config(Media) ->
-  % ?D({ignoring, Media#ems_media.frame_number}),
-  Media.
 
 
 
@@ -123,10 +131,10 @@ handle_config(Frame, Media) ->
 
 
 handle_frame(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
-  Media1 = reply_with_decoder_config(Media),
-  Media2 = store_last_gop(Media1, Frame),
+  Media2 = store_last_gop(Media, Frame),
   case Content of
     audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
+    metadata -> ems_media_clients:send_frame(Frame, Clients, starting);
     _ -> ok
   end,
   ems_media_clients:send_frame(Frame, Clients, active),
@@ -161,17 +169,13 @@ store_last_gop(#ems_media{last_gop = GOP} = Media, Frame) when is_list(GOP) ->
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = _F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
-  Clients1 = case ems_media:metadata_frame(M) of
-    undefined -> Clients;
-    Meta -> ems_media_clients:send_frame(Meta#video_frame{dts = DTS, pts = DTS}, Clients, starting)
-  end,
   Clients2 = case A of
-    undefined -> Clients1;
-    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+    undefined -> Clients;
+    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients, starting)
   end,
   Clients3 = case V of
     undefined -> Clients2;
-    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients1, starting)
+    _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients2, starting)
   end,
     
   Clients4 = ems_media_clients:mass_update_state(Clients3, starting, active),

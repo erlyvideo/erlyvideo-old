@@ -1,0 +1,20 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -smp enable -name reverse_mpegts -mnesia debug verbose -pa ebin -pa deps
+
+
+main(Files) when length(Files) >= 2 ->
+  [Output|F] = lists:reverse(Files),
+  Root = filename:join(filename:dirname(escript:script_name()), "..")++"/",
+  code:add_pathz(Root ++ "ebin"),
+  code:add_pathz(Root ++ "deps/rtmp/ebin"),
+  code:add_pathz(Root ++ "deps/log4erl/ebin"),
+  code:add_pathz(Root ++ "deps/amf/ebin"),
+  code:add_pathz(Root ++ "deps/erlmedia/ebin"),
+  ems_log:start(),
+  glue_mp4:glue(lists:reverse(F),Output);
+  
+main(_) ->
+  io:format("~s input1.mp4 .. inputN.mp4 output.mp4 ~n", [escript:script_name()]).
+
+  

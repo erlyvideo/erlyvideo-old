@@ -32,7 +32,7 @@
          getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2, 'DVRGetStreamInfo'/2]).
 -export(['WAIT_FOR_DATA'/2, handle_info/2]).
 
--export([extract_play_args/1]).
+-export([extract_play_args/1, parse_play/2]).
 
 'WAIT_FOR_DATA'({metadata, Command, AMF, StreamId}, #rtmp_session{socket = Socket} = State) ->
   Socket ! #rtmp_message{
@@ -116,15 +116,8 @@ deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, socket = Socket} = State, 
-     #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
-  Options1 = extract_play_args(Args),
-  
-  {RawName, Args2} = http_uri2:parse_path_query(FullName),
-  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
-  Options2 = extract_url_args(Args2),
-  
-  Options = lists:ukeymerge(1, Options2, Options1),
+play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+  {Name, Options} = parse_play(FullName, Args),
   
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
@@ -140,10 +133,24 @@ play(#rtmp_session{host = Host, socket = Socket} = State,
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State;
     {ok, Media} ->
+      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId}, State),
+      State2 = rtmp_session:send_frame(rtmp_session:metadata(Media, [{stream_id,StreamId}|Options]), State1),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId}, State)
+      State2
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
+
+parse_play(FullName, Args) ->
+  Options1 = extract_play_args(Args),
+
+  {RawName, Args2} = http_uri2:parse_path_query(FullName),
+  Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
+  Options2 = extract_url_args(Args2),
+
+  Options = lists:ukeymerge(1, Options2, Options1),
+  {Name, Options}.
+
+
   
 extract_url_args([]) -> [];
 extract_url_args({"start", Start}) -> {start, list_to_integer(Start)*1000};

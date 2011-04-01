@@ -22,7 +22,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(media_detector).
 -author('Max Lapshin <max@maxidoors.ru>').
--export([rewrite/3, http/3, rtsp/3, ts_file/3, file/3, livestream/3, check_path/2]).
+-export([rewrite/3, http/3, rtsp/3, rtmp/3, ts_file/3, file/3, livestream/3, check_path/2]).
 
 
 rewrite(Host, Name, Opts) when is_binary(Name) -> 
@@ -48,6 +48,14 @@ rtsp(_Host, Name, _Opts) ->
   {ok, Re} = re:compile("rtsp://(.*)"),
   case re:run(Name, Re) of
     {match, _Captured} -> [{type, rtsp},{url,Name}];
+    _ -> false
+  end.
+
+
+rtmp(_Host, Name, _Opts) ->
+  {ok, Re} = re:compile("rtmp://(.*)"),
+  case re:run(Name, Re) of
+    {match, _Captured} -> [{type, rtmp},{url,Name}];
     _ -> false
   end.
 

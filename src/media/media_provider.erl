@@ -39,7 +39,7 @@
 
 %% External API
 -export([start_link/1, create/3, open/2, open/3, play/2, play/3, entries/1, remove/2, find/2, register/3, register/4]).
--export([info/1, info/2, detect_type/3]). % just for getStreamLength
+-export([info/1, info/2, media_info/2, detect_type/3]). % just for getStreamLength
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -190,6 +190,13 @@ info(undefined) ->
   
 info(Media) ->
   ems_media:info(Media).
+  
+
+media_info(Host, Name) ->
+  case open(Host, Name) of
+    {ok, Media} -> ems_media:media_info(Media);
+    _ -> undefined
+  end.
   
 
 init_names() ->
@@ -354,6 +361,9 @@ start_new_media_entry(Host, Name, Opts) ->
       ?D({"Error opening", Type, Name, Else}),
       {notfound, <<"Failed to open ", Name/binary>>}
   end.
+
+detect_type(Host, Name, Opts) when is_list(Name) ->
+  detect_type(Host, list_to_binary(Name), Opts);
   
 detect_type(Host, Name, Opts) ->
   Detectors = ems:get_var(detectors, Host, [rewrite, http, rtsp, ts_file, file, livestream]),

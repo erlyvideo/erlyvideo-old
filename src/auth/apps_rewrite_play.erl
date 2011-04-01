@@ -28,7 +28,7 @@
 -include("../log.hrl").
 
 
--export([play/2, run_http_request/2]).
+-export([play/2]).
 
 
 dump_session_id(SessionId) when is_integer(SessionId) -> integer_to_list(SessionId);
@@ -37,44 +37,48 @@ dump_session_id(SessionId) when is_list(SessionId) -> SessionId;
 dump_session_id(SessionId) -> lists:flatten(io_lib:format("~p",[SessionId])).
 
 
-play(#rtmp_session{} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
-  run_http_request(State, AMF).
-
-
-run_http_request(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
-  {http, _UserInfo, Host, Port, Path, _Query} = http_uri2:parse(URL),
+play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State, #rtmp_funcall{args = [null, FullName | Args]} = AMF) ->
+  {Name, Options} = apps_streaming:parse_play(FullName, Args),
   
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary]),
-  Req = io_lib:format("GET ~s?ip=~s&file=~s&user_id=~p&session_id="++dump_session_id(SessionId)++" HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, IP, Name, UserId, Host]),
-  ?D({http_check, lists:flatten(Req)}),
-  ok = gen_tcp:send(Socket, Req),
-  inet:setopts(Socket, [{packet,http},{active,once}]),
-  receive
-    {http, Socket, {http_response, _, 200, _Status}} ->
-      gen_tcp:close(Socket),
+  Req = lists:flatten(io_lib:format("~s?ip=~s&file=~s&user_id=~p&session_id="++dump_session_id(SessionId), [URL, IP, Name, UserId])),
+
+  ?D({auth_backend_request, Req}),
+  {Code, Headers} = case ibrowse:send_req(Req,[],get,[],[{response_format,binary}]) of
+    {ok, Code_, Headers_, _Bin} ->
+      {Code_, Headers_};
+    _Else ->
+      erlang:error({http_auth_backend_error, _Else})
+  end,
+  
+  schedule_play_limit_timer(Headers, Options),
+  
+  case Code of
+    "200" ->
       unhandled;
-    {http, Socket, {http_response, _, 302, _Status}} ->
-      inet:setopts(Socket, [{active,once}]),
-      fetch_headers(State, AMF)
-  after
-    3000 ->
-      erlang:error(http_redirect_timeout)
+    "302" ->
+      case proplists:get_value("X-Location", Headers, proplists:get_value('Location', Headers)) of
+        undefined ->
+          ?D({"Auth backend replied 302 but no Location or X-Location header:", URL, Headers}),
+          State;
+        Path ->
+          {unhandled, State, AMF#rtmp_funcall{args = [null, list_to_binary(Path) | Args]}}
+      end;
+    Else ->
+      ?D({"Auth backend forbidden play", Else}),
+      State
   end.
 
 
-fetch_headers(State, #rtmp_funcall{args = [null, _OldName | Args]} = AMF) ->
-  receive
-    {http, Socket, {http_header, _, "X-Location", _, Path}} ->
-      gen_tcp:close(Socket),
-      {unhandled, State, AMF#rtmp_funcall{args = [null, list_to_binary(Path) | Args]}};
-    {http, Socket, {http_header, _, 'Location', _, Path}} ->
-      gen_tcp:close(Socket),
-      {unhandled, State, AMF#rtmp_funcall{args = [null, list_to_binary(Path) | Args]}};
-    {http, Socket, {http_header, _, _Key, _, _Value}} ->
-      inet:setopts(Socket, [{active,once}]),
-      fetch_headers(State, AMF)
-  after
-    3000 ->
-      erlang:error(http_redirect_timeout)
+schedule_play_limit_timer(Headers, Options) ->
+  case proplists:get_value("X-Play-Time", Headers) of
+    undefined -> ok;
+    Timer_ ->
+      Timer = list_to_integer(Timer_),
+      put(auth_play_limit, Timer),
+      case proplists:get_value(start, Options, 0) of
+        Num when is_integer(Num) andalso Num >= Timer -> self() ! exit;
+        Num when is_integer(Num) andalso Num >= 0 -> timer:send_after(Timer - Num, exit)
+      end
   end.
-         
+
+      

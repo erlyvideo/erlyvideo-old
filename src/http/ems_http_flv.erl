@@ -39,10 +39,6 @@ http(Host, 'GET', ["flv" | Name] = Path, Req) ->
   Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Seek) of
     {ok, Stream} ->
-      case proplists:get_value("session_id", Query) of
-        undefined -> ok;
-        SessionId -> ems_flv_streams:register({Host,SessionId}, {Stream, self()})
-      end,
       flv_writer:init(fun(Data) -> Req:stream(Data) end, Stream, []),
       ems_media:stop(Stream),
       Req:stream(close),
@@ -53,24 +49,6 @@ http(Host, 'GET', ["flv" | Name] = Path, Req) ->
     Reason -> 
       Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
       Req:stream(close)
-  end;
-
-http(Host, 'GET', ["flvcontrol", SessionId, "pause"], Req) ->
-  case ems_flv_streams:command({Host,SessionId}, pause) of
-    undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
-    _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
-  end;
-
-http(Host, 'GET', ["flvcontrol", SessionId, "resume"], Req) ->
-  case ems_flv_streams:command({Host,SessionId}, resume) of
-    undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
-    _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
-  end;
-
-http(Host, 'GET', ["flvcontrol", SessionId, "seek", Timestamp], Req) ->
-  case ems_flv_streams:command({Host,SessionId}, {seek, list_to_integer(Timestamp)}) of
-    undefined -> Req:respond(404, [{'Content-Type', "text/plain"}], "404 Not Found");
-    _ -> Req:ok([{'Content-Type', "text/plain"}], "ok")
   end;
 
 http(_Host, _Method, _Path, _Req) ->

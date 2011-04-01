@@ -34,10 +34,10 @@
   restart_count = 0
 }).
 
-connect_rtsp(#ems_media{host = Host, url = URL, state = #rtsp{timeout = Timeout}}) ->
-  ?D({"Connecting to RTSP", URL}),
+connect_rtsp(#ems_media{host = Host, url = URL, options = Options, state = #rtsp{timeout = Timeout}}) ->
+  ?D({"Connecting to RTSP", URL, Options}),
   ems_event:stream_source_requested(Host, URL, []),
-  rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout}]).
+  rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout},{dump_traffic,proplists:get_value(dump_traffic,Options,true)}]).
 
 
 
@@ -121,10 +121,10 @@ handle_frame(Frame, State) ->
 handle_info(make_request, #ems_media{host = Host, url = URL, retry_count = Count, retry_limit = Limit} = Media) when 
   (is_number(Count) andalso is_number(Limit) andalso Count =< Limit) orelse Limit == false ->
   case connect_rtsp(Media) of
-    {ok, Reader} ->
+    {ok, Reader, MediaInfo} ->
       ems_event:stream_source_requested(Host, URL, []),
       ems_media:set_source(self(), Reader),
-      {noreply, Media#ems_media{retry_count = 0}};
+      {noreply, ems_media:set_media_info(Media#ems_media{retry_count = 0}, MediaInfo)};
     _Else ->
       ?D({"Failed to open rtsp_source", Media#ems_media.url, "retry count/limit", Count, Limit, _Else}),
       timer:send_after(1000, make_request),

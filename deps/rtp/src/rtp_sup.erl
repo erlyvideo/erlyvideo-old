@@ -1,4 +1,4 @@
--module(ertp_sup).
+-module(rtp_sup).
 -include("log.hrl").
 
 -behaviour(supervisor).

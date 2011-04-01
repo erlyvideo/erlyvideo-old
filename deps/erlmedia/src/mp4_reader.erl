@@ -27,6 +27,7 @@
 -behaviour(gen_format).
 -include("../include/video_frame.hrl").
 -include("../include/mp4.hrl").
+-include("../include/aac.hrl").
 -include("../include/media_info.hrl").
 -include("log.hrl").
 
@@ -101,8 +102,10 @@ media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tra
         width = Track#mp4_track.width,
         height = Track#mp4_track.height
       };
-      audio -> #audio_params{
-      };
+      audio when Track#mp4_track.data_format == aac-> 
+        #aac_config{channel_count = Channels, sample_rate = SampleRate} = aac:decode_config(Track#mp4_track.decoder_config),
+        #audio_params{channels = Channels, sample_rate = SampleRate};
+      audio -> #audio_params{};
       _ -> undefined
     end,
     #stream_info{

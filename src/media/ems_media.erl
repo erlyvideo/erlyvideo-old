@@ -53,6 +53,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../include/ems_media.hrl").
 -include("ems_media_client.hrl").
 -include("../log.hrl").
@@ -60,10 +61,12 @@
 %% External API
 -export([start_link/2, start_custom/2, stop_stream/1]).
 -export([play/2, stop/1, resume/1, pause/1, seek/2, seek/3]).
--export([metadata/1, metadata/2, play_setup/2, seek_info/2, seek_info/3]).
--export([info/1, info/2, status/1]).
+-export([play_setup/2, seek_info/2, seek_info/3]).
 -export([subscribe/2, unsubscribe/1, set_source/2, set_socket/2, read_frame/2, read_frame/3, publish/2]).
--export([decoder_config/1, metadata_frame/1, metadata_frame/2]).
+
+
+-export([media_info/1, set_media_info/2]).
+-export([status/1, info/1, info/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
@@ -252,6 +255,58 @@ seek_info(Media, DTS) when is_number(DTS) ->
 
 
 %%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::list()) -> ok
+%%
+%% @doc One day will set same options as in {@link subscribe/2.} dynamically
+%% Available options:
+%% buffer_size : BufferSize - size of prepush in seconds
+%% send_video : boolean() - send video or not
+%% send_audio : boolean() - send audio or not
+%% @end
+%%----------------------------------------------------------------------
+play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
+  gen_server:cast(Media, {play_setup, self(), Options}).
+
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Frame::video_frame()) -> any()
+%%
+%% @doc Publishes frame to media
+%% @end
+%%----------------------------------------------------------------------
+publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
+  Media ! Frame.
+
+
+
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid()) -> Status::list()
+%%  
+%% @end
+%%----------------------------------------------------------------------
+media_info(Media) ->
+  gen_server:call(Media, media_info, 120000).
+
+
+
+set_media_info(Media, #media_info{} = Info) when is_pid(Media) ->
+  gen_server:call(Media, {set_media_info, Info});
+
+set_media_info(#ems_media{media_info = Info} = Media, Info) ->
+  Media;
+  
+set_media_info(#ems_media{waiting_for_config = Waiting} = Media, #media_info{audio = A, video = V} = Info) ->
+  case A == wait orelse V == wait of
+    true -> 
+      Media#ems_media{media_info = Info};
+    false ->
+      Reply = reply_with_media_info(Media, Info),
+      [gen_server:reply(From, Reply) || From <- Waiting],
+      Media#ems_media{media_info = Info, waiting_for_config = []}
+  end.
+
+%%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
 %%  
 %% @end
@@ -291,59 +346,8 @@ properties_are_valid(Properties) ->
   lists:subtract(Properties, known_properties()) == [].
   
   
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> Metadata::video_frame()
-%%
-%% @doc Returns video_frame, prepared to send into flash
-%% @end
-%%----------------------------------------------------------------------
-metadata(Media) when is_pid(Media) ->
-  metadata(Media, []).
-
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
-%%
-%% @doc Returns video_frame, prepared to send into flash
-%% @end
-%%----------------------------------------------------------------------
-metadata(Media, Options) when is_pid(Media) ->
-  gen_server:call(Media, {metadata, Options}).  
 
 
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Options::list()) -> ok
-%%
-%% @doc One day will set same options as in {@link subscribe/2.} dynamically
-%% Available options:
-%% buffer_size : BufferSize - size of prepush in seconds
-%% send_video : boolean() - send video or not
-%% send_audio : boolean() - send audio or not
-%% @end
-%%----------------------------------------------------------------------
-play_setup(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:cast(Media, {play_setup, self(), Options}).
-  
-  
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Frame::video_frame()) -> any()
-%%
-%% @doc Publishes frame to media
-%% @end
-%%----------------------------------------------------------------------
-publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
-  Media ! Frame.
-
-
-%%----------------------------------------------------------------------
-%% @spec (Media::pid()) -> proplist()
-%%
-%% @doc Returns decoder config, extracted from media. Important: it can block for some time
-%% or return undefined, when there may be config.
-%% @end
-%%----------------------------------------------------------------------
-decoder_config(Media) when is_pid(Media) ->
-  Timeout = 8000,
-  gen_server:call(Media, decoder_config, Timeout).
 
 
   
@@ -383,10 +387,12 @@ init([Module, Options]) ->
   end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
+                     media_info = proplists:get_value(media_info, Options, #media_info{flow_type = stream}),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
                      created_at = ems:now(utc)},
                      
   timer:send_interval(30000, garbage_collect),
+  timer:send_after(5000, stop_wait_for_config),
   case Module:init(Media, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),
@@ -448,119 +454,45 @@ or_time(Timeout, _) -> Timeout.
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({subscribe, Client, Options}, From, #ems_media{clients_timeout_ref = Ref} = Media) when Ref =/= undefined ->
-  timer:cancel(Ref),
-  handle_call({subscribe, Client, Options}, From, Media#ems_media{clients_timeout_ref = undefined});
+handle_call({subscribe, _, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
 
+handle_call({stop, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
 
-handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients, audio_config = A, last_dts = DTS} = Media) ->
-  StreamId = proplists:get_value(stream_id, Options),
+handle_call({unsubscribe, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
 
-  DefaultSubscribe = fun(Reply, #ems_media{} = Media1) ->
-    Ref = erlang:monitor(process,Client),
-    RequireTicker = case Reply of
-      tick -> true;
-      _ -> proplists:get_value(start, Options) =/= undefined
-    end,
-    Clients1 = case RequireTicker of
-      true ->
-        {ok, Ticker} = ems_sup:start_ticker(self(), Client, Options),
-        TickerRef = erlang:monitor(process,Ticker),
-        Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
-        ems_media_clients:insert(Clients, Entry);
-      false ->
-        %
-        % It is very important to understand, that we need to send audio config here, because client starts receiving music
-        % right after subscribing, but it will wait for video till keyframe
-        %
-        (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
-        ClientState = case proplists:get_value(paused, Options, false) of
-          true -> paused;
-          false -> starting
-        end,
-        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS})
-    end,
-    {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
-  end,
-  
-  case M:handle_control({subscribe, Client, Options}, Media) of
-    {stop, Reason, Media1} ->
-      ?D({"ems_media failed to subscribe",Client,M,Reason}),
-      {stop, Reason, Media1};
-    {stop, Reason, Reply, Media1} ->
-      {stop, Reason, Reply, Media1};
-    {reply, {error, Reason}, Media1} ->
-      {reply, {error, Reason}, Media1, ?TIMEOUT};
-    {reply, Reply, Media1} ->
-      DefaultSubscribe(Reply, Media1);
-    {noreply, Media1} ->
-      DefaultSubscribe(ok, Media1)
-  end;
+handle_call({start, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
+
+handle_call({resume, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
+
+handle_call({pause, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
+
+handle_call({seek, _, _} = Call, From, Media) ->
+  ems_media_client_control:handle_call(Call, From, Media);
+
 
 handle_call(stop, _From, Media) ->
   {stop, normal, Media};
 
   
-handle_call({stop, Client}, _From, Media) ->
-  unsubscribe_client(Client, Media);
-  
-handle_call({unsubscribe, Client}, _From, Media) ->
-  unsubscribe_client(Client, Media);
 
 
-handle_call({start, Client}, From, Media) ->
-  handle_call({resume, Client}, From, Media);
+handle_call(media_info, _From, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) when A =/= wait andalso V =/= wait ->
+  {reply, reply_with_media_info(Media, Info), Media, ?TIMEOUT};
 
-handle_call(decoder_config, From, #ems_media{video_config = undefined, audio_config = undefined, storage = undefined,
-            frame_number = Number, waiting_for_config = Waiting} = Media) when Number < ?WAIT_FOR_CONFIG ->
+
+handle_call(media_info, From, #ems_media{waiting_for_config = Waiting} = Media) ->
   ?D({"No decoder config in live stream, waiting"}),
   {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}, ?TIMEOUT};
 
-handle_call(decoder_config, _From, #ems_media{video_config = undefined, audio_config = undefined, 
-            storage = Storage} = Media) when Storage =/= undefined ->
-  Media1 = try_find_config(Media),
-  {reply, {ok, [{audio,Media1#ems_media.audio_config},{video,Media1#ems_media.video_config}]}, Media1, ?TIMEOUT};
-
-handle_call(decoder_config, _From, #ems_media{video_config = V, audio_config = A} = Media) ->
-  {reply, {ok, [{audio,A},{video,V}]}, Media, ?TIMEOUT};
+handle_call({set_media_info, Info}, _From, #ems_media{} = Media) ->
+  {reply, ok, set_media_info(Media, Info), ?TIMEOUT};
   
-handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
-  case ems_media_clients:find(Clients, Client) of
-    #client{state = passive, ticker = Ticker} ->
-      media_ticker:resume(Ticker),
-      {reply, ok, Media, ?TIMEOUT};
-
-    #client{state = paused} ->
-      Clients1 = ems_media_clients:update_state(Clients, Client, starting),
-      {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
-      
-    #client{} ->
-      {reply, ok, Media, ?TIMEOUT};
-
-    undefined ->
-      {reply, {error, no_client}, Media, ?TIMEOUT}
-  end;
-      
-handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
-  case ems_media_clients:find(Clients, Client) of
-    #client{state = passive, ticker = Ticker} ->
-      ?D({"Pausing passive client", Client}),
-      media_ticker:pause(Ticker),
-      {reply, ok, Media, ?TIMEOUT};
-    
-    #client{} ->
-      ?D({"Pausing active client", Client}),
-      Clients1 = ems_media_clients:update_state(Clients, Client, paused),
-      {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
-      
-    undefined ->
-      ?D({"No client to pause", Client}),
-      {reply, {error, no_client}, Media, ?TIMEOUT}
-  end;
-
-handle_call({seek, _Client, _DTS} = Seek, _From, #ems_media{} = Media) ->
-  handle_seek(Seek, Media);
-      
 
 %% It is information seek, required for outside needs.
 handle_call({seek_info, DTS, Options} = SeekInfo, _From, #ems_media{format = Format, storage = Storage, module = M} = Media) ->
@@ -597,9 +529,6 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
     _ -> Media
   end,
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
-
-handle_call({metadata, Options}, _From, #ems_media{} = Media) ->
-  {reply, metadata_frame(Media, Options), Media, ?TIMEOUT};
 
 handle_call({info, Properties}, _From, Media) ->
   {reply, reply_with_info(Media, Properties), Media, ?TIMEOUT};
@@ -713,39 +642,8 @@ handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{module = M, sou
   end;
 
   
-handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients = Clients, module = M} = Media) ->
-  case unsubscribe_client(Pid, Media) of
-    {reply, {error, no_client}, Media2, _} ->
-      case ems_media_clients:find_by_ticker(Clients, Pid)  of
-        #client{consumer = Client, stream_id = StreamId} ->
-          case ClientReason of 
-            normal -> ok;
-            _ -> Client ! {ems_stream, StreamId, play_failed}
-          end,
-          case unsubscribe_client(Client, Media2) of
-            {reply, _Reply, Media3, _} -> {noreply, Media3, ?TIMEOUT};
-            {stop, Reason, _Reply, Media3} ->
-              ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
-              {stop, Reason, Media3};
-            {stop, Reason, Media3} -> 
-              ?D({"ems_media is stopping after unsubscribe", M, Client, Reason}),
-              {stop, Reason, Media3}
-          end;
-        undefined -> 
-          case M:handle_info(Msg, Media2) of
-            {noreply, Media3} -> {noreply, Media3, ?TIMEOUT};
-            {stop, Reason, Media3} -> 
-              ?D({"ems_media is stopping after handling info", M, Msg, Reason}),
-              {stop, normal, Media3}
-          end
-      end;
-    {reply, _Reply, Media2, _} -> {noreply, Media2, ?TIMEOUT};
-    {stop, Reason, _Reply, Media1} ->
-      {stop, Reason, Media1};
-    {stop, Reason, Media2} -> 
-      ?D({"ems_media is stopping after unsubscribe", M, Pid, Reason}),
-      {stop, Reason, Media2}
-  end;
+handle_info({'DOWN', _Ref, process, _Pid, _Reason} = Msg, #ems_media{} = Media) ->
+  ems_media_client_control:handle_info(Msg, Media);
 
 handle_info(#video_frame{} = Frame, Media) ->
   % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
@@ -777,31 +675,17 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
       {noreply, Media2#ems_media{source = NewSource, source_timeout_ref = undefined, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
   end;
 
-
-handle_info(no_clients, #ems_media{module = M} = Media) ->
-  case client_count(Media) of
-    0 ->
-      % ?D({"graceful received, handling", self(), Media#ems_media.name}),
-      case M:handle_control(no_clients, Media) of
-        {noreply, Media1} ->
-          ?D({"ems_media is stopping", M, Media#ems_media.name}),
-          {stop, normal, Media1};
-        {stop, Reason, _Reply, Media1} ->
-          {stop, Reason, Media1};
-        {stop, Reason, Media1} ->
-          case Reason of
-            normal -> ok;
-            _ -> ?D({"ems_media is stopping after graceful", M, Reason, Media#ems_media.name})
-          end,
-          {stop, Reason, Media1};
-        {reply, ok, Media1} ->
-          ?D({M, "rejected stopping of ems_media due to 0 clients", self(), Media#ems_media.name}),
-          {noreply, Media1#ems_media{clients_timeout_ref = undefined}, ?TIMEOUT}
-      end;
-    _ -> {noreply, Media, ?TIMEOUT}
-  end;
+handle_info(no_clients, Media) ->
+  ems_media_client_control:handle_info(no_clients, Media);
   
 
+handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = [_], video = [_]}} = Media) ->
+  {noreply, Media};
+
+handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) -> % 
+  Info1 = Info#media_info{audio = case A of wait -> []; _ -> A end, video = case V of wait -> []; _ -> V end},
+  ?D({flush_media_info, Info, Info1}),
+  {noreply, set_media_info(Media, Info1)};
 
 
 % handle_info(timeout, #ems_media{timeout_ref = Ref} = Media) when Ref =/= undefined ->
@@ -840,187 +724,24 @@ handle_info(Message, #ems_media{module = M} = Media) ->
   end.
 
 
-try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = undefined} = Media) ->
-  Media;
+reply_with_media_info(#ems_media{} = Media, #media_info{options = Options} = Info) ->
+  Props = storage_properties(Media),
+  case lists:keytake(duration, 1, Props) of
+    {value, {duration, Duration}, Props1} -> 
+      Info#media_info{duration = Duration, options = lists:ukeymerge(1, Props1, lists:ukeysort(1, Options))};
+    false ->
+      Info#media_info{options = lists:ukeymerge(1, Props, lists:ukeysort(1, Options))}
+  end.
 
-try_find_config(#ems_media{audio_config = undefined, video_config = undefined, format = Format} = Media) 
-  when Format =/= undefined ->
+storage_properties(#ems_media{format = undefined}) -> [];
+storage_properties(#ems_media{format = Format, storage = Storage}) -> lists:ukeysort(1,Format:properties(Storage)).
 
-  try_n_frames(Media, 10, undefined).
-
-
-try_n_frames(#ems_media{audio_config = A, video_config = V} = Media, _, _) 
-  when A =/= undefined andalso V =/= undefined ->
-  Media;
-
-try_n_frames(Media, _, eof) ->
-  Media;
   
-try_n_frames(Media, 0, _) -> 
-  Media;
 
-try_n_frames(#ems_media{format = Format, storage = Storage} = Media, N, Key) ->
-  Frame = Format:read_frame(Storage, Key),
-  case Frame of
-    #video_frame{content = video, flavor = config, next_id = Next} -> 
-      try_n_frames(Media#ems_media{video_config = Frame}, N-1, Next);
-    #video_frame{content = audio, flavor = config, next_id = Next} -> 
-      try_n_frames(Media#ems_media{audio_config = Frame}, N-1, Next);
-    #video_frame{content = audio, codec = Codec, next_id = Next} when Codec =/= aac -> 
-    % none is not undefined. none means, that this stream doesn't have any config
-      try_n_frames(Media#ems_media{audio_config = none}, N-1, Next);
-    #video_frame{content = video, codec = Codec, next_id = Next} when Codec =/= h264 -> 
-      try_n_frames(Media#ems_media{video_config = none}, N-1, Next);
-    #video_frame{next_id = Next} -> 
-      try_n_frames(Media, N+1, Next);
-    eof ->
-      Media
-  end.
-
-
-
-
-handle_seek({seek, Client, DTS} = Seek, #ems_media{module = M} = Media) ->
-  ?D({"Going to seek", Seek}),
-  case M:handle_control(Seek, Media) of
-    {noreply, Media1} ->
-      ?D({"default seek", Seek}),
-      default_ems_media_seek(Seek, Media1);
-    {stop, Reason, Media1} ->
-      {stop, Reason, Media1};
-    {reply, {NewKey, NewDTS}, Media1} ->
-      default_seek_reply(Client, {DTS, NewKey, NewDTS}, Media1);
-    {reply, Reply, Media1} ->
-      default_seek_reply(Client, Reply, Media1)
-  end.
-
-
-default_ems_media_seek(_, #ems_media{format = undefined} = Media) ->
-  ?D("no format"),
-  {reply, seek_failed, Media, ?TIMEOUT};
-  
-default_ems_media_seek({seek, Client, DTS}, #ems_media{format = Format, storage = Storage} = Media) ->
-  ?D({"default seek", Client, DTS}),
-  case Format:seek(Storage, DTS, []) of
-    {NewPos, NewDTS} ->
-      ?D({"seek ready", NewPos, NewDTS}),
-      default_seek_reply(Client, {DTS, NewPos, NewDTS}, Media);
-    undefined ->
-      ?D({"no flv seek"}),
-      {reply, seek_failed, Media, ?TIMEOUT}
-  end.
-
-
-default_seek_reply(Client, {DTS, NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
-  ?D({dst,DTS,NewPos,NewDTS}),
-  case ems_media_clients:find(Clients, Client) of
-    #client{ticker = Ticker, state = passive} ->
-      media_ticker:seek(Ticker, DTS),
-      {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
-
-    #client{stream_id = StreamId} = Entry ->
-      {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
-      TickerRef = erlang:monitor(process,Ticker),
-      media_ticker:seek(Ticker, NewDTS),
-      Clients1 = ems_media_clients:update(Clients, Client, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
-      {reply, {seek_success, NewDTS}, Media#ems_media{clients = Clients1}, ?TIMEOUT};
-
-    _ ->
-      ?D("Client requested seek not in list"),
-      {reply, seek_failed, Media, ?TIMEOUT}
-  end.
-
-
-
-unsubscribe_client(Client, #ems_media{options = Options, clients = Clients, module = M} = Media) ->
-  case ems_media_clients:find(Clients, Client) of
-    #client{ref = Ref, ticker = Ticker, ticker_ref = TickerRef} ->
-      case M:handle_control({unsubscribe, Client}, Media) of
-        {noreply, Media1} ->
-          case TickerRef of
-            undefined -> ok;
-            _ ->
-              erlang:demonitor(TickerRef, [flush]),
-              (catch media_ticker:stop(Ticker))
-          end,
-        
-          erlang:demonitor(Ref, [flush]),
-          Entry = ems_media_clients:find(Clients, Client),
-          Host = proplists:get_value(host, Options),
-          Stats = [{bytes_sent, Entry#client.bytes}],
-          Clients1 = ems_media_clients:delete(Clients, Client),
-
-          ems_event:user_stop(Host, Client, self(), Stats),
-
-          {reply, ok, check_no_clients(Media1#ems_media{clients = Clients1}), ?TIMEOUT};
-        {reply, Reply, Media1} ->
-          {reply, Reply, Media1, ?TIMEOUT};
-
-        {stop, Reason, Reply, Media1} ->
-          {stop, Reason, Reply, Media1};
-
-        {stop, Reason, Media1} ->
-          {stop, Reason, Media1}
-      end;    
-
-    undefined ->
-      {reply, {error, no_client}, check_no_clients(Media), ?TIMEOUT}
-  end.
-
-
-check_no_clients(#ems_media{clients_timeout = Timeout} = Media) ->
-  Count = client_count(Media),
-  {ok, TimeoutRef} = case Count of
-    0 when is_number(Timeout) -> 
-      % ?D({"No clients, sending delayed graceful", Timeout, self(), Media#ems_media.name}), 
-      timer:send_after(Timeout, no_clients);
-    _ -> 
-      {ok, undefined}
-  end,
-  Media#ems_media{clients_timeout_ref = TimeoutRef}.
 
 mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
   Clients1 = ems_media_clients:mass_update_state(Clients, active, starting),
   Media#ems_media{clients = Clients1}.
-
-
-client_count(#ems_media{clients = Clients}) ->
-  ems_media_clients:count(Clients).
-
-
-storage_properties(Media) ->
-  storage_properties(Media, []).
-
-storage_properties(#ems_media{format = undefined}, Options) ->
-  Options;
-
-storage_properties(#ems_media{format = Format, storage = Storage}, Options) ->
-  Props = lists:ukeymerge(1, lists:ukeysort(1,Options), lists:ukeysort(1,Format:properties(Storage))),
-  case proplists:get_value(duration, Props) of
-    undefined -> Props;
-    Duration -> lists:ukeymerge(1, [{duration,Duration/1000},{length,Duration}], lists:ukeysort(1,Props))
-  end.
-
-metadata_frame(#ems_media{} = Media) ->
-  metadata_frame(Media, []).
-
-metadata_frame(#ems_media{format = undefined} = M, Options) ->
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, video_parameters(M, Options)}]};
-  % undefined;
-  
-metadata_frame(#ems_media{} = Media, Options) ->
-  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
-                      (Else) -> Else end, storage_properties(Media, Options)),
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media, Options))}]}.
-
-
-
-video_parameters(#ems_media{video_config = #video_frame{body = Config}}, Options) ->
-  lists:ukeymerge(1, [{duration,proplists:get_value(duration, Options,0)}], lists:keysort(1, h264:metadata(Config)));
-  
-video_parameters(#ems_media{}, Options) ->  
-  [{duration,proplists:get_value(duration, Options, 0)}].
-
 
 
 
@@ -1032,7 +753,7 @@ reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_a
     (created_at, Props)   -> [{created_at,CreatedAt}|Props];
     (ts_delay, Props) when Type == file -> [{ts_delay,0}|Props];
     (ts_delay, Props)     -> [{ts_delay,(ems:now(utc) - CreatedAt)*1000 - LastDTS}|Props];
-    (client_count, Props) -> [{client_count,client_count(Media)}|Props];
+    (client_count, Props) -> [{client_count,ems_media_client_control:client_count(Media)}|Props];
     (storage, Props)      -> storage_properties(Media) ++ Props;
     (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props];
     (options, Props)      -> Props ++ Options

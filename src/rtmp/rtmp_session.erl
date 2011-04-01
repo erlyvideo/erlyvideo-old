@@ -24,6 +24,7 @@
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../log.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../../include/rtmp_session.hrl").
@@ -38,7 +39,8 @@
 %% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--export([send/2, flush_stream/1]).
+-export([send/2, send_frame/2, flush_stream/1]).
+-export([metadata/1, metadata/2]).
 
 %% FSM States
 -export([
@@ -148,6 +150,48 @@ fail(Socket, AMF) when is_pid(Socket) ->
 
 message(Pid, Stream, Code, Body) ->
   gen_fsm:send_event(Pid, {message, Stream, Code, Body}).
+
+
+
+
+metadata(Media) when is_pid(Media) ->
+  metadata(Media, []).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
+%%
+%% @doc Returns video_frame, prepared to send into flash
+%% @end
+%%----------------------------------------------------------------------
+metadata(Media, Options) when is_pid(Media) ->
+  MediaInfo = ems_media:media_info(Media),
+  Info1 = add_metadata_options(MediaInfo, Options),
+  metadata_frame(Info1, Options).
+
+
+add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
+add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options);
+add_metadata_options(#media_info{} = MediaInfo, [_|Options]) -> add_metadata_options(MediaInfo, Options).
+
+
+metadata_frame(#media_info{options = Options, duration = Duration} = Media, Opts) ->
+  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
+                      ({K,V}) when is_tuple(V) -> {K, iolist_to_binary(io_lib:format("~p", [V]))};
+                      (Else) -> Else end, Options),
+  Meta1 = lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media)),
+  DurationMeta = case Duration of
+    undefined -> [];
+    _ -> [{duration, Duration / 1000}]
+  end,
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}], 
+               stream_id = proplists:get_value(stream_id, Opts, 0), dts = 0, pts = 0}.
+
+
+video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
+  [{height, Height}, {width, Width}];
+
+video_parameters(#media_info{}) ->  
+  [].
 
 
 %%%------------------------------------------------------------------------
@@ -268,13 +312,17 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   Command = binary_to_atom(CommandBin, utf8),
   call_function(State, AMF#rtmp_funcall{command = Command});
 
-handle_rtmp_message(#rtmp_session{} = State,
-   #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
-  #rtmp_stream{pid = Recorder} = get_stream(StreamId, State),
-
-  Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
-  ems_media:publish(Recorder, Frame),
-  State;
+handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) 
+  when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
+  case get_stream(StreamId, State) of
+    #rtmp_stream{pid = Recorder} ->
+      Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
+      ems_media:publish(Recorder, Frame),
+      State;
+    false ->
+      rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Failed">>),
+      State
+  end;  
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
   #so_message{name = Name, persistent = Persistent} = SOEvent,
@@ -357,7 +405,11 @@ call_mfa([], Command, Args) ->
 
 call_mfa([Module|Modules], Command, Args) ->
   case code:is_loaded(mod_name(Module)) of
-    false -> code:load_file(mod_name(Module));
+    false -> 
+      case code:load_file(mod_name(Module)) of
+        {module, _ModName} -> ok;
+        _ -> erlang:error({cant_load_file, Module})
+      end;
     _ -> ok
   end,
   % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
