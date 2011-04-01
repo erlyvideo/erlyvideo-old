@@ -1,3 +1,9 @@
+erlyvideo (2.7.10) unstable; urgency=low
+
+  hd2500 fix
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 01 Apr 2011 16:07:16 +0400
+
 erlyvideo (2.7.9) unstable; urgency=low
 
   Added anonymous_seek_protection.  apps_rewrite_play X-Play-Time added
