@@ -162,7 +162,7 @@ append_trackid(URL, TrackID) ->
 
 
 
-lookup_in_control_map(ControlUrl, []) -> undefined;
+lookup_in_control_map(_ControlUrl, []) -> undefined;
 lookup_in_control_map(ControlUrl, [{Track,Number}|ControlMap]) ->
   Postfix = string:substr(ControlUrl, length(ControlUrl) - length(Track) + 1),
   if
@@ -172,7 +172,7 @@ lookup_in_control_map(ControlUrl, [{Track,Number}|ControlMap]) ->
 
 
 
-extract_control(ControlUrl, URL, ControlMap) ->
+extract_control(ControlUrl, _URL, ControlMap) ->
   lookup_in_control_map(ControlUrl, ControlMap).
 
 %%

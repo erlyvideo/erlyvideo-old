@@ -2,6 +2,7 @@
 -define(RTCP_RR, 201).
 -define(RTCP_SD, 202).
 -define(YEARS_70, 2208988800).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
+-define(YEARS_100, 3155673600).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
 -define(SDES_CNAME, 1).
 -define(SDES_NAME, 2).
@@ -25,6 +26,14 @@
   remote_addr
 }).
 
+-record(rtcp, {
+  ntp,
+  stream_id,
+  timecode,
+  packet_count,
+  octet_count
+}).
+
 -record(rtp_state, {
   streams = [],
   channels = {undefined, undefined},
@@ -43,6 +52,8 @@
   sequence = undefined,
   wall_clock = undefined,
   timecode = undefined,
+  octet_count = 0,
+  packet_count = 0,
   stream_id,
   payload_type,
   timescale,

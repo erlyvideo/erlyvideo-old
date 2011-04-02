@@ -47,7 +47,7 @@ init(#stream_info{codec = Codec, timescale = Scale} = Stream) ->
 sync(#rtp_channel{} = RTP, Headers) ->
   Seq = proplists:get_value(seq, Headers),
   Time = proplists:get_value(rtptime, Headers),
-  ?D({sync, Headers}),
+  % ?D({sync, Headers}),
   RTP#rtp_channel{wall_clock = 0, timecode = Time, sequence = Seq}.
 
 decode(_, #rtp_channel{timecode = TC, wall_clock = Clock} = RTP) when TC == undefined orelse Clock == undefined ->

@@ -35,21 +35,20 @@
 -compile(export_all).
 
 rtp_state1() ->
-  {rtp_channel,11143,1300433001498,193161,undefined,
-                             undefined,90.0,h264,
-                             {h264_buffer,1300433001564.6667,
+  #rtp_channel{sequence = 11143,
+  wall_clock = 1300433001498,
+  timecode = 193161,
+  timescale = 90.0,
+  codec = h264,
+  buffer = {h264_buffer,1300433001564.6667,
                               {h264,undefined,0,undefined,32,undefined,
                                undefined,undefined},
                               <<>>,undefined},
-                             {stream_info,video,2,h264,
+  stream_info = {stream_info,video,2,h264,
                               <<1,77,0,30,255,225,0,21,39,77,64,30,169,24,60,23,
                                 252,184,3,80,96,16,107,108,43,94,247,192,64,1,0,
                                 4,40,222,9,200>>,
-                              undefined,undefined,
-                              {video_params,480,368,0},
-                              90.0,
-                              [{control,"trackid=2"}]},
-                             undefined,15072851865301416158}.
+  [{control,"trackid=2"}]}}.
 
 
 rtp_decode_test() ->
@@ -80,8 +79,8 @@ decode_audio_aac_test() ->
 
 
 decode_sr_test_() ->
-  [ ?_assertEqual({15071873493697523644,338381}, rtp:rtcp_sr(wirecast_sr1())),
-    ?_assertEqual({15071873493656068605,913426}, rtp:rtcp_sr(wirecast_sr2())),
+  [ ?_assertMatch(#rtcp{ntp = 15071873493697523644, timecode = 338381}, rtp:rtcp_sr(wirecast_sr1())),
+    ?_assertMatch(#rtcp{ntp = 15071873493656068605, timecode = 913426}, rtp:rtcp_sr(wirecast_sr2())),
     ?_assertMatch(#rtp_channel{
       wall_clock = 1300205206607,
       timecode = 338381
