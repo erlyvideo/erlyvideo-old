@@ -22,8 +22,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(h264).
 
--include("log.hrl").
-% -define(D(X), ok).
+% -include("log.hrl").
+-define(D(X), ok).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 % -include("../../include/ems.hrl").
