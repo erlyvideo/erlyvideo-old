@@ -86,14 +86,23 @@ encode(State, #rtmp_message{type = stream_recorded} = Message) ->
 encode(State, #rtmp_message{type = stream_maybe_seek} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_MAYBE_SEEK});
 
+encode(State, #rtmp_message{type = buffer_size, body = BufferSize, stream_id = StreamId} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = <<?RTMP_CONTROL_STREAM_BUFFER:16, StreamId:32, BufferSize:32>>});
+
 encode(State, #rtmp_message{type = ping} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PING});
 
 encode(State, #rtmp_message{type = pong} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PONG});
 
-encode(State, #rtmp_message{type = control, body = EventType, stream_id = StreamId} = Message) ->
+encode(State, #rtmp_message{type = control, body = {EventType, Body}} = Message) ->
+  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, Body/binary>>});
+
+encode(State, #rtmp_message{type = control, body = EventType, stream_id = StreamId} = Message) when is_number(EventType) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, StreamId:32>>});
+
+encode(State, #rtmp_message{type = control, body = EncodedControl} = Message) when is_binary(EncodedControl) ->
+  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL});
 
 encode(State, #rtmp_message{type = window_size, body = WindowAckSize} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, body = <<WindowAckSize:32>>});
@@ -226,13 +235,17 @@ timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id =
     _ -> new
   end.
 
+binarize(Command) when is_atom(Command) -> atom_to_binary(Command, utf8);
+binarize(Command) when is_list(Command) -> list_to_binary(Command);
+binarize(Command) when is_binary(Command) -> Command.
 
-encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
-  <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 
+
+encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) ->
+  <<(amf0:encode(binarize(Command)))/binary, (amf0:encode(Id))/binary, 
     (encode_list(<<>>, Args))/binary>>;
  
 encode_funcall(#rtmp_funcall{command = Command, args = Args, type = notify}) -> 
-<<(amf0:encode(atom_to_binary(Command, utf8)))/binary,
+<<(amf0:encode(binarize(Command)))/binary,
   (encode_list(<<>>, Args))/binary>>.
 
 -spec(encode_list(List::proplist()) -> Binary::binary()).

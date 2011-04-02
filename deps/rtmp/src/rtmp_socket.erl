@@ -52,7 +52,7 @@
 -export([accept/1, connect/1, start_link/1, getopts/2, setopts/2, getstat/2, getstat/1, send/2, get_socket/1]).
 -export([status/3, status/4, prepare_status/2, prepare_status/3, invoke/2, invoke/4, prepare_invoke/3, notify/4, prepare_notify/3]).
 
--export([start_socket/2, start_server/3, set_socket/2]).
+-export([start_socket/2, start_server/3, start_server/4, set_socket/2]).
   
 
 
@@ -71,7 +71,10 @@
 %% @end
 -spec(start_server(Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}).
 start_server(Port, Name, Callback) ->
-  rtmp_sup:start_rtmp_listener(Port, Name, Callback).
+  rtmp_sup:start_rtmp_listener(Port, Name, Callback, []).
+
+start_server(Port, Name, Callback, Args) ->
+  rtmp_sup:start_rtmp_listener(Port, Name, Callback, Args).
 
 
 %% @spec (Socket::port()) -> {ok, RTMP::pid()}
@@ -681,8 +684,7 @@ terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) when is_pid(Socket) 
   gen_server:cast(Socket, close),
   ok;
   
-terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) when is_port(Socket) ->
-  (catch gen_tcp:close(Socket)),
+terminate(_Reason, _StateName, _State) ->
   ok.
 
 
