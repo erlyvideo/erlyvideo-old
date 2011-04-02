@@ -25,12 +25,13 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../ems.hrl").
 -include("../log.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -export([http/4]).
 
 
 
-http(Host, 'GET', Path, Req) ->
+http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
   Root1 = if
     is_list(DocRoot) -> DocRoot;
     is_atom(DocRoot) ->
@@ -44,7 +45,7 @@ http(Host, 'GET', Path, Req) ->
   Root = ems:expand_path(Root1),
   
   if
-    is_list(Root) -> serve_file(Host, Root, Path, Req);
+    is_list(Root) -> serve_file(Host, Method, Root, Path, Req);
     true -> unhandled
   end;    
 
@@ -52,12 +53,16 @@ http(_Host, _Method, _Path, _Req) ->
   unhandled.
 
 
-serve_file(Host, Root, Path, Req) ->
+serve_file(Host, Method, Root, Path, Req) ->
   FileName = filename:absname(ems:pathjoin([Root | Path])),
   case filelib:is_regular(FileName) of
-    true ->
+    true when Method == 'GET' ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:file(FileName);
+    true when Method == 'HEAD' ->
+      {ok, #file_info{size = Size}} = file:read_file_info(FileName),
+    	Req:stream(head, [{'Content-Length', Size}]),
+      Req:stream(close);
     false ->
       AltPath = ems:pathjoin([FileName, "index.html"]),
       case filelib:is_regular(AltPath) of
