@@ -229,6 +229,7 @@ justify_ts(TS) when TS >= 0 andalso TS < ?MAX_TS -> TS.
 -spec timestamp_type(Socket::rtmp_socket(), Message::rtmp_message()) -> fixed_timestamp_type().
 timestamp_type(_State, #rtmp_message{ts_type = new}) -> new;
 timestamp_type(_State, #rtmp_message{ts_type = delta}) -> delta;
+timestamp_type(_, #rtmp_message{channel_id = 3}) -> new;
 timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, type = Type, timestamp = Timestamp, stream_id = StreamId}) -> 
   case rtmp:element(Id, Channels) of
     #channel{timestamp = PrevTS, type = Type, stream_id = StreamId} when PrevTS =< Timestamp -> delta;

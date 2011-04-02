@@ -37,14 +37,15 @@
 %% @private
 %%-------------------------------------------------------------------------
 
-'FCPublish'(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Name]} = AMF) -> 
+'FCPublish'(#rtmp_session{socket = Socket, session_id = SessionId} = State, #rtmp_funcall{args = [null, Name]} = _AMF) -> 
   ?D({"FCpublish", Name}),
   Args = {object, [
-    {code, <<"NetStream.Publish.Start">>},
     {level, <<"status">>}, 
-    {description, <<"FCPublish to ", Name/binary>>}
+    {code, <<"NetStream.Publish.Start">>},
+    {description, <<"FCPublish to ", Name/binary>>},
+    {clientid, SessionId}
   ]},
-  rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, 0]}),
+  % rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, 0]}),
   rtmp_socket:invoke(Socket, 0, 'onFCPublish', [Args]),
   State.
 
@@ -60,7 +61,7 @@
   State.
   
   
-real_publish(#rtmp_session{host = Host, socket = Socket} = State, FullName, Type, StreamId) ->
+real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId} = State, FullName, Type, StreamId) ->
 
   {RawName, Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
@@ -73,7 +74,14 @@ real_publish(#rtmp_session{host = Host, socket = Socket} = State, FullName, Type
   erlang:monitor(process, Recorder),
   ?D({"publish",Type,Options,Recorder}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Start">>),
+  Arg = {object, [
+    {level, <<"status">>}, 
+    {code, <<"NetStream.Publish.Start">>}, 
+    {description, <<"Publishing ", (list_to_binary(Name))/binary, ".">>},
+    {clientid, SessionId}
+  ]},
+  Msg = rtmp_socket:prepare_invoke(StreamId, onStatus, [Arg]),
+  rtmp_socket:send(Socket, Msg),
   rtmp_session:set_stream(#rtmp_stream{pid = Recorder, stream_id = StreamId, started = true}, State).
   
 extract_publish_args([]) -> [];
