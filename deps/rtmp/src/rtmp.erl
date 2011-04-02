@@ -83,8 +83,11 @@ encode(State, #rtmp_message{type = stream_end} = Message) ->
 encode(State, #rtmp_message{type = stream_recorded} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_RECORDED});
 
-encode(State, #rtmp_message{type = stream_maybe_seek} = Message) ->
-  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_MAYBE_SEEK});
+encode(State, #rtmp_message{type = burst_start} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_BURST_START});
+
+encode(State, #rtmp_message{type = burst_stop} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_BURST_STOP});
 
 encode(State, #rtmp_message{type = buffer_size, body = BufferSize, stream_id = StreamId} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = <<?RTMP_CONTROL_STREAM_BUFFER:16, StreamId:32, BufferSize:32>>});
@@ -504,6 +507,14 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BUFFER:
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_RECORDED:16, StreamId:32>>} = Channel, State) ->
   Message = extract_message(Channel),
 	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_recorded, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BURST_STOP:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = burst_stop, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BURST_START:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = burst_start, stream_id = StreamId}};
 
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16, Timestamp:32>>} = Channel, State) ->
   Message = extract_message(Channel),
