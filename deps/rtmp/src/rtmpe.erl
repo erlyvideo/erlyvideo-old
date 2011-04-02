@@ -24,7 +24,7 @@
 -include("../include/rtmp.hrl").
 -include("rtmp_private.hrl").
 
--export([s2/2, crypt/2]).
+-export([s2/2, crypt/2, p/0, g/0]).
 
 -define(DH_KEY_SIZE, 128).
 
@@ -48,6 +48,9 @@
 
 -define(DH_G, <<2>>).
 
+
+p() -> <<(size(?DH_P)):32, ?DH_P/binary>>.
+g() -> <<(size(?DH_G)):32, ?DH_G/binary>>.
 
 -spec dhKey(Handshake::binary(), handshake_version()) -> {First::binary(), Seed::binary(), Last::binary()}.
 dhKey(<<_:1532/binary, P1, P2, P3, P4, _/binary>> = C1, version1) ->

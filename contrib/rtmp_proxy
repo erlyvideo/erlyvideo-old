@@ -2,7 +2,7 @@
 %%! 
 
 
-main([ListenPort, ForwardAddr]) ->
+main([ListenPort, Forward]) ->
   Root = filename:join(filename:dirname(escript:script_name()), "..")++"/",
   true = code:add_pathz(Root ++ "ebin"),
   true = code:add_pathz(Root ++ "deps/rtmp/ebin"),
@@ -11,8 +11,13 @@ main([ListenPort, ForwardAddr]) ->
   true = code:add_pathz(Root ++ "deps/erlmedia/ebin"),
   application:start(log4erl),
   application:start(rtmp),
-  rtmp_proxy:run(list_to_integer(ListenPort), ForwardAddr),
-  init:stop();
+  ems:rebuild(),
+  {ok, Pid} = rtmp_proxy:run(list_to_integer(ListenPort), Forward),
+  erlang:monitor(process, Pid),
+  receive
+    {'DOWN', _, process, Pid, _Reason} -> ok
+  end,
+  ok;
   
 main(_) ->
   io:format("CommandsPath ~n").

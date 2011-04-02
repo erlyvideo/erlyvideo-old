@@ -230,7 +230,7 @@ pause_notify(RTMP, StreamId) ->
 
 unpause_notify(RTMP, StreamId, DTS) ->
   Status = rtmp_socket:prepare_status(StreamId, <<"NetStream.Unpause.Notify">>),
-  rtmp_socket:send(RTMP, Status#rtmp_message{channel_id = rtmp_lib:channel_id(audio, StreamId), ts_type = delta, timestamp = 0}),
+  rtmp_socket:send(RTMP, Status#rtmp_message{channel_id = rtmp_lib:channel_id(metadata, StreamId), ts_type = delta, timestamp = 0}),
   play_start(RTMP, StreamId, DTS, resume),
   ok.
   

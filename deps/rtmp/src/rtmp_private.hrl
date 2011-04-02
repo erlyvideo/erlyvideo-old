@@ -77,7 +77,8 @@
 -define(RTMP_CONTROL_STREAM_RECORDED, 4).
 -define(RTMP_CONTROL_STREAM_PING,     6).
 -define(RTMP_CONTROL_STREAM_PONG,     7).
--define(RTMP_CONTROL_STREAM_MAYBE_SEEK, 32).
+-define(RTMP_CONTROL_STREAM_BURST_STOP, 31).
+-define(RTMP_CONTROL_STREAM_BURST_START, 32).
 
 
 -define(ENCODE, 1).
@@ -119,6 +120,7 @@
   consumer          ::pid(),
   socket            ::port()|pid(),
   amf_version = 0   ::integer(),
+  fmle_3 = false    ::boolean(),
 	channels          ::tuple(),
 	out_channels      ::tuple(),
 	sent_audio_notify = false ::boolean(),

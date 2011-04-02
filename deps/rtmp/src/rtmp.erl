@@ -27,7 +27,7 @@
 -include("shared_objects.hrl").
 -version(1.1).
 
--export([encode/2, decode/2]).
+-export([encode/2, encode_id/2, decode/2]).
 -export([encode_list/1, decode_list/1]).
 -export([element/2, setelement/3, justify_ts/1]).
 
@@ -83,8 +83,14 @@ encode(State, #rtmp_message{type = stream_end} = Message) ->
 encode(State, #rtmp_message{type = stream_recorded} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_RECORDED});
 
-encode(State, #rtmp_message{type = stream_maybe_seek} = Message) ->
-  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_MAYBE_SEEK});
+encode(State, #rtmp_message{type = burst_start} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_BURST_START});
+
+encode(State, #rtmp_message{type = burst_stop} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_BURST_STOP});
+
+encode(State, #rtmp_message{type = buffer_size, body = BufferSize, stream_id = StreamId} = Message) ->
+  encode(State, Message#rtmp_message{type = control, body = <<?RTMP_CONTROL_STREAM_BUFFER:16, StreamId:32, BufferSize:32>>});
 
 encode(State, #rtmp_message{type = ping} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PING});
@@ -92,8 +98,14 @@ encode(State, #rtmp_message{type = ping} = Message) ->
 encode(State, #rtmp_message{type = pong} = Message) ->
   encode(State, Message#rtmp_message{type = control, body = ?RTMP_CONTROL_STREAM_PONG});
 
-encode(State, #rtmp_message{type = control, body = EventType, stream_id = StreamId} = Message) ->
+encode(State, #rtmp_message{type = control, body = {EventType, Body}} = Message) ->
+  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, Body/binary>>});
+
+encode(State, #rtmp_message{type = control, body = EventType, stream_id = StreamId} = Message) when is_number(EventType) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL, body = <<EventType:16, StreamId:32>>});
+
+encode(State, #rtmp_message{type = control, body = EncodedControl} = Message) when is_binary(EncodedControl) ->
+  encode(State, Message#rtmp_message{type = ?RTMP_TYPE_CONTROL});
 
 encode(State, #rtmp_message{type = window_size, body = WindowAckSize} = Message) ->
   encode(State, Message#rtmp_message{type = ?RTMP_TYPE_WINDOW_ACK_SIZE, body = <<WindowAckSize:32>>});
@@ -220,19 +232,24 @@ justify_ts(TS) when TS >= 0 andalso TS < ?MAX_TS -> TS.
 -spec timestamp_type(Socket::rtmp_socket(), Message::rtmp_message()) -> fixed_timestamp_type().
 timestamp_type(_State, #rtmp_message{ts_type = new}) -> new;
 timestamp_type(_State, #rtmp_message{ts_type = delta}) -> delta;
+timestamp_type(_, #rtmp_message{channel_id = 3}) -> new;
 timestamp_type(#rtmp_socket{out_channels = Channels}, #rtmp_message{channel_id = Id, type = Type, timestamp = Timestamp, stream_id = StreamId}) -> 
   case rtmp:element(Id, Channels) of
     #channel{timestamp = PrevTS, type = Type, stream_id = StreamId} when PrevTS =< Timestamp -> delta;
     _ -> new
   end.
 
+binarize(Command) when is_atom(Command) -> atom_to_binary(Command, utf8);
+binarize(Command) when is_list(Command) -> list_to_binary(Command);
+binarize(Command) when is_binary(Command) -> Command.
 
-encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) -> 
-  <<(amf0:encode(atom_to_binary(Command, utf8)))/binary, (amf0:encode(Id))/binary, 
+
+encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) ->
+  <<(amf0:encode(binarize(Command)))/binary, (amf0:encode(Id))/binary, 
     (encode_list(<<>>, Args))/binary>>;
  
 encode_funcall(#rtmp_funcall{command = Command, args = Args, type = notify}) -> 
-<<(amf0:encode(atom_to_binary(Command, utf8)))/binary,
+<<(amf0:encode(binarize(Command)))/binary,
   (encode_list(<<>>, Args))/binary>>.
 
 -spec(encode_list(List::proplist()) -> Binary::binary()).
@@ -243,6 +260,11 @@ encode_list(Message, [Arg | Args]) ->
   AMF = amf0:encode(Arg),
   encode_list(<<Message/binary, AMF/binary>>, Args).
 
+
+encode_id(new, Id) -> encode_id(?RTMP_HDR_NEW, Id);
+encode_id(same, Id) -> encode_id(?RTMP_HDR_SAME_SRC, Id);
+encode_id(new_ts, Id) -> encode_id(?RTMP_HDR_TS_CHG, Id);
+encode_id(continue, Id) -> encode_id(?RTMP_HDR_CONTINUE, Id);
 
 encode_id(Type, Id) when Id =< 63 -> 
   <<Type:2, Id:6>>;
@@ -352,7 +374,7 @@ decode_channel_header(Packet, ?RTMP_HDR_CONTINUE, Id, State) ->
       end,
       {Chan1, Packet}
   end,
-  decode_channel(Rest,Channel1,State);
+  decode_channel(Rest, Channel1, State);
 
 decode_channel_header(<<16#ffffff:24, TimeStamp:32, Rest/binary>>, ?RTMP_HDR_TS_CHG, Id, State) ->
   Channel = rtmp:element(Id, State#rtmp_socket.channels),
@@ -486,6 +508,14 @@ command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_RECORDE
   Message = extract_message(Channel),
 	{State#rtmp_socket{pinged = false}, Message#rtmp_message{type = stream_recorded, stream_id = StreamId}};
 
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BURST_STOP:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = burst_stop, stream_id = StreamId}};
+
+command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_BURST_START:16, StreamId:32>>} = Channel, State) ->
+  Message = extract_message(Channel),
+	{State, Message#rtmp_message{type = burst_start, stream_id = StreamId}};
+
 command(#channel{type = ?RTMP_TYPE_CONTROL, msg = <<?RTMP_CONTROL_STREAM_PING:16, Timestamp:32>>} = Channel, State) ->
   Message = extract_message(Channel),
 	{State, Message#rtmp_message{type = ping, body = Timestamp}};
@@ -534,7 +564,16 @@ command(#channel{type = ?RTMP_INVOKE_AMF3, msg = <<_, Body/binary>>, stream_id =
 
 command(#channel{type = ?RTMP_INVOKE_AMF0, msg = Body, stream_id = StreamId} = Channel, State) ->
   Message = extract_message(Channel),
-  {State, Message#rtmp_message{type = invoke, body = decode_funcall(Body, StreamId)}};
+  Funcall = decode_funcall(Body, StreamId),
+  State1 = case Funcall of
+    #rtmp_funcall{command = <<"connect">>, args = [{object, ConnectObj}|_]} ->
+      case proplists:get_value(flashVer, ConnectObj) of
+        <<"FMLE/",_/binary>> -> State#rtmp_socket{fmle_3 = true};
+        _ -> State
+      end;
+    _ -> State
+  end,    
+  {State1, Message#rtmp_message{type = invoke, body = Funcall}};
 
 
 command(#channel{type = ?RTMP_TYPE_SO_AMF0, msg = Body} = Channel, State) ->
