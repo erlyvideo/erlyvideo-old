@@ -1,7 +1,7 @@
 {application, erlyvideo,
  [
   {description, "Erlang Video Server"},
-  {vsn, "1.0"},
+  {vsn, "2.7.7"},
   {id, "erlyvideo"},
   {modules,
    [

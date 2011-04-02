@@ -17,6 +17,7 @@
              gen_format,
              gen_listener,
              h264,
+             http_stream,
              http_uri2,
              mjpeg_reader,
              mkv,
@@ -26,6 +27,8 @@
              mp4_reader,
              mp4_writer,
              packet_codec,
+             sdp,
+             sdp_tests,
              shoutcast_reader,
              video_frame,
              wav

@@ -38,7 +38,7 @@ start() ->
       rtsp:start_server(RTSP, rtsp_listener1, ems:get_var(rtsp_callback, ems_rtsp)),
       ok
   end.
-  
+
 
 stop() ->
   application:stop(rtsp),
@@ -46,8 +46,8 @@ stop() ->
   ok.
 
 hostpath(URL) ->
-  {HostPort, [$/|Path]} = http_uri2:extract_path_with_query(URL),
-  {ems:host(HostPort), Path}.
+  {HostPort, Path} = http_uri2:extract_path_with_query(URL),
+  {ems:host(HostPort), string:strip(Path,both,$/)}.
 
 
 announce(URL, Headers, MediaInfo) ->
@@ -81,7 +81,6 @@ record(URL, Headers, _Body) ->
 
 describe(URL, Headers, _Body) ->
   {Host, Path} = hostpath(URL),
-  ?D({"DESCRIBE", Host, Path, Headers}),
   {Module, Function} = ems:check_app(Host, auth, 3),
   case Module:Function(Host, rtsp, proplists:get_value('Authorization', Headers)) of
     undefined ->
@@ -91,12 +90,11 @@ describe(URL, Headers, _Body) ->
       {ok, Media}
   end.
 
-play(URL, Headers, _Body) ->
+play(URL, _Headers, _Body) ->
   {Host, Path} = hostpath(URL),
-  ?D({"PLAY", Host, Path, Headers}),
   % {Module, Function} = ems:check_app(Host, auth, 3),
   ems_log:access(Host, "RTSP PLAY ~s ~s", [Host, Path]),
-  {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}]),
+  {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}, {client_buffer,100}]),
   ems_network_lag_monitor:watch(self()),
   {ok, Media}.
 
