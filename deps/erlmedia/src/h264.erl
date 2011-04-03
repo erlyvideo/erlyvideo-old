@@ -267,43 +267,60 @@ decode_stapa(<<>>, Frames, H264) ->
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
 
 
-parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) when Profile >= 100 ->
+profile_has_scaling_matrix(Profile) ->
+  lists:member(Profile, [100, 110, 122, 244, 44, 83, 86, 118, 128]).
+
+parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
   {SPS_ID, Rest} = exp_golomb_read(Data),
+  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
+  Rest1 = case profile_has_scaling_matrix(Profile) of
+    true -> parse_extended_sps1(Rest);
+    false -> Rest
+  end,
+  parse_sps_data(Rest1, SPS).
+  
+parse_extended_sps1(Rest) ->
   {ChromaFormat, Rest1} = exp_golomb_read(Rest),
   case ChromaFormat of
-    3 -> <<_ColorTransformFlag:1, Rest2/bitstring>> = Rest1;
+    3 -> <<_SeparateColourPlane:1, Rest2/bitstring>> = Rest1;
     1 -> Rest2 = Rest1
   end,
   {_BitDepthLuma, Rest3} = exp_golomb_read(Rest2),
   {_BitDepthChroma, Rest4} = exp_golomb_read(Rest3),
   <<_TransformBypass:1, ScalingMatrixPresent:1, Rest5/bitstring>> = Rest4,
-  {Rest6, SPS} = parse_scaling_matrix(Rest5, ScalingMatrixPresent, #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID}),
-  parse_sps_data(Rest6, SPS);
+  case ScalingMatrixPresent of
+    0 -> Rest5;
+    1-> 
+      ScalingListCount = case ChromaFormat of
+        3 -> 12;
+        1 -> 8
+      end,
+      parse_scaling_list(Rest5, 0, ScalingListCount)
+  end.
 
-parse_sps(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, Data/binary>>) ->
-  {SPS_ID, Rest1} = exp_golomb_read(Data),
-  % ?D({"SPS ID", SPS_ID}),
-  SPS = #h264_sps{profile = Profile, level = Level, sps_id = SPS_ID},
-  parse_sps_data(Rest1, SPS).
 
-
-parse_scaling_matrix(Data, 0, SPS) ->
-  {Data, SPS};
+parse_scaling_list(Data, Count, Count) ->
+  Data;
   
-parse_scaling_matrix(R0, 1, SPS) ->
-  R1 = decode_scaling_list(R0, 16), 
-  R2 = decode_scaling_list(R1, 16), 
-  R3 = decode_scaling_list(R2, 16), 
-  R4 = decode_scaling_list(R3, 16), 
-  R5 = decode_scaling_list(R4, 16), 
-  R6 = decode_scaling_list(R5, 16), 
-  R7 = decode_scaling_list(R6, 64), 
-  R8 = decode_scaling_list(R7, 64),
-  {R8, SPS}.
+parse_scaling_list(<<0:1, Data/bitstring>>, I, Count) when I < Count ->
+  parse_scaling_list(Data, I + 1, Count);
   
-decode_scaling_list(<<0:1, Rest/bitstring>>, _Size) -> 
-  Rest.
-% decode_scaling_list(<<1:1, )
+parse_scaling_list(<<1:1, Data/bitstring>>, I, Count) when I < 6 ->
+  Rest = decode_scaling_list(Data, 16),
+  parse_scaling_list(Rest, I + 1, Count);
+
+parse_scaling_list(<<1:1, Data/bitstring>>, I, Count) when I < Count ->
+  Rest = decode_scaling_list(Data, 64),
+  parse_scaling_list(Rest, I+1, Count).
+
+decode_scaling_list(Data, Count) ->
+  decode_scaling_list(Data, Count, 8).
+
+decode_scaling_list(Data, 0, _NextScale) -> Data;
+decode_scaling_list(Data, Count, NextScale = 0) -> decode_scaling_list(Data, Count - 1, NextScale);
+decode_scaling_list(Data, Count, NextScale) ->
+  {Delta, Rest} = exp_golomb_read_s(Data),
+  decode_scaling_list(Rest, Count - 1, (NextScale + Delta + 256) rem 256).
   
 
 parse_sps_data(Data, SPS) ->
@@ -405,10 +422,10 @@ exp_golomb_read_list(Bin, [Key | Keys], Results) ->
   exp_golomb_read_list(Rest, Keys, [{Key, Value} | Results]).
 
 exp_golomb_read_s(Bin) ->
-  {Value, _Rest} = exp_golomb_read(Bin),
+  {Value, Rest} = exp_golomb_read(Bin),
   case Value band 1 of
-    1 -> (Value + 1)/2;
-    _ -> - (Value/2)
+    1 -> {(Value + 1) div 2, Rest};
+    _ -> {- (Value div 2), Rest}
   end.
 
 exp_golomb_read(Bin) ->
@@ -482,6 +499,17 @@ parse_sps_40_level_test() ->
                                        0,3,132,0,0,175,200,56,0,0,48,0,0,3,0,11,
                                        235,194,98,247,227,0,0,6,0,0,3,0,1,125,
                                        120,76,94,252,27,65,16,137,75>>)).
+
+sps_100_level() ->
+  <<39,100,0,31,173,136,14,67,152,32,225,12,41,10,68,7,33,204,16,112,134,20,133,
+    34,3,144,230,8,56,67,10,66,144,192,66,24,194,28,102,50,16,134,2,16,198,16,
+    227,49,144,132,48,16,134,48,135,25,140,132,34,2,17,152,206,35,194,159,17,248,
+    143,226,63,17,241,30,51,136,196,68,66,129,8,140,71,17,226,62,79,196,127,39,
+    228,248,143,17,196,100,136,180,7,128,183,96,42,144,0,0,3,0,16,0,0,3,3,198,4,
+    0,4,196,176,0,19,18,203,222,248,94,17,8,212>>.
+    
+parse_sps_100_level_test() ->
+  ?assertMatch(#h264_sps{profile = 100, level = 31, sps_id = 0, width = 960, height = 720}, parse_sps(sps_100_level())).
 
 unpack_config_1_test() ->
   Config = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>,

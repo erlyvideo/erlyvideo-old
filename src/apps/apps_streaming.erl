@@ -63,6 +63,14 @@ handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket =
   ?D({self(), "seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
   rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
+
+handle_info({ems_stream, StreamId, burst_start}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:send(Socket, #rtmp_message{type = burst_start, stream_id = StreamId}),
+  State;
+
+handle_info({ems_stream, StreamId, burst_stop}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:send(Socket, #rtmp_message{type = burst_stop, stream_id = StreamId}),
+  State;
   
 handle_info({ems_stream, StreamId, seek_failed}, #rtmp_session{socket = Socket} = State) ->
   ?D({"seek failed"}),
@@ -81,8 +89,7 @@ createStream(#rtmp_session{} = State, AMF) ->
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   rtmp_session:set_stream(Stream, State).
 
-releaseStream(State, #rtmp_funcall{stream_id = StreamId} = AMF) -> 
-  rtmp_session:reply(State, AMF#rtmp_funcall{args = [null, StreamId]}),
+releaseStream(State, #rtmp_funcall{} = _AMF) -> 
   State.
 
 

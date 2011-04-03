@@ -34,17 +34,20 @@
 sip_call(RTMP, OutStream, InStream) when is_pid(RTMP) andalso is_binary(OutStream) andalso is_binary(InStream) ->
   gen_fsm:send_event(RTMP, {sip_call, OutStream, InStream}).
 
-register(State, #rtmp_funcall{args = [_, Number]}) ->
+register(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
   ?D({sip_register, self(), Number}),
-  esip_registrator:register(Number, self()),
+  case ems_sip:register(Number, self()) of
+    {ok, _Ref} -> rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
+    _Else -> ?D({failed_register,_Else}), rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
+  end,
   State.
 
 ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
-  case esip_registrator:get(Number) of
+  case ems_sip:call(Number, []) of
     {ok, _Pid} ->
-      ok;
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->
-      rtmp_session:fail(State, AMF)
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
   end,
   State.
 

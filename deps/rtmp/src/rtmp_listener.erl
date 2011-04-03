@@ -25,7 +25,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 %% External API
--export([start_link/3]).
+-export([start_link/4]).
 -export([accept/2]).
 
 
@@ -36,14 +36,14 @@
 %% @doc Called by a supervisor to start the listening process.
 %% @end
 %%----------------------------------------------------------------------
-start_link(Port, Name, Callback) ->
-  gen_listener:start_link(Name, Port, ?MODULE, [Callback]).
+start_link(Port, Name, Callback, Args) ->
+  gen_listener:start_link(Name, Port, ?MODULE, [Callback|Args]).
 
 
-accept(CliSocket, [Callback]) ->
+accept(CliSocket, [Callback|Args]) ->
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
   gen_tcp:controlling_process(CliSocket, RTMP),
-  {ok, Pid} = Callback:create_client(RTMP),
+  {ok, Pid} = erlang:apply(Callback, create_client, [RTMP|Args]),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   rtmp_socket:set_socket(RTMP, CliSocket),
   ok.

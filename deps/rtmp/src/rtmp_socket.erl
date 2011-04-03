@@ -52,7 +52,7 @@
 -export([accept/1, connect/1, start_link/1, getopts/2, setopts/2, getstat/2, getstat/1, send/2, get_socket/1]).
 -export([status/3, status/4, prepare_status/2, prepare_status/3, invoke/2, invoke/4, prepare_invoke/3, notify/4, prepare_notify/3]).
 
--export([start_socket/2, start_server/3, set_socket/2]).
+-export([start_socket/2, start_server/3, start_server/4, set_socket/2]).
   
 
 
@@ -71,7 +71,10 @@
 %% @end
 -spec(start_server(Port::integer(), Name::atom(), Callback::atom()) -> {ok, Pid::pid()}).
 start_server(Port, Name, Callback) ->
-  rtmp_sup:start_rtmp_listener(Port, Name, Callback).
+  rtmp_sup:start_rtmp_listener(Port, Name, Callback, []).
+
+start_server(Port, Name, Callback, Args) ->
+  rtmp_sup:start_rtmp_listener(Port, Name, Callback, Args).
 
 
 %% @spec (Socket::port()) -> {ok, RTMP::pid()}
@@ -138,7 +141,7 @@ start_link(Type) ->
 %% @end
 -spec(setopts(RTMP::rtmp_socket_pid(), Options::[{Key::atom(), Value::any()}]) -> ok).
 setopts(RTMP, Options) ->
-  gen_fsm:send_all_state_event(RTMP, {setopts, Options}).
+  gen_fsm:sync_send_all_state_event(RTMP, {setopts, Options}).
 
 %% @spec (RTMP::pid(), Options::[{Key, Value}]|{Key, Value}) -> ok
 %% @doc Just the same as {@link inet:getopts/2. inet:getopts/2} this function gets state of 
@@ -423,16 +426,20 @@ handle_event(Event, StateName, StateData) ->
 %%-------------------------------------------------------------------------
 
 handle_sync_event({getopts, Options}, _From, StateName, State) ->
-  {reply, get_options(State, Options), StateName, State};
+  {reply, get_options(State, Options), StateName, State, ?RTMP_TIMEOUT};
 
 handle_sync_event({getstat, Options}, _From, StateName, State) ->
-  {reply, get_stat(State, Options), StateName, State};
+  {reply, get_stat(State, Options), StateName, State, ?RTMP_TIMEOUT};
 
 handle_sync_event(getstat, _From, StateName, State) ->
-  {reply, get_stat(State), StateName, State};
+  {reply, get_stat(State), StateName, State, ?RTMP_TIMEOUT};
 
 handle_sync_event(get_socket, _From, StateName, #rtmp_socket{socket = Socket} = State) ->
-  {reply, Socket, StateName, State};
+  {reply, Socket, StateName, State, ?RTMP_TIMEOUT};
+
+handle_sync_event({setopts, Options}, _From, StateName, State) ->
+  NewState = set_options(State, Options),
+  {reply, ok, StateName, NewState, ?RTMP_TIMEOUT};
 
 handle_sync_event(Event, _From, StateName, StateData) ->
   {stop, {StateName, undefined_event, Event}, StateData}.
@@ -681,8 +688,7 @@ terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) when is_pid(Socket) 
   gen_server:cast(Socket, close),
   ok;
   
-terminate(_Reason, _StateName, #rtmp_socket{socket=Socket}) when is_port(Socket) ->
-  (catch gen_tcp:close(Socket)),
+terminate(_Reason, _StateName, _State) ->
   ok.
 
 
