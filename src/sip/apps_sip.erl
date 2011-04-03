@@ -38,16 +38,16 @@ register(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
   ?D({sip_register, self(), Number}),
   case ems_sip:register(Number, self()) of
     {ok, _Ref} -> rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
-    _ -> rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
+    _Else -> ?D({failed_register,_Else}), rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
   end,
   State.
 
 ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
   case ems_sip:call(Number, []) of
     {ok, _Pid} ->
-      ok;
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->
-      rtmp_session:fail(State, AMF)
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
   end,
   State.
 
