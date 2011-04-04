@@ -37,7 +37,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([applications/0, restore/0]).
--export([writeable_cache_dir/0, read_license/0, request_licensed/3]).
+-export([writeable_cache_dir/0, read_license/0, request_licensed/2]).
 
 
 -record(client, {
@@ -122,32 +122,32 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_call(load, _From, State) ->
-  {State1, Versions} = reload_config(State),
-  Command = #command{name = "save", versions = Versions},
-  State2 = request_licensed(State1#client.license, State1, Command),
-  {reply, {ok, State2}, State1};
+  {reply, {ok}, State};
 
 handle_call(list, _From, State) -> 
   {State1,Versions} = reload_config(State),
   Command = #command{name = "list", versions = Versions},
-  State2 = request_licensed(State1#client.license, State1, Command),
-  {reply, {Versions,State2}, State1};
+  {LicenseURL,License} = request_licensed(State1#client.license, State1),
+  URL = make_url(LicenseURL,License,Command),
+  {Bin, State2} = request_code_from_server(License,State1, URL),
+  {ok, Commands, _State3} = read_license_response(Bin,State2),
+  {reply, Commands, State1};
 
-handle_call(save, _From, State) -> 
-  {State1,Versions} = reload_config(State),
-  Command = #command{name = "save", versions = Versions},
-  State2 = request_licensed(State1#client.license, State1, Command),
-  {reply, State2, State1};
+handle_call(save,_From,State) ->
+  {State1, Versions} = reload_config(State),
+  Command = #command{name = "save",versions = Versions},
+  {LicenseURL,License} = request_licensed(State1#client.license,State1),
+  URL = make_url(LicenseURL,License,Command),
+  {Bin,State2} = request_code_from_server(License,State1,URL),
+  {ok,Commands,State3} = read_license_response(Bin,State2),
+  Startup = execute_commands_v1(Commands,[],State3),  
+  handle_loaded_modules_v1(Startup),
+  {reply,Commands,State3};  
+  
 
 handle_call({load_config,[Path|FullName]}, _From, State) ->
   application:set_env(erlyvideo,license_config,[Path|FullName],600),
   {reply,[Path|FullName],State};
-
-handle_call(select, _From, State) ->
-  {State1,Versions} = reload_config(State),
-  Command = #command{name = "select", versions = Versions},
-  State2 = request_licensed(State1#client.license,State1, Command),
-  {reply, State2, State1};
 
 handle_call(applications, _From, #client{memory_applications = Mem, storage_opened = false} = State) ->
   {reply, Mem, State};
@@ -184,11 +184,6 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info(load, State) ->
-  {State1,Versions} = reload_config(State),
-  Command = #command{name = "save", versions = Versions},
-  request_licensed(State1#client.license, State1, Command),
-  {noreply, State1};
 
 handle_info(_Info, State) ->
   {stop, {unknown_info, _Info}, State}.
@@ -254,20 +249,29 @@ read_license() ->
       undefined
   end.
 
-request_licensed(undefined, _State, _Command) ->
+request_licensed(undefined, _State) ->
   ok;
   
-request_licensed(Env, State, Command) ->
+request_licensed(Env, _State) ->
   case proplists:get_value(license, Env) of 
-    undefined -> ok;
+    undefined -> {license_undefined,undefined};
     License ->
       LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.org/license"),
-      request_code_from_server(LicenseUrl, License, State, Command)
+      {LicenseUrl, License} %request_code_from_server
   end.
   
-argument_to_url(Versions) ->
-  AttrURL = argument_to_url(Versions,[]),
-  AttrURL.
+make_url(LicenseURL,License,Command) ->
+  AttrURL = case Command#command.name of
+   "save" ->
+     argument_to_url(Command#command.versions,[]);
+   _ -> []
+  end,
+  URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseURL, License,Command#command.name])) ++ AttrURL,
+  URL.
+
+
+argument_to_url(undefined,AttrURL) ->
+  AttrURL;
 
 argument_to_url([],AttrURL) ->
   AttrURL;
@@ -277,33 +281,23 @@ argument_to_url(Versions,AttrURL) ->
   NewAttrURL = AttrURL ++ lists:flatten(io_lib:format("&version[~s]=~s",[Name,Version])),
   argument_to_url(Tail,NewAttrURL).
   
-request_code_from_server(LicenseUrl, License, State, Command) ->
-  RawURL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseUrl, License,Command#command.name])),
-  URL = case Command#command.name of
-    "save" when Command#command.versions =/= undefined -> RawURL ++ argument_to_url(Command#command.versions);
-    _ ->  RawURL
-  end,
+request_code_from_server(License, State, URL) ->
   ?D(URL),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _ResponseHeaders, Bin}  ->
-      read_license_response(Bin, State#client{key = License}, Command);
-    _Else ->
-      ?D({license_error, _Else}),
-      _Else
+      {Bin, State#client{key = License}}; %read_license_response
+    Else ->
+      ?D({license_error, Else}),
+      {license_error,Else}
   end.    
   
-read_license_response(Bin, State,Command) ->
+read_license_response(Bin, State) ->
   case erlang:binary_to_term(Bin) of
     {reply, Reply} ->
       case proplists:get_value(version, Reply) of
-        1 when Command#command.name == "list" -> 
+        1 ->
           Commands = proplists:get_value(commands, Reply),
-          {ok, Commands};
-        1 when Command#command.name =/= "list"  ->
-          Commands = proplists:get_value(commands, Reply),
-          Startup = execute_commands_v1(Commands, [], State),
-          handle_loaded_modules_v1(lists:reverse(Startup)),
-          {ok, Commands};
+          {ok, Commands, State};
         Version ->
           {error,{unknown_license_version, Version}}
       end;
@@ -338,7 +332,7 @@ execute_commands_v1([{save,Info}|Commands], Startup, #client{storage_opened = tr
     undefined -> ok;
     CacheDir -> 
       FullPath = ems:pathjoin(CacheDir, Path),
-      code:add_patha(filename:dirname(FullPath)),
+      code:add_path(filename:dirname(FullPath)),
       case file:read_file(FullPath) of
         {ok, File} -> ok;
         _ ->
