@@ -120,8 +120,6 @@ start() ->
 
 	application:start(erlyvideo),
 	
-	ems_license_client:restore(),
-	
   start_http(),
   start_rtmp(),
   mpegts:start(),
