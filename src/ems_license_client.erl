@@ -38,7 +38,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([applications/0, restore/0]).
--export([writeable_cache_dir/0, read_license/0, request_licensed/2]).
+-export([writeable_cache_dir/0, read_license/0, request_licensed/1]).
 
 
 -record(client, {
@@ -124,36 +124,24 @@ init([]) ->
 %%-------------------------------------------------------------------------
 
 handle_call(list, _From, State) -> 
-  {State1,Commands} = try make_request(State,"list") of 
-    Val -> Val
-  catch 
-    error:_ -> 
-      error_logger:info_msg("Request error"),
-      {State,[]}
-  end,
-  {reply, Commands, State1};
+  {_State1,Commands} = make_request(State,"list"),
+  {reply, Commands, State};
 
 handle_call(save,_From,State) ->
-  {State1,Commands} = try make_request(State,"save") of 
-    Val -> Val
-  catch 
-    error:_ -> 
-      error_logger:info_msg("Request error"),
-      {State,[]}
-  end,
-  execute_request(State1,Commands),
-  {reply, Commands, State1};
+  case make_request(State,"save") of
+    {error,Reason} -> {reply, Reason,State};
+    {State1,Commands} ->
+      execute_request(State1,Commands),
+     {reply, Commands, State1}
+  end;
 
 handle_call(load,_From,State) ->
-  {State1,Commands} = try make_request(State,"load") of 
-    Val -> Val
-  catch 
-    error:_ ->     
-     error_logger:info_msg("Request error"),
-     {State,[]}
-  end,
-  execute_request(State1,Commands),
-  {reply, Commands, State1};
+  case make_request(State,"load") of
+    {error,Reason} -> {reply, Reason,State};
+    {State1,Commands} ->
+      execute_request(State1,Commands),
+     {reply, Commands, State1}
+  end;
   
 handle_call({load_config,[Path|FullName]}, _From, State) ->
   application:set_env(erlyvideo,license_config,[Path|FullName],600),
@@ -223,12 +211,16 @@ code_change(_OldVsn, State, _Extra) ->
 
 make_request(State, RawCommand) ->
   {State1, Versions} = reload_config(State),
-  Command = #command{name = RawCommand,versions = Versions},
-  {LicenseURL,License} = request_licensed(State1#client.license,State1),
-  URL = make_url(LicenseURL,License,Command),
-  {Bin,State2} = request_code_from_server(License,State1,URL),
-  {ok,Commands,State3} = read_license_response(Bin,State2),
-  {State3,Commands}.
+  case State1#client.license of
+    undefined -> {error,license_undefined};
+    _Value ->
+      Command = #command{name = RawCommand,versions = Versions},
+      {LicenseURL,License} = request_licensed(State1#client.license),
+      URL = make_url(LicenseURL,License,Command),
+      {Bin,State2} = request_code_from_server(License,State1,URL),
+      {ok,Commands,State3} = read_license_response(Bin,State2),
+      {State3,Commands}
+  end.
 
 execute_request(State,Commands) ->
   Startup = execute_commands_v1(Commands,[],State),
@@ -245,14 +237,20 @@ reload_config(#client{license = OldLicense, timeout = OldTimeout} = State) ->
       error_logger:info_msg("Reading license key from ~s", [LicensePath]),
       {Env,proplists:get_value(timeout,Env,OldTimeout)}
   end,
-  Versions = case proplists:get_value(projects,License) of 
-    undefined -> read_config_storage();
-    FileValue -> FileValue
-  end,
+  Versions = extract_versions(License),
   {State#client{license = License, timeout = Timeout},Versions};
 
 reload_config(State) ->
   {State,undefined}.  
+
+extract_versions(undefined) -> 
+  [];
+
+extract_versions(License) ->
+  case proplists:get_value(projects,License) of 
+    undefined -> read_config_storage();
+    FileValue -> FileValue
+  end.
 
 get_config_path() ->
   ConfigPath = case application:get_env(erlyvideo,license_config)of 
@@ -273,12 +271,12 @@ read_license() ->
       undefined
   end.
 
-request_licensed(undefined, _State) ->
-  ok;
+request_licensed(undefined) ->
+  {error,undefined_license};
   
-request_licensed(Env, _State) ->
-  case proplists:get_value(license, Env) of 
-    undefined -> {license_undefined,undefined};
+request_licensed(Env) ->
+  case proplists:get_value(license, Env) of     
+    undefined ->  {error, undefined_license};
     License ->
       LicenseUrl = proplists:get_value(url, Env, "http://license.erlyvideo.org/license"),
       {LicenseUrl, License} %request_code_from_server
@@ -500,9 +498,12 @@ test_insert_table() ->
   dets:insert_new(?CONFIG_TABLE,{projects,[{erlyvideo, "1.2"},{registrator, "HEAD"}]}).
 
 read_config_storage() ->
-  open_config_storage(),
-  Config = dets:lookup(?CONFIG_TABLE,projects),
-  Versions = proplists:get_value(projects,Config),
+  Versions = case open_config_storage() of
+    {ok,?CONFIG_TABLE} ->
+      Config = dets:lookup(?CONFIG_TABLE,projects),
+      proplists:get_value(projects,Config);
+    _ -> undefined
+  end,
   Versions.
   
 saved_applications() ->
