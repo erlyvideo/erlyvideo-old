@@ -3,9 +3,16 @@
 	
 	<mx:Script source="Phone.as" />
   <mx:Panel>
-	  <mx:HBox>
-	    <mx:TextInput id="number" />
-	    <mx:Button click="register()" label="Register" enabled="{registerEnabled}" />
-	  </mx:HBox>
+    <mx:VBox>
+  	  <mx:HBox>
+  	    <mx:TextInput id="registerNumber" />
+  	    <mx:Button click="register()" label="{registerLabel}" enabled="{registerEnabled}" />
+  	  </mx:HBox>
+  	  <mx:HBox>
+  	    <mx:TextInput id="callNumber" />
+  	    <mx:Button click="call()" label="{callLabel}" enabled="{callEnabled}" />
+  	    
+  	  </mx:HBox>
+  	</mx:VBox>
 	</mx:Panel>
 </mx:Application>

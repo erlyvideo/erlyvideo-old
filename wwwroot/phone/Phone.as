@@ -5,6 +5,15 @@ private var ns_out:NetStream;
 [Bindable]
 private var registerEnabled:Boolean = false;
 
+[Bindable]
+private var registerLabel:String = "Register";
+
+[Bindable]
+private var callEnabled:Boolean = false;
+
+[Bindable]
+private var callLabel:String = "Call";
+
 public function init()  : void
 {
 	Security.allowDomain("*");
@@ -40,11 +49,32 @@ private function handleStatus(evt:NetStatusEvent) : void
       
     default:
       registerEnabled = false;
+      callEnabled = false;
       break;
   }
 }
 
 public function register() : void
 {
-  nc.call("register", null, number.text);
+  var r:Responder = new Responder(function(reply:Boolean):void {
+    if(reply) {
+      registerLabel = "Registered";
+      callEnabled = true;
+    } else {
+      registerLabel = "Failed to register";
+    }
+  });
+  nc.call("register", r, registerNumber.text);
+}
+
+public function call() : void
+{
+  var r:Responder = new Responder(function(reply:Boolean):void {
+    if(reply) {
+      callLabel = "Calling";
+    } else {
+      callLabel = "Failed to call";
+    }
+  })
+  nc.call("ring", r, callNumber.text);
 }

@@ -23,13 +23,24 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_sip).
 -author('Max Lapshin <max@maxidoors.ru>').
+-author('Maxim Treskin <zerthhud@gmail.com>').
 -include("../log.hrl").
 
 -export([start/0, stop/0]).
 
 -export([progress/3, ack/3]).
 
+
+-export([register/2, call/2]).
+
 start() ->
+  case lists:member(esip, [App || {App, _, _} <- application:loaded_applications()]) of
+    true -> ok;
+    false -> real_start()
+  end.
+  
+
+real_start() ->
   ?D("Start EMS SIP"),
   case ems:get_var(?MODULE, undefined) of
     undefined ->
@@ -52,6 +63,34 @@ stop() ->
   application:unload(esip),
   ok.
 
+
+
+%%--------------------------------------------------------------------
+%% @spec (Number::string(), Client::pid()) -> {ok, Ref}
+%% @doc Registers process under specific number
+%%
+%% @end
+%%--------------------------------------------------------------------
+register(Number, Client) when is_list(Number) andalso is_pid(Client) ->
+  start(),
+  esip_registrator:register(Number, Client);
+
+register(Number, Client) when is_binary(Number) ->
+  ?MODULE:register(binary_to_list(Number), Client).
+
+
+
+%%--------------------------------------------------------------------
+%% @spec (Number::string(), Options::proplist()) -> {ok, Ref}
+%% @doc Start call to number
+%%
+%% @end
+%%--------------------------------------------------------------------
+call(Number, _Options) when is_list(Number) ->
+  esip_registrator:get(Number);
+
+call(Number, Options) when is_binary(Number) ->
+  call(binary_to_list(Number), Options).
 
 
 hostpath(URL) ->
@@ -88,3 +127,4 @@ ack(URL, Headers, _Body) ->
   Outstream = << Path/binary, <<"-out">>/binary >>,
   {ok, Media} = media_provider:play(default, Outstream, [{stream_id,1}]),
   {ok, Media}.
+

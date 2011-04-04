@@ -190,15 +190,18 @@ handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Me
 
 handle_message(tick, #ticker{media = Media, dts = DTS, pos = Pos, consumer = Consumer, stream_id = StreamId,
                              playing_till = PlayingTill, burst_size = BurstSize} = Ticker) ->
+  Consumer ! {ems_stream, StreamId, burst_start},
   case load_frames(Media, Consumer, Pos, PlayingTill, BurstSize, []) of
     {eof, Frames} ->
       send_frames(Frames, Consumer, StreamId),
+      Consumer ! {ems_stream, StreamId, burst_stop},
       Consumer ! {ems_stream, StreamId, play_complete, DTS},
       notify_about_stop(Ticker),
       {noreply, Ticker};
   
     {ok, [#video_frame{dts = NewDTS, next_id = NewPos} = Frame|_] = Frames} ->
       send_frames(Frames, Consumer, StreamId),
+      Consumer ! {ems_stream, StreamId, burst_stop},
       Ticker1 = save_start_time(Ticker, Frames),
       Timeout = tick_timeout(Ticker1, Frame), 
       % ?D({burst, length(Frames), NewPos, round(NewDTS)}),

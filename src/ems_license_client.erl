@@ -25,6 +25,7 @@
 -behaviour(gen_server).
 
 -include_lib("kernel/include/file.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include("log.hrl").
 
 -define(TIMEOUT, 20*60000).
@@ -535,3 +536,19 @@ load_saved_modules([Module|Modules]) ->
       load_saved_modules(Modules)
   end.
       
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%
+%%%%%%   Tests
+%%%%%%
+%%%%%%  1) run without license.txt at all
+%%%%%%  2) run with empty or broken license.txt
+%%%%%%  3) proper license.txt with proper load_app reply
+%%%%%%  4) proper license.txt with proper save_app reply
+%%%%%%  5) locked version of unavailable project
+%%%%%%  6) locked version of available project, when this version isn't available
+%%%%%%  7) locked available version of available project
+%%%%%%  8) restore proper version from storage
+%%%%%%  9) non-restore version from storage if other is selected
+%%%%%%  
+%%%%%%  
