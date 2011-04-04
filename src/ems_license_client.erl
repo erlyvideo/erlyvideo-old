@@ -122,30 +122,39 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call(load, _From, State) ->
-  {reply, {ok}, State};
 
 handle_call(list, _From, State) -> 
-  {State1,Versions} = reload_config(State),
-  Command = #command{name = "list", versions = Versions},
-  {LicenseURL,License} = request_licensed(State1#client.license, State1),
-  URL = make_url(LicenseURL,License,Command),
-  {Bin, State2} = request_code_from_server(License,State1, URL),
-  {ok, Commands, _State3} = read_license_response(Bin,State2),
+  {State1,Commands} = try make_request(State,"list") of 
+    Val -> Val
+  catch 
+    error:_ -> 
+      error_logger:info_msg("Request error"),
+      {State,[]}
+  end,
   {reply, Commands, State1};
 
 handle_call(save,_From,State) ->
-  {State1, Versions} = reload_config(State),
-  Command = #command{name = "save",versions = Versions},
-  {LicenseURL,License} = request_licensed(State1#client.license,State1),
-  URL = make_url(LicenseURL,License,Command),
-  {Bin,State2} = request_code_from_server(License,State1,URL),
-  {ok,Commands,State3} = read_license_response(Bin,State2),
-  Startup = execute_commands_v1(Commands,[],State3),  
-  handle_loaded_modules_v1(Startup),
-  {reply,Commands,State3};  
-  
+  {State1,Commands} = try make_request(State,"save") of 
+    Val -> Val
+  catch 
+    error:_ -> 
+      error_logger:info_msg("Request error"),
+      {State,[]}
+  end,
+  execute_request(State1,Commands),
+  {reply, Commands, State1};
 
+handle_call(load,_From,State) ->
+  {State1,Commands} = try make_request(State,"load") of 
+    Val -> Val
+  catch 
+    error:_ ->     
+     error_logger:info_msg("Request error"),
+     {State,[]}
+  end,
+  execute_request(State1,Commands),
+  {reply, Commands, State1};
+  
 handle_call({load_config,[Path|FullName]}, _From, State) ->
   application:set_env(erlyvideo,license_config,[Path|FullName],600),
   {reply,[Path|FullName],State};
@@ -210,6 +219,20 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 
+%%%%%%%%%%%%%%%%%%request logic
+
+make_request(State, RawCommand) ->
+  {State1, Versions} = reload_config(State),
+  Command = #command{name = RawCommand,versions = Versions},
+  {LicenseURL,License} = request_licensed(State1#client.license,State1),
+  URL = make_url(LicenseURL,License,Command),
+  {Bin,State2} = request_code_from_server(License,State1,URL),
+  {ok,Commands,State3} = read_license_response(Bin,State2),
+  {State3,Commands}.
+
+execute_request(State,Commands) ->
+  Startup = execute_commands_v1(Commands,[],State),
+  handle_loaded_modules_v1(Startup).
 
 
 
@@ -270,7 +293,6 @@ make_url(LicenseURL,License,Command) ->
   URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseURL, License,Command#command.name])) ++ AttrURL,
   URL.
 
-
 argument_to_url(undefined,AttrURL) ->
   AttrURL;
 
@@ -315,7 +337,6 @@ execute_commands_v1([{purge,Module}|Commands], Startup, State) ->
     true -> (catch Module:ems_client_unload());
     false -> ok
   end,
-  
   case code:is_loaded(Module) of
     true -> error_logger:info_msg("Licence purge ~p", [Module]), code:purge(Module);
     false -> ok
@@ -544,7 +565,7 @@ load_saved_modules([Module|Modules]) ->
 %%%%%%  1) run without license.txt at all
 %%%%%%  2) run with empty or broken license.txt
 %%%%%%  3) proper license.txt with proper load_app reply
-%%%%%%  4) proper license.txt with proper save_app reply
+%%%%%%  4) proper license.txt with proper save_app reply   
 %%%%%%  5) locked version of unavailable project
 %%%%%%  6) locked version of available project, when this version isn't available
 %%%%%%  7) locked available version of available project
