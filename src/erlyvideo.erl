@@ -106,6 +106,8 @@ vhosts() ->
 start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   ibrowse:start(),
+  ems_license_client:load(),
+	
   ems_log:start(),
 	application:start(crypto),
 	application:start(rtmp),
@@ -119,7 +121,6 @@ start() ->
 	application:start(erlyvideo),
 	
 	ems_license_client:restore(),
-	ems_license_client:load([sync]),
 	
   start_http(),
   start_rtmp(),

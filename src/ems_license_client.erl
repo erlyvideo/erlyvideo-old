@@ -32,7 +32,7 @@
 -define(LICENSE_TABLE, license_storage).
 -define(CONFIG_TABLE, config_table).
 %% External API
--export([start_link/0,list/0, load/0, load/1, select/0, load_config/1, save/0]).
+-export([start_link/0,list/0, load/0, select/0, load_config/1, save/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -54,16 +54,10 @@
   versions  
 }).
 
-start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
 
 load() ->
   gen_server:call(?MODULE, load).
   
-load([sync]) ->
-  gen_server:call(?MODULE, load, 60000).
-
 save() ->
   gen_server:call(?MODULE, save).
 
@@ -111,37 +105,138 @@ init([]) ->
   {ok, State1}.
 
 %%-------------------------------------------------------------------------
-%% @spec (Request, From, State) -> {reply, Reply, State}          |
-%%                                 {reply, Reply, State, Timeout} |
-%%                                 {noreply, State}               |
-%%                                 {noreply, State, Timeout}      |
-%%                                 {stop, Reason, Reply, State}   |
-%%                                 {stop, Reason, State}
-%% @doc Callback for synchronous server calls.  If `{stop, ...}' tuple
-%%      is returned, the server is stopped and `terminate/2' is called.
+%% @spec () -> ok | {error, Reason}
+%% @doc Loads code from storage or from server
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+%% Этот код фактически делает то, что написано на http://dev.erlyvideo.org/projects/commercial/wiki/Система_лицензий
+load() ->
+  Config = open_config(),
+  case load_from_storage(Config) of
+    ok -> ok;
+    {error, _Error} ->
+      error_logger:info_msg("Failed to load from storage: ~p~n", [_Error]),
+      case load_from_server(Config) of
+        {ok, ServerReply} ->
+          load_code(ServerReply),
+          save_to_storage(Config, ServerReply);
+        {error, Error} ->
+          error_logger:error_msg("Failed to load from server: ~p~n", [Error]),
+          {error, Error}
+    end
+  end.
 
-handle_call(list, _From, State) -> 
+
+%%%% load_from_storage
+%%%%
+load_from_storage(Config) ->
+  StrictVersions = extract_versions(Config),
+  StoredContent = read_storage(),
+  case storage_has_versions(StoredContent, StrictVersions) of
+    true -> 
+      load_code(StoredContent),
+      ok;
+    false ->
+      {error, notfound}
+  end.
+
+
+%%%% load_from_server
+%%%%
+load_from_server(Config) ->
+  URL = construct_url(Config, save),
+  case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
+    {ok, "200", _Headers, Bin} ->
+      unpack_server_response(Bin);
+    {ok, "404", _Headers, _Bin} ->
+      error_logger:error_msg("No selected versions on server~n"),
+      {error, notfound};
+    {error, Reason} ->
+      {error, Reason};
+    Else ->
+      {error, Else}
+  end.
+    
+
+unpack_server_response(Bin) ->
+  case erlang:binary_to_term(Bin) of
+    {reply, Reply} ->
+      case proplists:get_value(version, Reply) of
+        1 ->
+          Commands = proplists:get_value(commands, Reply),
+          {ok, Commands};
+        Version ->
+          {error,{unknown_license_version, Version}}
+      end;
+    {error, Reason} ->
+      error_logger:error_msg("Couldn't load license key ~p: ~p~n", [State#client.key, Reason]),
+      {error, Reason}
+  end.
+
+
+construct_url(Config, Command) ->
+  AttrURL = case Command#command.name of
+   "save" ->
+     argument_to_url(Command#command.versions,[]);
+   _ -> []
+  end,
+  URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseURL, License,Command#command.name])) ++ AttrURL,
+  URL.
+
+argument_to_url(undefined,AttrURL) ->
+  AttrURL;
+
+argument_to_url([],AttrURL) ->
+  AttrURL;
+
+argument_to_url(Versions,AttrURL) ->
+  [{Name,Version}|Tail] = Versions,  
+  NewAttrURL = AttrURL ++ lists:flatten(io_lib:format("&version[~s]=~s",[Name,Version])),
+  argument_to_url(Tail,NewAttrURL).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  Всё что ниже — отрефакторить  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+list() -> 
   {_State1,Commands} = make_request(State,"list"),
-  {reply, Commands, State};
+  Commands.
 
-handle_call(save,_From,State) ->
+save() ->
+  State = undefined,
   case make_request(State,"save") of
     {error,Reason} -> {reply, Reason,State};
     {State1,Commands} ->
       execute_request(State1,Commands),
      {reply, Commands, State1}
-  end;
+  end.
 
-handle_call(load,_From,State) ->
-  case make_request(State,"load") of
-    {error,Reason} -> {reply, Reason,State};
-    {State1,Commands} ->
-      execute_request(State1,Commands),
-     {reply, Commands, State1}
-  end;
+          
+      
+  % 
+  % 
+  % case make_request(State,"load") of
+  %   {error,Reason} -> {reply, Reason,State};
+  %   {State1,Commands} ->
+  %     execute_request(State1,Commands),
+  %    {reply, Commands, State1}
+  % end.
   
 handle_call({load_config,[Path|FullName]}, _From, State) ->
   application:set_env(erlyvideo,license_config,[Path|FullName],600),
@@ -282,50 +377,7 @@ request_licensed(Env) ->
       {LicenseUrl, License} %request_code_from_server
   end.
   
-make_url(LicenseURL,License,Command) ->
-  AttrURL = case Command#command.name of
-   "save" ->
-     argument_to_url(Command#command.versions,[]);
-   _ -> []
-  end,
-  URL = lists:flatten(io_lib:format("~s?key=~s&command=~s", [LicenseURL, License,Command#command.name])) ++ AttrURL,
-  URL.
-
-argument_to_url(undefined,AttrURL) ->
-  AttrURL;
-
-argument_to_url([],AttrURL) ->
-  AttrURL;
-
-argument_to_url(Versions,AttrURL) ->
-  [{Name,Version}|Tail] = Versions,  
-  NewAttrURL = AttrURL ++ lists:flatten(io_lib:format("&version[~s]=~s",[Name,Version])),
-  argument_to_url(Tail,NewAttrURL).
   
-request_code_from_server(License, State, URL) ->
-  ?D(URL),
-  case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
-    {ok, "200", _ResponseHeaders, Bin}  ->
-      {Bin, State#client{key = License}}; %read_license_response
-    Else ->
-      ?D({license_error, Else}),
-      {license_error,Else}
-  end.    
-  
-read_license_response(Bin, State) ->
-  case erlang:binary_to_term(Bin) of
-    {reply, Reply} ->
-      case proplists:get_value(version, Reply) of
-        1 ->
-          Commands = proplists:get_value(commands, Reply),
-          {ok, Commands, State};
-        Version ->
-          {error,{unknown_license_version, Version}}
-      end;
-    {error, Reason} ->
-      error_logger:error_msg("Couldn't load license key ~p: ~p~n", [State#client.key, Reason]),
-      {error, Reason}
-  end.
   
 execute_commands_v1([], Startup, _State) -> 
   Startup;
