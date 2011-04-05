@@ -40,8 +40,13 @@
 
 
 list() ->
-  [].
-
+  Config = read_config(),
+  case construct_url(Config,list) of 
+    undefined -> [];
+    URL ->  
+      load_by_url(URL)
+  end.
+  
 %%-------------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
 %% @doc Loads code from storage or from server
@@ -89,6 +94,9 @@ read_config() ->
 
 %%%% load_from_storage
 %%%%
+load_from_storage(undefined) ->
+  {error, config_wrong};
+
 load_from_storage(Config) ->
   StrictVersions = proplists:get_value(projects, Config),
   StoredContent = read_storage(Config),
@@ -100,6 +108,8 @@ load_from_storage(Config) ->
       {error, notfound}
   end.
 
+read_storage(undefined) ->
+  [];
 
 read_storage(Config) ->
   case open_license_storage(Config) of
@@ -113,6 +123,9 @@ read_storage(Config) ->
     {error, _Else} ->
       []
   end.
+
+writeable_cache_dir(undefined) ->
+  undefined;
 
 writeable_cache_dir(Config) ->
   case proplists:get_value(license_dir, Config, undefined) of
@@ -197,7 +210,8 @@ unpack_server_response(Bin) ->
   end.
 
 
-
+construct_url(undefined,Command) ->
+  undefined;
 
 construct_url(Config, Command) ->
   case proplists:get_value(license, Config) of
@@ -335,7 +349,83 @@ save_to_storage(Config, Commands) ->
 % reload_config(State) ->
 %   {State,undefined}.  
 
+absent_license_file_read_config_test() ->
+  {spawn,{setup,
+  fun() -> 
+    Path = application:get_env(erlyvideo,license_config),
+    application:set_env(erlyvideo,license_config,["test/file/absent.txt"]),
+    application:set_env(erlyvideo,license_config_buf,Path)
+  end,
+  fun(_) -> 
+    Path = application:get_env(erlyvideo,license_config_buf),
+    application:set_env(erlyvideo,license_config,Path)
+  end,
+  [
+  fun() ->
+    Conf = read_config(),
+    read_storage(Conf),
+    load_from_storage(Conf),
+    construct_url(Conf,list),
+    writeable_cache_dir(Conf),
+    load()
+  end]
+  }}.
 
+wrong_license_file_read_config_test() ->
+  {spawn,{setup,
+  fun() -> 
+    Path = application:get_env(erlyvideo,license_config),
+    application:set_env(erlyvideo,license_config,["test/file/license.txt"]),
+    application:set_env(erlyvideo,license_config_buf,Path)
+  end,
+  fun(_) -> 
+    Path = application:get_env(erlyvideo,license_config_buf),
+    application:set_env(erlyvideo,license_config,Path)
+  end,
+  [
+  fun() ->
+    Conf = read_config(),
+    read_storage(Conf),
+    load_from_storage(Conf),
+    construct_url(Conf,list),
+    writeable_cache_dir(Conf),
+    load()
+  end]
+  }}.
+
+unvailable_project_test() ->
+  {spawn,{setup,
+  fun() -> 
+    Path = application:get_env(erlyvideo,license_config),
+    application:set_env(erlyvideo,license_config,["test/file/license_unvailable_versions.txt"]),
+    application:set_env(erlyvideo,license_config_buf,Path)
+  end,
+  fun(_) -> 
+    Path = application:get_env(erlyvideo,license_config_buf),
+    application:set_env(erlyvideo,license_config,Path)
+  end,
+  [
+  fun() ->
+    load()
+  end]
+  }}.
+
+unvalid_project_test() ->
+  {spawn,{setup,
+  fun() -> 
+    Path = application:get_env(erlyvideo,license_config),
+    application:set_env(erlyvideo,license_config,["test/file/license_unvalid_project.txt"]),
+    application:set_env(erlyvideo,license_config_buf,Path)
+  end,
+  fun(_) -> 
+    Path = application:get_env(erlyvideo,license_config_buf),
+    application:set_env(erlyvideo,license_config,Path)
+  end,
+  [
+  fun() ->
+    load()
+  end]
+  }}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
