@@ -27,6 +27,7 @@
 
   created_at,
   last_dts = 0,
+  last_dts_at,
   ts_delta,
   glue_delta,
   
