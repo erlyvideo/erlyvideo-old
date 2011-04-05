@@ -40,8 +40,13 @@
 
 
 list() ->
-  [].
-
+  Config = read_config(),
+  case construct_url(Config,list) of 
+    undefined -> [];
+    URL ->  
+      load_by_url(URL)
+  end.
+  
 %%-------------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
 %% @doc Loads code from storage or from server
@@ -67,15 +72,17 @@ load() ->
 
 
 get_config_path() ->
-  ConfigPath = case application:get_env(erlyvideo,license_config)of 
-    {ok, [Path|FileName]} -> [Path|FileName];
+  case application:get_env(erlyvideo,license_config)of 
+    {ok, [Paths|FileName]} -> [Paths|FileName];
     undefined -> [["priv", "/etc/erlyvideo"],"license.txt"]
-  end,
-  ConfigPath.
+  end.
 
 read_config() ->
-  [Path|FileName] = get_config_path(),
-  case file:path_consult(Path, FileName) of
+  [Paths|FileName] = get_config_path(),
+  read_config(Paths, FileName).
+
+read_config(Paths, FileName) ->
+  case file:path_consult(Paths, FileName) of
     {ok, Env, LicensePath} ->
       error_logger:info_msg("Reading license file ~s", [LicensePath]),
       Env;
@@ -89,6 +96,9 @@ read_config() ->
 
 %%%% load_from_storage
 %%%%
+load_from_storage(undefined) ->
+  {error, config_wrong};
+
 load_from_storage(Config) ->
   StrictVersions = proplists:get_value(projects, Config),
   StoredContent = read_storage(Config),
@@ -100,6 +110,8 @@ load_from_storage(Config) ->
       {error, notfound}
   end.
 
+read_storage(undefined) ->
+  [];
 
 read_storage(Config) ->
   case open_license_storage(Config) of
@@ -113,6 +125,9 @@ read_storage(Config) ->
     {error, _Else} ->
       []
   end.
+
+writeable_cache_dir(undefined) ->
+  undefined;
 
 writeable_cache_dir(Config) ->
   case proplists:get_value(license_dir, Config, undefined) of
@@ -197,9 +212,7 @@ unpack_server_response(Bin) ->
   end.
 
 
-
-
-construct_url(Config, Command) ->
+construct_url(Config, Command) when is_list(Config) ->
   case proplists:get_value(license, Config) of
     undefined -> undefined;
     License ->
@@ -335,6 +348,12 @@ save_to_storage(Config, Commands) ->
 % reload_config(State) ->
 %   {State,undefined}.  
 
+read_config_test_() ->
+  [
+  ?_assertEqual([], read_config(["test/fixtures"], "license_broken.txt")),
+  ?_assertEqual([], read_config(["test/fixtures"], "license_absent.txt")),
+  ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"}], read_config(["test/fixtures"], "license_good.txt"))
+  ].
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
