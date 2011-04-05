@@ -100,7 +100,7 @@ load_from_storage(undefined) ->
   {error, config_wrong};
 
 load_from_storage(Config) ->
-  StrictVersions = proplists:get_value(projects, Config),
+  StrictVersions = proplists:get_value(projects, Config, []),
   StoredContent = read_storage(Config),
   case storage_has_versions(StoredContent, StrictVersions) of
     true -> 
