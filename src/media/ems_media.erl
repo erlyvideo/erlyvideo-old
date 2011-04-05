@@ -389,7 +389,7 @@ init([Module, Options]) ->
                      clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
                      media_info = proplists:get_value(media_info, Options, #media_info{flow_type = stream}),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
-                     created_at = ems:now(utc)},
+                     created_at = ems:now(utc), last_dts_at = os:timestamp()},
                      
   timer:send_interval(30000, garbage_collect),
   timer:send_after(5000, stop_wait_for_config),
@@ -647,17 +647,7 @@ handle_info({'DOWN', _Ref, process, _Pid, _Reason} = Msg, #ems_media{} = Media) 
 
 handle_info(#video_frame{} = Frame, Media) ->
   % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
-  {Media1, Frames} = case ems_media_frame:transcode(Frame, Media) of
-    {Media1_, undefined} -> {Media1_, []};
-    {Media1_, Frames1} when is_list(Frames1) -> {Media1_, Frames1};
-    {Media1_, Frame1} -> {Media1_, [Frame1]}
-  end,
-  lists:foldl(fun
-    (_, {stop,_,_} = Stop) -> 
-      Stop;
-    (OutFrame, {noreply, State, _}) ->
-      ems_media_frame:send_frame(OutFrame, State)
-  end, {noreply, Media1, ?TIMEOUT}, Frames);
+  ems_media_frame:send_frame(Frame, Media);
 
 handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
   case M:handle_control(no_source, Media) of
@@ -745,14 +735,14 @@ mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
 
 
 
-reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, created_at = CreatedAt, options = Options} = Media, Properties) ->
+reply_with_info(#ems_media{type = Type, url = URL, last_dts_at = LastDTS, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
     (type, Props)         -> [{type,Type}|Props];
     (url, Props)          -> [{url,URL}|Props];
     (last_dts, Props)     -> [{last_dts,LastDTS}|Props];
     (created_at, Props)   -> [{created_at,CreatedAt}|Props];
     (ts_delay, Props) when Type == file -> [{ts_delay,0}|Props];
-    (ts_delay, Props)     -> [{ts_delay,(ems:now(utc) - CreatedAt)*1000 - LastDTS}|Props];
+    (ts_delay, Props)     -> [{ts_delay,timer:now_diff(os:timestamp(), LastDTS) div 1000}|Props];
     (client_count, Props) -> [{client_count,ems_media_client_control:client_count(Media)}|Props];
     (storage, Props)      -> storage_properties(Media) ++ Props;
     (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props];
