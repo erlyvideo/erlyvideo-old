@@ -31,7 +31,6 @@ update:
 compile:
 	ERL_LIBS=$(ERL_LIBS) erl -make
 	(cd deps/ibrowse && make)
-	(cd deps/erlydtl && make)
 
 
 
@@ -88,7 +87,7 @@ install: compile
 	mkdir -p $(DESTROOT)/var/cache/erlyvideo/licensed
 	chown erlyvideo.erlyvideo $(DESTROOT)/var/lib/erlyvideo/movies
 	chown erlyvideo.erlyvideo $(DESTROOT)/var/cache/erlyvideo/licensed
-	for i in deps/amf deps/log4erl deps/erlydtl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
+	for i in deps/amf deps/log4erl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
 .PHONY: doc debian compile

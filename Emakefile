@@ -26,6 +26,5 @@
 {"deps/rtp/src/*", [debug_info, {outdir, "deps/rtp/ebin"}, {i, "deps/rtp/src"}, {i, "deps/rtp/include"}, {i, "deps"}]}.
 {"deps/esip/src/*", [debug_info, {outdir, "deps/esip/ebin"}, {i,".."}, {i, "deps/ertp/include"}, {i,"deps/esip/include"}, {i, "deps"}]}.
 {"deps/log4erl/src/*", [debug_info, {outdir, "deps/log4erl/ebin"}, {i, "deps/log4erl/include"}]}.
-{"deps/erlydtl/src/erlydtl/*", [debug_info, {outdir, "deps/erlydtl/ebin"}, {i, "deps/erlydtl/include"}]}.
 {"test/erlang/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 % , bin_opt_info, 
