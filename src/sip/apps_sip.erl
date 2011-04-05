@@ -36,14 +36,14 @@ sip_call(RTMP, OutStream, InStream) when is_pid(RTMP) andalso is_binary(OutStrea
 
 register(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
   ?D({sip_register, self(), Number}),
-  case ems_sip:register(Number, self()) of
+  case ems_flashphone_sip:register(Number, self()) of
     {ok, _Ref} -> rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     _Else -> ?D({failed_register,_Else}), rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
   end,
   State.
 
 ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
-  case ems_sip:call(Number, []) of
+  case ems_flashphone_sip:call(Number, []) of
     {ok, _Pid} ->
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->
