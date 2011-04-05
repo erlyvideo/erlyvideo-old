@@ -357,6 +357,15 @@ read_config_test_() ->
   ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"}], read_config(["test/fixtures"], "license_good.txt"))
   ].
 
+request_functions_test_() ->
+  [
+  ?_assertMatch({error,_Reason}, load_by_url(["Wrong_url"])),  
+  fun() ->
+    Config = read_config(["test/fixtures"],"license_unavailable_versions.txt"),
+    URL = construct_url(Config,save),
+    ?assertEqual({error,notfound}, load_by_url(URL))
+  end
+  ].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
