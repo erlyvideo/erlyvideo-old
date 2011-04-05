@@ -222,7 +222,6 @@ default_ems_media_seek({seek, Client, DTS}, #ems_media{format = Format, storage 
 
 
 default_seek_reply(Client, {DTS, NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
-  ?D({dst,DTS,NewPos,NewDTS}),
   case ems_media_clients:find(Clients, Client) of
     #client{ticker = Ticker, state = passive} ->
       media_ticker:seek(Ticker, DTS),
