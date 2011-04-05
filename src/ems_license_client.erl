@@ -30,7 +30,7 @@
 -define(TIMEOUT, 20*60000).
 -define(LICENSE_TABLE, license_storage).
 %% External API
--export([list/0, load/0]).
+-export([list/0, load/0, read_config/2]).
 
 %% gen_server callbacks
 
@@ -87,10 +87,10 @@ read_config(Paths, FileName) ->
       error_logger:info_msg("Reading license file ~s", [LicensePath]),
       Env;
     {error, enoent} ->
-      undefined;
+      [];
     {error, Reason} ->
       error_logger:error_msg("Invalid license file: ~p", [Reason]),
-      undefined
+      []
   end.
 
 
@@ -109,6 +109,7 @@ load_from_storage(Config) ->
     false ->
       {error, notfound}
   end.
+
 
 read_storage(undefined) ->
   [];
@@ -352,6 +353,7 @@ read_config_test_() ->
   [
   ?_assertEqual([], read_config(["test/fixtures"], "license_broken.txt")),
   ?_assertEqual([], read_config(["test/fixtures"], "license_absent.txt")),
+  ?_assertEqual([], read_storage([{license_dir,["absent_dir"]}])),
   ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"}], read_config(["test/fixtures"], "license_good.txt"))
   ].
 
