@@ -15,12 +15,17 @@ main([]) ->
   load_files("*", "deps/rtp/ebin") ++
   load_files("*", "deps/rtsp/ebin"),
   {ok, {"mem", ZipBin}} = zip:create("mem", Files, [memory]),
-  % Flags = <<"%%! -noshell -noinput\n">>,
-  Flags = <<"%%! -name ems -noinput -noshell +A 8 +K true\n">>,
-  Script = <<"#!/usr/bin/env escript\n", Flags/binary, ZipBin/binary>>,
-  ok = file:write_file("erlyvideo", Script),
-  os:cmd("chmod u+x erlyvideo"),
+  write_script("erlyvideo", "%%! -name ems -noinput -detached -noshell +A 8 +K true\n", ZipBin),
+  write_script("erlyvideo_ctl", "%%! -name ems -shell \n", ZipBin),
   ok.
+
+
+write_script(Name, Flags, ZipBin) ->
+  Script = <<"#!/usr/bin/env escript\n", (list_to_binary(Flags))/binary, ZipBin/binary>>,
+  ok = file:write_file(Name, Script),
+  os:cmd("chmod u+x "++Name),
+  ok.
+  
     
 load_files(Wildcard, Dir) ->
     [read_file(Filename, Dir) || Filename <- filelib:wildcard(Wildcard, Dir)].
