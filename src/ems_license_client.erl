@@ -72,15 +72,17 @@ load() ->
 
 
 get_config_path() ->
-  ConfigPath = case application:get_env(erlyvideo,license_config)of 
-    {ok, [Path|FileName]} -> [Path|FileName];
+  case application:get_env(erlyvideo,license_config)of 
+    {ok, [Paths|FileName]} -> [Paths|FileName];
     undefined -> [["priv", "/etc/erlyvideo"],"license.txt"]
-  end,
-  ConfigPath.
+  end.
 
 read_config() ->
-  [Path|FileName] = get_config_path(),
-  case file:path_consult(Path, FileName) of
+  [Paths|FileName] = get_config_path(),
+  read_config(Paths, FileName).
+
+read_config(Paths, FileName) ->
+  case file:path_consult(Paths, FileName) of
     {ok, Env, LicensePath} ->
       error_logger:info_msg("Reading license file ~s", [LicensePath]),
       Env;
@@ -210,10 +212,7 @@ unpack_server_response(Bin) ->
   end.
 
 
-construct_url(undefined,Command) ->
-  undefined;
-
-construct_url(Config, Command) ->
+construct_url(Config, Command) when is_list(Config) ->
   case proplists:get_value(license, Config) of
     undefined -> undefined;
     License ->
@@ -349,83 +348,13 @@ save_to_storage(Config, Commands) ->
 % reload_config(State) ->
 %   {State,undefined}.  
 
-absent_license_file_read_config_test() ->
-  {spawn,{setup,
-  fun() -> 
-    Path = application:get_env(erlyvideo,license_config),
-    application:set_env(erlyvideo,license_config,["test/file/absent.txt"]),
-    application:set_env(erlyvideo,license_config_buf,Path)
-  end,
-  fun(_) -> 
-    Path = application:get_env(erlyvideo,license_config_buf),
-    application:set_env(erlyvideo,license_config,Path)
-  end,
+read_config_test_() ->
   [
-  fun() ->
-    Conf = read_config(),
-    read_storage(Conf),
-    load_from_storage(Conf),
-    construct_url(Conf,list),
-    writeable_cache_dir(Conf),
-    load()
-  end]
-  }}.
+  ?_assertEqual([], read_config(["test/fixtures"], "license_broken.txt")),
+  ?_assertEqual([], read_config(["test/fixtures"], "license_absent.txt")),
+  ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"}], read_config(["test/fixtures"], "license_good.txt"))
+  ].
 
-wrong_license_file_read_config_test() ->
-  {spawn,{setup,
-  fun() -> 
-    Path = application:get_env(erlyvideo,license_config),
-    application:set_env(erlyvideo,license_config,["test/file/license.txt"]),
-    application:set_env(erlyvideo,license_config_buf,Path)
-  end,
-  fun(_) -> 
-    Path = application:get_env(erlyvideo,license_config_buf),
-    application:set_env(erlyvideo,license_config,Path)
-  end,
-  [
-  fun() ->
-    Conf = read_config(),
-    read_storage(Conf),
-    load_from_storage(Conf),
-    construct_url(Conf,list),
-    writeable_cache_dir(Conf),
-    load()
-  end]
-  }}.
-
-unvailable_project_test() ->
-  {spawn,{setup,
-  fun() -> 
-    Path = application:get_env(erlyvideo,license_config),
-    application:set_env(erlyvideo,license_config,["test/file/license_unvailable_versions.txt"]),
-    application:set_env(erlyvideo,license_config_buf,Path)
-  end,
-  fun(_) -> 
-    Path = application:get_env(erlyvideo,license_config_buf),
-    application:set_env(erlyvideo,license_config,Path)
-  end,
-  [
-  fun() ->
-    load()
-  end]
-  }}.
-
-unvalid_project_test() ->
-  {spawn,{setup,
-  fun() -> 
-    Path = application:get_env(erlyvideo,license_config),
-    application:set_env(erlyvideo,license_config,["test/file/license_unvalid_project.txt"]),
-    application:set_env(erlyvideo,license_config_buf,Path)
-  end,
-  fun(_) -> 
-    Path = application:get_env(erlyvideo,license_config_buf),
-    application:set_env(erlyvideo,license_config,Path)
-  end,
-  [
-  fun() ->
-    load()
-  end]
-  }}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
