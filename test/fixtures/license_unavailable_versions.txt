@@ -1,0 +1,7 @@
+{license, "5a97b100-3b41-012e-7745-09492a3365b9"}.
+{timeout, 600000}.
+{url, "http://license.erlyvideo.org/license"}.
+{license_dir, "/home/tthread/develop/work/tmp"}.
+{projects, [
+  {registrator, "asdsad"}
+]}.
