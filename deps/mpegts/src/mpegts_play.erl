@@ -121,6 +121,9 @@ handle_msg(#http_player{} = State, {ems_stream, _,play_complete,_}) ->
 handle_msg(#http_player{} = State, {tcp_closed, _Socket}) ->
   {stop, State};
 
+handle_msg(Streamer, {ems_stream, _, _}) ->
+  {ok, Streamer};
+  
 handle_msg(#http_player{} = Streamer, Message) ->
   ?D(Message),
   {ok, Streamer}.
