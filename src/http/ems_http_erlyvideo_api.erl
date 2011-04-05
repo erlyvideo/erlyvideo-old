@@ -81,5 +81,8 @@ clean_values([{Key,Value}|Info], Acc) when is_binary(Value) ->
     false -> clean_values(Info, Acc)
   end;
 
+clean_values([{_Key, Value}|Info], Acc) when is_tuple(Value) ->
+  clean_values(Info, Acc);
+  
 clean_values([{K,V}|Info], Acc) ->
   clean_values(Info, [{K,V}|Acc]).
