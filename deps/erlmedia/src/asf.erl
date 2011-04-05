@@ -345,7 +345,7 @@ read_err_correction_data(<<Len:4, HasOpaque:1, 0:2, _ErrPresent:1, CorrectionDat
   read_payload_parsing_data(Data, [{correction, CorrectionData}], Acc).
 
 read_payload_parsing_data(<<MultiplePayload:1, SeqType:2, PadLenType:2, PacketLenType:2, _HasErrCorr:1, 
-                            ReplDataLenType:2, OfftLenType:2, MediaObjNumLenType:2, StreamIdType:2, Bin/binary>>, ErrCorr, Acc) ->
+                            ReplDataLenType:2, OfftLenType:2, MediaObjNumLenType:2, _StreamIdType:2, Bin/binary>>, ErrCorr, Acc) ->
   MultiplePayload = 1,
   Word = fun
     (0, Bin_) -> {0, 0, Bin_};
@@ -357,12 +357,12 @@ read_payload_parsing_data(<<MultiplePayload:1, SeqType:2, PadLenType:2, PacketLe
   RestPacketLen = PacketLen - PacketLenSize,
   <<OnePacket:RestPacketLen/binary, Rest/binary>> = BinWithRest1,
   {Sequence, _, Rest2} = Word(SeqType, OnePacket),
-  {PaddingLen, _, <<SendTime:32/little, Duration:32/little, StreamId, Rest3/binary>>} = Word(PadLenType, Rest2),
+  {_PaddingLen, _, <<SendTime:32/little, Duration:32/little, StreamId, Rest3/binary>>} = Word(PadLenType, Rest2),
   {MediaObjNumber, _, Rest4} = Word(MediaObjNumLenType, Rest3),
-  {OffsetInfo, _, Rest5} = Word(OfftLenType, Rest4),
+  {_OffsetInfo, _, Rest5} = Word(OfftLenType, Rest4),
   {ReplDataLen, _, Rest6} = Word(ReplDataLenType, Rest5),
-  <<ReplData:ReplDataLen/binary, Rest7/binary>> = Rest6,
-  Info = ErrCorr ++ [{stream_id,StreamId},{send_time,SendTime},{duration,Duration},{number,MediaObjNumber}],
+  <<_ReplData:ReplDataLen/binary, _Rest7/binary>> = Rest6,
+  Info = ErrCorr ++ [{stream_id,StreamId},{send_time,SendTime},{duration,Duration},{number,MediaObjNumber},{sequence,Sequence}],
   parse_data(Rest, [Info|Acc]).
   
 

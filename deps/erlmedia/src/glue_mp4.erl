@@ -29,8 +29,8 @@
 
 -export([glue/2]).
 
-glue(Files, Output) ->
-  Medias = [read_mp4(File) || File <- Files],
+glue(Files, _Output) ->
+  _Medias = [read_mp4(File) || File <- Files],
   ok.
 
 

@@ -12,7 +12,7 @@
 {"src/rtmp/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/rtmp/shared_objects/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/plugins/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
-{"src/sip/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
+% {"src/sip/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/http/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/hooks/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"test/erlang/*", [encrypt_debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.

@@ -20,7 +20,7 @@
 
 
 -export([encrypt/2, decrypt/2]).
-
+-export([diff/2]).
 
 start_link(Port) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
@@ -189,10 +189,10 @@ diff0(<<>>, <<>>) ->
 
 diff0(<<S1/binary>>, <<S2/binary>>) ->
   [io:format("~2.16.0b ", [N]) || N <- binary_to_list(S1)],
-  [io:format("   ") || N <- lists:seq(1, 8 - size(S1))],
+  [io:format("   ") || _N <- lists:seq(1, 8 - size(S1))],
   io:format("  "),
   [io:format("~2.16.0b ", [N]) || N <- binary_to_list(S2)],
-  [io:format("   ") || N <- lists:seq(1, 8 - size(S2))],
+  [io:format("   ") || _N <- lists:seq(1, 8 - size(S2))],
   case S1 of
     S2 -> io:format("=");
     _ -> io:format("+")
@@ -242,7 +242,7 @@ process_message_0b_30(Session, Message, _DTS, _Length) ->
   {_Len1, Rest1} = amf3:read_uint29(Message),
   {Len2, Rest2} = amf3:read_uint29(Rest1),
   Len2_ = Len2 - 1,
-  <<PunchHole, URI:Len2_/binary, ClientTag:16/binary, _Rest3/binary>> = Rest2,
+  <<PunchHole, _URI:Len2_/binary, ClientTag:16/binary, _Rest3/binary>> = Rest2,
   
   % ?D({uri,URI}),
   
@@ -280,8 +280,8 @@ process_message_0b_38(#session{server_cookie = ServerCookie} = Session, Message,
   
   % ?D({replied,SessionId,NewSessionId}),
   
-  ClientId = sha2:digest256(ClientPublic),
-  ServerId = sha2:digest256(ServerPublic),
+  _ClientId = sha2:digest256(ClientPublic),
+  _ServerId = sha2:digest256(ServerPublic),
   
   Buf = <<3,16#1a,0,0,2,16#1e,0,16#81,2,16#d,2,ServerPublic/binary>>,
   MD1 = hmac256:digest_bin(Buf, ClientCookie),
@@ -304,8 +304,8 @@ process_message_0b_38(#session{server_cookie = ServerCookie} = Session, Message,
   
 
 
-process_message_8d_5e(Session, Message, DTS, Length) ->
-  <<Len:16, Msg:Len/binary, Rest/binary>> = Message,
+process_message_8d_5e(Session, Message, _DTS, _Length) ->
+  <<Len:16, Msg:Len/binary, _Rest/binary>> = Message,
   hexdump(Msg),
   application:stop(rtmp),
   {ok, Session, <<>>}.
