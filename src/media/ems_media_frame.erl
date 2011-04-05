@@ -29,7 +29,7 @@
 -include("../log.hrl").
 -include("ems_media_client.hrl").
 
--export([send_frame/2]).
+-export([init/1, send_frame/2]).
 
 -define(TIMEOUT, 60000).
 
@@ -51,6 +51,9 @@ dump_frame/2
 ]).
 
 
+
+init(#ems_media{} = Media) ->
+  Media#ems_media{frame_filters = frame_filters(Media)}.
 
 
 % 
@@ -78,15 +81,15 @@ frame_filters(_Media) ->
     send_frame_to_clients
   ].
 
-send_frame(#video_frame{} = Frame, #ems_media{} = Media) ->
-  pass_filter_chain([Frame], Media, frame_filters(Media)).
+send_frame(#video_frame{} = Frame, #ems_media{frame_filters = FrameFilters} = Media) ->
+  pass_filter_chain([Frame], Media, FrameFilters).
 
 
 pass_filter_chain([], #ems_media{} = Media, _Filters) ->
   {noreply, Media, ?TIMEOUT};
 
-pass_filter_chain([_Frame|Frames], #ems_media{} = Media, []) ->
-  pass_filter_chain(Frames, Media, frame_filters(Media));
+pass_filter_chain([_Frame|Frames], #ems_media{frame_filters = FrameFilters} = Media, []) ->
+  pass_filter_chain(Frames, Media, FrameFilters);
 
 pass_filter_chain([Frame|Frames], #ems_media{} = Media, [Filter|Filters]) ->
   case ?MODULE:Filter(Frame, Media) of
@@ -94,8 +97,8 @@ pass_filter_chain([Frame|Frames], #ems_media{} = Media, [Filter|Filters]) ->
       pass_filter_chain(NewFrames ++ Frames, Media1, Filters);
     {reply, #video_frame{} = NewFrame, #ems_media{} = Media1} ->
       pass_filter_chain([NewFrame|Frames], Media1, Filters);
-    {noreply, #ems_media{} = Media1} ->
-      pass_filter_chain(Frames, Media1, frame_filters(Media1));
+    {noreply, #ems_media{frame_filters = FrameFilters} = Media1} ->
+      pass_filter_chain(Frames, Media1, FrameFilters);
     {stop, Reason, #ems_media{} = Media1} ->
       {stop, Reason, Media1}
   end.
