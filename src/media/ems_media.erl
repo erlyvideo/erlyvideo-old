@@ -610,6 +610,9 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_info({inet_reply,_Socket,_Reply}, Media) ->
+  {noreply, Media};
+
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source, source_timeout = shutdown} = Media) ->
   ?D({"ems_media lost source with source_timeout=shutdown", Source, _Reason}),
   {stop, normal, Media};

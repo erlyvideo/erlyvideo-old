@@ -72,7 +72,8 @@ test() ->
     rtmp_handshake,
     rtsp,
     ems_test_file_reading,
-    rtmp_publish_tests
+    rtmp_publish_tests,
+    rtmp_read_tests
   ]).
 
 
@@ -105,6 +106,8 @@ vhosts() ->
 start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   ibrowse:start(),
+  ems_license_client:load(),
+	
   ems_log:start(),
 	application:start(crypto),
 	application:start(rtmp),
@@ -116,9 +119,6 @@ start() ->
   media_provider:init_names(),
 
 	application:start(erlyvideo),
-	
-	ems_license_client:restore(),
-	ems_license_client:ping([sync]),
 	
   start_http(),
   start_rtmp(),

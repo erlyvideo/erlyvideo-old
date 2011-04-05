@@ -171,9 +171,6 @@ parse_value(_K, Value) ->
   Value.
 
 
-stream_count(#media_info{audio = A, video = V}) -> length(A) + length(V).
-
-
 
 decode_stream_infos([{m, [Type, Port | PayloadTypes]}|SDP]) ->
   PayloadNums = [list_to_integer(PT) || PT <- PayloadTypes],
@@ -194,7 +191,7 @@ decode_stream_infos([{m, [Type, Port | PayloadTypes]}|SDP]) ->
 
 parse_media_sdp([], Streams) -> [Stream || {_PN, Stream} <- Streams];
 
-parse_media_sdp([{a, {rtpmap, PayloadNum, [CodecCode, ClockMap | EncodingParams]}} | SDP], Streams) ->
+parse_media_sdp([{a, {rtpmap, PayloadNum, [CodecCode, ClockMap | _EncodingParams]}} | SDP], Streams) ->
   #stream_info{content = Content, params = Params} = Stream = proplists:get_value(PayloadNum, Streams),
   Codec = sdp_to_codec(CodecCode),
   Params1 = case Content of

@@ -117,10 +117,6 @@ start_http_server(Port) ->
 
 
 
-%%%%%%%%  License supervisor  %%%%%%%
-init([ems_license_sup]) ->
-  {ok, {{one_for_one, 1000, 20}, [?STATIC_SERVER(ems_license, ems_license_client, [])]}};
-  
 %%%%%%%%  Lagging network clients monitor  %%%%%%%
 init([ems_network_lag_monitor_sup]) ->
   {ok, {{one_for_one, 1000, 20}, [?STATIC_SERVER(ems_network_lag, ems_network_lag_monitor, [[{timeout,1000},{threshold,80*60}]])]}};
@@ -207,7 +203,6 @@ init([shared_object_sup]) ->
 init([]) ->
 
   Supervisors = [
-    ?SUPERVISOR_LINK(ems_license_sup),
     ?SUPERVISOR_LINK(ems_network_lag_monitor_sup),
     ?SUPERVISOR_LINK(media_providers_sup),
     ?SUPERVISOR_LINK(erlyvideo_media_sup),

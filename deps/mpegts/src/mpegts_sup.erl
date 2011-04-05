@@ -84,13 +84,6 @@ init([mpegts_file_reader]) ->
 
 init([]) ->
   Supervisors = [
-  {   iphone_streams_sup,                         % Id       = internal id
-      {iphone_streams,start_link,[[]]},             % StartFun = {M, F, A}
-      permanent,                               % Restart  = permanent | transient | temporary
-      2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-      worker,                                  % Type     = worker | supervisor
-      [iphone_streams]                               % Modules  = [Module] | dynamic
-  },
   {   mpegts_reader_sup,
       {supervisor,start_link,[{local, mpegts_reader_sup}, ?MODULE, [mpegts_reader]]},
       permanent,                               % Restart  = permanent | transient | temporary

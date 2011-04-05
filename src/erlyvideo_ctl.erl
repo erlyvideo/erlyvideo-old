@@ -25,7 +25,10 @@
 -module(erlyvideo_ctl).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--export([start/0, stop/0]).
+-export([start/0, stop/0, main/1]).
+
+main(Args) ->
+  erlyvideo:main(Args).
 
 start() ->
   [NodeStr, Command | Args] = init:get_plain_arguments(),

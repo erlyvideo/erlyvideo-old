@@ -99,13 +99,13 @@ capture_camera_setup(Control) ->
     undefined -> "";
     Else -> "Session: "++Else++"\r\n"
   end,
-  {ok, Headers, _Body} = send_and_receive("SETUP", "~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved-~p-~p\r\n~s~s\r\n", 
+  {ok, _Headers, _Body} = send_and_receive("SETUP", "~s RTSP/1.0\r\nCSeq: ~p\r\nTransport: RTP/AVP/TCP;unicast;interleaved-~p-~p\r\n~s~s\r\n", 
                         [Control, get(seq), Chan, Chan+1, get(auth), Session]),
   put(interleave, Chan + 2),
   ok.
 
 capture_camera_play() ->
-  {ok, Headers, Body} = send_and_receive("PLAY", "~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n~s\r\n", [get(url), get(seq), get(session), get(auth)]),
+  {ok, _Headers, _Body} = send_and_receive("PLAY", "~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n~s\r\n", [get(url), get(seq), get(session), get(auth)]),
   ok.
 
 
@@ -118,7 +118,7 @@ send_and_receive(Method, Format, Args) ->
   inc_seq(),
   {ok, Headers, Body}.
 
-receive_reply(Method) ->
+receive_reply(_Method) ->
   {ok, Headers, Body, Raw} = read_reply(),
   case proplists:get_value("Session", Headers) of
     undefined -> ok;
@@ -142,7 +142,7 @@ capture(Direction, Data, Method) ->
 
 
 capture_interleaved_data(Timeout) ->
-  Ref = timer:send_after(Timeout*1000, stop),
+  _Ref = timer:send_after(Timeout*1000, stop),
   Filename = lists:flatten(io_lib:format("~s/~p-interleaved-in.txt", [get(capture_dir), get(seq)])),
   filelib:ensure_dir(Filename),
   {ok, F} = file:open(Filename, [binary,write]),
@@ -208,7 +208,7 @@ speak_to_camera_client() ->
   
   
 read_and_send_request() ->
-  {ok, Method, URL, Headers, Body, Raw} = read_request(),
+  {ok, Method, URL, Headers, _Body, Raw} = read_request(),
   Seq = list_to_integer(proplists:get_value("Cseq", Headers)),
   Reply = load_capture(Seq, Method, in, URL),
 
@@ -255,7 +255,7 @@ capture_server(Name, ListenPort, Host, Port) ->
   capture_proxied_server().
 
 capture_proxied_server() ->
-  {ok, Method, URL, Headers, Body, Request} = read_request(),
+  {ok, Method, URL, _Headers, _Body, Request} = read_request(),
   capture(in, Request, Method),
   case get(url) of
     undefined ->
@@ -264,7 +264,7 @@ capture_proxied_server() ->
     _ -> ok
   end,
   gen_tcp:send(get(socket), Request),
-  {ok, Headers1, Body1, Reply} = receive_reply(Method),
+  {ok, Headers1, _Body1, Reply} = receive_reply(Method),
   capture(out, Reply, Method),
   gen_tcp:send(get(listen_socket), Reply),
   case Method of

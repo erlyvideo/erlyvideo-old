@@ -361,6 +361,9 @@ start_new_media_entry(Host, Name, Opts) ->
       ?D({"Error opening", Type, Name, Else}),
       {notfound, <<"Failed to open ", Name/binary>>}
   end.
+
+detect_type(Host, Name, Opts) when is_list(Name) ->
+  detect_type(Host, list_to_binary(Name), Opts);
   
 detect_type(Host, Name, Opts) ->
   Detectors = ems:get_var(detectors, Host, [rewrite, http, rtsp, ts_file, file, livestream]),
