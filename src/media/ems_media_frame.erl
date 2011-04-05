@@ -169,7 +169,7 @@ shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta 
 
 
 save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->
-  {reply, Frame, Media#ems_media{last_dts = DTS}}.
+  {reply, Frame, Media#ems_media{last_dts = DTS, last_dts_at = os:timestamp()}}.
   
   
 
