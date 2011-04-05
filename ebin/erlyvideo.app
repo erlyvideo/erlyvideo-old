@@ -30,7 +30,6 @@
    ems_http_push,
    ems_http_rtmpt,
    ems_http_switch_source,
-   ems_http_templates,
    ems_license_client,
    ems_media,
    ems_media_client_control,

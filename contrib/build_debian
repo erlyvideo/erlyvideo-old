@@ -173,7 +173,7 @@ EOF
   
   def self.debianize_all
     root = File.dirname(__FILE__)+"/../"
-    deps = %w(amf erlmedia erlydtl log4erl ertp ertsp mpegts rtmp shoutcast)
+    deps = %w(amf erlmedia log4erl ertp ertsp mpegts rtmp shoutcast)
     (deps.map {|dep| "#{root}/deps/#{dep}"} + [root]).each do |repo|
       repo = File.expand_path(repo)
       puts "Debianize #{repo}"
