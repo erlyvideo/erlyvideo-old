@@ -390,10 +390,11 @@ init([Module, Options]) ->
                      media_info = proplists:get_value(media_info, Options, #media_info{flow_type = stream}),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
                      created_at = ems:now(utc), last_dts_at = os:timestamp()},
-                     
+  
+  Media_ = ems_media_frame:init(Media),                   
   timer:send_interval(30000, garbage_collect),
   timer:send_after(5000, stop_wait_for_config),
-  case Module:init(Media, Options) of
+  case Module:init(Media_, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),
       Media3 = init_timeouts(Media2, Options),

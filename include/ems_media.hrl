@@ -38,5 +38,7 @@
   clients_timeout_ref,
   
   retry_count = 0,
-  retry_limit = 100
+  retry_limit = 100,
+  
+  frame_filters = []
 }).
