@@ -358,7 +358,7 @@ read_config_test_() ->
 
 request_functions_test_() ->
   [
-  ?_assertMatch({error,_Reason}, load_by_url(["Wrong_url"])),  
+  ?_assertMatch({error,_Reason}, load_by_url(["Wrong_url"])),
   fun() ->
     Config = read_config(["test/fixtures"],"license_unavailable_versions.txt"),
     URL = construct_url(Config,save),
@@ -368,7 +368,6 @@ request_functions_test_() ->
 
 read_storage_test_() ->
   [
-  ?_assertEqual([],read_storage([])),
   ?_assert(is_list(read_storage(read_config(["test/fixtures"],"license_good.txt"))) =:= true),
   ?_assertEqual([],read_storage(read_config(["test/fixtures"],"lcense_bad_licanse_dir.txt")))
   ].
@@ -381,6 +380,29 @@ construct_url_test_() ->
     construct_url([{license, "test_key"},{url, "http://license.erlyvideo.org/license"},{projects,[]}],test_command)),
   ?_assertEqual(undefined, construct_url([{bad_license, "oops"}],test_command))
   ].
+
+web_api_correct_test_() ->
+ [
+ ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/license",[],get)),
+ ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/license",[],post,["Not_empty_body"]))
+ ].
+
+web_api_broken_config_test_() ->
+  {spawn, {setup,
+  fun() ->
+    {ok,ConfigPath} = application:get_env(erlyvideo,license_config),
+    application:set_env(erlyvideo,license_config_buf,ConfigPath),
+    application:set_env(erlyvideo,license_config,[["local"],"lic.txt"])
+  end,
+  fun(_) ->
+  {ok,ConfigPath} = application:get_env(erlyvideo,license_config_buf),
+  application:set_env(erlyvideo,license_config,ConfigPath)
+  end,
+  [
+    ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/license",[],get)),
+    ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/license",[],post,["Not_empty_body"]))
+  ]
+}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
