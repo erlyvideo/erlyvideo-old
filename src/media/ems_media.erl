@@ -148,6 +148,7 @@ stop_stream(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 subscribe(Media, Options) when is_pid(Media) andalso is_list(Options) ->
+  _Info = media_info(Media), %% It is very important, because no client should be without media_info
   gen_server:call(Media, {subscribe, self(), Options}, 10000).
 
 %%----------------------------------------------------------------------
@@ -736,14 +737,14 @@ mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
 
 
 
-reply_with_info(#ems_media{type = Type, url = URL, last_dts_at = LastDTS, created_at = CreatedAt, options = Options} = Media, Properties) ->
+reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, last_dts_at = LastDTSAt, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
     (type, Props)         -> [{type,Type}|Props];
     (url, Props)          -> [{url,URL}|Props];
     (last_dts, Props)     -> [{last_dts,LastDTS}|Props];
     (created_at, Props)   -> [{created_at,CreatedAt}|Props];
     (ts_delay, Props) when Type == file -> [{ts_delay,0}|Props];
-    (ts_delay, Props)     -> [{ts_delay,timer:now_diff(os:timestamp(), LastDTS) div 1000}|Props];
+    (ts_delay, Props)     -> [{ts_delay,timer:now_diff(os:timestamp(), LastDTSAt) div 1000}|Props];
     (client_count, Props) -> [{client_count,ems_media_client_control:client_count(Media)}|Props];
     (storage, Props)      -> storage_properties(Media) ++ Props;
     (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props];

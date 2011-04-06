@@ -45,6 +45,7 @@ fix_negative_dts/2,
 start_on_keyframe/2,
 store_frame/2,
 save_config/2,
+send_audio_to_starting_clients/2,
 send_frame_to_clients/2,
 store_last_gop/2,
 dump_frame/2
@@ -231,10 +232,16 @@ save_config(Frame, Media) ->
 
 
 
+send_audio_to_starting_clients(#video_frame{content = audio} = Frame, #ems_media{clients = Clients} = Media) ->
+  ems_media_clients:send_frame(Frame, Clients, starting),
+  {noreply, Media};
 
-send_frame_to_clients(#video_frame{content = Content} = Frame, #ems_media{video_config = V, clients = Clients} = Media) ->
+send_audio_to_starting_clients(Frame, Media) ->
+  {reply, Frame, Media}.
+
+
+send_frame_to_clients(#video_frame{content = Content} = Frame, #ems_media{clients = Clients} = Media) ->
   case Content of
-    audio when V == undefined -> ems_media_clients:send_frame(Frame, Clients, starting);
     metadata -> ems_media_clients:send_frame(Frame, Clients, starting);
     _ -> ok
   end,
