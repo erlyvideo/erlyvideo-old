@@ -78,7 +78,6 @@ frame_filters(_Media) ->
     start_on_keyframe,
     store_frame,
     save_config,
-    % dump_frame,
     send_frame_to_clients
   ].
 
@@ -242,7 +241,7 @@ send_frame_to_clients(#video_frame{content = Content} = Frame, #ems_media{video_
 
 
 dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS} = Frame, Media) ->
-  ?D({Codec,Flavor,round(DTS)}),
+  ?D({Codec,Flavor,round(DTS), (catch size(Frame#video_frame.body))}),
   {reply, Frame, Media}.
   
 
