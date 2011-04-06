@@ -25,7 +25,6 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
 -include_lib("kernel/include/file.hrl").
-
 -export([http/4]).
 
 
@@ -58,7 +57,10 @@ http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
 http(_Host, 'GET', ["erlyvideo","api","license"], Req) -> 
-  {ok,List} = ems_license_client:list(), 
+  List = case ems_license_client:list() of
+    {ok,Value} -> Value;
+    Else -> Else
+  end,
   Info = lists:foldl(fun(Single,Buf) -> 
     {project, Project} = Single,
     JSON_Project = mochijson2:encode(Project) ++ "\n",
@@ -95,3 +97,5 @@ clean_values([{_Key, Value}|Info], Acc) when is_tuple(Value) ->
   
 clean_values([{K,V}|Info], Acc) ->
   clean_values(Info, [{K,V}|Acc]).
+
+
