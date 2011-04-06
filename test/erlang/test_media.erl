@@ -26,6 +26,8 @@
 
 -behaviour(ems_media).
 
+-include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../include/ems_media.hrl").
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
@@ -53,7 +55,7 @@ seek(_Media, before, Timestamp) ->
 
 init(State, _Options) ->
   timer:kill_after(1000),
-  {ok, State#ems_media{format = ?MODULE}}.
+  {ok, ems_media:set_media_info(State, #media_info{})}.
 
 
 %%----------------------------------------------------------------------
@@ -64,18 +66,13 @@ init(State, _Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({subscribe, _Client, Options}, #ems_media{} = State) ->
+handle_control({subscribe, _Client, _Options}, #ems_media{} = State) ->
   %% Subscribe returns:
   %% {reply, tick, State}  => client requires ticker (file reader)
   %% {reply, Reply, State} => client is subscribed as active receiver and receives custom reply
   %% {noreply, State}      => client is subscribed as active receiver and receives reply ``ok''
   %% {reply, {error, Reason}, State} => client receives {error, Reason}
-  case proplists:get_value(test_start, Options) of
-    undefined ->
-      {noreply, State};
-    _ ->
-      {reply, tick, State}
-  end;
+  {noreply, State};
 
 handle_control({unsubscribe, _Client}, #ems_media{} = State) ->
   %% Unsubscribe returns:
@@ -145,6 +142,9 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info(stop, State) ->
+  {stop, normal, State};
+  
 handle_info(_Message, State) ->
   {noreply, State}.
 
