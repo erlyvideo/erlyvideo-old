@@ -58,11 +58,20 @@ http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
 http(_Host, 'GET', ["erlyvideo","api","license"], Req) -> 
-  {ok,License} = ems_license_client:list(), 
-  Project = proplists:get_value(project,License),
-  Versions = proplists:get_value(versions,Project),
-  Name = proplists:get_value(name, Project),
-  Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{name,Name},{versions,Versions}]), "\n"]);
+  {ok,List} = ems_license_client:list(), 
+  Info = lists:foldl(fun(Single,Buf) -> 
+    {project, Project} = Single,
+    JSON_Project = mochijson2:encode(Project) ++ "\n",
+    [JSON_Project|Buf]
+  end, [], List),
+  Req:ok([{'Content-Type', "application/json"}], Info);
+
+http(_Host, 'POST', ["erlyvideo","api","license"], Req) ->
+  Reply = case ems_license_client:load() of
+   ok -> ok;
+   {error, Reason} -> Reason
+  end,
+  Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{state,Reply}]),"\n"]);
 
 
 http(_, _, _, _) ->
