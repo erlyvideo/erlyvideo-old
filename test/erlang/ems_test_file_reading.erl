@@ -101,32 +101,6 @@ h264_aac_1_mp4_test() ->
 %  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
 %  test_duration(Frames,20000).
 
-is_monotonic([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames]) when DTS1 > DTS2 -> false;
-is_monotonic([#video_frame{}, #video_frame{} = F|Frames]) -> is_monotonic([F|Frames]);
-is_monotonic([_F]) -> true;
-is_monotonic([]) -> true.
-
-
-is_interleaved(Frames, Length) ->
-  Counts = is_interleaved(Frames),
-  % ?D({zz, Counts, [C || #video_frame{content = C} <- Frames]}),
-  length([Count || Count <- Counts, Count > Length]) > length(Counts) div 3.
-
-is_interleaved(Frames) ->
-  is_interleaved(Frames, 0, []).
-
-
-is_interleaved([#video_frame{content = Content}, #video_frame{content = Content} = F| Frames], Count, Acc) ->
-  is_interleaved([F|Frames], Count+1, Acc);
-
-is_interleaved([#video_frame{content = Content1}, #video_frame{content = Content2} = F| Frames], Count, Acc) when Content1 =/= Content2 ->
-  is_interleaved([F|Frames], 0, [Count+1|Acc]);
-
-is_interleaved([#video_frame{}], Count, Acc) ->
-  lists:reverse([Count+1|Acc]);
-
-is_interleaved([], 0, Acc) ->
-  Acc.
   
 
 mpegts_reader_file_test_() ->
@@ -145,8 +119,8 @@ mpegts_reader_file_test_() ->
       {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/video.mp4",[]),
       erlang:monitor(process, Pid),
       Frames = ems_test_helper:receive_all_frames(),
-      ?assertNot(is_interleaved(Frames,15)),
-      ?assert(is_monotonic(Frames))
+      ?assertNot(ems_test_helper:is_interleaved(Frames,15)),
+      ?assert(ems_test_helper:is_monotonic(Frames))
     end]
   }}.
 
@@ -167,8 +141,8 @@ mpegts_reader_iphone_test_() ->
       {ok,Pid} = mpegts:read("http://127.0.0.1:8082/iphone/segments/video.mp4/3.ts",[]),
       erlang:monitor(process, Pid),
       Frames = ems_test_helper:receive_all_frames(),
-      ?assert(is_interleaved(Frames,10)),
-      ?assertNot(is_monotonic(Frames))
+      ?assert(ems_test_helper:is_interleaved(Frames,10)),
+      ?assertNot(ems_test_helper:is_monotonic(Frames))
     end]
   }}.
 

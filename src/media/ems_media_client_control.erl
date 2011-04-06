@@ -65,7 +65,8 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         ClientState = case proplists:get_value(paused, Options, false) of
           true -> paused;
           false when HasVideo == true -> starting;
-          false -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}, active
+          false when is_record(A, video_frame) -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}, active;
+          false -> starting
         end,
         ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS})
     end,
@@ -140,7 +141,6 @@ handle_info(no_clients, #ems_media{module = M} = Media) ->
       % ?D({"graceful received, handling", self(), Media#ems_media.name}),
       case M:handle_control(no_clients, Media) of
         {noreply, Media1} ->
-          ?D({"ems_media is stopping", M, Media#ems_media.name}),
           {stop, normal, Media1};
         {stop, Reason, _Reply, Media1} ->
           {stop, Reason, Media1};

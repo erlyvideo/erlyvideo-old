@@ -72,6 +72,8 @@ test() ->
     rtmp,
     rtmp_handshake,
     rtsp,
+    ems_media_timeout_tests,
+    ems_media_flow_tests,
     ems_test_file_reading,
     rtmp_publish_tests,
     rtmp_read_tests

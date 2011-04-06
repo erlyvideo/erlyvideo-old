@@ -59,3 +59,48 @@ receive_all_frames(Acc) ->
 set_ticker_timeouts(NoTimeouts) ->
   application:set_env(erlyvideo,no_timeouts, NoTimeouts).
 
+
+wait4(Pid) ->
+  erlang:monitor(process, Pid),
+  receive
+    {'DOWN', _, _, Pid, Reason} -> Reason
+  end.
+
+
+
+
+is_monotonic([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames]) when DTS1 > DTS2 -> false;
+is_monotonic([#video_frame{}, #video_frame{} = F|Frames]) -> is_monotonic([F|Frames]);
+is_monotonic([_F]) -> true;
+is_monotonic([]) -> true.
+
+
+is_interleaved(Frames, Length) ->
+  Counts = is_interleaved(Frames),
+  % ?D({zz, Counts, [C || #video_frame{content = C} <- Frames]}),
+  length([Count || Count <- Counts, Count > Length]) > length(Counts) div 3.
+
+is_interleaved(Frames) ->
+  is_interleaved(Frames, 0, []).
+
+
+is_interleaved([#video_frame{content = Content}, #video_frame{content = Content} = F| Frames], Count, Acc) ->
+  is_interleaved([F|Frames], Count+1, Acc);
+
+is_interleaved([#video_frame{content = Content1}, #video_frame{content = Content2} = F| Frames], Count, Acc) when Content1 =/= Content2 ->
+  is_interleaved([F|Frames], 0, [Count+1|Acc]);
+
+is_interleaved([#video_frame{}], Count, Acc) ->
+  lists:reverse([Count+1|Acc]);
+
+is_interleaved([], 0, Acc) ->
+  Acc.
+
+
+
+has_small_delta([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames], Delta) when abs(DTS2 - DTS1) > Delta -> false;
+has_small_delta([#video_frame{}, #video_frame{} = Frame|Frames], Delta) ->
+  has_small_delta([Frame|Frames], Delta);
+
+has_small_delta([_], _) -> true;
+has_small_delta([], _) -> true.
