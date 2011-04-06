@@ -183,8 +183,9 @@ metadata_frame(#media_info{options = Options, duration = Duration} = Media, Opts
     undefined -> [];
     _ -> [{duration, Duration / 1000}]
   end,
+  DTS = proplists:get_value(dts, Opts),
   #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}], 
-               stream_id = proplists:get_value(stream_id, Opts, 0), dts = 0, pts = 0}.
+               stream_id = proplists:get_value(stream_id, Opts, 0), dts = DTS, pts = DTS}.
 
 
 video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
@@ -566,29 +567,21 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
     #rtmp_stream{pid = Media, started = false} = Stream ->
-      % ?D({start_stream, Frame}),
       MediaType = proplists:get_value(type, ems_media:info(Media)),
       rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
-      % put(stream_start, erlang:now()),
-      {set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State), DTS, true, true};
+      State1_ = set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State),
+      State2_ = rtmp_session:send_frame(rtmp_session:metadata(Media, [{stream_id,StreamId},{dts,DTS}]), State1_),
+      {State2_, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
       {State, DTS_, false, true};
     Else ->
       erlang:error({old_frame, Else,StreamId})
   end,
 
-  % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
-  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(DTS), round(DTS) - round(BaseDts) - RealDiff}),
   % case Frame#video_frame.content of
   %   metadata -> ?D(Frame);
   %   _ ->
-  %     ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), rtmp:justify_ts(DTS - BaseDts), BaseDts, size(Frame#video_frame.body)}),
-  %     % case get(stream_start) of
-  %     %   undefined -> put(stream_start, erlang:now());
-  %     %   _ -> ok
-  %     % end,
-  %     % RealDiff = timer:now_diff(erlang:now(), get(stream_start)) div 1000,
-  %     % ?D({round(DTS), RealDiff}),
+  %     ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), size(Frame#video_frame.body)}),
   %     ok
   % end,
   case Allow of

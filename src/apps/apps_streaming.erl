@@ -141,9 +141,8 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       State;
     {ok, Media} ->
       State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId}, State),
-      State2 = rtmp_session:send_frame(rtmp_session:metadata(Media, [{stream_id,StreamId}|Options]), State1),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      State2
+      State1
   end.
   % gen_fsm:send_event(self(), {play, Name, Options}),
 

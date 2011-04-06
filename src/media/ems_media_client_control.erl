@@ -24,6 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include("../include/ems_media.hrl").
 -include("ems_media_client.hrl").
 -include("../log.hrl").
@@ -39,7 +40,7 @@ handle_call({subscribe, Client, Options}, From, #ems_media{clients_timeout_ref =
   handle_call({subscribe, Client, Options}, From, Media#ems_media{clients_timeout_ref = undefined});
 
 
-handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients, audio_config = A, last_dts = DTS} = Media) ->
+handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients = Clients, audio_config = A, media_info = MediaInfo, last_dts = DTS} = Media) ->
   StreamId = proplists:get_value(stream_id, Options),
 
   DefaultSubscribe = fun(Reply, #ems_media{} = Media1) ->
@@ -55,14 +56,16 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
         ems_media_clients:insert(Clients, Entry);
       false ->
+        HasVideo = length(MediaInfo#media_info.video) > 0,
+        
         %
         % It is very important to understand, that we need to send audio config here, because client starts receiving music
         % right after subscribing, but it will wait for video till keyframe
         %
-        (catch Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}),
         ClientState = case proplists:get_value(paused, Options, false) of
           true -> paused;
-          false -> starting
+          false when HasVideo == true -> starting;
+          false -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}, active
         end,
         ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS})
     end,
@@ -221,7 +224,7 @@ default_ems_media_seek({seek, Client, DTS}, #ems_media{format = Format, storage 
   end.
 
 
-default_seek_reply(Client, {DTS, NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
+default_seek_reply(Client, {DTS, _NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{ticker = Ticker, state = passive} ->
       media_ticker:seek(Ticker, DTS),
