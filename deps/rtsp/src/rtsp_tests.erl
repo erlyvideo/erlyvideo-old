@@ -46,8 +46,8 @@ sanyo_hd2500_test_() ->
 beward1_test_() ->
   run_camera_test("beward_w20100722NS", 8092).
 
-logitech_750_high_test_() ->
-  run_camera_test("logitech-750-high", 8092).
+% logitech_750_high_test_() ->
+%   run_camera_test("logitech-750-high", 8092).
   
 logitech_750_low_test_() ->
   run_camera_test("logitech-750-low", 8092).
