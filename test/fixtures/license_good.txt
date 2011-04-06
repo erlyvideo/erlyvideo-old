@@ -1,2 +1,3 @@
 {license, "test-license"}.
 {url, "http://localhost:9080/license"}.
+{license_dir,"test/fixtures"}.
