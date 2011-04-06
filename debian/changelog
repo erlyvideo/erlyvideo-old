@@ -1,3 +1,9 @@
+erlyvideo (2.7.11) unstable; urgency=low
+
+  Cleanup in test. Remove erlydtl. Refactored ems_media_frame
+
+ -- Max Lapshin <max@maxidoors.ru>  Thu, 07 Apr 2011 02:08:34 +0400
+
 erlyvideo (2.7.10) unstable; urgency=low
 
   hd2500 fix
