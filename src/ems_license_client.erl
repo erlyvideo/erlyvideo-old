@@ -198,7 +198,7 @@ load_by_url(URL) ->
   
 
 unpack_server_response(Bin) ->
-  case erlang:binary_to_term(Bin,[safe]) of
+  case erlang:binary_to_term(Bin) of
     {reply, Reply} ->
       case proplists:get_value(version, Reply) of
         1 ->
