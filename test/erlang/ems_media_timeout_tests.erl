@@ -26,8 +26,10 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("../../include/ems_media.hrl").
 
--define(assertAlive(Name), ?assertMatch(Pid when is_pid(Pid), whereis(Name))).
--define(assertDead(Name), ?assertEqual(undefined, whereis(Name))).
+% -define(assertAlive(Name), ?assertMatch(Pid when is_pid(Pid), whereis(Name))).
+% -define(assertDead(Name), ?assertEqual(undefined, whereis(Name))).
+-define(assertAlive(Pid), ?assert(lists:member(Pid, processes()))).
+-define(assertDead(Pid), ?assertNot(lists:member(Pid, processes()))).
 
 dump_source() ->
   receive
@@ -36,176 +38,118 @@ dump_source() ->
     2000 -> ok
   end.
 
-wait4(Pid) ->
-  erlang:monitor(process, Pid),
-  receive
-    {'DOWN', _, _, Pid, Reason} -> Reason
-  end.
+
+setup_test_stream(Options, Fun) ->
+  {spawn, {setup,
+  fun() ->
+    log4erl:change_log_level(error),
+    {ok, _Pid} = ems_media:start_link(test_media, Options)
+  end,
+  fun({ok, Pid}) ->
+    Pid ! stop,
+    ems_test_helper:wait4(Pid),
+    log4erl:change_log_level(debug)
+  end,
+  fun({ok, Pid}) ->
+    [fun() -> Fun(Pid) end]
+  end
+  }}.
+
 
 source_timeout_test_() ->
-  {spawn, {setup,
-    fun() -> 
-      log4erl:change_log_level(error),
-      (catch erlang:exit(whereis(ems_media_test), kill)),
-      {ok, Pid} = ems_media:start_link(test_media, [{source_timeout, 3}]),
-      erlang:register(ems_media_test, Pid),
-      {ok, Pid} 
-    end,
-    fun({ok, Pid}) ->
-      Pid ! stop,
-      wait4(Pid),
-      log4erl:change_log_level(debug)
-    end,
-    [fun() ->
-      Source = spawn_link(fun dump_source/0),
-      ems_media:set_source(whereis(ems_media_test), Source),
-      
-      
-      ?assertAlive(ems_media_test),
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
+  setup_test_stream([{source_timeout, 3}], fun(Media) ->
+    Source = spawn_link(fun dump_source/0),
+    ems_media:set_source(Media, Source),
+    
+    
+    ?assertAlive(Media),
+    timer:sleep(60),
+    ?assertAlive(Media),
 
-      Source ! stop,               
-      timer:sleep(2),
-      
-      Source1 = spawn_link(fun dump_source/0),
-      ems_media:set_source(whereis(ems_media_test), Source1),
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
-      
+    Source ! stop,               
+    timer:sleep(2),
+    
+    Source1 = spawn_link(fun dump_source/0),
+    ems_media:set_source(Media, Source1),
+    timer:sleep(60),
+    ?assertAlive(Media),
+    
 
-      Source1 ! stop,
-      timer:sleep(2),
-      
-      ?assertAlive(ems_media_test),
-      timer:sleep(6),
-      ?assertDead(ems_media_test)
-    end]
-  }}.
+    Source1 ! stop,
+    timer:sleep(2),
+    
+    ?assertAlive(Media),
+    timer:sleep(6),
+    ?assertDead(Media)
+  end).
 
 source_false_timeout_test_() ->
-  {spawn, {setup,
-    fun() -> 
-      log4erl:change_log_level(error),
-      (catch erlang:exit(whereis(ems_media_test), kill)),
-      {ok, Pid} = ems_media:start_link(test_media, [{source_timeout, false}]),
-      erlang:register(ems_media_test, Pid),
-      {ok, Pid} 
-    end,
-    fun({ok, Pid}) ->
-      Pid ! stop,
-      wait4(Pid),
-      log4erl:change_log_level(debug)
-    end,
-    [fun() ->
-      Source = spawn_link(fun dump_source/0),
-      ems_media:set_source(whereis(ems_media_test), Source),
+  setup_test_stream([{source_timeout, false}], fun(Media) ->
+    Source = spawn_link(fun dump_source/0),
+    ems_media:set_source(Media, Source),
 
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
+    timer:sleep(60),
+    ?assertAlive(Media),
 
-      Source ! stop,               
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
-      
-      Source ! stop
-    end]
-  }}.
+    Source ! stop,               
+    timer:sleep(60),
+    ?assertAlive(Media),
+    
+    Source ! stop
+  end).
   
 clients_timeout_test_() ->
-  {spawn, {setup,
-    fun() -> 
-      log4erl:change_log_level(error),
-      (catch erlang:exit(whereis(ems_media_test), kill)),
-      {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, 30}]),
-      erlang:register(ems_media_test, Pid),
-      {ok, Pid} 
-    end,
-    fun({ok, Pid}) -> 
-      Pid ! stop,
-      wait4(Pid),
-      log4erl:change_log_level(debug)
-    end,
-    [fun() ->
-      ems_media:subscribe(whereis(ems_media_test), []),
+  setup_test_stream([{clients_timeout, 30}], fun(Media) ->
+    ems_media:subscribe(Media, []),
 
-      ?assertAlive(ems_media_test),
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
+    ?assertAlive(Media),
+    timer:sleep(60),
+    ?assertAlive(Media),
 
-      ems_media:unsubscribe(whereis(ems_media_test)),
-      timer:sleep(2),
+    ems_media:unsubscribe(Media),
+    timer:sleep(2),
 
-      ems_media:subscribe(whereis(ems_media_test), []),
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
+    ems_media:subscribe(Media, []),
+    timer:sleep(60),
+    ?assertAlive(Media),
 
 
-      ems_media:unsubscribe(whereis(ems_media_test)),
-      timer:sleep(2),
+    ems_media:unsubscribe(Media),
+    timer:sleep(2),
 
-      ?assertAlive(ems_media_test),
-      timer:sleep(60),
-      ?assertDead(ems_media_test)
-    end]
-  }}.
+    ?assertAlive(Media),
+    timer:sleep(60),
+    ?assertDead(Media)
+  end).
 
 clients_false_timeout_test_() ->
-  {spawn, {setup,
-    fun() -> 
-      log4erl:change_log_level(error),
-      (catch erlang:exit(whereis(ems_media_test), kill)),
-      {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, false}]),
-      erlang:register(ems_media_test, Pid),
-      {ok, Pid} 
-    end,
-    fun({ok, Pid}) ->
-      Pid ! stop,
-      wait4(Pid),
-      log4erl:change_log_level(debug)
-    end,
-    [fun() ->
-      ems_media:subscribe(whereis(ems_media_test), []),
+  setup_test_stream([{clients_timeout, false}], fun(Media) ->
+    ems_media:subscribe(Media, []),
 
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
+    timer:sleep(60),
+    ?assertAlive(Media),
 
-      ems_media:unsubscribe(whereis(ems_media_test)),
-      timer:sleep(60),
-      ?assertAlive(ems_media_test)
-    end]
-  }}.
-
+    ems_media:unsubscribe(Media),
+    timer:sleep(60),
+    ?assertAlive(Media)
+  end).
+  
 
 false_timeouts_test_() ->
-  {spawn, {setup,
-    fun() -> 
-      log4erl:change_log_level(error),
-      (catch erlang:exit(whereis(ems_media_test), kill)),
-      {ok, Pid} = ems_media:start_link(test_media, [{clients_timeout, false},{source_timeout, false}]),
-      erlang:register(ems_media_test, Pid),
-      {ok, Pid} 
-    end,
-    fun({ok, Pid}) ->
-      Pid ! stop,
-      wait4(Pid),
-      log4erl:change_log_level(debug)
-    end,
-    [fun() ->
-      Source = spawn_link(fun dump_source/0),
-      ems_media:set_source(whereis(ems_media_test), Source),
-      ems_media:subscribe(whereis(ems_media_test), []),
+  setup_test_stream([{clients_timeout, false},{source_timeout, false}], fun(Media) ->
+    Source = spawn_link(fun dump_source/0),
+    ems_media:set_source(Media, Source),
+    ems_media:subscribe(Media, []),
 
-      timer:sleep(60),
-      ?assertAlive(ems_media_test),
-      
-      Source ! stop,
-      ems_media:unsubscribe(whereis(ems_media_test)),
-      
-      timer:sleep(60),
-      ?assertAlive(ems_media_test)
-    end]
-  }}.
+    timer:sleep(60),
+    ?assertAlive(Media),
+    
+    Source ! stop,
+    ems_media:unsubscribe(Media),
+    
+    timer:sleep(60),
+    ?assertAlive(Media)
+  end).
   
 
   
