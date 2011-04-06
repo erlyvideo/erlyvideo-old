@@ -107,7 +107,7 @@ load_from_storage(Config) ->
       load_code(StoredContent),
       ok;
     false ->
-      {error, notfound}
+      {error, storage_has_depricated_versions}
   end.
 
 
@@ -198,7 +198,7 @@ load_by_url(URL) ->
   
 
 unpack_server_response(Bin) ->
-  case erlang:binary_to_term(Bin) of
+  case erlang:binary_to_term(Bin,[safe]) of
     {reply, Reply} ->
       case proplists:get_value(version, Reply) of
         1 ->
@@ -353,10 +353,25 @@ read_config_test_() ->
   [
   ?_assertEqual([], read_config(["test/fixtures"], "license_broken.txt")),
   ?_assertEqual([], read_config(["test/fixtures"], "license_absent.txt")),
-  ?_assertEqual([], read_storage([{license_dir,["absent_dir"]}])),
-  ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"}], read_config(["test/fixtures"], "license_good.txt"))
+  ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"},{license_dir,"test/fixtures"}], read_config(["test/fixtures"], "license_good.txt"))
   ].
 
+
+read_storage_test_() ->
+  [
+  ?_assertEqual([],read_storage([])),
+  ?_assert(is_list(read_storage(read_config(["test/fixtures"],"license_good.txt"))) =:= true),
+  ?_assertEqual([],read_storage(read_config(["test/fixtures"],"lcense_bad_licanse_dir.txt")))
+  ].
+
+construct_url_test_() ->
+  [
+  ?_assertEqual("http://license.erlyvideo.org/license?key=test_key&command=test_command&version[test_application]=test_version",
+    construct_url([{license, "test_key"},{url, "http://license.erlyvideo.org/license"},{projects,[{test_application,"test_version"}]}],test_command)),
+  ?_assertEqual("http://license.erlyvideo.org/license?key=test_key&command=test_command",
+    construct_url([{license, "test_key"},{url, "http://license.erlyvideo.org/license"},{projects,[]}],test_command)),
+  ?_assertEqual(undefined, construct_url([{bad_license, "oops"}],test_command))
+  ].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
