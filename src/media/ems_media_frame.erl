@@ -78,6 +78,7 @@ frame_filters(_Media) ->
     start_on_keyframe,
     store_frame,
     save_config,
+    % dump_frame,
     send_frame_to_clients
   ].
 
@@ -92,11 +93,14 @@ pass_filter_chain([_Frame|Frames], #ems_media{frame_filters = FrameFilters} = Me
   pass_filter_chain(Frames, Media, FrameFilters);
 
 pass_filter_chain([Frame|Frames], #ems_media{} = Media, [Filter|Filters]) ->
+  put(current_filter, Filter),
   case ?MODULE:Filter(Frame, Media) of
     {reply, NewFrames, #ems_media{} = Media1} when is_list(NewFrames) ->
       pass_filter_chain(NewFrames ++ Frames, Media1, Filters);
     {reply, #video_frame{} = NewFrame, #ems_media{} = Media1} ->
       pass_filter_chain([NewFrame|Frames], Media1, Filters);
+    {reply, undefined, #ems_media{frame_filters = FrameFilters} = Media1} ->
+      pass_filter_chain(Frames, Media1, FrameFilters);
     {noreply, #ems_media{frame_filters = FrameFilters} = Media1} ->
       pass_filter_chain(Frames, Media1, FrameFilters);
     {stop, Reason, #ems_media{} = Media1} ->
