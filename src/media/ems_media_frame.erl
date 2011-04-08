@@ -40,6 +40,7 @@ define_media_info/2,
 fix_undefined_dts/2,
 calculate_new_stream_shift/2,
 shift_dts_delta/2,
+warn_bad_dts_delta/2,
 save_last_dts/2,
 fix_negative_dts/2,
 start_on_keyframe/2,
@@ -66,27 +67,34 @@ init(#ems_media{} = Media) ->
 %                         {stop, Reason, State}
 %
 
-frame_filters(_Media) ->
+frame_filters(#ems_media{options = Options} = _Media) ->
   [
     transcode,
     pass_frame_through_module,
     define_media_info,
     fix_undefined_dts,
     calculate_new_stream_shift,
-    shift_dts_delta,
-    fix_negative_dts,
+    shift_dts_delta] ++ 
+  case proplists:get_value(warn_dts_delta, Options) of
+    true -> [warn_bad_dts_delta];
+    _ -> []
+  end ++  
+  [ fix_negative_dts,
     save_last_dts,
     start_on_keyframe,
     store_frame,
-    save_config,
-    % dump_frame,
+    save_config] ++
+  case proplists:get_value(frame_dump, Options) of
+    true -> [dump_frame];
+    _ -> []
+  end ++ [
     send_audio_to_starting_clients,
     send_frame_to_clients
   ].
 
 send_frame(#video_frame{} = Frame, #ems_media{frame_filters = FrameFilters} = Media) ->
-  % pass_filter_chain([Frame], Media, FrameFilters).
-  pass_filter_chain([Frame], Media, frame_filters(Media)).
+  pass_filter_chain([Frame], Media, FrameFilters).
+  % pass_filter_chain([Frame], Media, frame_filters(Media)).
 
 
 pass_filter_chain([], #ems_media{} = Media, _Filters) ->
@@ -185,7 +193,15 @@ shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta 
 save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->
   {reply, Frame, Media#ems_media{last_dts = DTS, last_dts_at = os:timestamp()}}.
   
-  
+
+warn_bad_dts_delta(#video_frame{dts = DTS} = Frame, #ems_media{last_dts = LastDTS} = Media) when DTS < 0 orelse abs(DTS - LastDTS) > 4000 ->
+  ?D({large_dts_delta, DTS, LastDTS}),
+  {reply, Frame, Media};
+
+warn_bad_dts_delta(Frame, Media) ->
+  {reply, Frame, Media}.
+
+
 
 fix_negative_dts(#video_frame{dts = DTS, pts = PTS} = Frame,  Media) when (DTS < 0 andalso DTS >= -1000) orelse (PTS < 0 andalso PTS >= -1000) ->
   {reply, Frame#video_frame{dts = 0, pts = 0}, Media};
