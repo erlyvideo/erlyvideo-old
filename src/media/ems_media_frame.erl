@@ -79,11 +79,14 @@ frame_filters(_Media) ->
     start_on_keyframe,
     store_frame,
     save_config,
+    % dump_frame,
+    send_audio_to_starting_clients,
     send_frame_to_clients
   ].
 
 send_frame(#video_frame{} = Frame, #ems_media{frame_filters = FrameFilters} = Media) ->
-  pass_filter_chain([Frame], Media, FrameFilters).
+  % pass_filter_chain([Frame], Media, FrameFilters).
+  pass_filter_chain([Frame], Media, frame_filters(Media)).
 
 
 pass_filter_chain([], #ems_media{} = Media, _Filters) ->
@@ -132,17 +135,24 @@ transcode(#video_frame{} = Frame, #ems_media{transcoder = Transcoder, trans_stat
 
 pass_frame_through_module(Frame, #ems_media{module = M} = Media) ->
   M:handle_frame(Frame, Media).
-  
-  
-define_media_info(#video_frame{content = Content} = F, #ems_media{media_info = #media_info{audio = A, video = V} = MediaInfo} = Media) when
-  (Content == audio andalso (A == [] orelse A == wait)) orelse (Content == video andalso (V == [] orelse V == wait)) ->
-  case video_frame:define_media_info(MediaInfo, F) of
-    MediaInfo -> {reply, F, Media};
-    MediaInfo1 -> {reply, F, ems_media:set_media_info(Media, MediaInfo1)}
-  end;
 
-define_media_info(F, M) ->
-  {reply, F, M}.
+
+need_to_define_media_info(audio, [], _) -> true;
+need_to_define_media_info(audio, wait, _) -> true;
+need_to_define_media_info(video, _, []) -> true;
+need_to_define_media_info(video, _, wait) -> true;
+need_to_define_media_info(_, _, _) -> false.
+  
+define_media_info(#video_frame{content = Content} = F, #ems_media{media_info = #media_info{audio = A, video = V} = MediaInfo} = Media) ->
+  case need_to_define_media_info(Content, A, V) of
+    true ->
+      case video_frame:define_media_info(MediaInfo, F) of
+        MediaInfo -> {reply, F, Media};
+        MediaInfo1 -> {reply, F, ems_media:set_media_info(Media, MediaInfo1)}
+      end;
+    false ->
+      {reply, F, Media}
+  end.
 
 
 
@@ -234,7 +244,7 @@ save_config(Frame, Media) ->
 
 send_audio_to_starting_clients(#video_frame{content = audio} = Frame, #ems_media{clients = Clients} = Media) ->
   ems_media_clients:send_frame(Frame, Clients, starting),
-  {noreply, Media};
+  {reply, Frame, Media};
 
 send_audio_to_starting_clients(Frame, Media) ->
   {reply, Frame, Media}.
@@ -252,7 +262,7 @@ send_frame_to_clients(#video_frame{content = Content} = Frame, #ems_media{client
 
 
 dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS} = Frame, Media) ->
-  ?D({Codec,Flavor,round(DTS), (catch size(Frame#video_frame.body))}),
+  ?D({Media#ems_media.name, Codec,Flavor,round(DTS), (catch size(Frame#video_frame.body))}),
   {reply, Frame, Media}.
   
 

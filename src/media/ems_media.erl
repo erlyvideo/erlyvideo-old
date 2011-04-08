@@ -588,6 +588,8 @@ handle_cast({play_setup, Client, Options}, #ems_media{clients = Clients} = Media
       {noreply, Media, ?TIMEOUT}
   end;
 
+handle_cast({set_frame_filters, Filters}, Media) ->
+  {noreply, Media#ems_media{frame_filters = Filters}};
 
 handle_cast(Cast, #ems_media{module = M} = Media) ->
   case M:handle_control(Cast, Media) of
@@ -648,7 +650,7 @@ handle_info({'DOWN', _Ref, process, _Pid, _Reason} = Msg, #ems_media{} = Media) 
   ems_media_client_control:handle_info(Msg, Media);
 
 handle_info(#video_frame{} = Frame, Media) ->
-  % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
+  % ?D({Media#ems_media.url, Frame#video_frame.codec, Frame#video_frame.flavor, Frame#video_frame.dts}),
   ems_media_frame:send_frame(Frame, Media);
 
 handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
@@ -676,7 +678,7 @@ handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = [_
 
 handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) -> % 
   Info1 = Info#media_info{audio = case A of wait -> []; _ -> A end, video = case V of wait -> []; _ -> V end},
-  ?D({flush_media_info, Info, Info1}),
+  ?D({flush_media_info, Media#ems_media.name, Info, Info1}),
   {noreply, set_media_info(Media, Info1)};
 
 
