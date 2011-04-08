@@ -43,9 +43,9 @@ start_link(Port, Name, Callback, Args) ->
 accept(CliSocket, [Callback|Args]) ->
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
   gen_tcp:controlling_process(CliSocket, RTMP),
+  rtmp_socket:set_socket(RTMP, CliSocket),
   {ok, Pid} = erlang:apply(Callback, create_client, [RTMP|Args]),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
-  rtmp_socket:set_socket(RTMP, CliSocket),
   ok.
 
 
