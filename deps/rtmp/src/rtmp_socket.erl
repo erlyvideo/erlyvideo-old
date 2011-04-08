@@ -274,7 +274,7 @@ wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port
   end;
       
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
-  link(Socket),
+  erlang:monitor(process, Socket),
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
 
 
