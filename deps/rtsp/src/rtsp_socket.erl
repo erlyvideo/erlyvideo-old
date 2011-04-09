@@ -45,7 +45,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([read/2, connect/3, describe/2, setup/3, play/2]).
+-export([read/2, connect/3, options/2, describe/2, setup/3, play/2]).
 
 
 -export([handle_sdp/3, reply/3, reply/4, save_media_info/2, generate_session/0]).
@@ -66,6 +66,7 @@ read_raw(URL, Options) ->
   {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
   ConnectResult = rtsp_socket:connect(RTSP, URL, Options),
   ok == ConnectResult orelse erlang:error(ConnectResult),
+  {ok, _Methods} = rtsp_socket:options(RTSP, Options),
   {ok, MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
   Tracks = case proplists:get_value(tracks, Options) of
     undefined -> AvailableTracks;
@@ -75,6 +76,10 @@ read_raw(URL, Options) ->
   ok = rtsp_socket:play(RTSP, Options),
   {ok, RTSP, MediaInfo}.
 
+
+options(RTSP, Options) ->
+  Timeout = proplists:get_value(timeout, Options, 5000)*2,
+  gen_server:call(RTSP, {request, options}, Timeout).  
 
 describe(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
@@ -125,13 +130,10 @@ handle_call({connect, _, Options} = Call, From, #rtsp_socket{} = RTSP) ->
 handle_call({consume, _Consumer} = Call, From, RTSP) ->
   rtsp_inbound:handle_call(Call, From, RTSP);
 
-handle_call({request, describe} = Call, From, RTSP) ->
+handle_call({request, _Request} = Call, From, RTSP) ->
   rtsp_inbound:handle_call(Call, From, RTSP);
 
 handle_call({request, setup, _Num} = Call, From, RTSP) ->
-  rtsp_inbound:handle_call(Call, From, RTSP);
-
-handle_call({request, play} = Call, From, RTSP) ->
   rtsp_inbound:handle_call(Call, From, RTSP);
 
 handle_call(Request, _From, #rtsp_socket{} = RTSP) ->
@@ -244,6 +246,9 @@ handle_packet(#rtsp_socket{buffer = Data, rtp = RTP, media = Consumer, dump_traf
   end.
 
 
+handle_response(#rtsp_socket{state = options} = Socket, {response, _Code, _Message, Headers, _Body}) ->
+  Available = string:tokens(binary_to_list(proplists:get_value('Public', Headers, <<"">>)), ", "),
+  reply_pending(Socket#rtsp_socket{pending_reply = {ok, Available}});
 
 handle_response(#rtsp_socket{state = describe} = Socket, {response, _Code, _Message, Headers, Body}) ->
   Socket1 = handle_sdp(Socket, Headers, Body),

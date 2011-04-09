@@ -249,9 +249,13 @@ encode_headers(Headers) ->
 
 
 
-parse_transport_header_test() ->
+parse_tcp_transport_header_test() ->
   ?assertEqual([{proto,tcp},{unicast,true},{mode,'receive'},{interleaved,{2,3}}],
                  parse_transport_header(<<"RTP/AVP/TCP;unicast;mode=receive;interleaved=2-3">>)).
+
+parse_udp_transport_header_test() ->
+  ?assertEqual([{proto,udp},{unicast,true},{client_port,{42276,42277}},{server_port,{2052,2053}}], 
+                parse_transport_header(<<"RTP/AVP;unicast;client_port=42276-42277;server_port=2052-2053">>)).
 
 parse_rtp_info_test() ->
   ?assertEqual([[{url,"rtsp://erlyvideo.org/h264/trackID=1"},{seq,60183},{rtptime,4274184387}], [{url,"rtsp://erlyvideo.org/h264/trackID=2"},{seq,51194},{rtptime,1003801948}]], 

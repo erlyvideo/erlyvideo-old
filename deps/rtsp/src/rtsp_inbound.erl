@@ -45,7 +45,7 @@
 
 dump_io(#rtsp_socket{dump_traffic = false}, _) -> ok;
 dump_io(_, Call) -> io:format(">>>>>> RTSP OUT (~p:~p) >>>>>~n~s~n", [?MODULE, ?LINE, Call]).
-  
+
 
 handle_call({connect, URL, Options}, _From, RTSP) ->
   Consumer = proplists:get_value(consumer, Options),
@@ -75,8 +75,15 @@ handle_call({consume, Consumer}, _From, #rtsp_socket{rtp_ref = OldRef, timeout =
   {reply, ok, RTSP#rtsp_socket{rtp = Consumer, rtp_ref = Ref}, Timeout};
 
 
+handle_call({request, options}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth, seq = Seq, timeout = Timeout} = RTSP) ->
+  Call = io_lib:format("OPTIONS ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Auth++"\r\n", [URL, Seq+1]),
+  gen_tcp:send(Socket, Call),
+  dump_io(RTSP, Call),
+  {noreply, RTSP#rtsp_socket{pending = From, state = options, seq = Seq+1}, Timeout};
+
+
 handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, auth = Auth, seq = Seq, timeout = Timeout} = RTSP) ->
-  Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Auth++"\r\n", [URL, Seq+1]),
+  Call = io_lib:format("DESCRIBE ~s RTSP/1.0\r\nCSeq: ~p\r\nAccept: application/sdp\r\n"++Auth++"\r\n", [URL, Seq+1]),
   gen_tcp:send(Socket, Call),
   dump_io(RTSP, Call),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = Seq+1}, Timeout};
@@ -97,7 +104,7 @@ handle_call({request, setup, Num}, From,
     udp ->
       Port1 = proplists:get_value(local_rtp_port, Reply),
       Port2 = proplists:get_value(local_rtcp_port, Reply),
-      io_lib:format("Transport: RTP/AVP/UDP;unicast;client-port=~p-~p;mode=PLAY\r\n", [Port1, Port2])
+      io_lib:format("Transport: RTP/AVP;unicast;client-port=~p-~p\r\n", [Port1, Port2])
   end,
   Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Sess++TransportHeader++Auth++"\r\n",
         [append_trackid(URL, Control), Seq + 1]),
