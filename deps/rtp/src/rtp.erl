@@ -94,7 +94,7 @@ rtp_info(#rtp_state{channels = Channels} = _State) ->
 %%  
 %% @end
 %%--------------------------------------------------------------------
-setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Channels, udp = UDPMap} = State, StreamId, Transport) ->
+setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Channels, udp = UDPMap, tcp_socket = OldSocket} = State, StreamId, Transport) ->
   Stream = #stream_info{content = Content} = lists:nth(StreamId, Streams),
   Channel = case Direction of
     in -> rtp_decoder:init(Stream);
@@ -103,9 +103,12 @@ setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Ch
   State1 = State#rtp_state{channels = setelement(StreamId, Channels, Channel)},
   case proplists:get_value(proto, Transport, udp) of
     tcp ->
-      {ok, State1#rtp_state{transport = tcp, tcp_socket = proplists:get_value(tcp_socket, Transport)}, []};
+      {ok, State1#rtp_state{transport = tcp, tcp_socket = proplists:get_value(tcp_socket, Transport, OldSocket)}, []};
     udp -> 
-      UDP = #rtp_udp{local_rtp_port = SPort1, local_rtcp_port = SPort2, local_addr = Source} = rtp:open_ports(Content),
+      UDP = #rtp_udp{local_rtp_port = SPort1, local_rtcp_port = SPort2, local_addr = Source} = case element(StreamId, UDPMap) of
+        undefined -> rtp:open_ports(Content);
+        Else -> Else
+      end,
       UDP1 = UDP#rtp_udp{
         remote_rtp_port = proplists:get_value(remote_rtp_port, Transport),
         remote_rtcp_port = proplists:get_value(remote_rtcp_port, Transport),

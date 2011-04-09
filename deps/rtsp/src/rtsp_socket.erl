@@ -258,6 +258,12 @@ handle_response(#rtsp_socket{state = play} = Socket, {response, _Code, _Message,
   Socket1 = rtsp_inbound:sync_rtp(Socket, Headers),
   reply_pending(Socket1#rtsp_socket{state = undefined});
 
+handle_response(#rtsp_socket{state = {setup, StreamId}, rtp = RTP, transport = Transport} = Socket, {response, _Code, _Message, Headers, _Body}) ->
+  TransportHeader = proplists:get_value('Transport', Headers, []),
+  {ok, RTP1, _} = rtp:setup_channel(RTP, StreamId, [{proto,Transport}|TransportHeader]),
+  reply_pending(Socket#rtsp_socket{state = undefined, pending_reply = ok, rtp = RTP1});
+
+
 handle_response(Socket, {response, _Code, _Message, _Headers, _Body}) ->
   reply_pending(Socket).
   

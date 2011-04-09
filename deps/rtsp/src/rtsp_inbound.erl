@@ -104,13 +104,13 @@ handle_call({request, setup, Num}, From,
     udp ->
       Port1 = proplists:get_value(local_rtp_port, Reply),
       Port2 = proplists:get_value(local_rtcp_port, Reply),
-      io_lib:format("Transport: RTP/AVP;unicast;client-port=~p-~p\r\n", [Port1, Port2])
+      io_lib:format("Transport: RTP/AVP;unicast;client_port=~p-~p\r\n", [Port1, Port2])
   end,
   Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Sess++TransportHeader++Auth++"\r\n",
         [append_trackid(URL, Control), Seq + 1]),
   gen_tcp:send(Socket, Call),
   dump_io(RTSP, Call),
-  {noreply, RTSP#rtsp_socket{pending = From, rtp = RTP1, seq = Seq+1}, Timeout};
+  {noreply, RTSP#rtsp_socket{pending = From, state = {setup, Num}, rtp = RTP1, seq = Seq+1}, Timeout};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth, timeout = Timeout} = RTSP) ->
   Call = io_lib:format("PLAY ~s RTSP/1.0\r\nCSeq: ~p\r\nSession: ~s\r\n"++Auth++"\r\n", [URL, Seq + 1, Session]),
