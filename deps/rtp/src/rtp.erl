@@ -147,16 +147,16 @@ handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channel
 %% Replies with new RTP state and possible list of decoded frames
 %% @end
 %%--------------------------------------------------------------------
-handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_addr = Addr, remote_rtp_port = Port},_}} = State, {Addr, Port}, Packet) ->
+handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_rtp_port = Port},_}} = State, {_Addr, Port}, Packet) ->
   handle_data(State, 0, Packet);
 
-handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_addr = Addr, remote_rtcp_port = Port},_}} = State, {Addr, Port}, Packet) ->
+handle_data(#rtp_state{transport = udp, udp = {#rtp_udp{remote_rtcp_port = Port},_}} = State, {_Addr, Port}, Packet) ->
   handle_data(State, 1, Packet);
 
-handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, remote_rtp_port = Port}}} = State, {Addr, Port}, Packet) ->
+handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_rtp_port = Port}}} = State, {_Addr, Port}, Packet) ->
   handle_data(State, 2, Packet);
 
-handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_addr = Addr, remote_rtcp_port = Port}}} = State, {Addr, Port}, Packet) ->
+handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_rtcp_port = Port}}} = State, {_Addr, Port}, Packet) ->
   handle_data(State, 3, Packet);
 
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP

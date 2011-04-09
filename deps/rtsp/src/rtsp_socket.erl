@@ -173,8 +173,9 @@ handle_info({tcp_closed, _Socket}, State) ->
   ?D({"RTSP socket closed"}),
   {stop, normal, State};
 
-handle_info({udp, _Socket, Addr, Port, Bin}, #rtsp_socket{timeout = Timeout, rtp = RTP} = RTSP) ->
-  {ok, RTP1, _} = rtp:handle_data(RTP, {Addr, Port}, Bin),
+handle_info({udp, _Socket, Addr, Port, Bin}, #rtsp_socket{media = Consumer, timeout = Timeout, rtp = RTP} = RTSP) ->
+  {ok, RTP1, NewFrames} = rtp:handle_data(RTP, {Addr, Port}, Bin),
+  [Consumer ! Frame || Frame <- NewFrames],
   {noreply, RTSP#rtsp_socket{rtp = RTP1}, Timeout};
 
 handle_info({tcp, Socket, Bin}, #rtsp_socket{buffer = Buf, timeout = Timeout} = RTSPSocket) ->
@@ -260,7 +261,8 @@ handle_response(#rtsp_socket{state = play} = Socket, {response, _Code, _Message,
 
 handle_response(#rtsp_socket{state = {setup, StreamId}, rtp = RTP, transport = Transport} = Socket, {response, _Code, _Message, Headers, _Body}) ->
   TransportHeader = proplists:get_value('Transport', Headers, []),
-  {ok, RTP1, _} = rtp:setup_channel(RTP, StreamId, [{proto,Transport}|TransportHeader]),
+  {SPort1,SPort2} = proplists:get_value(server_port, TransportHeader),
+  {ok, RTP1, _} = rtp:setup_channel(RTP, StreamId, [{proto,Transport},{remote_rtp_port,SPort1},{remote_rtcp_port,SPort2}]),
   reply_pending(Socket#rtsp_socket{state = undefined, pending_reply = ok, rtp = RTP1});
 
 
