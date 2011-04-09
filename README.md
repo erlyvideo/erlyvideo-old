@@ -27,3 +27,10 @@ To run tests don't forget to add test vhost:
     {www_handlers, [ems_http_rtmpt, ems_http_templates, ems_http_erlyvideo_api, ems_http_mpegts, ems_http_flv, {ems_http_file, "wwwroot"}]},
     {file_dir, "test/files"}
   ]}
+
+Special options
+=========
+
+* dump_traffic
+* warn_bad_dts_delta
+* dump_frame

@@ -37,7 +37,9 @@
 connect_rtsp(#ems_media{host = Host, url = URL, options = Options, state = #rtsp{timeout = Timeout}}) ->
   ?D({"Connecting to RTSP", URL, Options}),
   ems_event:stream_source_requested(Host, URL, []),
-  rtsp_socket:read(URL, [{consumer, self()},{interleaved,true},{timeout,Timeout},{dump_traffic,proplists:get_value(dump_traffic,Options,true)}]).
+  rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
+  {dump_traffic,proplists:get_value(dump_traffic,Options,true)},{transport,proplists:get_value(transport,Options,tcp)},
+  {tracks, proplists:get_value(tracks,Options)}]).
 
 
 

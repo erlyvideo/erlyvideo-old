@@ -60,8 +60,12 @@ init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Dir
 %% @end
 %%--------------------------------------------------------------------
 sync(#rtp_state{channels = Channels} = State, Id, Headers) ->
-  Channel1 = rtp_decoder:sync(element(Id,Channels), Headers),
-  State#rtp_state{channels = setelement(Id, Channels, Channel1)}.
+  case element(Id,Channels) of
+    undefined -> State;
+    Channel ->
+      Channel1 = rtp_decoder:sync(Channel, Headers),
+      State#rtp_state{channels = setelement(Id, Channels, Channel1)}
+  end.
 
 %%--------------------------------------------------------------------
 %% @spec (RtpState::rtp_state()) -> Rtp-Info Header

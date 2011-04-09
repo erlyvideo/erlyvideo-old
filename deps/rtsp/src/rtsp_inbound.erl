@@ -52,12 +52,13 @@ handle_call({connect, URL, Options}, _From, RTSP) ->
   Ref = erlang:monitor(process, Consumer),
   Timeout = proplists:get_value(timeout, Options, ?DEFAULT_TIMEOUT),
   {rtsp, UserInfo, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  Transport = proplists:get_value(transport, Options, tcp),
 
   Auth = case UserInfo of
     [] -> "";
     _ -> "Authorization: Basic "++binary_to_list(base64:encode(UserInfo))++"\r\n"
   end,
-  RTSP1 = RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, auth = Auth, timeout = Timeout},
+  RTSP1 = RTSP#rtsp_socket{url = URL, options = Options, media = Consumer, rtp_ref = Ref, auth = Auth, timeout = Timeout, transport = Transport},
 
   ConnectOptions = [binary, {packet, raw}, {active, once}, {keepalive, true}, {send_timeout, Timeout}, {send_timeout_close, true}],
   case gen_tcp:connect(Host, Port, ConnectOptions, Timeout) of
@@ -80,21 +81,28 @@ handle_call({request, describe}, From, #rtsp_socket{socket = Socket, url = URL, 
   dump_io(RTSP, Call),
   {noreply, RTSP#rtsp_socket{pending = From, state = describe, seq = Seq+1}, Timeout};
 
-handle_call({request, setup, Num}, From, #rtsp_socket{socket = Socket, rtp = RTP, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout} = RTSP) ->
+handle_call({request, setup, Num}, From, 
+  #rtsp_socket{socket = Socket, rtp = RTP, rtp_streams = Streams, url = URL, seq = Seq, auth = Auth, timeout = Timeout, transport = Transport} = RTSP) ->
   % ?D({"Setup", Num, Streams}),
   _Stream = #stream_info{options = Options} = element(Num, Streams),
   Control = proplists:get_value(control, Options),
+  {ok, RTP1, Reply} = rtp:setup_channel(RTP, Num, [{proto,Transport},{tcp_socket,Socket}]),
 
   Sess = case RTSP#rtsp_socket.session of
     undefined -> "";
     Session -> "Session: "++Session++"\r\n"
   end,
-  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Sess++
-        "Transport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n"++Auth++"\r\n",
-        [append_trackid(URL, Control), Seq + 1, Num*2 - 2, Num*2-1]),
+  TransportHeader = case Transport of
+    tcp -> io_lib:format("Transport: RTP/AVP/TCP;unicast;interleaved=~p-~p\r\n", [Num*2 - 2, Num*2-1]);
+    udp ->
+      Port1 = proplists:get_value(local_rtp_port, Reply),
+      Port2 = proplists:get_value(local_rtcp_port, Reply),
+      io_lib:format("Transport: RTP/AVP/UDP;unicast;client-port=~p-~p;mode=PLAY\r\n", [Port1, Port2])
+  end,
+  Call = io_lib:format("SETUP ~s RTSP/1.0\r\nCSeq: ~p\r\n"++Sess++TransportHeader++Auth++"\r\n",
+        [append_trackid(URL, Control), Seq + 1]),
   gen_tcp:send(Socket, Call),
   dump_io(RTSP, Call),
-  {ok, RTP1, _Reply} = rtp:setup_channel(RTP, Num, [{proto,tcp},{tcp_socket,Socket}]),
   {noreply, RTSP#rtsp_socket{pending = From, rtp = RTP1, seq = Seq+1}, Timeout};
 
 handle_call({request, play}, From, #rtsp_socket{socket = Socket, url = URL, seq = Seq, session = Session, auth = Auth, timeout = Timeout} = RTSP) ->

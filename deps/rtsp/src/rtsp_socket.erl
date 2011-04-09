@@ -66,8 +66,12 @@ read_raw(URL, Options) ->
   {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
   ConnectResult = rtsp_socket:connect(RTSP, URL, Options),
   ok == ConnectResult orelse erlang:error(ConnectResult),
-  {ok, MediaInfo, Streams} = rtsp_socket:describe(RTSP, Options),
-  [ok = rtsp_socket:setup(RTSP, Stream, Options) || Stream <- Streams],
+  {ok, MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
+  Tracks = case proplists:get_value(tracks, Options) of
+    undefined -> AvailableTracks;
+    RequestedTracks -> [T || T <- AvailableTracks, lists:member(T,RequestedTracks)]
+  end,
+  [ok = rtsp_socket:setup(RTSP, Track, Options) || Track <- Tracks],
   ok = rtsp_socket:play(RTSP, Options),
   {ok, RTSP, MediaInfo}.
 
