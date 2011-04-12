@@ -113,7 +113,7 @@ setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Ch
       UDP1 = UDP#rtp_udp{
         remote_rtp_port = proplists:get_value(remote_rtp_port, Transport),
         remote_rtcp_port = proplists:get_value(remote_rtcp_port, Transport),
-        remote_addr = begin {ok, RemoteAddr} =  inet_parse:address(proplists:get_value(remote_addr, Transport)), RemoteAddr end
+        remote_addr = proplists:get_value(remote_addr, Transport)
       },
       UDPMap1 = setelement(StreamId, UDPMap, UDP1),
       {ok, State1#rtp_state{transport = udp, udp = UDPMap1}, [{local_rtp_port, SPort1}, {local_rtcp_port, SPort2}, {local_addr, Source}]}
