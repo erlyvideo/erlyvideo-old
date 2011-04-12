@@ -399,7 +399,8 @@ video_size(<<_:30, 3:3,                      _:39, _/binary>>, sorensen) -> {ok,
 video_size(<<_:30, 4:3,                      _:39, _/binary>>, sorensen) -> {ok, {128, 96}};
 video_size(<<_:30, 5:3,                      _:39, _/binary>>, sorensen) -> {ok, {320, 240}};
 video_size(<<_:30, 6:3,                      _:39, _/binary>>, sorensen) -> {ok, {160, 120}};
-video_size(_, sorensen) -> {more, 9}.
+video_size(_, sorensen) -> {more, 9};
+video_size(_, _) -> {error, unknown}.
 
 
 

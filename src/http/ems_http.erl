@@ -54,9 +54,28 @@ handle_http(Req) ->
   Host = ems:host(Req:host()),
   Method = Req:get(method),
   Path = Req:resource([urldecode]),
-  Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),
-  
-  try_handler(Chain, Host, Method, Path, Req).
+  Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
+  Headers = Req:get(headers),
+  case ems:get_var(http_admin_password,Host,[]) of
+    [] ->
+      try_handler(Chain, Host, Method, Path, Req);
+    AuthData -> 
+      case http_auth(AuthData,Headers) of
+        true -> 
+          try_handler(Chain, Host, Method, Path, Req);
+        false -> 
+          Req:respond(401,[{'WWW-Authenticate', "Basic realm=My Realm"}],"Please login in system")
+      end
+  end.
+
+http_auth(AuthData,Headers) ->
+  Str = "Basic "++base64:encode_to_string(AuthData),
+  case  proplists:get_value('Authorization',Headers) of
+    Str  -> 
+      true;
+    _ -> 
+      false
+  end.
 
 try_handler([], Host, Method, Path, Req) ->
   try_handler([?MODULE], Host, Method, Path, Req);

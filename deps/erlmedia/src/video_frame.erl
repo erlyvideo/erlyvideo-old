@@ -114,7 +114,8 @@ define_media_info(#media_info{} = Media, #video_frame{codec = h264}) ->
 define_media_info(#media_info{video = V} = Media, #video_frame{content = video, codec = Codec, body = Body}) when V == [] orelse V == wait  ->
   {Width, Height} = case flv:video_size(Body, Codec) of
      {ok, {W, H}} -> {W, H};
-     {more, _} -> {undefined, undefined}
+     {more, _} -> {undefined, undefined};
+     {error, unknown} -> {undefined, undefined}
   end,
   Info = #stream_info{
     content = video,

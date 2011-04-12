@@ -437,7 +437,7 @@ linphone_mediainfo() ->
       },
       name = "A conversation",
       connect = {inet4, "192.168.1.2"}
-    }}]
+    }},{remote_addr, "192.168.1.2"}]
   }.
 
 linphone_decode_test() ->
@@ -503,6 +503,53 @@ a=rtpmap:8 PCMA/8000/1\r
     options = [{port, 7878}]
   })).
 
+
+
+jitsy_sdp() ->
+<<"v=0\r
+o=max 0 0 IN IP4 192.168.0.102\r
+s=-\r
+c=IN IP4 192.168.0.102\r
+t=0 0\r
+m=audio 5000 RTP/AVP 9 96 97 0 8 98 99 5 6 15 101\r
+a=rtpmap:9 G722/8000\r
+a=rtpmap:96 speex/32000\r
+a=rtpmap:97 speex/16000\r
+a=rtpmap:0 PCMU/8000\r
+a=rtpmap:8 PCMA/8000\r
+a=rtpmap:98 iLBC/8000\r
+a=rtpmap:99 speex/8000\r
+a=rtpmap:5 DVI4/8000\r
+a=rtpmap:6 DVI4/16000\r
+a=rtpmap:15 G728/8000\r
+a=rtpmap:101 telephone-event/8000\r
+a=extmap:1 urn:ietf:params:rtp-hdrext:csrc-audio-level\r
+a=zrtp-hash:1.10 b8b0aa4c1e4829f2b1417e5e85b217ea36d10dc77ebcc5c696d8696c307ed06e\r
+m=video 5002 RTP/AVP 100\r
+a=recvonly\r
+a=rtpmap:100 H264/90000\r
+a=fmtp:100 packetization-mode=1\r
+a=imageattr:100 send * recv [x=[0-1680],y=[0-1050]]\r
+a=zrtp-hash:1.10 5e247e69a6acf00590ff6bd7fc45bfcaed9647bf1d61f220450cf54261410b36\r
+">>.
+
+
+decode_jitsy_test() ->
+  ?assertMatch(#media_info{audio = [
+    #stream_info{content = audio, codec = g722, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = speex, params = #audio_params{channels = 1, sample_rate = 32000}},
+    #stream_info{content = audio, codec = speex, params = #audio_params{channels = 1, sample_rate = 16000}},
+    #stream_info{content = audio, codec = pcmu, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = pcma, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = ilbc, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = speex, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = dvi4, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = dvi4, params = #audio_params{channels = 1, sample_rate = 16000}},
+    #stream_info{content = audio, codec = g728, params = #audio_params{channels = 1, sample_rate = 8000}},
+    #stream_info{content = audio, codec = telephone, params = #audio_params{channels = 1, sample_rate = 8000}}
+  ], video = [
+    #stream_info{content = video, codec = h264}
+  ]}, sdp:decode(sdp_tests:jitsy_sdp())).
 
 full_server_sdp() ->
   <<"v=0\r

@@ -100,22 +100,32 @@ run_camera_test(Name, Port) ->
         erlang:monitor(process, Self),
         capture_output()
       end),
-      Pid = spawn_link(rtsp_test_client, simulate_camera, [Name, Port]),
+      Pid = spawn_link(fun() ->
+        case (catch rtsp_test_client:simulate_camera(Name, Port)) of
+          ok -> ok;
+          {'EXIT',Reason} -> exit({Reason, {rtsp_test_client, simulate_camera, [Name, Port]}})
+        end	
+      end),
       erlang:group_leader(Logger, Pid),
       Pid
     end,
+    fun(_Pid) ->
+      log4erl:change_log_level(debug)
+    end,
     fun(Pid) ->
-      log4erl:change_log_level(debug),
-      erlang:exit(Pid, kill) end,
-    [fun() ->
-      {ok, Media} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0},{dump_traffic,false}]),
-      timer:send_after(40000, stop),
-      Frames = read_frames([]),
-      ?assert(length(Frames) > 40),
-      Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
-      (catch ems_media:stop_stream(Media)),
-      ?assert(Delta >= 20000)
-    end]
+      [fun() ->
+        erlang:monitor(process, Pid),
+        {ok, Media} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0},{dump_traffic,false}]),
+        timer:send_after(40000, stop),
+        Frames = read_frames([]),
+        ?assert(length(Frames) > 40),
+        Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
+        (catch ems_media:stop_stream(Media)),
+        ?assert(Delta >= 20000),
+        erlang:monitor(process, Pid),
+        ?assertEqual(normal, ems_test_helper:wait4(Pid))
+      end]
+    end
   }}.
 
 

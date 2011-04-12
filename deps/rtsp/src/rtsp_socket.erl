@@ -66,7 +66,7 @@ read_raw(URL, Options) ->
   {ok, RTSP} = rtsp_sup:start_rtsp_socket(undefined),
   ConnectResult = rtsp_socket:connect(RTSP, URL, Options),
   ok == ConnectResult orelse erlang:error(ConnectResult),
-  {ok, _Methods} = rtsp_socket:options(RTSP, Options),
+  % {ok, _Methods} = rtsp_socket:options(RTSP, Options),
   {ok, MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
   Tracks = case proplists:get_value(tracks, Options) of
     undefined -> AvailableTracks;
@@ -261,8 +261,11 @@ handle_response(#rtsp_socket{state = play} = Socket, {response, _Code, _Message,
 
 handle_response(#rtsp_socket{state = {setup, StreamId}, rtp = RTP, transport = Transport} = Socket, {response, _Code, _Message, Headers, _Body}) ->
   TransportHeader = proplists:get_value('Transport', Headers, []),
-  {SPort1,SPort2} = proplists:get_value(server_port, TransportHeader),
-  {ok, RTP1, _} = rtp:setup_channel(RTP, StreamId, [{proto,Transport},{remote_rtp_port,SPort1},{remote_rtcp_port,SPort2}]),
+  PortOpts = case proplists:get_value(server_port, TransportHeader) of
+    {SPort1,SPort2} -> [{remote_rtp_port,SPort1},{remote_rtcp_port,SPort2}];
+    undefined -> []
+  end,
+  {ok, RTP1, _} = rtp:setup_channel(RTP, StreamId, [{proto,Transport}]++PortOpts),
   reply_pending(Socket#rtsp_socket{state = undefined, pending_reply = ok, rtp = RTP1});
 
 

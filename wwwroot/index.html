@@ -271,34 +271,7 @@ Ext.onReady(function(){
   });
   
   
-  var licenseReader = new Ext.data.JsonReader({
-    idProperty: 'name',
-    root: 'licenses'
-  }, [
-    {name: 'name'},
-    {name: 'version'}
-  ]);
-  var licenseProxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/licenses'});
   
-  var licenseStore = new Ext.data.Store({proxy:licenseProxy, reader: licenseReader});
-  
-  
-  var licensePanel = new Ext.grid.GridPanel({
-    store: licenseStore,
-    title : 'Product licenses',
-    columns: [
-      {
-        id        : 'name',
-        header    : "Product",
-        dataIndex : 'name'
-      },
-      {
-        id        : 'version',
-        header    : "Version",
-        dataIndex : 'version'
-      }
-    ]
-  });
   
   var streamsGrid = new Ext.grid.GridPanel({
       store: streamStore,
@@ -382,9 +355,9 @@ Ext.onReady(function(){
   });
 
   
-  new Ext.Viewport({
+  var viewport = new Ext.Viewport({
 		layout: 'border',
-		title: 'Ext Layout Browser',
+		title: 'Erlyvideo panel',
 		items: [{
 			xtype: 'box',
 			region: 'north',
@@ -399,9 +372,7 @@ Ext.onReady(function(){
 	    width: 300,
 	    minSize: 100,
 	    maxSize: 500,
-			items: [playPanel,
-       // licensePanel, 
-			 treePanel]
+			items: [playPanel, treePanel]
 		}, {
 		  id: 'streams-grid',
 		  region: 'center',
@@ -413,6 +384,59 @@ Ext.onReady(function(){
 		}
 	  ],
     renderTo: Ext.getBody()
+  });
+  
+  
+  Ext.Ajax.request({
+    waitMsg: "Load license info",
+    url: '/erlyvideo/api/licenses',
+    callback: function(options, success, response) {
+      var licenses = eval("("+response.responseText+")").licenses;
+      var items = [];
+      for(var i = 0; i < licenses.length; i++) {
+        var data = [["", "Remove"]];
+        for(var j = 0; j < licenses[i].versions.length; j++) {
+          var title;
+          if(licenses[i].versions[j]) {
+            title = licenses[i].versions[j];
+          } else {
+            "HEAD";
+          }
+          data[data.length] = [licenses[i].versions[j], title];
+        }
+        var cb = new Ext.form.ComboBox({
+          label: licenses[i].name,
+          data: data
+        });
+        items[items.length] = cb;
+      }
+      
+      var licensePanel = new Ext.FormPanel({
+        title : 'Product licenses',
+        items: items,
+        buttons: [{
+          text: "Select versions",
+          handler: function() {
+            licensePanel.getForm().submit({
+              url: '/erlyvideo/api/licenses',
+              waitMsg: "Saving license versions",
+              success: function(f,a) {
+                Ext.Msg.alert("Success", "Restart erlyvideo to see effects");
+              },
+              failure: function(f,a) {
+                Ext.Msg.alert("Failure", "Failed to select software versions. Consult logs for details");
+              }
+            });
+          }
+        }]
+      });
+      
+      viewport.items.get(1).items.add(licensePanel);
+      viewport.items.get(1).doLayout();
+      viewport.items.get(1).syncSize();
+      viewport.doLayout();
+      viewport.syncSize();
+    }
   });
   
   var params = parseQueryString();

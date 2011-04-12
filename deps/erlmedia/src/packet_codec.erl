@@ -44,13 +44,25 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
       {more, ready, Data}
   end;
 
+parse(ready, <<"SIP/2.0 ", Response/binary>> = Data) ->
+  case erlang:decode_packet(line, Response, []) of
+    {ok, Line, Rest} ->
+      {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
+      {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
+      {ok, {sip_response, erlang:list_to_integer(binary_to_list(Code)), Message}, Rest};
+    _ ->
+      {more, ready, Data}
+  end;
+
 parse(ready, Data) ->
   case erlang:decode_packet(line, Data, []) of
     {ok, Line, Rest} ->
       {ok, Re} = re:compile("([^ ]+)\s+([^ ]+)\s+(RTSP/1\\.0|SIP/2\\.0)"),
       case re:run(Line, Re, [{capture, [1,2,3], binary}]) of
         {match, [Method, URI, <<"RTSP/1.0">>]} ->
-          {ok, {rtsp_request, binary_to_atom(Method, latin1), URI}, Rest}
+          {ok, {rtsp_request, binary_to_atom(Method, latin1), URI}, Rest};
+        {match, [Method, URI, <<"SIP/2.0">>]} ->
+          {ok, {sip_request, binary_to_atom(Method, latin1), URI}, Rest}
       end;
     _ ->
       {more, ready, Data}
@@ -106,6 +118,20 @@ decode(Data) ->
           {more, Data};
         {ok, Headers, Body, Rest1} ->
           {ok, {response, Code, Status, lists:ukeysort(1,Headers), Body}, Rest1}
+      end;
+    {ok, {sip_request, Method, URI}, Rest} ->
+      case decode_headers(Rest, [], undefined) of
+        {ok, Headers, Body, _Other} ->
+          {ok, {sip_request, Method, URI, lists:ukeysort(1,Headers), Body}};
+        more ->
+          {more, Data}
+      end;
+    {ok, {sip_response, Code, Status}, Rest} ->
+      case decode_headers(Rest, [], undefined) of
+        {ok, Headers, Body, _Other} ->
+          {ok, {sip_response, Code, Status, lists:ukeysort(1,Headers), Body}};
+        more ->
+          {more, Data}
       end
   end.
 

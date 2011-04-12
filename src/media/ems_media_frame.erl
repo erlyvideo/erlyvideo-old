@@ -87,8 +87,12 @@ frame_filters(#ems_media{options = Options} = _Media) ->
   case proplists:get_value(frame_dump, Options) of
     true -> [dump_frame];
     _ -> []
-  end ++ [
-    send_audio_to_starting_clients,
+  end ++ 
+  case proplists:get_value(send_audio_before_keyframe, Options) of
+    false -> [];
+    _ -> [send_audio_to_starting_clients]
+  end ++
+  [
     send_frame_to_clients
   ].
 
@@ -220,7 +224,7 @@ start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = 
     undefined -> Clients2;
     _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients2, starting)
   end,
-    
+  ems_media_clients:flush(Clients3),
   Clients4 = ems_media_clients:mass_update_state(Clients3, starting, active),
   {reply, F, M#ems_media{clients = Clients4}};
 

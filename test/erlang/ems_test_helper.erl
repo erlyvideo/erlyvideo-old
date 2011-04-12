@@ -47,13 +47,16 @@ read_all_frames(Media, Frames, Reader, Key) ->
   end.
 
 receive_all_frames() ->
-  receive_all_frames([]).
+  receive_all_frames([], 10).
 
-receive_all_frames(Acc) ->
+receive_all_frames(Timeout) ->
+  receive_all_frames([], Timeout).
+
+receive_all_frames(Acc, Timeout) ->
   receive
-    #video_frame{} = F -> receive_all_frames([F|Acc])
+    #video_frame{} = F -> receive_all_frames([F|Acc], Timeout)
   after
-    10 -> lists:reverse(Acc)
+    Timeout -> lists:reverse(Acc)
   end.
 
 set_ticker_timeouts(NoTimeouts) ->

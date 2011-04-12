@@ -35,7 +35,10 @@
 is_good_flv(#video_frame{content = audio, sound = {_Channels, _Bits, Rate}}) when is_number(Rate) -> false;
 is_good_flv(#video_frame{content = audio, codec = Codec}) 
   when Codec == pcm orelse Codec == aac orelse Codec == mp3 orelse Codec == speex orelse Codec == nellymoser orelse Codec == nellymoser8 -> true;
-is_good_flv(#video_frame{content = video}) -> true;
+is_good_flv(#video_frame{content = video, codec = Codec})
+  when Codec == h264 orelse Codec == vp6 orelse Codec == vp6_alpha orelse Codec == sorensen orelse Codec == mjpeg 
+  orelse Codec == screen orelse Codec == screen2 -> true;
+is_good_flv(#video_frame{content = metadata}) -> true;
 is_good_flv(#video_frame{}) -> false.
 
 

@@ -83,15 +83,16 @@ rtp_info(#rtp_state{channels = Channels} = _State) ->
 %%
 %% 1. UDP
 %% {ok, RTP1, Reply} = rtp:setup_channel(RTP, 1, [{proto,udp},{remote_rtp_port,RPort1},{remote_rtcp_port,RPort2},{remote_addr,RAddr}])
-%% 
+%% Reply = [{local_rtp_port, LPort1}, {local_rtcp_port, LPort2}, {local_addr, LAddr}]
+%%
 %% Mention that remote_addr should be in erlang notation: {IP1,IP2,IP4,IP4}
-%% setup_channel will open required ports itself, remember inside and reply with
-%% [{local_rtp_port, LPort1}, {local_rtcp_port, LPort2}, {local_addr, LAddr}]
-%% 
+%% setup_channel will open required ports itself, remember inside and reply with Reply
+%%
+%%
 %% 2. TCP
 %% {ok, RTP1, Reply} = rtp:setup_channel(RTP, 1, [{proto,tcp},{tcp_socket,Socket}])
 %% in this case RTP will work with interleaved RTSP notation and will write bytes to tcpsocket itself
-%%  
+%%
 %% @end
 %%--------------------------------------------------------------------
 setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Channels, udp = UDPMap, tcp_socket = OldSocket} = State, StreamId, Transport) ->
@@ -112,7 +113,7 @@ setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Ch
       UDP1 = UDP#rtp_udp{
         remote_rtp_port = proplists:get_value(remote_rtp_port, Transport),
         remote_rtcp_port = proplists:get_value(remote_rtcp_port, Transport),
-        remote_addr = proplists:get_value(remote_addr, Transport)
+        remote_addr = begin {ok, RemoteAddr} =  inet_parse:address(proplists:get_value(remote_addr, Transport)), RemoteAddr end
       },
       UDPMap1 = setelement(StreamId, UDPMap, UDP1),
       {ok, State1#rtp_state{transport = udp, udp = UDPMap1}, [{local_rtp_port, SPort1}, {local_rtcp_port, SPort2}, {local_addr, Source}]}
@@ -134,7 +135,7 @@ handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channel
     udp ->
       #rtp_udp{rtp_socket = Socket, remote_addr = Addr, remote_rtp_port = Port} = element(Num, State#rtp_state.udp),
       [gen_udp:send(Socket, Addr, Port, Packet) || Packet <- Packets]
-  end,      
+  end,
   {ok, State#rtp_state{channels = setelement(Num, Channels, Channel1)}}.
 
 
@@ -162,12 +163,12 @@ handle_data(#rtp_state{transport = udp, udp = {_,#rtp_udp{remote_rtcp_port = Por
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 1 -> % RTCP
   Id = (Num - 1) div 2 + 1,
   Channel1 = rtcp(Packet, element(Id, Channels)),
-  
+
   State1 = State#rtp_state{channels = setelement(Id, Channels, Channel1)},
   {ok, State2} = send_rtcp(State1, receiver_report, [{channel, Id}]),
-  
+
   {ok, State2, []};
-  
+
 handle_data(#rtp_state{channels = Channels} = State, Num, Packet) when Num rem 2 == 0 -> % RTP
   Id = Num div 2 + 1,
   {ok, Channel1, NewFrames} = rtp_decoder:decode(Packet, element(Id, Channels)),
@@ -189,7 +190,7 @@ send_rtcp_data(#rtp_state{transport = Transport} = State, Id, Packet) ->
       UDP = element(Id, State#rtp_state.udp),
       gen_udp:send(UDP#rtp_udp.rtcp_socket, UDP#rtp_udp.remote_addr, UDP#rtp_udp.remote_rtcp_port, Packet)
   end.
-  
+
 
 %%--------------------------------------------------------------------
 %% @spec (RtpState::rtp_state(), Type, Options) -> {ok, rtp_state()}
@@ -208,7 +209,7 @@ send_rtcp(#rtp_state{channels = Channels} = State, sender_report, Options) ->
   EncodeAndSend(1),
   EncodeAndSend(2),
   {ok, State};
-  
+
 
 send_rtcp(#rtp_state{channels = Channels} = State, receiver_report, Options) ->
   EncodeAndSend = fun(Num) when element(Num, Channels) == undefined -> ok;
@@ -302,7 +303,7 @@ rtcp_rr(#rtp_channel{stream_id = StreamId, sequence = Seq, last_sr = LSR} = _RTP
 %   {ok, Rtp2, SetupReply} = rtp:setup(Rtp1, 1, [{proto,udp}]),
 %   MediaInfo2 = inject_setup_reply(MediaInfo1, SetupReply),
 %   SDP = sdp:encode(MediaInfo2).
-% 
+%
 % reply_invite(SDP) ->
 %   MediaInfo1 = sdp:decode(SDP),
 %   MediaInfo2 = select_proper_codecs(MediaInfo1),
@@ -357,7 +358,7 @@ open_ports(Type) ->
   {RTP, RTPSocket, RTCP, RTCPSocket} = try_ports(Type),
   gen_udp:controlling_process(RTPSocket, self()),
   gen_udp:controlling_process(RTCPSocket, self()),
-  {ok, {Addr, _}} = inet:sockname(RTPSocket),
+  {ok, {_Addr, _}} = inet:sockname(RTPSocket),
   % Source = lists:flatten(io_lib:format("~p.~p.~p.~p", tuple_to_list(Addr))),
   Source = {127,0,0,1},
   #rtp_udp{
@@ -367,7 +368,7 @@ open_ports(Type) ->
     rtcp_socket = RTCPSocket,
     local_addr = Source
   }.
-  
+
 
 try_ports(audio) ->
   try_rtp(8000);

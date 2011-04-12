@@ -27,9 +27,10 @@
 -include("../include/ems_media.hrl").
 -include("../log.hrl").
 -include("ems_media_client.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
-         send_frame/3, mass_update_state/3, increment_bytes/3, list/1]).
+         send_frame/3, mass_update_state/3, increment_bytes/3, list/1, flush/1]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
@@ -55,6 +56,9 @@ list(#clients{list = List, bytes = Bytes}) ->
      {bitrate, BitRate}
    ] 
    end || #client{consumer = Pid, state = State, connected_at = ConnectedAt} <- List].
+
+flush(_) ->
+  ok.
   
 insert(#clients{list = List, bytes = Bytes} = Clients, #client{consumer = Client} = Entry) ->
   ets:insert(Bytes, {Client,0}),

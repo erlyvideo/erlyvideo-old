@@ -78,7 +78,12 @@ sdp_codecs() ->
   {mp4v, "MP4V-ES"},
   {mp3, "mpa-robust"},
   {pcm, "L16"},
-  {speex, "speex"}
+  {speex, "speex"},
+  {g722, "G722"},
+  {ilbc, "iLBC"},
+  {g728, "G728"},
+  {dvi4, "DVI4"},
+  {telephone, "telephone-event"}
   ].
 
 parse_sdp(SDP) ->
@@ -102,13 +107,17 @@ decode(SDP) when is_binary(SDP) ->
   ParsedSDP = parse_sdp(SDP),
   {SessionSDP, MediaSDP} = split_sdp(ParsedSDP),
   SDPSession = decode_sdp_session(SessionSDP),
+  RemoteAddr = case SDPSession of
+    #sdp_session{connect = {_, Addr}} -> [{remote_addr,Addr}];
+    _ -> []
+  end,
   StreamSeries = [decode_stream_infos(ContentSDP) || ContentSDP <- MediaSDP],
   Streams = lists:foldl(fun(Serie, Acc) -> Acc ++ Serie end, [], StreamSeries),
   NumberedStreams = lists:zipwith(fun(Num, Stream) -> Stream#stream_info{stream_id = Num} end, lists:seq(1, length(Streams)), Streams),
   Filter = fun(Type) -> lists:filter(fun(#stream_info{content = Content}) -> Content == Type end, NumberedStreams) end,
   #media_info{
     flow_type = stream,
-    options = [{sdp_session, SDPSession}],
+    options = [{sdp_session, SDPSession}] ++ RemoteAddr,
     audio = Filter(audio),
     video = Filter(video)
   }.
@@ -214,7 +223,6 @@ parse_media_sdp([{a, {fmtp, PayloadNum, Opts}} | SDP], Streams) ->
     #stream_info{} = Stream -> Stream
   end,
   parse_media_sdp(SDP, lists:keystore(PayloadNum, 1, Streams, {PayloadNum, Stream1}));
-
 
 parse_media_sdp([_|SDP], Streams) ->
   parse_media_sdp(SDP, Streams).

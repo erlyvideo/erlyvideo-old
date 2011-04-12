@@ -46,11 +46,11 @@ read_flow(FlowName) ->
   Flow.
 
 
-prepare_test_flow(Fun) ->
+prepare_test_flow(Options, Fun) ->
   {spawn, {setup,
   fun() ->
-    log4erl:change_log_level(error),
-    {ok, _Pid} = ems_media:start_link(test_media, [])
+    % log4erl:change_log_level(error),
+    {ok, _Pid} = ems_media:start_link(test_media, Options)
   end,
   fun({ok, Pid}) ->
     Pid ! stop,
@@ -69,26 +69,34 @@ feed_with_flow(Media, FlowName) ->
   ok.
 
 
-media_info_autofill_test_() ->
-  prepare_test_flow(fun(Media) ->
+media_info_autofill_test_1() ->
+  prepare_test_flow([], fun(Media) ->
     feed_with_flow(Media, av_header),
     ?assertMatch(#media_info{audio = [#stream_info{codec = aac}], video = [#stream_info{codec = h264}]}, ems_media:media_info(Media))
   end).
 
 av_test_() ->
-  prepare_test_flow(fun(Media) ->
+  prepare_test_flow([{send_audio_before_keyframe,false}], fun(Media) ->
     feed_with_flow(Media, av_header),
+    ?assertMatch(#media_info{video = [#stream_info{codec = h264}]}, ems_media:media_info(Media)),
     Master = self(),
-    _Reader = spawn_link(fun() ->
+    Reader = spawn_link(fun() ->
       ems_media:play(Media, [{stream_id,1}]),
-      Master ! {frames, ems_test_helper:receive_all_frames()}
+      Master ! {ready, self()},
+      Master ! {frames, ems_test_helper:receive_all_frames(100)}
     end),
+    receive
+      {ready, Reader} -> ok
+    end,
     feed_with_flow(Media, audio_video),
+    ?assertMatch(#media_info{video = [#stream_info{codec = h264}]}, ems_media:media_info(Media)),
+    timer:sleep(100),
     Frames = receive
       {frames, Frames_} -> Frames_
     after
       500 -> ?assertNot(false)  
     end,
+    io:format("~p~n", [[{C, Fl, DTS, StrId} || #video_frame{content = C, flavor = Fl, dts = DTS, stream_id = StrId, codec = Codec} <- Frames]]),
     ?assertEqual(6, length(Frames)),
     ?assert(ems_test_helper:has_small_delta(Frames, 100))
   end).

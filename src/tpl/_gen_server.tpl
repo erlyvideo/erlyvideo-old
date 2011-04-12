@@ -1,5 +1,5 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2009-2010 Max Lapshin
+%%% @copyright  2009-2011 Max Lapshin
 %%% @doc        Example of gen_server
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
@@ -100,7 +100,7 @@ handle_info({'DOWN', _, process, Client, _Reason}, Server) ->
   {noreply, Server};
 
 handle_info(_Info, State) ->
-  {noreply, State}.
+  {stop, {unknown_message, _Info}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
