@@ -26,7 +26,7 @@
 -include("log.hrl").
 -include("../include/aac.hrl").
 
--export([decode_config/1, encode_config/1, unpack_adts/1, pack_adts/2, adts_to_config/1]).
+-export([decode_config/1, encode_config/1, unpack_adts/1, pack_adts/2, adts_to_config/1, to_fmtp/1]).
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary(), Config::aac_config()) -> ADTS::binary()
@@ -219,16 +219,24 @@ encode_channels(flcr_blr_lfe) -> 6;
 encode_channels(flcr_slr_blr_lfe) -> 7.
 
 
+to_fmtp(#aac_config{} = Config) ->
+  to_fmtp(encode_config(Config));
 
+to_fmtp(Config) when is_binary(Config) ->
+  Encoded = [io_lib:format("~2.16.0B", [N]) || N <- binary_to_list(Config)],
+  lists:flatten(["profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=", Encoded]).
+  
 
 %%
 %% Tests
 %%
 -include_lib("eunit/include/eunit.hrl").
 
-config1_test() ->
-  % ?assertEqual(ok, aac:config(<<255,240>>)).
-  ?assertEqual(ok,ok).
+% config_test() ->
+%   ?assertEqual(ok, aac:decode_config(<<255,240>>)).
+
+fmtp_test() ->
+  ?assertEqual("profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=11B056E500", aac:to_fmtp(<<17,176,86,229,0>>)).
 
 
 

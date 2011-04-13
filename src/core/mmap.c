@@ -31,7 +31,7 @@ mmap_destructor(ErlNifEnv* env, void *obj)
 static int
 load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
 {
-  MmapResource = enif_open_resource_type(env, "mmap", "mmap_resource", mmap_destructor, ERL_NIF_RT_CREATE|ERL_NIF_RT_TAKEOVER, NULL);
+  MmapResource = enif_open_resource_type(env, NULL, "mmap_resource", mmap_destructor, ERL_NIF_RT_CREATE|ERL_NIF_RT_TAKEOVER, NULL);
   return 0;
 }
 

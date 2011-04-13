@@ -51,8 +51,8 @@ sync(#rtp_channel{} = RTP, Headers) ->
   RTP#rtp_channel{wall_clock = 0, timecode = Time, sequence = Seq}.
 
 decode(_, #rtp_channel{timecode = TC, wall_clock = Clock} = RTP) when TC == undefined orelse Clock == undefined ->
-  % ?D({unsynced, RTP}),
-  {ok, RTP, []};
+  %% ?D({unsynced, RTP}),
+  {ok, RTP#rtp_channel{timecode = 0, wall_clock = 0, sequence = 0}, []};
 
 decode(<<_:16, Sequence:16, _/binary>> = Data, #rtp_channel{sequence = undefined} = RTP) ->
   decode(Data, RTP#rtp_channel{sequence = Sequence});
@@ -67,7 +67,7 @@ decode(<<2:2, 0:1, _Extension:1, 0:4, _Marker:1, _PayloadType:7, Sequence:16, Ti
 
 decode(<<AULength:16, AUHeaders:AULength/bitstring, AudioData/binary>>, #rtp_channel{codec = aac} = RTP, Timecode) ->
   decode_aac(AudioData, AUHeaders, RTP, Timecode, []);
-  
+
 decode(Body, #rtp_channel{codec = h264, buffer = Buffer} = RTP, Timecode) ->
   DTS = timecode_to_dts(RTP, Timecode),
   {ok, Buffer1, Frames} = decode_h264(Body, Buffer, DTS),
@@ -86,7 +86,7 @@ decode(Body, #rtp_channel{stream_info = #stream_info{codec = Codec, content = Co
 	  sound	  = video_frame:frame_sound(Info)
   },
   {ok, RTP, [Frame]}.
-  
+
 
 decode_h264(Body, #h264_buffer{time = OldDTS} = RTP, DTS) when OldDTS > DTS ->
   Reply = case h264:decode_nal(Body, h264:init()) of
@@ -99,7 +99,7 @@ decode_h264(Body, #h264_buffer{time = OldDTS} = RTP, DTS) when OldDTS > DTS ->
 
 decode_h264(Body, undefined, DTS) ->
 %   decode_h264(Body, #h264_buffer{}, DTS);
-% 
+%
 % decode_h264(_Body, #h264_buffer{time = undefined} = RTP, DTS) ->
   % {ok, RTP#h264_buffer{time = DTS}, []}; % Here we are entering sync-wait state which will last till current inteleaved frame is over
   % ?D(init_h264_buffer),
@@ -107,7 +107,7 @@ decode_h264(Body, undefined, DTS) ->
 
 % decode_h264(_Body, #h264_buffer{time = OldDTS, h264 = undefined} = RTP, DTS) when OldDTS =/= DTS ->
 %   {ok, RTP#h264_buffer{time = DTS, h264 = h264:init(), buffer = <<>>}, []};
-% 
+%
 % decode_h264(_Body, #h264_buffer{time = DTS, h264 = undefined} = RTP, DTS) ->
 %   {ok, RTP, []};
 
@@ -127,12 +127,12 @@ decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor 
 % decode_h264(Body, #h264_buffer{time = OldDTS, buffer = <<>>} = RTP, DTS) when OldDTS < DTS ->
 %   ?D(zerobuf),
 %   decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), time = DTS}, DTS);
-  
-  
+
+
 decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = OldFlavor} = RTP, DTS) when OldDTS < DTS ->
-  
+
    % orelse erlang:error({non_decoded_h264_left, OldH264, Buffer}),
-   
+
   {H264, Flavor} = case {OldH264#h264.buffer, Buffer} of
     {<<>>, <<>>} -> {undefined, undefined};
     {undefined, <<>>} -> {undefined, undefined};
@@ -151,7 +151,7 @@ decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, f
         codec = h264,
         body = H264,
         flavor = Flavor,
-        dts = OldDTS, 
+        dts = OldDTS,
         pts = OldDTS
       }]
   end,
@@ -189,4 +189,4 @@ timecode_to_dts(#rtp_channel{timescale = Scale, timecode = BaseTimecode, wall_cl
 
 
 
-  
+

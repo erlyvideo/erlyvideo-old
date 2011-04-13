@@ -338,7 +338,8 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec 
   % ?D({"Audio", round(DTS), size(Body)}),
   ADTS = case Codec of
     aac -> aac:pack_adts(Body, AudioConfig);
-    adts -> Body
+    adts -> Body;
+    mpeg2audio -> Body
   end,
   PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
@@ -387,19 +388,22 @@ encode(#streamer{length_size = LengthSize, video_config = VideoConfig} = Streame
   {Streamer3, Video} = send_video(Streamer2, Frame#video_frame{body = Packed}),
   {Streamer3#streamer{last_dts = DTS}, <<PATBin/binary, PMTBin/binary, Video/binary>>};
 
-encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = video, body = Body, dts = DTS} = Frame) ->
+encode(#streamer{length_size = LengthSize} = Streamer, #video_frame{content = video, codec = h264, body = Body, dts = DTS} = Frame) ->
   BodyNALS = unpack_nals(Body, LengthSize),
   F = fun(NAL, S) ->
     <<S/binary, 1:24, NAL/binary>>
   end,
   Packed = lists:foldl(F, <<9, 16#F0>>, BodyNALS),
   send_video(Streamer#streamer{last_dts = DTS}, Frame#video_frame{body = Packed});
+
+encode(#streamer{} = Streamer, #video_frame{content = video, dts = DTS} = Frame) ->
+  send_video(Streamer#streamer{last_dts = DTS}, Frame);
   
-encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, body = AudioConfig, dts = DTS}) ->
+encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, codec = aac, body = AudioConfig, dts = DTS}) ->
   Config = aac:decode_config(AudioConfig),
   {Streamer#streamer{audio_config = Config, last_dts = DTS}, none};
 
-encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio, dts = DTS}) ->
+encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio, codec = aac, dts = DTS}) ->
   {Streamer#streamer{last_dts = DTS}, none};
 
 encode(#streamer{} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->

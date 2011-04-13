@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" applicationComplete="init()" width="320" height="180">
+	<mx:Script>
+	<![CDATA[
+		import flash.external.ExternalInterface;
+		
+		private var nc:NetConnection;
+		
+		public function init():void {				
+			Security.allowDomain("*");
+		
+			var objectName:String = root.loaderInfo.parameters.objectName || "test";
+			var serverUrl:String = root.loaderInfo.parameters.serverUrl || "rtmp://pro-web.at/firstapp";
+			var persistent:Boolean = root.loaderInfo.parameters.persisent ? true: false;
+			
+			txtServerUrl.text = serverUrl;
+			txtObjectName.text = objectName;
+
+			connect(serverUrl);
+			createSharedObject(objectName, persistent);
+
+			trace("jsSO.fcbFlashInit");
+			ExternalInterface.call("jsSO.fcbFlashInit");
+		}
+		
+		private function connect(serverUrl:String):void {
+			// create basic netConnection object
+			nc = new NetConnection();
+			nc.objectEncoding = ObjectEncoding.AMF3;
+			
+			// add listeners for netstatus and security issues
+			nc.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler);
+			nc.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
+			nc.addEventListener(AsyncErrorEvent.ASYNC_ERROR, netASyncError);
+			nc.addEventListener(IOErrorEvent.IO_ERROR, netIOError);
+			
+			// set it's client/focus to this
+			nc.client = this;
+
+			nc.connect(serverUrl);
+			
+			ExternalInterface.addCallback("call", callFunction);
+		}
+		
+		private function netStatusHandler(event:NetStatusEvent):void {
+			txtLog.text = "net status: " + event.info.code + " " +  event.toString();
+			trace("jsSO.fcbNetStatus: " + event.info.code);
+			ExternalInterface.call("jsSO.fcbNetStatus", event.info.code);
+		}
+		private function securityErrorHandler(event:SecurityErrorEvent):void {
+			txtLog.text = "Security error: " + event.text;
+			trace("Security error: " + event.text);
+			ExternalInterface.call("jsSO.fcbFlashError", "Security error", event.text);
+		}
+		private function netIOError(event:IOErrorEvent):void { 
+			txtLog.text = "IO error: " + event.text;
+			trace("IO error: " + event.text);
+			ExternalInterface.call("jsSO.fcbFlashError", "IO error", event.text);
+		}
+		private function netASyncError(event:AsyncErrorEvent):void {
+			txtLog.text = "Async error: " + event.text;
+			trace("Async error: " + event.text);
+			ExternalInterface.call("jsSO.fcbFlashError", "Async error", event.text);
+		}
+		
+		public function callFunction(id:String, func:String, args:Array):void {
+			function callResponse(resp:Object):void {
+				txtLog.text = "callResponse "+func;
+				trace("jsSO.fcbCallResponse: "+func);
+				ExternalInterface.call("jsSO.fcbCallResponse", id, resp);
+			}
+			function callError(error:Object):void {
+				txtLog.text = "callError: "+error;
+				trace("jsSO.callError: "+error);
+				ExternalInterface.call("jsSO.fcbCallError", id, error);
+			}
+			var nc_responder:Responder = new Responder(callResponse, callError);
+			
+			args.unshift(nc_responder);
+			args.unshift(func);
+		
+			txtLog.text = "call "+func;
+			nc.call.apply(nc, args);
+		}
+		
+		public function createSharedObject(objectName:String, persistent:Boolean):void {
+			// create StoredObject - pass the name of the shared object, the netConnection URI ("rtmp://localhost/oflaDemo"), and whether or not it's persistant
+			var so:SharedObject = SharedObject.getRemote(objectName, nc.uri, persistent);
+			
+      var client:Object = {};
+      client.onMessage = function(data:Object):void {
+        ExternalInterface.call("jsSO.fcbOnMessage", data);
+      };
+			
+      so.client = client;
+
+			// this method is called when the data on the Shared Object is updated
+			so.addEventListener(SyncEvent.SYNC, function(evtObj:SyncEvent):void {
+				// merge all data entries in seperate object for client
+				var data:Object = {}, key:String;
+				for (key in so.data) {
+					data[key] = so.data[key];
+				}
+			
+				// merge all updates in a nicer way for client
+				var updates:Object = {};
+				for (key in evtObj.changeList) {
+					if (evtObj.changeList[key].name) {
+						updates[evtObj.changeList[key].name] = evtObj.changeList[key].code;
+					}
+				}
+				
+				txtLog.text = "sync";
+				trace("jsSO.fcbSync");
+				ExternalInterface.call("jsSO.fcbSync", updates, data);
+			});
+			
+			// connect to the SO using the netConnection reference
+			so.connect(nc);
+			
+			function get(item:String):Object
+			{
+				return so.data[item];
+			}
+			function set(name:String, value:Object):void
+			{
+				so.setProperty(name, value);
+			}
+			function sendMsg(name:String, message:Object):void
+			{
+				so.send("onMessage", message);
+			}
+			ExternalInterface.addCallback("set", set);
+			ExternalInterface.addCallback("get", get);
+			ExternalInterface.addCallback("send", sendMsg);
+		}
+	]]>
+	</mx:Script>	
+	<mx:VBox width="300" x="5" y="5">
+		<mx:Label text="Server URL" fontWeight="bold" fontSize="14"/>
+		<mx:TextInput id="txtServerUrl" text="" editable="false" width="100%"/>
+		<mx:Label text="Object Name" fontWeight="bold" fontSize="14"/>
+		<mx:TextInput id="txtObjectName" text="" editable="false" width="100%"/>
+		<mx:Label text="Log" fontWeight="bold" fontSize="14"/>
+		<mx:TextInput id="txtLog" text="" editable="false" width="100%"/>
+	</mx:VBox>    
+</mx:Application>

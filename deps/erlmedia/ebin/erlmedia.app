@@ -9,6 +9,7 @@
                  ]},
   {modules, [
              aac,
+             asf,
              ems_log,
              flv,
              flv_reader,
@@ -28,6 +29,7 @@
              mp4_writer,
              packet_codec,
              sdp,
+             sdp_encoder,
              sdp_tests,
              shoutcast_reader,
              video_frame,

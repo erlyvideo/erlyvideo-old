@@ -1,0 +1,76 @@
+<html><head>
+
+<script type="text/javascript" src="/js/swfobject.js"></script>
+<script type="text/javascript" src="/js/jquery.js"></script>
+<script type="text/javascript" src="/jsSO/jsSO.js"></script>
+
+
+</head>
+<body>
+  
+  <table>
+    <tbody id="shared_object">
+      
+    </tbody>
+  </table>
+  <form id="setProp" action="">
+    <input type="text" name="name">
+    <input type="text" name="value">
+    <input type="submit" value="Set property">
+  </form>
+<form>
+	<input class='sync' type="button" value="sync" />
+	<input class='send' type="button" value="send" />
+	<pre></pre>
+</form>
+
+<script type="text/javascript">
+
+$("#setProp").submit(function() {
+  var name = $(this).find("input[name='name']").val();
+  var value = $(this).find("input[name='value']").val();
+  // console.log(name+","+value);
+  jsSO.set(name, value);
+  return false;
+})
+
+$('.sync').click(function(){
+	var rand = Math.random();
+	$('pre').append('sync: '+rand+'\n');
+	jsSO.set('someVar', rand);
+});
+
+$('.send').click(function(){
+	var rand = Math.random();
+	$('pre').append('send: '+rand+'\n');
+	jsSO.send("onMessage", {a:rand});
+});
+
+jsSO.onConnect(function(event) {
+	$('pre').append('connect\n');
+});
+
+function deleteProp(key) {
+  jsSO.set(key, null);
+}
+
+jsSO.onSync(function(event, updates, data) {
+  var table = "";
+  console.dir(updates);
+  console.dir(data);
+  for (var key in data) {
+    table += "<tr><td>"+key+"</td><td>"+data[key]+"</td><td><a href='#' onclick=\"deleteProp('"+key+"'); return false;\">(x)</a></td></tr>\n";
+  }
+  $("#shared_object").html(table);
+});
+
+jsSO.onMessage(function(event, data) {
+	$('pre').append('message: '+data.a+'\n');
+});
+
+jsSO.connect('rtmp://localhost:1935/SOSample', 'chat', {debug : true});
+
+</script>
+
+</body>
+</html>
