@@ -5,7 +5,7 @@
 %%% @end
 %%%
 %%% This file is part of erlmedia.
-%%% 
+%%%
 %%% erlmedia is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -64,6 +64,9 @@ frame_sound(#stream_info{content = audio, codec = Codec, params = #audio_params{
 
 frame_sound(#stream_info{content = audio, codec = Codec, params = #audio_params{channels = 2, sample_rate = Rate}}) when Codec == pcma orelse Codec == pcmu ->
   {stereo, bit8, Rate};
+
+frame_sound(#stream_info{content = audio, codec = speex}) ->
+  {mono, bit16, rate44};
 
 frame_sound(#stream_info{content = audio}) ->
   {stereo, bit16, rate44};
