@@ -15,7 +15,7 @@
 {"src/http/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"src/hooks/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}, {i, ".."}]}.
 {"plugins/*/src/*", [debug_info, {d, debug}, {outdir, "ebin"}, {i, "include"}]}.
-{"lib/misultin/src/*", [debug_info, {outdir, "ebin"}, {i, "lib/misultin/include"}]}.
+{"src/misultin/*", [debug_info, {outdir, "ebin"}, {i, "include/misultin"}]}.
 {"deps/erlmedia/src/*", [debug_info, {outdir, "deps/erlmedia/ebin"}, {i, "deps/erlmedia/src"}]}.
 {"deps/amf/src/*", [debug_info, {outdir, "deps/amf/ebin"}, {i, "deps/amf/src"}]}.
 {"deps/shoutcast/src/*", [debug_info, {outdir, "deps/shoutcast/ebin"}, {i, "deps/shoutcast/src"}, {i, "deps"}]}.

@@ -49,8 +49,7 @@
 -export([get/1, host/0, socket/0, parse_qs/0, parse_post/0, file/1, file/2, resource/1]).
 
 % includes
--include("../include/misultin.hrl").
--include_lib("kernel/include/file.hrl").
+-include("misultin.hrl").
 
 
 % ============================ \/ API ======================================================================
