@@ -39,8 +39,14 @@
 start_link(Port, Name, Callback, Args) ->
   gen_listener:start_link(Name, Port, ?MODULE, [Callback|Args]).
 
+accept(CliSocket, Args) ->
+  try raw_accept(CliSocket, Args) of
+    Reply -> Reply
+  catch
+    _Error:Reason -> {error, Reason}
+  end.  
 
-accept(CliSocket, [Callback|Args]) ->
+raw_accept(CliSocket, [Callback|Args]) ->
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
   gen_tcp:controlling_process(CliSocket, RTMP),
   rtmp_socket:set_socket(RTMP, CliSocket),
