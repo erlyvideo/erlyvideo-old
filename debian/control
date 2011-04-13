@@ -9,9 +9,7 @@ Homepage: http://erlyvideo.org/
 
 Package: erlyvideo
 Section: net
-Author: Max Lapshin <max@maxidoors.ru>
 Homepage: http://erlyvideo.org/
-Maintainer: Max Lapshin <max@maxidoors.ru>
 Replaces: erlyvideo-base (<= 2.2.5), erlang-rtmp, erlmedia, erlang-shoutcst, erlang-mpegts, erlang-rtp, erlang-rtsp, erlang-amf, erlydtl, log4erl
 Breaks: erlyvideo-base (<= 2.2.5), erlang-rtmp, erlmedia, erlang-shoutcst, erlang-mpegts, erlang-rtp, erlang-rtsp, erlang-amf, erlydtl, log4erl
 Architecture: any
