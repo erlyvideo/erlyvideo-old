@@ -103,7 +103,7 @@ load_from_storage(Config) ->
   StrictVersions = proplists:get_value(projects, Config, []),
   StoredContent = read_storage(Config),
   case storage_has_versions(StoredContent, StrictVersions) of
-    true -> 
+    true ->
       load_code(StoredContent),
       ok;
     false ->
@@ -164,7 +164,8 @@ load_from_dets(Table, [AppName|Apps], Acc) ->
   end, [{load_app, {application,AppName,Desc}}|Acc], proplists:get_value(modules,Desc, [])),
   load_from_dets(Table, Apps, Acc1).
   
-
+  
+storage_has_versions([], _) -> false;
 storage_has_versions(_Stored, []) -> true;
 storage_has_versions(Stored, [{AppName, Version} |Versions]) ->
   case storage_has_version(Stored, AppName, Version) of
@@ -353,7 +354,7 @@ read_config_test_() ->
   [
   ?_assertEqual([], read_config(["test/fixtures"], "license_broken.txt")),
   ?_assertEqual([], read_config(["test/fixtures"], "license_absent.txt")),
-  ?_assertEqual([{license,"test-license"},{url,"http://localhost:9080/license"},{license_dir,"test/fixtures"}], read_config(["test/fixtures"], "license_good.txt"))
+  ?_assertEqual([{license,"test-license"},{url,"http://license.erlyvideo.org/license"},{license_dir,"test/fixtures"}], read_config(["test/fixtures"], "license_good.txt"))
   ].
 
 request_functions_test_() ->
@@ -364,6 +365,11 @@ request_functions_test_() ->
     URL = construct_url(Config,save),
     ?assertEqual({error,notfound}, load_by_url(URL))
   end
+  ].
+
+storage_has_versions_test_() ->
+  [
+    ?_assertNot(storage_has_versions([],[]))
   ].
 
 read_storage_test_() ->
@@ -382,27 +388,38 @@ construct_url_test_() ->
   ].
 
 web_api_correct_test_() ->
- [
- ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/licenses",[],get)),
- ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/licenses",[],post,["Not_empty_body"]))
- ].
-
-web_api_broken_config_test_() ->
-  {spawn, {setup,
-  fun() ->
-    {ok,ConfigPath} = application:get_env(erlyvideo,license_config),
-    application:set_env(erlyvideo,license_config_buf,ConfigPath),
-    application:set_env(erlyvideo,license_config,[["local"],"lic.txt"])
-  end,
-  fun(_) ->
-  {ok,ConfigPath} = application:get_env(erlyvideo,license_config_buf),
-  application:set_env(erlyvideo,license_config,ConfigPath)
-  end,
-  [
+  wrap_license_test_setup("license_good.txt", [
     ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/licenses",[],get)),
     ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/licenses",[],post,["Not_empty_body"]))
-  ]
-}}.
+  ]).
+ 
+
+web_api_broken_config_test_() ->
+  wrap_license_test_setup("lic.txt", [
+    ?_assertMatch({ok,"500",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/licenses",[],get)),
+    ?_assertMatch({ok,"200",_Info,_Body},ibrowse:send_req("http://127.0.0.1:8082/erlyvideo/api/licenses",[],post,["Not_empty_body"]))
+  ]).
+
+
+wrap_license_test_setup(License, Fun) ->
+  {spawn, {setup,
+  fun() ->
+    OldConfig = case application:get_env(erlyvideo,license_config) of
+      {ok,ConfigPath} -> ConfigPath;
+      undefined -> undefined
+    end,
+    application:set_env(erlyvideo,license_config,[["test/fixtures"],License]),
+    OldConfig
+  end,
+  fun
+    (undefined) -> cleanup_tests(), application:unset_env(erlyvideo, license_config);
+    (ConfigPath) -> cleanup_tests(), application:set_env(erlyvideo,license_config,ConfigPath)
+  end,
+  fun(_) -> Fun end
+  }}.
+
+cleanup_tests() ->
+  (catch file:delete("test/fixtures/license_storage.db")).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

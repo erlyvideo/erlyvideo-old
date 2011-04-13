@@ -1,2 +1,2 @@
 {license, "expired-license"}.
-{url, "http://localhost:9080/license"}.
+{url, "http://license.erlyvideo.tv/license"}.

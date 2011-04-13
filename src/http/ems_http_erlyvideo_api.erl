@@ -57,12 +57,15 @@ http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
 http(_Host, 'GET', ["erlyvideo","api","licenses"], Req) -> 
-  List = case ems_license_client:list() of
-    {ok,Value} -> Value;
-    Else -> Else
-  end,
-  Info = [Project || {project, Project} <- List],
-  Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{licenses, Info}]), "\n"]);
+  case ems_license_client:list() of
+    {ok, List} -> 
+      Info = [Project || {project, Project} <- List],
+      Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{licenses, Info}]), "\n"]);
+    {error, notfound} ->
+      Req:respond(404, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, notfound}]), "\n"]);
+    _Else ->
+      Req:respond(500, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, unknown}]), "\n"])
+  end;
 
 http(_Host, 'POST', ["erlyvideo","api","licenses"], Req) ->
   Reply = case ems_license_client:load() of
