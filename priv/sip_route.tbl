@@ -1,0 +1,18 @@
+%% -*- erlang -*-
+{"11%", [{owner, local}, {user_mod, ems_sip}]}.
+{"22%", [{owner, remote}]}.
+{"32%", [{owner, local}, {user_mod, ems_sip}]}.
+{"33%", [{owner, local}, {user_mod, ems_sip_pbxmate}]}.
+
+
+{domain, zert}.
+{default, [{owner, local}, {user_mod, ems_sip_pbxmate}]}.
+{"4%%",  [{rebuild, {append, "--1"}}]}.
+{"43%%", []}.
+{"4555", []}.
+{"mtreskin", [{rebuild, {append, "--1"}}]}.
+{"12%", [{user_mod, ems_sip_flashphone}]}.
+
+{domain, internal}.
+{default, [{owner, remote}, {user_mod, esip_uas}]}.
+{"mtreskin", [{rebuild, {append, "--1"}}]}.
