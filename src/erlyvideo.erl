@@ -54,7 +54,6 @@ test() ->
   
   eunit:test([
     ems,
-    ems_license_client,
     amf0_tests,
     amf3_tests,
     aac,
@@ -77,7 +76,8 @@ test() ->
     ems_media_flow_tests,
     ems_test_file_reading,
     rtmp_publish_tests,
-    rtmp_read_tests
+    rtmp_read_tests,
+    ems_license_client
   ]).
 
 
