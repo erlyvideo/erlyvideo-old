@@ -2,7 +2,7 @@ include debian/version.mk
 ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
-ERL_LIBS:=deps:lib:plugins:..
+ERL_LIBS:=deps:plugins
 
 
 
@@ -72,7 +72,7 @@ install: compile
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
 	mkdir -p $(DESTROOT)/var/lib/erlyvideo/plugins
 	mkdir -p $(DESTROOT)$(ERLDIR)
-	cp -r ebin src include lib Emakefile $(DESTROOT)$(ERLDIR)/
+	cp -r ebin src include Emakefile $(DESTROOT)$(ERLDIR)/
 	mkdir -p $(DESTROOT)/usr/bin/
 	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
 	cp contrib/erlyctl.debian $(DESTROOT)/usr/bin/erlyctl
