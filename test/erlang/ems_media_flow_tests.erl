@@ -69,7 +69,7 @@ feed_with_flow(Media, FlowName) ->
   ok.
 
 
-media_info_autofill_test_1() ->
+media_info_autofill_test() ->
   prepare_test_flow([], fun(Media) ->
     feed_with_flow(Media, av_header),
     ?assertMatch(#media_info{audio = [#stream_info{codec = aac}], video = [#stream_info{codec = h264}]}, ems_media:media_info(Media))
@@ -96,7 +96,7 @@ av_test_() ->
     after
       500 -> ?assertNot(false)  
     end,
-    io:format("~p~n", [[{C, Fl, DTS, StrId} || #video_frame{content = C, flavor = Fl, dts = DTS, stream_id = StrId, codec = Codec} <- Frames]]),
+    % io:format("~p~n", [[{C, Fl, DTS, StrId} || #video_frame{content = C, flavor = Fl, dts = DTS, stream_id = StrId} <- Frames]]),
     ?assertEqual(6, length(Frames)),
     ?assert(ems_test_helper:has_small_delta(Frames, 100))
   end).

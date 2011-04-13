@@ -27,9 +27,9 @@
 -include_lib("deps/erlmedia/include/video_frame.hrl").
 -export([http/4]).
 
-http(Host, 'GET', ["shoutcast",Name] = Path, Req) ->
+http(Host, 'GET', ["shoutcast"|Name], Req) ->
   Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]),
-  case media_provider:play(Host,Name,[]) of
+  case media_provider:play(Host,string:join([P || P <- Name, P =/= ".."], "/"),[]) of
     {ok,Stream} ->
       shoutcast_writer:write(Stream,Req),
       Req:stream(close);
