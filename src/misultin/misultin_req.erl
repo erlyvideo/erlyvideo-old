@@ -82,6 +82,7 @@ stream(head) ->
 stream(Template) ->
   case gen_tcp:send(Req#req.socket, Template) of
     ok -> ok;
+    {error, closed} -> exit(normal);
     {error, Reason} -> exit(Reason)
   end.
   

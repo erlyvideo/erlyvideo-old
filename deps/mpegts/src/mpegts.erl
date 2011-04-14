@@ -31,7 +31,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([init/0, init/1, encode/2, pad_continuity_counters/1]).
+-export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).
 -export([autostart/0, start/0, stop/0]).
 
@@ -77,14 +77,25 @@ read(URL, Options) ->
   last_dts,
   length_size = 32,
   audio_config = undefined,
-  video_config = undefined
+  video_config = undefined,
+  audio_buffer = [],
+  audio_dts,
+  interleave
 }).
 
-init() -> #streamer{}.
+init() -> init([]).
 
-init({Video, Audio, PMT, PAT}) -> #streamer{video_counter = Video, audio_counter = Audio, pmt_counter = PMT, pat_counter = PAT}.
+init(Options) -> 
+  Interleave = case proplists:get_value(interleave, Options) of
+    Num when is_number(Num) andalso Num > 0 -> Num;
+    _ -> false
+  end,
+  #streamer{interleave = Interleave}.
 
-
+flush(Streamer) ->
+  {Streamer1, Audio} = flush_audio(Streamer),
+  {Streamer2, Padding} = pad_continuity_counters(Streamer1),
+  {Streamer2, [Audio, Padding]}.
 
 mux(Data, Streamer, Pid) ->
   Start = 1,
@@ -367,7 +378,7 @@ encode(#streamer{sent_pat = false} = Streamer, #video_frame{dts = DTS} = Frame) 
       {Streamer3, <<PATBin/binary, PMTBin/binary>>};
     {Streamer3, Bin} ->
       {Streamer3, <<PATBin/binary, PMTBin/binary, Bin/binary>>}
-  end;  
+  end;
 
 encode(#streamer{} = Streamer, #video_frame{content = video, flavor = config, body = Config, dts = DTS}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
@@ -406,12 +417,40 @@ encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, co
 encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio, codec = aac, dts = DTS}) ->
   {Streamer#streamer{last_dts = DTS}, none};
 
-encode(#streamer{} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
+%%% From here goes interleave
+encode(#streamer{audio_dts = undefined} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
+  encode(Streamer#streamer{audio_dts = DTS}, Frame);
+
+encode(#streamer{interleave = false} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
   send_audio(Streamer#streamer{last_dts = DTS}, Frame);
+
+encode(#streamer{interleave = Interleave, audio_buffer = Audio, audio_config = Config} = Streamer, 
+       #video_frame{content = audio, codec = aac, body = Body}) when length(Audio) < Interleave ->
+  ADTS = aac:pack_adts(Body, Config),
+  {Streamer#streamer{audio_buffer = [ADTS|Audio]}, none};
+
+encode(#streamer{} = Streamer, #video_frame{content = audio, codec = aac, dts = DTS} = Frame) ->
+  {Streamer1, Reply} = flush_audio(Streamer),
+  {Streamer2, none} = encode(Streamer1#streamer{audio_dts = DTS, audio_buffer = []}, Frame),
+  {Streamer2, Reply};
 
 encode(#streamer{} = Streamer, #video_frame{content = metadata}) ->
   {Streamer, none}.
 
+
+flush_audio(#streamer{audio_buffer = [], audio_dts = undefined} = Streamer) ->
+  {Streamer, <<>>};
+
+flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS} = Streamer) ->
+  ADTS = #video_frame{
+    content = audio,
+    codec = adts,
+    flavor = frame,
+    dts = DTS,
+    pts = DTS,
+    body = iolist_to_binary(lists:reverse(Audio))
+  },
+  send_audio(Streamer, ADTS).
 
 video_config(#streamer{video_config = V}) -> V.
 audio_config(#streamer{audio_config = A}) -> A.

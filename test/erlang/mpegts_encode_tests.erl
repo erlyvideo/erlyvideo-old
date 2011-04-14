@@ -32,7 +32,7 @@
 
 
 encode_mpegts([], Streamer) ->
-  {Streamer1, _} = mpegts:pad_continuity_counters(Streamer),
+  {Streamer1, _} = mpegts:flush(Streamer),
   Streamer1;
   
 encode_mpegts([Frame|Frames], Streamer) ->
@@ -42,3 +42,11 @@ encode_mpegts([Frame|Frames], Streamer) ->
 h264_aac_stream_test() ->
   {ok, _Media, Frames} = ems_test_helper:read_file("h264_aac_2.flv"),
   encode_mpegts(Frames, mpegts:init()).
+
+h264_aac_interleaved_test() ->
+  {ok, _Media, Frames} = ems_test_helper:read_file("h264_aac_2.flv"),
+  encode_mpegts(Frames, mpegts:init([{buffered, true},{interleave,20}])).
+
+empty_encode_test() ->
+  encode_mpegts([], mpegts:init([{interleave,20}])).
+

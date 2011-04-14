@@ -139,7 +139,7 @@ read_frame_list(#flv_media{reader = Reader, frames = FrameTable, metadata = Meta
 	  #video_frame{content = metadata, body = Meta, next_id = NextOffset} ->
 			case parse_metadata(MediaInfo, Meta) of
 			  {MediaInfo1, true} ->	
-			    ?D({"Found metadata, looking 10 frames ahead"}),
+          % ?D({"Found metadata, looking 10 frames ahead"}),
 			    read_frame_list(MediaInfo1#flv_media{metadata_offset = Offset}, NextOffset, 10);
 			  {MediaInfo1, false} ->
 			    read_frame_list(MediaInfo1#flv_media{metadata_offset = Offset} , NextOffset, Limit - 1)
