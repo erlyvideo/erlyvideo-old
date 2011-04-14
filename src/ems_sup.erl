@@ -58,6 +58,7 @@
 -export([init/1,start_link/0]).
 -export([start_rtmp_session/1, start_media/3, start_shared_object/3,
           start_shoutcast_reader/1,
+          start_deskshare_capture/2,
           start_http_server/1, start_http_worker/1, start_ticker/3, start_mjpeg_reader/2]).
 
 -export([static_streams/0,start_static_streams/0]).
@@ -81,6 +82,9 @@ start_shoutcast_reader(Consumer) ->
 
 start_mjpeg_reader(URL, Consumer) ->
   supervisor:start_child(mjpeg_reader_sup, [URL, Consumer]).
+  
+start_deskshare_capture(Name, Options) ->
+  supervisor:start_child(deskshare_capture_sup, [Name, Options]).
 
 start_media(_Name, file,          Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
 start_media(_Name, mpegts,        Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
@@ -135,7 +139,9 @@ init([erlyvideo_media_sup]) ->
       ?SUPERVISOR_LINK(ems_media_sup),
       ?SUPERVISOR_LINK(media_ticker_sup),
       ?SUPERVISOR_LINK(shoutcast_reader_sup),
-      ?SUPERVISOR_LINK(mjpeg_reader_sup)
+      ?SUPERVISOR_LINK(mjpeg_reader_sup),
+      ?SUPERVISOR_LINK(deskshare_capture_sup),
+      ?NAMED_SERVER(deskshare_tracker_sup, deskshare_tracker, [])
     ]}
   };
 
@@ -154,6 +160,8 @@ init([shoutcast_reader_sup]) ->
 init([mjpeg_reader_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(mjpeg_reader, [])]}};
 
+init([deskshare_capture_sup]) ->
+  {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(deskshare, [])]}};
 
 
 %%%%%%%%  User sessions  %%%%%%%%
