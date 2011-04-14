@@ -3,3 +3,4 @@ log4erl.conf
 *.plt
 license.txt
 license_storage.db
+aws.conf*
