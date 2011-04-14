@@ -129,18 +129,19 @@ mpegts_reader_iphone_test_() ->
   {spawn, {setup,
     fun() ->
       ems_test_helper:set_ticker_timeouts(true),
-      % log4erl:change_log_level(error),
+      log4erl:change_log_level(error),
       ok
     end,
     fun(_) ->
       ems_test_helper:set_ticker_timeouts(false),
-      % log4erl:change_log_level(debug),
+      log4erl:change_log_level(debug),
       ok
     end,
     [fun() ->
       {ok,Pid} = mpegts:read("http://127.0.0.1:8082/iphone/segments/video.mp4/3.ts",[]),
       erlang:monitor(process, Pid),
-      Frames = ems_test_helper:receive_all_frames(),
+      Frames = ems_test_helper:receive_all_frames(100),
+      ?assert(length(Frames) > 100),
       ?assert(ems_test_helper:is_interleaved(Frames,10)),
       ?assertNot(ems_test_helper:is_monotonic(Frames))
     end]
