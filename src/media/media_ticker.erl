@@ -92,7 +92,7 @@ init(Media, Consumer, Options) ->
   % ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
   {Pos, DTS} = SeekInfo,
   Start = case proplists:get_value(start, Options, 0) of
-    {_, S} -> S;
+    {_, S} -> S; % some time ago it was {before, Time}
     S -> S
   end,
   
@@ -110,6 +110,10 @@ init(Media, Consumer, Options) ->
           end
       end;
     Duration -> Start + Duration
+  end,
+  case PlayingTill of
+    Start -> ?D({warning, "File duration is set to 0. Perhaps raise iphone segment size in streaming"});
+    _ -> ok
   end,
   ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
                        pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize, no_timeouts = NoTimeouts}).
