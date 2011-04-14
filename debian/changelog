@@ -1,3 +1,9 @@
+erlyvideo (2.8.1) unstable; urgency=low
+
+  ems_license_client fix
+
+ -- Max Lapshin <max@maxidoors.ru>  Fri, 15 Apr 2011 01:19:47 +0400
+
 erlyvideo (2.8.0) unstable; urgency=low
 
   Opensource commercial core 
