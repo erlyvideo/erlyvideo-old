@@ -75,6 +75,7 @@ test() ->
     ems_media_timeout_tests,
     ems_media_flow_tests,
     ems_test_file_reading,
+    mpegts_encode_tests,
     rtmp_publish_tests,
     rtmp_read_tests,
     ems_license_client

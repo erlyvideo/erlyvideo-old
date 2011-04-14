@@ -31,9 +31,8 @@
 
 
 read_file(Path) ->
-  {ok, F} = file:open(ems_test_helper:file_path(Path), [read,binary]),
-  Reader = file_media:file_format(Path),
-  ems_test_helper:read_all_frames(Reader, {file, F}, [{url,ems_test_helper:file_path(Path)}]).
+  ems_test_helper:read_file(Path).
+  
 
 test_duration(Frames, Nearby) ->
   [#video_frame{dts = FDTS}|_] = Frames,
