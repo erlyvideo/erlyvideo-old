@@ -157,7 +157,7 @@ handle_info({udp, _Socket, Addr, Port, Bin},
             #rtp_server{rtp_in = RTPState,
                         consumer = Consumer} = State) ->
   {ok, NewRTPState, Frames} = rtp:handle_data(RTPState, {Addr, Port}, Bin),
-  ?DBG("Frames:~n~p", [Frames]),
+  %%?DBG("Frames:~n~p", [Frames]),
   [Consumer ! Frame || Frame <- Frames],
   {noreply, State#rtp_server{rtp_in = NewRTPState}};
 
