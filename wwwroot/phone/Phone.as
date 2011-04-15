@@ -14,6 +14,8 @@ private var callEnabled:Boolean = false;
 [Bindable]
 private var callLabel:String = "Call";
 
+var speexWB:Boolean = true;
+
 public function init()  : void
 {
 	Security.allowDomain("*");
@@ -23,6 +25,9 @@ public function init()  : void
   nc.client = this;
   nc.addEventListener(NetStatusEvent.NET_STATUS, handleStatus);
   nc.connect(Application.application.parameters.server+"/phone");
+  if(Application.application.parameters.speex) {
+    speexWB = Application.application.parameters.speex == "16000";
+  }
 }
 
 private function handleStatus(evt:NetStatusEvent) : void
@@ -40,7 +45,7 @@ private function handleStatus(evt:NetStatusEvent) : void
 			//m.rate = 44;
       m.codec = "Speex";
 			m.gain = 80;
-			m.rate = 8000;
+			m.rate = speexWB ? 16000 : 8000;
       ns_out.attachAudio(m);
       ns_out.publish(obj.out_stream);
       
