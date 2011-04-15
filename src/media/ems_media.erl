@@ -400,7 +400,7 @@ init([Module, Options]) ->
       Media2 = init_timeshift(Media1, Options),
       Media3 = init_timeouts(Media2, Options),
       Media4 = init_transcoder(Media3, Options),
-      ?D({"Started", Module,Options}),
+      ?D({"Started", Module, URL}),
       {ok, Media4, ?TIMEOUT};
     {stop, Reason} ->
       ?D({"ems_media failed to initialize",Module,Reason}),
@@ -575,7 +575,7 @@ handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M} = 
 handle_cast({play_setup, Client, Options}, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{state = passive, ticker = Ticker} ->
-      ?D({"Setup play options for passive client", Client, Options}),
+      % ?D({"Setup play options for passive client", Client, Options}),
       media_ticker:play_setup(Ticker, Options),
       {noreply, Media, ?TIMEOUT};
 
@@ -678,7 +678,7 @@ handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = [_
 
 handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) -> % 
   Info1 = Info#media_info{audio = case A of wait -> []; _ -> A end, video = case V of wait -> []; _ -> V end},
-  ?D({flush_media_info, Media#ems_media.name, Info, Info1}),
+  % ?D({flush_media_info, Media#ems_media.name, Info, Info1}),
   {noreply, set_media_info(Media, Info1)};
 
 

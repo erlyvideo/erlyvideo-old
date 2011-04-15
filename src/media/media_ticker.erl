@@ -88,9 +88,19 @@ init(Media, Consumer, Options) ->
   StreamId = proplists:get_value(stream_id, Options),
   BurstSize = proplists:get_value(burst_size, Options, ?BURST_SIZE),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
-  SeekInfo = ems_media:seek_info(Media, proplists:get_value(start, Options), Options),
-  % ?D({begin_from, proplists:get_value(start, Options), SeekInfo}),
-  {Pos, DTS} = SeekInfo,
+  Start = proplists:get_value(start, Options),
+  SeekInfo = ems_media:seek_info(Media, Start, Options),
+  case SeekInfo of
+    {_Pos, _DTS} ->
+      initialize_ticker(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
+      burst_size = BurstSize, no_timeouts = NoTimeouts, options = Options}, SeekInfo);
+    undefined ->
+      ?D({failed_to_play_from, Start}),
+      Consumer ! {ems_stream, StreamId, play_failed}
+  end.
+  
+
+initialize_ticker(#ticker{options = Options, media = Media} = Ticker, {Pos, DTS}) ->
   Start = case proplists:get_value(start, Options, 0) of
     {_, S} -> S; % some time ago it was {before, Time}
     S -> S
@@ -115,8 +125,7 @@ init(Media, Consumer, Options) ->
     Start -> ?D({warning, "File duration is set to 0. Perhaps raise iphone segment size in streaming"});
     _ -> ok
   end,
-  ?MODULE:loop(#ticker{media = Media, consumer = Consumer, stream_id = StreamId, client_buffer = ClientBuffer,
-                       pos = Pos, dts = DTS, playing_till = PlayingTill, options = Options, burst_size = BurstSize, no_timeouts = NoTimeouts}).
+  ?MODULE:loop(Ticker#ticker{pos = Pos, dts = DTS, playing_till = PlayingTill}).
   
 loop(Ticker) ->
   receive
@@ -183,7 +192,7 @@ handle_message({seek, DTS}, #ticker{media = Media, paused = Paused, stream_id = 
   {noreply, Ticker#ticker{pos = Pos, dts = NewDTS, timer_start = undefined}};
 
 handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Media, paused = Paused} = Ticker) ->
-  ?D({play_setup, self(), Options}),
+  % ?D({play_setup, self(), Options}),
   ClientBuffer = proplists:get_value(client_buffer, Options, OldCB),
   case Paused of
     true -> ok;
