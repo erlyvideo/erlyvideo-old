@@ -44,9 +44,7 @@ ebin:
 	mkdir ebin
 
 clean:
-	rm -fv apps/erlyvideo/ebin/*.beam
-	rm -fv deps/*/ebin/*.beam
-	rm -fv lib/*/ebin/*.beam
+	rm -fv apps/*/ebin/*.beam
 	rm -fv plugins/*/ebin/*.beam
 	rm -fv erl_crash.dump
 

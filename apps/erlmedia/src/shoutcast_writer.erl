@@ -24,7 +24,7 @@
 -module(shoutcast_writer).
 -author('Ilya Shcherbak <tthread@gmail.com>').
 -include("log.hrl").
--include_lib("deps/erlmedia/include/video_frame.hrl").
+-include("../include/video_frame.hrl").
 -export([write/2]).
 -record(shoutcast,
   {body,audio_config}).

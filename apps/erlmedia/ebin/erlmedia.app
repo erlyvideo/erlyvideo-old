@@ -1,0 +1,13 @@
+{application,erlmedia,
+             [{description,"Erlmedia"},
+              {vsn,"1.8.6"},
+              {registered,[]},
+              {applications,[kernel,stdlib]},
+              {env,[]},
+              {modules,[aac,asf,deskshare,ems_log,flv,flv_reader,
+                        flv_video_frame,flv_writer,gen_format,gen_listener,
+                        glue_mp4,h264,http_stream,http_uri2,jpeg_reader,
+                        mjpeg_reader,mkv,mp3,mp3_reader,mp4,mp4_reader,
+                        mp4_writer,packet_codec,sdp,sdp_encoder,sdp_tests,
+                        shoutcast_reader,shoutcast_writer,srt_parser,
+                        video_frame,wav]}]}.

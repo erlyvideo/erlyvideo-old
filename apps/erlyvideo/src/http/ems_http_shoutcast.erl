@@ -24,7 +24,7 @@
 -module(ems_http_shoutcast).
 -author('Ilya Shcherbak <tthread@gmail.com>').
 -include("../log.hrl").
--include_lib("deps/erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/video_frame.hrl").
 -export([http/4]).
 
 http(Host, 'GET', ["shoutcast"|Name], Req) ->

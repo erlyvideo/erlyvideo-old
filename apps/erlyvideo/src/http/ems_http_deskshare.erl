@@ -67,13 +67,13 @@ handle_event(?CAPTURE_UPDATE, Room, Info) ->
   (catch deskshare:update_capture(Room, Position, Data)),
   true;
   
-handle_event(?CAPTURE_END, Room, Info) ->
+handle_event(?CAPTURE_END, Room, _Info) ->
   (catch deskshare:stop(Room)),
   true;
   
 handle_event(?MOUSE_LOCATION_EVENT, _Room, Info) ->
   X = b2i(proplists:get_value("mousex", Info)),
   Y = b2i(proplists:get_value("mousey", Info)),
-  % ?D({mouse, X, Y}),
+  ?D({mouse, X, Y}),
   true.
   
