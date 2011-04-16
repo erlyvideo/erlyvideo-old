@@ -29,8 +29,7 @@ update:
 	git pull
 
 compile:
-	ERL_LIBS=$(ERL_LIBS) erl -make
-	(cd deps/ibrowse && make)
+	./rebar compile
 
 
 
@@ -44,7 +43,7 @@ ebin:
 	mkdir ebin
 
 clean:
-	rm -fv apps/*/ebin/*.beam
+	./rebar clean
 	rm -fv plugins/*/ebin/*.beam
 	rm -fv erl_crash.dump
 
