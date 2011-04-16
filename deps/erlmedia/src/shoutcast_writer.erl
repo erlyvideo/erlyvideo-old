@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(shoutcast_writer).
 -author('Ilya Shcherbak <tthread@gmail.com>').
--include("src/log.hrl").
+-include("log.hrl").
 -include_lib("deps/erlmedia/include/video_frame.hrl").
 -export([write/2]).
 -record(shoutcast,
