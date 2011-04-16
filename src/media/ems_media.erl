@@ -387,7 +387,7 @@ init([Module, Options]) ->
     true -> iolist_to_binary(io_lib:format("~p", [URL_]))
   end,
   Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
-                     clients = ems_media_clients:init(), host = proplists:get_value(host, Options),
+                     clients = ems_media_clients:init(Options), host = proplists:get_value(host, Options),
                      media_info = proplists:get_value(media_info, Options, #media_info{flow_type = stream}),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
                      created_at = ems:now(utc), last_dts_at = os:timestamp()},

@@ -29,7 +29,7 @@
 -include("ems_media_client.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([init/0, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
+-export([init/1, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
          send_frame/3, mass_update_state/3, increment_bytes/3, list/1, flush/1]).
          
 -export([init_repeater/3, repeater/2]).
@@ -46,7 +46,8 @@
   starting,
   repeaters = {},
   list = [],
-  bytes
+  bytes,
+  send_buffer
 }).
 
 -record(cached_entry, {
@@ -59,12 +60,13 @@
   video_notified = false
 }).
 
-init() ->
+init(Options) ->
   Clients = #clients{
     active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
     passive = ets:new(passive, [set, public, {keypos, #cached_entry.pid}]),
     starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}]),
-    bytes = ets:new(clients, [set, public])
+    bytes = ets:new(clients, [set, public]),
+    send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   },
   Repeaters = lists:map(fun(Key) ->
     Repeater = proc_lib:spawn_link(?MODULE, init_repeater, [Clients, self(), Key]),
