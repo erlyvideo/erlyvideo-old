@@ -110,13 +110,18 @@ vhosts() ->
 
 start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
-  ibrowse:start(),
+  application:start(ibrowse),
   ems_license_client:load(),
 	
   ems_log:start(),
 	application:start(crypto),
 	application:start(rtmp),
 	application:start(os_mon),
+	application:start(amf),
+	application:start(erlmedia),
+  mpegts:start(),
+	rtp:start(),
+  rtsp:start(),
 
 	application:load(erlyvideo),
 	load_config(),
@@ -127,10 +132,8 @@ start() ->
 	
   start_http(),
   start_rtmp(),
-  mpegts:start(),
-  rtp:start(),
-  rtsp:start(),
 	start_modules(),
+	ems_rtsp:start(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
   error_logger:delete_report_handler(sasl_report_tty_h),

@@ -34,15 +34,12 @@ start() ->
     undefined ->
       ok;
     RTSP ->
-      application:start(rtsp),
       rtsp:start_server(RTSP, rtsp_listener1, ems:get_var(rtsp_callback, ems_rtsp)),
       ok
   end.
 
 
 stop() ->
-  application:stop(rtsp),
-  application:unload(rtsp),
   ok.
 
 hostpath(URL) ->

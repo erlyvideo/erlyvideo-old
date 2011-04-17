@@ -33,10 +33,10 @@
 
 
 start() ->
-  ems_rtsp:start().
+  application:start(rtsp).
 
 stop() ->
-  ems_rtsp:stop().
+  application:stop(rtsp).
 
 %%--------------------------------------------------------------------
 %% @spec (Type::any(), Args::list()) -> any()

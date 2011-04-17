@@ -23,7 +23,7 @@ ERL_LIBS:=apps:deps:plugins
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: compile release
+all: compile
 
 update:
 	git pull

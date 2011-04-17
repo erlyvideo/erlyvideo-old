@@ -55,7 +55,17 @@ list() ->
 %%-------------------------------------------------------------------------
 %% Этот код фактически делает то, что написано на http://dev.erlyvideo.org/projects/commercial/wiki/Система_лицензий
 load() ->
-  Config = read_config(),
+  case read_config() of
+    undefined -> error_logger:info_msg("Erlyvideo is booting in non-licensed mode~n");
+    Config -> 
+    case proplists:get_value(license, Config) of
+      undefined -> error_logger:info_msg("No license in license.txt~n");
+      _ -> load_from_config(Config)
+    end
+  end.
+  
+  
+load_from_config(Config) ->
   case load_from_storage(Config) of
     ok -> ok;
     {error, _Error} ->
@@ -87,10 +97,10 @@ read_config(Paths, FileName) ->
       error_logger:info_msg("Reading license file ~s", [LicensePath]),
       Env;
     {error, enoent} ->
-      [];
+      undefined;
     {error, Reason} ->
       error_logger:error_msg("Invalid license file: ~p", [Reason]),
-      []
+      undefined
   end.
 
 

@@ -53,7 +53,7 @@ run()
       CONFIG=""
     fi
   fi
-	ERL_LIBS=deps:lib:plugins:.. $ERL -pa ebin -pa /var/lib/erlyvideo/plugins $CONFIG \
+	ERL_LIBS=apps:.. $ERL -pa apps/erlyvideo/ebin -pa /var/lib/erlyvideo/plugins $CONFIG \
 	-boot start_sasl \
 	-s erlyvideo \
 	-$TYPE $NODE@$HOST

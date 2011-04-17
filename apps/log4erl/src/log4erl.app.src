@@ -3,6 +3,7 @@
   {description, ""},
   {vsn, git},
   {registered, []},
+  {mod, {log4erl, [default_logger]}},
   {applications, [
                   kernel,
                   stdlib
