@@ -12,6 +12,21 @@
 {"4555", []}.
 {"mtreskin", [{rebuild, {append, "--1"}}]}.
 {"12%", [{user_mod, ems_sip_flashphone}]}.
+{"60%%", [{user_mod, ems_sip_flashphone}]}.
+
+
+{domain, 'sipnet.ru'}.
+{default, [{owner, local}]}.
+{"0034752379", [{user_mod, ems_sip_flashphone}]}.
+
+{domain, 'erly.baturin.su'}.
+{default, [{owner, local}]}.
+{"5000", [{user_mod, ems_sip_flashphone}]}.
+
+{domain, external}.
+{default, [{owner, local}, {user_mod, ems_sip_pbxmate}]}.
+{"50%%", [{user_mod, ems_sip_flashphone}]}.
+{"60%%", [{user_mod, ems_sip_flashphone}]}.
 
 {domain, internal}.
 {default, [{owner, remote}, {user_mod, esip_uas}]}.
