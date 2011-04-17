@@ -22,8 +22,8 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_sip_pbxmate).
--include_lib("esip/include/esip.hrl").
--include_lib("esip/include/esip_records.hrl").
+% -include_lib("esip/include/esip.hrl").
+% -include_lib("esip/include/esip_records.hrl").
 -include_lib("erlmedia/include/sdp.hrl").
 -include("../log.hrl").
 
@@ -44,8 +44,8 @@
           pbxmate_ref          :: reference(),
           pbxmate_listen_ref   :: reference(),
           dialog_timeout       :: integer(),
-          response             :: #response{},
-          origin               :: #origin{}
+          response             :: tuple(), % #response{}
+          origin               :: tuple()  % #origin{}
          }).
 
 init() ->
@@ -53,11 +53,11 @@ init() ->
       dialog_timeout = timer:seconds(10)
      }.
 
-dialog(#request{uri = URI,
-                mheaders = MH,
-                headers = PH,
-                body = Body} = Request,
-       Origin, State) ->
+dialog(Request, Origin, State) ->
+  URI = esip:'#get-request'(uri, Request),
+  MH = esip:'#get-request'(mheaders, Request),
+  PH = esip:'#get-request'(headers, Request),
+  Body = esip:'#get-request'(body, Request),
   %% Start RTP-process
 
   %% TrCfg = esip_config:get_config(transport),
@@ -174,18 +174,16 @@ dialog(#request{uri = URI,
   %%   ],
   %% {ok, _Pid} = esip_transaction_sup:start_user({originating, SipOpts}),
 
-  NewPH = [{'Contact',
-            [#h_contact{uri = URI,
-                        params = [{<<"transport">>, Origin#origin.proto}]}]}],
+  Contact = esip:'#new-h_contact'([{uri, URI}, {params,[{<<"transport">>, esip:'#get-origin'(proto, Origin)}]}]),
+  NewPH = [{'Contact', [Contact]}],
 
-  Response =
-    #response{
-    code = 101,
-    reason = "Dialog Establishement",
-    mheaders = MH,
-    headers = NewPH,
-    body = undefined
-   },
+  Response = esip:'#new-response'([
+    {code, 101},
+    {reason, "Dialog Establishement"},
+    {mheaders, MH},
+    {headers, NewPH},
+    {body, undefined}
+  ]),
 
   NewCbState =
     State#sip_cb_state{
@@ -212,20 +210,23 @@ dialog(#request{uri = URI,
   PbxConfig = ems:get_var(pbxmate, undefined),
   %%PbxName = list_to_binary(proplists:get_value(name, PbxConfig, "SoliCallPBXTrunk")),
   PbxAddress = proplists:get_value(address, PbxConfig, "127.0.0.1"),
-  PbxPort = proplists:get_value(port, PbxConfig, ?SIP_DEF_PORT),
+  PbxPort = proplists:get_value(port, PbxConfig, esip:default_port()),
 
 
-  FromURI = Request#request.mheaders#mheaders.from#h_from.uri,
-  FromName = Request#request.mheaders#mheaders.from#h_from.name,
-  ToURI = Request#request.mheaders#mheaders.to#h_to.uri,
-  ToName = Request#request.mheaders#mheaders.to#h_to.name,
+  MHeaders = esip:'#get-request'(mheaders, Request),
+  From = esip:'#get-mheaders'(from, MHeaders),
+  FromURI = esip:'#get-h_from'(uri, From),
+  FromName = esip:'#get-h_from'(name, From),
+  To = esip:'#get-mheaders'(to, MHeaders),
+  ToURI = esip:'#get-h_to'(uri, From),
+  ToName = esip:'#get-h_to'(name, From),
 
-  RequestURI = #sip_uri{
-    schema = sip,
-    name = <<"SoliCallPBXTrunk">>,
-    domain = {inet, {192,168,1,2}},
-    port = 5090
-   },
+  RequestURI = esip:'#new-sip_uri'([
+    {schema, sip},
+    {name, <<"SoliCallPBXTrunk">>},
+    {domain, {inet, {192,168,1,2}}},
+    {port, 5090}
+   ]),
 
   %% NewRequest =
   %%   Request#request{
