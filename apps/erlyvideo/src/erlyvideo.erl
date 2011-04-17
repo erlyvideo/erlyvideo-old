@@ -111,7 +111,7 @@ vhosts() ->
 start() ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   application:start(ibrowse),
-  ems_license_client:load(),
+  {ok, LicenseClient} = ems_license_client:load(),
 	
   ems_log:start(),
 	application:start(crypto),
@@ -136,6 +136,7 @@ start() ->
 	ems_rtsp:start(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
+	ems_license_client:afterload(LicenseClient),
   error_logger:delete_report_handler(sasl_report_tty_h),
   error_logger:delete_report_handler(sasl_report_file_h),
 	ok.

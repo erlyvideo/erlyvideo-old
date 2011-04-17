@@ -30,7 +30,7 @@
 -define(TIMEOUT, 20*60000).
 -define(LICENSE_TABLE, license_storage).
 %% External API
--export([list/0, load/0, read_config/2]).
+-export([list/0, load/0, afterload/1, read_config/2]).
 
 %% gen_server callbacks
 
@@ -56,26 +56,35 @@ list() ->
 %% Этот код фактически делает то, что написано на http://dev.erlyvideo.org/projects/commercial/wiki/Система_лицензий
 load() ->
   case read_config() of
-    undefined -> error_logger:info_msg("Erlyvideo is booting in non-licensed mode~n");
+    undefined -> 
+      error_logger:info_msg("Erlyvideo is booting in non-licensed mode~n"), 
+      {ok, []};
     Config -> 
-    case proplists:get_value(license, Config) of
-      undefined -> error_logger:info_msg("No license in license.txt~n");
-      _ -> load_from_config(Config)
-    end
+      case proplists:get_value(license, Config) of
+        undefined -> 
+          error_logger:info_msg("No license in license.txt~n"),
+          {ok, []};
+        _ ->
+          load_from_config(Config)
+      end
   end.
-  
+
+
+afterload(Modules) ->
+  [ems_load_module(Module, after_start) || Module <- Modules].
   
 load_from_config(Config) ->
   case load_from_storage(Config) of
-    ok -> 
+    {ok, StartupModules} -> 
       error_logger:info_msg("Loaded code from local storage~n"),
-      ok;
+      {ok, StartupModules};
     {error, _Error} ->
       error_logger:info_msg("Failed to load from storage: ~p~n", [_Error]),
       case load_from_server(Config) of
         {ok, ServerReply} ->
-          load_code(ServerReply),
-          save_to_storage(Config, ServerReply);
+          StartupModules = load_code(ServerReply),
+          save_to_storage(Config, ServerReply),
+          {ok, StartupModules};
         {error, Error} ->
           error_logger:error_msg("Failed to load from server: ~p~n", [Error]),
           {error, Error}
@@ -116,8 +125,8 @@ load_from_storage(Config) ->
   StoredContent = read_storage(Config),
   case storage_has_versions(StoredContent, StrictVersions) of
     ok ->
-      load_code(StoredContent),
-      ok;
+      StartupModules = load_code(StoredContent),
+      {ok, StartupModules};
     {error, Error} ->
       {error, Error}
   end.
@@ -311,11 +320,15 @@ handle_loaded_modules_v1([]) ->
   ok;
 
 handle_loaded_modules_v1([Module|Startup]) ->
-  case erlang:function_exported(Module, ems_client_load, 1) of
-    true -> Module:ems_client_load(before);
-    false -> ok
-  end,
+  ems_load_module(Module, before_start),
   handle_loaded_modules_v1(Startup).
+
+
+ems_load_module(Module, Command) ->
+  case erlang:function_exported(Module, ems_client_load, 1) of
+    true -> Module:ems_client_load(Command);
+    false -> ok
+  end.
 
 
 %%%% save_to_storage
