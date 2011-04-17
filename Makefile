@@ -31,7 +31,7 @@ update:
 compile:
 	./rebar compile
 
-release:
+release: compile
 	./rebar generate force=1
 	chmod +x erlyvideo/bin/erlyvideo
 
@@ -40,6 +40,10 @@ ebin/mmap.so: src/core/mmap.c
 
 archive:
 	git archive --prefix=erlyvideo-$(VERSION)/ v$(VERSION) | gzip -9 > ../erlyvideo-$(VERSION).tar.gz
+
+tgz: release
+	tar zcvf erlyvideo-$(VERSION).tar.gz erlyvideo
+
 
 clean:
 	./rebar clean
@@ -52,38 +56,14 @@ clean-doc:
 	rm -fv doc/*.css
 
 
-run: priv/erlyvideo.conf priv/log4erl.conf
-	contrib/erlyctl run
+run: priv/erlyvideo.conf priv/log4erl.conf compile
+	ERL_LIBS=apps:.. erl -boot start_sasl -s erlyvideo
 
 priv/log4erl.conf: priv/log4erl.conf.sample
 	[ -f priv/log4erl.conf ] || cp priv/log4erl.conf.sample priv/log4erl.conf
 
 priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
-
-start: priv/erlyvideo.conf
-	contrib/erlyctl start
-
-install: compile
-	mkdir -p $(DESTROOT)/var/lib/erlyvideo/movies
-	mkdir -p $(DESTROOT)/var/lib/erlyvideo/plugins
-	mkdir -p $(DESTROOT)$(ERLDIR)
-	cp -r ebin src include Emakefile $(DESTROOT)$(ERLDIR)/
-	mkdir -p $(DESTROOT)/usr/bin/
-	cp contrib/reverse_mpegts $(DESTROOT)/usr/bin/reverse_mpegts
-	cp contrib/erlyctl.debian $(DESTROOT)/usr/bin/erlyctl
-	mkdir -p $(DESTROOT)/etc/init.d/
-	ln -s /usr/bin/erlyctl $(DESTROOT)/etc/init.d/erlyvideo
-	cp -r wwwroot $(DESTROOT)/var/lib/erlyvideo/
-	mkdir -p $(DESTROOT)/var/log/erlyvideo
-	mkdir -p $(DESTROOT)/etc/erlyvideo
-	cp priv/erlyvideo.conf.debian $(DESTROOT)/etc/erlyvideo/erlyvideo.conf
-	cp priv/log4erl.conf.debian $(DESTROOT)/etc/erlyvideo/log4erl.conf
-	cp priv/production.config.debian $(DESTROOT)/etc/erlyvideo/production.config
-	mkdir -p $(DESTROOT)/var/cache/erlyvideo/licensed
-	chown erlyvideo.erlyvideo $(DESTROOT)/var/lib/erlyvideo/movies
-	chown erlyvideo.erlyvideo $(DESTROOT)/var/cache/erlyvideo/licensed
-	for i in deps/amf deps/log4erl deps/erlmedia deps/mpegts deps/rtmp deps/rtp deps/rtsp deps/ibrowse ; do (cd $$i; make DESTROOT=$(DESTROOT) ERLANG_ROOT=$(ERLANG_ROOT) VERSION=$(VERSION) install) ; done
 
 
 .PHONY: doc debian compile

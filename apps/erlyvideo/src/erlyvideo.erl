@@ -124,6 +124,9 @@ vhosts() ->
 %%--------------------------------------------------------------------
 
 start() ->
+  application:load(erlyvideo),
+  {ok, Apps} = application:get_key(erlyvideo, applications),
+  [application:start(App) || App <- Apps],
 	application:start(erlyvideo).
 
 start_http() ->

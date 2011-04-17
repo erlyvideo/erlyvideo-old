@@ -1,4 +1,0 @@
-#!/bin/sh
-
-
-/Applications/VLC.app/Contents/MacOS/VLC -vvv qtcapture:// --no-drop-late-frames --no-skip-frames --no-ffmpeg-hurry-up '--sout=#transcode{vcodec=h264,venc=x264{cabac=yes,bframes=0,keyint=125,ref=5,merange=24,mixed-refs=yes,direct=auto,me=umh,subme=7,trellis=2,weightb=yes,partitions=all,non-deterministic=yes,vbv-maxrate=1000,vbv-bufsize=9000,ratetol=1000.0,scenecut=60},vb=1000,deinterlace=yes,nohurry-up,acodec=mp4a,ab=64,channels=2,width=320,height=240}:std{access=http,mux=ts{pid-video=101,pid-audio=100},dst=:8090}'
