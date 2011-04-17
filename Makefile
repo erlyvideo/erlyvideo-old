@@ -31,7 +31,8 @@ update:
 compile:
 	./rebar compile
 
-
+release:
+	cd rel && ../rebar generate
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
