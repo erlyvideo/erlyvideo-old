@@ -33,6 +33,7 @@ compile:
 
 release:
 	cd rel && ../rebar generate
+	chmod +x rel/erlyvideo/bin/erlyvideo
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
