@@ -1,4 +1,4 @@
--file("/usr/lib/erlang/lib/parsetools-2.0/include/leexinc.hrl", 0).
+-file("/usr/local/Cellar/erlang/R14B02/lib/erlang/lib/parsetools-2.0.5/include/leexinc.hrl", 0).
 %% The source of this file is part of leex distribution, as such it
 %% has the same Copyright as the other files in the leex
 %% distribution. The Copyright is defined in the accompanying file
@@ -12,12 +12,12 @@
 -export([format_error/1]).
 
 %% User code. This is placed here to allow extra attributes.
--file("./log4erl_lex.xrl", 20).
+-file("src/log4erl_lex.xrl", 20).
 
 strip(TokenChars,TokenLen) -> 
     lists:sublist(TokenChars, 2, TokenLen - 2).
 
--file("/usr/lib/erlang/lib/parsetools-2.0/include/leexinc.hrl", 14).
+-file("/usr/local/Cellar/erlang/R14B02/lib/erlang/lib/parsetools-2.0.5/include/leexinc.hrl", 14).
 
 format_error({illegal,S}) -> ["illegal characters ",io_lib:write_string(S)];
 format_error({user,S}) -> S.
@@ -277,7 +277,7 @@ yysuf(List, N) -> lists:nthtail(N, List).
 %% return signal either an unrecognised character or end of current
 %% input.
 
--file("./log4erl_lex.erl", 279).
+-file("src/log4erl_lex.erl", 279).
 yystate() -> 21.
 
 yystate(24, [116|Ics], Line, Tlen, _, _) ->
@@ -641,67 +641,67 @@ yystate(S, Ics, Line, Tlen, Action, Alen) ->
 
 yyaction(0, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_0_(TokenChars, TokenLine);
+    yyaction_0(TokenChars, TokenLine);
 yyaction(1, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_1_(TokenChars, TokenLine);
+    yyaction_1(TokenChars, TokenLine);
 yyaction(2, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_2_(TokenChars, TokenLine);
+    yyaction_2(TokenChars, TokenLine);
 yyaction(3, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_3_(TokenChars, TokenLine);
+    yyaction_3(TokenChars, TokenLine);
 yyaction(4, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_4_(TokenChars, TokenLen, TokenLine);
+    yyaction_4(TokenChars, TokenLen, TokenLine);
 yyaction(5, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_5_(TokenChars, TokenLen, TokenLine);
+    yyaction_5(TokenChars, TokenLen, TokenLine);
 yyaction(6, TokenLen, YYtcs, TokenLine) ->
     TokenChars = yypre(YYtcs, TokenLen),
-    yy_6_(TokenChars, TokenLine);
+    yyaction_6(TokenChars, TokenLine);
 yyaction(7, _, _, _) ->
-    yy_7_();
+    yyaction_7();
 yyaction(_, _, _, _) -> error.
 
--compile({inline,yy_0_/2}).
--file("./log4erl_lex.xrl", 8).
-yy_0_(TokenChars, TokenLine) ->
-     { token , { loger , TokenLine , list_to_atom ( TokenChars ) } } .
+-compile({inline,yyaction_0/2}).
+-file("src/log4erl_lex.xrl", 8).
+yyaction_0(TokenChars, TokenLine) ->
+     { token, { loger, TokenLine, list_to_atom (TokenChars) } } .
 
--compile({inline,yy_1_/2}).
--file("./log4erl_lex.xrl", 9).
-yy_1_(TokenChars, TokenLine) ->
-     { token , { default , TokenLine , list_to_atom ( TokenChars ) } } .
+-compile({inline,yyaction_1/2}).
+-file("src/log4erl_lex.xrl", 9).
+yyaction_1(TokenChars, TokenLine) ->
+     { token, { default, TokenLine, list_to_atom (TokenChars) } } .
 
--compile({inline,yy_2_/2}).
--file("./log4erl_lex.xrl", 10).
-yy_2_(TokenChars, TokenLine) ->
-     { token , { integer , TokenLine , list_to_integer ( TokenChars ) } } .
+-compile({inline,yyaction_2/2}).
+-file("src/log4erl_lex.xrl", 10).
+yyaction_2(TokenChars, TokenLine) ->
+     { token, { integer, TokenLine, list_to_integer (TokenChars) } } .
 
--compile({inline,yy_3_/2}).
--file("./log4erl_lex.xrl", 12).
-yy_3_(TokenChars, TokenLine) ->
-     { token , { atom , TokenLine , list_to_atom ( TokenChars ) } } .
+-compile({inline,yyaction_3/2}).
+-file("src/log4erl_lex.xrl", 12).
+yyaction_3(TokenChars, TokenLine) ->
+     { token, { atom, TokenLine, list_to_atom (TokenChars) } } .
 
--compile({inline,yy_4_/3}).
--file("./log4erl_lex.xrl", 13).
-yy_4_(TokenChars, TokenLen, TokenLine) ->
-     { token , { val , TokenLine , strip ( TokenChars , TokenLen ) } } .
+-compile({inline,yyaction_4/3}).
+-file("src/log4erl_lex.xrl", 13).
+yyaction_4(TokenChars, TokenLen, TokenLine) ->
+     { token, { val, TokenLine, strip (TokenChars, TokenLen) } } .
 
--compile({inline,yy_5_/3}).
--file("./log4erl_lex.xrl", 14).
-yy_5_(TokenChars, TokenLen, TokenLine) ->
-     { token , { val , TokenLine , strip ( TokenChars , TokenLen ) } } .
+-compile({inline,yyaction_5/3}).
+-file("src/log4erl_lex.xrl", 14).
+yyaction_5(TokenChars, TokenLen, TokenLine) ->
+     { token, { val, TokenLine, strip (TokenChars, TokenLen) } } .
 
--compile({inline,yy_6_/2}).
--file("./log4erl_lex.xrl", 15).
-yy_6_(TokenChars, TokenLine) ->
-     { token , { list_to_atom ( TokenChars ) , TokenLine } } .
+-compile({inline,yyaction_6/2}).
+-file("src/log4erl_lex.xrl", 15).
+yyaction_6(TokenChars, TokenLine) ->
+     { token, { list_to_atom (TokenChars), TokenLine } } .
 
--compile({inline,yy_7_/0}).
--file("./log4erl_lex.xrl", 16).
-yy_7_() ->
+-compile({inline,yyaction_7/0}).
+-file("src/log4erl_lex.xrl", 16).
+yyaction_7() ->
      skip_token .
 
--file("/usr/lib/erlang/lib/parsetools-2.0/include/leexinc.hrl", 282).
+-file("/usr/local/Cellar/erlang/R14B02/lib/erlang/lib/parsetools-2.0.5/include/leexinc.hrl", 282).

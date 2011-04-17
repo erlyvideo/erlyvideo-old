@@ -1,7 +1,7 @@
 {application, erlyvideo,
  [
   {description, "Erlang Video Server"},
-  {vsn, "2.7.7"},
+  {vsn, git},
   {id, "erlyvideo"},
   {registered,   []},
   {applications, [kernel,stdlib,crypto,amf,erlmedia,ibrowse,log4erl,mpegts,rtmp,rtp,rtsp]},

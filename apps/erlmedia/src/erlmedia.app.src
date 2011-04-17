@@ -1,11 +1,8 @@
 {application, erlmedia,
  [
   {description, "Erlmedia"},
-  {vsn, "1.8.6"},
+  {vsn, git},
   {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib
-                 ]},
+  {applications, [kernel,stdlib]},
   {env, []}
  ]}.

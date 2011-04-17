@@ -1,4 +1,4 @@
-{application, amf,
+{application, log4erl,
  [
   {description, ""},
   {vsn, git},
