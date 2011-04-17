@@ -40,11 +40,14 @@
 
 
 list() ->
-  Config = read_config(),
-  case construct_url(Config,list) of 
+  case read_config() of
     undefined -> [];
-    URL ->  
-      load_by_url(URL)
+    Config ->
+      case construct_url(Config,list) of 
+        undefined -> [];
+        URL ->  
+          load_by_url(URL)
+      end
   end.
   
 %%-------------------------------------------------------------------------
@@ -139,7 +142,9 @@ read_storage(Config) ->
   case open_license_storage(Config) of
     {ok, Table} ->
       List = case dets:lookup(?LICENSE_TABLE, applications) of
-        [{applications, Apps}] -> load_from_dets(Table, Apps, []);
+        [{applications, Apps}] ->
+          error_logger:info_msg("License storage has applications: ~p~n", [Apps]),
+          load_from_dets(Table, Apps, []);
         _ -> []
       end,
       dets:close(Table),
@@ -344,6 +349,10 @@ save_to_storage(Config, Commands) ->
         ModList = proplists:get_value(modules, Desc, []),
         [{{mod,Name}, proplists:get_value(Name, Modules)} || Name <- ModList]
       end || {_AppName, Desc} <- AppsToSave]),
+      
+      SavedAppNames = [Name || {Name,_} <- AppsToSave],
+      
+      error_logger:info_msg("License save applications: ~p~n", [SavedAppNames]),
       
       dets:insert(Table, ModulesToSave),
       dets:insert(Table, [{{app,Name},Desc} || {Name,Desc} <- AppsToSave]),

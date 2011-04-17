@@ -84,8 +84,23 @@ test() ->
 
 
 start(normal, []) ->
+	error_logger:info_report("Starting Erlyvideo ..."),
+  {ok, LicenseClient} = ems_license_client:load(),
+  ems_log:start(),
+	load_config(),
+	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
+  media_provider:init_names(),
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
+  start_http(),
+  start_rtmp(),
+	start_modules(),
+	ems_rtsp:start(),
+  media_provider:start_static_streams(),
+	error_logger:info_report("Started Erlyvideo"),
+	ems_license_client:afterload(LicenseClient),
+  error_logger:delete_report_handler(sasl_report_tty_h),
+  error_logger:delete_report_handler(sasl_report_file_h),
 	{ok, Supervisor}.
 
 stop(_) ->
@@ -109,37 +124,7 @@ vhosts() ->
 %%--------------------------------------------------------------------
 
 start() ->
-	error_logger:info_report("Starting Erlyvideo ..."),
-  application:start(ibrowse),
-  {ok, LicenseClient} = ems_license_client:load(),
-	
-  ems_log:start(),
-	application:start(crypto),
-	application:start(rtmp),
-	application:start(os_mon),
-	application:start(amf),
-	application:start(erlmedia),
-  mpegts:start(),
-	rtp:start(),
-  rtsp:start(),
-
-	application:load(erlyvideo),
-	load_config(),
-	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
-  media_provider:init_names(),
-
-	application:start(erlyvideo),
-	
-  start_http(),
-  start_rtmp(),
-	start_modules(),
-	ems_rtsp:start(),
-  media_provider:start_static_streams(),
-	error_logger:info_report("Started Erlyvideo"),
-	ems_license_client:afterload(LicenseClient),
-  error_logger:delete_report_handler(sasl_report_tty_h),
-  error_logger:delete_report_handler(sasl_report_file_h),
-	ok.
+	application:start(erlyvideo).
 
 start_http() ->
   case ems:get_var(http_port, 8082) of

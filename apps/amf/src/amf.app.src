@@ -1,6 +1,6 @@
 {application, amf,
  [
-  {description, ""},
+  {description, "AMF0/3 handling library"},
   {vsn, git},
   {registered, []},
   {applications, [
