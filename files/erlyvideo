@@ -99,30 +99,6 @@ case "$1" in
         $ERTS_PATH/to_erl $PIPE_DIR
         ;;
     
-    run)
-        # Setup beam-required vars
-        ROOTDIR=$RUNNER_BASE_DIR
-        BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
-        EMU=beam
-        PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$SCRIPT -config $RUNNER_ETC_DIR/app.config -args_file $RUNNER_ETC_DIR/vm.args -s erlyvideo -- ${1+"$@"}"
-        export EMU
-        export ROOTDIR
-        export BINDIR
-        export PROGNAME
-
-        # Dump environment info for logging purposes
-        echo "Exec: $CMD"
-        echo "Root: $ROOTDIR"
-
-        # Log the startup
-        logger -t "$SCRIPT[$$]" "Starting up"
-
-        # Start the VM
-        exec $CMD
-        ;;
-    
-
     console)
         # Setup beam-required vars
         ROOTDIR=$RUNNER_BASE_DIR
