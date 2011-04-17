@@ -32,8 +32,8 @@ compile:
 	./rebar compile
 
 release:
-	cd rel && ../rebar generate
-	chmod +x rel/erlyvideo/bin/erlyvideo
+	./rebar generate force=1
+	chmod +x erlyvideo/bin/erlyvideo
 
 ebin/mmap.so: src/core/mmap.c
 	$(NIF_FLAGS) -o $@ $< -I $(NIFDIR) || touch $@
