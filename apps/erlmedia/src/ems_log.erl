@@ -32,26 +32,29 @@
 %%-------------------------------------------------------------------------
 start() ->
 	application:start(log4erl),
-  ConfigPath = case file:read_file_info("priv/log4erl.conf") of
-    {ok, _} -> 
-      log4erl:conf("priv/log4erl.conf"),
-      "priv/log4erl.conf";
-    _ ->
-      case file:read_file_info("/etc/erlyvideo/log4erl.conf") of
-        {ok, _} -> 
-          log4erl:conf("/etc/erlyvideo/log4erl.conf"),
-          "/etc/erlyvideo/log4erl.conf";
-        _ -> 
-          log4erl:add_logger(default_logger),
-          log4erl:add_console_appender(default_logger, app1, {info, "%j %T %l%n"}),
-          "none"
-      end
-  end,
+  ConfigPath = load_config(["priv/log4erl.conf", "/etc/erlyvideo/log4erl.conf", "etc/log4erl.conf", "etc/log4erl.conf.sample"]),
   log4erl:error_logger_handler(), %% to get all error_logger
   error_logger:delete_report_handler(error_logger), %% to disable error_logger file output
   error_logger:tty(false), %% to disable console output
   error_logger:info_msg("Loading config from ~s~n", [ConfigPath]),
   ok.
+
+
+
+load_config([]) ->
+  log4erl:add_logger(default_logger),
+  log4erl:add_console_appender(default_logger, app1, {info, "%j %T %l%n"}),
+  "none";
+  
+
+load_config([Path|Paths]) ->
+  case file:read_file_info(Path) of
+    {ok, _} ->
+      log4erl:conf(Path),
+      Path;
+    _ ->
+      load_config(Paths)
+  end.
   
 %%-------------------------------------------------------------------------
 %% @spec stop() -> any()

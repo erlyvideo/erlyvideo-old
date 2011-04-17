@@ -248,13 +248,19 @@ load_config() ->
 
 
 load_file_config() ->
-  case file:path_consult(["priv", "/etc/erlyvideo"], "erlyvideo.conf") of
+  case file:path_consult(["priv", "etc", "/etc/erlyvideo"], "erlyvideo.conf") of
     {ok, Env, Path} ->
       error_logger:info_report("Erlyvideo is loading config from file ~s~n", [Path]),
       Env;
     {error, enoent} ->
-      error_logger:error_msg("No erlyvideo.conf found"),
-      [];
+      case file:path_consult(["priv", "etc"], "erlyvideo.conf.sample") of
+        {ok, Env, Path} ->
+          error_logger:info_report("No erlyvideo.conf found, starting with sample: ~s~n", [Path]),
+          Env;
+        {error, _} ->
+          error_logger:error_msg("No erlyvideo.conf found"),
+          []
+      end;
     {error, Reason} ->
       error_logger:error_msg("Couldn't load erlyvideo.conf: ~p~n", [Reason]),
       []
