@@ -67,7 +67,9 @@ load() ->
   
 load_from_config(Config) ->
   case load_from_storage(Config) of
-    ok -> ok;
+    ok -> 
+      error_logger:info_msg("Loaded code from local storage~n"),
+      ok;
     {error, _Error} ->
       error_logger:info_msg("Failed to load from storage: ~p~n", [_Error]),
       case load_from_server(Config) of
@@ -113,11 +115,11 @@ load_from_storage(Config) ->
   StrictVersions = proplists:get_value(projects, Config, []),
   StoredContent = read_storage(Config),
   case storage_has_versions(StoredContent, StrictVersions) of
-    true ->
+    ok ->
       load_code(StoredContent),
       ok;
-    false ->
-      {error, storage_has_depricated_versions}
+    {error, Error} ->
+      {error, Error}
   end.
 
 
@@ -167,20 +169,20 @@ open_license_storage(Config) ->
 load_from_dets(_Table, [], Acc) -> Acc;
 
 load_from_dets(Table, [AppName|Apps], Acc) ->
-  [{app,Desc}] = dets:lookup(Table, {app,AppName}),
+  [{{app,AppName},Desc}] = dets:lookup(Table, {app,AppName}),
   Acc1 = lists:foldl(fun(ModName, AccIn) ->
-    [{mod,Module}] = dets:lookup(Table, {mod,ModName}),
-    [[{code,Module},{name,ModName}]|AccIn]
+    [{{mod,ModName},Module}] = dets:lookup(Table, {mod,ModName}),
+    [{load, [{code,Module},{name,ModName}]}|AccIn]
   end, [{load_app, {application,AppName,Desc}}|Acc], proplists:get_value(modules,Desc, [])),
   load_from_dets(Table, Apps, Acc1).
   
   
-storage_has_versions([], _) -> false;
-storage_has_versions(_Stored, []) -> true;
+storage_has_versions([], _) -> {error, empty_storage};
+storage_has_versions(_Stored, []) -> ok;
 storage_has_versions(Stored, [{AppName, Version} |Versions]) ->
   case storage_has_version(Stored, AppName, Version) of
     true -> storage_has_versions(Stored, Versions);
-    false -> false
+    false -> {error, deprecated_versions}
   end.
 
 storage_has_version(Stored, AppName, Version) ->
@@ -245,7 +247,8 @@ construct_url(Config, Command) when is_list(Config) ->
 
 load_code(Commands) ->
   Startup = execute_commands_v1(Commands,[]),
-  handle_loaded_modules_v1(Startup).
+  handle_loaded_modules_v1(Startup),
+  Startup.
   
 
 execute_commands_v1([], Startup) -> 
@@ -266,7 +269,7 @@ execute_commands_v1([{purge,Module}|Commands], Startup) ->
 execute_commands_v1([{Command, {application,Name,Desc} = AppDescr}|Commands], Startup) when Command == save_app orelse Command == load_app ->
   Version = proplists:get_value(vsn, Desc),
   case application:load(AppDescr) of
-    ok -> error_logger:info_msg("License load application ~p(~p)", [Name, Version]);
+    ok -> error_logger:info_msg("License load application ~p(~p)~n", [Name, Version]);
     {error, {already_loaded, AppDescr}} -> error_logger:info_msg("License already loaded application ~p(~p)", [Name, Version]);
     _Else -> error_logger:error_msg("License failed to load application: ~p", [_Else]), ok
   end,
@@ -291,7 +294,7 @@ execute_commands_v1([Command|Commands], Startup) when is_tuple(Command) ->
   execute_commands_v1(Commands, Startup);
   
 execute_commands_v1([_Command|Commands], Startup) ->
-  error_logger:error_msg("Unknown license server command"),
+  error_logger:error_msg("Unknown license server command ~p", [_Command]),
   execute_commands_v1(Commands, Startup).
 
 is_new_version(ModInfo) ->
@@ -308,8 +311,8 @@ handle_loaded_modules_v1([]) ->
   ok;
 
 handle_loaded_modules_v1([Module|Startup]) ->
-  case erlang:function_exported(Module, ems_client_load, 0) of
-    true -> Module:ems_client_load();
+  case erlang:function_exported(Module, ems_client_load, 1) of
+    true -> Module:ems_client_load(before);
     false -> ok
   end,
   handle_loaded_modules_v1(Startup).
@@ -332,6 +335,7 @@ save_to_storage(Config, Commands) ->
       dets:insert(Table, ModulesToSave),
       dets:insert(Table, [{{app,Name},Desc} || {Name,Desc} <- AppsToSave]),
       dets:insert(Table, [{applications, [Name || {Name, _Desc} <- AppsToSave]}]),
+      dets:close(Table),
       ok;
     {error, Error} ->
       {error, Error}
