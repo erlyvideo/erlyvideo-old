@@ -22,7 +22,6 @@ build/
 *.mode2v3
 build-stamp
 configure-stamp
-rebar.config
 tmp
 
 # Tarballs directory
