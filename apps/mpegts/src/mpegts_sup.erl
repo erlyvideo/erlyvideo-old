@@ -52,11 +52,9 @@ start_link() ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_reader(Consumer) ->
-  mpegts:autostart(),
   supervisor:start_child(mpegts_reader_sup, [Consumer]).
 
 start_file_reader(Path, Options) ->
-  mpegts:autostart(),
   supervisor:start_child(mpegts_file_reader_sup, [Path, Options]).
 
 init([mpegts_reader]) ->

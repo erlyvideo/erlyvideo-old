@@ -3,5 +3,5 @@
  {vsn, git},
  {registered,[mpegts]},
  {applications, [kernel,stdlib]},
- {mod, {mpegts_sup,[]}}
+ {mod, {mpegts_app,[]}}
 ]}.

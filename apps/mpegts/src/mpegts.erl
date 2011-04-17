@@ -1,5 +1,5 @@
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2010 Max Lapshin
+%%% @copyright  2010-2011 Max Lapshin
 %%% @doc        MPEG TS stream module
 %%% Links:
 %%%  http://dvd.sourceforge.net/dvdinfo/pes-hdr.html
@@ -33,7 +33,6 @@
 
 -export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).
--export([autostart/0, start/0, stop/0]).
 
 -export([read/2]).
 
@@ -48,18 +47,6 @@
 -define(PMT_TABLEID, 2).
 
 
-autostart() ->
-  case whereis(mpegts_sup) of
-    undefined -> start();
-    _ -> ok
-  end.
-
-start() ->
-  mpegts_sup:start().
-  
-stop() ->
-  mpegts_sup:stop().
-  
   
 read(URL, Options) ->
   {ok, Reader} = mpegts_sup:start_reader([{consumer,self()},{url, URL}|Options]),
