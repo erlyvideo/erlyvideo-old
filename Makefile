@@ -23,7 +23,7 @@ ERL_LIBS:=apps:deps:plugins
 ERL=erl +A 4 +K true
 APP_NAME=ems
 
-all: compile
+all: compile release
 
 update:
 	git pull
@@ -39,9 +39,6 @@ ebin/mmap.so: src/core/mmap.c
 
 archive:
 	git archive --prefix=erlyvideo-$(VERSION)/ v$(VERSION) | gzip -9 > ../erlyvideo-$(VERSION).tar.gz
-
-ebin:
-	mkdir ebin
 
 clean:
 	./rebar clean
