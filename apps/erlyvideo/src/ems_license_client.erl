@@ -84,7 +84,7 @@ load_from_config(Config) ->
 get_config_path() ->
   case application:get_env(erlyvideo,license_config)of 
     {ok, [Paths|FileName]} -> [Paths|FileName];
-    undefined -> [["priv", "/etc/erlyvideo"],"license.txt"]
+    undefined -> [["priv", "/etc/erlyvideo", "etc"],"license.txt"]
   end.
 
 read_config() ->
