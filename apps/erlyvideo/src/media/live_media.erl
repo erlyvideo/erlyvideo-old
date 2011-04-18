@@ -2,6 +2,14 @@
 %%% @copyright  2009 Max Lapshin
 %%% @doc        ems_media handler template
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+% 
+% Timecode:
+% [<<"onFI">>,
+%                          [{<<"sd">>,<<"18-04-2011">>},
+%                           {<<"st">>,<<"23:49:00.014">>},
+%                           {<<"ut">>,<<"1303156140">>},
+%                           {<<"tz">>,<<"+04:00">>}]]
+% 
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
