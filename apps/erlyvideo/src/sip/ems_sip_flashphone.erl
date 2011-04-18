@@ -27,8 +27,8 @@
 -include("../log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
--include_lib("esip/include/esip_records.hrl").
--include_lib("esip/include/esip.hrl").
+% -include_lib("esip/include/esip_records.hrl").
+% -include_lib("esip/include/esip.hrl").
 -include_lib("erlmedia/include/sdp.hrl").
 
 -behaviour(gen_fsm).
@@ -70,8 +70,8 @@
           client               :: pid(),
           client_ref           :: reference(),
           dialog_timeout       :: integer(),
-          response             :: #response{},
-          origin               :: #origin{}
+          response             :: tuple(), % #response{}
+          origin               :: tuple()  % #origin{}
          }).
 
 -record(state, {
@@ -175,12 +175,12 @@ register(Number, Client) when is_list(Number) andalso is_pid(Client) ->
     SipCfg ->
       DomainName = list_to_binary(proplists:get_value(domain, SipCfg, "localhost")),
       RegAddress = proplists:get_value(proxy_addr, SipCfg, "127.0.0.1"),
-      RegPort = proplists:get_value(proxy_port, SipCfg, ?SIP_DEF_PORT),
+      RegPort = proplists:get_value(proxy_port, SipCfg, esip:default_port()),
       Password = proplists:get_value(password, SipCfg, ""),
       NatRouter = proplists:get_value(nat_router, SipCfg),
 
-      Domain = #sip_uri{domain = DomainName, port = RegPort},
-      FromURI = ToURI = #sip_uri{name = list_to_binary(Number), domain = DomainName},
+      Domain = esip:'#new-sip_uri'([{domain, DomainName}, {port, RegPort}]),
+      FromURI = ToURI = esip:'#new-sip_uri'([{name, list_to_binary(Number)}, {domain, DomainName}]),
       FromName = ToName = "Flash client " ++ Number,
       RegUserOpts =
         [
@@ -220,7 +220,10 @@ call(Number, Options) when is_binary(Number) ->
 
 hostpath(URL) ->
   %%{match, [Path, HostPort]} = re:run(URL, "sip:([^@]+)@(.*)", [{capture, [1,2], binary}]),
-  #sip_uri{name = Name, domain = Domain, port = Port} = SU = esip:p_uri(URL),
+  SU = esip:p_uri(URL),
+  Name = esip:'#get-sip_uri'(name, SU),
+  Domain = esip:'#get-sip_uri'(domain, SU),
+  Port = esip:'#get-sip_uri'(port, SU),
   ?DBG("SIP URI: ~p", [SU]),
   {ems:host(iolist_to_binary([Domain, ":", integer_to_list(Port)])), Name}.
 
@@ -247,23 +250,20 @@ progress(URL, Headers, _Body) ->
       end
   end.
 
-dialog(#request{
-          uri = URI,
-          mheaders = MH,
-          headers = _PH,
-          body = Body
-         } = Request,
+dialog(Request,
        Origin,
        #sip_cb_state{
          pid = CbPid
         } = State) ->
+  URI = esip:'#get-request'(uri, Request),
+  MH = esip:'#get-request'(mheaders, Request),
+  Body = esip:'#get-request'(body, Request),
 
-  NewPH = [{'Contact',
-            [#h_contact{uri = URI,
-                        params = [{<<"transport">>, Origin#origin.proto}]}]}],
+  Contact = esip:'#new-h_contact'([{uri, URI}, {params,[{<<"transport">>, esip:'#get-origin'(proto, Origin)}]}]),
+  NewPH = [{'Contact', [Contact]}],
 
 
-  Name = URI#sip_uri.name,
+  Name = esip:'#get-sip_uri'(name, URI),
   case esip_registrator:find(Name) of
     {ok, RTMP} ->
 
@@ -278,14 +278,14 @@ dialog(#request{
           ?DBG("Codecs are incompatible.", []),
           {error, not_acceptable};
         _ ->
-          Response =
-            #response{
-            code = 101,
-            reason = "Dialog Establishement",
-            mheaders = MH,
-            headers = NewPH,
-            body = undefined
-           },
+          Response = esip:'#new-response'([
+            {code, 101},
+            {reason, "Dialog Establishement"},
+            {mheaders, MH},
+            {headers, NewPH},
+            {body, undefined}
+          ]),
+           
 
           MediaInfoReply =
             MediaInfoRequest#media_info{
@@ -306,20 +306,19 @@ dialog(#request{
           CbPid ! {config, Media, StreamIn, StreamOut, RTP},
           MediaInfoReply1 = rtp_server:media_info_out(RTP),
           SDP = sdp:encode(MediaInfoReply1),
-          Response =
-            #response{
-            code = 101,
-            reason = "Dialog Establishement",
-            mheaders = MH,
-            headers = NewPH,
-            body = undefined
-           },
+          Response = esip:'#new-response'([
+            {code, 101},
+            {reason, "Dialog Establishement"},
+            {mheaders, MH},
+            {headers, NewPH},
+            {body, undefined}
+          ]),
 
           NewCbState =
             State#sip_cb_state{
               media = Media,
               sdp = SDP,
-              response = Response#response{body = SDP}
+              response = esip:'#set-response'([{body,SDP}], Response)
              },
 
           {ok, DPid} = esip_dialog:start_worker(uas, self(), Request),

@@ -218,8 +218,8 @@ dialog(Request, Origin, State) ->
   FromURI = esip:'#get-h_from'(uri, From),
   FromName = esip:'#get-h_from'(name, From),
   To = esip:'#get-mheaders'(to, MHeaders),
-  ToURI = esip:'#get-h_to'(uri, From),
-  ToName = esip:'#get-h_to'(name, From),
+  ToURI = esip:'#get-h_to'(uri, To),
+  ToName = esip:'#get-h_to'(name, To),
 
   RequestURI = esip:'#new-sip_uri'([
     {schema, sip},
