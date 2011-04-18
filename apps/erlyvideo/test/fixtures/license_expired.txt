@@ -1,2 +1,0 @@
-{license, "expired-license"}.
-{url, "http://license.erlyvideo.tv/license"}.
