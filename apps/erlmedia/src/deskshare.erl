@@ -35,7 +35,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--export([update_capture/3, stop/1]).
+-export([update_capture/3, update_mouse/3, stop/1]).
 
 
 start_link(Consumer, Options) ->
@@ -48,7 +48,9 @@ update_capture(Capture, Position, <<L:16, _C:L/binary>> = BlockData) when is_int
 update_capture(Room, Position, _BlockData) ->
   ?D({broken_update, Room, Position, size(_BlockData)}),
   {error, broken_update}.
-  
+
+update_mouse(Capture, X, Y) ->
+  gen_server:call(Capture, {update_mouse, X, Y}).
   
 stop(_Room) ->
   gen_server:call(?MODULE, stop).
@@ -185,6 +187,18 @@ handle_call({update, Position, Block}, _From, #deskshare{dirty_map = Map, blocks
     true ->
       {reply, {error, badsize}, Deskshare}
   end;
+
+handle_call({update_mouse, X, Y}, _From, #deskshare{consumer = Consumer} = Deskshare) ->
+  Consumer ! #video_frame{
+    content = metadata,
+    dts = 0,
+    pts = 0,
+    stream_id = mixer,
+    codec = screen,
+    flavor = frame,
+    body = [<<"onMouseMove">>, {object, [{x, X},{y,Y}]}]
+  },
+  {reply, ok, Deskshare};
   
 handle_call(stop, _From, Deskshare) ->
   {stop, normal, Deskshare};
@@ -220,13 +234,8 @@ handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   
 handle_info(frame, #deskshare{dirty_map = Map, blocks = Blocks, counter = Counter, 
                               size = Size, header = Header, writer = Writer} = Deskshare) ->
-  Body = lists:map(fun(I) ->
-    case {is_marked(I,Map), is_keyframe(Counter)} of
-      {false,frame} -> <<0,0>>;
-      _ -> proplists:get_value(I, Blocks)
-    end
-  end, lists:seq(1,Size)),
-  DTS = Counter * 100,
+  Body = generate_body(Map, is_keyframe(Counter), Size, Blocks),
+  DTS = generate_dts(Counter),
   Frame = #video_frame{
     content = video,
     dts = DTS,
@@ -236,7 +245,7 @@ handle_info(frame, #deskshare{dirty_map = Map, blocks = Blocks, counter = Counte
     flavor = is_keyframe(Counter),
     body = iolist_to_binary([Header|Body])
   },
-  Writer ! Frame,
+  (catch Writer ! Frame),
   Deskshare#deskshare.consumer ! Frame,
   {noreply, Deskshare#deskshare{dirty_map = clean_map(Size), counter = Counter+1}};
   
@@ -247,6 +256,16 @@ handle_info(_Info, State) ->
 
 is_keyframe(Counter) when Counter rem 20 == 0 -> keyframe;
 is_keyframe(_) -> frame.
+
+generate_body(Map, IsKeyframe, Size, Blocks) -> 
+  lists:map(fun(I) ->
+    case {is_marked(I,Map), IsKeyframe} of
+      {false,frame} -> <<0,0>>;
+      _ -> proplists:get_value(I, Blocks)
+    end
+  end, lists:seq(1,Size)).
+
+generate_dts(Counter) -> Counter * 100.
 
 
 %%-------------------------------------------------------------------------

@@ -23,6 +23,7 @@
 -module(deskshare_tracker).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
+-include("log.hrl").
 
 
 %% External API
@@ -32,18 +33,27 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--export([start_capture/2, find/1]).
+-export([start_capture/3, update_mouse/4, update_capture/4, find/2]).
 
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
-start_capture(Name, Options) ->
-  gen_server:call(?MODULE, {start_capture, Name, Options}).
+start_capture(Host, Name, Options) ->
+  gen_server:call(?MODULE, {start_capture, Host, Name, Options}).
 
-find(Name) ->
-  gen_server:call(?MODULE, {find, Name}).
+
+update_capture(Host, Name, Position, Data) ->
+  {ok, Pid} = find(Host, Name),
+  deskshare:update_capture(Pid, Position, Data).
+
+update_mouse(Host, Name, X, Y) ->
+  {ok, Pid} = find(Host, Name),
+  deskshare:update_mouse(Pid, X, Y).
+
+find(Host, Name) ->
+  gen_server:call(?MODULE, {find, Host, Name}).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -76,18 +86,22 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({start_capture, Name, Options}, _From, Captures) ->
-  case proplists:get_value(Name, Captures) of
-    undefined -> ok;
-    OldPid -> deskshare:stop(OldPid)
-  end,
-  {ok, Pid} = ems_sup:start_deskshare_capture(Name, Options),
-  erlang:monitor(process, Pid),
-  {reply, {ok,Pid}, lists:keystore(Name, 1, Captures, {Name, Pid})};
+handle_call({start_capture, Host, Name, Options}, _From, Captures) ->
+  case proplists:get_value({Host,Name}, Captures) of
+    undefined -> 
+      StreamName = iolist_to_binary(io_lib:format("capture-~s", [Name])),
+      {ok, Media} = media_provider:create(Host, StreamName, [{type, live}]),
+      {ok, Pid} = ems_sup:start_deskshare_capture(Media, Options),
+      erlang:monitor(process, Pid),
+      {reply, {ok,Pid}, lists:keystore({Host,Name}, 1, Captures, {{Host,Name}, Pid})};
+    OldPid ->
+      {reply, {ok, OldPid}, Captures}  
+  end;
+  
 
 
-handle_call({find, Name}, _From, Captures) ->
-  Reply = case proplists:get_value(Name, Captures) of
+handle_call({find, Host, Name}, _From, Captures) ->
+  Reply = case proplists:get_value({Host,Name}, Captures) of
     undefined -> undefined;
     Pid -> {ok, Pid}
   end,

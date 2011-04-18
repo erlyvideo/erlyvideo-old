@@ -140,8 +140,7 @@ init([erlyvideo_media_sup]) ->
       ?SUPERVISOR_LINK(media_ticker_sup),
       ?SUPERVISOR_LINK(shoutcast_reader_sup),
       ?SUPERVISOR_LINK(mjpeg_reader_sup),
-      ?SUPERVISOR_LINK(deskshare_capture_sup),
-      ?NAMED_SERVER(deskshare_tracker_sup, deskshare_tracker, [])
+      ?SUPERVISOR_LINK(deskshare_sup)
     ]}
   };
 
@@ -159,6 +158,12 @@ init([shoutcast_reader_sup]) ->
 
 init([mjpeg_reader_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(mjpeg_reader, [])]}};
+
+init([deskshare_sup]) ->
+  {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, [
+    ?SUPERVISOR_LINK(deskshare_capture_sup),
+    ?STATIC_SERVER(deskshare_tracker_sup, deskshare_tracker, [])
+  ]}};
 
 init([deskshare_capture_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(deskshare, [])]}};
