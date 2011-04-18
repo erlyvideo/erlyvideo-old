@@ -42,12 +42,17 @@ start_link(Consumer, Options) ->
   gen_server:start_link(?MODULE, [Consumer, Options], []).
 
 
-update_capture(Capture, Position, <<L:16, _C:L/binary>> = BlockData) when is_integer(Position) ->
-  gen_server:call(Capture, {update, Position, BlockData});
+is_valid_update(<<L:16, _C:L/binary, Rest/binary>>) -> is_valid_update(Rest);
+is_valid_update(<<>>) -> true;
+is_valid_update(_Block) -> false.
 
-update_capture(Room, Position, _BlockData) ->
-  ?D({broken_update, Room, Position, size(_BlockData)}),
-  {error, broken_update}.
+update_capture(Capture, Position, BlockData) when is_integer(Position) ->
+  case is_valid_update(BlockData) of
+    true -> gen_server:call(Capture, {update, Position, BlockData});
+    false ->
+      ?D({broken_update, Position, size(BlockData)}),
+      {error, broken_update}
+  end.
 
 update_mouse(Capture, X, Y) ->
   gen_server:call(Capture, {update_mouse, X, Y}).
