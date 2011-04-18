@@ -1,0 +1,10 @@
+#video_frame{content = video, codec = h264, flavor = frame, body = <<>>, dts = 40, pts = 40},
+#video_frame{content = audio, codec = aac, flavor = frame, body = <<>>, dts = 25, pts = 25, sound = {mono,bit16,rate44}},
+#video_frame{content = audio, codec = aac, flavor = frame, body = <<>>, dts = 50, pts = 50, sound = {mono,bit16,rate44}},
+#video_frame{content = audio, codec = aac, flavor = frame, body = <<>>, dts = 75, pts = 75, sound = {mono,bit16,rate44}},
+#video_frame{content = video, codec = h264, flavor = frame, body = <<>>, dts = 80, pts = 80},
+#video_frame{content = audio, codec = aac, flavor = frame, body = <<>>, dts = 100, pts = 100, sound = {mono,bit16,rate44}},
+#video_frame{content = video, codec = h264, flavor = keyframe, body = <<>>, dts = 120, pts = 120},
+#video_frame{content = audio, codec = aac, flavor = frame, body = <<>>, dts = 125, pts = 125, sound = {mono,bit16,rate44}},
+#video_frame{content = audio, codec = aac, flavor = frame, body = <<>>, dts = 150, pts = 150, sound = {mono,bit16,rate44}},
+#video_frame{content = video, codec = h264, flavor = frame, body = <<>>, dts = 160, pts = 160}

@@ -1,0 +1,21 @@
+{connect, "rtmp://localhost:1935/rtmp", []}.
+{play, "test/video-1.mp4"}.
+{play, "test/video-2.mp4"}.
+{play, "test/video-3.mp4"}.
+{play, "test/video-4.mp4"}.
+{play, "test/video-5.mp4"}.
+{play, "test/video-6.mp4"}.
+{play, "test/video-7.mp4"}.
+{play, "test/video-8.mp4"}.
+{play, "test/video-9.mp4"}.
+{play, "test/video-10.mp4"}.
+{play, "test/video-11.mp4"}.
+{play, "test/video-12.mp4"}.
+{play, "test/video-13.mp4"}.
+{play, "test/video-14.mp4"}.
+{play, "test/video-15.mp4"}.
+{play, "test/video-17.mp4"}.
+{play, "test/video-18.mp4"}.
+{play, "test/video-19.mp4"}.
+{play, "test/video-20.mp4"}.
+{wait, 500000}.

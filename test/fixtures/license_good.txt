@@ -1,0 +1,3 @@
+{license, "test-license"}.
+{url, "http://license.erlyvideo.org/license"}.
+{license_dir,"test/fixtures"}.

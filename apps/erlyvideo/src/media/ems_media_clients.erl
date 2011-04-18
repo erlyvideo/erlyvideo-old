@@ -290,7 +290,7 @@ increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
 insert_test_() ->
   [
     fun() ->
-      Storage = ?MODULE:init(),
+      Storage = ?MODULE:init([]),
       Ticker = ticker_pid,
       StreamId = 1,
       Client = client_pid,
@@ -306,7 +306,7 @@ insert_test_() ->
 increment_bytes_test_() ->
   [
     fun() ->
-      Storage = ?MODULE:init(),
+      Storage = ?MODULE:init([]),
       Ticker = ticker_pid,
       StreamId = 1,
       Client = client_pid,

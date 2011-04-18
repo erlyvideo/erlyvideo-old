@@ -1,0 +1,4 @@
+{connect, "rtmp://localhost:1935/rtmp", [{debug,true}]}.
+{fcpublish, "livestream"}.
+{publish, "livestream"}.
+{wait, 1000}.

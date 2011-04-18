@@ -1,0 +1,2 @@
+#video_frame{content = video, codec = h264, flavor = config, dts = 0, pts = 0, body = <<1,66,192,21,253,225,0,23,103,66,192,21,146,68,15,4,127,88,8,128,0,1,244,0,0,97,161,71,139,23,80,1,0,4,104,206,50,200>>},
+#video_frame{content = audio, codec = aac, flavor = config, dts = 0, pts = 0, body = <<9,144>>, sound = {mono,bit16,rate44}}

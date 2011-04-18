@@ -1,0 +1,7 @@
+{license, "test-license"}.
+{timeout, 600000}.
+{url, "http://license.erlyvideo.org/license"}.
+{license_dir, "/home/tthread/develop/work/tmp"}.
+{projects, [
+  {registrator, "asdsad"}
+]}.
