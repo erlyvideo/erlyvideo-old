@@ -1,0 +1,31 @@
+#!/bin/sh
+
+
+case "$1" in
+  start)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  stop)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  restart)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  reboot)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  ping)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  console)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  attach)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  *)
+  echo $"Usage: $0 {start|stop|restart|reboot|ping|console|attach}"
+  exit 1
+esac
+
+exit 0
