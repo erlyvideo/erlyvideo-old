@@ -66,5 +66,8 @@ priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 
 
+deb: release
+	fpm -s dir -t deb -n erlyvideo -v 2.8.2 -a x86_64 -m "Max Lapshin <max@maxidoors.ru>" --prefix /opt erlyvideo
+
 .PHONY: doc debian compile
 
