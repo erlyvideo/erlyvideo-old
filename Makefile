@@ -7,15 +7,15 @@ ERL_LIBS:=apps:deps:plugins
 
 
 # NIFDIR := `erl -eval 'io:format("~s", [code:lib_dir(erts,include)])' -s init stop -noshell| sed s'/erlang\/lib\//erlang\//'`
-# 
+#
 # ifeq ($(shell uname), Linux)
 # NIF_FLAGS := gcc -shared -O3 -fPIC -fno-common -Wall
 # endif
-# 
+#
 # ifeq ($(shell uname), Darwin)
 # NIF_FLAGS := cc -arch i386 -arch x86_64 -pipe -bundle -undefined dynamic_lookup -O3 -fPIC -fno-common -Wall
 # endif
-# 
+#
 # ifeq ($(shell uname), FreeBSD)
 # NIF_FLAGS := cc -shared -O3 -fPIC -fno-common -Wall
 # endif
@@ -57,7 +57,7 @@ clean-doc:
 
 
 run: priv/erlyvideo.conf priv/log4erl.conf compile
-	ERL_LIBS=apps:.. erl -boot start_sasl -s erlyvideo
+	ERL_LIBS=apps:..:deps erl -boot start_sasl -s erlyvideo
 
 priv/log4erl.conf: priv/log4erl.conf.sample
 	[ -f priv/log4erl.conf ] || cp priv/log4erl.conf.sample priv/log4erl.conf
