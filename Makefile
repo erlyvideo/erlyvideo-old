@@ -66,8 +66,16 @@ priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 
 
-deb: release
-	fpm -s dir -t deb -n erlyvideo -v 2.8.2 -a x86_64 -m "Max Lapshin <max@maxidoors.ru>" --prefix /opt erlyvideo
+packages: release
+	rm -rf tmproot
+	mkdir -p tmproot/opt
+	mv erlyvideo tmproot/opt/
+	mkdir -p tmproot/etc/init.d/
+	cp contrib/erlyvideo tmproot/etc/init.d/
+	cd tmproot && \
+	fpm -s dir -t deb -n erlyvideo -v 2.8.2 -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt && \
+	fpm -s dir -t rpm -n erlyvideo -v 2.8.2 -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt 
+	mv tmproot/*.deb tmproot/*.rpm .
 
 .PHONY: doc debian compile
 
