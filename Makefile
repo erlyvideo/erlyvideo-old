@@ -1,4 +1,4 @@
-include debian/version.mk
+include version.mk
 ERLANG_ROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 ERLDIR=$(ERLANG_ROOT)/lib/erlyvideo-$(VERSION)
 DESTROOT:=$(CURDIR)/debian/erlyvideo
@@ -66,6 +66,12 @@ priv/erlyvideo.conf: priv/erlyvideo.conf.sample
 	[ -f priv/erlyvideo.conf ] || cp priv/erlyvideo.conf.sample priv/erlyvideo.conf
 
 
+version:
+	echo "VERSION=$(VER)" > version.mk
+	git add version.mk
+	git commit -m "Version $(VER)"
+	# git tag -s v$(VER) -m "version $(VER)"
+
 packages: release
 	rm -rf tmproot
 	mkdir -p tmproot/opt
@@ -73,8 +79,8 @@ packages: release
 	mkdir -p tmproot/etc/init.d/
 	cp contrib/erlyvideo tmproot/etc/init.d/
 	cd tmproot && \
-	fpm -s dir -t deb -n erlyvideo -v 2.8.2 -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt && \
-	fpm -s dir -t rpm -n erlyvideo -v 2.8.2 -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt 
+	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt && \
+	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt 
 	mv tmproot/*.deb tmproot/*.rpm .
 
 .PHONY: doc debian compile
