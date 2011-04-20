@@ -56,7 +56,7 @@ get_textTags(List,[{FrameID,Body}|Tail]) ->
     "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,{utf16,little})}]);
     "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,{utf16,little})}]);
     "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,{utf16,little})}]);
-    Else -> lists:merge(List,[])
+    _Else -> lists:merge(List,[])
   end,
   get_textTags(Result,Tail).
 

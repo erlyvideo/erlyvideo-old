@@ -33,7 +33,7 @@ id3v2_get_tags(Module, Device, Size, Cur,  List)  ->
   case id3v2_get_one_tag(Module,Device,Cur) of
     {FrameID,Payload,NewCur} when NewCur < Size -> 
       id3v2_get_tags(Module, Device, Size, NewCur, lists:merge(List,[{FrameID,Payload}]));
-    Else ->
+    _Else ->
       List
   end.
     
@@ -41,7 +41,7 @@ id3v2_get_one_tag(Module,Device,Cur) ->
   case id3v2_get_info(Module,Device,Cur) of
      [FrameID,Long] when Long =/= 0 -> 
        case Module:pread(Device,Cur+10,Long) of
-         {ok,<<Encode,Order:16,Payload/binary>>} ->
+         {ok,<<_Encode,_Order:16,Payload/binary>>} ->
            {FrameID,Payload,Cur+Long+10};
          Else -> {error,Else}
        end;
@@ -52,7 +52,7 @@ id3v2_get_info(Module,Device,Cur) ->
   case id3v2_get_frameId(Module,Device,Cur) of 
     [84|_] = FrameID ->  
       case Module:pread(Device,Cur+4,6) of 
-        {ok, <<Size:32,Flag:16>>} ->
+        {ok, <<Size:32,_Flag:16>>} ->
            [FrameID,Size];
         Else -> {error,Else}
       end;
