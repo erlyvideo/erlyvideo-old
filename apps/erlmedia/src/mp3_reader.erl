@@ -43,7 +43,8 @@
   path,
   channels,
   sample_rate,
-  samples
+  samples,
+  metadata
 }).
 
 
@@ -68,13 +69,13 @@ write_frame(_Device, _Frame) ->
 init(Reader, Options) ->
   {ok, read_header(#mp3_media{reader = Reader, path = proplists:get_value(url, Options)})}.
 
-
 read_header(#mp3_media{reader = {Module,Device}} = Media) -> 
   case Module:pread(Device, 0, 10) of
     {ok, <<"ID3", Major, Minor, _Unsync:1, _Extended:1, _Experimental:1, _Footer:1, 0:4, 
            _:1, S1:7, _:1, S2:7, _:1, S3:7, _:1, S4:7>>} ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
-      Media1 = Media#mp3_media{format = id3, version = {Major, Minor}},
+      List = metadata_reader:id3v2_get_tags(Module,Device,Size,10),
+      Media1 = Media#mp3_media{format = id3, version = {Major, Minor},metadata = List},
       Offset = sync(<<>>, Media1, Size + 10),
       read_properties(Media1#mp3_media{header_size = Offset});
     {ok, <<"ID3", _/binary>>} ->
@@ -191,6 +192,25 @@ read_frame(Media, undefined) ->
 read_frame(_Media, {eof, _N}) ->
   eof;
 
+read_frame(#mp3_media{reader = {Module,Device},metadata = Body} = Media, {Offset, 0}) ->
+  case Module:pread(Device, Offset, mp3:header_size()) of
+    {ok, <<2#11111111111:11, _:5, _/binary>> = Header} ->
+      Length = mp3:frame_length(Header),
+      #video_frame{
+        content  = metadata,
+        codec    = mp3,
+        flavor   = frame,
+        body     = Body,
+        dts      = 0,
+        pts      = 0,
+        next_id  = {Offset+Length, 1}
+      };
+    {ok, Binary} ->
+      Offset1 = sync(Binary, Media, Offset),
+      read_frame(Media, {Offset1,0})
+    end;
+    
+  
 read_frame(#mp3_media{reader = {Module,Device}} = Media, {Offset, N}) ->
   case Module:pread(Device, Offset, mp3:header_size()) of
     eof -> eof;

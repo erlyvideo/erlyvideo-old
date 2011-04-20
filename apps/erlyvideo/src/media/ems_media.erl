@@ -377,7 +377,7 @@ properties_are_valid(Properties) ->
 
 
 init([Module, Options]) ->
-  % ?D({init,Module,Options}),
+% ?D({init,Module,Options}),
   Name = proplists:get_value(name, Options),
   URL_ = proplists:get_value(url, Options),
   URL = if 

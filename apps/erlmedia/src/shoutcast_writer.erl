@@ -29,25 +29,48 @@
 -record(shoutcast,
   {body,audio_config}).
 
-%init(Options) ->
-%  case proplists:get_value(consumer,Options,undefined) of
-%    undefined -> 
-%      ok;
-%    Player -> {ok,Player}.
-
 write(Player,Req) -> 
   erlang:monitor(process,Player),
   write_frame(undefined, Req).
 
 write_frame(AudioConfig, Req) ->
   case receive_frame() of
+    #video_frame{dts = 0, content = Content} = Frame when Content =/= video ->
+      start_stream(Frame, Req),
+      NewAudioConfig = prepare_frame(Frame,AudioConfig,Req),
+      write_frame(NewAudioConfig,Req);      
     #video_frame{} = Frame -> 
       NewAudioConfig = prepare_frame(Frame,AudioConfig,Req),
       write_frame(NewAudioConfig,Req);
     {ok, _Reason} -> ok
   end.
 
-prepare_frame(Frame,AudioConfig,Req)->
+get_textTags(List,[]) ->
+  List;
+
+get_textTags(List,[{FrameID,Body}|Tail]) ->
+  Result = case FrameID of 
+    "TALB" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,{utf16,little})}]);
+    "TCON" -> lists:merge(List,[{'Icy-Genre',unicode:characters_to_binary(Body,{utf16,little})}]);
+    "TIT2" -> lists:merge(List,[{'Icy-Notice2',unicode:characters_to_binary(Body,{utf16,little})}]);
+    "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,{utf16,little})}]);
+    "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,{utf16,little})}]);
+    "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,{utf16,little})}]);
+    Else -> lists:merge(List,[])
+  end,
+  get_textTags(Result,Tail).
+
+start_stream(Frame,Req)->
+  case Frame#video_frame.content of
+    metadata ->
+      MetaTags = get_textTags([],Frame#video_frame.body),
+      Req:stream(head,MetaTags),
+      Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]);
+    _Any -> 
+      Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}])
+  end.
+
+prepare_frame(Frame,AudioConfig,Req) ->
   State = #shoutcast{body = Frame, audio_config = AudioConfig},
   case Frame#video_frame.content of
     audio when Frame#video_frame.flavor == frame andalso
