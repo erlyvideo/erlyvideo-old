@@ -31,7 +31,7 @@
 -compile(export_all).
 
 
-metadata_duration_test_() ->
+metadata_duration_test_1() ->
   {spawn, {setup,
     fun() -> 
       ems_test_helper:set_ticker_timeouts(true),
