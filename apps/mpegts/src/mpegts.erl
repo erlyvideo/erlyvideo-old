@@ -401,18 +401,18 @@ encode(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, co
   Config = aac:decode_config(AudioConfig),
   {Streamer#streamer{audio_config = Config, last_dts = DTS}, none};
 
-encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio, codec = aac, dts = DTS}) ->
-  {Streamer#streamer{last_dts = DTS}, none};
-
 %%% From here goes interleave
 encode(#streamer{audio_dts = undefined} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
   encode(Streamer#streamer{audio_dts = DTS}, Frame);
 
+encode(#streamer{audio_config = undefined} = Streamer, #video_frame{content = audio, codec = aac, dts = DTS}) ->
+  {Streamer#streamer{last_dts = DTS}, none};
+
 encode(#streamer{interleave = false} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
   send_audio(Streamer#streamer{last_dts = DTS}, Frame);
 
-encode(#streamer{interleave = Interleave, audio_buffer = Audio, audio_config = Config} = Streamer, 
-       #video_frame{content = audio, codec = aac, body = Body}) when length(Audio) < Interleave ->
+encode(#streamer{interleave = Interleave, audio_buffer = Audio, audio_dts = OldDTS, audio_config = Config} = Streamer, 
+       #video_frame{content = audio, codec = aac, body = Body, dts = DTS}) when DTS - OldDTS < Interleave ->
   ADTS = aac:pack_adts(Body, Config),
   {Streamer#streamer{audio_buffer = [ADTS|Audio]}, none};
 
@@ -429,6 +429,7 @@ flush_audio(#streamer{audio_buffer = [], audio_dts = undefined} = Streamer) ->
   {Streamer, <<>>};
 
 flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS} = Streamer) ->
+  % ?D({flush_adts, length(Audio), round(DTS)}),
   ADTS = #video_frame{
     content = audio,
     codec = adts,
