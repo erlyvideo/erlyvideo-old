@@ -85,7 +85,7 @@ test() ->
 
 start(normal, []) ->
 	error_logger:info_report("Starting Erlyvideo ..."),
-  {ok, LicenseClient} = ems_license_client:load(),
+  LicenseReply = ems_license_client:load(),
   ems_log:start(),
 	load_config(),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
@@ -98,7 +98,10 @@ start(normal, []) ->
 	ems_rtsp:start(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
-	ems_license_client:afterload(LicenseClient),
+	case LicenseReply of
+	  {ok, LicenseClient} -> ems_license_client:afterload(LicenseClient);
+	  _ -> ok
+	end,
   error_logger:delete_report_handler(sasl_report_tty_h),
   error_logger:delete_report_handler(sasl_report_file_h),
 	{ok, Supervisor}.
