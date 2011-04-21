@@ -53,7 +53,7 @@ play(_Name, Player, Req, Options) ->
       {_Streamer2, Padding} = mpegts:flush(Streamer1#http_player.streamer),
       Buffer = [Padding|MPEGTSBuffer],
       % ?D({get(first_dts), get(last_dts)}),
-      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
+      Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
       MS2 = erlang:now(),
       Req:stream(lists:reverse(Buffer));
     _ ->
@@ -69,14 +69,6 @@ play(_Name, Player, Req, Options) ->
 play(#http_player{} = Player) ->
   receive
     Message ->
-      case Message of
-        #video_frame{dts = DTS} = F -> 
-          % ?D({in,F#video_frame.codec,round(F#video_frame.dts)}),
-          case get(first_dts) of undefined -> put(first_dts, DTS); _ -> ok end,
-          put(last_dts, DTS),
-        ok;
-        _ -> ok
-      end,
       case handle_msg(Player, Message) of
         {ok, Player1} -> ?MODULE:play(Player1);
         {stop, Player1} -> Player1
