@@ -14,13 +14,12 @@ main([URL, CountS]) ->
   main([URL, CountS, ""]);
   
 main([URL, CountS, DebugS]) ->
+  Root = filename:join(filename:dirname(escript:script_name()), ".."),
+  [code:add_pathz(Path) || Path <- filelib:wildcard(Root ++ "/apps/*/ebin")],
   application:start(rtmp),
   Count = list_to_integer(CountS),
   Debug = case DebugS of
-    "-d" -> 
-      code:add_path("../erlmedia/ebin"),
-      code:add_path("../amf/ebin"),
-      true;
+    "-d" -> true;
     _ -> false
   end,
   Spawner = rtmp_bench:init(URL, Count, Debug),

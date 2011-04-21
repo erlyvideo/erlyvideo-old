@@ -4,12 +4,8 @@
 
 
 main([FromUrl, ToUrl]) ->
-  Root = filename:join(filename:dirname(escript:script_name()), "..")++"/",
-  code:add_pathz(Root ++ "ebin"),
-  code:add_pathz(Root ++ "deps/rtmp/ebin"),
-  code:add_pathz(Root ++ "deps/log4erl/ebin"),
-  code:add_pathz(Root ++ "deps/amf/ebin"),
-  code:add_pathz(Root ++ "deps/erlmedia/ebin"),
+  Root = filename:join(filename:dirname(escript:script_name()), ".."),
+  [code:add_pathz(Path) || Path <- filelib:wildcard(Root ++ "/apps/*/ebin")],
   ems_log:start(),
   reverse_mpegts:loop(FromUrl, ToUrl);
   
