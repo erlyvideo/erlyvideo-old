@@ -56,6 +56,16 @@ http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
   Streams = [ clean_values([{name,Name}|Info]) || {Name, _Pid, Info} <- media_provider:entries(Host)],
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
+http(Host, 'GET', ["erlyvideo", "api", "stream" | Path], Req) ->
+  Name = string:join(Path, "/"),
+  case media_provider:find(Host, Name) of
+    {ok, Media} ->
+      Info = ems_media:full_info(Media),
+      Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{stream,Info}]), "\n"]);
+    undefined ->
+      Req:respond(500, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, unknown}]), "\n"])
+  end;
+
 http(_Host, 'GET', ["erlyvideo","api","licenses"], Req) -> 
   case ems_license_client:list() of
     {ok, List} -> 

@@ -66,7 +66,7 @@
 
 
 -export([media_info/1, set_media_info/2]).
--export([status/1, info/1, info/2]).
+-export([status/1, info/1, info/2, full_info/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
@@ -317,7 +317,7 @@ status(Media) ->
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid()) -> Status::list()
-%%  
+%% @doc Returns brief and fast-to-retrieve info about media
 %% @end
 %%----------------------------------------------------------------------
 info(Media) ->
@@ -326,7 +326,7 @@ info(Media) ->
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
 %%
-%% @doc Returns miscelaneous info about media, such as client_count
+%% @doc Returns specified info about media, such as client_count
 %% Here goes list of known properties
 %%
 %% client_count
@@ -339,6 +339,15 @@ info(Media) ->
 info(Media, Properties) ->
   properties_are_valid(Properties) orelse erlang:error({badarg, Properties}),
   gen_server:call(Media, {info, Properties}).
+
+%%----------------------------------------------------------------------
+%% @spec (Media::pid(), Properties::list()) -> Info::list()
+%%
+%% @doc Returns full info about media
+%% @end
+%%----------------------------------------------------------------------
+full_info(Media) ->
+  info(Media, known_properties()).
   
 known_properties() ->
   [client_count, url, type, storage, clients, last_dts, ts_delay, created_at, options].
