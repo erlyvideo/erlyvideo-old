@@ -17,7 +17,7 @@
           verify_crc32/1,
           verify_crc32/2]).
 
-% -on_load(start/0).
+-on_load(start/0).
 -export([start/0]).
 -export([benchmark/0, benchmark_calc/2]).
 
