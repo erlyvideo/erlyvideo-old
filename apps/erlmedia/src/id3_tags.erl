@@ -20,10 +20,11 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(metadata_reader).
+-module(id3_tags).
 -author('Ilya Shcherbak <tthread@gmail.com>').
 -include("log.hrl").
 -include_lib("kernel/include/file.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -export([decode/1]).
 
 
@@ -36,6 +37,7 @@ decode(<<"ID3", _Info: 24, _:1,S1:7,_:1,S2:7,_:1,S3:7,_:1,S4:7, Body/binary>>) -
     Value when Value > 100 ->
       {more,Size}
   end;
+
 
 decode(<<Body/binary>>) ->
   {notfound,Body}.
