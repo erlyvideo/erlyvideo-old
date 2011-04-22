@@ -22,7 +22,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(referer_check).
--include("../../include/rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 -export([connect/2]).
 
 connect(#rtmp_session{host = Host, player_info = PlayerInfo} = State, _Funcall) ->

@@ -19,6 +19,7 @@
 -record(rtmp_stream, {
   pid,
   stream_id,
+  options = [],
   base_dts,
   started = false,
   seeking = false,

@@ -1,11 +1,12 @@
+%%%---------------------------------------------------------------------------------------
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
-%%% @copyright  2010 Max Lapshin
-%%% @doc        check connected users limit
-%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+%%% @copyright  2009-2011 Max Lapshin
+%%% @doc        Interface module for #rtmp_stream{}
+%%% @reference  See <a href="http://erlyvideo.org" target="_top">http://erlyvideo.org</a> for more information
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlyvideo is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -20,22 +21,6 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(auth_users_limit, [Limit]).
+-module(rtmp_stream).
 -author('Max Lapshin <max@maxidoors.ru>').
-
--include("../rtmp/rtmp_session.hrl").
--include("../log.hrl").
-
--export([connect/2]).
-
-connect(#rtmp_session{} = State, _AMF) ->
-  ?D({"Checking limit", Limit,length(supervisor:which_children(rtmp_session_sup)) }),
-  case length(supervisor:which_children(rtmp_session_sup)) of
-    Count when Count =< Limit ->
-      unhandled;
-    Count ->
-      ems_log:error("Connection limit ~p~n", [Count]),  
-    	rtmp_session:reject_connection(State),
-      State
-  end.
-  
+-inlcude("../meta_access.hrl").

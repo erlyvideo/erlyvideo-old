@@ -24,7 +24,7 @@
 -module(apps_rewrite_publish, [URL]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
--include("../../include/rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 
 
 -export([publish/2]).

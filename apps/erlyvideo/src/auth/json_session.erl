@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(json_session).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../include/rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../log.hrl").
 -export([decode/2, encode/2, connect/2, binary_to_hexbin/1, auth/3, session_sign/2]).

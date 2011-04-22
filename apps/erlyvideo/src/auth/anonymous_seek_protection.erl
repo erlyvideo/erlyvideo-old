@@ -24,7 +24,7 @@
 -author('Ilya Shcherbak <ilya@erlyvideo.org>').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("../log.hrl").
--include_lib("../../include/rtmp_session.hrl").
+-include_lib("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -export([pauseRaw/2, seek/2]).
 

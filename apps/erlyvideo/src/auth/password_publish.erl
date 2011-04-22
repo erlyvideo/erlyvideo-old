@@ -25,7 +25,7 @@
 -include_lib("../log.hrl").
 
 -include_lib("rtmp/include/rtmp.hrl").
--include("../../include/rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 
 -export([publish/2]).
 

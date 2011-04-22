@@ -27,9 +27,10 @@
 -include_lib("erlmedia/include/media_info.hrl").
 -include("../log.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--include("../../include/rtmp_session.hrl").
+-include("rtmp_session.hrl").
 
 -behaviour(gen_fsm).
+
 
 -export([start_link/0, set_socket/2]).
 

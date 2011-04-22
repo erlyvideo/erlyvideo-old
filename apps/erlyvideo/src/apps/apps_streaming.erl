@@ -24,7 +24,7 @@
 -module(apps_streaming).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
--include("../../include/rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 
 -export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
@@ -50,7 +50,13 @@
 'WAIT_FOR_DATA'(_Message, _State) -> unhandled.
 
 handle_info({ems_stream, StreamId, play_complete, LastDTS}, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:play_complete(Socket, StreamId, [{duration, LastDTS}]),
+  #rtmp_stream{base_dts = BaseDTS, options = Options} = rtmp_session:get_stream(StreamId, State),
+  Start = case {BaseDTS, proplists:get_value(start, Options)} of
+    {undefined, undefined} -> 0;
+    {Num, _} when is_number(Num) -> Num;
+    {_, Num} when is_number(Num) -> Num
+  end,
+  rtmp_lib:play_complete(Socket, StreamId, [{duration, rtmp:justify_ts(LastDTS - Start)}]),
   State;
 
 handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} = State) ->
@@ -140,7 +146,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State;
     {ok, Media} ->
-      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId}, State),
+      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId, options = Options}, State),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State1
   end.

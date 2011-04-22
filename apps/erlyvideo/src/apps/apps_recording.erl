@@ -24,7 +24,7 @@
 -module(apps_recording).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
--include("../../include/rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
