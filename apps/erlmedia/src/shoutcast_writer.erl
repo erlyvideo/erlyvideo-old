@@ -46,7 +46,7 @@ write_frame(AudioConfig, Req) ->
   end.
 
 get_encoding_from_bom(OrderByte) ->
-  {Bom,Number} = unicode:bom_to_encoding(OrderByte),
+  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
   Bom.
 
 get_textTags(List,[]) ->
