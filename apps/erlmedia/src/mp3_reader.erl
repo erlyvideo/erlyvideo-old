@@ -69,13 +69,25 @@ write_frame(_Device, _Frame) ->
 init(Reader, Options) ->
   {ok, read_header(#mp3_media{reader = Reader, path = proplists:get_value(url, Options)})}.
 
+metadata_read(Module,Device,Body) ->
+  case id3_tags:decode(Body) of
+   {ok,Metadata,_Rest} -> 
+     Metadata;
+   {notfound,_Rest} -> 
+     <<>>;
+   {more,SizeAddopt} -> 
+     metadata_read(Module,Device,Module:pread(Device,0,SizeAddopt))
+  end.
+
+
 read_header(#mp3_media{reader = {Module,Device}} = Media) -> 
   case Module:pread(Device, 0, 10) of
     {ok, <<"ID3", Major, Minor, _Unsync:1, _Extended:1, _Experimental:1, _Footer:1, 0:4, 
            _:1, S1:7, _:1, S2:7, _:1, S3:7, _:1, S4:7>>} ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
-      List = metadata_reader:id3v2_get_tags(Module,Device,Size,10),
-      Media1 = Media#mp3_media{format = id3, version = {Major, Minor},metadata = List},
+      {ok,Body} = Module:pread(Device,0,Size),
+      Metadata = metadata_read(Module,Device,Body),
+      Media1 = Media#mp3_media{format = id3, version = {Major, Minor},metadata = Metadata},
       Offset = sync(<<>>, Media1, Size + 10),
       read_properties(Media1#mp3_media{header_size = Offset});
     {ok, <<"ID3", _/binary>>} ->
