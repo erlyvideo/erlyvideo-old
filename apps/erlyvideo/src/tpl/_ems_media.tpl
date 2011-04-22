@@ -119,6 +119,14 @@ handle_control(no_clients, #ems_media{} = State) ->
 handle_control(timeout, #ems_media{} = State) ->
   {stop, normal, State};
 
+handle_control({make_request, URL}, #ems_media{} = State) ->
+  %% {make_request, URL} returns:
+  %% {ok, Source}            => pid of new reader
+  %% {ok, Source, MediaInfo} => pid of new reader with mediainfo
+  %% {noreply, State}        => doesn't interpret this control
+  %% {error, Error}          => connection error, should retry later
+  {noreply, State};
+
 handle_control(_Control, #ems_media{} = State) ->
   {noreply, State}.
 

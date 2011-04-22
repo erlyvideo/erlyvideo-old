@@ -77,6 +77,7 @@
 
 -define(LIFE_TIMEOUT, 60000).
 -define(TIMEOUT, 120000).
+-define(TIMEOUT_RESTART, 1000).
 
 -export([behaviour_info/1]).
 
@@ -687,12 +688,12 @@ handle_info(no_clients, Media) ->
   
 
 handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = [_], video = [_]}} = Media) ->
-  {noreply, Media};
+  {noreply, Media, ?TIMEOUT};
 
 handle_info(stop_wait_for_config, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) -> % 
   Info1 = Info#media_info{audio = case A of wait -> []; _ -> A end, video = case V of wait -> []; _ -> V end},
   % ?D({flush_media_info, Media#ems_media.name, Info, Info1}),
-  {noreply, set_media_info(Media, Info1)};
+  {noreply, set_media_info(Media, Info1), ?TIMEOUT};
 
 
 % handle_info(timeout, #ems_media{timeout_ref = Ref} = Media) when Ref =/= undefined ->
@@ -712,14 +713,46 @@ handle_info(timeout, #ems_media{module = M, source = Source} = Media) when Sourc
   end;
 
 handle_info(timeout, #ems_media{source = undefined} = Media) ->
-  {noreply, Media};
+  {noreply, Media, ?TIMEOUT};
 
 
 handle_info(garbage_collect, Media) ->
   garbage_collect(self()),
-  {noreply, Media};
+  {noreply, Media, ?TIMEOUT};
 
-handle_info(Message, #ems_media{module = M} = Media) ->
+
+handle_info(make_request, #ems_media{retry_count = Count, retry_limit = Limit} = Media) 
+  when is_number(Count) andalso is_number(Limit) andalso Count > Limit ->
+  {stop, normal, Media};
+
+handle_info(make_request, #ems_media{retry_count = Count, host = Host, url = NativeURL, options = Options, module = M} = Media) ->
+  FailoverURLs = [NativeURL] ++ proplists:get_value(failover,Options,[]),
+  URL = lists:nth(Count rem length(FailoverURLs) + 1,FailoverURLs),
+  ems_event:stream_source_requested(Host, URL, []),
+
+  case M:handle_control({make_request, URL}, Media) of
+    {ok, Reader} when is_pid(Reader) ->
+      ems_media:set_source(self(), Reader),
+      {noreply, Media#ems_media{retry_count = 0}, ?TIMEOUT};
+    {ok, Reader, #media_info{} = MediaInfo} when is_pid(Reader) ->
+      ems_media:set_source(self(), Reader),
+      {noreply, ems_media:set_media_info(Media#ems_media{retry_count = 0}, MediaInfo), ?TIMEOUT};
+    {noreply, Media1} ->
+      handle_info_with_module(make_request, Media1);
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1};
+    {error, _Error} ->
+      Timer = proplists:get_value(connect_timeout, Options, ?TIMEOUT_RESTART),
+      ?D({failed_request, URL, Timer, Count, Media#ems_media.retry_limit}),
+      timer:send_after(Timer, make_request),
+      {noreply, Media#ems_media{retry_count = Count + 1}, ?TIMEOUT}
+  end;
+
+
+handle_info(Message, Media) ->
+  handle_info_with_module(Message, Media).
+
+handle_info_with_module(Message, #ems_media{module = M} = Media) ->
   case M:handle_info(Message, Media) of
     {noreply, Media1} ->
       {noreply, Media1, ?TIMEOUT};

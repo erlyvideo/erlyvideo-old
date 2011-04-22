@@ -34,12 +34,6 @@
   restart_count = 0
 }).
 
-connect_rtsp(#ems_media{host = Host, url = URL, options = Options, state = #rtsp{timeout = Timeout}}) ->
-  ?D({"Connecting to RTSP", URL, Options}),
-  ems_event:stream_source_requested(Host, URL, []),
-  rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
-  {dump_traffic,proplists:get_value(dump_traffic,Options,true)},{transport,proplists:get_value(transport,Options,tcp)},
-  {tracks, proplists:get_value(tracks,Options)}]).
 
 
 
@@ -98,6 +92,12 @@ handle_control(timeout, #ems_media{source = Reader} = Media) ->
   ?D("RTSP timeout"),
   {noreply, Media};
 
+handle_control({make_request, URL}, #ems_media{state = #rtsp{timeout = Timeout}, options = Options} = Media) ->
+  rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
+                         {dump_traffic,proplists:get_value(dump_traffic,Options,true)},
+                         {transport,proplists:get_value(transport,Options,tcp)},
+                         {tracks, proplists:get_value(tracks,Options)}]);
+
 handle_control(_Control, State) ->
   {noreply, State}.
 
@@ -120,19 +120,6 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{host = Host, url = URL, retry_count = Count, retry_limit = Limit} = Media) when 
-  (is_number(Count) andalso is_number(Limit) andalso Count =< Limit) orelse Limit == false ->
-  case connect_rtsp(Media) of
-    {ok, Reader, MediaInfo} ->
-      ems_event:stream_source_requested(Host, URL, []),
-      ems_media:set_source(self(), Reader),
-      {noreply, ems_media:set_media_info(Media#ems_media{retry_count = 0}, MediaInfo)};
-    _Else ->
-      ?D({"Failed to open rtsp_source", Media#ems_media.url, "retry count/limit", Count, Limit, _Else}),
-      timer:send_after(1000, make_request),
-      {noreply, Media#ems_media{retry_count = Count + 1}}
-  end;
-
 handle_info(make_request, Media) ->
   ?D("No RTSP source and retry limits are over"),
   {stop, normal, Media};

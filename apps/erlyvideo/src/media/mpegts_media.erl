@@ -95,6 +95,14 @@ handle_control(no_clients, State) ->
   %% {stop, Reason, State}   => stops. This should be default
   {stop, normal, State};
 
+
+handle_control({make_request, URL}, #ems_media{type = Type}) ->
+  Module = case Type of
+    shoutcast -> ems_shoutcast;
+    Else -> Else
+  end,
+  Module:read(URL, []);
+
 handle_control(_Control, State) ->
   {noreply, State}.
 
@@ -117,32 +125,6 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
-handle_info(make_request, #ems_media{retry_count = Count, host = Host, type = Type, retry_limit = Limit, state = State, url = NativeURL, options = Options} = Media) ->
-  if
-    is_number(Count) andalso is_number(Limit) andalso Count > Limit ->
-      {stop, normal, Media};
-    State#mpegts.make_request == false ->
-      {noreply, Media#ems_media{retry_count = Count + 1}};
-    true ->
-      FailoverURLs = [NativeURL] ++ proplists:get_value(failover,Options,[]),
-      URL = lists:nth(Count rem length(FailoverURLs) + 1,FailoverURLs),
-      ems_event:stream_source_requested(Host, URL, []),
-      Module = case Type of
-        shoutcast -> ems_shoutcast;
-        Else -> Else
-      end,
-      ?D({"Reconnecting MPEG-TS/Shoutcast socket in mode", Module, Count, URL}),
-      case Module:read(URL, []) of
-        {ok, Reader} ->  
-          ems_media:set_source(self(), Reader),
-          {noreply, ems_media:set_media_info(Media#ems_media{retry_count = 0}, #media_info{flow_type = stream, audio = wait, video = wait})};
-        {error, _Error} ->
-          Timer = ?TIMEOUT_RESTART,
-          ?D({failed_open_mpegts, URL, Timer}),
-          timer:send_after(Timer, make_request),
-          {noreply, Media#ems_media{retry_count = Count + 1}}
-      end    
-  end;
 handle_info(_Msg, State) ->
   {noreply, State}.
 
