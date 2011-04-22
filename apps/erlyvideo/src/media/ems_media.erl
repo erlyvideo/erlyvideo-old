@@ -297,14 +297,18 @@ set_media_info(Media, #media_info{} = Info) when is_pid(Media) ->
 set_media_info(#ems_media{media_info = Info} = Media, Info) ->
   Media;
   
-set_media_info(#ems_media{waiting_for_config = Waiting} = Media, #media_info{audio = A, video = V} = Info) ->
+set_media_info(#ems_media{waiting_for_config = Waiting, options = Options} = Media, #media_info{audio = A, video = V} = Info) ->
+  Info1 = case proplists:get_value(duration, Options) of
+    undefined -> Info;
+    Duration -> Info#media_info{duration = Duration}
+  end,
   case A == wait orelse V == wait of
-    true -> 
-      Media#ems_media{media_info = Info};
+    true ->
+      Media#ems_media{media_info = Info1};
     false ->
-      Reply = reply_with_media_info(Media, Info),
+      Reply = reply_with_media_info(Media, Info1),
       [gen_server:reply(From, Reply) || From <- Waiting],
-      Media#ems_media{media_info = Info, waiting_for_config = []}
+      Media#ems_media{media_info = Info1, waiting_for_config = []}
   end.
 
 %%----------------------------------------------------------------------

@@ -107,7 +107,7 @@ function openFile(url) {
   var flowplayer_html = '<a href="#" id="flowplayer"></a>';
   var jwplayer_html = '<a href="#" id="jwplayer"></a>';
   var hls_html = "<div id='hls_video'></div>";
-
+  
 
   var playerTabs = new Ext.TabPanel({
       region: 'center',
@@ -121,7 +121,7 @@ function openFile(url) {
           listeners: {
             activate: function(panel) {
               if(currentPlayedFile)
-                embedJWPlayer(currentRTMPServer, currentPlayedFile);
+                embedJWPlayer(currentRTMPServer, escape(currentPlayedFile));
             },
             deactivate: function(panel) {
               panel.body.innerHTML = jwplayer_html;
@@ -133,7 +133,7 @@ function openFile(url) {
           listeners: {
             activate: function(panel) {
               if(currentPlayedFile)
-                embedFlowplayer(currentRTMPServer, currentPlayedFile);
+                embedFlowplayer(currentRTMPServer, escape(currentPlayedFile));
             },
             deactivate: function(panel) {
               panel.body.innerHTML = flowplayer_html;
