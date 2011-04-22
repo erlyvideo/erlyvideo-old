@@ -183,7 +183,7 @@ handle_message(pause, Ticker) ->
   
 handle_message({seek, DTS}, #ticker{media = Media, paused = Paused, stream_id = StreamId, consumer = Consumer, options = Options} = Ticker) ->
   {Pos,NewDTS} = ems_media:seek_info(Media, DTS, Options),
-  ?D({"Seek", DTS, Pos,NewDTS}),
+  % ?D({"Seek", DTS, Pos,NewDTS}),
   case Paused of
     true -> ok;
     false -> self() ! tick
