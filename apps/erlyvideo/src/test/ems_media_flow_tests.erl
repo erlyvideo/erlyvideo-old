@@ -24,7 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("eunit/include/eunit.hrl").
--include("../../include/ems_media.hrl").
+-include("../media/ems_media.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
 

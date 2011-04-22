@@ -23,7 +23,7 @@
 -module(file_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
--include("../../include/ems_media.hrl").
+-include("ems_media.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("../log.hrl").
 

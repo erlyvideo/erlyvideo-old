@@ -25,7 +25,7 @@
 
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
--include("../include/ems_media.hrl").
+-include("ems_media.hrl").
 -include("ems_media_client.hrl").
 -include("../log.hrl").
 

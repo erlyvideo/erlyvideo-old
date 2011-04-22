@@ -24,7 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("eunit/include/eunit.hrl").
--include("../../include/ems_media.hrl").
+-include("../media/ems_media.hrl").
 
 % -define(assertAlive(Name), ?assertMatch(Pid when is_pid(Pid), whereis(Name))).
 % -define(assertDead(Name), ?assertEqual(undefined, whereis(Name))).

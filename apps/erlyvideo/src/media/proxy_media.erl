@@ -23,7 +23,7 @@
 -module(proxy_media).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
--include("../../include/ems_media.hrl").
+-include("ems_media.hrl").
 -include("../log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
