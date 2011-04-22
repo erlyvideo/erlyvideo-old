@@ -45,17 +45,21 @@ write_frame(AudioConfig, Req) ->
     {ok, _Reason} -> ok
   end.
 
+get_encoding_from_bom(OrderByte) ->
+  {Bom,Number} = unicode:bom_to_encoding(OrderByte),
+  Bom.
+
 get_textTags(List,[]) ->
   List;
 
-get_textTags(List,[{FrameID,Body}|Tail]) ->
+get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
   Result = case FrameID of 
-    "TALB" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,{utf16,little})}]);
-    "TCON" -> lists:merge(List,[{'Icy-Genre',unicode:characters_to_binary(Body,{utf16,little})}]);
-    "TIT2" -> lists:merge(List,[{'Icy-Notice2',unicode:characters_to_binary(Body,{utf16,little})}]);
-    "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,{utf16,little})}]);
-    "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,{utf16,little})}]);
-    "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,{utf16,little})}]);
+    "TALB" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+    "TCON" -> lists:merge(List,[{'Icy-Genre',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+    "TIT2" -> lists:merge(List,[{'Icy-Notice2',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+    "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+    "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+    "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
     _Else -> lists:merge(List,[])
   end,
   get_textTags(Result,Tail).
