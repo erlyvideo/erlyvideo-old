@@ -193,7 +193,7 @@ synchronizer(<<16#47, _:187/binary, 16#47, _/binary>> = Bin, TSLander) ->
   synchronizer(Rest, Lander);
 
 synchronizer(<<_, Bin/binary>>, TSLander) when size(Bin) >= 374 ->
-  ?D(desync),
+  % ?D(desync),
   synchronizer(Bin, TSLander);
 
 synchronizer(Bin, TSLander) ->
@@ -295,7 +295,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
     _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #ts_lander{pids = Pids, consumer = Consumer} = TSLander, _, _) ->
   % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
   PMTLength = round(SectionLength - 13 - ProgramInfoLength),
-  ?D({"Selecting MPEG-TS program", ProgramNum}),
+  % ?D({"Selecting MPEG-TS program", ProgramNum}),
   % io:format("Program info: ~p~n", [ProgramInfo]),
   % ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
   Descriptors = extract_pmt(PMT, PMTLength, []),
@@ -304,7 +304,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
         Handler = proc_lib:spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, consumer = Consumer, h264 = #h264{}}]),
-        ?D({"Starting PID", Pid, Handler}),
+        % ?D({"Starting PID", Pid, Handler}),
         erlang:monitor(process, Handler),
         #stream_out{pid = Pid, handler = Handler};
       Other ->
@@ -323,7 +323,7 @@ extract_pmt(_CRC32, 0, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, PMTLength, Descriptors) ->
-  ?D({"Pid -> Type", Pid, StreamType, _ES, PMTLength}),
+  ?D({"Pid -> Type", Pid, StreamType, _ES}),
   extract_pmt(Rest, PMTLength - 5 - ESLength, [#stream{handler = pes, counter = 0, pid = Pid, codec = stream_codec(StreamType)}|Descriptors]).
   
 
