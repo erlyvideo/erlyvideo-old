@@ -265,9 +265,9 @@ wait_for_socket_on_server(timeout, State) ->
   {stop, normal, State};
 
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
-  case inet:setopts(Socket, [{active, once}, {packet, raw}, binary]) of
-    ok ->
-      {ok, {IP, Port}} = inet:peername(Socket),
+  case inet:peername(Socket) of
+    {ok, {IP, Port}} ->
+      ok =  inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
       {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
     {error, _Error} ->
       {stop, normal, State}
