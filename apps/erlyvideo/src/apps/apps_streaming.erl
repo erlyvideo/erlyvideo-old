@@ -131,7 +131,8 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
 play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   {Name, Options} = parse_play(FullName, Args),
-  
+
+  ?D({play_request, FullName,Args, '->', Name, Options}),
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
       ?D({"Unsubscribe from old", OldMedia}), 
