@@ -42,7 +42,7 @@
 
 -export([rtmp_tag_generator/1]).
 
--export([read_frame/2, duration/1]).
+-export([read_frame/1, read_frame/2, duration/1]).
 
 read_frame(Reader, Offset) ->
   case flv:read_tag(Reader, Offset) of
@@ -51,7 +51,15 @@ read_frame(Reader, Offset) ->
     eof -> eof;
     {error, Reason} -> {error, Reason}
   end.
-	
+
+
+read_frame(Binary) ->
+  case read_tag(Binary) of
+    more -> more;
+    {ok, #flv_tag{} = Tag, Rest} ->
+      {ok, flv_video_frame:tag_to_video_frame(Tag), Rest};
+    {error, Reason} -> {error, Reason}
+  end.
 
 
 frame_format(audio) -> ?FLV_TAG_TYPE_AUDIO;
@@ -239,7 +247,10 @@ read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
     #flv_tag{} ->
       more;
     Else -> Else
-  end.  
+  end;
+
+read_tag(Header) when is_binary(Header) ->
+  more.
 
 
 read_tag({Module,Device} = Reader, Offset) ->
