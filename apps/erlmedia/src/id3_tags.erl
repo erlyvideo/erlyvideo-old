@@ -33,7 +33,7 @@ decode(<<"ID3", _Info: 24, _:1,S1:7,_:1,S2:7,_:1,S3:7,_:1,S4:7, Body/binary>>) -
   case Size - size(Body) of
     Value when Value =< 10 -> 
       {Metadata,Rest} = id3v2_get_tags(Body,[]),
-      {ok,Metadata,Rest};
+      {ok,<<>>,Rest};
     Value when Value > 10 ->
       {more,Size}
   end;
