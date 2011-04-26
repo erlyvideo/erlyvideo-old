@@ -25,7 +25,7 @@
 -author('Ilya Shcherbak <tthread@gmail.com>').
 -include("log.hrl").
 -include("../include/video_frame.hrl").
--export([write/2]).
+-export([write/2, get_textTags/2]).
 -record(shoutcast,
   {body,audio_config}).
 
