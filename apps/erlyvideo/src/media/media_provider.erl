@@ -230,6 +230,7 @@ handle_call({register, Host, Name, Pid, Options}, _From, #media_provider{} = Med
       {reply, {error, {already_set, Name, OldPid}}, MediaProvider};
     undefined ->
       Ref = erlang:monitor(process, Pid),
+      ?D({register,Host,Name,Pid}),
       ets:insert(?MODULE, #media_entry{name = {Host,Name}, handler = Pid, ref = Ref}),
       ems_event:stream_created(Host, Name, Pid, Options),
       {reply, {ok, {Name, Pid}}, MediaProvider}
@@ -362,7 +363,7 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvi
     [] -> 
       {noreply, MediaProvider};
     [{Host, Name}] ->
-      ets:delete(?MODULE, Name),
+      ets:delete(?MODULE, {Host,Name}),
       case _Reason of
         normal -> ok;
         _ -> ?D({"Stream died", Media, Host, Name, io_lib_pretty_limited:print(_Reason, 2000)})
