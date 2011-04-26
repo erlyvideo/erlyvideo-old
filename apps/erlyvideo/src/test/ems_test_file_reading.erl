@@ -106,6 +106,7 @@ mpegts_reader_file_test_() ->
   {spawn, {setup,
     fun() ->
       ems_test_helper:set_ticker_timeouts(true),
+      ems_network_lag_monitor:set_threshold(10000000),
       log4erl:change_log_level(error),
       ok
     end,
@@ -115,9 +116,10 @@ mpegts_reader_file_test_() ->
       ok
     end,
     [fun() ->
-      {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/video.mp4",[]),
+      {ok,Pid} = mpegts:read("http://127.0.0.1:8082/stream/video.mp4?duration=60",[]),
       erlang:monitor(process, Pid),
-      Frames = ems_test_helper:receive_all_frames(),
+      Frames = ems_test_helper:receive_all_frames(500),
+      ?assert(length(Frames) > 100),
       ?assertNot(ems_test_helper:is_interleaved(Frames,15)),
       ?assert(ems_test_helper:is_monotonic(Frames))
     end]

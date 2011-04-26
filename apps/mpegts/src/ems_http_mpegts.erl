@@ -30,10 +30,15 @@
 http(Host, 'GET', ["stream" | Name], Req) ->
   Query = Req:parse_qs(),
   Options1 = [{stream_id,1},{client_buffer,30000}],
-  Options2 = case proplists:get_value("start", Query) of
-    undefined -> Options1;
-    Seek -> [{start,list_to_integer(Seek)*1000}|Options1]
+  StartOptions = case proplists:get_value("start", Query) of
+    undefined -> [];
+    Seek -> [{start,list_to_integer(Seek)*1000}]
   end,
+  DurationOptions = case proplists:get_value("duration", Query) of
+    undefined -> [];
+    Dur -> [{duration,list_to_integer(Dur)*1000}]
+  end,
+  Options2 = Options1 ++ StartOptions ++ DurationOptions,
   case media_provider:play(Host, string:join(Name, "/"), Options2) of
     {ok, Stream} ->
       mpegts_play:play(Name, Stream, Req),
