@@ -1,0 +1,6 @@
+{application, plugins,
+[{description, "Erlyvideo plugins"},
+ {vsn, git},
+ {registered,[]},
+ {applications, [kernel,stdlib]}
+]}.

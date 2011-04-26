@@ -1,14 +1,9 @@
 *.beam
 *~
-erl_crash.dump
-mnesia-data
 *.DS_Store
-Mnesia.*
-plugins
 *.log
 *.cookie
 log
-movies
 *~
 
 # XCode noise
@@ -20,9 +15,5 @@ build/
 *.perspectivev3
 *.mode1v3
 *.mode2v3
-build-stamp
-configure-stamp
 tmp
 
-# Tarballs directory
-tarballs

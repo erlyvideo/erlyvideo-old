@@ -4,7 +4,7 @@
   {vsn, git},
   {id, "erlyvideo"},
   {registered,   []},
-  {applications, [kernel,stdlib,crypto,amf,erlmedia,ibrowse,log4erl,mpegts,rtmp,rtp,rtsp]},
+  {applications, [kernel,stdlib,crypto,amf,erlmedia,ibrowse,log4erl,mpegts,rtmp,rtp,rtsp,plugins]},
   {mod, {erlyvideo, []}},
   {env, []}
  ]
