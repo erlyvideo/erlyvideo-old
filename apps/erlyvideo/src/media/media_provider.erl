@@ -38,20 +38,15 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, create/3, open/2, open/3, play/2, play/3, entries/1, remove/2, find/2, register/3, register/4]).
+-export([start_link/0, create/3, open/2, open/3, play/2, play/3, entries/1, remove/2, find/2, register/3, register/4]).
 -export([info/1, info/2, media_info/2, detect_type/3]). % just for getStreamLength
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([init_names/0, name/1]).
-
 -export([static_stream_name/2, start_static_stream/2, start_static_streams/0]).
 
 -record(media_provider, {
-  opened_media,
-  host,
-  master_pid,
   counter = 1
 }).
 
@@ -80,16 +75,9 @@ start_static_stream(Host, Name) ->
 start_static_streams() ->
   ems_sup:start_static_streams().
 
-%%-------------------------------------------------------------------------
-%% @doc Returns registered name for media provider on host Host
-%% @end
-%%-------------------------------------------------------------------------
-name(Host) ->
-  media_provider_names:name(Host).
-
 %% @hidden
-start_link(Host) ->
-  gen_server:start_link({local, name(Host)}, ?MODULE, [Host], []).
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
 
@@ -157,17 +145,20 @@ find(Host, Name) when is_list(Name)->
   find(Host, list_to_binary(Name));
 
 find(Host, Name) ->
-  gen_server:call(name(Host), {find, Name}, infinity).
+  case ets:lookup(?MODULE, {Host, Name}) of
+    [#media_entry{handler = Pid}] -> {ok, Pid};
+    _ -> undefined
+  end.
 
 register(Host, Name, Pid) ->
   register(Host, Name, Pid, []).
 
 register(Host, Name, Pid, Options) ->
-  gen_server:call(name(Host), {register, Name, Pid, Options}).
+  gen_server:call(?MODULE, {register, Host, Name, Pid, Options}).
 
 entries(Host) ->
-  Entries = gen_server:call(name(Host), entries),
-  
+  MS = ets:fun2ms(fun(#media_entry{name = {H, Name}, handler = Pid}) when H == Host -> {Name,Pid} end),
+  Entries = ets:select(?MODULE, MS),
   Info1 = [{Name, Pid, (catch ems_media:status(Pid))} || {Name,Pid} <- Entries],
   Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
   Info.
@@ -176,7 +167,7 @@ remove(Host, Name) when is_list(Name) ->
   remove(Host, list_to_binary(Name));
   
 remove(Host, Name) when is_binary(Name) ->
-  gen_server:cast(name(Host), {remove, Name}).
+  gen_server:cast(?MODULE, {remove, Host, Name}).
 
 info(Host, Name) ->
   case open(Host, Name) of
@@ -199,40 +190,13 @@ media_info(Host, Name) ->
   end.
   
 
-init_names() ->
-  Module = erl_syntax:attribute(erl_syntax:atom(module), 
-                                [erl_syntax:atom("media_provider_names")]),
-  Export1 = erl_syntax:attribute(erl_syntax:atom(export),
-                                     [erl_syntax:list(
-                                      [erl_syntax:arity_qualifier(
-                                       erl_syntax:atom(name),
-                                       erl_syntax:integer(1))])]),
-
-          
-  Clauses1 = lists:map(fun({Host, _}) ->
-    Name = binary_to_atom(<<"media_provider_sup_", (atom_to_binary(Host, latin1))/binary>>, latin1),
-    erl_syntax:clause([erl_syntax:atom(Host)], none, [erl_syntax:atom(Name)])
-  end, ems:get_var(vhosts, [])),
-  Function1 = erl_syntax:function(erl_syntax:atom(name), Clauses1),
-
-  Forms = [erl_syntax:revert(AST) || AST <- [Module, Export1, Function1]],
-
-  ModuleName = media_provider_names,
-  code:purge(ModuleName),
-  case compile:forms(Forms) of
-    {ok,ModuleName,Binary}           -> code:load_binary(ModuleName, "media_provider_names.erl", Binary);
-    {ok,ModuleName,Binary,_Warnings} -> code:load_binary(ModuleName, "media_provider_names.erl", Binary)
-  end,
-
-  ok.
-
 
   
 
-init([Host]) ->
+init([]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
-  OpenedMedia = ets:new(opened_media, [set, private, {keypos, #media_entry.name}]),
-  {ok, #media_provider{opened_media = OpenedMedia, host = Host}}.
+  ets:new(?MODULE, [set, public, named_table, {keypos, #media_entry.name}]),
+  {ok, #media_provider{}}.
   
 
 
@@ -248,51 +212,34 @@ init([Host]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({find, Name}, _From, MediaProvider) ->
-  {reply, find_in_cache(Name, MediaProvider), MediaProvider};
-  
-handle_call({unregister, Pid}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
-  case ets:match(OpenedMedia, #media_entry{name = '$1', ref = '$2', handler = Pid}) of
+handle_call({unregister, Pid}, _From, #media_provider{} = MediaProvider) ->
+  case ets:match(?MODULE, #media_entry{name = '$1', ref = '$2', handler = Pid}) of
     [] -> 
       {noreply, MediaProvider};
-    [[Name, Ref]] ->
+    [[{Host, Name}, Ref]] ->
       erlang:demonitor(Ref, [flush]),
-      ets:delete(OpenedMedia, Name),
-      ?D({"Unregistering", Name, Pid}),
+      ets:delete(?MODULE, {Host, Name}),
+      ?D({"Unregistering", Host, Name, Pid}),
       ems_event:stream_stopped(Host, Name, Pid),
       {noreply, MediaProvider}
   end;
     
-handle_call({register, Name, Pid, Options}, _From, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
-  case find_in_cache(Name, MediaProvider) of
+handle_call({register, Host, Name, Pid, Options}, _From, #media_provider{} = MediaProvider) ->
+  case find(Host, Name) of
     {ok, OldPid} ->
       {reply, {error, {already_set, Name, OldPid}}, MediaProvider};
     undefined ->
       Ref = erlang:monitor(process, Pid),
-      ets:insert(OpenedMedia, #media_entry{name = Name, handler = Pid, ref = Ref}),
+      ets:insert(?MODULE, #media_entry{name = {Host,Name}, handler = Pid, ref = Ref}),
       ems_event:stream_created(Host, Name, Pid, Options),
-      % ?D({"Registering", Name, Pid}),
       {reply, {ok, {Name, Pid}}, MediaProvider}
   end;
-
-handle_call(host, _From, #media_provider{host = Host} = MediaProvider) ->
-  {reply, Host, MediaProvider};
-
-handle_call(entries, _From, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  Info = [{Name, Pid} || #media_entry{name = Name, handler = Pid} <- ets:tab2list(OpenedMedia)],
-  {reply, Info, MediaProvider};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
 
 
-find_in_cache(Name, #media_provider{opened_media = OpenedMedia}) ->
-  case ets:lookup(OpenedMedia, Name) of
-    [#media_entry{handler = Pid}] -> {ok, Pid};
-    _ -> undefined
-  end.
-  
   
 %%%%%%%%   Function in caller  
   
@@ -392,8 +339,8 @@ detect_type([Detector|Detectors], Host, Name, Opts) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast({remove, Name}, #media_provider{opened_media = OpenedMedia} = MediaProvider) ->
-  (catch ets:delete(OpenedMedia, Name)),
+handle_cast({remove, Host, Name}, #media_provider{} = MediaProvider) ->
+  (catch ets:delete(?MODULE, {Host, Name})),
   {noreply, MediaProvider};
 
 handle_cast(_Msg, State) ->
@@ -409,30 +356,20 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'DOWN', _, process, MasterPid, _Reason}, #media_provider{master_pid = MasterPid, host = Host} = MediaProvider) ->
-  ?D({"Master pid is down, new elections", Host}),
-  global:register_name(media_provider_names:global_name(Host), self(), {?MODULE, resolve_global}),
-  {noreply, MediaProvider#media_provider{master_pid = undefined}};
-
-handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{host = Host, opened_media = OpenedMedia} = MediaProvider) ->
-  MS = ets:fun2ms(fun(#media_entry{handler = Pid, name = Name}) when Pid == Media -> Name end),
-  case ets:select(OpenedMedia, MS) of
+handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvider) ->
+  MS = ets:fun2ms(fun(#media_entry{handler = Pid, name = Key}) when Pid == Media -> Key end),
+  case ets:select(?MODULE, MS) of
     [] -> 
       {noreply, MediaProvider};
-    [Name] ->
-      ets:delete(OpenedMedia, Name),
+    [{Host, Name}] ->
+      ets:delete(?MODULE, Name),
       case _Reason of
         normal -> ok;
-        _ -> ?D({"Stream died", Media, Name, io_lib_pretty_limited:print(_Reason, 2000)})
+        _ -> ?D({"Stream died", Media, Host, Name, io_lib_pretty_limited:print(_Reason, 2000)})
       end,
       ems_event:stream_stopped(Host, Name, Media),
       {noreply, MediaProvider}
   end;
-
-handle_info({wait_for, Pid}, MediaProvider) ->
-  ?D({"Selected as slave provider, wait for", Pid}),
-  erlang:monitor(process, Pid),
-  {noreply, MediaProvider#media_provider{master_pid = Pid}};
 
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),

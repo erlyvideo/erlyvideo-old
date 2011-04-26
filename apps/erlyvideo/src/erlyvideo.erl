@@ -89,7 +89,6 @@ start(normal, []) ->
   ems_log:start(),
 	load_config(),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
-  media_provider:init_names(),
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
   start_http(),
