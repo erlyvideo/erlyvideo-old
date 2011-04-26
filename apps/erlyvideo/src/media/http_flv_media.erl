@@ -73,8 +73,7 @@ handle_control({source_lost, _Source}, State) ->
 handle_control(no_clients, State) ->
   {stop, normal, State};
 
-handle_control({make_request, URL}, #ems_media{options = Options} = Media) ->
-  Timeout = proplists:get_value(timeout, Options, 5000),
+handle_control({make_request, URL}, #ems_media{} = Media) ->
   case ibrowse:send_req(binary_to_list(URL), [], get, [], [{stream_to, {self(),once}},{response_format,binary},{stream_chunk_size,8192}], infinity) of
     {ibrowse_req_id, Ref} ->
       {noreply, Media#ems_media{state = #http_flv{ibrowse_ref = Ref}}};
@@ -94,6 +93,7 @@ handle_control(_Control, State) ->
 %% @end
 %%----------------------------------------------------------------------
 handle_frame(Frame, State) ->
+  % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,round(Frame#video_frame.dts)}),
   {reply, Frame, State}.
 
 
