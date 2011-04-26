@@ -24,7 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp_session.hrl").
+-include("../rtmp/rtmp_session.hrl").
 -include("../log.hrl").
 
 -export([register/2, ring/2, 'WAIT_FOR_DATA'/2]).

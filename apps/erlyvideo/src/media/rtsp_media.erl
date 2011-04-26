@@ -92,7 +92,7 @@ handle_control(timeout, #ems_media{source = Reader} = Media) ->
   ?D("RTSP timeout"),
   {noreply, Media};
 
-handle_control({make_request, URL}, #ems_media{state = #rtsp{timeout = Timeout}, options = Options} = Media) ->
+handle_control({make_request, URL}, #ems_media{state = #rtsp{timeout = Timeout}, options = Options}) ->
   rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
                          {dump_traffic,proplists:get_value(dump_traffic,Options,true)},
                          {transport,proplists:get_value(transport,Options,tcp)},
