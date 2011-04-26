@@ -9,7 +9,7 @@ All documentation is on http://erlyvideo.org/ and in doc/html/
 Licensing
 =========
 
-Erlyvideo is distributed under the GNU General Public License version 3 and is also available under alternative licenses negotiated directly with Erlyvideo author Max Lapshin <max@maxidoors.ru>. The GPL (version 3) is included in this source tree in the file COPYING.
+Erlyvideo is distributed under the GNU General Public License version 3 and is also available under alternative licenses negotiated directly with Erlyvideo author Max Lapshin <info@erlyvideo.org>. The GPL (version 3) is included in this source tree in the file COPYING.
 
 Erlyvideo has runtime dependencies from other packages:
 
@@ -28,9 +28,26 @@ To run tests don't forget to add test vhost:
     {file_dir, "test/files"}
   ]}
 
-Special options
+How to install plugins
 =========
 
-* dump_traffic
-* warn_bad_dts_delta
-* dump_frame
+
+First you may install your own small plugin files. If you are building erlyvideo from source, you may put them into
+apps/plugins/src/, than run make, make release and you should get release folder erlyvideo with lib/plugins-...ez with your
+compiled files inside.
+
+If you are compiling files outside erlyvideo, than just drop your compiled beam files into /opt/erlyvideo/plugins and erlyvideo will
+load all beam files from there automatically with following message:
+
+Starting ems_sup:ems_event_sup <0.111.0>
+Starting ems_so_sup:shared_objects_sup <0.113.0>
+Starting ems_so_sup:shared_object_sup <0.114.0>
+Starting ems_sup:ems_so_sup <0.112.0>
+Starting ems_http_sup:8082 <0.115.0>
+Starting rtmp_sup:rtmp_listener1 <0.116.0>
+Load plugin s3pool                         %%%%% This is indicator of loading plugin files
+Starting rtsp_sup:rtsp_listener1 <0.117.0>
+<0.88.0> {std_info,"Started Erlyvideo"}
+===================== Started application: erlyvideo =====================
+
+

@@ -94,6 +94,7 @@ start(normal, []) ->
   start_http(),
   start_rtmp(),
 	start_modules(),
+	load_plugin_files(),
 	ems_rtsp:start(),
   media_provider:start_static_streams(),
 	error_logger:info_report("Started Erlyvideo"),
@@ -149,7 +150,13 @@ start_rtmp() ->
   end.
 
 
-
+load_plugin_files() ->
+  PluginPath = "plugins",
+  [begin
+    Plugin = filename:basename(Path,".beam"),
+    error_logger:info_msg("Load plugin ~s", [Plugin]),
+    code:load_abs(PluginPath ++ "/"++ Plugin)
+  end || Path <- filelib:wildcard(PluginPath++"/*.beam")].
 
 stats(Host) ->
   Entries = lists:sort(fun({Name1, _, _}, {Name2, _, _}) -> Name1 < Name2 end, media_provider:entries(Host)),

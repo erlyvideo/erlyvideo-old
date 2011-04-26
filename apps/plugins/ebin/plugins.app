@@ -1,6 +1,6 @@
 {application,plugins,
              [{description,"Erlyvideo plugins"},
-              {vsn,"v2.8.2-50-g7cb898e"},
+              {vsn,"v2.8.2-51-gfe47e83"},
               {registered,[]},
               {applications,[kernel,stdlib]},
               {modules,[rtmp_example_plugin]}]}.
