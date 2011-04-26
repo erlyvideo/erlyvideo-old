@@ -31,19 +31,31 @@
 
 write(Player,Req) -> 
   erlang:monitor(process,Player),
-  write_frame(undefined, Req).
+  write_frame(10449,undefined, Req).
 
-write_frame(AudioConfig, Req) ->
+write_frame(NextMeta,AudioConfig, Req) when NextMeta < 2 ->
+  Body = <<2,"StreamTitle='Nam';00000000000000">>,
+  Req:stream(Body),
+  write_frame(10449,AudioConfig, Req);
+
+write_frame(NextMeta,AudioConfig, Req) ->
   case receive_frame() of
     #video_frame{dts = 0, content = Content} = Frame when Content =/= video ->
       start_stream(Frame, Req),
       NewAudioConfig = prepare_frame(Frame,AudioConfig,Req),
-      write_frame(NewAudioConfig,Req);      
+      write_frame(NextMeta-size(Frame#video_frame.body),NewAudioConfig,Req);      
     #video_frame{} = Frame -> 
       NewAudioConfig = prepare_frame(Frame,AudioConfig,Req),
-      write_frame(NewAudioConfig,Req);
+      case NextMeta of
+        Val when Val < 1050 andalso Val >= 0 ->
+          ?D(Val);
+        Else -> Else
+      end,
+      write_frame(NextMeta-size(Frame#video_frame.body),NewAudioConfig,Req);
     {ok, _Reason} -> ok
   end.
+
+    
 
 get_encoding_from_bom(OrderByte) ->
   {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
@@ -67,8 +79,8 @@ get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
 start_stream(Frame,Req)->
   case Frame#video_frame.content of
     metadata ->
-      MetaTags = get_textTags([],Frame#video_frame.body),
-      Req:stream(head,MetaTags),
+%      MetaTags = get_textTags([],Frame#video_frame.body),
+      Req:stream(head,[{'Icy-Metaint',10449}]),
       Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]);
     _Any -> 
       Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}])
