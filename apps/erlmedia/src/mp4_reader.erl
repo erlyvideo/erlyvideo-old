@@ -102,7 +102,7 @@ media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tra
         width = Track#mp4_track.width,
         height = Track#mp4_track.height
       };
-      audio when Track#mp4_track.data_format == aac-> 
+      audio when Track#mp4_track.data_format == aac andalso Track#mp4_track.decoder_config =/= undefined -> 
         #aac_config{channel_count = Channels, sample_rate = SampleRate} = aac:decode_config(Track#mp4_track.decoder_config),
         #audio_params{channels = Channels, sample_rate = SampleRate};
       audio -> #audio_params{};
