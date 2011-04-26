@@ -73,10 +73,14 @@ handle_control({source_lost, _Source}, State) ->
 handle_control(no_clients, State) ->
   {stop, normal, State};
 
-handle_control({make_request, URL}, Media) ->
-  {ibrowse_req_id, Ref} = ibrowse:send_req(binary_to_list(URL), [], get, [], [{stream_to, {self(),once}},{response_format,binary},{stream_chunk_size,8192}]),
-  ?D({made_request,Ref}),
-  {noreply, Media#ems_media{state = #http_flv{ibrowse_ref = Ref}}};
+handle_control({make_request, URL}, #ems_media{options = Options} = Media) ->
+  Timeout = proplists:get_value(timeout, Options, 5000),
+  case ibrowse:send_req(binary_to_list(URL), [], get, [], [{stream_to, {self(),once}},{response_format,binary},{stream_chunk_size,8192}], infinity) of
+    {ibrowse_req_id, Ref} ->
+      {noreply, Media#ems_media{state = #http_flv{ibrowse_ref = Ref}}};
+    {error, Error} ->
+      {error, Error}
+  end;
   
 handle_control(_Control, State) ->
   {noreply, State}.
@@ -100,6 +104,10 @@ handle_frame(Frame, State) ->
 %% @doc Called by ems_media to parse incoming message.
 %% @end
 %%----------------------------------------------------------------------
+handle_info({ibrowse_async_response, Stream, {error, _Error}}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
+  ?D({http_flv, error, _Error}),
+  ems_media:source_is_lost(Media);
+
 handle_info({ibrowse_async_response, Stream, Bin}, #ems_media{state = #http_flv{ibrowse_ref = Stream, buffer = undefined} = State} = Media) ->
   ibrowse:stream_next(Stream),
   <<_:?FLV_HEADER_LENGTH/binary, Buf/binary>> = Bin,
@@ -110,10 +118,17 @@ handle_info({ibrowse_async_response, Stream, Bin}, #ems_media{state = #http_flv{
   ibrowse:stream_next(Stream),
   {noreply, Media#ems_media{state = State#http_flv{buffer = handle_bin(<<Buf/binary, Bin/binary>>)}}};
 
-handle_info({ibrowse_async_headers, Stream, Code, _Headers}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
-  Code = "200",
+handle_info({ibrowse_async_headers, Stream, "200", _Headers}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
   ibrowse:stream_next(Stream),
-  {noreply, Media};
+  ems_media:source_is_restored(Media);
+
+handle_info({ibrowse_async_headers, Stream, Code, _Headers}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
+  ?D({failed_http_flv,Code}),
+  ems_media:source_is_lost(Media);
+  
+handle_info({ibrowse_async_response_end, Stream}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
+  ?D({closed_http_flv}),
+  ems_media:source_is_lost(Media);
 
 handle_info(make_request, Media) ->
   {noreply, Media};
