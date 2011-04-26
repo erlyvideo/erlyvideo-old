@@ -74,6 +74,7 @@ version:
 
 packages: release
 	rm -rf tmproot
+	tar zcf erlyvideo-$(VERSION).tgz erlyvideo
 	mkdir -p tmproot/opt
 	mv erlyvideo tmproot/opt/
 	mkdir -p tmproot/etc/init.d/
