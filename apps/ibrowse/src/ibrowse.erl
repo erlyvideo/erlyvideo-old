@@ -7,7 +7,6 @@
 %%%-------------------------------------------------------------------
 %% @author Chandrashekhar Mullaparthi <chandrashekhar dot mullaparthi at gmail dot com>
 %% @copyright 2005-2011 Chandrashekhar Mullaparthi
-%% @version 2.1.3
 %% @doc The ibrowse application implements an HTTP 1.1 client in erlang. This
 %% module implements the API of the HTTP client. There is one named
 %% process called 'ibrowse' which assists in load balancing and maintaining configuration. There is one load balancing process per unique webserver. There is
@@ -287,7 +286,7 @@ send_req(Url, Headers, Method, Body) ->
 %% Sock_opts = [Sock_opt]
 %% Sock_opt = term()
 %% ChunkSize = integer()
-%% srtf() = boolean() | filename()
+%% srtf() = boolean() | filename() | {append, filename()}
 %% filename() = string()
 %% response_format() = list | binary
 send_req(Url, Headers, Method, Body, Options) ->

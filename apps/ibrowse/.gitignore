@@ -1,3 +1,4 @@
-*.beam
+ebin/
 *~
-ebin
+.eunit/
+test/
