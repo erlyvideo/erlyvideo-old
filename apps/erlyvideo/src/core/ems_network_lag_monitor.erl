@@ -27,7 +27,7 @@
 -define(TIMEOUT, 1000).
 -behaviour(gen_server).
 
--export([start_link/0, start_link/1, watch/1]).
+-export([start_link/0, start_link/1, watch/1, set_threshold/1]).
 
 -record(network_monitor, {
   threshold,
@@ -41,6 +41,9 @@
 
 watch(Pid) -> 
   gen_server:cast(?MODULE, {watch, Pid}).
+  
+set_threshold(Threshold) ->
+  gen_server:call(?MODULE, {set_threshold, Threshold}).
 
 %%--------------------------------------------------------------------
 %% @spec () -> {ok, Pid} | {error, Reason}
@@ -81,6 +84,8 @@ init([Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_call({set_threshold, Threshold}, _From, State) ->
+  {reply, ok, State#network_monitor{threshold = Threshold}};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
