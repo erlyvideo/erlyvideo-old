@@ -44,12 +44,7 @@
 %%          {error, Reason}   
 %%--------------------------------------------------------------------
 start(_Type, _StartArgs) ->
-    case ibrowse_sup:start_link() of
-	{ok, Pid} -> 
-	    {ok, Pid};
-	Error ->
-	    Error
-    end.
+    ibrowse_sup:start_link().
 
 %%--------------------------------------------------------------------
 %% Func: stop/1
