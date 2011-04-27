@@ -32,7 +32,7 @@
 write(Player,Req) -> 
   erlang:monitor(process,Player),
   handle_message(start_stream,Req),
-  receive_frame(#shoutcast{audio_config = undefined},Req).
+  receive_frame(#shoutcast{audio_config = undefined},10449,Req).
 
 %get_encoding_from_bom(OrderByte) ->
 %  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
@@ -54,7 +54,7 @@ write(Player,Req) ->
 %  get_textTags(Result,Tail).
 
 start_stream(Req) ->
-%      Req:stream(head,[{'Icy-Metaint',10449}]),
+      Req:stream(head,[{'Icy-Metaint',10449}]),
       Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]).
 
 handle_message(start_stream,Req) ->
@@ -77,29 +77,39 @@ handle_message(get_config,#shoutcast{body = Body}) ->
   AudioConfig = aac:decode_config(Body),
   {reply,#shoutcast{body = Body,audio_config = AudioConfig}}.
 
-receive_frame(#shoutcast{audio_config = AudioConfig} = State,Req) ->
+receive_frame(#shoutcast{audio_config = AudioConfig} = State,NextMeta,Req) ->
   receive
     #video_frame{flavor = frame,codec = mp3,body = Body} -> 
       {reply, State1} = handle_message(mp3,#shoutcast{body = Body,audio_config = AudioConfig}),
-      Req:stream(Body),
-      receive_frame(State1,Req);
+      case NextMeta  of
+        Value when Value == 0  ->
+          Req:stream(<<1,"StreamTitle='1';">>),
+          receive_frame(State1,10449,Req);
+        Value when Value == 1  ->
+          Req:stream(<<0,1,"StreamTitle='1';">>),
+          receive_frame(State1,10449,Req);
+        _Else ->
+          Req:stream(Body),
+          ?D(size(Body)),
+          receive_frame(State1,NextMeta-size(Body),Req)
+      end;
     #video_frame{flavor = frame,codec = aac,body = Body} -> 
       case handle_message(aac,#shoutcast{body = Body,audio_config = AudioConfig}) of
         {reply, State1} -> 
           Req:stream(State1#shoutcast.body),
-          receive_frame(State1,Req);
+          receive_frame(State1,NextMeta,Req);
         {noreply,noconfig} ->
-          receive_frame(State,Req)
+          receive_frame(State,NextMeta,Req)
       end;  
     #video_frame{flavor = config, body = Body,content = audio} -> 
       {reply,State1} = handle_message(get_config,#shoutcast{body = Body}),
-      receive_frame(State1,Req);
+      receive_frame(State1,NextMeta,Req);
     #video_frame{flavor = frame,content = metadata, body = _Body} -> 
 %      handle_message(new_meta,#shoutcast{body = Body}),
-      receive_frame(State,Req);
+      receive_frame(State,NextMeta,Req);
     #video_frame{} ->
-      receive_frame(State,Req);
+      receive_frame(State,NextMeta,Req);
     {ems_stream,_StreamId, Command} when Command == burst_start orelse Command == burst_stop->
-      receive_frame(State,Req);
+      receive_frame(State,NextMeta,Req);
     Else -> {ok,Else}
   end.
