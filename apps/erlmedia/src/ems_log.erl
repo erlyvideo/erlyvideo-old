@@ -31,7 +31,6 @@
 %% @end
 %%-------------------------------------------------------------------------
 start() ->
-	application:start(log4erl),
   ConfigPath = load_config(["priv/log4erl.conf", "/etc/erlyvideo/log4erl.conf", "etc/log4erl.conf", "etc/log4erl.conf.sample"]),
   log4erl:error_logger_handler(), %% to get all error_logger
   error_logger:delete_report_handler(error_logger), %% to disable error_logger file output
