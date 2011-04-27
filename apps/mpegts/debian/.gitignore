@@ -1,6 +1,0 @@
-*.log
-erlang-rtsp
-files
-erlang-rtsp*
-erlang-mpegts
-erlang-mpegts.*

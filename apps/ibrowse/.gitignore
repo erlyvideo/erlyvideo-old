@@ -1,4 +1,1 @@
-ebin/
-*~
-.eunit/
-test/
+test
