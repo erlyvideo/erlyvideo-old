@@ -69,7 +69,7 @@ public function register() : void
       registerLabel = "Failed to register";
     }
   });
-  nc.call("register", r, registerNumber.text);
+  nc.call("register", r, registerNumber.text, registerPassword.text);
 }
 
 public function call() : void

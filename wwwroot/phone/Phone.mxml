@@ -6,6 +6,7 @@
     <mx:VBox>
   	  <mx:HBox>
   	    <mx:TextInput id="registerNumber" />
+  	    <mx:TextInput id="registerPassword" />
   	    <mx:Button click="register()" label="{registerLabel}" enabled="{registerEnabled}" />
   	  </mx:HBox>
   	  <mx:HBox>

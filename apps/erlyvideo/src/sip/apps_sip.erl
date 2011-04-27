@@ -34,7 +34,7 @@
 sip_call(RTMP, OutStream, InStream) when is_pid(RTMP) andalso is_binary(OutStream) andalso is_binary(InStream) ->
   gen_fsm:send_event(RTMP, {sip_call, OutStream, InStream}).
 
-register(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
+register(State, #rtmp_funcall{args = [_, Number, _Password]} = AMF) ->
   ?D({sip_register, self(), Number}),
   case ems_sip_flashphone:register(Number, self()) of
     {ok, _Ref} -> rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
