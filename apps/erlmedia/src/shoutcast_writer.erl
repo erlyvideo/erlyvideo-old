@@ -31,98 +31,75 @@
 
 write(Player,Req) -> 
   erlang:monitor(process,Player),
-  write_frame(10449,undefined, Req).
+  handle_message(start_stream,Req),
+  receive_frame(#shoutcast{audio_config = undefined},Req).
 
-write_frame(NextMeta,AudioConfig, Req) when NextMeta < 2 ->
-  Body = <<2,"StreamTitle='Nam';00000000000000">>,
-  Req:stream(Body),
-  write_frame(10449,AudioConfig, Req);
+%get_encoding_from_bom(OrderByte) ->
+%  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
+%  Bom.
+%
+%get_textTags(List,[]) ->
+%  List;
+%
+%get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
+%  Result = case FrameID of 
+%    "TALB" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+%    "TCON" -> lists:merge(List,[{'Icy-Genre',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+%    "TIT2" -> lists:merge(List,[{'Icy-Notice2',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+%    "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+%    "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+%    "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+%    _Else -> lists:merge(List,[])
+%  end,
+%  get_textTags(Result,Tail).
 
-write_frame(NextMeta,AudioConfig, Req) ->
-  case receive_frame() of
-    #video_frame{dts = 0, content = Content} = Frame when Content =/= video ->
-      start_stream(Frame, Req),
-      NewAudioConfig = prepare_frame(Frame,AudioConfig,Req),
-      write_frame(NextMeta-size(Frame#video_frame.body),NewAudioConfig,Req);      
-    #video_frame{} = Frame -> 
-      NewAudioConfig = prepare_frame(Frame,AudioConfig,Req),
-      case NextMeta of
-        Val when Val < 1050 andalso Val >= 0 ->
-          ?D(Val);
-        Else -> Else
-      end,
-      write_frame(NextMeta-size(Frame#video_frame.body),NewAudioConfig,Req);
-    {ok, _Reason} -> ok
-  end.
+start_stream(Req) ->
+%      Req:stream(head,[{'Icy-Metaint',10449}]),
+      Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]).
 
-    
+handle_message(start_stream,Req) ->
+  start_stream(Req),
+  {reply,Req};
 
-get_encoding_from_bom(OrderByte) ->
-  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
-  Bom.
+handle_message(mp3,#shoutcast{body = Body, audio_config = AudioConfig}) ->
+  {reply,#shoutcast{body = Body, audio_config = AudioConfig}};
 
-get_textTags(List,[]) ->
-  List;
-
-get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
-  Result = case FrameID of 
-    "TALB" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-    "TCON" -> lists:merge(List,[{'Icy-Genre',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-    "TIT2" -> lists:merge(List,[{'Icy-Notice2',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-    "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-    "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-    "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-    _Else -> lists:merge(List,[])
-  end,
-  get_textTags(Result,Tail).
-
-start_stream(Frame,Req)->
-  case Frame#video_frame.content of
-    metadata ->
-%      MetaTags = get_textTags([],Frame#video_frame.body),
-      Req:stream(head,[{'Icy-Metaint',10449}]),
-      Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]);
-    _Any -> 
-      Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}])
-  end.
-
-prepare_frame(Frame,AudioConfig,Req) ->
-  State = #shoutcast{body = Frame, audio_config = AudioConfig},
-  case Frame#video_frame.content of
-    audio when Frame#video_frame.flavor == frame andalso
-    Frame#video_frame.codec == aac ->
-      write_aac_frame(State,Req);
-    audio when Frame#video_frame.flavor == frame ->
-      Req:stream(Frame#video_frame.body),
-      State#shoutcast.audio_config;         
-    audio when Frame#video_frame.flavor == config ->
-      get_audio_config(State);
-    _ -> AudioConfig
-  end.
-
-
-write_aac_frame (#shoutcast{body = Frame} = State, Req) ->
+handle_message(aac,#shoutcast{body = Body} = State) ->
   case State#shoutcast.audio_config of
-    undefined ->
-      get_audio_config(State);
-    AudioConfig ->
-      Adts = aac:pack_adts(Frame#video_frame.body,AudioConfig),
-      Req:stream(Adts),
-      AudioConfig
-  end.
-  
-get_audio_config(#shoutcast{body = Frame} = _State) when Frame#video_frame.flavor == config ->
-  _AudioConfig = aac:decode_config(Frame#video_frame.body);
+    undefined -> 
+      {noreply,noconfig};
+    AudioConfig -> 
+      Adts = aac:pack_adts(Body,AudioConfig),
+      {reply, #shoutcast{body = Adts,audio_config = AudioConfig}}
+  end; 
 
-get_audio_config(_State) ->
-  Frame = receive_frame(),
-  get_audio_config(#shoutcast{body = Frame}).
-  
+handle_message(get_config,#shoutcast{body = Body}) ->
+  AudioConfig = aac:decode_config(Body),
+  {reply,#shoutcast{body = Body,audio_config = AudioConfig}}.
 
-receive_frame() ->
+receive_frame(#shoutcast{audio_config = AudioConfig} = State,Req) ->
   receive
-    Frame = #video_frame{} -> Frame;
+    #video_frame{flavor = frame,codec = mp3,body = Body} -> 
+      {reply, State1} = handle_message(mp3,#shoutcast{body = Body,audio_config = AudioConfig}),
+      Req:stream(Body),
+      receive_frame(State1,Req);
+    #video_frame{flavor = frame,codec = aac,body = Body} -> 
+      case handle_message(aac,#shoutcast{body = Body,audio_config = AudioConfig}) of
+        {reply, State1} -> 
+          Req:stream(State1#shoutcast.body),
+          receive_frame(State1,Req);
+        {noreply,noconfig} ->
+          receive_frame(State,Req)
+      end;  
+    #video_frame{flavor = config, body = Body,content = audio} -> 
+      {reply,State1} = handle_message(get_config,#shoutcast{body = Body}),
+      receive_frame(State1,Req);
+    #video_frame{flavor = frame,content = metadata, body = _Body} -> 
+%      handle_message(new_meta,#shoutcast{body = Body}),
+      receive_frame(State,Req);
+    #video_frame{} ->
+      receive_frame(State,Req);
     {ems_stream,_StreamId, Command} when Command == burst_start orelse Command == burst_stop->
-      receive_frame();
+      receive_frame(State,Req);
     Else -> {ok,Else}
   end.
