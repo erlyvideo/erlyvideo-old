@@ -37,7 +37,7 @@ http(Host, 'GET', ["erlyvideo", "api", "filelist"], Req) ->
       []
   end,
   
-  Allowed = [".mp4", ".flv", ".ts", ".mp3"],
+  Allowed = [".mp4", ".m4a", ".flv", ".ts", ".mp3"],
   
   FileList = lists:foldr(fun(Path, List) ->
     case lists:member(filename:extension(Path), Allowed) of
