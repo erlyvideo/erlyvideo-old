@@ -124,8 +124,7 @@ init([Options]) ->
         case proplists:get_value(Key, Options) of
           {{_, _} = From, {_, _} = To} ->
             ems_sound:init([{from, From}, {to, To}]);
-          Other ->
-            ?DBG("Unknown options: ~p", [Other]),
+          _Other ->
             undefined
         end
     end,
