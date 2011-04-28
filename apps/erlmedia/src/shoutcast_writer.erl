@@ -25,6 +25,7 @@
 -author('Ilya Shcherbak <tthread@gmail.com>').
 -include("log.hrl").
 -include("../include/video_frame.hrl").
+-include("../include/media_info.hrl").
 
 -export([write/2, receive_frame/2]).
 
@@ -32,35 +33,64 @@
   body,
   audio_config,
   metaint,
+  metadata,
   timeout = 5000,
   buffer = <<>>
 }).
 
 write(Player,Req) -> 
   erlang:monitor(process,Player),
-  Metaint = 10449,
-  Req:stream(head,[{'Icy-Metaint',Metaint}]),
-  Req:stream(head,[{"Content-Type","audio/aacp"},{'Cache-Control', 'no-cache'}]),
-  receive_frame(#shoutcast{audio_config = undefined, metaint = Metaint},Req).
+  Metaint = 16000,
+  Codec = get_codec_info(Player),
+  case Codec of
+    aac ->   
+      Req:stream(head,[{"Content-Type","audio/aac"},{'Cache-Control', 'no-cache'},{'icy-metaint',Metaint}]),
+      receive_frame(#shoutcast{audio_config = undefined, metaint = Metaint},Req);
+    mp3 -> 
+      Req:stream(head,[{"Content-Type","audio/mpeg"},{'Cache-Control', 'no-cache'},{'icy-metaint',Metaint}]),
+      receive_frame(#shoutcast{audio_config = undefined, metaint = Metaint},Req);
+    _ ->
+      {error,codec_unsuported}
+  end.
 
-%get_encoding_from_bom(OrderByte) ->
-%  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
-%  Bom.
-%
-%get_textTags(List,[]) ->
-%  List;
-%
-%get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
-%  Result = case FrameID of 
+get_codec_info(Player) ->
+  case ems_media:media_info(Player) of
+    #media_info{audio = [Info]} ->
+      Info#stream_info.codec;
+    _Else -> {error,info_notfound}
+  end.
+
+
+get_encoding_from_bom(OrderByte) ->
+  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
+  Bom.
+
+
+split_metaTags([],Body) ->
+  Body;
+
+split_metaTags([Head|Tail],<<Body/binary>>) ->
+  NewTag = case is_list(Head) of
+   true ->  binary:list_to_bin(Head);
+   false -> Head
+  end,
+  Size = size(NewTag),
+  split_metaTags(Tail,<<Body/binary,NewTag:Size/binary,"-">>).
+
+get_textTags(List,[]) ->
+  split_metaTags(List,<<>>);
+
+get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
+  Result = case FrameID of 
 %    "TALB" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
 %    "TCON" -> lists:merge(List,[{'Icy-Genre',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-%    "TIT2" -> lists:merge(List,[{'Icy-Notice2',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-%    "TPE1" -> lists:merge(List,[{'Icy-Notice1',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-%    "TRCK" -> lists:merge(List,[{'Icy-Date',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
+     "TIT2" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+%    "TPE1" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+     "TRCK" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
 %    "TYER" -> lists:merge(List,[{'Icy-Name',unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))}]);
-%    _Else -> lists:merge(List,[])
-%  end,
-%  get_textTags(Result,Tail).
+    _Else -> lists:merge(List,[])
+  end,
+  get_textTags(Result,Tail).
 
 receive_frame(#shoutcast{timeout = Timeout} = State, Req) ->
   receive
@@ -78,7 +108,8 @@ receive_frame(#shoutcast{timeout = Timeout} = State, Req) ->
     Timeout -> {stop, timeout, State}
   end.    
 
-
+handle_message(#video_frame{flavor = frame,content = metadata, body = Metadata} = _Frame,#shoutcast{} = State) -> 
+  {noreply,State#shoutcast{metadata = Metadata}};
 
 handle_message(#video_frame{flavor = config, content = audio, body = Config}, #shoutcast{} = State) ->
   {noreply, State#shoutcast{audio_config = aac:decode_config(Config)}};
@@ -86,9 +117,15 @@ handle_message(#video_frame{flavor = config, content = audio, body = Config}, #s
 handle_message(#video_frame{content = Content}, State) when Content =/= audio -> 
   {noreply, State};
 
-handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = Codec}, 
+handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = mp3}, 
                #shoutcast{buffer = Buffer, audio_config = Config, metaint = Metaint} = State) ->
-  Packetized = packetize(Codec, Config, Body),
+  Packetized = packetize(mp3, Config, Body),
+  {Reply, Rest} = split(<<Buffer/binary, Packetized/binary>>, Metaint, get_textTags([<<"Erlyvideo">>],State#shoutcast.metadata)),
+  {reply, Reply, State#shoutcast{buffer = Rest}};
+
+handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = aac}, 
+               #shoutcast{buffer = Buffer, audio_config = Config, metaint = Metaint} = State) ->
+  Packetized = packetize(aac, Config, Body),
   {Reply, Rest} = split(<<Buffer/binary, Packetized/binary>>, Metaint, undefined),
   {reply, Reply, State#shoutcast{buffer = Rest}};
 
@@ -118,11 +155,27 @@ split(Packetized, Metaint, Metadata, Acc) ->
   <<Bin:Metaint/binary, Rest/binary>> = Packetized,
   split(Rest, Metaint, undefined, prepend_metadata(Metadata, [Bin|Acc])).
 
-prepend_metadata(undefined, Acc) ->
-  [<<0>>|Acc];
+prepend_metadata(undefined, Acc) ->         
+         [<<2,"StreamTitle='Erlyvideo'",0,0,0,0,0,0,0,0,0>>|Acc];
 
-prepend_metadata(_Metadata, Acc) ->
-  [<<0>>|Acc].
+prepend_metadata(Metadata, Acc) ->
+         Size = size(Metadata),
+         {MetaSize,MetaRestSize} = case Size rem 16 of
+           Value when Value == 0 ->
+             {Size/16 + 1, 16};
+           Value ->
+             {Size div 16 + 1, 16 - Value} 
+         end,
+         MessageSize = MetaSize + 1,
+         NewMeta = padding(<<MessageSize,"StreamTitle='",Metadata:Size/binary,"';",0>>, MetaRestSize),
+         [NewMeta|Acc].
+
+padding(Body,0) ->
+  Body;
+
+padding(<<Body/binary>>,MetaRestSize) ->
+  padding(<<Body/binary,0>>,MetaRestSize - 1).
+  
       
 %     #video_frame{flavor = frame,codec = mp3,body = Body} -> 
 %       {reply, State1} = handle_message(mp3,#shoutcast{body = Body,audio_config = AudioConfig}),
