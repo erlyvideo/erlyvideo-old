@@ -50,9 +50,9 @@ payload_type(speex) -> 100.
 additional_codec_params(#stream_info{content = audio, params = #audio_params{channels = Channels}}) ->
   "/"++integer_to_list(Channels);
 
-additional_codec_params(_) -> 
+additional_codec_params(_) ->
   "".
-  
+
 to_fmtp(h264, Config) -> h264:to_fmtp(Config);
 to_fmtp(aac, Config) -> aac:to_fmtp(Config);
 to_fmtp(_, _) -> undefined.
@@ -67,11 +67,15 @@ encode(#stream_info{content = Content, codec = Codec, stream_id = Id, options = 
       io_lib:format("a=cliprect:0,0,~p,~p\r\na=framesize:~p ~p-~p\r\na=x-dimensions:~p,~p\r\n", [Width, Height, payload_type(Codec),Width, Height,Width,Height]);
     _ -> ""
   end,
+  SR = case Params of
+         #audio_params{channels = _, sample_rate = SampleRate} -> SampleRate;
+         _ -> round(Timescale*1000)
+       end,
   Control = proplists:get_value(control, Options, io_lib:format("trackID=~p", [Id])),
   SDP = [
     io_lib:format("m=~s ~p RTP/AVP ~p", [Content, proplists:get_value(port, Options, 0), payload_type(Codec)]), ?LSEP,
     "a=control:", Control, ?LSEP,
-    io_lib:format("a=rtpmap:~p ~s/~p", [payload_type(Codec), sdp:codec_to_sdp(Codec), round(Timescale*1000)]), additional_codec_params(Stream), ?LSEP,
+    io_lib:format("a=rtpmap:~p ~s/~p", [payload_type(Codec), sdp:codec_to_sdp(Codec), SR]), additional_codec_params(Stream), ?LSEP,
     Cliprect,
     FMTP
   ],
@@ -117,17 +121,17 @@ encode_attrs(Attrs) ->
 
 
 
-% 
+%
 % %%
 % encode(#session_desc{connect = GConnect} = Session,
 %        MediaSeq) ->
 %   S = encode_session(Session),
 %   M = encode_media_seq(MediaSeq, GConnect),
 %   <<S/binary,M/binary>>.
-% 
+%
 % encode_session(S) ->
 %   encode_session(S, <<>>).
-% 
+%
 % encode_session(#session_desc{version = Ver,
 %                              originator = #sdp_o{username = UN,
 %                                                  sessionid = SI,
@@ -157,10 +161,10 @@ encode_attrs(Attrs) ->
 %       _ -> []
 %     end,
 %   iolist_to_binary([SV, SO, SN, SC, TimeB, AttrL]).
-% 
+%
 % %%  encode(D#session_desc{version = undefined}, <<A/binary,S/binary,?LSEP/binary>>);
-% 
-% 
+%
+%
 % %% encode_session(#session_desc{name = N} = D, A) ->
 % %%   S = <<"s="/binary, N/binary>>,
 % %%   encode(D#session_desc{name = undefined}, <<A/binary,S/binary,?LSEP/binary>>);
@@ -168,7 +172,7 @@ encode_attrs(Attrs) ->
 % %%   AT = at2bin(Type),
 % %%   S = <<"c="/binary,AT/binary,$ ,(list_to_binary(Addr))/binary>>,
 % %%   <<A/binary,S/binary,?LSEP/binary>>.
-% 
+%
 % encode_attrs(Attrs) ->
 %   [begin
 %      ResB =
@@ -184,16 +188,16 @@ encode_attrs(Attrs) ->
 %        end,
 %      ["a=", ResB, ?LSEP]
 %    end || KV <- Attrs].
-% 
+%
 % encode_media_seq(MS, GConnect) ->
 %   encode_media_seq(MS, GConnect, <<>>).
-% 
+%
 % encode_media_seq([], _, A) ->
 %   A;
 % encode_media_seq([H|T], GConnect, A) ->
 %   NA = <<A/binary,(encode_media(H, GConnect))/binary>>,
 %   encode_media_seq(T, GConnect, NA).
-% 
+%
 % encode_media(M, GConnect) ->
 %   encode_media(M, GConnect, <<>>).
-% 
+%
