@@ -97,25 +97,25 @@ d_active(_Event, State) ->
   ?DBG("Unhandled event: ~p", [_Event]),
   {next_state, d_active, State}.
 
-%% d_active({opposite, {ack}}, _From,
-%%          #state{rtp = RTP,
-%%                 stream_in = _StreamIn,
-%%                 stream_out = StreamOut} = State) ->
-%%   ?DBG("ACK from opposite", []),
-%%   ack(RTP, StreamOut),
-%%   {reply, ok, d_active, State};
-%% d_active({opposite, {bye}}, _From,
-%%          #state{} = State) ->
-%%   ?DBG("BYE from opposite", []),
-%%   {stop, normal, ok, State};
-%% d_active({opposite, {ok, _Opts, _Response}}, _From,
-%%          #state{} = State) ->
-%%   ?DBG("OK from opposite", []),
-%%   {reply, ok, d_active, State};
-%% d_active({opposite, {ringing, _Response}}, _From,
-%%          #state{} = State) ->
-%%   ?DBG("Ringing from opposite", []),
-%%   {reply, ok, d_active, State};
+d_active({opposite, {ack}}, _From,
+         #state{rtp = RTP,
+                stream_in = _StreamIn,
+                stream_out = StreamOut} = State) ->
+  ?DBG("ACK from opposite", []),
+  ack(RTP, StreamOut),
+  {reply, ok, d_active, State};
+d_active({opposite, {bye}}, _From,
+         #state{} = State) ->
+  ?DBG("BYE from opposite", []),
+  {stop, normal, ok, State};
+d_active({opposite, {ok, _Opts, _Response}}, _From,
+         #state{} = State) ->
+  ?DBG("OK from opposite", []),
+  {reply, ok, d_active, State};
+d_active({opposite, {ringing, _Response}}, _From,
+         #state{} = State) ->
+  ?DBG("Ringing from opposite", []),
+  {reply, ok, d_active, State};
 
 d_active(Event, _From, State) ->
   ?DBG("Unhandled sync event: ~p", [Event]),
@@ -426,12 +426,15 @@ dialog(Request,
             StreamOut = << Name/binary, <<"#-out">>/binary >>,
             {ok, Media} = media_provider:create(default, StreamIn,
                                                 [{type,live},{source_shutdown,shutdown}]),
-            apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
-            RtpOpts = [{media_info_in, MediaInfoRequest},
-                       {media_info_out,MediaInfoReply},
+            RtpOpts = [{media_info_loc, MediaInfoReply},
+                       {media_info_rmt,MediaInfoReply},
                        {consumer, Media}] ++ TranscodeOpts,
             {ok, RTP} = rtp:start_server(RtpOpts),
+            rtp_server:add_stream(RTP, remote, MediaInfoReply),
+            {ok, {_PortRTP, _PortRTCP}} = rtp_server:listen_ports(RTP, 1, [{transport, udp}]),
+
+            apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
             CbPid ! {config, Media, StreamIn, StreamOut, RTP},
             MediaInfoReply1 = rtp_server:media_info_loc(RTP),
