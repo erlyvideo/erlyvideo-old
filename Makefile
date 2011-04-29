@@ -31,7 +31,7 @@ update:
 compile:
 	./rebar compile
 
-release: compile
+release: clean compile
 	./rebar generate force=1
 	chmod +x erlyvideo/bin/erlyvideo
 
