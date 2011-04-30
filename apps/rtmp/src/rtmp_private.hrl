@@ -119,7 +119,7 @@
   active = false    ::true|false|once,
   consumer          ::pid(),
   socket            ::port()|pid(),
-  amf_version = 0   ::integer(),
+  amf_version = 3   ::integer(),
   fmle_3 = false    ::boolean(),
 	channels          ::tuple(),
 	out_channels      ::tuple(),
