@@ -243,16 +243,18 @@ binarize(Command) when is_atom(Command) -> atom_to_binary(Command, utf8);
 binarize(Command) when is_list(Command) -> list_to_binary(Command);
 binarize(Command) when is_binary(Command) -> Command.
 
-
-encode_funcall(#rtmp_funcall{command = Command, args = Args, id = Id, type = invoke}) ->
-  <<(amf0:encode(binarize(Command)))/binary, (amf0:encode(Id))/binary, 
-    (encode_list(<<>>, Args))/binary>>;
+encode_funcall(#rtmp_funcall{command = Command, id = Id, type = invoke} = AMF) ->
+  <<(amf0:encode(binarize(Command)))/binary, (amf0:encode(Id))/binary, (encode_args(AMF))/binary>>;
  
-encode_funcall(#rtmp_funcall{command = Command, args = Args, type = notify}) -> 
-<<(amf0:encode(binarize(Command)))/binary,
-  (encode_list(<<>>, Args))/binary>>.
+encode_funcall(#rtmp_funcall{command = Command, type = notify} = AMF) -> 
+  <<(amf0:encode(binarize(Command)))/binary, (encode_args(AMF))/binary>>.
 
--spec(encode_list(List::proplist()) -> Binary::binary()).
+encode_args(#rtmp_funcall{args = Args, version = Version, command = _Cmd}) ->
+  encode_list(<<>>, fix_amf_version(Args, Version)).
+
+fix_amf_version(Args, 0) -> Args;
+fix_amf_version(Args, 3) -> [{avmplus, Object} || Object <- Args].
+
 encode_list(List) -> encode_list(<<>>, List).
 
 encode_list(Message, []) -> Message;
@@ -600,8 +602,11 @@ decode_list(Data) -> decode_list(Data, []).
 decode_list(<<>>, Acc) -> lists:reverse(Acc);
 
 decode_list(Body, Acc) ->
-  {Element, Rest} = amf0:decode(Body),
-  decode_list(Rest, [Element | Acc]).
+  {Object, Rest} = case amf0:decode(Body) of
+    {{avmplus, Element}, Data} -> {Element, Data};
+    {Element, Data} -> {Element, Data}
+  end,
+  decode_list(Rest, [Object | Acc]).
 
 
 encode_shared_object(#so_message{name = Name, version = Version, persistent = true, events = Events}) ->

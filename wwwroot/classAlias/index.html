@@ -1,0 +1,28 @@
+<html>
+  <head>
+    <title>Phone: {{url}}</title>
+    <meta http-equiv=Content-Type content="text/html;charset=utf-8">
+    <link rel="stylesheet" href="/blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="/blueprint/print.css" type="text/css" media="print">
+    <script type="text/javascript" src="/js/jquery.js"></script>
+    <script type="text/javascript" src="/js/swfobject.js"></script>
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+  </head>
+  <body>
+    <script type="text/javascript">
+    $(function() {
+      swfobject.embedSWF("/classAlias/classAlias.swf?"+(Math.random(10000)), "Phone", "600", "400", "10.0", "expressInstall.swf",
+        {server :"rtmp://localhost",
+         app : "rtmp",
+         speex: "16000",
+         buffer : "0"});
+    });
+      </script>
+      
+      <div id="Phone">
+        <p>Phone should be here</p>
+      </div>
+  </body>
+</html>

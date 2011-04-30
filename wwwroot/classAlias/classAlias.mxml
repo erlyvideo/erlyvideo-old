@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" applicationComplete="init()" width="320" height="180">
+	<mx:Script>
+	<![CDATA[
+		import flash.external.ExternalInterface;
+		import com.erlyvideo.User;
+		
+		private var nc:NetConnection;
+		
+		public function init():void {				
+			Security.allowDomain("*");
+		
+			var serverUrl:String = "rtmp://localhost/live";
+			connect(serverUrl);
+		}
+		
+		private function connect(serverUrl:String):void {
+			// create basic netConnection object
+			nc = new NetConnection();
+			nc.objectEncoding = ObjectEncoding.AMF3;
+			
+			// add listeners for netstatus and security issues
+			nc.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler);
+			nc.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
+			nc.addEventListener(AsyncErrorEvent.ASYNC_ERROR, netASyncError);
+			nc.addEventListener(IOErrorEvent.IO_ERROR, netIOError);
+			
+			// set it's client/focus to this
+			nc.client = this;
+
+			nc.connect(serverUrl);
+			
+		}
+		
+		private function netStatusHandler(event:NetStatusEvent):void {
+		  switch(event.info.code) {
+      case "NetConnection.Connect.Success": {
+        var r:Responder = new Responder(function(users:Array):void {
+          for(var i:int = 0; i < users.length; i++) {
+            txtLog.text = "User: "+(users[i] is User);
+          }
+        });
+        var user:User = new User();
+        user.init(4, "lala", 15);
+        nc.call("amf3_typed_response", r, user);
+      break;
+      }
+		  }
+		}
+		private function securityErrorHandler(event:SecurityErrorEvent):void {
+			txtLog.text = "Security error: " + event.text;
+			trace("Security error: " + event.text);
+		}
+		private function netIOError(event:IOErrorEvent):void { 
+			txtLog.text = "IO error: " + event.text;
+			trace("IO error: " + event.text);
+		}
+		private function netASyncError(event:AsyncErrorEvent):void {
+			txtLog.text = "Async error: " + event.text;
+			trace("Async error: " + event.text);
+		}
+		
+
+	]]>
+	</mx:Script>
+	<mx:Label id="txtLog" />
+</mx:Application>
