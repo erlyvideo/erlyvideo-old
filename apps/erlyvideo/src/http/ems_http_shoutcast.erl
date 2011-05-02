@@ -35,6 +35,22 @@ http(Host, 'GET', ["shoutcast"|Name], Req) ->
     {notfound,Reason} -> Reason
   end;
 
+http(Host, 'GET', ["coverart"|Name], Req)  ->
+  case media_provider:open(Host,string:join([P || P <- Name, P =/= ".."], "/"),[]) of
+    {ok,Media} ->
+      Path = proplists:get_value(url,ems_media:info(Media)),
+      Type = proplists:get_value(type,ems_media:info(Media)),
+      {ok,Desc} = file:open(Path,[read,binary]),
+      Data = mp4:get_coverart({Type,Desc}),
+      case erlang:is_binary(Data) of
+        true ->
+          Req:ok([{"Content-Type","image/jpeg"}],[Data]);
+        false ->
+          ?D("Uknown atom")
+      end;
+    Error -> Error
+  end;
+
 http(_Host,_Method,_Path,_Req)->
   unhandled.
 
