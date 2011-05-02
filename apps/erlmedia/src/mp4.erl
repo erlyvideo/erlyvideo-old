@@ -41,7 +41,7 @@
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2, udta/2]).
 -export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
--export([extract_language/1]).
+-export([extract_language/1,get_coverart/1]).
 
 -export([fill_track/9]).
 
@@ -66,6 +66,10 @@ open(Reader, Options) ->
   #mp4_media{tracks = Tracks} = Mp4Media1 = read_srt_files(Mp4Media, proplists:get_value(url, Options)),
   Index = build_index(Tracks),
   {ok, Mp4Media1#mp4_media{index = Index, reader = Reader, tracks = list_to_tuple(Tracks)}}.
+
+get_coverart(Reader) ->
+  {ok, MP4_Media} = read_header(#mp4_media{}, Reader, 0),
+  MP4_Media#mp4_media.itun.
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
@@ -107,9 +111,6 @@ subtitles_to_mp4_frames(Subtitles) ->
   [#mp4_frame{id = Id, dts = From, pts = To, size = size(Text), codec = srt, body = Text, content = text} ||
    #srt_subtitle{id = Id, from = From, to = To, text = Text} <- Subtitles].
 
-  
-
-
 read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = Reader, Pos) -> 
   case read_atom_header(Reader, Pos) of
     eof -> {ok, Mp4Media};
@@ -134,7 +135,6 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
       end,
       read_header(NewMedia, Reader, Offset + Length)
   end.
-
 
 read_atom_header({Module, Device}, Pos) ->
   case Module:pread(Device, Pos, 8) of
@@ -212,7 +212,43 @@ frame_count(undefined) -> 0;
 frame_count(#mp4_track{frames = Frames}) -> size(Frames) div ?FRAMESIZE;
 frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
+
+get_iTun_atom(<<>>) -> 
+  ?D("eof"),
+  <<>>;
+
+get_iTun_atom(<<Size:32,_Body/binary>>) when  Size == 0->
+  ?D("eof"),
+  <<>>;
+
+get_iTun_atom(<<"iTun","NORM",RawSize:32,Body/binary>>) ->
+  Size = RawSize - 4, 
+  <<_:Size/binary,Rest/binary>> = <<Body/binary>>,
+  get_iTun_atom(Rest);
+
+get_iTun_atom(<<RawDataSize:32,Data:4/binary,RawAdopSize:32,_Adopt:4/binary,Body/binary>>) ->
+  DataSize = RawDataSize - 16,
+  case Data of
+    <<"covr">> ->
+      AdopSize = RawAdopSize - 4,  
+      <<_:8/binary,AdopBody:AdopSize/binary,_/binary>> = <<Body/binary>>,
+      <<AdopBody:AdopSize/binary>>;
+    _Else -> 
+       <<_:DataSize/binary,Rest/binary>> = <<Body/binary>>,
+       get_iTun_atom(Rest)
+  end.
+
+
+get_meta_atom(<<Size:32,Rest/binary>>) when Size == 0 ->
+  get_iTun_atom(Rest);
+
+get_meta_atom(Rest) when size(Rest) < 32->
+  ?D("absent_ilst_atom");
   
+get_meta_atom(<<Size:32,_Header:4/binary,Body/binary>>) ->
+  <<_:Size/binary,Rest/binary>> = <<Body/binary>>,
+  get_meta_atom(<<Rest/binary>>).
+
 parse_atom(<<>>, Mp4Parser) ->
   Mp4Parser;
   
@@ -269,7 +305,8 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
   Media#mp4_media{timescale = TimeScale, duration = Duration/TimeScale}.
 
 udta(Value, Media) ->
-  parse_atom(Value, Media).
+  <<_:12/binary,Rest/binary>> = <<Value/binary>>,
+  parse_atom(Value, Media#mp4_media{itun = get_meta_atom(<<Rest/binary>>)}).
 
 % Track box
 trak(<<>>, MediaInfo) ->
@@ -370,7 +407,6 @@ hdlr(<<0:32, 0:32, Handler:4/binary, 0:96, NameNull/binary>>, Mp4Track) ->
   ?D({hdlr, Handler, Name}),
   Mp4Track#mp4_track{content = binary_to_atom(Handler, latin1)}.
   
-  
 % SMHD atom
 smhd(<<0:8, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
   Mp4Track;
@@ -391,6 +427,7 @@ vmhd(<<_Version:32, _Mode:16, _R:16, _G:16, _B:16>>, Mp4Track) ->
 dinf(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
   
+
 dref(<<0:32, _Count:32, Atom/binary>> = _Dref, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
