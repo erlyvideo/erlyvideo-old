@@ -87,7 +87,7 @@ read_header(#mp3_media{reader = {Module,Device}} = Media) ->
       <<Size:28>> = <<S1:7, S2:7, S3:7, S4:7>>,
       {ok,Body} = Module:pread(Device,0,Size),
       Metadata = metadata_read(Module,Device,Body),
-      Media1 = Media#mp3_media{format = id3, version = {Major, Minor},metadata = Metadata},
+      Media1 = Media#mp3_media{format = id3, version = {Major, Minor},metadata = [Metadata]},
       Offset = sync(<<>>, Media1, Size + 10),
       read_properties(Media1#mp3_media{header_size = Offset});
     {ok, <<"ID3", _/binary>>} ->
@@ -138,7 +138,7 @@ read_properties(#mp3_media{reader = {Module,Device}, header_size = Offset, path 
 
 
 
-media_info(#mp3_media{duration = Duration} = Media) ->
+media_info(#mp3_media{duration = Duration, metadata = Metadata} = Media) ->
   AudioStream = #stream_info{
     content = audio,
     stream_id = 1,
@@ -151,7 +151,7 @@ media_info(#mp3_media{duration = Duration} = Media) ->
     flow_type = file,
     audio = [AudioStream],
     video = [],
-    metadata = [],
+    metadata = Metadata,
     duration = Duration
   }.
   
@@ -189,8 +189,6 @@ find_frame(Media, Max, Key, Retval) ->
     #video_frame{dts = DTS, next_id = NextKey} ->
       find_frame(Media, Max, NextKey, {Key, DTS})
   end.
-      
-  
 
 
 % Reads a tag from IoDev for position Pos.
@@ -204,25 +202,6 @@ read_frame(Media, undefined) ->
 read_frame(_Media, {eof, _N}) ->
   eof;
 
-read_frame(#mp3_media{reader = {Module,Device},metadata = Body} = Media, {Offset, 0}) ->
-  case Module:pread(Device, Offset, mp3:header_size()) of
-    {ok, <<2#11111111111:11, _:5, _/binary>> = Header} ->
-      Length = mp3:frame_length(Header),
-      #video_frame{
-        content  = metadata,
-        codec    = mp3,
-        flavor   = frame,
-        body     = Body,
-        dts      = 0,
-        pts      = 0,
-        next_id  = {Offset+Length, 1}
-      };
-    {ok, Binary} ->
-      Offset1 = sync(Binary, Media, Offset),
-      read_frame(Media, {Offset1,0})
-    end;
-    
-  
 read_frame(#mp3_media{reader = {Module,Device}} = Media, {Offset, N}) ->
   case Module:pread(Device, Offset, mp3:header_size()) of
     eof -> eof;
