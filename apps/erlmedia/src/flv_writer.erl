@@ -146,7 +146,16 @@ write_frame(#video_frame{} = Frame, FlvWriter) when is_pid(FlvWriter) ->
 
 %% And for embedded writer
 write_frame(#video_frame{} = Frame, #flv_file_writer{} = FlvWriter) ->
-  store_message(Frame, FlvWriter).
+  store_message(Frame, FlvWriter);
+
+
+write_frame(eof, FlvWriter) when is_pid(FlvWriter) ->
+  FlvWriter ! eof,
+  {ok, FlvWriter};
+
+write_frame(eof, #flv_file_writer{} = FlvWriter) ->
+  FlvWriter1 = flush_messages(FlvWriter, hard),
+  {ok, FlvWriter1}.
 
 
 %% @hidden

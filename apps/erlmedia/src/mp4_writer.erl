@@ -62,7 +62,7 @@
 -include("log.hrl").
 
 -export([write/2, write/3, pack_language/1, dump_media/2]).
--export([init/2, handle_frame/2]).
+-export([init/2, handle_frame/2, write_frame/2]).
 
 -export([pack_compositions/1]).
 
@@ -187,7 +187,8 @@ init(Writer, Options) ->
   
 
 
-  
+write_frame(Frame, Writer) ->
+  handle_frame(Frame, Writer).
     
 handle_frame(#video_frame{flavor = command}, Convertor) ->
   {ok, Convertor};
@@ -362,7 +363,7 @@ video_track(#convertor{video_frames = RevVideo, duration = DTS, url = URL} = Con
           {stco, pack_chunk_offsets(RevVideo)},
           {stts, pack_durations(RevVideo)},
           {stsz, pack_sizes(RevVideo)},
-          % {ctts, pack_compositions(RevVideo)},
+          {ctts, pack_compositions(RevVideo)},
           {stss, pack_keyframes(RevVideo)}
         ]}
       ]}
