@@ -217,12 +217,12 @@ frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
 
 get_iTun_atom(<<>>) -> 
-  ?D("eof"),
-  <<>>;
+  ?D("covr_notfound"),
+  {error,covr_notfound};
 
 get_iTun_atom(<<Size:32,_Body/binary>>) when  Size == 0->
-  ?D("eof"),
-  <<>>;
+  ?D("covr_notfound"),
+  {error,covr_notfound};
 
 get_iTun_atom(<<"iTun","NORM",RawSize:32,Body/binary>>) ->
   Size = RawSize - 4, 
@@ -235,7 +235,7 @@ get_iTun_atom(<<RawDataSize:32,Data:4/binary,RawAdopSize:32,_Adopt:4/binary,Body
     <<"covr">> ->
       AdopSize = RawAdopSize - 4,  
       <<_:8/binary,AdopBody:AdopSize/binary,_/binary>> = <<Body/binary>>,
-      <<AdopBody:AdopSize/binary>>;
+      {covr,<<AdopBody:AdopSize/binary>>};
     _Else -> 
        <<_:DataSize/binary,Rest/binary>> = <<Body/binary>>,
        get_iTun_atom(Rest)
@@ -245,8 +245,8 @@ get_iTun_atom(<<RawDataSize:32,Data:4/binary,RawAdopSize:32,_Adopt:4/binary,Body
 get_meta_atom(<<Size:32,Rest/binary>>) when Size == 0 ->
   get_iTun_atom(Rest);
 
-get_meta_atom(Rest) when size(Rest) < 32->
-  ?D("absent_ilst_atom");
+get_meta_atom(<<Size:32,_Header:4/binary,Body/binary>>) when size(Body) < Size -> 
+  {error,absent_iTun_atom};
   
 get_meta_atom(<<Size:32,_Header:4/binary,Body/binary>>) ->
   <<_:Size/binary,Rest/binary>> = <<Body/binary>>,
@@ -309,7 +309,14 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
 
 udta(Value, #mp4_media{additional = Add} = Media) ->
   <<_:12/binary,Rest/binary>> = <<Value/binary>>,
-  parse_atom(Value, Media#mp4_media{additional = [{coverart,get_meta_atom(<<Rest/binary>>)}|Add]}).
+  NewAdd = case get_meta_atom(<<Rest/binary>>) of
+    {covr, Metadata} -> 
+      [{coverart,Metadata}|Add];
+    {error, Reason} -> 
+      ?D(Reason),
+      Add
+  end,
+  parse_atom(Value, Media#mp4_media{additional = NewAdd}).
 
 % Track box
 trak(<<>>, MediaInfo) ->
@@ -894,7 +901,7 @@ get_coverart_sizeMeta_test () ->
   ?assertEqual(114133,size(Metadata)).
 
 get_coverart_unvalid_test () ->
-  {ok,Dev} = file:open("/home/tthread/video.mp4",[read,raw,binary]),
+  {ok,Dev} = file:open("test/files/without_coverart.mp4",[read,raw,binary]),
   Reader = {file,Dev},
   Metadata = get_coverart(Reader),
   ?assertEqual(<<>>,Metadata).
