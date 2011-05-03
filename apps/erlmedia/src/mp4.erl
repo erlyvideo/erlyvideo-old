@@ -69,7 +69,10 @@ open(Reader, Options) ->
 
 get_coverart(Reader) ->
   {ok, MP4_Media} = read_header(#mp4_media{}, Reader, 0),
-  MP4_Media#mp4_media.itun.
+  case proplists:get_value(coverart,MP4_Media#mp4_media.additional,undefined) of
+    undefined -> <<>>;
+    Bin -> Bin
+  end.
 
 read_header(Reader) ->
   read_header(#mp4_media{}, Reader, 0).
@@ -183,7 +186,7 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
     <<_:IndexOffset/binary, Audio, _:1, AudioId:23, _/binary>> -> 
       (unpack_frame(element(Audio,Tracks), AudioId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = audio};
     <<_:IndexOffset/binary, Text, _:1, TextId:23, _/binary>> -> 
-      % ?D({read_text,Text,TextId}),
+       %?D({read_text,Text,TextId}),
       (unpack_frame(element(Text,Tracks), TextId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = text};
     <<_:IndexOffset/binary, Video, _:1, VideoId:23, _/binary>> -> 
       (unpack_frame(element(Video,Tracks), VideoId))#mp4_frame{next_id = FrameId#frame_id{id = Id+1}, content = video};
@@ -304,9 +307,9 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
   % ?D(Meta),
   Media#mp4_media{timescale = TimeScale, duration = Duration/TimeScale}.
 
-udta(Value, Media) ->
+udta(Value, #mp4_media{additional = Add} = Media) ->
   <<_:12/binary,Rest/binary>> = <<Value/binary>>,
-  parse_atom(Value, Media#mp4_media{itun = get_meta_atom(<<Rest/binary>>)}).
+  parse_atom(Value, Media#mp4_media{additional = [{coverart,get_meta_atom(<<Rest/binary>>)}|Add]}).
 
 % Track box
 trak(<<>>, MediaInfo) ->
@@ -878,7 +881,22 @@ esds_tag1_test() ->
 esds_tag2_test() ->
   ?assertEqual(#esds{object_type = aac, stream_type = 21, buffer_size = 428, max_bitrate = 139608, avg_bitrate = 101944, specific = <<18,16>>}, config_from_esds_tag(<<3,25,0,0,0,4,17,64,21,0,1,172,0,2,33,88,0,1,142,56,5,2,18,16,6,1,2>>)).
 
+get_coverart_validMeta_test () ->
+  {ok,Dev} = file:open("test/files/tag_coverart.mp4",[read,raw,binary]),
+  Reader = {file,Dev},
+  Metadata = get_coverart(Reader),
+  ?assertMatch(<<_:6/binary,"JFIF",_/binary>>, Metadata).
 
+get_coverart_sizeMeta_test () ->
+  {ok,Dev} = file:open("test/files/tag_coverart.mp4",[read,raw,binary]),
+  Reader = {file,Dev},
+  Metadata = get_coverart(Reader),
+  ?assertEqual(114133,size(Metadata)).
 
+get_coverart_unvalid_test () ->
+  {ok,Dev} = file:open("/home/tthread/video.mp4",[read,raw,binary]),
+  Reader = {file,Dev},
+  Metadata = get_coverart(Reader),
+  ?assertEqual(<<>>,Metadata).
 
 
