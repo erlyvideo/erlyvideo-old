@@ -330,14 +330,14 @@ parse_sps_data(Data, SPS) ->
   parse_sps_pic_order(Rest3, PicOrder, SPS#h264_sps{max_frame_num = Log2FrameNum+4}).
 
 parse_sps_pic_order(Data, 0, SPS) ->
-  {_Log2PicOrder, Rest} = exp_golomb_read(Data),
+  {_Log2MaxPicOrder, Rest} = exp_golomb_read(Data),
   parse_sps_ref_frames(Rest, SPS);
 
 parse_sps_pic_order(<<_AlwaysZero:1, Data/bitstring>>, 1, SPS) ->
   {_OffsetNonRef, Rest1} = exp_golomb_read_s(Data),
   {_OffsetTopBottom, Rest2} = exp_golomb_read_s(Rest1),
-  {NumRefFrames, Rest3} = exp_golomb_read(Rest2),
-  NumRefFrames = 0,
+  {PocCycleLen, Rest3} = exp_golomb_read(Rest2),
+  PocCycleLen = 0,
   parse_sps_ref_frames(Rest3, SPS);
 
 parse_sps_pic_order(Data, 2, SPS) ->
@@ -346,14 +346,32 @@ parse_sps_pic_order(Data, 2, SPS) ->
 parse_sps_ref_frames(Data, SPS) ->
   {_NumRefFrames, <<_Gaps:1, Rest1/bitstring>>} = exp_golomb_read(Data),
   {PicWidth, Rest2} = exp_golomb_read(Rest1),
-  Width = (PicWidth + 1)*16,
-  {PicHeight, <<FrameMbsOnly:1, _Rest3/bitstring>>} = exp_golomb_read(Rest2),
-  Height = case FrameMbsOnly of
-    1 -> (PicHeight + 1)*16;
-    0 -> (PicHeight + 1)*16*2
+  {PicHeight, <<FrameMbsOnly:1, Rest3/bitstring>>} = exp_golomb_read(Rest2),
+  Rest5 = case FrameMbsOnly of
+    0 -> <<_MBAff:1, Rest4/bitstring>> = Rest3, Rest4;
+    1 -> Rest3
   end,
-  SPS#h264_sps{width = Width, height = Height}.
+  <<_Direct8x8:1, Crop:1, Rest6/bitstring>> = Rest5,
+  {SPS1 = #h264_sps{crop_left = Left, crop_right = Right, crop_top = Top, crop_bottom = Bottom}, _Rest7} = parse_sps_crop(Rest6, Crop, SPS),
+  Left = 0,
+  Top = 0, % Don't support it as FFMPEG doesn't
+  Width = (PicWidth + 1)*16 - Right*2,
+  Height = case FrameMbsOnly of
+    0 -> (PicHeight + 1)*2*16 - 4*Bottom;
+    1 -> (PicHeight + 1)*16 - 2*Bottom
+  end,
+  SPS1#h264_sps{width = Width, height = Height}.
+  
 
+parse_sps_crop(Data, 0, SPS) ->
+  {SPS#h264_sps{crop_left = 0, crop_right = 0, crop_top = 0, crop_bottom = 0}, Data};
+
+parse_sps_crop(Data, 1, SPS) ->
+  {Left, Rest1} = exp_golomb_read(Data),
+  {Right, Rest2} = exp_golomb_read(Rest1),
+  {Top, Rest3} = exp_golomb_read(Rest2),
+  {Bottom, Rest4} = exp_golomb_read(Rest3),
+  {SPS#h264_sps{crop_left = Left, crop_right = Right, crop_top = Top, crop_bottom = Bottom}, Rest4}.
 
 profile_name(66) -> "Baseline";
 profile_name(77) -> "Main";
@@ -486,19 +504,23 @@ to_fmtp(Body) ->
 -include_lib("eunit/include/eunit.hrl").
 
 parse_sps_for_high_profile_test() ->
-  ?assertEqual(#h264_sps{profile = 100, level = 50, sps_id = 0, max_frame_num = 9, width = 1280, height = 720}, parse_sps(<<103,100,0,50,172,52,226,192,80,5,187,1,16,0,0,62,144,0,11,184,8,241,131,24,184>>)).
+  ?assertMatch(#h264_sps{profile = 100, level = 50, width = 1280, height = 720}, parse_sps(<<103,100,0,50,172,52,226,192,80,5,187,1,16,0,0,62,144,0,11,184,8,241,131,24,184>>)).
 
 parse_sps_for_low_profile_test() ->
-  ?assertEqual(#h264_sps{profile = 77, level = 51, sps_id = 0, max_frame_num = 8, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
+  ?assertMatch(#h264_sps{profile = 77, level = 51, width = 512, height = 384}, parse_sps(<<103,77,64,51,150,99,1,0,99,96,34,0,0,3,0,2,0,0,3,0,101,30,48,100,208>>)).
 
 parse_sps_for_rtsp_test() ->
-  ?assertEqual(#h264_sps{profile = 66, level = 20, sps_id = 0, max_frame_num = 4, width = 352, height = 288}, parse_sps(<<103,66,224,20,218,5,130,81>>)).
+  ?assertMatch(#h264_sps{profile = 66, level = 20, width = 352, height = 288}, parse_sps(<<103,66,224,20,218,5,130,81>>)).
 
 parse_sps_40_level_test() ->
-  ?assertEqual(#h264_sps{profile = 100, level = 40, sps_id = 0, max_frame_num = 4, width = 640, height = 480}, parse_sps(<<103,100,0,40,173,0,206,80,40,15,108,4,64,
+  ?assertMatch(#h264_sps{profile = 100, level = 40, width = 640, height = 480}, parse_sps(<<103,100,0,40,173,0,206,80,40,15,108,4,64,
                                        0,3,132,0,0,175,200,56,0,0,48,0,0,3,0,11,
                                        235,194,98,247,227,0,0,6,0,0,3,0,1,125,
                                        120,76,94,252,27,65,16,137,75>>)).
+
+parse_sps_with_crop_test() ->
+ ?assertMatch(#h264_sps{profile = 66, level = 40, width = 1920, height = 1080}, parse_sps( <<103,66,240,40,145,176,30,0,137,249,112,22,224,32,32,40,
+    0,0,31,72,0,6,26,132,32,0,0,0,0>>)).
 
 sps_100_level() ->
   <<39,100,0,31,173,136,14,67,152,32,225,12,41,10,68,7,33,204,16,112,134,20,133,

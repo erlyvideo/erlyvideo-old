@@ -48,5 +48,9 @@
   sps_id,
   max_frame_num,
   width,
-  height
+  height,
+  crop_top,
+  crop_right,
+  crop_bottom,
+  crop_left
 }).
