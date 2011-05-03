@@ -38,9 +38,39 @@ decode(<<"ID3", _Info: 24, _:1,S1:7,_:1,S2:7,_:1,S3:7,_:1,S4:7, Body/binary>>) -
       {more,Size}
   end;
 
-
 decode(<<Body/binary>>) ->
   {notfound,Body}.
+
+get_encoding_from_bom(OrderByte) ->
+  {Bom,_Number} = unicode:bom_to_encoding(OrderByte),
+  Bom.
+
+split_metaTags([],Body) ->
+  Body;
+
+split_metaTags([Head|Tail],<<Body/binary>>) ->
+  NewTag = case is_list(Head) of
+   true ->  binary:list_to_bin(Head);
+   false -> Head
+  end,
+  Size = size(NewTag),
+  split_metaTags(Tail,<<Body/binary,NewTag:Size/binary,"-">>).
+
+get_textTags(List,[]) ->
+  split_metaTags(List,<<>>);
+
+get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
+  Result = case FrameID of
+    "TALB" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+    "TCON" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+    "TIT2" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+    "TPE1" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+    "TRCK" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+    "TYER" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
+    _Else -> lists:merge(List,[])
+  end,
+  get_textTags(Result,Tail).
+
         
 id3v2_get_tags(<<Body/binary>>, List)  ->
   case id3v2_get_one_tag(Body) of
@@ -49,7 +79,8 @@ id3v2_get_tags(<<Body/binary>>, List)  ->
       <<_Prev:Offset/binary,NewBody/binary>> = <<Body/binary>>,
       id3v2_get_tags(NewBody,lists:merge(List,[{FrameID,Payload}]));
     _Else ->
-      {List,Body}
+      Metadata = get_textTags([],List),
+      {{name,Metadata},Body}
   end.
     
 id3v2_get_one_tag(<<"T",FrameIDBin:24,Size:32,_Flag:16,PayloadBin:Size/binary,_/binary>>) ->
@@ -72,4 +103,5 @@ decoding_test() ->
          112,0,112,0,101,0,108,0,105,0,110,0,84,73,84,50,0,
          0,0,51,0,0,1,255,254,66,0,97,0,98,0,101,0,32,0,73,
          0,39,0,109,0,32,0,71,0,111,0,110,0,110,0,97,0,32>>,
+
  ?assertMatch({ok,[{"TALB",_Body1},{"TPE1",_Body2}],_Rest},decode(Body)).
