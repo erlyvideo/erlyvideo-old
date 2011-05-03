@@ -41,6 +41,7 @@
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2, udta/2]).
 -export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
+-export([meta/2, ilst/2, covr/2, data/2]).
 -export([extract_language/1,get_coverart/1]).
 
 -export([fill_track/9]).
@@ -69,7 +70,7 @@ open(Reader, Options) ->
 
 get_coverart(Reader) ->
   {ok, MP4_Media} = read_header(#mp4_media{}, Reader, 0),
-  case proplists:get_value(coverart,MP4_Media#mp4_media.additional,undefined) of
+  case proplists:get_value(cover_art,MP4_Media#mp4_media.additional,undefined) of
     undefined -> <<>>;
     Bin -> Bin
   end.
@@ -127,7 +128,7 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
     {atom, AtomName, Offset, Length} -> 
       % ?D({"Root atom", AtomName, Length}),
       {ok, AtomData} = Module:pread(Device, Offset, Length),
-      NewMedia = case atom_to_binary(AtomName, utf8) of
+      NewMedia = case atom_to_binary(AtomName, latin1) of
         <<"EV", _/binary>> ->
           Mp4Media#mp4_media{additional = [{AtomName,AtomData}| Additional]};
         _ ->
@@ -142,11 +143,11 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
 read_atom_header({Module, Device}, Pos) ->
   case Module:pread(Device, Pos, 8) of
     {ok, <<0:32, AtomName/binary>>} ->
-      {atom, binary_to_atom(AtomName, utf8), Pos + 8, all_file};
+      {atom, binary_to_atom(AtomName, latin1), Pos + 8, all_file};
     {ok, <<1:32, AtomName/binary>>} ->
       case Module:pread(Device, Pos+4, 12) of
         {ok, <<AtomName:4/binary, AtomLength:64>>} when AtomLength >= 12 -> 
-          {atom, binary_to_atom(AtomName, utf8), Pos + 16, AtomLength - 16};
+          {atom, binary_to_atom(AtomName, latin1), Pos + 16, AtomLength - 16};
         eof ->
           eof;
         {ok, Bin} ->
@@ -157,7 +158,7 @@ read_atom_header({Module, Device}, Pos) ->
       end;
     {ok, <<AtomLength:32, AtomName/binary>>} when AtomLength >= 8 ->
       % ?D({"Atom", binary_to_atom(AtomName, latin1), Pos, AtomLength}),
-      {atom, binary_to_atom(AtomName, utf8), Pos + 8, AtomLength - 8};
+      {atom, binary_to_atom(AtomName, latin1), Pos + 8, AtomLength - 8};
     eof ->
       eof;
     {ok, Bin} ->
@@ -216,41 +217,6 @@ frame_count(#mp4_track{frames = Frames}) -> size(Frames) div ?FRAMESIZE;
 frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
 
-get_iTun_atom(<<>>) -> 
-  ?D("covr_notfound"),
-  {error,covr_notfound};
-
-get_iTun_atom(<<Size:32,_Body/binary>>) when  Size == 0->
-  ?D("covr_notfound"),
-  {error,covr_notfound};
-
-get_iTun_atom(<<"iTun","NORM",RawSize:32,Body/binary>>) ->
-  Size = RawSize - 4, 
-  <<_:Size/binary,Rest/binary>> = <<Body/binary>>,
-  get_iTun_atom(Rest);
-
-get_iTun_atom(<<RawDataSize:32,Data:4/binary,RawAdopSize:32,_Adopt:4/binary,Body/binary>>) ->
-  DataSize = RawDataSize - 16,
-  case Data of
-    <<"covr">> ->
-      AdopSize = RawAdopSize - 4,  
-      <<_:8/binary,AdopBody:AdopSize/binary,_/binary>> = <<Body/binary>>,
-      {covr,<<AdopBody:AdopSize/binary>>};
-    _Else -> 
-       <<_:DataSize/binary,Rest/binary>> = <<Body/binary>>,
-       get_iTun_atom(Rest)
-  end.
-
-
-get_meta_atom(<<Size:32,Rest/binary>>) when Size == 0 ->
-  get_iTun_atom(Rest);
-
-get_meta_atom(<<Size:32,_Header:4/binary,Body/binary>>) when size(Body) < Size -> 
-  {error,absent_iTun_atom};
-  
-get_meta_atom(<<Size:32,_Header:4/binary,Body/binary>>) ->
-  <<_:Size/binary,Rest/binary>> = <<Body/binary>>,
-  get_meta_atom(<<Rest/binary>>).
 
 parse_atom(<<>>, Mp4Parser) ->
   Mp4Parser;
@@ -261,16 +227,16 @@ parse_atom(Atom, _) when size(Atom) < 4 ->
 parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
-  AtomName = binary_to_atom(BinaryAtomName, utf8),
+  AtomName = binary_to_atom(BinaryAtomName, latin1),
   NewMp4Parser = case erlang:function_exported(?MODULE, AtomName, 2) of
     true -> ?MODULE:AtomName(Atom, Mp4Parser);
-    % false -> ?D({"Unknown atom", AtomName}), Mp4Parser
-    false -> Mp4Parser
+    false -> ?D({"Unknown atom", AtomName}), Mp4Parser
+    % false -> Mp4Parser
   end,
   parse_atom(Rest, NewMp4Parser);
   
 parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, _Rest/binary>>, Mp4Parser) ->
-  ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, utf8), size(_Rest)}),
+  ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, latin1), size(_Rest)}),
   Mp4Parser;
 
 parse_atom(<<0:32>>, Mp4Parser) ->
@@ -307,16 +273,24 @@ mvhd(<<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, _RateDelim:
   % ?D(Meta),
   Media#mp4_media{timescale = TimeScale, duration = Duration/TimeScale}.
 
-udta(Value, #mp4_media{additional = Add} = Media) ->
-  <<_:12/binary,Rest/binary>> = <<Value/binary>>,
-  NewAdd = case get_meta_atom(<<Rest/binary>>) of
-    {covr, Metadata} -> 
-      [{coverart,Metadata}|Add];
-    {error, Reason} -> 
-      ?D(Reason),
-      Add
-  end,
-  parse_atom(Value, Media#mp4_media{additional = NewAdd}).
+udta(UDTA, Media) ->
+  parse_atom(UDTA, Media).
+
+meta(<<0:32, Meta/binary>>, #mp4_media{} = Media) ->
+  parse_atom(Meta, Media).
+
+ilst(ILST, #mp4_media{} = Media) ->
+  parse_atom(ILST, Media).
+
+
+covr(Data, #mp4_media{additional = Add} = Media) ->
+  CoverArt = parse_atom(Data, covr),
+  Media#mp4_media{additional = [{cover_art, CoverArt}|Add]}.
+
+data(<<_Flags:32, 0:32, Data/binary>>, _Meaning) ->
+  Data.
+
+% '----'(Meta, #mp4_media{} = Media) ->
 
 % Track box
 trak(<<>>, MediaInfo) ->
@@ -384,7 +358,7 @@ extract_language(<<L1:5, L2:5, L3:5>>) ->
 
 
 %% Handler Reference Box
-hdlr(<<0:32, 0:32, "vide", 0:96, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -392,7 +366,7 @@ hdlr(<<0:32, 0:32, "vide", 0:96, NameNull/binary>>, Mp4Track) ->
   end,
   Mp4Track#mp4_track{content = video};
 
-hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -400,7 +374,7 @@ hdlr(<<0:32, 0:32, "soun", 0:96, NameNull/binary>>, Mp4Track) ->
   end,
   Mp4Track#mp4_track{content = audio};
 
-hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, "hint", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -408,7 +382,16 @@ hdlr(<<0:32, 0:32, "hint", 0:96, NameNull/binary>>, Mp4Track) ->
   end,
   Mp4Track#mp4_track{content = hint};
 
-hdlr(<<0:32, 0:32, Handler:4/binary, 0:96, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_media{} = Mp4Media) ->
+  Len = (size(NameNull) - 1),
+  Name = case NameNull of
+    <<N:Len/binary, 0>> -> N;
+    _ -> NameNull
+  end,
+  ?D({hdlr, Handler, Name}),
+  Mp4Media;
+
+hdlr(<<0:32, 0:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
   Len = (size(NameNull) - 1),
   Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
