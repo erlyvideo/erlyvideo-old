@@ -123,9 +123,10 @@ media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tra
     flow_type = file,
     audio = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == audio],
     video = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == video],
-    metadata = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == metadata orelse Content == text],
+%    metadata = [Stream || #stream_info{content = Content} = Stream <- Streams, Content == metadata orelse Content == text],
     duration = Duration,
-    options  = Additional
+%    options  = Additional
+    metadata = Additional 
   }.
   
 
