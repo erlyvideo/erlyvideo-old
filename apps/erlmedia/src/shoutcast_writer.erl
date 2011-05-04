@@ -41,7 +41,7 @@
 
 write(Player,Req) -> 
   erlang:monitor(process,Player),
-  Metaint = 16000,
+  Metaint = 48000,
   Codec = get_codec_info(Player),
   State = #shoutcast{audio_config = undefined, metaint = Metaint, reader = Player},
   case Codec of
@@ -84,15 +84,9 @@ handle_message(#video_frame{flavor = config, content = audio, body = Config}, #s
 handle_message(#video_frame{content = Content}, State) when Content =/= audio -> 
   {noreply, State};
 
-handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = mp3}, 
+handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = Codec}, 
                #shoutcast{buffer = Buffer, audio_config = Config} = State) ->
-  Packetized = packetize(mp3, Config, Body),
-  {Reply, Rest} = split(<<Buffer/binary, Packetized/binary>>, State),
-  {reply, Reply, State#shoutcast{buffer = Rest}};
-
-handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = aac}, 
-               #shoutcast{buffer = Buffer, audio_config = Config} = State) ->
-  Packetized = packetize(aac, Config, Body),
+  Packetized = packetize(Codec, Config, Body),
   {Reply, Rest} = split(<<Buffer/binary, Packetized/binary>>, State),
   {reply, Reply, State#shoutcast{buffer = Rest}};
 
