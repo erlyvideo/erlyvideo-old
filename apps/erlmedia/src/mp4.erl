@@ -41,7 +41,7 @@
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2, udta/2]).
 -export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
--export([meta/2, ilst/2, covr/2, data/2]).
+-export([meta/2, ilst/2, covr/2, data/2, nam/2, alb/2]).
 -export([extract_language/1,get_coverart/1]).
 
 -export([fill_track/9]).
@@ -134,7 +134,7 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
         _ ->
           case erlang:function_exported(mp4, AtomName, 2) of
             true -> mp4:AtomName(AtomData, Mp4Media);
-            false -> ?D({"Unknown atom", AtomName}), Mp4Media
+            false -> Mp4Media
           end
       end,
       read_header(NewMedia, Reader, Offset + Length)
@@ -216,8 +216,6 @@ frame_count(undefined) -> 0;
 frame_count(#mp4_track{frames = Frames}) -> size(Frames) div ?FRAMESIZE;
 frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
-
-
 parse_atom(<<>>, Mp4Parser) ->
   Mp4Parser;
   
@@ -227,10 +225,15 @@ parse_atom(Atom, _) when size(Atom) < 4 ->
 parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
-  AtomName = binary_to_atom(BinaryAtomName, latin1),
+  AtomName = case binary:bin_to_list(BinaryAtomName) of
+   [169|Value] -> 
+     binary_to_atom(binary:list_to_bin(Value),latin1);
+   _ValidValue ->
+     binary_to_atom(BinaryAtomName,latin1)
+  end,
   NewMp4Parser = case erlang:function_exported(?MODULE, AtomName, 2) of
     true -> ?MODULE:AtomName(Atom, Mp4Parser);
-    false -> ?D({"Unknown atom", AtomName}), Mp4Parser
+    false -> Mp4Parser
     % false -> Mp4Parser
   end,
   parse_atom(Rest, NewMp4Parser);
@@ -282,10 +285,29 @@ meta(<<0:32, Meta/binary>>, #mp4_media{} = Media) ->
 ilst(ILST, #mp4_media{} = Media) ->
   parse_atom(ILST, Media).
 
-
 covr(Data, #mp4_media{additional = Add} = Media) ->
   CoverArt = parse_atom(Data, covr),
   Media#mp4_media{additional = [{cover_art, CoverArt}|Add]}.
+
+nam(Data, #mp4_media{additional = Add} = Media) ->
+  Name = parse_atom(Data, name),
+  Metadata = case proplists:get_value(name, Add, undefined) of
+    undefined ->
+      Name;
+    AnotherData -> 
+      <<AnotherData/binary,"-",Name/binary>> 
+  end,
+  Media#mp4_media{additional = [{name, Metadata}|Add]}.
+
+alb(Data, #mp4_media{additional = Add} = Media) ->
+  Name = parse_atom(Data, name),
+  Metadata = case proplists:get_value(name, Add, undefined) of
+    undefined ->
+      Name;
+    AnotherData -> 
+      <<AnotherData/binary,"-",Name/binary>> 
+  end,
+  Media#mp4_media{additional = [{name, Metadata}|Add]}.
 
 data(<<_Flags:32, 0:32, Data/binary>>, _Meaning) ->
   Data.
@@ -447,6 +469,7 @@ mp4v(_T, Mp4Track) ->
 
 '.mp3'(_, Mp4Track) ->
   Mp4Track#mp4_track{data_format = mp3}.
+
 
 avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
       HorizRes:16, _:16, VertRes:16, _:16, _FrameCount:16, _CompressorName:32/binary,
