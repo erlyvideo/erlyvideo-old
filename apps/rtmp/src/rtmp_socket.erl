@@ -120,13 +120,7 @@ set_socket(RTMP, Socket) ->
     gen_fsm:send_event(RTMP, {socket, Socket}).
 
 get_socket(RTMP) -> 
-  case RTMP of
-    _ when is_port(RTMP) ->      
-      {rtmp, gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT)};
-    _ when is_pid(RTMP) -> 
-      {rtmpd,undefined};
-    _Else -> {error,unknown_type}
-  end.
+      gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT).
   
   
 %% @private
@@ -440,8 +434,11 @@ handle_sync_event({getstat, Options}, _From, StateName, State) ->
 handle_sync_event(getstat, _From, StateName, State) ->
   {reply, get_stat(State), StateName, State, ?RTMP_TIMEOUT};
 
-handle_sync_event(get_socket, _From, StateName, #rtmp_socket{socket = Socket} = State) ->
-  {reply, Socket, StateName, State, ?RTMP_TIMEOUT};
+handle_sync_event(get_socket, _From, StateName, #rtmp_socket{socket = Socket} = State) when is_port(Socket)->
+  {reply, {rtmp,Socket}, StateName, State, ?RTMP_TIMEOUT};
+
+handle_sync_event(get_socket, _From, StateName, #rtmp_socket{socket = Socket} = State) when is_pid(Socket)->
+  {reply, {rtmpt,undefined}, StateName, State, ?RTMP_TIMEOUT};
 
 handle_sync_event({setopts, Options}, _From, StateName, State) ->
   NewState = set_options(State, Options),
