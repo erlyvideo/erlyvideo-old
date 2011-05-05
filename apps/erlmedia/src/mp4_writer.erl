@@ -581,11 +581,12 @@ pack_durations(ReverseFrames) ->
 pack_durations([#video_frame{dts = DTS, pts = PTS}, #video_frame{dts = DTS1, content = Content} = F|ReverseFrames], Acc) when DTS =< DTS1->
 	pack_durations([F#video_frame{dts = DTS - 1, pts = PTS - DTS1 + DTS}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
 
-pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], Acc) when DTS1 > DTS2 ->
-	pack_durations([F|ReverseFrames], [round((DTS1 - DTS2)*scale_for_content(Content)) | Acc]);
+pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content}], Acc) when DTS1 > DTS2 ->
+	[round((DTS1 - DTS2)*scale_for_content(Content)) | Acc];
 
-pack_durations([#video_frame{}], Acc) ->
-	[0 | Acc].
+pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], Acc) when DTS1 > DTS2 ->
+	pack_durations([F|ReverseFrames], [round((DTS1 - DTS2)*scale_for_content(Content)) | Acc]).
+
 
 scale_for_content(video) -> ?H264_SCALE;
 scale_for_content(audio) -> ?AUDIO_SCALE.
