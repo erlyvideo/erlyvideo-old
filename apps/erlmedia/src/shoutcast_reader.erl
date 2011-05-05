@@ -328,7 +328,7 @@ code_change(_OldVsn, State, _Extra) ->
 -include_lib("eunit/include/eunit.hrl").
 
 shoutcast_aac_config_test () ->
-  {ok,Dev} = file:open("test/files/video_mp4.dmp",[read,raw,binary]),
+  {ok,Dev} = file:open("test/files/shoutcast_aac.dmp",[read,raw,binary]),
   {ok,Data} = file:pread(Dev,0,1024),
   decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
   Guard = #video_frame{content = audio,dts = 0,pts = 0,codec = aac,flavor = config, sound = {stereo,bit16,rate44},body = <<18,16>>},
