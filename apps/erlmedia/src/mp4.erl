@@ -904,7 +904,7 @@ get_coverart_sizeMeta_test () ->
   {ok,Dev} = file:open("test/files/tag_coverart.mp4",[read,raw,binary]),
   Reader = {file,Dev},
   Metadata = get_coverart(Reader),
-  ?assertEqual(114133,size(Metadata)).
+  ?assertEqual(114121,size(Metadata)).
 
 get_coverart_unvalid_test () ->
   {ok,Dev} = file:open("test/files/without_coverart.mp4",[read,raw,binary]),
