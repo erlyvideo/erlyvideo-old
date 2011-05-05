@@ -122,12 +122,12 @@ handle_info({tcp, Socket, Bin}, #shoutcast{buffer = <<>>} = State) ->
   inet:setopts(Socket, [{active,once}]),
   {noreply, decode(State#shoutcast{buffer = Bin})};
 
+handle_info(#video_frame{flavor = config, content = audio} = Frame, State) ->
+  {noreply, send_frame(Frame, State#shoutcast{audio_config = Frame})};
+
 handle_info({tcp, Socket, Bin}, #shoutcast{buffer = Buffer} = State) ->
   inet:setopts(Socket, [{active,once}]),
   {noreply, decode(State#shoutcast{buffer = <<Buffer/binary, Bin/binary>>})};
-
-handle_info(#video_frame{flavor = config, content = audio} = Frame, State) ->
-  {noreply, send_frame(Frame, State#shoutcast{audio_config = Frame})};
 
 handle_info(#video_frame{} = Frame, State) ->
   {noreply, send_frame(Frame, State)};
@@ -207,7 +207,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
           decode(State#shoutcast{buffer = Rest, sync_count = SyncCount + 1});
         {ok, _, _} ->
           ?D({"Synced AAC"}),
-          AACConfig = aac:config_from_adts(Second),
+          AACConfig = aac:adts_to_config(Second),
           AudioConfig = #video_frame{       
            	content   = audio,
            	flavor    = config,
@@ -322,3 +322,9 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+
+%%Тесты добавлю позже, ручное тестирование провел
