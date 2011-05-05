@@ -117,10 +117,16 @@ start_socket(Type, Socket) ->
 
 
 set_socket(RTMP, Socket) ->
-  gen_fsm:send_event(RTMP, {socket, Socket}).
+    gen_fsm:send_event(RTMP, {socket, Socket}).
 
-get_socket(RTMP) ->
-  gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT).
+get_socket(RTMP) -> 
+  case RTMP of
+    _ when is_port(RTMP) ->      
+      {rtmp, gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT)};
+    _ when is_pid(RTMP) -> 
+      {rtmpd,undefined};
+    _Else -> {error,unknown_type}
+  end.
   
   
 %% @private
