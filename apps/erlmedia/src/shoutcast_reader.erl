@@ -195,6 +195,7 @@ decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3, b
 
 
 decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, buffer = <<_, Rest/binary>>} = State) ->
+   %?D({"Decode"}),
   case aac:unpack_adts(State#shoutcast.buffer) of
     {ok, _Frame, Second} ->
       ?D({"Presync AAC"}),
@@ -238,7 +239,7 @@ decode(#shoutcast{state = unsynced_body, buffer = <<>>} = State) ->
   State;
 
 decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp, sample_rate = SampleRate} = State) ->
-  % ?D({"Decode"}),
+   %?D({"Decode"}),
   case aac:unpack_adts(Data) of
     {ok, Packet, Rest} ->
       Frame = #video_frame{       
@@ -326,5 +327,15 @@ code_change(_OldVsn, State, _Extra) ->
 
 -include_lib("eunit/include/eunit.hrl").
 
+shoutcast_aac_config_test () ->
+  {ok,Dev} = file:open("test/files/video_mp4.dmp",[read,raw,binary]),
+  {ok,Data} = file:pread(Dev,0,1024),
+  decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
+  Guard = #video_frame{content = audio,dts = 0,pts = 0,codec = aac,flavor = config, sound = {stereo,bit16,rate44},body = <<18,16>>},
+  ?assertEqual(Guard, get_config_frame(config)).
 
-%%Тесты добавлю позже, ручное тестирование провел
+get_config_frame(Match) ->
+  receive 
+   #video_frame{flavor = Match} = Frame -> Frame;
+   #video_frame{} -> get_config_frame(Match)
+  end.  
