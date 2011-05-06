@@ -41,8 +41,8 @@
 
 write(Player,Req) -> 
   erlang:monitor(process,Player),
-  Metaint = 48000,
   Codec = get_codec_info(Player),
+  Metaint = get_metaint(Req),
   State = #shoutcast{audio_config = undefined, metaint = Metaint, reader = Player},
   case Codec of
     aac ->   
@@ -53,6 +53,13 @@ write(Player,Req) ->
       receive_frame(State,Req);
     _ ->
       {error,codec_unsuported}
+  end.
+
+get_metaint(Req) ->
+  Args = Req:get(headers),
+  case proplists:get_value("Icy-Metadata",Args,0) of
+    MetadataFalse when MetadataFalse == 0  -> 0;
+    _MetadataTrue -> 48000
   end.
 
 get_codec_info(Player) ->
@@ -111,6 +118,9 @@ split(Packetized, #shoutcast{} = State) -> split(Packetized, State, []).
 
 split(Packetized, #shoutcast{metaint = Metaint}, Acc) when size(Packetized) < Metaint ->
   {lists:reverse(Acc), Packetized};
+
+split(Packetized, #shoutcast{metaint = 0}, _Acc) ->
+  {Packetized,<<>>};
 
 split(Packetized, #shoutcast{metaint = Metaint} = State, Acc) ->
   <<Bin:Metaint/binary, Rest/binary>> = Packetized,
