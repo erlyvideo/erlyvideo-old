@@ -578,6 +578,11 @@ pack_durations(ReverseFrames) ->
 	List = [<<1:32, Duration:32>> || Duration <- Durations],
 	[<<0:32, (length(List)):32>>, List].
 
+pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], []) when DTS1 > DTS2 ->
+  Duration = round((DTS1 - DTS2)*scale_for_content(Content)),
+	pack_durations([F|ReverseFrames], [Duration, Duration]);
+
+
 pack_durations([#video_frame{dts = DTS, pts = PTS}, #video_frame{dts = DTS1, content = Content} = F|ReverseFrames], Acc) when DTS =< DTS1->
 	pack_durations([F#video_frame{dts = DTS - 1, pts = PTS - DTS1 + DTS}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
 
