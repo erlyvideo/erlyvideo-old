@@ -332,10 +332,31 @@ shoutcast_aac_config_test () ->
   {ok,Data} = file:pread(Dev,0,1024),
   decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
   Guard = #video_frame{content = audio,dts = 0,pts = 0,codec = aac,flavor = config, sound = {stereo,bit16,rate44},body = <<18,16>>},
-  ?assertEqual(Guard, get_config_frame(config)).
+  ?assertEqual(Guard, get_frame(config)).
 
-get_config_frame(Match) ->
+shoutcast_aac_frame_test () ->
+  {ok,Dev} = file:open("test/files/shoutcast_aac.dmp",[read,raw,binary]),
+  {ok,Data} = file:pread(Dev,0,1024),
+  decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
+  Frame = get_frame(frame),
+  ?assertMatch(<<33,_/binary>>, Frame#video_frame.body).
+
+get_frame(Match) ->
   receive 
    #video_frame{flavor = Match} = Frame -> Frame;
-   #video_frame{} -> get_config_frame(Match)
+   #video_frame{} -> get_frame(Match)
   end.  
+
+count_frame_aac_test () ->
+  TrueCount = 48,
+  {ok,Dev} = file:open("test/files/shoutcast_aac.dmp",[read,raw,binary]),
+  {ok,Data} = file:pread(Dev,0,1024),
+  decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
+  CurCount = count_frame(0),
+  ?assertEqual(TrueCount,CurCount).
+
+count_frame (Count) ->
+  receive 
+    #video_frame{} -> count_frame(Count+1)
+    after 20 -> Count
+  end.
