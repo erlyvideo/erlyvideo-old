@@ -348,12 +348,40 @@ get_frame(Match) ->
   end.  
 
 count_frame_aac_test () ->
-  TrueCount = 48,
+  TrueCount = 142,
   {ok,Dev} = file:open("test/files/shoutcast_aac.dmp",[read,raw,binary]),
   {ok,Data} = file:pread(Dev,0,1024),
   decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
   CurCount = count_frame(0),
   ?assertEqual(TrueCount,CurCount).
+
+dts_play_test () ->
+  {ok,Dev} = file:open("test/files/shoutcast_aac.dmp",[read,raw,binary]),
+  {ok,Data} = file:pread(Dev,0,1024),
+  decode(#shoutcast{state = unsynced_body,buffer = Data, consumer = self()}),
+  Frames = aac_frame([]),
+  delta_dts(Frames).
+
+delta_dts([]) ->
+  ok;
+
+delta_dts([#video_frame{}]) ->
+  ok;
+
+delta_dts([Frame|Frames]) ->
+  [NextFrame|_] = Frames,
+  Delta = NextFrame#video_frame.dts - Frame#video_frame.dts,
+  ?D(Delta),
+  true = Delta < 24 andalso Delta > 22,
+  delta_dts(Frames).
+  
+aac_frame(Frames) ->
+  receive 
+   #video_frame{flavor = frame} = Frame -> aac_frame([Frame|Frames]);
+   _Else -> aac_frame(Frames)
+   after 20 -> lists:reverse(Frames)
+  end.
+  
 
 count_frame (Count) ->
   receive 
