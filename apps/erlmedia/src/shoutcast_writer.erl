@@ -163,3 +163,42 @@ padding(Body,0) ->
 padding(<<Body/binary>>,MetaRestSize) ->
   padding(<<Body/binary,0>>,MetaRestSize - 1).
   
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+metadata_without_name_test () ->
+  {ok,Player} = media_provider:play(default,"video.mp4",[]),
+  erlang:monitor(process,Player),
+  State = #shoutcast{audio_config = undefined, metaint = 48000, reader = Player},
+  Body = aac_frame(<<>>,State),
+  ?D(size(Body)),
+  test_meta(Body).
+
+test_meta(<<>>) ->
+  ok;
+
+test_meta(Body) when size(Body) < 48000 ->  
+  ok;
+
+test_meta(<<_Data:48000/binary,Header:33/binary,Body/binary>>) ->
+  ?assertEqual(<<2,83,116,114,101,97,109,84,105,116,108,101,61,
+               39,69,114,108,121,118,105,100,101,111,39,59,0,0,
+               0,0,0,0,0,0>>,Header),
+  test_meta(<<Body/binary>>).
+
+aac_frame(Body,_State) when size(Body) > 100000 ->
+  Body;
+
+aac_frame(<<Body/binary>>,State) ->
+  receive
+    Message ->
+    case handle_message(Message, State) of
+      {noreply, NewState} ->
+        aac_frame(<<Body/binary>>,NewState);
+      {reply, Bin, NewState} ->
+        NewBin = binary:list_to_bin(Bin),
+        aac_frame(<<Body/binary,NewBin/binary>>,NewState)
+    end
+  end.
+
