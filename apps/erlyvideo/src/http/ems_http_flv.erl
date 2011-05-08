@@ -39,7 +39,7 @@ http(Host, 'GET', ["flv" | Name] = Path, Req) ->
   Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
   case media_provider:play(Host, string:join(Name, "/"), Seek) of
     {ok, Stream} ->
-      flv_writer:init(fun(Data) -> Req:stream(Data) end, Stream, []),
+      flv_writer:init(fun(Data) -> Req:stream(Data) end, Stream, [{sort_buffer, 0}]),
       ems_media:stop(Stream),
       Req:stream(close),
       ok;

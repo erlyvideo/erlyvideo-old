@@ -76,10 +76,11 @@ start_link(FileName, Options) ->
   {ok, proc_lib:spawn_link(?MODULE, init, [FileName, self(), Options])}.
 
 %% @hidden
-init(Writer, Owner, _Options) when is_function(Writer) ->
+init(Writer, Owner, Options) when is_function(Writer) ->
 	Writer(flv:header()),
 	erlang:monitor(process, Owner),
-	?MODULE:writer(#flv_file_writer{writer = Writer});
+	SortBuffer = proplists:get_value(sort_buffer, Options, 0),
+	?MODULE:writer(#flv_file_writer{writer = Writer, buffer_size = SortBuffer});
 
 init(FileName, Owner, Options) when is_list(FileName) or is_binary(FileName) ->
   case init_file(FileName, Options) of
