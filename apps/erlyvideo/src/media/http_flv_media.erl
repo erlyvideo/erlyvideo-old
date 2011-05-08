@@ -50,9 +50,12 @@
 %% @end
 %%----------------------------------------------------------------------
 
-init(Media, _Options) ->
-  self() ! make_request,
-  {ok, Media}.
+init(Media, Options) ->
+  case proplists:get_value(passive, Options) of
+    true -> ok;
+    _ -> self() ! make_request
+  end,
+  {ok, Media#ems_media{state = #http_flv{}}}.
 
 
 %%----------------------------------------------------------------------
@@ -63,23 +66,30 @@ init(Media, _Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({source_lost, _Source}, State) ->
+handle_control({source_lost, _Source}, #ems_media{options = Options} = State) ->
   %% Source lost returns:
   %% {ok, State, Source} -> new source is created 
- %% {stop, Reason, State} -> stop with Reason
-  self() ! make_request,
+  %% {stop, Reason, State} -> stop with Reason
+  case proplists:get_value(passive, Options) of
+    true -> ok;
+    _ -> self() ! make_request
+  end,
   {noreply, State};
 
 handle_control(no_clients, State) ->
   {stop, normal, State};
 
-handle_control({make_request, URL}, #ems_media{} = Media) ->
+handle_control({make_request, URL}, #ems_media{state = State} = Media) ->
   case ibrowse:send_req(binary_to_list(URL), [], get, [], [{stream_to, {self(),once}},{response_format,binary},{stream_chunk_size,8192}], infinity) of
     {ibrowse_req_id, Ref} ->
-      {noreply, Media#ems_media{state = #http_flv{ibrowse_ref = Ref}}};
+      {noreply, Media#ems_media{state = State#http_flv{ibrowse_ref = Ref}}};
     {error, Error} ->
       {error, Error}
   end;
+  
+handle_control({set_socket, Socket}, Media) ->
+  inet:setopts(Socket, [{active, once},{packet,raw}]),
+  {noreply, Media};  
   
 handle_control(_Control, State) ->
   {noreply, State}.
@@ -113,7 +123,6 @@ handle_info({ibrowse_async_response, Stream, Bin}, #ems_media{state = #http_flv{
   <<_:?FLV_HEADER_LENGTH/binary, Buf/binary>> = Bin,
   {noreply, Media#ems_media{state = State#http_flv{buffer = handle_bin(Buf)}}};
 
-
 handle_info({ibrowse_async_response, Stream, Bin}, #ems_media{state = #http_flv{ibrowse_ref = Stream, buffer = Buf} = State} = Media) ->
   ibrowse:stream_next(Stream),
   {noreply, Media#ems_media{state = State#http_flv{buffer = handle_bin(<<Buf/binary, Bin/binary>>)}}};
@@ -121,6 +130,18 @@ handle_info({ibrowse_async_response, Stream, Bin}, #ems_media{state = #http_flv{
 handle_info({ibrowse_async_headers, Stream, "200", _Headers}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
   ibrowse:stream_next(Stream),
   ems_media:source_is_restored(Media);
+
+
+handle_info({tcp, Socket, Bin}, #ems_media{state = #http_flv{buffer = undefined} = State} = Media) ->
+  inet:setopts(Socket, [{active, once}]),
+  <<_:?FLV_HEADER_LENGTH/binary, Buf/binary>> = Bin,
+  {noreply, Media#ems_media{state = State#http_flv{buffer = handle_bin(Buf)}}};
+
+handle_info({tcp, Socket, Bin}, #ems_media{state = #http_flv{buffer = Buf} = State} = Media) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, Media#ems_media{state = State#http_flv{buffer = handle_bin(<<Buf/binary, Bin/binary>>)}}};
+
+
 
 handle_info({ibrowse_async_headers, Stream, Code, _Headers}, #ems_media{state = #http_flv{ibrowse_ref = Stream}} = Media) ->
   ?D({failed_http_flv,Code}),
@@ -132,6 +153,9 @@ handle_info({ibrowse_async_response_end, Stream}, #ems_media{state = #http_flv{i
 
 handle_info(make_request, Media) ->
   {noreply, Media};
+
+handle_info({tcp_closed, _Socket}, Media) ->
+  ems_media:source_is_lost(Media);
 
 handle_info(_Msg, State) ->
   {stop, {error, _Msg}, State}.
