@@ -319,7 +319,8 @@ seek(#mp4_media{} = Media, Timestamp, Options) ->
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
   Subtitle = text_with_language(Media, proplists:get_value(subtitle, Options)),
-  case mp4:seek(Media, Video, Timestamp) of
+  % ?D({mp4_seek, Timestamp, mp4:seek(Media, Video, Timestamp, proplists:get_value(seek_mode, Options, keyframe))}),
+  case mp4:seek(Media, Video, Timestamp, proplists:get_value(seek_mode, Options, keyframe)) of
     undefined -> undefined;
     {Id, DTS} ->
       FrameId = #frame_id{id = Id,a = Audio,v = Video, t = Subtitle},
