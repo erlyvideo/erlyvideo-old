@@ -114,12 +114,17 @@ check_path(Host, Name) when is_binary(Name) ->
   check_path(Host, binary_to_list(Name));
 
 check_path(Host, Name) ->
-  case file_media:file_dir(Host) of
-    undefined -> false;
-    Dir -> 
-      Path = ems:pathjoin(Dir, Name), 
-      case filelib:is_regular(Path) of
-        true -> {true, list_to_binary(Path)};
-        false -> false
-      end  
+  check_paths(ems:get_var(file_dirs, Host, [file_media:file_dir(Host)]), Name).
+
+check_paths([], _Name) ->
+  false;
+
+check_paths([undefined|Dirs], Name) ->
+  check_paths(Dirs, Name);
+  
+check_paths([Dir|Dirs], Name) ->
+  Path = ems:pathjoin(Dir, Name), 
+  case filelib:is_regular(Path) of
+    true -> {true, list_to_binary(Path)};
+    false -> check_paths(Dirs, Name)
   end.
