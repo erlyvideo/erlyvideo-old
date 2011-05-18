@@ -30,7 +30,7 @@
 -define(TIMEOUT, 20*60000).
 -define(LICENSE_TABLE, license_storage).
 %% External API
--export([list/0, load/0, afterload/1, read_config/2]).
+-export([list/0, load/0, afterload/1, read_config/2,read_config/0]).
 
 %% gen_server callbacks
 
@@ -126,6 +126,7 @@ load_from_storage(undefined) ->
 load_from_storage(Config) ->
   StrictVersions = proplists:get_value(projects, Config, []),
   StoredContent = read_storage(Config),
+  ?D(StoredContent),
   case storage_has_versions(StoredContent, StrictVersions) of
     ok ->
       StartupModules = load_code(StoredContent),
@@ -174,8 +175,8 @@ open_license_storage(Config) ->
     undefined -> {error, no_cache_dir};
     StorageDir ->
       case dets:open_file(?LICENSE_TABLE, [{file,ems:pathjoin(StorageDir,"license_storage.db")}]) of
-        {ok, ?LICENSE_TABLE} -> {ok, ?LICENSE_TABLE};
-        {error, Reason} -> {error, Reason} 
+        {ok, ?LICENSE_TABLE} -> ?D(?LICENSE_TABLE), {ok, ?LICENSE_TABLE};
+        {error, Reason} -> ?D(Reason), {error, Reason} 
       end
   end.
 
@@ -245,13 +246,31 @@ construct_url(Config, Command) when is_list(Config) ->
     undefined -> undefined;
     License ->
       LicenseURL = proplists:get_value(url, Config, "http://license.erlyvideo.tv/license"),
-      Versions = [io_lib:format("&version[~s]=~s", [Name,Version]) || {Name,Version} <- proplists:get_value(projects, Config, [])],
+      RawVersions = versions_of_projects(Config),
+      Versions = [io_lib:format("&version[~s]=~s", [Name,Version]) || {Name,Version} <- RawVersions],
       lists:flatten([LicenseURL, io_lib:format("?key=~s&command=~s", [License, Command]), Versions])
   end.
   
 
+get_versions_from_storage() ->
+  case dets:lookup(?LICENSE_TABLE,projects) of
+    [{projects, Projects}] -> Projects;
+    _ -> []
+  end.    
 
-
+versions_of_projects(Config) ->
+  LicensePath = proplists:get_value(license_dir,Config,"./"),
+  case proplists:get_value(projects,Config,undefined) of
+    undefined -> 
+      case dets:open_file(?LICENSE_TABLE,[{file,ems:pathjoin(LicensePath,"license_storage.db")}]) of
+        {ok,?LICENSE_TABLE} -> 
+          get_versions_from_storage();
+        _ -> []
+      end;
+    Projects -> Projects
+  end.
+         
+              
 
 
 
