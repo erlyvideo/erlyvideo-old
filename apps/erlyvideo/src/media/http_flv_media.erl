@@ -154,8 +154,8 @@ handle_info({ibrowse_async_response_end, Stream}, #ems_media{state = #http_flv{i
 handle_info(make_request, Media) ->
   {noreply, Media};
 
-handle_info({tcp_closed, _Socket}, Media) ->
-  ems_media:source_is_lost(Media);
+handle_info({tcp_closed, _Socket}, #ems_media{state = State} = Media) ->
+  ems_media:source_is_lost(Media#ems_media{state = State#http_flv{buffer = undefined}});
 
 handle_info(_Msg, State) ->
   {stop, {error, _Msg}, State}.
