@@ -26,7 +26,7 @@
 -include("../log.hrl").
 -include_lib("kernel/include/file.hrl").
 -export([http/4]).
-
+-define(LICENSE_TABLE, license_storage).
 
 
 http(Host, 'GET', ["erlyvideo", "api", "filelist"], Req) ->
@@ -84,10 +84,33 @@ http(_Host, 'POST', ["erlyvideo","api","licenses"], Req) ->
   end,
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{state,Reply}]),"\n"]);
 
+http(_Host, 'POST', ["erlyvideo","api","licenses","write"], Req) ->
+      Args = Req:get(body),
+      RawVersions = binary:split(Args,[<<"&">>],[global]),
+      Versions = lists:map(fun(One) ->
+        [Name,Version] = binary:split(One,[<<"=">>]),
+        case Version of 
+          <<>> -> 
+            {};
+          <<"Remove">> ->
+            {};
+          _Else ->         
+            {Name,Version} 
+        end
+      end, RawVersions),
+      Config = ems_license_client:read_config(),
+      LicensePath = proplists:get_value(license_dir,Config),
+      case dets:open_file(?LICENSE_TABLE,[{file,ems:pathjoin(LicensePath,"license_storage.db")}]) of
+        {ok,Table} ->
+        dets:insert(Table,[{projects,[{Name,Version} || {Name,Version} <- Versions]}]),
+        dets:close(Table)
+      end,
+      Reply = true,
+      Req:respond(200, [{'Content-Type', "application/json"}], [mochijson2:encode([{success,Reply}])]);
+
 
 http(_, _, _, _) ->
   unhandled.
-  
 
 clean_values(Info) ->
   clean_values(lists:ukeysort(1, lists:reverse(Info)), []).

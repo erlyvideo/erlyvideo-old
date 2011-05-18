@@ -404,9 +404,22 @@ Ext.onReady(function(){
           }
           data[data.length] = [licenses[i].versions[j], title];
         }
+         
         var cb = new Ext.form.ComboBox({
-          label: licenses[i].name,
-          data: data
+          typeAhead: true,
+          triggerAction: 'all',
+          lazyRender:true,
+          mode: 'local',
+          store: new Ext.data.SimpleStore({
+            fields:[
+              'name',
+	       'version'],
+            data: data
+          }),
+          id: licenses[i].name,
+          title: licenses[i].name,
+          valueField: 'version',
+          displayField: 'version'
         });
         items[items.length] = cb;
       }
@@ -418,9 +431,9 @@ Ext.onReady(function(){
           text: "Select versions",
           handler: function() {
             licensePanel.getForm().submit({
-              url: '/erlyvideo/api/licenses',
+              url: '/erlyvideo/api/licenses/write',
               waitMsg: "Saving license versions",
-              success: function(f,a) {
+              success: function(f,a) { 
                 Ext.Msg.alert("Success", "Restart erlyvideo to see effects");
               },
               failure: function(f,a) {
