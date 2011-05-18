@@ -121,6 +121,7 @@ initialize_ticker(#ticker{options = Options, media = Media} = Ticker, {Pos, DTS}
       end;
     Duration -> Start + Duration
   end,
+  ?D({playing, DTS, PlayingTill}),
   case PlayingTill of
     Start -> ?D({warning, "File duration is set to 0. Perhaps raise iphone segment size in streaming"});
     _ -> ok

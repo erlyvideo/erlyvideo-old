@@ -44,7 +44,7 @@ find(Host, Name, Number) ->
   Options = case {Start + Count - 1,Type} of
     {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment of file doesn't require any end limit
     % {Number,_} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length and buffer
-    _ -> [{client_buffer,?STREAM_TIME*2},{duration, {before,?STREAM_TIME}}]
+    _ -> [{client_buffer,?STREAM_TIME*2},{duration, ?STREAM_TIME}]
   end,
   if
     Number < Start ->
@@ -52,7 +52,7 @@ find(Host, Name, Number) ->
     Number >= Start + Count -> 
       {notfound, io_lib:format("Too large segment number: ~p/~p", [Number, Start+Count])};
     true ->
-      PlayOptions = [{consumer,self()},{start, Number * ?STREAM_TIME}|Options],
+      PlayOptions = [{consumer,self()},{start, Number * ?STREAM_TIME},{seek_mode,frame}|Options],
       % ?D({play,Host,Name,Number,PlayOptions}),
       {ok, _Pid} = media_provider:play(Host, Name, PlayOptions)
   end.
