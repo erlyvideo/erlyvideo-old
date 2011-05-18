@@ -1,0 +1,23 @@
+#!/usr/bin/env ERL_LIBS=apps escript
+
+
+-include_lib("erlmedia/include/video_frame.hrl").
+
+main([Path]) ->
+  Root = filename:join(filename:dirname(escript:script_name()), ".."),
+  [code:add_pathz(Path_) || Path_ <- filelib:wildcard(Root ++ "/apps/*/ebin")],
+  application:start(log4erl),
+  {ok, Reader} = mpegts_file_reader:init([Path, [{consumer, self()}]]),
+  dump_frames(Reader).
+
+
+dump_frames(Reader) ->
+  case mpegts_file_reader:read_frame(Reader) of
+    {NewReader, #video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}} ->
+      io:format("~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
+      dump_frames(NewReader);
+    {_NewReader, undefined} ->
+      ok
+  end.
+
+  

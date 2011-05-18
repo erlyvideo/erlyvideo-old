@@ -29,7 +29,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([start_link/2]).
+-export([start_link/2, read_frame/1]).
 
 -record(file_reader, {
   reader,
@@ -45,7 +45,9 @@
 
 
 start_link(Path, Options) ->
-  gen_server:start_link(?MODULE, [Path, Options], []).
+  {ok, Reader} = gen_server:start_link(?MODULE, [Path, Options], []),
+  Reader ! start,
+  {ok, Reader}.
   
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -67,7 +69,6 @@ init([Path, Options]) ->
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
   {ok, Reader} = mpegts_reader:start_link([{consumer,self()}]),
   erlang:monitor(process, Consumer),
-  self() ! start,
   {ok, #file_reader{reader = Reader, consumer = Consumer, path = Path, file = File}}.
 
 
