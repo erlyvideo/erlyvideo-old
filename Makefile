@@ -57,7 +57,7 @@ clean-doc:
 
 
 run: priv/erlyvideo.conf priv/log4erl.conf compile
-	ERL_LIBS=apps:..:deps erl -boot start_sasl -s erlyvideo -config files/app.config
+	ERL_LIBS=apps:..:deps erl -sname ev -boot start_sasl -s erlyvideo -config files/app.config
 
 priv/log4erl.conf: priv/log4erl.conf.sample
 	[ -f priv/log4erl.conf ] || cp priv/log4erl.conf.sample priv/log4erl.conf
@@ -81,7 +81,7 @@ packages: release
 	cp contrib/erlyvideo tmproot/etc/init.d/
 	cd tmproot && \
 	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt && \
-	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt 
+	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt
 	mv tmproot/*.deb tmproot/*.rpm .
 
 .PHONY: doc debian compile
