@@ -74,9 +74,9 @@ seek(#shift{first = First, frames = Frames} = Media, Timestamp, _Options) when i
     #video_frame{dts = DTS} -> append_config_to_seek(Media, {(First + 1) rem array:size(Frames), DTS})
   end;
 
-seek(#shift{first = First, last = Last, frames = Frames} = Media, Timestamp, _Options) when is_number(Timestamp) ->
+seek(#shift{first = First, last = Last, frames = Frames} = Media, Timestamp, Options) when is_number(Timestamp) ->
   % ?D({"going to seek", Timestamp}),
-  S1 = seek_in_timeshift(First, Last, Frames, Timestamp, undefined),
+  S1 = seek_in_timeshift(First, Last, Frames, Timestamp, undefined, proplists:get_value(seek_mode, Options, keyframe)),
   append_config_to_seek(Media, S1).
   % S1.
   
@@ -90,17 +90,19 @@ append_config_to_seek(_, Seek) ->
   ?D("no config in array"),
   Seek.  
   
-seek_in_timeshift(First, First, _Frames, _Timestamp, Key) ->
+seek_in_timeshift(First, First, _Frames, _Timestamp, Key, _SeekMode) ->
   Key;
 
-seek_in_timeshift(First, Last, Frames, Timestamp, Key) ->
+seek_in_timeshift(First, Last, Frames, Timestamp, Key, SeekMode) ->
   case array:get(First, Frames) of
     #video_frame{dts = DTS} when DTS > Timestamp ->
       Key;
-    #video_frame{content = video, flavor = keyframe, dts = DTS} ->
-      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, {First, DTS});
+    #video_frame{dts = DTS} when SeekMode == frame ->
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, {First, DTS}, SeekMode);
+    #video_frame{content = video, flavor = keyframe, dts = DTS} when SeekMode == keyframe ->
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, {First, DTS}, SeekMode);
     #video_frame{} ->
-      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, Key)
+      seek_in_timeshift((First+1) rem array:size(Frames), Last, Frames, Timestamp, Key, SeekMode)
   end.
 
 read_frame(#shift{first = First} = Shift, undefined) ->
