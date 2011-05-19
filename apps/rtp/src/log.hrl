@@ -23,4 +23,4 @@
 %%%---------------------------------------------------------------------------------------
 
 -define(D(X), ems_log:debug(3, rtp, "~p:~p ~p",[?MODULE, ?LINE, X])).
--define(DBG(F,A), ems_log:debug(3, rtp, "(~w:~b): " ++ F, [?MODULE, ?LINE] ++ A)).
+-define(DBG(F,A), ems_log:debug(3, rtp, "(~w:~b) ~p: " ++ F, [?MODULE, ?LINE, self()] ++ A)).
