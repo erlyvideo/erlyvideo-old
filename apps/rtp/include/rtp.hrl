@@ -21,7 +21,7 @@
   local_rtcp_port,
   remote_rtcp_port,
   rtcp_socket,
-  
+
   local_addr,
   remote_addr
 }).
@@ -42,7 +42,7 @@
   tcp_socket,
   udp = {undefined, undefined},
   content_map,
-  direction,
+  location,
   sent_audio_config = false,
   frames = [],
   reorder_length = 0

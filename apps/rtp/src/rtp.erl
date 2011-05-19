@@ -47,12 +47,14 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
-init(Direction, #media_info{audio = Audio, video = Video} = _MediaInfo) when Direction == in orelse Direction == out ->
+init(Location, #media_info{audio = Audio, video = Video} = _MediaInfo)
+  when Location == loc orelse
+       Location == rmt ->
   Streams = lists:sort(fun(#stream_info{stream_id = Id1}, #stream_info{stream_id = Id2}) ->
     Id1 =< Id2
   end, Audio ++ Video),
   ContentMap = [{Content,Id} || #stream_info{content = Content, stream_id = Id} <- Streams],
-  #rtp_state{streams = Streams, direction = Direction, content_map = ContentMap}.
+  #rtp_state{streams = Streams, location = Location, content_map = ContentMap}.
 
 %%--------------------------------------------------------------------
 %% @spec (RtpState::rtp_state(), StreamId::integer(), Headers::proplist) -> rtp_state()
@@ -95,21 +97,24 @@ rtp_info(#rtp_state{channels = Channels} = _State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
-setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Channels, udp = UDPMap, tcp_socket = OldSocket} = State, StreamId, Transport) ->
+setup_channel(#rtp_state{streams = Streams, location = Location, channels = Channels, udp = UDPMap, tcp_socket = OldSocket} = State, StreamId, Transport) ->
   Stream = #stream_info{content = Content} = lists:nth(StreamId, Streams),
-  Channel = case Direction of
-    in -> rtp_decoder:init(Stream);
-    out -> rtp_encoder:init(Stream)
+  Channel = case Location of
+    loc -> rtp_decoder:init(Stream);
+    rmt -> rtp_encoder:init(Stream)
   end,
   State1 = State#rtp_state{channels = setelement(StreamId, Channels, Channel)},
   case proplists:get_value(proto, Transport, udp) of
     tcp ->
       {ok, State1#rtp_state{transport = tcp, tcp_socket = proplists:get_value(tcp_socket, Transport, OldSocket)}, []};
-    udp -> 
-      UDP = #rtp_udp{local_rtp_port = SPort1, local_rtcp_port = SPort2, local_addr = Source} = case element(StreamId, UDPMap) of
-        undefined -> rtp:open_ports(Content);
-        Else -> Else
-      end,
+    udp ->
+      UDP = #rtp_udp{local_rtp_port = SPort1, local_rtcp_port = SPort2, local_addr = Source} =
+        case element(StreamId, UDPMap) of
+          undefined ->
+            ?DBG("OPEN PORTS: StreamId: ~p, UDPMap: ~p", [StreamId, UDPMap]),
+            rtp:open_ports(Content);
+          Else -> Else
+        end,
       UDP1 = UDP#rtp_udp{
         remote_rtp_port = proplists:get_value(remote_rtp_port, Transport),
         remote_rtcp_port = proplists:get_value(remote_rtcp_port, Transport),
@@ -124,7 +129,7 @@ setup_channel(#rtp_state{streams = Streams, direction = Direction, channels = Ch
 %% @doc Encode and send video_frame
 %% @end
 %%--------------------------------------------------------------------
-handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channels = Channels, direction = out} = State, #video_frame{content = Content} = Frame) ->
+handle_frame(#rtp_state{transport = Transport, content_map = ContentMap, channels = Channels, location = rmt} = State, #video_frame{content = Content} = Frame) ->
   Num = proplists:get_value(Content, ContentMap),
   Channel = element(Num, Channels),
   {ok, Channel1, Packets} = rtp_encoder:encode(Frame, Channel),
@@ -369,7 +374,7 @@ open_ports(Type) ->
 
 
 try_ports(audio) ->
-  try_rtp(8000);
+  try_rtp(5050);
 
 try_ports(video) ->
   try_rtp(5000).

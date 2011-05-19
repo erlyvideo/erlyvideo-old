@@ -38,11 +38,12 @@
 
 -export([init/1, rtp_info/1, encode/2, encode_rtcp/3]).
 
-init(#stream_info{codec = Codec, timescale = Scale, stream_id = StreamId, config = Config} = Stream) ->
+init(#stream_info{codec = Codec, timescale = Scale, config = Config} = Stream) ->
   LengthSize = case Codec of
     h264 -> proplists:get_value(length_size, h264:metadata(Config));
     _ -> undefined
   end,
+  StreamId = make_ssrc(),
   #rtp_channel{codec = Codec, stream_info = Stream, stream_id = StreamId, timescale = Scale, length_size = LengthSize,
              payload_type = sdp_encoder:payload_type(Codec), sequence = 1, wall_clock = 0, timecode = 0}.
 
@@ -81,8 +82,8 @@ encode_rtcp(#rtp_channel{stream_id = StreamId, packet_count = PacketCount, octet
   % NTP = MSW + Micro / 1000000,
   % Timecode = round((NTP - ?YEARS_100)*1000*Scale),
   <<2:2, 0:1, Count:5, ?RTCP_SR, Length:16, StreamId:32, MSW:32, LSW:32, Timecode:32, PacketCount:32, OctetCount:32>>.
-  
-  
+
+
 
 encode_data(Data, #rtp_channel{codec = mp3} = RTP, Timecode) ->
   Size = size(Data),
@@ -105,16 +106,16 @@ encode_data(Data, #rtp_channel{codec = aac} = RTP, Timecode) ->
   AULength = bit_size(AUHeader),
   AAC = <<AULength:16, AUHeader/binary, Data/binary>>,
   compose_rtp(RTP, AAC, Timecode);
-  
+
 
 encode_data(Data, #rtp_channel{codec = speex} = RTP, Timecode) ->
   compose_rtp(RTP, <<Data/binary, 16#7f:8 >>, Timecode);
-  
+
 
 encode_data(Data, #rtp_channel{codec = h264, length_size = LengthSize} = RTP, Timecode) ->
   FUA_NALS = lists:flatten([h264:fua_split(NAL, 1387) || NAL <- split_h264_frame(Data, LengthSize)]),
   compose_rtp(RTP, FUA_NALS, Timecode);
-  
+
 % encode_data(Data, #rtp_channel{codec = mpeg4} = RTP, Timecode) ->
 %   compose_rtp(RTP, Data, 1388, Timecode);
 
@@ -140,11 +141,11 @@ compose_rtp(RTP, Parts, Timecode) ->
 
 compose_rtp(RTP, [], Acc, _Timecode) ->
   {ok, RTP, lists:reverse(Acc)};
-  
+
 compose_rtp(#rtp_channel{sequence = Sequence} = RTP, [Part|Parts], Acc, Timecode) ->
-  Pack = make_rtp_pack(RTP, case length(Parts) of 0 -> 1; _ -> 0 end, Part, Timecode),
-  compose_rtp(RTP#rtp_channel{sequence = inc_seq(Sequence)}, Parts, [Pack|Acc], Timecode). 
-  
+  Pack = make_rtp_pack(RTP, case length(Parts) of 0 -> 0; _ -> 1 end, Part, Timecode),
+  compose_rtp(RTP#rtp_channel{sequence = inc_seq(Sequence)}, Parts, [Pack|Acc], Timecode).
+
 
 make_rtp_pack(#rtp_channel{payload_type = PayloadType,
                         sequence = Sequence,
@@ -168,3 +169,6 @@ inc_packets(S, V) ->
 inc_bytes(S, V) ->
   (S+V) band 16#FFFFFFFF.
 
+make_ssrc() ->
+  random:seed(now()),
+  random:uniform(16#FFFFFFFF).
