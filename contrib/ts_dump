@@ -7,17 +7,32 @@ main([Path]) ->
   Root = filename:join(filename:dirname(escript:script_name()), ".."),
   [code:add_pathz(Path_) || Path_ <- filelib:wildcard(Root ++ "/apps/*/ebin")],
   application:start(log4erl),
+  process_flag(trap_exit, true),
   {ok, Reader} = mpegts_file_reader:init([Path, [{consumer, self()}]]),
-  dump_frames(Reader).
+  case (catch dump_frames(Reader)) of
+    ok -> ok;
+    _Else -> io:format("~p:~p~n", [_Else, erlang:get_stacktrace()])
+  end,
+  receive
+    Msg -> io:format("~p~n", [Msg])
+  after
+    500 -> ok
+  end.
 
 
 dump_frames(Reader) ->
   case mpegts_file_reader:read_frame(Reader) of
-    {NewReader, #video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}} ->
-      io:format("~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
-      dump_frames(NewReader);
     {_NewReader, undefined} ->
-      ok
+      ok;
+    {NewReader, Frames} ->
+      [dump_frame(Frame) || Frame <- Frames],
+      dump_frames(NewReader)
   end.
 
-  
+% dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
+%   io:format("h264(keyframe) ~p(~p): ~p~n", [round(DTS), iolist_size(Body), Body]);
+% 
+dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}) ->
+  io:format("~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
+  ok.
+

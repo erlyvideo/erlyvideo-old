@@ -67,7 +67,7 @@ init([Path, Options]) ->
   Consumer = proplists:get_value(consumer, Options),
   true = is_pid(Consumer),
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
-  {ok, Reader} = mpegts_reader:start_link([{consumer,self()}]),
+  {ok, Reader} = mpegts_reader:init([[]]),
   erlang:monitor(process, Consumer),
   {ok, #file_reader{reader = Reader, consumer = Consumer, path = Path, file = File}}.
 
@@ -119,12 +119,15 @@ handle_info(start, #file_reader{} = State) ->
     #video_frame{dts = DTS} ->
       {TimerStart, _} = erlang:statistics(wall_clock),
       self() ! timeout,
-      {noreply, NewState1#file_reader{frame = Frame, first_dts = DTS, timer_start = TimerStart}}
+      {noreply, NewState1#file_reader{frames = [Frame], first_dts = DTS, timer_start = TimerStart}}
   end;
   
-handle_info(timeout, #file_reader{frame = Frame, consumer = Consumer} = State) ->
-  Consumer ! Frame,
-  {NewState, Timeout} = read_and_store_frame(State),
+handle_info(timeout, #file_reader{consumer = Consumer} = State) ->
+  {NewState, Frame, Timeout} = read_and_store_frame(State),
+  case Frame of
+    undefined -> ok;
+    _ -> Consumer ! Frame
+  end,
   % ?D({timeout,Timeout}),
   case Timeout of
     undefined ->
@@ -145,21 +148,12 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 
-read_frame(#file_reader{frames = [Frame | Frames]} = State) ->
-  {State#file_reader{frames = Frames}, Frame};
-
 read_frame(#file_reader{file = File, offset = Offset, reader = Reader} = State) ->
   NewOffset = Offset + 188,
   case file:pread(File, Offset, 188) of
     {ok, Data} ->
-      Reader ! {data, Data},
-      receive
-        #video_frame{} = Frame ->
-          {State#file_reader{offset = NewOffset}, Frame}
-      after
-        0 ->
-          read_frame(State#file_reader{offset = NewOffset})
-      end;
+      {ok, Reader1, Frames} = mpegts_reader:decode(Data, Reader),
+      {State#file_reader{offset = NewOffset, reader = Reader1}, Frames};
     _ ->
       {State, undefined}
   end.
