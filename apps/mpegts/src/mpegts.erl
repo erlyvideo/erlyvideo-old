@@ -79,8 +79,8 @@ init(Options) ->
   end,
   #streamer{interleave = Interleave}.
 
-flush(Streamer) ->
-  {Streamer1, Audio} = flush_audio(Streamer),
+flush(#streamer{audio_dts = DTS} = Streamer) ->
+  {Streamer1, Audio} = flush_audio(Streamer, DTS),
   {Streamer2, Padding} = pad_continuity_counters(Streamer1),
   {Streamer2, [Audio, Padding]}.
 
@@ -417,7 +417,7 @@ encode(#streamer{interleave = Interleave, audio_buffer = Audio, audio_dts = OldD
   {Streamer#streamer{audio_buffer = [ADTS|Audio]}, none};
 
 encode(#streamer{} = Streamer, #video_frame{content = audio, codec = aac, dts = DTS} = Frame) ->
-  {Streamer1, Reply} = flush_audio(Streamer),
+  {Streamer1, Reply} = flush_audio(Streamer, DTS),
   {Streamer2, none} = encode(Streamer1#streamer{audio_dts = DTS, audio_buffer = []}, Frame),
   {Streamer2, Reply};
 
@@ -425,11 +425,11 @@ encode(#streamer{} = Streamer, #video_frame{content = metadata}) ->
   {Streamer, none}.
 
 
-flush_audio(#streamer{audio_buffer = [], audio_dts = undefined} = Streamer) ->
+flush_audio(#streamer{audio_buffer = [], audio_dts = undefined} = Streamer, _) ->
   {Streamer, <<>>};
 
-flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS} = Streamer) ->
-  % ?D({flush_adts, length(Audio), round(DTS)}),
+flush_audio(#streamer{audio_buffer = Audio} = Streamer, DTS) ->
+  % ?D({flush_adts, length(Audio), round(DTS), [[Z1, Z2, 0] || <<Z1, Z2, _/binary>> <- Audio]}),
   ADTS = #video_frame{
     content = audio,
     codec = adts,
