@@ -68,6 +68,7 @@
   video_config = undefined,
   send_audio_config = false,
   sample_rate,
+  send_raw_es = false,
   h264
 }).
 
@@ -293,7 +294,7 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
-    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #decoder{pids = Pids} = Decoder, _, _) ->
+    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #decoder{pids = Pids, options = Options} = Decoder, _, _) ->
   % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
   PMTLength = round(SectionLength - 13 - ProgramInfoLength),
   % ?D({"Selecting MPEG-TS program", ProgramNum}),
@@ -304,7 +305,8 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   Descriptors1 = lists:map(fun(#stream{pid = Pid} = Stream) ->
     case lists:keyfind(Pid, #stream.pid, Pids) of
       false ->
-        Handler = proc_lib:spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, h264 = #h264{}}]),
+        Handler = proc_lib:spawn_link(?MODULE, pes, [Stream#stream{demuxer = self(), program_num = ProgramNum, 
+                            h264 = #h264{}, send_raw_es = proplists:get_value(raw_es, Options, false)}]),
         % ?D({"Starting PID", Pid, Handler}),
         erlang:monitor(process, Handler),
         #stream_out{pid = Pid, handler = Handler};
@@ -381,6 +383,21 @@ pes_packet(_, #stream{codec = unhandled} = Stream) -> {Stream#stream{ts_buffer =
 pes_packet(_, #stream{dts = undefined} = Stream) ->
   ?D({"No PCR or DTS yes"}),
   {Stream#stream{ts_buffer = []}, []};
+
+pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, 
+           #stream{codec = Codec, send_raw_es = true, dts = DTS, pts = PTS} = Stream) ->
+   Frame = #video_frame{       
+     content = es,
+     flavor  = frame,
+     dts     = DTS,
+     pts     = PTS,
+     body    = Data,
+ 	  codec	  = Codec,
+ 	  sound	  = {stereo, bit16, rate44}
+   },
+   % ?D({audio, Stream#stream.pcr, DTS}),
+   {Stream#stream{es_buffer = <<>>}, [Frame]};
+  
 
 pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>, #stream{codec = aac, es_buffer = Buffer} = Stream) ->
   % ?D({"Audio", Stream1#stream.pcr, Stream1#stream.dts}),
@@ -521,9 +538,11 @@ decode_aac(#stream{send_audio_config = false, es_buffer = AAC, dts = DTS} = Stre
   
 
 decode_aac(#stream{es_buffer = ADTS, dts = DTS, sample_rate = SampleRate} = Stream) ->
-  Frames = decode_adts(ADTS, DTS, SampleRate / 1000, 0, []),
-  {Stream#stream{es_buffer = <<>>}, Frames}.
+  {Frames, Rest} = decode_adts(ADTS, DTS, SampleRate / 1000, 0, []),
+  {Stream#stream{es_buffer = Rest}, Frames}.
 
+decode_adts(<<>>, _BaseDTS, _SampleRate, _SampleCount, Frames) ->
+  {lists:reverse(Frames), <<>>};
 
 decode_adts(ADTS, BaseDTS, SampleRate, SampleCount, Frames) ->
   case aac:unpack_adts(ADTS) of
@@ -540,8 +559,8 @@ decode_adts(ADTS, BaseDTS, SampleRate, SampleCount, Frames) ->
       },
       % ?D({audio, Stream#stream.pcr, DTS}),
       decode_adts(Rest, BaseDTS, SampleRate, SampleCount + 1024, [AudioFrame|Frames]);
-    _Else ->
-      lists:reverse(Frames)
+    {more, _} ->
+      {lists:reverse(Frames), ADTS}
   end.
       
 % decode_aac(#stream{es_buffer = <<_Syncword:12, _ID:1, _Layer:2, 0:1, _Profile:2, _Sampling:4,
