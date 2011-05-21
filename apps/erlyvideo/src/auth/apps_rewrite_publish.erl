@@ -32,4 +32,4 @@
 
 publish(#rtmp_session{} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
   Mod = {apps_rewrite_play, URL},
-  Mod:run_http_request(State, AMF).
+  Mod:play(State, AMF).
