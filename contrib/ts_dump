@@ -7,6 +7,7 @@ main([Path]) ->
   Root = filename:join(filename:dirname(escript:script_name()), ".."),
   [code:add_pathz(Path_) || Path_ <- filelib:wildcard(Root ++ "/apps/*/ebin")],
   application:start(log4erl),
+  ems_log:start(),
   process_flag(trap_exit, true),
   {ok, Reader} = mpegts_file_reader:init([Path, [{consumer, self()}]]),
   case (catch dump_frames(Reader)) of
