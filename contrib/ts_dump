@@ -10,24 +10,25 @@ main([Path]) ->
   ems_log:start(),
   process_flag(trap_exit, true),
   {ok, Reader} = mpegts_file_reader:init([Path, [{consumer, self()}]]),
-  case (catch dump_frames(Reader)) of
-    ok -> ok;
+  T1 = erlang:now(),
+  Number = case (catch dump_frames(Reader, 0)) of
+    {ok, Num} -> Num;
     _Else -> io:format("~p:~p~n", [_Else, erlang:get_stacktrace()])
   end,
-  receive
-    Msg -> io:format("~p~n", [Msg])
-  after
-    500 -> ok
-  end.
+  T2 = erlang:now(),
+  io:format("~p frames in ~p s~n", [Number, timer:now_diff(T2, T1) div 1000000]).
 
 
-dump_frames(Reader) ->
+dump_frames(_, Count) when Count > 30000 ->
+  {ok, Count};
+
+dump_frames(Reader, Count) ->
   case mpegts_file_reader:read_frame(Reader) of
     {_NewReader, undefined} ->
-      ok;
+      {ok, Count};
     {NewReader, Frames} ->
-      [dump_frame(Frame) || Frame <- Frames],
-      dump_frames(NewReader)
+      % [dump_frame(Frame) || Frame <- Frames],
+      dump_frames(NewReader, Count + length(Frames))
   end.
 
 % dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
