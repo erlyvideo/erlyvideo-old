@@ -2,6 +2,7 @@
 
 
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("mpegts/include/mpegts.hrl").
 
 main([Path]) ->
   Root = filename:join(filename:dirname(escript:script_name()), ".."),
@@ -9,9 +10,10 @@ main([Path]) ->
   application:start(log4erl),
   ems_log:start(),
   process_flag(trap_exit, true),
-  {ok, Reader} = mpegts_file_reader:init([Path, [{consumer, self()}]]),
+  {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
+  {ok, Reader} = mpegts_reader:init([[]]),
   T1 = erlang:now(),
-  Number = case (catch dump_frames(Reader, 0)) of
+  Number = case (catch dump_frames(File, Reader, 0)) of
     {ok, Num} -> Num;
     _Else -> io:format("~p:~p~n", [_Else, erlang:get_stacktrace()])
   end,
@@ -19,22 +21,29 @@ main([Path]) ->
   io:format("~p frames in ~p s~n", [Number, timer:now_diff(T2, T1) div 1000000]).
 
 
-dump_frames(_, Count) when Count > 30000 ->
+dump_frames(_, _, Count) when Count > 30000 ->
   {ok, Count};
 
-dump_frames(Reader, Count) ->
-  case mpegts_file_reader:read_frame(Reader) of
-    {_NewReader, undefined} ->
-      {ok, Count};
-    {NewReader, Frames} ->
-      % [dump_frame(Frame) || Frame <- Frames],
-      dump_frames(NewReader, Count + length(Frames))
-  end.
+dump_frames(File, Reader, Count) ->
+  case file:read(File, 188) of
+    {ok, <<16#47, Bin/binary>>} ->
+      case mpegts_reader:decode_ts(Bin, Reader) of
+        {ok, Reader1, undefined} ->
+          dump_frames(File, Reader1, Count);
+        {ok, Reader1, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES} ->
+            io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
+            {ok, Reader2, Frames} = mpegts_reader:decode_pes(Reader1, PES),
+            [dump_frame(Frame) || Frame <- Frames],
+            dump_frames(File, Reader2, Count + length(Frames))
+      end;
+    eof ->
+      {ok, Count}
+  end.            
 
 % dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
 %   io:format("h264(keyframe) ~p(~p): ~p~n", [round(DTS), iolist_size(Body), Body]);
 % 
 dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}) ->
-  io:format("~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
+  io:format("  ~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
   ok.
 

@@ -83,7 +83,7 @@
 -export([start_link/1, set_socket/2]).
 -export([init/1, handle_info/2, handle_call/3, handle_cast/2, code_change/3, terminate/2]).
 
--export([decode/2]).
+-export([decode/2, decode_ts/2, decode_pes/2]).
 
 
 % load_nif() ->
