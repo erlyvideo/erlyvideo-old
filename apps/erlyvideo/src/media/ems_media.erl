@@ -497,6 +497,11 @@ handle_call(stop, _From, Media) ->
   {stop, normal, Media};
 
   
+handle_call({get_field, Key}, _From, Media) ->
+  {reply, get(Media, Key), Media};
+
+handle_call({set_field, Key, Value}, _From, Media) ->
+  {reply, ok, set(Media, Key, Value)};
 
 
 handle_call(media_info, _From, #ems_media{media_info = #media_info{audio = A, video = V} = Info} = Media) when A =/= wait andalso V =/= wait ->

@@ -13,7 +13,8 @@
 	bytes_recv   = 0,
 	bytes_sent   = 0,
 	play_stats   = [],
-	cached_shared_objects = []
+	cached_shared_objects = [],
+	properties
 	}).
 
 -record(rtmp_stream, {
@@ -24,5 +25,6 @@
   started = false,
   seeking = false,
   receive_audio = true,
-  receive_video = true
+  receive_video = true,
+  properties = []
 }).
