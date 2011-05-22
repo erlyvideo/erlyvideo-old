@@ -31,7 +31,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
 
--export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1]).
+-export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1, counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).
 
 -export([read/2]).
@@ -60,6 +60,7 @@ read(URL, Options) ->
   pmt_counter = 0,
   audio_counter = 0,
   video_counter = 0,
+  pad_counters = true,
   sent_pat = false,
   last_dts,
   length_size = 32,
@@ -78,7 +79,16 @@ init(Options) ->
     Num when is_number(Num) andalso Num > 0 -> Num;
     _ -> false
   end,
-  #streamer{interleave = Interleave}.
+  Streamer = #streamer{interleave = Interleave, pad_counters = proplists:get_value(pad_counters, Options, true)},
+  init_counters(Streamer, proplists:get_value(counters, Options)).
+
+init_counters(Streamer, undefined) ->
+  Streamer;
+init_counters(Streamer, [PAT, PMT, Audio, Video]) ->
+  Streamer#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, video_counter = Video}.
+
+counters(#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, video_counter = Video}) ->
+  [PAT, PMT, Audio, Video].
 
 flush(#streamer{} = Streamer) ->
   {Streamer1, Audio} = flush_audio(Streamer),
@@ -471,6 +481,10 @@ audio_config(#streamer{audio_config = A}) -> A.
 
 continuity_counters(#streamer{video_counter = Video, audio_counter = Audio, pmt_counter = PMT, pat_counter = PAT}) ->
   {Video, Audio, PMT, PAT}.
+
+
+pad_continuity_counters(#streamer{pad_counters = false} = Streamer) ->
+  {Streamer, <<>>};
 
 pad_continuity_counters(Streamer) ->
   % ?D({padding, continuity_counters(Streamer)}),

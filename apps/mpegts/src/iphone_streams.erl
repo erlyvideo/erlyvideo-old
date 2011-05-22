@@ -152,8 +152,12 @@ timeshift_segments(Info) ->
 
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
-    {ok, PlayerPid} ->
-      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true},{interleave,30}]);
+    {ok, Media} ->
+      Counters = ems_media:get(Media, {iphone_counters, Number}),
+      Info = mpegts_play:play(Name, Media, Req, [{buffered, true},{interleave,30},{counters, Counters},{pad_counters,false}]),
+      NextCounters = proplists:get_value(counters, Info),
+      ems_media:set(Media, {iphone_counters, Number+1}, NextCounters),
+      ok;
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
     Reason ->
