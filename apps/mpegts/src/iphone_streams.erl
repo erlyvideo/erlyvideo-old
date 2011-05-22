@@ -77,14 +77,15 @@ playlist(Host, Name, Options) ->
     file -> "#EXT-X-ENDLIST\n";
     _ -> ""
   end,
-  StreamType = case Type of
-    file -> "#EXT-X-PLAYLIST-TYPE:VOD\n";
-    _ -> "#EXT-X-PLAYLIST-TYPE:EVENT\n"
-  end,
+  % StreamType = case Type of
+  %   file -> "#EXT-X-PLAYLIST-TYPE:VOD\n";
+  %   _ -> "#EXT-X-PLAYLIST-TYPE:EVENT\n"
+  % end,
+  StreamType = "",
   [
     "#EXTM3U\n",
     io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength)]),
-    "#EXT-X-ALLOW-CACHE:YES\n",
+    % "#EXT-X-ALLOW-CACHE:YES\n",
     StreamType,
     SegmentList,
     EndList
