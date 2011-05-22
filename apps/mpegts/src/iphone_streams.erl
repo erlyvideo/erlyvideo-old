@@ -153,7 +153,7 @@ timeshift_segments(Info) ->
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
     {ok, PlayerPid} ->
-      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true},{interleave,500}]);
+      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true},{interleave,30}]);
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
     Reason ->
