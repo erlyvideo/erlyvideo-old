@@ -34,6 +34,8 @@
 -export([benchmark/0]).
 -define(PAT_PID, 0).
 
+-define(PID_TYPE(Pid), case lists:keyfind(Pid, #stream.pid, Pids) of #stream{codec = h264} -> "V"; _ -> "A" end).
+
 % -on_load(load_nif/0).
 
 
@@ -216,8 +218,10 @@ decode_ts(<<_:3, PmtPid:13, _/binary>> = Packet, #decoder{pmt_pid = PmtPid} = De
   {ok, Decoder1, undefined};
 
 
-decode_ts(<<_:1, PayloadStart:1, _:1, Pid:13, _:4, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
+decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
+            _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   Header = adaptation_field(Packet, #ts_header{payload_start = PayloadStart, pid = Pid}),
+  % io:format("ts: ~s (~p) ~p ~p~n", [?PID_TYPE(Pid),PayloadStart, _Counter, Header#ts_header.pcr]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{synced = false}, _} when PayloadStart == 0 ->
       ?D({"Not synced pes", Pid}),
@@ -235,9 +239,20 @@ decode_ts(<<_:1, PayloadStart:1, _:1, Pid:13, _:4, _Counter:4, _/binary>> = Pack
     false ->
       % ?D({unknown_pid, Pid}),
       {ok, Decoder, undefined}
-  end.
-  
-      
+  end;
+
+decode_ts({eof,Codec}, #decoder{pids = Pids} = Decoder) ->
+  case lists:keytake(Codec, #stream.codec, Pids) of
+    {value, #stream{ts_buffer = Buf} = Stream, Streams} ->
+      Body = iolist_to_binary(lists:reverse(Buf)),
+      % ?D({eof,Codec,Body}),
+      Stream1 = stream_timestamp(Body, Stream),
+      PESPacket = pes_packet(Body, Stream1),
+      {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = [], es_buffer = <<>>}|Streams]}, PESPacket};
+    false ->
+      % ?D({unknown_pid, Pid}),
+      {ok, Decoder, undefined}
+  end.    
 
 ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2, 0:1, 1:1, _Counter:4, Payload/binary>>)  -> 
   Payload;
@@ -588,14 +603,17 @@ find_nal_start_erl(<<_, Rest/binary>>) ->
   find_nal_start_erl(Rest).
 
 find_and_extract_nal(Bin) ->
-  Length = find_nal_end_erl(Bin, 0),
-  <<NAL:Length/binary, Rest/binary>> = Bin,
-  {ok, NAL, Rest}.
+  case find_nal_end_erl(Bin, 0) of
+    undefined -> undefined;
+    Length ->
+      <<NAL:Length/binary, Rest/binary>> = Bin,
+      {ok, NAL, Rest}
+  end.    
   
   
 find_nal_end_erl(<<1:32, _/binary>>, Len) -> Len;
 find_nal_end_erl(<<1:24, _/binary>>, Len) -> Len;
-find_nal_end_erl(<<>>, Len) -> Len;
+find_nal_end_erl(<<>>, _Len) -> undefined;
 find_nal_end_erl(<<_, Rest/binary>>, Len) -> find_nal_end_erl(Rest, Len+1).
 
 
@@ -631,20 +649,20 @@ nal_test_bin(filler) ->
               220,41,236,119,135,93,159,204,2,57,132,207,28,
               91,54,128,228,85,112,81,129,18,140,99,90,53,128,
     0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,128,
-    0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>;                                                                                            
+    0,0,0,1,12,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,0,1>>;                                                                                            
   
 nal_test_bin(small) ->
   <<0,0,0,1,9,224,0,0,1,104,206,50,200>>.
 
 extract_nal_test() ->
-  ?assertEqual({ok, <<9,224>>, <<>>}, extract_nal(<<0,0,1,9,224>>)),
+  ?assertEqual(undefined, extract_nal(<<0,0,1,9,224>>)),
   ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal(nal_test_bin(small))),
-  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal(<<0,0,1,104,206,50,200>>)),
+  ?assertEqual({ok, <<104,206,50,200>>, <<0,0,1>>}, extract_nal(<<0,0,1,104,206,50,200,0,0,1>>)),
   ?assertEqual(undefined, extract_nal(<<>>)).
   
 extract_nal_erl_test() ->  
   ?assertEqual({ok, <<9,224>>, <<0,0,1,104,206,50,200>>}, extract_nal_erl(nal_test_bin(small))),
-  ?assertEqual({ok, <<104,206,50,200>>, <<>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200>>)),
+  ?assertEqual({ok, <<104,206,50,200>>, <<0,0,1>>}, extract_nal_erl(<<0,0,0,1,104,206,50,200,0,0,1>>)),
   ?assertEqual(undefined, extract_nal_erl(<<>>)).
 
 extract_real_nal_test() ->
@@ -657,7 +675,7 @@ extract_real_nal_test() ->
             220,41,236,119,135,93,159,204,2,57,132,207,28,
             91,54,128,228,85,112,81,129,18,140,99,90,53,128>>, Bin4} = extract_nal(Bin3),
   {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,128>>, Bin5} = extract_nal(Bin4),
-  {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>, <<>>} = extract_nal(Bin5).
+  {ok, <<12,255,255,255,255,255,255,255,255,255,255,255,255,255,255>>, <<0,0,1>>} = extract_nal(Bin5).
 
 
 extract_nal_erl_bm(N) ->
