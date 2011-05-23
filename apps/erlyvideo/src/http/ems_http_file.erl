@@ -31,6 +31,19 @@
 
 
 
+http(Host, 'GET', ["mp4" | PathSpec], Req) ->
+  Path = ems:pathjoin(PathSpec),
+  
+  Req:stream(head, [{"Content-Type", "video/mp4"}, {"Connection", "close"}, {"Content-Disposition", "attachment; filename="++Path++".mp4"}]),
+  {ok, Pid} = media_provider:open(Host, Path),
+  ems_media:subscribe(Pid, []),
+
+  mp4_writer:dump_media(Pid, [{writer, fun(_Offset, Bin) ->
+    Req:stream(Bin)
+  end}]),
+  Req:stream(close);
+
+
 http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
   Root1 = if
     is_list(DocRoot) -> DocRoot;
