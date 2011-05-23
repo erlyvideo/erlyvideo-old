@@ -89,6 +89,7 @@ start(normal, []) ->
   ems_log:start(),
 	load_config(),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
+  [code:add_pathz(Path) || Path <- filelib:wildcard("plugins/*/ebin")],
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
   start_http(),
