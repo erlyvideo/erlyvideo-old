@@ -89,7 +89,7 @@ start(normal, []) ->
   ems_log:start(),
 	load_config(),
 	lists:foreach(fun(PluginPath) ->
-  	[code:add_pathz(Path) || Path <- filelib:wildcard(PluginPath++"/*/ebin")],
+  	[code:add_pathz(Path) || Path <- filelib:wildcard(PluginPath++"/*/ebin")]
 	end, ems:get_var(paths, [])),
 	[code:add_pathz(Path) || Path <- ems:get_var(paths, [])],
   [code:add_pathz(Path) || Path <- filelib:wildcard("plugins/*/ebin")],
