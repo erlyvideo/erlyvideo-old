@@ -72,14 +72,6 @@
   h264
 }).
 
--record(ts_header, {
-  payload_start,
-  pid,
-  pcr = undefined,
-  opcr = undefined,
-  payload
-}).
-
 -export([extract_nal/1]).
 
 -export([start_link/1, set_socket/2]).
@@ -220,7 +212,7 @@ decode_ts(<<_:3, PmtPid:13, _/binary>> = Packet, #decoder{pmt_pid = PmtPid} = De
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
-  Header = adaptation_field(Packet, #ts_header{payload_start = PayloadStart, pid = Pid}),
+  PCR = get_pcr(Packet),
   % io:format("ts: ~s (~p) ~p ~p~n", [?PID_TYPE(Pid),PayloadStart, _Counter, Header#ts_header.pcr]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{synced = false}, _} when PayloadStart == 0 ->
@@ -228,12 +220,12 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
       {ok, Decoder, undefined};
     {value, #stream{synced = false} = Stream, Streams} when PayloadStart == 1 ->
       ?D({"Synced PES", Pid}),
-      {ok, Decoder#decoder{pids = [copy_pcr(Header, Stream#stream{synced = true, ts_buffer = [ts_payload(Packet)]})|Streams]}, undefined};
+      {ok, Decoder#decoder{pids = [Stream#stream{synced = true, pcr = PCR, ts_buffer = [ts_payload(Packet)]}|Streams]}, undefined};
     {value, #stream{synced = true, ts_buffer = Buf} = Stream, Streams} when PayloadStart == 0 ->
-      {ok, Decoder#decoder{pids = [copy_pcr(Header, Stream#stream{ts_buffer = [ts_payload(Packet)|Buf]})|Streams]}, undefined};
+      {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = [ts_payload(Packet)|Buf]}|Streams]}, undefined};
     {value, #stream{synced = true, ts_buffer = Buf} = Stream, Streams} when PayloadStart == 1 ->  
       Body = iolist_to_binary(lists:reverse(Buf)),
-      Stream1 = stream_timestamp(Body, copy_pcr(Header, Stream)),
+      Stream1 = stream_timestamp(Body, Stream#stream{pcr = PCR}),
       PESPacket = pes_packet(Body, Stream1),
       {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = [ts_payload(Packet)], es_buffer = <<>>}|Streams]}, PESPacket};
     false ->
@@ -266,24 +258,17 @@ ts_payload(<<_TEI:1, _Start:1, _Priority:1, _Pid:13, _Scrambling:2,
   ?D({"Empty payload on pid", _Pid}),
   <<>>.
 
-adaptation_field(<<_:18, 0:1, _:5, _/binary>>, Header) -> Header;
-adaptation_field(<<_:18, 1:1, _:5, AdaptationLength, AdaptationField:AdaptationLength/binary, _/binary>>, Header) when AdaptationLength > 0 -> 
-  parse_adaptation_field(AdaptationField, Header);
+
+get_pcr(<<_:18, 1:1, _:5, Length, AdaptationField:Length/binary, _/binary>>) when Length > 0 ->
+  extract_pcr(AdaptationField);
   
-adaptation_field(_, Header) -> Header.
+get_pcr(_) ->
+  undefined.
 
-
-parse_adaptation_field(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, OPCR:1, _Splice:1, _Private:1, _Ext:1, Data/binary>>, Header) ->
-  parse_adaptation_field(Data, PCR, OPCR, Header).
-
-parse_adaptation_field(<<Pcr1:33, Pcr2:9, Rest/bitstring>>, 1, OPCR, Header) ->
-  % ?D({Header#ts_header.pid, round(Pcr1/90 + Pcr2 / 27000)}),
-  parse_adaptation_field(Rest, 0, OPCR, Header#ts_header{pcr = Pcr1 / 90 + Pcr2 / 27000});
-
-parse_adaptation_field(<<OPcr1:33, OPcr2:9, _Rest/bitstring>>, 0, 1, Header) ->
-  Header#ts_header{opcr = OPcr1 / 90 + OPcr2 / 27000};
-  
-parse_adaptation_field(_, 0, 0, Field) -> Field.
+extract_pcr(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, _OPCR:1, _Splice:1, _Private:1, _Ext:1, Pcr1:33, Pcr2:9, _/bitstring>>) when PCR == 1 ->
+  Pcr1 / 90 + Pcr2 / 27000;
+extract_pcr(_) ->
+  undefined.
 
 
 
@@ -354,9 +339,6 @@ stream_codec(?TYPE_AUDIO_MPEG2) -> mpeg2audio;
 stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 
-copy_pcr(#ts_header{pcr = undefined}, Stream) -> Stream;
-copy_pcr(#ts_header{pcr = PCR}, Stream) -> Stream#stream{pcr = PCR}.
-      
 pes_packet(_, #stream{codec = unhandled}) -> 
   undefined;
 

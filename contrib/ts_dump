@@ -19,12 +19,12 @@ main([Path]) ->
   Modules = [mpegts_dumper, mpegts_reader, h264, aac],
   [code:load_file(Module) || Module <- Modules],
   T1 = erlang:now(),
-  % {ok, Number} = fprof:apply(mpegts_dumper, dump_frames, [File, Reader, 0]),
-  {ok, Number} = mpegts_dumper:dump_frames(File, Reader, 0),
+  {ok, Number} = fprof:apply(mpegts_dumper, dump_frames, [File, Reader, 0]),
+  % {ok, Number} = mpegts_dumper:dump_frames(File, Reader, 0),
   T2 = erlang:now(),
   io:format("~p frames in ~p s~n", [Number, timer:now_diff(T2, T1) div 1000000]),
-  % fprof:profile(),
-  % fprof:analyse(),
+  fprof:profile(),
+  fprof:analyse(),
   ok.
 
 
