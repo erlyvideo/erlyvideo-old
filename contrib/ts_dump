@@ -1,8 +1,8 @@
 #!/usr/bin/env ERL_LIBS=apps escript
 
 
--include_lib("erlmedia/include/video_frame.hrl").
--include_lib("mpegts/include/mpegts.hrl").
+
+-compile(export_all).
 
 main(["http://"++_ = URL]) ->
   os:cmd("curl -o test.ts "++URL),
@@ -16,47 +16,15 @@ main([Path]) ->
   process_flag(trap_exit, true),
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
   {ok, Reader} = mpegts_reader:init([[]]),
+  Modules = [mpegts_dumper, mpegts_reader, h264, aac],
+  [code:load_file(Module) || Module <- Modules],
   T1 = erlang:now(),
-  Number = case (catch dump_frames(File, Reader, 0)) of
-    {ok, Num} -> Num;
-    _Else -> io:format("~p:~p~n", [_Else, erlang:get_stacktrace()])
-  end,
+  % {ok, Number} = fprof:apply(mpegts_dumper, dump_frames, [File, Reader, 0]),
+  {ok, Number} = mpegts_dumper:dump_frames(File, Reader, 0),
   T2 = erlang:now(),
-  io:format("~p frames in ~p s~n", [Number, timer:now_diff(T2, T1) div 1000000]).
-
-dump_pes(Reader, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES) ->
-  io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
-  {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
-  [dump_frame(Frame) || Frame <- Frames],
-  {Reader1, length(Frames)}.
-
-dump_frames(_, _, Count) when Count > 30000 ->
-  {ok, Count};
-
-dump_frames(File, Reader, Count) ->
-  case file:read(File, 188) of
-    {ok, <<16#47, Bin/binary>>} ->
-      case mpegts_reader:decode_ts(Bin, Reader) of
-        {ok, Reader1, undefined} ->
-          dump_frames(File, Reader1, Count);
-        {ok, Reader1, PES} ->
-          {Reader2, Cnt} = dump_pes(Reader1, PES),
-          dump_frames(File, Reader2, Count + Cnt)
-      end;
-    eof ->
-      {ok, Reader1, PES1} = mpegts_reader:decode_ts({eof, h264}, Reader),
-      {Reader2, _} = dump_pes(Reader1, PES1),
-      
-      {ok, Reader3, PES2} = mpegts_reader:decode_ts({eof, aac}, Reader2),
-      {_Reader2, _} = dump_pes(Reader3, PES2),
-      
-      {ok, Count}
-  end.            
-
-dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
-  io:format("  h264(keyframe) ~p(~p)~n", [round(DTS), iolist_size(Body)]);
-
-dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}) ->
-  io:format("  ~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
+  io:format("~p frames in ~p s~n", [Number, timer:now_diff(T2, T1) div 1000000]),
+  % fprof:profile(),
+  % fprof:analyse(),
   ok.
+
 
