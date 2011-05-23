@@ -36,8 +36,8 @@
 
 -define(PID_TYPE(Pid), case lists:keyfind(Pid, #stream.pid, Pids) of #stream{codec = h264} -> "V"; _ -> "A" end).
 
-% -on_load(load_nif/0).
-
+-on_load(load_nif/0).
+-export([load_nif/0]).
 
 
 -record(decoder, {
@@ -88,10 +88,10 @@
 -export([decode/2, decode_ts/2, decode_pes/2]).
 
 
-% load_nif() ->
-%   Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
-%   io:format("Load mpegts_reader: ~p~n", [Load]),
-%   ok.
+load_nif() ->
+  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+  io:format("Load mpegts_reader: ~p~n", [Load]),
+  ok.
 
 
 start_link(Options) ->
