@@ -95,6 +95,8 @@ seek_in_timeshift(First, First, _Frames, _Timestamp, Key, _SeekMode) ->
 
 seek_in_timeshift(First, Last, Frames, Timestamp, Key, SeekMode) ->
   case array:get(First, Frames) of
+    #video_frame{dts = DTS} when DTS > Timestamp andalso SeekMode == frame ->
+      {First, DTS};
     #video_frame{dts = DTS} when DTS > Timestamp ->
       Key;
     #video_frame{dts = DTS} when SeekMode == frame ->

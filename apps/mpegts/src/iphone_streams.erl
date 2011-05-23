@@ -77,10 +77,16 @@ playlist(Host, Name, Options) ->
     file -> "#EXT-X-ENDLIST\n";
     _ -> ""
   end,
+  % StreamType = case Type of
+  %   file -> "#EXT-X-PLAYLIST-TYPE:VOD\n";
+  %   _ -> "#EXT-X-PLAYLIST-TYPE:EVENT\n"
+  % end,
+  StreamType = "",
   [
     "#EXTM3U\n",
     io_lib:format("#EXT-X-MEDIA-SEQUENCE:~p~n#EXT-X-TARGETDURATION:~p~n", [Start, round(SegmentLength)]),
-    "#EXT-X-ALLOW-CACHE:YES\n",
+    % "#EXT-X-ALLOW-CACHE:YES\n",
+    StreamType,
     SegmentList,
     EndList
   ].
@@ -147,8 +153,12 @@ timeshift_segments(Info) ->
 
 play(Host, Name, Number, Req) ->
   case iphone_streams:find(Host, Name, Number) of
-    {ok, PlayerPid} ->
-      mpegts_play:play(Name, PlayerPid, Req, [{buffered, true},{interleave,500}]);
+    {ok, Media} ->
+      Counters = ems_media:get(Media, {iphone_counters, Number}),
+      Info = mpegts_play:play(Name, Media, Req, [{buffered, true},{interleave,30},{counters, Counters},{pad_counters,false}]),
+      NextCounters = proplists:get_value(counters, Info),
+      ems_media:set(Media, {iphone_counters, Number+1}, NextCounters),
+      ok;
     {notfound, Reason} ->
       Req:respond(404, [{"Content-Type", "text/plain"}], "404 Page not found.\n ~p: ~s ~s\n", [Name, Host, Reason]);
     Reason ->

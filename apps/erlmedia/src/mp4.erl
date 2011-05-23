@@ -178,7 +178,7 @@ seek(#mp4_media{} = Media, TrackId, Timestamp, SeekMode) ->
 
 seek(Media, TrackId, Timestamp, Id, Found, SeekMode) ->
   case read_frame(Media, #frame_id{id = Id, v = TrackId}) of
-    #mp4_frame{dts = DTS} when DTS > Timestamp andalso SeekMode == frame -> Found;
+    #mp4_frame{dts = DTS} when DTS > Timestamp andalso SeekMode == frame -> {Id,DTS};
     #mp4_frame{keyframe = true, dts = DTS} when DTS > Timestamp andalso SeekMode == keyframe -> Found;
     #mp4_frame{keyframe = true, dts = DTS} when SeekMode == keyframe -> seek(Media, TrackId, Timestamp, Id+1, {Id,DTS}, SeekMode);
     #mp4_frame{dts = DTS} when SeekMode == frame -> seek(Media, TrackId, Timestamp, Id+1, {Id, DTS}, SeekMode);

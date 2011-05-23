@@ -1,23 +1,30 @@
 #!/usr/bin/env ERL_LIBS=apps escript
 
 
--include_lib("erlmedia/include/video_frame.hrl").
+
+-compile(export_all).
+
+main(["http://"++_ = URL]) ->
+  os:cmd("curl -o test.ts "++URL),
+  main(["test.ts"]);
 
 main([Path]) ->
   Root = filename:join(filename:dirname(escript:script_name()), ".."),
   [code:add_pathz(Path_) || Path_ <- filelib:wildcard(Root ++ "/apps/*/ebin")],
   application:start(log4erl),
-  {ok, Reader} = mpegts_file_reader:init([Path, [{consumer, self()}]]),
-  dump_frames(Reader).
+  ems_log:start(),
+  process_flag(trap_exit, true),
+  {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
+  {ok, Reader} = mpegts_reader:init([[]]),
+  Modules = [mpegts_dumper, mpegts_reader, h264, aac],
+  [code:load_file(Module) || Module <- Modules],
+  T1 = erlang:now(),
+  {ok, Number} = fprof:apply(mpegts_dumper, dump_frames, [File, Reader, 0]),
+  % {ok, Number} = mpegts_dumper:dump_frames(File, Reader, 0),
+  T2 = erlang:now(),
+  io:format("~p frames in ~p s~n", [Number, timer:now_diff(T2, T1) div 1000000]),
+  fprof:profile(),
+  fprof:analyse(),
+  ok.
 
 
-dump_frames(Reader) ->
-  case mpegts_file_reader:read_frame(Reader) of
-    {NewReader, #video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}} ->
-      io:format("~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
-      dump_frames(NewReader);
-    {_NewReader, undefined} ->
-      ok
-  end.
-
-  

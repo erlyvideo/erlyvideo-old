@@ -45,26 +45,28 @@ play(Name, Player, Req) ->
 play(_Name, Player, Req, Options) ->
   % ?D({"Player starting", _Name, Player}),
   erlang:monitor(process,Player),
-  MS1 = erlang:now(),
+  % MS1 = erlang:now(),
   Streamer = #http_player{player = Player, streamer = mpegts:init(Options)},
-  case proplists:get_value(buffered, Options) of
+  Info = case proplists:get_value(buffered, Options) of
     true -> 
       #http_player{buffer = MPEGTSBuffer} = Streamer1 = ?MODULE:play(Streamer#http_player{buffer = []}),
-      {_Streamer2, Padding} = mpegts:flush(Streamer1#http_player.streamer),
+      {Streamer2, Padding} = mpegts:flush(Streamer1#http_player.streamer),
       Buffer = [Padding|MPEGTSBuffer],
       % ?D({get(first_dts), get(last_dts)}),
       Req:stream(head, [{"Content-Type", "video/MP2T"}, {"Connection", "close"}, {"Content-Length", integer_to_list(iolist_size(Buffer))}]),
-      MS2 = erlang:now(),
-      Req:stream(lists:reverse(Buffer));
+      % MS2 = erlang:now(),
+      Req:stream(lists:reverse(Buffer)),
+      [{counters, mpegts:counters(Streamer2)}];
     _ ->
       Req:stream(head, [{"Content-Type", "video/mpeg2"}, {"Connection", "close"}]),
-      MS2 = erlang:now(),
-      ?MODULE:play(Streamer#http_player{req = Req})
+      % MS2 = erlang:now(),
+      ?MODULE:play(Streamer#http_player{req = Req}),
+      []
   end,      
   % Req:stream(close),
-  MS3 = erlang:now(),
-  ?D({mpegts, _Name, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000}),
-  ok.
+  % MS3 = erlang:now(),
+  % ?D({mpegts, _Name, time, timer:now_diff(MS2,MS1) div 1000, timer:now_diff(MS3,MS2) div 1000}),
+  Info.
 
 play(#http_player{} = Player) ->
   receive
@@ -102,9 +104,9 @@ handle_msg(#http_player{} = Streamer, Message) ->
   {ok, Streamer}.
 
 
-send_frame(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{} = Frame) ->
+send_frame(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{dts = DTS, pts = PTS} = Frame) ->
   % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,round(Frame#video_frame.dts)}),
-  case mpegts:encode(Streamer, Frame) of
+  case mpegts:encode(Streamer, Frame#video_frame{dts = 10000 + DTS, pts = 10000 + PTS}) of
     {Streamer1, none} -> 
       {ok, HTTPPlayer#http_player{streamer = Streamer1}};
     {Streamer1, Bin} when Req == undefined ->

@@ -40,5 +40,6 @@
   retry_count = 0,
   retry_limit = 100,
   
-  frame_filters = []
+  frame_filters = [],
+  properties = []
 }).

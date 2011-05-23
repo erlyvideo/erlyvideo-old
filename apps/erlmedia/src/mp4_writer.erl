@@ -146,7 +146,7 @@ dump_media_2pass(Media, Writer, Pos, End) ->
   case ems_media:read_frame(Media, Pos) of
     eof ->
       {ok, Writer};
-    #video_frame{dts = DTS} when DTS >= End ->
+    #video_frame{dts = DTS} when is_number(End) andalso DTS >= End ->
       {ok, Writer};
     #video_frame{next_id = NewPos} = Frame ->  
       {ok, Writer1} = handle_frame(Frame, Writer),
