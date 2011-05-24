@@ -72,7 +72,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]). %, format_status/2
 
 
--export([get/2, set/3, set/2]).
 -export([source_is_lost/1, source_is_restored/1]).
 
 

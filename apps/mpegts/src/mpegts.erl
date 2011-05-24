@@ -64,6 +64,8 @@ read(URL, Options) ->
   sent_pat = false,
   last_dts,
   length_size = 32,
+  audio_codec,
+  video_codec,
   audio_config = undefined,
   video_config = undefined,
   video_buffer = [],
@@ -89,6 +91,24 @@ init_counters(Streamer, [PAT, PMT, Audio, Video]) ->
 
 counters(#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, video_counter = Video}) ->
   [PAT, PMT, Audio, Video].
+
+encode(Streamer, #video_frame{content = Content} = Frame) when Content == audio orelse Content == video ->
+  ?D({Frame#video_frame.codec, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
+  Streamer0 = set_stream_codec(Streamer, Frame),
+  {Streamer1, Bin1} = send_program_tables(Streamer0, Frame),
+  Streamer2 = enqueue_frame(Streamer1, Frame),
+  case need_to_flush(Streamer2) of
+    true ->
+      {Streamer3, Audio} = flush_audio(Streamer2),
+      {Streamer4, Video} = flush_video(Streamer3),
+      {Streamer4, [Bin1, interleave(Audio,Video)]};
+    false ->
+      {Streamer2, Bin1}
+  end;
+
+encode(Streamer, #video_frame{} = _Frame) ->
+  {Streamer, []}.
+
 
 flush(#streamer{} = Streamer) ->
   {Streamer1, Audio} = flush_audio(Streamer),
@@ -219,7 +239,7 @@ send_pat(Streamer, _DTS) ->
   % ?D({"Sending PAT", size(PAT), size(PATBin)}),
   mux(PATBin, Streamer, ?PAT_PID).
 
-send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
+send_pmt(#streamer{video_config = _VideoConfig, audio_codec = AudioCodec, video_codec = VideoCodec} = Streamer, _DTS) ->
   SectionSyntaxInd = 1,
   ProgramNum = 1,
   Version = 0,
@@ -246,7 +266,12 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   %%
   _AudioES1 = <<?DESCRIPTOR_SL, 2, 1:16>>, % means, 2 byte and ES ID = 1
   AudioES = <<>>,
-  AudioStream = <<?TYPE_AUDIO_AAC, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
+  AudioCodecId = case AudioCodec of
+    aac -> ?TYPE_AUDIO_AAC;
+    mpeg2audio -> ?TYPE_AUDIO_MPEG2;
+    mp3 -> ?TYPE_AUDIO_MPEG2
+  end, 
+  AudioStream = <<AudioCodecId, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
   % MultipleFrameRate = 0,
   % FrameRateCode = 0,
@@ -257,7 +282,11 @@ send_pmt(#streamer{video_config = _VideoConfig} = Streamer, _DTS) ->
   % VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
   %             0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig/binary>>,
   VideoES = <<>>,
-  VideoStream = <<?TYPE_VIDEO_H264, 2#111:3, ?VIDEO_PID:13, 2#1111:4, (size(VideoES)):12, VideoES/binary>>,
+  VideoCodecId = case VideoCodec of
+    h264 -> ?TYPE_VIDEO_H264;
+    mpeg2video -> ?TYPE_VIDEO_MPEG2
+  end,
+  VideoStream = <<VideoCodecId, 2#111:3, ?VIDEO_PID:13, 2#1111:4, (size(VideoES)):12, VideoES/binary>>,
   Streams = iolist_to_binary([VideoStream, AudioStream]),
   Program = <<ProgramNum:16, 
            2#11:2, Version:5, CurrentNext:1, 
@@ -370,29 +399,27 @@ unpack_nals(Body, LengthSize, NALS) ->
   unpack_nals(Rest, LengthSize, [NAL|NALS]).
 
 
-encode(Streamer, #video_frame{content = Content} = Frame) when Content == audio orelse Content == video ->
-  {Streamer1, Bin1} = send_program_tables(Streamer, Frame),
-  Streamer2 = enqueue_frame(Streamer1, Frame),
-  case need_to_flush(Streamer2) of
-    true ->
-      {Streamer3, Audio} = flush_audio(Streamer2),
-      {Streamer4, Video} = flush_video(Streamer3),
-      {Streamer4, [Bin1, interleave(Audio,Video)]};
-    false ->
-      {Streamer2, Bin1}
-  end;
 
-encode(Streamer, #video_frame{} = _Frame) ->
-  {Streamer, []}.
 
-send_program_tables(#streamer{sent_pat = SentPat} = Streamer, #video_frame{content = Content, flavor = Flavor, dts = DTS} = _Frame) 
-  when SentPat == false orelse (Content == video andalso Flavor == keyframe) ->
+
+send_program_tables(#streamer{sent_pat = SentPat, audio_codec = A, video_codec = V} = Streamer, #video_frame{content = Content, flavor = Flavor, dts = DTS} = _Frame) 
+  when (SentPat == false orelse (Content == video andalso Flavor == keyframe)) andalso A =/= undefined andalso V =/= undefined ->
   {Streamer1, PATBin} = send_pat(Streamer, DTS),
   {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
   {Streamer2#streamer{sent_pat = true, last_dts = DTS}, <<PATBin/binary, PMTBin/binary>>};
 
 send_program_tables(Streamer, _Frame) ->
   {Streamer, <<>>}.
+
+
+set_stream_codec(#streamer{audio_codec = undefined} = Streamer, #video_frame{content = audio, codec = Codec}) ->
+  Streamer#streamer{audio_codec = Codec};
+
+set_stream_codec(#streamer{video_codec = undefined} = Streamer, #video_frame{content = video, codec = Codec}) ->
+  Streamer#streamer{video_codec = Codec};
+
+set_stream_codec(Streamer, _) ->
+  Streamer.
 
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = video, flavor = config, codec = h264, body = Config, dts = DTS}) ->
@@ -430,6 +457,10 @@ enqueue_frame(#streamer{length_size = LengthSize, video_config = VideoConfig, vi
   {Streamer2, Video} = send_video(Streamer#streamer{last_dts = DTS}, Frame#video_frame{body = Packed}),
   Streamer2#streamer{video_buffer = [Video|Buffer]};
 
+enqueue_frame(#streamer{audio_buffer = Buffer} = Streamer, #video_frame{content = audio, dts = DTS} = Frame) ->
+  {Streamer2, Audio} = send_audio(Streamer#streamer{last_dts = DTS}, Frame),
+  Streamer2#streamer{audio_buffer = [Audio|Buffer]};
+
 enqueue_frame(#streamer{video_buffer = Buffer} = Streamer, #video_frame{content = video, dts = DTS} = Frame) ->
   {Streamer2, Video} = send_video(Streamer#streamer{last_dts = DTS}, Frame),
   Streamer2#streamer{video_buffer = [Video|Buffer]}.
@@ -445,7 +476,7 @@ need_to_flush(#streamer{}) -> false.
 flush_audio(#streamer{audio_buffer = [], audio_dts = undefined} = Streamer) ->
   {Streamer, <<>>};
 
-flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS} = Streamer) ->
+flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS, audio_codec = aac} = Streamer) ->
   % ?D({flush_adts, length(Audio), round(DTS)}),
   ADTS = #video_frame{
     content = audio,
@@ -455,7 +486,10 @@ flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS} = Streamer) ->
     pts = DTS,
     body = iolist_to_binary(lists:reverse(Audio))
   },
-  send_audio(Streamer#streamer{audio_buffer = [], audio_dts = undefined}, ADTS).
+  send_audio(Streamer#streamer{audio_buffer = [], audio_dts = undefined}, ADTS);
+
+flush_audio(#streamer{audio_buffer = Audio} = Streamer) ->
+  {Streamer#streamer{audio_buffer = []}, lists:reverse(Audio)}.
 
 flush_video(#streamer{video_buffer = Buffer} = Streamer) ->
   {Streamer#streamer{video_buffer = []}, lists:reverse(Buffer)}.

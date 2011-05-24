@@ -96,12 +96,12 @@ handle_control(no_clients, State) ->
   {stop, normal, State};
 
 
-handle_control({make_request, URL}, #ems_media{type = Type}) ->
+handle_control({make_request, URL}, #ems_media{type = Type, options = Options}) ->
   Module = case Type of
     shoutcast -> ems_shoutcast;
     Else -> Else
   end,
-  Module:read(URL, []);
+  Module:read(URL, Options);
 
 handle_control(_Control, State) ->
   {noreply, State}.

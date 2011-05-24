@@ -58,7 +58,6 @@
 -export([reply/2, fail/2, stop/1]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 -export([get_socket/1]).
--export([get/2, set/3, set/2]).
 
 
 -include("../meta_access.hrl").

@@ -37,7 +37,6 @@
 -define(PID_TYPE(Pid), case lists:keyfind(Pid, #stream.pid, Pids) of #stream{codec = h264} -> "V"; _ -> "A" end).
 
 -on_load(load_nif/0).
--export([load_nif/0]).
 
 
 -record(decoder, {
@@ -274,11 +273,24 @@ extract_pcr(_) ->
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
-handle_pat(PATBin, #decoder{} = Decoder) ->
+handle_pat(PATBin, #decoder{pmt_pid = undefined, options = Options} = Decoder) ->
   % ?D({"Full PAT", size(PATBin), PATBin}),
   #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  [{PmtPid, _ProgramNum}] = Descriptors,
-  Decoder#decoder{pmt_pid = PmtPid}.
+  PmtPid = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
+  Decoder#decoder{pmt_pid = PmtPid};
+
+
+handle_pat(_PATBin, Decoder) ->
+  Decoder.
+
+
+select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
+  PmtPid;
+select_pmt_pid(Descriptors, SelectedProgram) ->
+  case lists:keyfind(SelectedProgram, 1, Descriptors) of
+    {PmtPid, SelectedProgram} -> PmtPid;
+    _ -> undefined
+  end.
   
 
 pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
@@ -359,6 +371,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>,
 decode_pes(#decoder{pids = Pids} = Decoder, #pes_packet{body = Body, pid = Pid}) ->
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, Stream, Streams} ->
+      % ?D({decode_pes,Stream#stream.codec}),
       {Stream1, Frames} = decode_pes_packet(Stream#stream{es_buffer = Body}),
       {ok, Decoder#decoder{pids = [Stream1|Streams]}, Frames};
     _ ->
@@ -387,18 +400,9 @@ decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = 
   {Stream, [AudioFrame]};
 
 
-decode_pes_packet(#stream{codec = mpeg2video, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
-  AudioFrame = #video_frame{       
-    content = video,
-    flavor  = frame,
-    dts     = DTS,
-    pts     = PTS,
-    body    = Data,
-	  codec	  = mpeg2video
-  },
-  % ?D({audio, Stream#stream.pcr, DTS}),
-  {Stream, [AudioFrame]}.
-
+decode_pes_packet(#stream{codec = mpeg2video} = Stream) ->
+  decode_mpeg2_video(Stream, []).
+  
 pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
@@ -552,6 +556,27 @@ decode_avc(#stream{es_buffer = Data} = Stream, Frames) ->
       {Stream1, Frames1} = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
       decode_avc(Stream1, Frames ++ Frames1)
   end.
+
+
+decode_mpeg2_video(#stream{dts = DTS, pts = PTS, es_buffer = Data} = Stream, Frames) ->
+  case extract_nal(Data) of
+    undefined ->
+      {Stream, Frames};
+    {ok, Block, Rest} ->
+      VideoFrame = #video_frame{       
+        content = video,
+        flavor  = frame,
+        dts     = DTS,
+        pts     = PTS,
+        body    = Block,
+    	  codec	  = mpeg2video
+      },
+      ?D({mpeg2video,size(Block),DTS}),
+      % ?D({video, round(DTS), size(Data)}),
+      decode_mpeg2_video(Stream#stream{es_buffer = Rest}, [VideoFrame|Frames])
+  end.
+
+  
 
 handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
   {Stream, []};
