@@ -1,3 +1,5 @@
+-export([get/2, set/3, set/2, construct/1]).
+
 get(Media, Key) when is_pid(Media) ->
   gen_server:call(Media, {get_field, Key});
 
@@ -35,3 +37,6 @@ record_index(_, [], _) -> undefined.
 set(#?MODULE{} = Media, Options) ->
   lists:foldl(fun({K,V}, M) -> set(M, K, V) end, Media, Options).
 
+
+construct(Values) ->
+  set(#?MODULE{}, Values).

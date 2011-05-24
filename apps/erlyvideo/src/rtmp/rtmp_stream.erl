@@ -23,7 +23,6 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_stream).
 -author('Max Lapshin <max@maxidoors.ru>').
--export([get/2, set/3, set/2]).
 -include("rtmp_session.hrl").
 
 -include("../meta_access.hrl").
