@@ -42,8 +42,8 @@ private function handleStatus(evt:NetStatusEvent) : void
       ns_out = new NetStream(nc);
       
       var m:Microphone;
-      if (m['getEnhancedMicrophone']) {
-        m = Microphone.getEnhancedMicrophone();
+      if (m['getEnhancedMicrophone'] && false) {
+/*        m = Microphone.getEnhancedMicrophone();
 
         var options:MicrophoneEnhancedOptions = new MicrophoneEnhancedOptions();
         options.mode = MicrophoneEnhancedMode.FULL_DUPLEX;
@@ -51,7 +51,7 @@ private function handleStatus(evt:NetStatusEvent) : void
         options.echoPath = 128;
         options.nonLinearProcessing = true;
         m.enhancedOptions = options;
-      } else {
+*/      } else {
         m = Microphone.getMicrophone();
       }
       
