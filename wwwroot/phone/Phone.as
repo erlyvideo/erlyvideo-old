@@ -77,6 +77,10 @@ private function handleStatus(evt:NetStatusEvent) : void
       ns_in = new NetStream(nc);
       ns_in.play(obj.in_stream);
       videoContainer.video.attachNetStream(ns_in);
+      var in_client:Object = new Object();
+      in_client.onMetaData = function(obj:Object):void {
+      }
+      ns_in.client = in_client;
       
     default:
       registerEnabled = false;
