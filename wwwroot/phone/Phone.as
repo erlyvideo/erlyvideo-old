@@ -41,14 +41,19 @@ private function handleStatus(evt:NetStatusEvent) : void
       var obj:Object = evt.info.description;
       ns_out = new NetStream(nc);
       
-      var m:Microphone = Microphone.getEnhancedMicrophone();
+      var m:Microphone;
+      if (m['getEnhancedMicrophone']) {
+        m = Microphone.getEnhancedMicrophone();
 
-      var options:MicrophoneEnhancedOptions = new MicrophoneEnhancedOptions();
-      options.mode = MicrophoneEnhancedMode.FULL_DUPLEX;
-      options.autoGain = false;
-      options.echoPath = 128;
-      options.nonLinearProcessing = true;
-      m.enhancedOptions = options;
+        var options:MicrophoneEnhancedOptions = new MicrophoneEnhancedOptions();
+        options.mode = MicrophoneEnhancedMode.FULL_DUPLEX;
+        options.autoGain = false;
+        options.echoPath = 128;
+        options.nonLinearProcessing = true;
+        m.enhancedOptions = options;
+      } else {
+        m = Microphone.getMicrophone();
+      }
       
 			//m.rate = 44;
       m.codec = "Speex";
