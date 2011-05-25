@@ -85,6 +85,11 @@ private function handleStatus(evt:NetStatusEvent) : void
   }
 }
 
+public function onMetaData(object:Object) : void
+{
+  
+}
+
 public function register() : void
 {
   var r:Responder = new Responder(function(reply:Boolean):void {
