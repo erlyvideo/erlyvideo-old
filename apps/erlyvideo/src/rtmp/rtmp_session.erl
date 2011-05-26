@@ -578,12 +578,12 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
       erlang:error({old_frame, Else,StreamId})
   end,
 
-  case Frame#video_frame.content of
-    metadata -> ?D(Frame);
-    _ ->
-      % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), size(Frame#video_frame.body)}),
-      ok
-  end,
+  % case Frame#video_frame.content of
+  %   metadata -> ?D(Frame);
+  %   _ ->
+  %     % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), size(Frame#video_frame.body)}),
+  %     ok
+  % end,
   case Allow of
     true ->
       Message = #rtmp_message{
