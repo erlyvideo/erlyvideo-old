@@ -125,7 +125,7 @@ timeshift_segments(Info) ->
   StartTime = proplists:get_value(start, Info, 0),
   Start = trunc(StartTime / ?STREAM_TIME) + 1,
   SegmentLength = ?STREAM_TIME div 1000,
-  DurationLimit = 5*?STREAM_TIME,
+  DurationLimit = 4*?STREAM_TIME,
   Count = if
     Duration < DurationLimit -> 0;
     true -> trunc((Duration + StartTime)/?STREAM_TIME) - Start
