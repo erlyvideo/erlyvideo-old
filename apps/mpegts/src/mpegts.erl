@@ -30,6 +30,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("mpegts.hrl").
+-include("../include/mpegts.hrl").
 
 -export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1, counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).
@@ -38,13 +39,10 @@
 
 
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
--define(PAT_PID, 0).
 -define(PMT_PID, 256).
 -define(AUDIO_PID, 257).
 -define(VIDEO_PID, 258).
 -define(PCR_PID, ?VIDEO_PID).
--define(PAT_TABLEID, 0).
--define(PMT_TABLEID, 2).
 
 
   
@@ -395,6 +393,10 @@ unpack_nals(<<>>, _LengthSize, NALS) ->
   lists:reverse(NALS);
 
 unpack_nals(Body, LengthSize, NALS) ->
+  case Body of
+    <<Length1:LengthSize, _NAL:Length1/binary, _Rest/binary>> -> ok;
+    _ -> ?D({broken,Body,NALS,LengthSize})
+  end,
   <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
   unpack_nals(Rest, LengthSize, [NAL|NALS]).
 
@@ -424,6 +426,7 @@ set_stream_codec(Streamer, _) ->
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = video, flavor = config, codec = h264, body = Config, dts = DTS}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
+  ?D({new_length_size,NewLengthSize}),
   Streamer#streamer{video_config = Config, length_size = NewLengthSize*8, last_dts = DTS};
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, codec = aac, body = AudioConfig, dts = DTS}) ->
