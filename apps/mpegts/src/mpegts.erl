@@ -91,7 +91,7 @@ counters(#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, 
   [PAT, PMT, Audio, Video].
 
 encode(Streamer, #video_frame{content = Content} = Frame) when Content == audio orelse Content == video ->
-  ?D({Frame#video_frame.codec, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
+  % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
   Streamer0 = set_stream_codec(Streamer, Frame),
   {Streamer1, Bin1} = send_program_tables(Streamer0, Frame),
   Streamer2 = enqueue_frame(Streamer1, Frame),
@@ -394,11 +394,12 @@ unpack_nals(<<>>, _LengthSize, NALS) ->
 
 unpack_nals(Body, LengthSize, NALS) ->
   case Body of
-    <<Length1:LengthSize, _NAL:Length1/binary, _Rest/binary>> -> ok;
-    _ -> ?D({broken,Body,NALS,LengthSize})
-  end,
-  <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
-  unpack_nals(Rest, LengthSize, [NAL|NALS]).
+    <<Length1:LengthSize, NAL:Length1/binary, Rest/binary>> ->
+      unpack_nals(Rest, LengthSize, [NAL|NALS]);
+    _ ->
+      ?D({"Warning!!!! Broken file, cannot unpack NAL units from H264", Body, NALS}),
+      []
+  end.
 
 
 
@@ -426,7 +427,7 @@ set_stream_codec(Streamer, _) ->
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = video, flavor = config, codec = h264, body = Config, dts = DTS}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
-  ?D({new_length_size,NewLengthSize}),
+  % ?D({new_length_size,NewLengthSize}),
   Streamer#streamer{video_config = Config, length_size = NewLengthSize*8, last_dts = DTS};
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, codec = aac, body = AudioConfig, dts = DTS}) ->
