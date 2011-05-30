@@ -29,7 +29,7 @@
 -module(mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
--include("mpegts.hrl").
+-include("log.hrl").
 -include("../include/mpegts.hrl").
 
 -export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1, counters/1]).
@@ -267,7 +267,7 @@ send_pmt(#streamer{video_config = _VideoConfig, audio_codec = AudioCodec, video_
   AudioCodecId = case AudioCodec of
     aac -> ?TYPE_AUDIO_AAC;
     mpeg2audio -> ?TYPE_AUDIO_MPEG2;
-    mp3 -> ?TYPE_AUDIO_MPEG2
+    mp3 -> ?TYPE_AUDIO_MPEG1
   end, 
   AudioStream = <<AudioCodecId, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
@@ -374,12 +374,19 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec 
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Audio", round(DTS), size(Body)}),
-  ADTS = case Codec of
+  Packed = case Codec of
     aac -> aac:pack_adts(Body, AudioConfig);
     adts -> Body;
-    mpeg2audio -> Body
+    mpeg2audio -> Body;
+    mp3 -> Body
   end,
-  PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
+  Code = case Codec of
+    aac -> ?MPEGTS_STREAMID_AAC;
+    adts -> ?MPEGTS_STREAMID_AAC;
+    mp3 -> ?TYPE_AUDIO_MPEG1;
+    mpeg2audio -> ?TYPE_AUDIO_MPEG2
+  end,
+  PES = <<1:24, Code, (size(PesHeader) + size(Packed)):16, PesHeader/binary, Packed/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
   % ?D({mux,Codec,round(DTS)}),
   mux({DTS, PES}, Streamer, ?AUDIO_PID).

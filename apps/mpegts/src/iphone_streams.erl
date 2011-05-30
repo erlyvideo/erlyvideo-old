@@ -134,7 +134,7 @@ timeshift_segments(Info) ->
   
 
 play(Host, Name, Number, Req) ->
-  case iphone_streams:find(Host, Name, Number) of
+  case find(Host, Name, Number) of
     {ok, Media} ->
       Counters = ems_media:get(Media, {iphone_counters, Number}),
       Info = mpegts_play:play(Name, Media, Req, [{buffered, true},{interleave,30},{counters, Counters},{pad_counters,false}]),

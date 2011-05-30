@@ -23,7 +23,7 @@
 -module(mpegts_file_reader).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
--include("mpegts.hrl").
+-include("log.hrl").
 
 -behaviour(gen_server).
 %% gen_server callbacks

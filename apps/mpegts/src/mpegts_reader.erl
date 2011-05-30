@@ -25,7 +25,7 @@
 
 -include_lib("erlmedia/include/h264.hrl").
 -include_lib("erlmedia/include/aac.hrl").
--include("mpegts.hrl").
+-include("log.hrl").
 -include("../include/mpegts.hrl").
 
 -include_lib("erlmedia/include/video_frame.hrl").
@@ -365,6 +365,7 @@ stream_codec(?TYPE_VIDEO_H264) -> h264;
 stream_codec(?TYPE_VIDEO_MPEG2) -> mpeg2video;
 stream_codec(?TYPE_AUDIO_AAC) -> aac;
 stream_codec(?TYPE_AUDIO_AAC2) -> aac;
+stream_codec(?TYPE_AUDIO_MPEG1) -> mp3;
 stream_codec(?TYPE_AUDIO_MPEG2) -> mpeg2audio;
 stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
@@ -403,6 +404,19 @@ decode_pes_packet(#stream{codec = aac} = Packet) ->
 decode_pes_packet(#stream{codec = h264} = Packet) ->
   decode_avc(Packet, []);
 
+
+decode_pes_packet(#stream{codec = mp3, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
+  AudioFrame = #video_frame{       
+    content = audio,
+    flavor  = frame,
+    dts     = DTS,
+    pts     = PTS,
+    body    = Data,
+	  codec	  = mp3,
+	  sound	  = {stereo, bit16, rate44}
+  },
+  % ?D({audio, Stream#stream.pcr, DTS}),
+  {Stream, [AudioFrame]};
 
 decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
   AudioFrame = #video_frame{       

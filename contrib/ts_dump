@@ -15,7 +15,7 @@ main([Path]) ->
   ems_log:start(),
   process_flag(trap_exit, true),
   {ok, File} = file:open(Path, [read,binary,{read_ahead,131072},raw]),
-  {ok, Reader} = mpegts_reader:init([[{program,104}]]),
+  {ok, Reader} = mpegts_reader:init([[]]),
   Modules = [mpegts_dumper, mpegts_reader, h264, aac],
   [code:load_file(Module) || Module <- Modules],
   T1 = erlang:now(),
