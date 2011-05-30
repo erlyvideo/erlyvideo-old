@@ -3,7 +3,7 @@
 
 -type(frame_content() ::audio|video|metadata).
 -type(frame_flavor()  ::frame|keyframe|config|disposable).
--type(frame_video_codec() ::h264|sorensen|vp6|vp6f|mpeg4).
+-type(frame_video_codec() ::h264|sorenson|vp6|vp6f|mpeg4).
 -type(frame_audio_codec() ::aac|mp3|pcma|pcmu|pcm|pcm_le|g726_16|speex|nellymoser|nellymoser8).
 -type(frame_codec()   ::frame_video_codec()|frame_audio_codec()|atom()).
 

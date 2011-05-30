@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlmedia.
-%%% 
+%%%
 %%% erlmedia is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -69,7 +69,7 @@
 -define(FLV_VIDEO_FRAME_TYPE_COMMAND,         5).
 
 -define(FLV_VIDEO_CODEC_JPEG,                 1).
--define(FLV_VIDEO_CODEC_SORENSEN,             2).
+-define(FLV_VIDEO_CODEC_SORENSON,             2).
 -define(FLV_VIDEO_CODEC_SCREENVIDEO,          3).
 -define(FLV_VIDEO_CODEC_ON2VP6,               4).
 -define(FLV_VIDEO_CODEC_ON2VP6_ALPHA,         5).

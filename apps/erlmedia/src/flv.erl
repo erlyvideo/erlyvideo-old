@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlmedia.
-%%% 
+%%%
 %%% erlmedia is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -112,7 +112,7 @@ audio_rate(rate44) -> ?FLV_AUDIO_RATE_44.
 
 
 video_codec(?FLV_VIDEO_CODEC_JPEG) -> mjpeg;
-video_codec(?FLV_VIDEO_CODEC_SORENSEN) -> sorensen;
+video_codec(?FLV_VIDEO_CODEC_SORENSON) -> sorenson;
 video_codec(?FLV_VIDEO_CODEC_SCREENVIDEO) -> screen;
 video_codec(?FLV_VIDEO_CODEC_ON2VP6) -> vp6;
 video_codec(?FLV_VIDEO_CODEC_ON2VP6_ALPHA) -> vp6_alpha;
@@ -120,7 +120,7 @@ video_codec(?FLV_VIDEO_CODEC_SCREENVIDEO2) -> screen2;
 video_codec(?FLV_VIDEO_CODEC_AVC) -> h264;
 
 video_codec(mjpeg) -> ?FLV_VIDEO_CODEC_JPEG;
-video_codec(sorensen) -> ?FLV_VIDEO_CODEC_SORENSEN;
+video_codec(sorenson) -> ?FLV_VIDEO_CODEC_SORENSON;
 video_codec(screen) -> ?FLV_VIDEO_CODEC_SCREENVIDEO;
 video_codec(vp6) -> ?FLV_VIDEO_CODEC_ON2VP6;
 video_codec(vp6_alpha) -> ?FLV_VIDEO_CODEC_ON2VP6_ALPHA;
@@ -157,7 +157,7 @@ rtmp_tag_generator(#video_frame{content = Content, dts = DTS} = Frame) ->
 %%--------------------------------------------------------------------
 %% @spec () -> Offset::numeric()
 %% @doc Returns offset of first frame in FLV file
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 data_offset() -> ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
 
@@ -166,8 +166,8 @@ data_offset() -> ?FLV_HEADER_LENGTH + ?FLV_PREV_TAG_SIZE_LENGTH.
 duration(Reader) ->
   {_Header, DataOffset} = read_header(Reader),
   duration(Reader, DataOffset, 0).
-  
-duration(Reader, Offset, Duration) ->  
+
+duration(Reader, Offset, Duration) ->
   case read_tag_header(Reader, Offset) of
     #flv_tag{timestamp = Timestamp, next_tag_offset = NextOffset} ->
       duration(Reader, NextOffset, Timestamp);
@@ -178,7 +178,7 @@ duration(Reader, Offset, Duration) ->
 %%--------------------------------------------------------------------
 %% @spec (File::file()) -> {Header::flv_header(), Offset::numeric()}
 %% @doc Read header from freshly opened file
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 read_header({Module, Device}) ->  % Always on first bytes
   case Module:pread(Device, 0, ?FLV_HEADER_LENGTH) of
@@ -187,10 +187,10 @@ read_header({Module, Device}) ->  % Always on first bytes
     Else ->
       Else
   end;
-  
+
 read_header(Device) ->
   read_header({file, Device}).
-  
+
 
 
 tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
@@ -200,11 +200,11 @@ tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
 %%--------------------------------------------------------------------
 %% @spec (Body::binary()) -> Config::aac_config()
 %% @doc Unpack binary AAC config into #aac_config{}
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 read_tag_header({Module,Device}, Offset) ->
 	case Module:pread(Device,Offset, ?FLV_TAG_HEADER_LENGTH+1) of
-	  {ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} -> 
+	  {ok, <<Bin:?FLV_TAG_HEADER_LENGTH/binary, VideoFlavor:4, _:4>>} ->
 	    FlvTag = tag_header(Bin),
       FlvTag1 = FlvTag#flv_tag{offset = Offset + ?FLV_TAG_HEADER_LENGTH,
        next_tag_offset = Offset + ?FLV_TAG_HEADER_LENGTH + FlvTag#flv_tag.size + ?FLV_PREV_TAG_SIZE_LENGTH},
@@ -216,14 +216,14 @@ read_tag_header({Module,Device}, Offset) ->
 	  eof -> eof;
 	  {error, Reason} -> {error, Reason}
   end;
-  
+
 read_tag_header(Device, Offset) ->
   read_tag_header({file,Device}, Offset).
 
 %%--------------------------------------------------------------------
 %% @spec (File::file(), Offset::numeric()) -> Tag::flv_tag()
 %% @doc Reads from File FLV tag, starting on offset Offset. NextOffset is hidden in #flv_tag{}
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
   case tag_header(Header) of
@@ -235,7 +235,7 @@ read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
 
       Flavor = case Type of
         video ->
-          case Body of 
+          case Body of
             <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4, _/binary>> -> keyframe;
             _ -> frame
           end;
@@ -243,7 +243,7 @@ read_tag(<<Header:?FLV_TAG_HEADER_LENGTH/binary, Data/binary>>) ->
       end,
 
       {ok, decode_tag(Tag#flv_tag{body = Body, flavor = Flavor}), Rest};
-      
+
     #flv_tag{} ->
       more;
     Else -> Else
@@ -257,19 +257,19 @@ read_tag({Module,Device} = Reader, Offset) ->
   case read_tag_header(Reader, Offset) of
     #flv_tag{type = audio, size = 0} = Tag ->
       Tag#flv_tag{body = #flv_audio_tag{codec = empty, body = <<>>, flavor = frame}, flavor = frame};
-      
+
     #flv_tag{type = Type, size = Size} = Tag ->
       {ok, Body} = Module:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
-      
+
       Flavor = case Type of
         video ->
-          case Body of 
+          case Body of
             <<?FLV_VIDEO_FRAME_TYPE_KEYFRAME:4, _CodecID:4, _/binary>> -> keyframe;
             _ -> frame
           end;
         _ -> frame
       end,
-      
+
       decode_tag(Tag#flv_tag{body = Body, flavor = Flavor});
     Else -> Else
   end;
@@ -290,15 +290,15 @@ decode_video_tag(<<FrameType:4, CodecId:4, Body/binary>>) ->
 
 
 decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_RAW:8, Body/binary>>) ->
-  #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
+  #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize),
                  flavor = frame, rate	= flv:audio_rate(Rate), body= Body};
 
 decode_audio_tag(<<?FLV_AUDIO_FORMAT_AAC:4, Rate:2, Bitsize:1, Channels:1, ?FLV_AUDIO_AAC_SEQUENCE_HEADER:8, Body/binary>>) ->
-  #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
+  #flv_audio_tag{codec = aac, channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize),
                  flavor = config, rate	= flv:audio_rate(Rate), body= Body};
 
 decode_audio_tag(<<CodecId:4, Rate:2, Bitsize:1, Channels:1, Body/binary>>) ->
-  #flv_audio_tag{codec = flv:audio_codec(CodecId), channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize), 
+  #flv_audio_tag{codec = flv:audio_codec(CodecId), channels = flv:audio_type(Channels), bitsize = flv:audio_size(Bitsize),
                  flavor = frame, rate	= flv:audio_rate(Rate), body= Body}.
 
 
@@ -340,7 +340,7 @@ encode_list(Message, [Arg | Args]) ->
 %%--------------------------------------------------------------------
 %% @spec (FLVTag::flv_tag()) -> Tag::binary()
 %% @doc Packs #flv_tag{} into binary, suitable for writing into file
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 encode_tag(#flv_tag{type = Type, timestamp = Time, body = InnerTag}) ->
   <<TimeStampExt, TimeStamp:24>> = <<(round(Time)):32>>,
@@ -405,9 +405,9 @@ encode_meta_tag(Metadata) when is_binary(Metadata) ->
 encode_meta_tag(Metadata) when is_list(Metadata) ->
   encode_list(Metadata).
 
-	
-	
-				
+
+
+
 
 
 
@@ -418,14 +418,14 @@ video_size(_, vp6) -> {more, 6};
 video_size(<<_:4,       Width:12, Height:12, _:4,  _/binary>>,   screen) -> {ok, {Width, Height}};
 video_size(_, screen) -> {more, 8};
 
-video_size(<<_:30, 0:3, Width:8,  Height:8,  _:23, _/binary>>, sorensen) -> {ok, {Width, Height}};
-video_size(<<_:30, 1:3, Width:16, Height:16, _:7,  _/binary>>, sorensen) -> {ok, {Width, Height}};
-video_size(<<_:30, 2:3,                      _:39, _/binary>>, sorensen) -> {ok, {352, 288}};
-video_size(<<_:30, 3:3,                      _:39, _/binary>>, sorensen) -> {ok, {176, 144}};
-video_size(<<_:30, 4:3,                      _:39, _/binary>>, sorensen) -> {ok, {128, 96}};
-video_size(<<_:30, 5:3,                      _:39, _/binary>>, sorensen) -> {ok, {320, 240}};
-video_size(<<_:30, 6:3,                      _:39, _/binary>>, sorensen) -> {ok, {160, 120}};
-video_size(_, sorensen) -> {more, 9};
+video_size(<<_:30, 0:3, Width:8,  Height:8,  _:23, _/binary>>, sorenson) -> {ok, {Width, Height}};
+video_size(<<_:30, 1:3, Width:16, Height:16, _:7,  _/binary>>, sorenson) -> {ok, {Width, Height}};
+video_size(<<_:30, 2:3,                      _:39, _/binary>>, sorenson) -> {ok, {352, 288}};
+video_size(<<_:30, 3:3,                      _:39, _/binary>>, sorenson) -> {ok, {176, 144}};
+video_size(<<_:30, 4:3,                      _:39, _/binary>>, sorenson) -> {ok, {128, 96}};
+video_size(<<_:30, 5:3,                      _:39, _/binary>>, sorenson) -> {ok, {320, 240}};
+video_size(<<_:30, 6:3,                      _:39, _/binary>>, sorenson) -> {ok, {160, 120}};
+video_size(_, sorenson) -> {more, 9};
 video_size(_, _) -> {error, unknown}.
 
 
@@ -434,8 +434,8 @@ video_size(_, _) -> {error, unknown}.
 % @param IoDev
 % @param Pos
 % @return {SoundType, SoundSize, SoundRate, SoundFormat}
-extractAudioHeader(IoDev, Pos) ->	
-	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of   
+extractAudioHeader(IoDev, Pos) ->
+	case file:pread(IoDev, Pos + ?FLV_PREV_TAG_SIZE_LENGTH + ?FLV_TAG_HEADER_LENGTH, 1) of
 	  {ok, <<SoundFormat:4, SoundRate:2, SoundSize:1, SoundType:1>>} -> {SoundType, SoundSize, SoundRate, SoundFormat};
 		eof -> {ok, done};
 		{error, Reason} -> {error, Reason}
@@ -447,9 +447,9 @@ header() -> header(#flv_header{version = 1, audio = 1, video = 1}).
 %%--------------------------------------------------------------------
 %% @spec (Header::flv_header()) -> Body::binary()
 %% @doc Packs FLV file header into binary
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
-header(#flv_header{version = Version, audio = Audio, video = Video}) -> 
+header(#flv_header{version = Version, audio = Audio, video = Video}) ->
 	Reserved = 0,
 	Offset = 9,
 	PrevTag = 0,
@@ -457,6 +457,6 @@ header(#flv_header{version = Version, audio = Audio, video = Video}) ->
 header(Bin) when is_binary(Bin) ->
 	<<"FLV", Version:8, _:5, Audio:1, _:1, Video:1, 0,0,0,9>> = Bin,
 	#flv_header{version=Version,audio=Audio,video=Video}.
-		
+
 
 

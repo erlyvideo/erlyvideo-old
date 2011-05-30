@@ -1,12 +1,12 @@
 %%% @author     Max Lapshin <max@maxidoors.ru>
 %%% @copyright  2011 Max Lapshin
 %%% @doc        test helper module for erlyvideo
-%%% 
+%%%
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlmedia is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -32,12 +32,12 @@
 
 read_file(Path) ->
   ems_test_helper:read_file(Path).
-  
+
 
 test_duration(Frames, Nearby) ->
   [#video_frame{dts = FDTS}|_] = Frames,
   [#video_frame{dts = LDTS}|_] = lists:reverse(Frames),
-  TDTS = LDTS - FDTS, 
+  TDTS = LDTS - FDTS,
   %?D({"Delta DTS ",TDTS}),
   true = TDTS >= Nearby - 1000 andalso TDTS =< Nearby + 1000.
 
@@ -85,13 +85,13 @@ h264_aac_1_mp4_test() ->
 %mpegts_file_reader_test() ->
 %  Pid = spawn_link(?MODULE, mpegts_file_reader,[self()]).
 %  St = erlang:monitor(process,Pid),
-%  receive 
+%  receive
 %    #video_frame{} = F -> ?D("asd")
 %   {'DOWN', _Ref, process, Pid, _Reason} -> ?D("Crash")
 %  end.
 
 %mpegts_file_reader_test() ->
-% Reader = spawn_link(?MODULE,mpegts_read_frame,[[],self()]),  
+% Reader = spawn_link(?MODULE,mpegts_read_frame,[[],self()]),
 %  {ok,Cons}=mpegts_sup:start_file_reader("/home/tthread/a.ts",[{consumer,self()},{no_delay,true}]),
 %  erlang:monitor(process,Cons),
 %  {ok,Frames} = mpegts_read_frame([],self()),
@@ -100,7 +100,7 @@ h264_aac_1_mp4_test() ->
 %  ?D({"DTS",Nur,Last#video_frame.dts,First#video_frame.dts}).
 %  test_duration(Frames,20000).
 
-  
+
 
 mpegts_reader_file_test_() ->
   {spawn, {setup,
@@ -151,16 +151,16 @@ mpegts_reader_iphone_test_() ->
 %mpegts_read_frame(Frames,Pid) ->
 %  erlang:monitor(process,Pid),
 %  link(Pid),
-%  receive 
+%  receive
 %   #video_frame{} = F ->
 %         ?D({F#video_frame.flavor, F#video_frame.content, round(F#video_frame.dts - 31600000)}),
 %         mpegts_read_frame([F|Frames],Pid);
-%  Else -> 
+%  Else ->
 %    ?D({stop,Pid,Else}),
 %    {ok,lists:reverse(Frames)}
-%  end. 
+%  end.
 
-  
+
 
 h264_aac_2_mp4_test() ->
   {ok, Media, Frames} = read_file("h264_aac_2.mp4"),
@@ -236,7 +236,7 @@ h264_mp3_1_mp4_test() ->
     ],
     metadata = []
   }, mp4_reader:media_info(Media)).
-  
+
 
 
 
@@ -265,7 +265,7 @@ h264_1_mp4_test() ->
     ],
     metadata = []
   }, mp4_reader:media_info(Media)).
-  
+
 
 h264_1_flv_test() ->
   {ok, Media, Frames} = read_file("h264_1.flv"),
@@ -287,7 +287,7 @@ h264_1_flv_test() ->
     ],
     metadata = []
   }, flv_reader:media_info(Media)).
-  
+
 % ?CHECK(flv_aac_1_flv_test).
 flv_mp3_1_flv_test() ->
   {ok, Media, Frames} = read_file("flv_mp3_1.flv"),
@@ -299,7 +299,7 @@ flv_mp3_1_flv_test() ->
       #stream_info{
         content = video,
         stream_id = 1,
-        codec = sorensen,
+        codec = sorenson,
         config = undefined,
         params = #video_params{width = 320, height = 180}
       }
@@ -337,8 +337,8 @@ mp3_1_mp3_test() ->
     ],
     metadata = []
   }, mp3_reader:media_info(Media)).
-  
-  
+
+
 
 
 % h264_1_h264_test() -> ok.

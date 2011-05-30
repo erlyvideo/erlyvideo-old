@@ -5,7 +5,7 @@
 %%% @end
 %%%
 %%% This file is part of erlmedia.
-%%% 
+%%%
 %%% erlmedia is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -33,10 +33,10 @@
 -export([is_good_flv/1]).
 
 is_good_flv(#video_frame{content = audio, sound = {_Channels, _Bits, Rate}}) when is_number(Rate) -> false;
-is_good_flv(#video_frame{content = audio, codec = Codec}) 
+is_good_flv(#video_frame{content = audio, codec = Codec})
   when Codec == pcm orelse Codec == aac orelse Codec == mp3 orelse Codec == speex orelse Codec == nellymoser orelse Codec == nellymoser8 -> true;
 is_good_flv(#video_frame{content = video, codec = Codec})
-  when Codec == h264 orelse Codec == vp6 orelse Codec == vp6_alpha orelse Codec == sorensen orelse Codec == mjpeg 
+  when Codec == h264 orelse Codec == vp6 orelse Codec == vp6_alpha orelse Codec == sorenson orelse Codec == mjpeg
   orelse Codec == screen orelse Codec == screen2 -> true;
 is_good_flv(#video_frame{content = metadata}) -> true;
 is_good_flv(#video_frame{}) -> false.
@@ -104,13 +104,13 @@ tag_to_video_frame(#flv_video_tag{codec = Codec, flavor = Flavor, composition_ti
 
 tag_to_video_frame(Metadata) ->
   #video_frame{content = metadata, body = Metadata, dts = 0, pts = 0}.
-  
+
 -spec(tag_to_video_frame(Tag::flv_specific_tag(), Timestamp::number()) -> video_frame()).
 tag_to_video_frame(Tag, Timestamp) ->
   Frame = tag_to_video_frame(Tag),
   CTime = Frame#video_frame.pts,
   Frame#video_frame{dts = Timestamp, pts = Timestamp+CTime}.
-  
+
 decode(<<FlvHeader:?FLV_TAG_HEADER_LENGTH/binary, Bin/binary>>) ->
   Tag = flv:tag_header(FlvHeader),
   #flv_tag{type = Content, timestamp = DTS, size = Size} = Tag,
@@ -131,11 +131,11 @@ decode(#video_frame{content = audio} = Frame, Data) ->
 
 decode(#video_frame{content = metadata} = Frame, Metadata) ->
   Frame#video_frame{body = flv:decode_meta_tag(Metadata)}.
-              
+
 %%--------------------------------------------------------------------
 %% @spec (Frame::video_frame()) -> FLVTag::binary()
 %% @doc Dumps video frame to tag
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 
 to_tag(#video_frame{content = Content, stream_id = _RealStreamId, dts = DTS1} = Frame) ->
