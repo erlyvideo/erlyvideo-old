@@ -33,7 +33,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--export([start_capture/3, update_mouse/4, update_capture/4, find/2]).
+-export([start_capture/3, update_mouse/4, update_capture/4, find/2, stop/2]).
 
 
 start_link() ->
@@ -45,15 +45,25 @@ start_capture(Host, Name, Options) ->
 
 
 update_capture(Host, Name, Position, Data) ->
-  {ok, Pid} = find(Host, Name),
-  deskshare:update_capture(Pid, Position, Data).
+  case find(Host, Name) of
+    {ok, Pid} -> deskshare:update_capture(Pid, Position, Data);
+    _ -> {error, notfound}
+  end.
 
 update_mouse(Host, Name, X, Y) ->
-  {ok, Pid} = find(Host, Name),
-  deskshare:update_mouse(Pid, X, Y).
+  case find(Host, Name) of
+    {ok, Pid} -> deskshare:update_mouse(Pid, X, Y);
+    _ -> {error, notfound}
+  end.
 
 find(Host, Name) ->
   gen_server:call(?MODULE, {find, Host, Name}).
+
+stop(Host, Name) ->
+  case find(Host, Name) of
+    {ok, Pid} -> deskshare:stop(Pid);
+    _ -> {error, notfound}
+  end.
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -93,7 +103,8 @@ handle_call({start_capture, Host, Name, Options}, _From, Captures) ->
       {ok, Media} = media_provider:create(Host, StreamName, [{type, live}]),
       {ok, Pid} = ems_sup:start_deskshare_capture(Media, Options),
       erlang:monitor(process, Pid),
-      {reply, {ok,Pid}, lists:keystore({Host,Name}, 1, Captures, {{Host,Name}, Pid})};
+      Key = {Host,Name},
+      {reply, {ok,Pid}, lists:keystore(Key, 1, Captures, {Key, Pid})};
     OldPid ->
       {reply, {ok, OldPid}, Captures}  
   end;
@@ -134,7 +145,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({'DOWN', _, process, Client, _Reason}, Captures) ->
-  Captures1 = lists:keydelete(Client, 1, Captures),
+  Captures1 = lists:keydelete(Client, 2, Captures),
   {noreply, Captures1};
 
 handle_info(_Info, State) ->

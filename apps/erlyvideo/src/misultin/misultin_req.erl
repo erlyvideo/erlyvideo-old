@@ -196,14 +196,15 @@ parse_multipart_form_data(Body, Boundary)	->
   lists:foldl(fun
     (<<"--\r\n">>, Data) -> Data;
     (Part, Data) ->
-    case re:run(Part, "Content-Disposition: form-data; name=\"([^\"]+)\".*\r\n\r\n(.+)\r\n", [{capture, all_but_first,binary},ungreedy,dotall]) of
-      {match, [Key, Value]} ->
-        [{binary_to_list(Key),Value}|Data];
-      _ ->
-        io:format("Unknown part: ~p~n", [Part]),
-        Data
-    end  
+      case re:run(Part, "Content-Disposition: form-data; name=\"([^\"]+)\".*\r\n\r\n(.+)\r\n$", [{capture, all_but_first,binary},ungreedy,dotall]) of
+        {match, [Key, Value]} ->
+          [{binary_to_list(Key),Value}|Data];
+        _ ->
+          io:format("Unknown part: ~p~n", [Part]),
+          Data
+      end  
   end, [], Parts).
+
 
 % Description: Sets resource elements for restful services.
 resource(Options) when is_list(Options) ->

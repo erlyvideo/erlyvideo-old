@@ -1,3 +1,4 @@
+
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
 %%% @doc        RTSP socket module
@@ -201,6 +202,12 @@ handle_info(timeout, #rtsp_socket{} = Socket) ->
 
 handle_info(send_sr, #rtsp_socket{rtp = RTP} = Socket) ->
   rtp:send_rtcp(RTP, sender_report, []),
+  {noreply, Socket};
+
+handle_info({ems_stream,_Num,burst_start}, #rtsp_socket{} = Socket) ->
+  {noreply, Socket};
+
+handle_info({ems_stream,_Num,burst_stop}, #rtsp_socket{} = Socket) ->
   {noreply, Socket};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->

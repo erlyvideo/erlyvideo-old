@@ -40,12 +40,8 @@
 %% @end
 %%----------------------------------------------------------------------
 find(Host, Name, Number) ->
-  {Start, Count, _, Type} = segments(Host, Name),
-  Options = case {Start + Count - 1,Type} of
-    {Number,file} -> [{client_buffer,?STREAM_TIME*2}]; % Last segment of file doesn't require any end limit
-    % {Number,_} -> [{client_buffer,0}]; % Only for last segment of stream timeshift we disable length and buffer
-    _ -> [{client_buffer,?STREAM_TIME*2},{duration, ?STREAM_TIME}]
-  end,
+  {Start, Count, _, _Type} = segments(Host, Name),
+  Options = [{client_buffer,?STREAM_TIME*2},{duration, ?STREAM_TIME}],
   if
     Number < Start ->
       {notfound, io_lib:format("Too small segment number: ~p/~p", [Number, Start])};
@@ -93,25 +89,12 @@ playlist(Host, Name, Options) ->
 
 
 segment_info(Media, Name, Number, Count, Generator) when Count == Number + 1 ->
-  case ems_media:seek_info(Media, Number * ?STREAM_TIME) of
-    {_Key, StartDTS} ->
-      Info = ems_media:info(Media),
-      Duration = proplists:get_value(timeshift_duration, Info, proplists:get_value(duration, Info, ?STREAM_TIME*Count)),
-      % ?D({"Last segment", Number, StartDTS, Duration}),
-      Generator(round((Duration - StartDTS)/1000), Name, Number);
-    undefined ->
-      undefined
-  end;
-  
+  Info = ems_media:info(Media),
+  Duration = proplists:get_value(timeshift_duration, Info, proplists:get_value(duration, Info, ?STREAM_TIME*Count)),
+  % ?D({"Last segment", Number, StartDTS, Duration}),
+  Generator(round((Duration - ?STREAM_TIME * (Count - 1))/1000), Name, Number);
 
 segment_info(_MediaEntry, Name, Number, _Count, Generator) ->
-  % case {PlayingFrom, PlayEnd} of
-  %   {PlayingFrom, PlayEnd} when is_number(PlayingFrom) andalso is_number(PlayEnd) -> 
-  %     SegmentLength = round((PlayEnd - PlayingFrom)/1000),
-  %     io_lib:format("#EXTINF:~p,~n/iphone/segments/~s/~p.ts~n", [SegmentLength, Name, Number]);
-  %   _Else -> 
-  %     undefined
-  % end.
   Generator(?STREAM_TIME div 1000, Name, Number).
   
 
@@ -128,12 +111,11 @@ segments(Host, Name) ->
   
 file_segments(Info) ->
   SegmentLength = ?STREAM_TIME,
-  Duration = proplists:get_value(duration, Info, 0),
+  Duration = round(proplists:get_value(duration, Info, 0)),
   Start = trunc(proplists:get_value(start, Info, 0) / SegmentLength),
-  DurationLimit = 2*SegmentLength,
   Count = if 
-    Duration > DurationLimit -> round(Duration/SegmentLength);
-    true -> 1
+    Duration rem SegmentLength > 0 -> (Duration div SegmentLength) + 1;
+    true -> Duration div SegmentLength
   end,
   {Start,Count,SegmentLength div 1000,file}.
 
@@ -143,7 +125,7 @@ timeshift_segments(Info) ->
   StartTime = proplists:get_value(start, Info, 0),
   Start = trunc(StartTime / ?STREAM_TIME) + 1,
   SegmentLength = ?STREAM_TIME div 1000,
-  DurationLimit = 5*?STREAM_TIME,
+  DurationLimit = 4*?STREAM_TIME,
   Count = if
     Duration < DurationLimit -> 0;
     true -> trunc((Duration + StartTime)/?STREAM_TIME) - Start
@@ -152,7 +134,7 @@ timeshift_segments(Info) ->
   
 
 play(Host, Name, Number, Req) ->
-  case iphone_streams:find(Host, Name, Number) of
+  case find(Host, Name, Number) of
     {ok, Media} ->
       Counters = ems_media:get(Media, {iphone_counters, Number}),
       Info = mpegts_play:play(Name, Media, Req, [{buffered, true},{interleave,30},{counters, Counters},{pad_counters,false}]),

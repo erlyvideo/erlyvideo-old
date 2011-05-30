@@ -29,7 +29,8 @@
 -module(mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("erlmedia/include/video_frame.hrl").
--include("mpegts.hrl").
+-include("log.hrl").
+-include("../include/mpegts.hrl").
 
 -export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1, counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).
@@ -38,13 +39,10 @@
 
 
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
--define(PAT_PID, 0).
 -define(PMT_PID, 256).
 -define(AUDIO_PID, 257).
 -define(VIDEO_PID, 258).
 -define(PCR_PID, ?VIDEO_PID).
--define(PAT_TABLEID, 0).
--define(PMT_TABLEID, 2).
 
 
   
@@ -93,7 +91,7 @@ counters(#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, 
   [PAT, PMT, Audio, Video].
 
 encode(Streamer, #video_frame{content = Content} = Frame) when Content == audio orelse Content == video ->
-  ?D({Frame#video_frame.codec, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
+  % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
   Streamer0 = set_stream_codec(Streamer, Frame),
   {Streamer1, Bin1} = send_program_tables(Streamer0, Frame),
   Streamer2 = enqueue_frame(Streamer1, Frame),
@@ -269,7 +267,7 @@ send_pmt(#streamer{video_config = _VideoConfig, audio_codec = AudioCodec, video_
   AudioCodecId = case AudioCodec of
     aac -> ?TYPE_AUDIO_AAC;
     mpeg2audio -> ?TYPE_AUDIO_MPEG2;
-    mp3 -> ?TYPE_AUDIO_MPEG2
+    mp3 -> ?TYPE_AUDIO_MPEG1
   end, 
   AudioStream = <<AudioCodecId, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
@@ -376,12 +374,19 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec 
   PesHeader = <<Marker:2, Scrambling:2, 0:1,
                 Alignment:1, 0:1, 0:1, PtsDts:2, 0:6, (size(AddPesHeader)):8, AddPesHeader/binary>>,
   % ?D({"Audio", round(DTS), size(Body)}),
-  ADTS = case Codec of
+  Packed = case Codec of
     aac -> aac:pack_adts(Body, AudioConfig);
     adts -> Body;
-    mpeg2audio -> Body
+    mpeg2audio -> Body;
+    mp3 -> Body
   end,
-  PES = <<1:24, ?MPEGTS_STREAMID_AAC, (size(PesHeader) + size(ADTS)):16, PesHeader/binary, ADTS/binary>>,
+  Code = case Codec of
+    aac -> ?MPEGTS_STREAMID_AAC;
+    adts -> ?MPEGTS_STREAMID_AAC;
+    mp3 -> ?TYPE_AUDIO_MPEG1;
+    mpeg2audio -> ?TYPE_AUDIO_MPEG2
+  end,
+  PES = <<1:24, Code, (size(PesHeader) + size(Packed)):16, PesHeader/binary, Packed/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,
   % ?D({mux,Codec,round(DTS)}),
   mux({DTS, PES}, Streamer, ?AUDIO_PID).
@@ -395,8 +400,13 @@ unpack_nals(<<>>, _LengthSize, NALS) ->
   lists:reverse(NALS);
 
 unpack_nals(Body, LengthSize, NALS) ->
-  <<Length:LengthSize, NAL:Length/binary, Rest/binary>> = Body,
-  unpack_nals(Rest, LengthSize, [NAL|NALS]).
+  case Body of
+    <<Length1:LengthSize, NAL:Length1/binary, Rest/binary>> ->
+      unpack_nals(Rest, LengthSize, [NAL|NALS]);
+    _ ->
+      ?D({"Warning!!!! Broken file, cannot unpack NAL units from H264", Body, NALS}),
+      []
+  end.
 
 
 
@@ -424,6 +434,7 @@ set_stream_codec(Streamer, _) ->
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = video, flavor = config, codec = h264, body = Config, dts = DTS}) ->
   {NewLengthSize, _} = h264:unpack_config(Config),
+  % ?D({new_length_size,NewLengthSize}),
   Streamer#streamer{video_config = Config, length_size = NewLengthSize*8, last_dts = DTS};
 
 enqueue_frame(#streamer{} = Streamer, #video_frame{content = audio, flavor = config, codec = aac, body = AudioConfig, dts = DTS}) ->

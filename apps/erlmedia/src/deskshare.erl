@@ -30,6 +30,7 @@
 
 %% External API
 -export([start_link/2]).
+-define(TIMEOUT, 60000).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -50,15 +51,16 @@ update_capture(Capture, Position, BlockData) when is_integer(Position) ->
   case is_valid_update(BlockData) of
     true -> gen_server:call(Capture, {update, Position, BlockData});
     false ->
-      ?D({broken_update, Position, size(BlockData)}),
+      <<L:16, _/binary>> = BlockData,
+      ?D({broken_update, Position, L, size(BlockData)}),
       {error, broken_update}
   end.
 
 update_mouse(Capture, X, Y) ->
   gen_server:call(Capture, {update_mouse, X, Y}).
   
-stop(_Room) ->
-  gen_server:call(?MODULE, stop).
+stop(Room) ->
+  gen_server:call(Room, stop).
 
 -record(deskshare, {
   consumer,
@@ -72,7 +74,8 @@ stop(_Room) ->
   dirty_map,
   counter,
   writer,
-  header
+  header,
+  timeout
 }).
 
 %%%------------------------------------------------------------------------
@@ -97,6 +100,7 @@ init([Consumer, Options]) ->
   
   {BW, BH} = Block = proplists:get_value(block, Options),
   {W, H} = Screen = proplists:get_value(screen, Options),
+  Timeout = proplists:get_value(timeout, Options, ?TIMEOUT),
   
   #deskshare{size = Size} = Deskshare = calculate_dimensions(#deskshare{screen = Screen, block = Block}),
   
@@ -116,8 +120,9 @@ init([Consumer, Options]) ->
     dirty_map = clean_map(Size),
     counter = 0,
     % writer = Writer_,
-    header = Header
-  }}.
+    header = Header,
+    timeout = Timeout
+  }, Timeout}.
 
 
 calculate_dimensions(#deskshare{block = {BW,BH}, screen = {W,H}} = Deskshare) ->
@@ -183,17 +188,17 @@ is_marked(Position, Map) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({update, Position, Block}, _From, #deskshare{dirty_map = Map, blocks = Blocks, size = Size} = Deskshare) ->
+handle_call({update, Position, Block}, _From, #deskshare{dirty_map = Map, blocks = Blocks, size = Size, timeout = Timeout} = Deskshare) ->
   if
     Position > 0 andalso Position =< Size ->
       Map1 = mark(Position, Map),
       Blocks1 = lists:keystore(Position, 1, Blocks, {Position, Block}),
-      {reply, ok, Deskshare#deskshare{dirty_map = Map1, blocks = Blocks1}};
+      {reply, ok, Deskshare#deskshare{dirty_map = Map1, blocks = Blocks1}, Timeout};
     true ->
-      {reply, {error, badsize}, Deskshare}
+      {reply, {error, badsize}, Deskshare, Timeout}
   end;
 
-handle_call({update_mouse, X, Y}, _From, #deskshare{consumer = Consumer} = Deskshare) ->
+handle_call({update_mouse, X, Y}, _From, #deskshare{consumer = Consumer, timeout = Timeout} = Deskshare) ->
   Consumer ! #video_frame{
     content = metadata,
     dts = 0,
@@ -203,10 +208,10 @@ handle_call({update_mouse, X, Y}, _From, #deskshare{consumer = Consumer} = Desks
     flavor = frame,
     body = [<<"onMouseMove">>, {object, [{x, X},{y,Y}]}]
   },
-  {reply, ok, Deskshare};
+  {reply, ok, Deskshare, Timeout};
   
 handle_call(stop, _From, Deskshare) ->
-  {stop, normal, Deskshare};
+  {stop, normal, ok, Deskshare};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -238,7 +243,7 @@ handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
   
 handle_info(frame, #deskshare{dirty_map = Map, blocks = Blocks, counter = Counter, 
-                              size = Size, header = Header, writer = Writer} = Deskshare) ->
+                              size = Size, header = Header, writer = Writer, timeout = Timeout} = Deskshare) ->
   Body = generate_body(Map, is_keyframe(Counter), Size, Blocks),
   DTS = generate_dts(Counter),
   Frame = #video_frame{
@@ -252,12 +257,13 @@ handle_info(frame, #deskshare{dirty_map = Map, blocks = Blocks, counter = Counte
   },
   (catch Writer ! Frame),
   Deskshare#deskshare.consumer ! Frame,
-  {noreply, Deskshare#deskshare{dirty_map = clean_map(Size), counter = Counter+1}};
-  
-  
+  {noreply, Deskshare#deskshare{dirty_map = clean_map(Size), counter = Counter+1}, Timeout};
+
+handle_info(timeout, Deskshare) ->
+  {stop, normal, Deskshare};
 
 handle_info(_Info, State) ->
-  {noreply, State}.
+  {stop, {unknown_info, _Info}, State}.
 
 is_keyframe(Counter) when Counter rem 20 == 0 -> keyframe;
 is_keyframe(_) -> frame.

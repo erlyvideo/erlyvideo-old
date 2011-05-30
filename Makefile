@@ -84,5 +84,9 @@ packages: release
 	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt
 	mv tmproot/*.deb tmproot/*.rpm .
 
+upload_packages: 
+	scp *$(VERSION)* erlyhub@git.erlyvideo.org:/apps/erlyvideo/debian/public/binary
+	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update"
+
 .PHONY: doc debian compile
 
