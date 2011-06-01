@@ -293,7 +293,7 @@ extract_pcr(_) ->
 handle_pat(PATBin, #decoder{pmt_pid = undefined, options = Options} = Decoder) ->
   % ?D({"Full PAT", size(PATBin), PATBin}),
   #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  ?D({pat, Descriptors}),
+  % ?D({pat, Descriptors}),
   PmtPid = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
   Decoder#decoder{pmt_pid = PmtPid};
 
