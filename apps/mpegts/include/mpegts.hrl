@@ -42,7 +42,9 @@
 
 
 -define(SERVICE_DESC,      16#48).
-
+-define(SHORT_DESC,        16#4D).
+-define(CONTENT_DESC,      16#54).
+-define(PARENTAL_RATING_DESC, 16#55).
 
 -define(TYPE_VIDEO_MPEG1, 1).
 -define(TYPE_VIDEO_MPEG2, 2).

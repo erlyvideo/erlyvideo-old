@@ -71,7 +71,12 @@ init([Options]) ->
       Cons
   end,
   {ok, #decoder{consumer = Consumer, options = Options, pids = [
-    #stream{handler = psi, pid = ?SDT_PID}
+    #stream{handler = psi, pid = ?CAT_PID},
+    #stream{handler = psi, pid = ?NIT_PID},
+    #stream{handler = psi, pid = ?SDT_PID},
+    #stream{handler = psi, pid = ?EIT_PID},
+    #stream{handler = psi, pid = ?RST_PID},
+    #stream{handler = psi, pid = ?TDT_PID}
   ]}}.
 
 
@@ -176,23 +181,6 @@ decode(Bin, Decoder, Frames) ->
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   Decoder1 = handle_pat(ts_payload(Packet), Decoder),
   {ok, Decoder1, undefined};
-
-decode_ts(<<_:3, ?CAT_PID:13, _/binary>> = _Packet, Decoder) ->
-  {ok, Decoder, undefined};
-
-decode_ts(<<_:3, ?NIT_PID:13, _/binary>> = _Packet, Decoder) ->
-  {ok, Decoder, undefined};
-
-decode_ts(<<_:3, ?TDT_PID:13, _/binary>> = _Packet, Decoder) ->
-  {ok, Decoder, undefined};
-
-% decode_ts(<<_:1, Start:1, _:1, ?SDT_PID:13, _/binary>> = _Packet, Decoder) ->
-%   ?D({sdt, Start, ts_payload(_Packet)}),
-%   {ok, Decoder, undefined};
-
-decode_ts(<<_:3, ?EIT_PID:13, _/binary>> = _Packet, Decoder) ->
-  {ok, Decoder, undefined};
-
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->

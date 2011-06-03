@@ -7,7 +7,8 @@
   pmt_pid,
   socket,
   options,
-  byte_counter = 0
+  byte_counter = 0,
+  sdt
 }).
 
 -record(mpegts_pat, {

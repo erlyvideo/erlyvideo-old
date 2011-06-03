@@ -35,7 +35,13 @@
 
 psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
              SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, Stream, #decoder{pids = Streams} = Decoder) ->
-  {PSI, _Trash} = erlang:split_binary(PSIRaw, SectionLength - 5),
+  PSILength = SectionLength - 5,             
+  {PSI, _Trash} = if
+    size(PSIRaw) >= PSILength -> erlang:split_binary(PSIRaw, SectionLength - 5);
+    true ->
+      % ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
+      {PSIRaw, <<>>}
+  end,
   PSITable = #psi_table{
     id = TableId,
     ts_stream_id = TransportStreamId,
@@ -50,6 +56,7 @@ psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId
     ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder1);
     ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder1);
     ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder1);
+    _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder1);
     _ ->
       % ?D({psi, TableId, PSI}),
       Decoder1
@@ -104,10 +111,10 @@ stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 
 
-sdt(<<OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{id = _TableId}, Decoder) ->
+sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{id = _TableId}, Decoder) ->
   Info = parse_sdt(SDT, []),
-  ?D({sdt, OriginalNetwork, Info}),
-  Decoder.
+  % ?D({sdt, OriginalNetwork, Info}),
+  Decoder#decoder{sdt = Info}.
 
 
 parse_sdt(<<_CRC32:32>>, Info) ->
@@ -119,16 +126,42 @@ parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, 
     0 -> false;
     1 -> true
   end,
-  Status = case StatusId of
+  Info = [{pid, ServiceId},{eit_schedule,EIT_schedule},{eit_following,EIT_present_following},{status,decode_status(StatusId)},{encrypted,Encryped}]++Descriptors,
+  parse_sdt(SDT, [Info|Acc]).
+
+
+
+
+eit(<<Pid:16, Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{}, Decoder) ->
+  _Info = parse_eit(EIT, [{pid,Pid},{network,Network}]),
+  % ?D({eit, Info}),
+  Decoder.
+
+parse_eit(<<EventId:16, StartTime:40, Duration:24, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, EIT/binary>>, Acc) ->
+  Descriptors = parse_descriptors(DescriptorsBin, []),
+  Encryped = case FreeCA of
+    0 -> false;
+    1 -> true
+  end,
+  Info = [{id, EventId},{start,StartTime},{duration,Duration},{status,decode_status(StatusId)},{encrypted,Encryped}]++Descriptors,
+  parse_eit(EIT, [Info|Acc]);
+
+parse_eit(<<_CRC32/binary>>, Acc) -> lists:reverse(Acc).
+
+
+  
+
+
+decode_status(StatusId) ->
+  case StatusId of
     0 -> undefined;
     1 -> not_running;
     2 -> starts_soon;
     3 -> pausing;
     4 -> running;
     _ -> undefined
-  end,
-  Info = [{pid, ServiceId},{eit_schedule,EIT_schedule},{eit_following,EIT_present_following},{status,Status},{encrypted,Encryped}]++Descriptors,
-  parse_sdt(SDT, [Info|Acc]).
+  end.
+
 
 parse_descriptors(<<>>, Acc) ->
   lists:reverse(Acc);
@@ -138,6 +171,8 @@ parse_descriptors(<<DescId, Len, Content:Len/binary, Bin/binary>>, Acc) ->
     undefined ->
       parse_descriptors(Bin, Acc);
     {service_description, Desc} ->
+      parse_descriptors(Bin, Desc ++ Acc);  
+    {short_description, Desc} ->
       parse_descriptors(Bin, Desc ++ Acc);  
     Else ->
       parse_descriptors(Bin, [Else|Acc])
@@ -165,6 +200,18 @@ parse_descriptor(?SERVICE_DESC, <<TypeId, ProvNameLen, ProvName:ProvNameLen/bina
     _ -> TypeId
   end,
   {service_description, [{type,Type},{provider,parse_text(ProvName)},{service,parse_text(Name)}]};
+
+parse_descriptor(?SHORT_DESC, <<Lang:3/binary, NameLen, Name:NameLen/binary, TextLen, Text:TextLen/binary>>) ->
+  % Short description
+  {short_description, [{language,Lang},{name,parse_text(Name)},{about,parse_text(Text)}]};
+
+parse_descriptor(?CONTENT_DESC, _Content) ->
+  % Content descriptor
+  undefined;
+
+parse_descriptor(?PARENTAL_RATING_DESC, _Content) ->
+  % Parental descriptor
+  undefined;
 
 parse_descriptor(Unknown, Bin) ->
   ?D({descriptor, Unknown, Bin}),
