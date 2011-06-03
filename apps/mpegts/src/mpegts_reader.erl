@@ -206,9 +206,20 @@ decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   Decoder1 = handle_pat(ts_payload(Packet), Decoder),
   {ok, Decoder1, undefined};
 
-% decode_ts(<<_:3, ?SDT_PID:13, _/binary>> = Packet, Decoder) ->
-%   Decoder1 = handle_sdt(ts_payload(Packet), Decoder),
-%   {ok, Decoder1, undefined};
+decode_ts(<<_:3, ?CAT_PID:13, _/binary>> = _Packet, Decoder) ->
+  {ok, Decoder, undefined};
+
+decode_ts(<<_:3, ?NIT_PID:13, _/binary>> = _Packet, Decoder) ->
+  {ok, Decoder, undefined};
+
+decode_ts(<<_:3, ?SDT_PID:13, _/binary>> = _Packet, Decoder) ->
+  {ok, Decoder, undefined};
+
+decode_ts(<<_:3, ?TDT_PID:13, _/binary>> = _Packet, Decoder) ->
+  {ok, Decoder, undefined};
+
+decode_ts(<<_:3, ?EIT_PID:13, _/binary>> = _Packet, Decoder) ->
+  {ok, Decoder, undefined};
 
 decode_ts(<<_:3, PmtPid:13, _/binary>> = Packet, #decoder{pmt_pid = PmtPid} = Decoder) ->
   Decoder1 = pmt(ts_payload(Packet), Decoder),
@@ -282,7 +293,7 @@ extract_pcr(_) ->
 handle_pat(PATBin, #decoder{pmt_pid = undefined, options = Options} = Decoder) ->
   % ?D({"Full PAT", size(PATBin), PATBin}),
   #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  ?D({pat, Descriptors}),
+  % ?D({pat, Descriptors}),
   PmtPid = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
   Decoder#decoder{pmt_pid = PmtPid};
 
@@ -302,7 +313,7 @@ select_pmt_pid(Descriptors, SelectedProgram) ->
   end.
   
 
-pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
+pat(<<_PtField, ?PAT_TABLEID, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
   ProgramCount = round((Length - 5)/4) - 1,
   % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
   % ?D({"PAT descriptors", ProgramCount, PAT}),
@@ -327,7 +338,7 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 %   Decoder.
 % 
 
-pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
+pmt(<<_Pointer, ?PMT_TABLEID, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
     _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #decoder{pids = []} = Decoder) ->
