@@ -29,15 +29,15 @@
 
 -compile(export_all).
 
-dump_pes(Reader, PES) ->
-  {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
-  {Reader1, length(Frames)}.
-
-% dump_pes(Reader, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES) ->
-%   io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
+% dump_pes(Reader, PES) ->
 %   {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
-%   [dump_frame(Frame) || Frame <- Frames],
 %   {Reader1, length(Frames)}.
+
+dump_pes(Reader, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES) ->
+  io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
+  {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
+  [dump_frame(Frame) || Frame <- Frames],
+  {Reader1, length(Frames)}.
 
 dump_frames(_, _, Count) when Count > 30000 ->
   {ok, Count};
@@ -54,10 +54,18 @@ dump_frames(File, Reader, Count) ->
       end;
     eof ->
       {ok, Reader1, PES1} = mpegts_reader:decode_ts({eof, h264}, Reader),
-      {Reader2, _} = dump_pes(Reader1, PES1),
+      Reader2 = case PES1 of
+        undefined -> Reader1;
+        _ ->
+          {__Reader2, _} = dump_pes(Reader1, PES1),
+          __Reader2
+      end,
       
       {ok, Reader3, PES2} = mpegts_reader:decode_ts({eof, aac}, Reader2),
-      {_Reader2, _} = dump_pes(Reader3, PES2),
+      case PES2 of
+        undefined -> ok;
+        _ -> dump_pes(Reader3, PES2)
+      end,
       
       {ok, Count}
   end.            

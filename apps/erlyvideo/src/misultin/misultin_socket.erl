@@ -145,7 +145,7 @@ body(#c{sock = Sock, recv_timeout = RecvTimeout} = C, #req{content_length = Cont
 				_ when is_number(ContentLength) andalso ContentLength < 10*1024*1024 ->
 					inet:setopts(Sock, [{packet, raw}, {active, false}]),
 					case gen_tcp:recv(Sock, ContentLength, RecvTimeout) of
-						{ok, Bin} ->
+						{ok, Bin} when size(Bin) == ContentLength ->
 							handle_post(C, Req#req{body = Bin});
 						{error, timeout} ->
 							?DEBUG(debug, "request timeout, sending error", []),

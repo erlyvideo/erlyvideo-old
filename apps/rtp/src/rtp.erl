@@ -75,7 +75,7 @@ sync(#rtp_state{channels = Channels} = State, Id, Headers) ->
 %% @end
 %%--------------------------------------------------------------------
 rtp_info(#rtp_state{channels = Channels} = _State) ->
-  string:join([rtp_encoder:rtp_info(Chan) || Chan <- tuple_to_list(Channels)], ",").
+  string:join([rtp_encoder:rtp_info(Chan) || Chan <- tuple_to_list(Channels), Chan =/= undefined], ",").
 
 
 %%--------------------------------------------------------------------

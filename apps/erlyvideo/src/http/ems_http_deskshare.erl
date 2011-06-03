@@ -34,8 +34,20 @@ http(Host, _HTTPMethod, ["deskshare", "tunnel", "screenCapture"], Req) ->
       Req:stream(ok);
     EventNumber ->
       RoomName = proplists:get_value("room", Info),
-      Reply = handle_event(Host, b2i(EventNumber), RoomName, Info),
-      Req:ok([{'Content-type', "application/json"}], [mochijson2:encode(Reply), "\n"])
+      R = handle_event(Host, b2i(EventNumber), RoomName, [{content_length, Req:get(content_length)}|Info]),
+      Reply = case R of
+        ok -> true;
+        {ok, _Reply} -> true;
+        {error, notfound} -> notfound;
+        _ -> ?D({Req:get(headers), Req:get(body)}), false
+      end,
+      
+      case Reply of
+        notfound ->
+          Req:respond(404, [{"Content-Type", "text/plain"}], "404 Deskshare session not found. ~p", [RoomName]);
+        true ->	
+          Req:ok([{'Content-type', "application/json"}], [mochijson2:encode(Reply), "\n"])
+      end
   end;
   
 http(_Host, _Method, _Path, _Req) ->
@@ -53,8 +65,7 @@ handle_event(Host, ?CAPTURE_START, Room, Info) ->
     {block, {list_to_integer(BW),list_to_integer(BH)}}, 
     {screen, {list_to_integer(W),list_to_integer(H)}},
     {seq, seq(Info)}
-  ]),
-  true;
+  ]);
   
 handle_event(Host, ?CAPTURE_UPDATE, Room, Info) ->
   _Keyframe = case proplists:get_value("keyframe", Info) of
@@ -63,16 +74,14 @@ handle_event(Host, ?CAPTURE_UPDATE, Room, Info) ->
   end,
   Position = b2i(proplists:get_value("position", Info)),
   Data = proplists:get_value("blockdata", Info),
-  (catch deskshare_tracker:update_capture(Host, Room, Position, Data)),
-  true;
+  % ?D({update, size(Data), proplists:get_value(content_length, Info)}),
+  deskshare_tracker:update_capture(Host, Room, Position, Data);
   
 handle_event(Host, ?CAPTURE_END, Room, _Info) ->
-  (catch deskshare_tracker:stop(Host, Room)),
-  true;
+  deskshare_tracker:stop(Host, Room);
   
 handle_event(Host, ?MOUSE_LOCATION_EVENT, Room, Info) ->
   X = b2i(proplists:get_value("mousex", Info)),
   Y = b2i(proplists:get_value("mousey", Info)),
-  deskshare_tracker:update_mouse(Host, Room, X, Y),
-  true.
+  deskshare_tracker:update_mouse(Host, Room, X, Y).
   

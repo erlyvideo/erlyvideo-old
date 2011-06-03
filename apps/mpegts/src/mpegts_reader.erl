@@ -25,19 +25,17 @@
 
 -include_lib("erlmedia/include/h264.hrl").
 -include_lib("erlmedia/include/aac.hrl").
--include("mpegts.hrl").
+-include("log.hrl").
 -include("../include/mpegts.hrl").
 
 -include_lib("erlmedia/include/video_frame.hrl").
 
 
 -export([benchmark/0]).
--define(PAT_PID, 0).
 
 -define(PID_TYPE(Pid), case lists:keyfind(Pid, #stream.pid, Pids) of #stream{codec = h264} -> "V"; _ -> "A" end).
 
 -on_load(load_nif/0).
--export([load_nif/0]).
 
 
 -record(decoder, {
@@ -50,6 +48,9 @@
   byte_counter = 0
 }).
 
+-record(mpegts_pat, {
+  descriptors
+}).
 
 
 -record(stream, {
@@ -205,6 +206,10 @@ decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   Decoder1 = handle_pat(ts_payload(Packet), Decoder),
   {ok, Decoder1, undefined};
 
+% decode_ts(<<_:3, ?SDT_PID:13, _/binary>> = Packet, Decoder) ->
+%   Decoder1 = handle_sdt(ts_payload(Packet), Decoder),
+%   {ok, Decoder1, undefined};
+
 decode_ts(<<_:3, PmtPid:13, _/binary>> = Packet, #decoder{pmt_pid = PmtPid} = Decoder) ->
   Decoder1 = pmt(ts_payload(Packet), Decoder),
   {ok, Decoder1, undefined};
@@ -213,7 +218,7 @@ decode_ts(<<_:3, PmtPid:13, _/binary>> = Packet, #decoder{pmt_pid = PmtPid} = De
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),
-  % io:format("ts: ~s (~p) ~p ~p~n", [?PID_TYPE(Pid),PayloadStart, _Counter, Header#ts_header.pcr]),
+  % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, _Counter]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{synced = false}, _} when PayloadStart == 0 ->
       ?D({"Not synced pes", Pid}),
@@ -274,11 +279,27 @@ extract_pcr(_) ->
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
-handle_pat(PATBin, #decoder{} = Decoder) ->
+handle_pat(PATBin, #decoder{pmt_pid = undefined, options = Options} = Decoder) ->
   % ?D({"Full PAT", size(PATBin), PATBin}),
   #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  [{PmtPid, _ProgramNum}] = Descriptors,
-  Decoder#decoder{pmt_pid = PmtPid}.
+  ?D({pat, Descriptors}),
+  PmtPid = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
+  Decoder#decoder{pmt_pid = PmtPid};
+
+
+handle_pat(_PATBin, Decoder) ->
+  Decoder.
+
+
+select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
+  PmtPid;
+select_pmt_pid(Descriptors, SelectedProgram) ->
+  case lists:keyfind(SelectedProgram, 1, Descriptors) of
+    {PmtPid, SelectedProgram} -> PmtPid;
+    _ ->
+      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors}),
+      undefined
+  end.
   
 
 pat(<<_PtField, 0, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
@@ -297,6 +318,15 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
   extract_pat(PAT, ProgramCount - 1, [{Pid, ProgramNum} | Descriptors]).
 
 
+% handle_sdt(<<TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, _Version:5, _CurrentNext:1, 
+%              _SectionNumber, _LastSectionNumber, _OriginalNetId:16, _:8, SDT/binary>> = _Bin, Decoder) ->
+%   io:format("~p~n", [[{table,TableId},{section_len,SectionLength},{ts_id,TransportStreamId},
+%      {section_number,_SectionNumber},{sdt_size,size(SDT)},{sdt,SDT}
+%      
+%      ]]),
+%   Decoder.
+% 
+
 pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
     _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
@@ -304,7 +334,7 @@ pmt(<<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
   PMTLength = round(SectionLength - 13 - ProgramInfoLength),
   % ?D({"Selecting MPEG-TS program", ProgramNum}),
-  % io:format("Program info: ~p~n", [ProgramInfo]),
+  % io:format("Program info: ~p~n", [_ProgramInfo]),
   % ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
   Descriptors = extract_pmt(PMT, PMTLength, []),
   % io:format("Streams: ~p~n", [Descriptors]),
@@ -335,6 +365,7 @@ stream_codec(?TYPE_VIDEO_H264) -> h264;
 stream_codec(?TYPE_VIDEO_MPEG2) -> mpeg2video;
 stream_codec(?TYPE_AUDIO_AAC) -> aac;
 stream_codec(?TYPE_AUDIO_AAC2) -> aac;
+stream_codec(?TYPE_AUDIO_MPEG1) -> mp3;
 stream_codec(?TYPE_AUDIO_MPEG2) -> mpeg2audio;
 stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
@@ -359,6 +390,7 @@ pes_packet(<<1:24, _:5/binary, Length, _PESHeader:Length/binary, Data/binary>>,
 decode_pes(#decoder{pids = Pids} = Decoder, #pes_packet{body = Body, pid = Pid}) ->
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, Stream, Streams} ->
+      % ?D({decode_pes,Stream#stream.codec}),
       {Stream1, Frames} = decode_pes_packet(Stream#stream{es_buffer = Body}),
       {ok, Decoder#decoder{pids = [Stream1|Streams]}, Frames};
     _ ->
@@ -372,6 +404,19 @@ decode_pes_packet(#stream{codec = aac} = Packet) ->
 decode_pes_packet(#stream{codec = h264} = Packet) ->
   decode_avc(Packet, []);
 
+
+decode_pes_packet(#stream{codec = mp3, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
+  AudioFrame = #video_frame{       
+    content = audio,
+    flavor  = frame,
+    dts     = DTS,
+    pts     = PTS,
+    body    = Data,
+	  codec	  = mp3,
+	  sound	  = {stereo, bit16, rate44}
+  },
+  % ?D({audio, Stream#stream.pcr, DTS}),
+  {Stream, [AudioFrame]};
 
 decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
   AudioFrame = #video_frame{       
@@ -387,18 +432,18 @@ decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = 
   {Stream, [AudioFrame]};
 
 
-decode_pes_packet(#stream{codec = mpeg2video, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
-  AudioFrame = #video_frame{       
+decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Block, codec = mpeg2video} = Stream) ->
+  VideoFrame = #video_frame{       
     content = video,
     flavor  = frame,
     dts     = DTS,
     pts     = PTS,
-    body    = Data,
+    body    = Block,
 	  codec	  = mpeg2video
   },
-  % ?D({audio, Stream#stream.pcr, DTS}),
-  {Stream, [AudioFrame]}.
-
+  {Stream, [VideoFrame]}.
+  % decode_mpeg2_video(Stream, []).
+  
 pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
@@ -552,6 +597,27 @@ decode_avc(#stream{es_buffer = Data} = Stream, Frames) ->
       {Stream1, Frames1} = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
       decode_avc(Stream1, Frames ++ Frames1)
   end.
+
+% 
+% decode_mpeg2_video(#stream{dts = DTS, pts = PTS, es_buffer = Data} = Stream, Frames) ->
+%   case extract_nal(Data) of
+%     undefined ->
+%       {Stream, Frames};
+%     {ok, Block, Rest} ->
+%       VideoFrame = #video_frame{       
+%         content = video,
+%         flavor  = frame,
+%         dts     = DTS,
+%         pts     = PTS,
+%         body    = Block,
+%         codec   = mpeg2video
+%       },
+%       ?D({mpeg2video,size(Block),DTS}),
+%       % ?D({video, round(DTS), size(Data)}),
+%       decode_mpeg2_video(Stream#stream{es_buffer = Rest}, [VideoFrame|Frames])
+%   end.
+
+  
 
 handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
   {Stream, []};

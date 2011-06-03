@@ -58,7 +58,6 @@
 -export([reply/2, fail/2, stop/1]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 -export([get_socket/1]).
--export([get/2, set/3, set/2]).
 
 
 -include("../meta_access.hrl").
@@ -579,12 +578,12 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
       erlang:error({old_frame, Else,StreamId})
   end,
 
-  case Frame#video_frame.content of
-    metadata -> ?D(Frame);
-    _ ->
-      % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), size(Frame#video_frame.body)}),
-      ok
-  end,
+  % case Frame#video_frame.content of
+  %   metadata -> ?D(Frame);
+  %   _ ->
+  %     % ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), size(Frame#video_frame.body)}),
+  %     ok
+  % end,
   case Allow of
     true ->
       Message = #rtmp_message{
