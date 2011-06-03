@@ -73,6 +73,7 @@ private function handleStatus(evt:NetStatusEvent) : void
       m.codec = "Speex";
 			m.gain = 80;
 			m.rate = speexWB ? 16000 : 8000;
+			m.framesPerPacket = 1;
       ns_out.attachAudio(m);
       ns_out.attachCamera(cam);
       ns_out.publish(obj.out_stream);
