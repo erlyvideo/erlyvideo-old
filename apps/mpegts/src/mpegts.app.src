@@ -2,6 +2,6 @@
 [{description, "MPEG-TS handling library"},
  {vsn, git},
  {registered,[mpegts]},
- {applications, [kernel,stdlib]},
+ {applications, [kernel,stdlib,iconv]},
  {mod, {mpegts_app,[]}}
 ]}.

@@ -27,6 +27,7 @@
 -include_lib("erlmedia/include/aac.hrl").
 -include("log.hrl").
 -include("../include/mpegts.hrl").
+-include("mpegts_reader.hrl").
 
 -include_lib("erlmedia/include/video_frame.hrl").
 
@@ -34,45 +35,10 @@
 -export([benchmark/0]).
 
 -define(PID_TYPE(Pid), case lists:keyfind(Pid, #stream.pid, Pids) of #stream{codec = h264} -> "V"; _ -> "A" end).
--define(MAX_PAYLOAD, 16#100000000).
 
 -on_load(load_nif/0).
 
 
--record(decoder, {
-  buffer = <<>>,
-  pids = [],
-  consumer,
-  pmt_pid,
-  socket,
-  options,
-  byte_counter = 0
-}).
-
--record(mpegts_pat, {
-  descriptors
-}).
-
-
--record(stream, {
-  pid,
-  program_num,
-  demuxer,
-  handler,
-  codec,
-  ts_buffer = undefined,
-  es_buffer = <<>>,
-  counter = 0,
-  payload_size = ?MAX_PAYLOAD,
-  pcr,
-  start_dts,
-  dts,
-  pts,
-  video_config = undefined,
-  send_audio_config = false,
-  sample_rate,
-  h264
-}).
 
 -export([extract_nal/1]).
 
@@ -366,75 +332,8 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
   extract_pat(PAT, ProgramCount - 1, [{Pid, ProgramNum} | Descriptors]).
 
 
-% parse_sdt(<<ServiceId:16, _Reserved:6, EIT_Schedule:1, EIT_present_following:1, RunningStatus:3, FreeCA:1, DescLength:12, _/binary>>) ->
-%   [{service_id,ServiceId},{eit_schedule,EIT_Schedule},{eit_present,EIT_present_following},{running,RunningStatus},{free_ca,FreeCA},{desc_len,DescLength}].
-
-psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
-             SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, Stream, #decoder{pids = Streams} = Decoder) ->
-  {PSI, _Trash} = erlang:split_binary(PSIRaw, SectionLength - 5),
-  PSITable = #psi_table{
-    id = TableId,
-    ts_stream_id = TransportStreamId,
-    version = Version,
-    current_next = CurrentNext,
-    section_number = SectionNumber,
-    last_section_number = LastSectionNumber
-  },
-  % ?D({psi, TableId}),
-  Decoder1 = Decoder#decoder{pids = [Stream|Streams]},
-  Decoder2 = case TableId of
-    ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder1);
-    _ ->
-      % ?D({psi, TableId, PSI}),
-      Decoder1
-  end,
-  % ?D({psi, length(Decoder1#decoder.pids)}),
-  {ok, Decoder2, undefined}.
-
-
-
-
-pmt(<<_Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>,
-  #psi_table{ts_stream_id = ProgramNum}, #decoder{pids = Pids} = Decoder) ->
-  % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
-  % ?D({"Selecting MPEG-TS program", ProgramNum}),
-  % io:format("Program info: ~p~n", [_ProgramInfo]),
-  % ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
-  Descriptors = extract_pmt(PMT, Pids),
-  % io:format("Streams: ~p~n", [Descriptors]),
-  Descriptors1 = lists:map(fun(#stream{} = Stream) ->
-    Stream#stream{program_num = ProgramNum, h264 = #h264{}}
-  end, Descriptors),
-  % AllPids = [self() | lists:map(fun(A) -> element(#stream_out.handler, A) end, Descriptors1)],
-  % eprof:start(),
-  % eprof:start_profiling(AllPids),
-  % Decoder#decoder{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
-  Decoder#decoder{pids = Descriptors1}.
-
-extract_pmt(<<_CRC32:32>>, Descriptors) ->
-  lists:keysort(#stream.pid, Descriptors);
-
-extract_pmt(<<>>, Descriptors) ->
-  lists:keysort(#stream.pid, Descriptors);
-
-extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, Descriptors) ->
-  Descriptors1 = case lists:keyfind(Pid, #stream.pid, Descriptors) of
-    false -> 
-      ?D({"Pid -> Type", Pid, StreamType, _ES}),
-      [#stream{handler = pes, counter = 0, pid = Pid, codec = stream_codec(StreamType)}|Descriptors];
-    _ -> Descriptors
-  end,
-  extract_pmt(Rest, Descriptors1).
-  
-
-
-stream_codec(?TYPE_VIDEO_H264) -> h264;
-stream_codec(?TYPE_VIDEO_MPEG2) -> mpeg2video;
-stream_codec(?TYPE_AUDIO_AAC) -> aac;
-stream_codec(?TYPE_AUDIO_AAC2) -> aac;
-stream_codec(?TYPE_AUDIO_MPEG1) -> mp3;
-stream_codec(?TYPE_AUDIO_MPEG2) -> mpeg2audio;
-stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
+psi(PSI, PSITable, Decoder) ->
+  mpegts_psi_decoder:psi(PSI, PSITable, Decoder).
 
 
 pes(_, #stream{codec = unhandled} = Stream, #decoder{pids = Streams} = Decoder) ->

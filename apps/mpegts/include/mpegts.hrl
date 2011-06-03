@@ -35,8 +35,13 @@
 -define(SDT_TABLEID,       16#42).
 -define(SDT_OTHER_TABLEID, 16#43).
 -define(BAT_TABLEID,       16#42).
+-define(EIT_1_TABLEID,     16#4E).
+-define(EIT_2_TABLEID,     16#4F).
+-define(EIT_3_TABLEID,     16#5F).
+-define(EIT_4_TABLEID,     16#6F).
 
 
+-define(SERVICE_DESC,      16#48).
 
 
 -define(TYPE_VIDEO_MPEG1, 1).
