@@ -26,6 +26,7 @@
 -define(NIT_OTHER_TABLEID, 16#41).
 -define(SDT_TABLEID, 16#42).
 -define(SDT_OTHER_TABLEID, 16#43).
+-define(BAT_TABLEID, 16#42).
 
 
 
