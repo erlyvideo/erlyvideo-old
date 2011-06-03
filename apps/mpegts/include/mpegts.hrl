@@ -17,16 +17,15 @@
 -define(TDT_PID, 20). % TOT here
 
 
--define(PAT_TABLEID, 0).
--define(CAT_TABLEID, 1).
--define(PMT_TABLEID, 2).
--define(TSDT_TABLEID, 3).
-
--define(NIT_TABLEID, 16#40).
+-define(PAT_TABLEID,       16#00).
+-define(CAT_TABLEID,       16#01).
+-define(PMT_TABLEID,       16#02).
+-define(TSDT_TABLEID,      16#03).
+-define(NIT_TABLEID,       16#40).
 -define(NIT_OTHER_TABLEID, 16#41).
--define(SDT_TABLEID, 16#42).
+-define(SDT_TABLEID,       16#42).
 -define(SDT_OTHER_TABLEID, 16#43).
--define(BAT_TABLEID, 16#42).
+-define(BAT_TABLEID,       16#42).
 
 
 

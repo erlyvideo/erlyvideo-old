@@ -60,8 +60,7 @@
   demuxer,
   handler,
   codec,
-  synced = false,
-  ts_buffer = <<>>,
+  ts_buffer = undefined,
   es_buffer = <<>>,
   counter = 0,
   payload_size = ?MAX_PAYLOAD,
@@ -241,35 +240,51 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
   % io:format("ts: ~p (~p) ~p ~p~n", [Pid,PayloadStart, _Counter, Decoder#decoder.pmt_pid]),
   % io:format("ts: ~p (~p) ~p ~p~n", [Pid,PayloadStart, _Counter, Decoder#decoder.pids]),
   case lists:keytake(Pid, #stream.pid, Pids) of
+    {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
+      <<_:20, Length:12, _/binary>> = Payload,
+      {PESPacket, Buffer} = if
+        size(Payload) >= Length ->
+          {?MODULE:psi(Payload, Stream), undefined};
+        true ->
+          {undefined, Payload}
+      end,
+      {ok, Decoder#decoder{pids = [Stream#stream{ts_buffer = Buffer, payload_size = Length}|Streams]}, PESPacket};
     
     % This clause happens when comes first continuation packet on new decoder
-    {value, #stream{synced = false}, _} when PayloadStart == 0 ->
+    {value, #stream{ts_buffer = undefined}, _} when PayloadStart == 0 ->
       ?D({"Not synced pes", Pid}),
       {ok, Decoder, undefined};
 
     % This clauses happens when comes first start-payload packet on new decoder
-    {value, #stream{synced = false, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
-      ?D({"Synced PSI", Pid}),
-      <<_:20, Length:12, _/binary>> = Payload,
-      {ok, Decoder#decoder{pids = [Stream#stream{synced = true, pcr = PCR, ts_buffer = Payload, payload_size = Length}|Streams]}, undefined};
-    {value, #stream{synced = false} = Stream, Streams} when PayloadStart == 1 ->
+    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 ->
       ?D({"Synced PES", Pid}),
-      {ok, Decoder#decoder{pids = [Stream#stream{synced = true, pcr = PCR, ts_buffer = Payload}|Streams]}, undefined};
+      {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = Payload}|Streams]}, undefined};
 
     % This clauses happens when start-payload packets comes to already filled stream decoder
-    {value, #stream{synced = true, ts_buffer = Buf, handler = Handler, payload_size = PayloadSize} = Stream, Streams} 
+    {value, #stream{ts_buffer = <<>>, payload_size = PayloadSize} = Stream, Streams} 
+      when PayloadStart == 1 andalso size(Payload) < PayloadSize ->  
+    {ok, Decoder#decoder{pids = [Stream#stream{ts_buffer = Payload}|Streams]}, undefined};
+    
+    
+    {value, #stream{ts_buffer = Buf, handler = Handler, payload_size = PayloadSize} = Stream, Streams} 
       when PayloadStart == 1 orelse size(Buf) + size(Payload) >= PayloadSize ->  
       {Body, Rest} = case {PayloadStart, Buf} of
         {1, <<>>} -> {Payload, <<>>};
         {1, _} -> {Buf, Payload};
-        {0, _} -> {<<Buf/binary, Payload/binary>>, <<>>}
+        {0, _} -> {<<Buf/binary, Payload/binary>>, undefined}
       end,
       Stream1 = stream_timestamp(Body, Stream#stream{pcr = PCR}),
+      % case Handler of
+      %   psi ->
+      %     <<_, TableId, _:4, Len:12, _/binary>> = Body,
+      %     ?D({Handler, TableId, Pid, size(Body), PayloadStart, PayloadSize, Len});
+      %   _ -> ok
+      % end,
       PESPacket = ?MODULE:Handler(Body, Stream1),
       {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = Rest, es_buffer = <<>>}|Streams]}, PESPacket};
 
     % This clause happens when continuation packets comes to initialized decoder
-    {value, #stream{synced = true, ts_buffer = Buf} = Stream, Streams} when PayloadStart == 0 ->
+    {value, #stream{ts_buffer = Buf} = Stream, Streams} when PayloadStart == 0 andalso is_binary(Buf) ->
       {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = <<Buf/binary, Payload/binary>>}|Streams]}, undefined};
 
     false ->
@@ -284,7 +299,7 @@ decode_ts({eof,Codec}, #decoder{pids = Pids} = Decoder) ->
       % ?D({eof,Codec,Body}),
       Stream1 = stream_timestamp(Body, Stream),
       PESPacket = pes(Body, Stream1),
-      {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = [], es_buffer = <<>>}|Streams]}, PESPacket};
+      {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = <<>>, es_buffer = <<>>}|Streams]}, PESPacket};
     false ->
       % ?D({unknown_pid, Pid}),
       {ok, Decoder, undefined}
@@ -362,7 +377,8 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 
 psi(<<_Pointer, _TableId, _SectionInd:1, _:3, _SectionLength:12, _TransportStreamId:16, _:2, _Version:5, _CurrentNext:1, 
              _SectionNumber, _LastSectionNumber, _PSI/binary>>, _) ->
-  % ?D({psi, TableId, SectionLength, size(PSI)}),
+  % {PSI1, PSI2} = erlang:split_binary(PSI, SectionLength - 5),             
+  % ?D({psi, TableId, PSI1, PSI2}),
   undefined.
 
 
