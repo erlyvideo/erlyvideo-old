@@ -1,6 +1,7 @@
 private var nc:NetConnection;
 private var ns_in:NetStream;
 private var ns_out:NetStream;
+import mx.controls.Alert;
 
 [Bindable]
 private var registerEnabled:Boolean = false;
@@ -57,6 +58,10 @@ private function handleStatus(evt:NetStatusEvent) : void
 */
 
       m = Microphone.getMicrophone();
+      
+      if(!m) {
+        Alert.show("Cannot enable microphone");
+      }
 
       var cam:Camera;
       cam = Camera.getCamera();
