@@ -444,15 +444,24 @@ decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = 
 
 
 decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Block, codec = mpeg2video} = Stream) ->
-  VideoFrame = #video_frame{       
-    content = video,
-    flavor  = frame,
-    dts     = DTS,
-    pts     = PTS,
-    body    = Block,
-	  codec	  = mpeg2video
-  },
-  {Stream, [VideoFrame]}.
+  TC1 = get(mpeg2_h264),
+  {TC2, Frame} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Block, content = video}),
+  put(mpeg2_h264, TC2),
+  Frames = case Frame of
+    undefined -> [];
+    _ -> [Frame]
+  end,
+  {Stream#stream{es_buffer = <<>>}, Frames}.
+  
+  % VideoFrame = #video_frame{       
+  %   content = video,
+  %   flavor  = frame,
+  %   dts     = DTS,
+  %   pts     = PTS,
+  %   body    = Block,
+  %     codec   = mpeg2video
+  % },
+  % {Stream, [VideoFrame]}.
   % decode_mpeg2_video(Stream, []).
   
 pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
