@@ -7,6 +7,15 @@
   body
 }).
 
+-record(psi_table, {
+  id,
+  ts_stream_id,
+  version,
+  current_next,
+  section_number,
+  last_section_number
+}).
+
 
 -define(PAT_PID, 0).
 -define(CAT_PID, 1).

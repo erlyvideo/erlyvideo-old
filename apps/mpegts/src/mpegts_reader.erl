@@ -81,7 +81,7 @@
 
 -export([decode/2, decode_ts/2, decode_pes/2]).
 
--export([pes/2, psi/2]).
+-export([pes/3, psi/3]).
 
 
 load_nif() ->
@@ -227,11 +227,6 @@ decode_ts(<<_:3, ?TDT_PID:13, _/binary>> = _Packet, Decoder) ->
 decode_ts(<<_:3, ?EIT_PID:13, _/binary>> = _Packet, Decoder) ->
   {ok, Decoder, undefined};
 
-decode_ts(<<_:3, PmtPid:13, _/binary>> = Packet, #decoder{pmt_pid = PmtPid} = Decoder) ->
-  Decoder1 = pmt(ts_payload(Packet), Decoder),
-  {ok, Decoder1, undefined};
-
-
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
@@ -242,13 +237,12 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
       <<_:20, Length:12, _/binary>> = Payload,
-      {PESPacket, Buffer} = if
+      if
         size(Payload) >= Length ->
-          {?MODULE:psi(Payload, Stream), undefined};
+          ?MODULE:psi(Payload, Stream#stream{ts_buffer = undefined}, Decoder#decoder{pids = Streams});
         true ->
-          {undefined, Payload}
-      end,
-      {ok, Decoder#decoder{pids = [Stream#stream{ts_buffer = Buffer, payload_size = Length}|Streams]}, PESPacket};
+          {ok, Decoder#decoder{pids = [Stream#stream{ts_buffer = Payload, payload_size = Length}|Streams]}, undefined}
+      end;
     
     % This clause happens when comes first continuation packet on new decoder
     {value, #stream{ts_buffer = undefined}, _} when PayloadStart == 0 ->
@@ -273,15 +267,14 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
         {1, _} -> {Buf, Payload};
         {0, _} -> {<<Buf/binary, Payload/binary>>, undefined}
       end,
-      Stream1 = stream_timestamp(Body, Stream#stream{pcr = PCR}),
+      Stream1 = stream_timestamp(Body, Stream#stream{pcr = PCR, ts_buffer = Rest}),
       % case Handler of
       %   psi ->
       %     <<_, TableId, _:4, Len:12, _/binary>> = Body,
       %     ?D({Handler, TableId, Pid, size(Body), PayloadStart, PayloadSize, Len});
       %   _ -> ok
       % end,
-      PESPacket = ?MODULE:Handler(Body, Stream1),
-      {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = Rest, es_buffer = <<>>}|Streams]}, PESPacket};
+      ?MODULE:Handler(Body, Stream1, Decoder#decoder{pids = Streams});
 
     % This clause happens when continuation packets comes to initialized decoder
     {value, #stream{ts_buffer = Buf} = Stream, Streams} when PayloadStart == 0 andalso is_binary(Buf) ->
@@ -298,8 +291,8 @@ decode_ts({eof,Codec}, #decoder{pids = Pids} = Decoder) ->
       Body = iolist_to_binary(lists:reverse(Buf)),
       % ?D({eof,Codec,Body}),
       Stream1 = stream_timestamp(Body, Stream),
-      PESPacket = pes(Body, Stream1),
-      {ok, Decoder#decoder{pids = [Stream1#stream{ts_buffer = <<>>, es_buffer = <<>>}|Streams]}, PESPacket};
+      {PESPacket, Stream2, Decoder1} = pes(Body, Stream1, Decoder),
+      {ok, Decoder1#decoder{pids = [Stream2#stream{ts_buffer = <<>>, es_buffer = <<>>}|Streams]}, PESPacket};
     false ->
       % ?D({unknown_pid, Pid}),
       {ok, Decoder, undefined}
@@ -333,26 +326,27 @@ extract_pcr(_) ->
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
-handle_pat(PATBin, #decoder{pmt_pid = undefined, options = Options} = Decoder) ->
+handle_pat(PATBin, #decoder{options = Options, pids = Pids} = Decoder) ->
   % ?D({"Full PAT", size(PATBin), PATBin}),
   #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  PmtPid = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
-  % ?D({pat, Descriptors, PmtPid}),
-  Decoder#decoder{pmt_pid = PmtPid};
-
-
-handle_pat(_PATBin, Decoder) ->
-  Decoder.
+  {PmtPid, SelectedProgram} = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
+  case lists:keyfind(PmtPid, #stream.pid, Pids) of
+    false ->
+      ?D({"Selecting program", SelectedProgram, "on pid",PmtPid}),
+      Decoder#decoder{pids = [#stream{handler = psi, pid = PmtPid}|Pids]};
+    _ ->
+      Decoder
+  end.      
 
 
 select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
   PmtPid;
 select_pmt_pid(Descriptors, SelectedProgram) ->
   case lists:keyfind(SelectedProgram, 1, Descriptors) of
-    {PmtPid, SelectedProgram} -> PmtPid;
+    {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
     _ ->
       ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors}),
-      undefined
+      {undefined, undefined}
   end.
   
 
@@ -375,25 +369,38 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptor
 % parse_sdt(<<ServiceId:16, _Reserved:6, EIT_Schedule:1, EIT_present_following:1, RunningStatus:3, FreeCA:1, DescLength:12, _/binary>>) ->
 %   [{service_id,ServiceId},{eit_schedule,EIT_Schedule},{eit_present,EIT_present_following},{running,RunningStatus},{free_ca,FreeCA},{desc_len,DescLength}].
 
-psi(<<_Pointer, _TableId, _SectionInd:1, _:3, _SectionLength:12, _TransportStreamId:16, _:2, _Version:5, _CurrentNext:1, 
-             _SectionNumber, _LastSectionNumber, _PSI/binary>>, _) ->
-  % {PSI1, PSI2} = erlang:split_binary(PSI, SectionLength - 5),             
-  % ?D({psi, TableId, PSI1, PSI2}),
-  undefined.
+psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
+             SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, Stream, #decoder{pids = Streams} = Decoder) ->
+  {PSI, _Trash} = erlang:split_binary(PSIRaw, SectionLength - 5),
+  PSITable = #psi_table{
+    id = TableId,
+    ts_stream_id = TransportStreamId,
+    version = Version,
+    current_next = CurrentNext,
+    section_number = SectionNumber,
+    last_section_number = LastSectionNumber
+  },
+  % ?D({psi, TableId}),
+  Decoder1 = Decoder#decoder{pids = [Stream|Streams]},
+  Decoder2 = case TableId of
+    ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder1);
+    _ ->
+      % ?D({psi, TableId, PSI}),
+      Decoder1
+  end,
+  % ?D({psi, length(Decoder1#decoder.pids)}),
+  {ok, Decoder2, undefined}.
 
 
 
 
-pmt(<<_Pointer, ?PMT_TABLEID, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
-    ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,
-    _LastSectionNumber, _Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, 
-    _ProgramInfo:ProgramInfoLength/binary, PMT/binary>> = _PMTBin, #decoder{pids = Pids} = Decoder) ->
+pmt(<<_Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>,
+  #psi_table{ts_stream_id = ProgramNum}, #decoder{pids = Pids} = Decoder) ->
   % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
-  PMTLength = round(SectionLength - 13 - ProgramInfoLength),
   % ?D({"Selecting MPEG-TS program", ProgramNum}),
   % io:format("Program info: ~p~n", [_ProgramInfo]),
   % ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
-  Descriptors = extract_pmt(PMT, PMTLength, Pids),
+  Descriptors = extract_pmt(PMT, Pids),
   % io:format("Streams: ~p~n", [Descriptors]),
   Descriptors1 = lists:map(fun(#stream{} = Stream) ->
     Stream#stream{program_num = ProgramNum, h264 = #h264{}}
@@ -404,19 +411,20 @@ pmt(<<_Pointer, ?PMT_TABLEID, _SectionInd:1, 0:1, 2#11:2, SectionLength:12,
   % Decoder#decoder{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
   Decoder#decoder{pids = Descriptors1}.
 
-extract_pmt(_CRC32, 0, Descriptors) ->
-  % ?D({"Left CRC32", _CRC32}),
-  % io:format("Unknown PMT: ~p~n", [PMT]),
+extract_pmt(<<_CRC32:32>>, Descriptors) ->
   lists:keysort(#stream.pid, Descriptors);
 
-extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, PMTLength, Descriptors) ->
+extract_pmt(<<>>, Descriptors) ->
+  lists:keysort(#stream.pid, Descriptors);
+
+extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, Descriptors) ->
   Descriptors1 = case lists:keyfind(Pid, #stream.pid, Descriptors) of
     false -> 
       ?D({"Pid -> Type", Pid, StreamType, _ES}),
       [#stream{handler = pes, counter = 0, pid = Pid, codec = stream_codec(StreamType)}|Descriptors];
     _ -> Descriptors
   end,
-  extract_pmt(Rest, PMTLength - 5 - ESLength, Descriptors1).
+  extract_pmt(Rest, Descriptors1).
   
 
 
@@ -429,21 +437,21 @@ stream_codec(?TYPE_AUDIO_MPEG2) -> mpeg2audio;
 stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 
-pes(_, #stream{codec = unhandled}) -> 
-  undefined;
+pes(_, #stream{codec = unhandled} = Stream, #decoder{pids = Streams} = Decoder) ->
+  {ok, Decoder#decoder{pids = [Stream|Streams]}, undefined};
 
-pes(_, #stream{dts = undefined}) ->
+pes(_, #stream{dts = undefined} = Stream, #decoder{pids = Streams} = Decoder) ->
   ?D({"No PCR or DTS yes"}),
-  undefined;
+  {ok, Decoder#decoder{pids = [Stream|Streams]}, undefined};
 
 pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:HeaderLength/binary, Data/binary>>, 
-           #stream{es_buffer = Buffer, codec = Codec, pid = Pid, dts = DTS, pts = PTS}) ->
+           #stream{es_buffer = Buffer, codec = Codec, pid = Pid, dts = DTS, pts = PTS} = Stream, #decoder{pids = Streams} = Decoder) ->
   % ?D({pes, StreamId,PESLength -3 - HeaderLength, size(Data)}),
   Body = case Buffer of
     <<>> -> Data;
     _ -> <<Buffer/binary, Data/binary>>
   end,
-  #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}.
+  {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
 
 
 
