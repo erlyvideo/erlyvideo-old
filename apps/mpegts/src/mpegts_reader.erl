@@ -186,7 +186,7 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),
   Payload = ts_payload(Packet),
-  % io:format("ts: ~p (~p) ~p ~p~n", [Pid,PayloadStart, _Counter, Decoder#decoder.pmt_pid]),
+  % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, _Counter]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
       <<_:20, Len:12, _/binary>> = Payload,
@@ -334,11 +334,12 @@ pes(_, #stream{dts = undefined} = Stream, #decoder{pids = Streams} = Decoder) ->
 
 pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:HeaderLength/binary, Data/binary>>, 
            #stream{es_buffer = Buffer, codec = Codec, pid = Pid, dts = DTS, pts = PTS} = Stream, #decoder{pids = Streams} = Decoder) ->
-  % ?D({pes, StreamId,PESLength -3 - HeaderLength, size(Data)}),
+  % ?D({pes, _StreamId,_PESLength -3 - HeaderLength, size(Data)}),
   Body = case Buffer of
     <<>> -> Data;
     _ -> <<Buffer/binary, Data/binary>>
   end,
+  % ?D({pes, Codec, DTS, size(Body)}),
   {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
 
 
@@ -346,11 +347,10 @@ pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:Heade
 decode_pes(#decoder{pids = Pids} = Decoder, #pes_packet{body = Body, pid = Pid}) ->
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, Stream, Streams} ->
-      % ?D({decode_pes,Stream#stream.codec}),
       {Stream1, Frames} = decode_pes_packet(Stream#stream{es_buffer = Body}),
       {ok, Decoder#decoder{pids = [Stream1|Streams]}, Frames};
     _ ->
-      {ok, Decoder}
+      {ok, Decoder, []}
   end.  
 
 
@@ -375,40 +375,18 @@ decode_pes_packet(#stream{codec = mp3, dts = DTS, pts = PTS, es_buffer = Data} =
   {Stream, [AudioFrame]};
 
 decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
-  AudioFrame = #video_frame{       
-    content = audio,
-    flavor  = frame,
-    dts     = DTS,
-    pts     = PTS,
-    body    = Data,
-	  codec	  = mpeg2audio,
-	  sound	  = {stereo, bit16, rate44}
-  },
-  % ?D({audio, Stream#stream.pcr, DTS}),
-  {Stream#stream{es_buffer = <<>>}, [AudioFrame]};
+  TC1 = get(mp2_aac),
+  {TC2, Frames} = ems_sound2:mp2_aac(TC1, #video_frame{codec = mpeg2audio, pts = PTS, dts = DTS, body = Data, content = audio}),
+  put(mp2_aac, TC2),
+  {Stream#stream{es_buffer = <<>>}, Frames};
 
 
 decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Block, codec = mpeg2video} = Stream) ->
   TC1 = get(mpeg2_h264),
-  {TC2, Frame} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Block, content = video}),
+  {TC2, Frames} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Block, content = video}),
   put(mpeg2_h264, TC2),
-  Frames = case Frame of
-    undefined -> [];
-    _ -> [Frame]
-  end,
   {Stream#stream{es_buffer = <<>>}, Frames}.
-  
-  % VideoFrame = #video_frame{       
-  %   content = video,
-  %   flavor  = frame,
-  %   dts     = DTS,
-  %   pts     = PTS,
-  %   body    = Block,
-  %     codec   = mpeg2video
-  % },
-  % {Stream, [VideoFrame]}.
-  % decode_mpeg2_video(Stream, []).
-  
+    
 pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 
     2#0001:4, Dts1:3, 1:1, Dts2:15, 1:1, Dts3:15, 1:1, _Rest/binary>> = PESHeader,
