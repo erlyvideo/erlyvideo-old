@@ -41,5 +41,8 @@
   retry_limit = 100,
   
   frame_filters = [],
-  properties = []
+  properties = [],
+  
+  sort_buffer = [],
+  sort_count = 10
 }).
