@@ -56,7 +56,8 @@ psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId
     ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder1);
     ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder1);
     ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder1);
-    _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder1);
+    % _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder1);
+    16#4E -> eit(PSI, PSITable, Decoder1);
     _ ->
       % ?D({psi, TableId, PSI}),
       Decoder1
@@ -132,18 +133,29 @@ parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, 
 
 
 
-eit(<<Pid:16, Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{}, Decoder) ->
-  _Info = parse_eit(EIT, [{pid,Pid},{network,Network}]),
-  % ?D({eit, Info}),
+eit(<<TSId:16, Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = Pid, version = Version}, Decoder) ->
+  _Info = parse_eit(EIT, []),
+  io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [Pid, Version, TSId, Network]),
+  [begin
+    Id = proplists:get_value(id, Event),
+    Start = proplists:get_value(start, Event),
+    Duration = proplists:get_value(duration, Event),
+    Status = proplists:get_value(status, Event),
+    Lang = proplists:get_value(language, Event),
+    Name = proplists:get_value(name, Event),
+    About = proplists:get_value(about, Event),
+    io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
+  end || Event <- _Info],  
+  % ?D({eit, _Info}),
   Decoder.
 
-parse_eit(<<EventId:16, StartTime:40, Duration:24, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, EIT/binary>>, Acc) ->
+parse_eit(<<EventId:16, StartTime:5/binary, Duration:3/binary, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, EIT/binary>>, Acc) ->
   Descriptors = parse_descriptors(DescriptorsBin, []),
   Encryped = case FreeCA of
     0 -> false;
     1 -> true
   end,
-  Info = [{id, EventId},{start,StartTime},{duration,Duration},{status,decode_status(StatusId)},{encrypted,Encryped}]++Descriptors,
+  Info = [{id, EventId},{start,eit_date_to_erlang(StartTime)},{duration,eit_duration_to_erlang(Duration)},{status,decode_status(StatusId)},{encrypted,Encryped}]++Descriptors,
   parse_eit(EIT, [Info|Acc]);
 
 parse_eit(<<_CRC32/binary>>, Acc) -> lists:reverse(Acc).
@@ -236,3 +248,35 @@ from_latin(Text) ->
   {ok, Output} = iconv:conv(Iconv, Text),
   Output.
   % <<1, Text/binary>>.
+
+-define(MJD_1970_01_01, 40587).
+-define(SECONDS_IN_DAY, 86400).
+
+eit_duration_to_erlang(<<H1:4, H2:4, M1:4,M2:4, S1:4,S2:4>>) ->
+  Hour = H1*10+H2,
+  Minute = M1*10+M2,
+  Second = S1*10+S2,
+  {Hour,Minute,Second}.
+
+eit_date_to_erlang(<<MJD:16, H1:4, H2:4, M1:4,M2:4, S1:4,S2:4>>) ->
+  Hour = H1*10+H2,
+  Minute = M1*10+M2,
+  Second = S1*10+S2,
+  
+  Epoch = calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}),
+  UTCDate = (MJD - ?MJD_1970_01_01)*?SECONDS_IN_DAY,
+  {Date, _} = calendar:gregorian_seconds_to_datetime(UTCDate + Epoch),
+  
+  Result = {Date, {Hour,Minute,Second}},
+  % UTC = calendar:datetime_to_gregorian_seconds(Result) - Epoch,
+  % {Result, UTC}.
+  Result.
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+eit_date_to_erlang_test() ->
+  ?assertEqual({{2011,5,27},{5,0,0}}, eit_date_to_erlang(<<217,156,5,0,0>>)).
+
+eit_duration_to_erlang_test() ->
+  ?assertEqual({0,20,0}, eit_duration_to_erlang(<<0,32,0>>)).
