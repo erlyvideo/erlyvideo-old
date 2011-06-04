@@ -135,17 +135,17 @@ parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, 
 
 eit(<<TSId:16, Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = Pid, version = Version}, Decoder) ->
   _Info = parse_eit(EIT, []),
-  io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [Pid, Version, TSId, Network]),
-  [begin
-    Id = proplists:get_value(id, Event),
-    Start = proplists:get_value(start, Event),
-    Duration = proplists:get_value(duration, Event),
-    Status = proplists:get_value(status, Event),
-    Lang = proplists:get_value(language, Event),
-    Name = proplists:get_value(name, Event),
-    About = proplists:get_value(about, Event),
-    io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
-  end || Event <- _Info],  
+  % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [Pid, Version, TSId, Network]),
+  % [begin
+  %   Id = proplists:get_value(id, Event),
+  %   Start = proplists:get_value(start, Event),
+  %   Duration = proplists:get_value(duration, Event),
+  %   Status = proplists:get_value(status, Event),
+  %   Lang = proplists:get_value(language, Event),
+  %   Name = proplists:get_value(name, Event),
+  %   About = proplists:get_value(about, Event),
+  %   io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
+  % end || Event <- _Info],  
   % ?D({eit, _Info}),
   Decoder.
 
