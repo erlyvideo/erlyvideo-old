@@ -36,12 +36,13 @@
 psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
              SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, Stream, #decoder{pids = Streams} = Decoder) ->
   PSILength = SectionLength - 5,             
-  {PSI, _Trash} = erlang:split_binary(PSIRaw, PSILength),
-  %   size(PSIRaw) >= PSILength -> ;
-  %   true ->
-  %     ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
-  %     {PSIRaw, <<>>}
-  % end,
+  % {PSI, _Trash} = erlang:split_binary(PSIRaw, PSILength),
+  {PSI, _Trash} = if
+    size(PSIRaw) >= PSILength -> erlang:split_binary(PSIRaw, PSILength);
+    true ->
+      ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
+      {PSIRaw, <<>>}
+  end,
   PSITable = #psi_table{
     id = TableId,
     ts_stream_id = TransportStreamId,
@@ -133,7 +134,7 @@ parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, 
 
 
 
-eit(<<TSId:16, Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = Pid, version = Version}, Decoder) ->
+eit(<<_TSId:16, _Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = _Pid, version = _Version}, Decoder) ->
   _Info = parse_eit(EIT, []),
   % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [Pid, Version, TSId, Network]),
   % [begin

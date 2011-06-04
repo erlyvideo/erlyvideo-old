@@ -385,7 +385,7 @@ decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = 
 	  sound	  = {stereo, bit16, rate44}
   },
   % ?D({audio, Stream#stream.pcr, DTS}),
-  {Stream, [AudioFrame]};
+  {Stream#stream{es_buffer = <<>>}, [AudioFrame]};
 
 
 decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Block, codec = mpeg2video} = Stream) ->
