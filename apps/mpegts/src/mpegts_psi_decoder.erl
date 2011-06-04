@@ -36,12 +36,12 @@
 psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
              SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, Stream, #decoder{pids = Streams} = Decoder) ->
   PSILength = SectionLength - 5,             
-  {PSI, _Trash} = if
-    size(PSIRaw) >= PSILength -> erlang:split_binary(PSIRaw, SectionLength - 5);
-    true ->
-      % ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
-      {PSIRaw, <<>>}
-  end,
+  {PSI, _Trash} = erlang:split_binary(PSIRaw, PSILength),
+  %   size(PSIRaw) >= PSILength -> ;
+  %   true ->
+  %     ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
+  %     {PSIRaw, <<>>}
+  % end,
   PSITable = #psi_table{
     id = TableId,
     ts_stream_id = TransportStreamId,

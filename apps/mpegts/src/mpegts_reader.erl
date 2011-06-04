@@ -187,12 +187,13 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
   PCR = get_pcr(Packet),
   Payload = ts_payload(Packet),
   % io:format("ts: ~p (~p) ~p ~p~n", [Pid,PayloadStart, _Counter, Decoder#decoder.pmt_pid]),
-  % io:format("ts: ~p (~p) ~p ~p~n", [Pid,PayloadStart, _Counter, Decoder#decoder.pids]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
-      <<_:20, Length:12, _/binary>> = Payload,
+      <<_:20, Len:12, _/binary>> = Payload,
+      Length = Len + 4, % size of PSI payload plus header
       if
         size(Payload) >= Length ->
+          % ?D({early_flush,Pid,Len,size(Payload)}),
           ?MODULE:psi(Payload, Stream#stream{ts_buffer = undefined}, Decoder#decoder{pids = Streams});
         true ->
           {ok, Decoder#decoder{pids = [Stream#stream{ts_buffer = Payload, payload_size = Length}|Streams]}, undefined}
