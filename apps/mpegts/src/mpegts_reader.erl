@@ -294,7 +294,7 @@ handle_pat(PATBin, #decoder{options = Options, pids = Pids} = Decoder) ->
 
 
 select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
-  PmtPid;
+  {PmtPid, _ProgramNum};
 select_pmt_pid(Descriptors, SelectedProgram) ->
   case lists:keyfind(SelectedProgram, 1, Descriptors) of
     {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
