@@ -1,0 +1,12 @@
+{application, microtcp,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { microtcp_app, []}},
+  {env, []}
+ ]}.
