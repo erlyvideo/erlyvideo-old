@@ -32,7 +32,9 @@ client_launch() ->
 client_loop(Socket, Bin) ->
   microtcp:send(Socket, Bin),
   receive
-    {tcp_closed, Socket} -> ok
+    {tcp_closed, Socket} -> ok;
+    Else -> io:format("Msg: ~p~n", [Else]),
+    client_loop(Socket, Bin)
   after
     40 -> client_loop(Socket, Bin)
   end.

@@ -19,7 +19,20 @@ listen(Port, Options) ->
   ?D({loaded,microtcp}),
   Socket = open_port({spawn, microtcp_drv}, [binary]),
   ?D({open_socket, Socket}),
-  <<"ok">> = port_control(Socket, ?CMD_LISTEN, list_to_binary(integer_to_list(Port))),
+  Reuseaddr = case proplists:get_value(reuseaddr, Options) of
+    true -> 1;
+    _ -> 0
+  end,
+  Keepalive = case proplists:get_value(keepalive, Options) of
+    true -> 1;
+    _ -> 0
+  end,
+  Timeout = proplists:get_value(timeout, Options, 60000),
+  UpperLimit = proplists:get_value(upper_limit, Options, 2000000),
+  LowerLimit = proplists:get_value(lower_limit, Options, 0),
+  Backlog = proplists:get_value(backlog, Options, 30),
+  
+  <<"ok">> = port_control(Socket, ?CMD_LISTEN, <<Port:16, Backlog:16/little, Reuseaddr, Keepalive, Timeout:16/little, UpperLimit:32/little, LowerLimit:32/little>>),
   ?D({all_great}),
   {ok, Socket}.
 

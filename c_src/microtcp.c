@@ -22,17 +22,33 @@ enum {
     CMD_ACTIVE_ONCE = 2
     };
 
+#pragma pack(1)
+typedef struct {
+  uint16_t port;
+  uint16_t backlog;
+  uint8_t reuseaddr;
+  uint8_t keepalive;
+  uint16_t timeout;
+  uint32_t upper_limit;
+  uint32_t lower_limit;
+} Config;
+#pragma options align=reset
+
+
 typedef struct {
   ErlDrvPort port;
   ErlDrvTermData owner_pid;
   int socket;
-  uint32_t backlog;
   uint32_t upper_limit;
   uint32_t lower_limit;
   unsigned long timeout;
   int paused_output;
   SocketMode mode;
+  Config config; // Only for listener mode
 } Emstcp;
+
+
+
 
 static ErlDrvData microtcp_drv_start(ErlDrvPort port, char *buff)
 {
@@ -73,6 +89,13 @@ static void microtcp_drv_outputv(ErlDrvData handle, ErlIOVec *ev)
       return;
     } else if(ev->size + driver_sizeq(d->port) > d->upper_limit) {
       d->paused_output = 1;
+      ErlDrvTermData reply[] = {
+        ERL_DRV_ATOM, driver_mk_atom("tcp_paused"),
+        ERL_DRV_PORT, driver_mk_port(d->port),
+        ERL_DRV_TUPLE, 2
+      };
+      driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
+      
     } else {
       driver_enqv(d->port, ev, 0);
       driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 1);
@@ -102,6 +125,12 @@ static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
   } else {
     driver_deq(d->port, written);
     if(d->paused_output && driver_sizeq(d->port) <= d->lower_limit) {
+      ErlDrvTermData reply[] = {
+        ERL_DRV_ATOM, driver_mk_atom("tcp_resumed"),
+        ERL_DRV_PORT, driver_mk_port(d->port),
+        ERL_DRV_TUPLE, 2
+      };
+      driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
       d->paused_output = 0;
     }
   }
@@ -113,27 +142,45 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
   
   switch(command) {
     case CMD_LISTEN: {
-      short port;
       int flags;
       struct sockaddr_in si;
-      port = atoi(buf);
+      
       d->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+      if(len != sizeof(Config)) {
+        driver_failure_atom(d->port, "invalid_config");
+        return 0;
+      }
+      memcpy(&d->config, buf, sizeof(Config));
       
       bzero(&si, sizeof(si));
       si.sin_family = AF_INET;
-      si.sin_port = htons(port);
+      si.sin_port = d->config.port; // It comes in network byte order
       si.sin_addr.s_addr = htonl(INADDR_ANY);
       if(bind(d->socket, (struct sockaddr *)&si, sizeof(si)) == -1) {
         driver_failure_posix(d->port, errno);
         return 0;
       }
       flags = fcntl(d->socket, F_GETFL);
-      assert(flags >= 0);
-      assert(!fcntl(d->socket, F_SETFL, flags | O_NONBLOCK));
+      if(flags == -1) {
+        driver_failure_posix(d->port, errno);
+        return 0;
+      }
+      if(fcntl(d->socket, F_SETFL, flags | O_NONBLOCK) == -1) {
+        driver_failure_posix(d->port, errno);
+        return 0;
+      }
+      
+      int on = 1;
+      if(d->config.reuseaddr) {
+        setsockopt(d->socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)); 
+      }
+      if(d->config.keepalive) {
+        setsockopt(d->socket, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+      }
+      
       driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 1);
       d->mode = LISTENER_MODE;
-      d->backlog = 30;
-      listen(d->socket, d->backlog);
+      listen(d->socket, d->config.backlog);
       memcpy(*rbuf, "ok", 2);
       return 2;
     }
@@ -167,10 +214,10 @@ static void accept_tcp(Emstcp *d)
 
   ErlDrvPort client = driver_create_port(d->port, d->owner_pid, "microtcp_drv", (ErlDrvData)c);
   c->port = client;
-  c->upper_limit = 10000000;
-  c->lower_limit = 1000;
+  c->upper_limit = d->config.upper_limit;
+  c->lower_limit = d->config.lower_limit;
   c->paused_output = 0;
-  c->timeout = 1000;
+  c->timeout = d->config.timeout;
   driver_set_timer(c->port, c->timeout);
   set_port_control_flags(c->port, PORT_CONTROL_FLAG_BINARY);
   ErlDrvTermData reply[] = {
