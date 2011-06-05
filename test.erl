@@ -31,8 +31,11 @@ client_launch() ->
 
 client_loop(Socket, Bin) ->
   microtcp:send(Socket, Bin),
-  timer:sleep(40),
-  client_loop(Socket, Bin).
+  receive
+    {tcp_closed, Socket} -> ok
+  after
+    40 -> client_loop(Socket, Bin)
+  end.
   % microtcp:active_once(Socket),
   % receive
   %   {tcp, Socket, Data} ->
