@@ -68,7 +68,7 @@ init(#ems_media{} = Media) ->
 %                         {stop, Reason, State}
 %
 
-frame_filters(#ems_media{options = Options, sort_count = SortCount} = _Media) ->
+frame_filters(#ems_media{options = Options} = _Media) ->
   [
     transcode,
     pass_frame_through_module,
@@ -135,7 +135,6 @@ pass_filter_chain([Frame|Frames], #ems_media{} = Media, [Filter|Filters]) ->
     {reply, undefined, #ems_media{frame_filters = FrameFilters} = Media1} ->
       pass_filter_chain(Frames, Media1, FrameFilters);
     {noreply, #ems_media{frame_filters = FrameFilters} = Media1} ->
-      ?D({Filter, "stopped chain with buffer", length(Media1#ems_media.sort_buffer)}),
       pass_filter_chain(Frames, Media1, FrameFilters);
     {stop, Reason, #ems_media{} = Media1} ->
       {stop, Reason, Media1}

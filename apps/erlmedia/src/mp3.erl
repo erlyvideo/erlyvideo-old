@@ -57,8 +57,16 @@ read(<<2#11111111111:11, VsnBits:2, LayerBits:2, _:1, BitRate:4, SampleRate:2, _
       {ok, #mp3_frame{sample_rate = SRate, bitrate = BRate, channels = Chan, joint = Joint, samples = Samples, body = Frame}, Rest};
     _ ->
       {more, Length - size(Packet)}
-  end.
-  
+  end;
+
+read(<<2#11111111111:11, _:5, _/binary>>) ->
+  {more, 2};
+
+read(<<_, Rest/binary>>) ->
+  read(Rest);
+
+read(<<>>) ->
+  {more, 4}.
 
 decode(Header) when size(Header) < 4 ->
   {more, undefined};
