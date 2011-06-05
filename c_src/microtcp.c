@@ -27,7 +27,9 @@ typedef struct {
   ErlDrvTermData owner_pid;
   int socket;
   uint32_t backlog;
-  uint32_t limit;
+  uint32_t upper_limit;
+  uint32_t lower_limit;
+  int paused_output;
   SocketMode mode;
 } Emstcp;
 
@@ -54,8 +56,11 @@ static void microtcp_drv_stop(ErlDrvData handle)
 static void microtcp_drv_outputv(ErlDrvData handle, ErlIOVec *ev)
 {
     Emstcp* d = (Emstcp *)handle;
-    if(ev->size + driver_sizeq(d->port) > d->limit) {
-      fprintf(stderr, "Blocking output %d bytes because it will overflow limit %d/%d\r\n", ev->size, driver_sizeq(d->port), d->limit);
+    if(d->paused_output) {
+      fprintf(stderr, "Blocking output because port is paused\r\n");
+    } else if(ev->size + driver_sizeq(d->port) > d->upper_limit) {
+      fprintf(stderr, "Blocking output %d bytes because it will overflow limit %d/%d\r\n", ev->size, driver_sizeq(d->port), d->upper_limit);
+      d->paused_output = 1;
     } else {
       fprintf(stderr, "Output %d bytes (%d in queue)\r\n", ev->size, driver_sizeq(d->port));
       driver_enqv(d->port, ev, 0);
@@ -92,7 +97,10 @@ static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
     fprintf(stderr, "Error(%d): %s\r\n", errno, strerror(errno));
   } else {
     driver_deq(d->port, written);
-    fprintf(stderr, "Flush %d to net, %d left\r\n", written, driver_sizeq(d->port));
+    if(driver_sizeq(d->port) <= d->lower_limit) {
+      d->paused_output = 0;
+    }
+    // fprintf(stderr, "Flush %d to net, %d left\r\n", written, driver_sizeq(d->port));
   }
 }
 
@@ -159,7 +167,9 @@ static void accept_tcp(Emstcp *d)
 
   ErlDrvPort client = driver_create_port(d->port, d->owner_pid, "microtcp_drv", (ErlDrvData)c);
   c->port = client;
-  c->limit = 10000000;
+  c->upper_limit = 10000000;
+  c->lower_limit = 1000;
+  c->paused_output = 0;
   set_port_control_flags(client, PORT_CONTROL_FLAG_BINARY);
   ErlDrvTermData reply[] = {
     ERL_DRV_ATOM, driver_mk_atom("tcp_connection"),

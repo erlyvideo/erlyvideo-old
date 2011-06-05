@@ -24,14 +24,14 @@ main([]) ->
 
 
 client_launch() ->
-  Bin = crypto:rand_bytes(100000),
+  Bin = crypto:rand_bytes(1000000),
   receive
     {socket, Socket} -> client_loop(Socket, Bin)
   end.
 
 client_loop(Socket, Bin) ->
   microtcp:send(Socket, Bin),
-  timer:sleep(10),
+  timer:sleep(40),
   client_loop(Socket, Bin).
   % microtcp:active_once(Socket),
   % receive
