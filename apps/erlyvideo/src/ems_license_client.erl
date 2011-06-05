@@ -215,8 +215,8 @@ load_by_url(URL) ->
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _Headers, Bin} ->
       unpack_server_response(Bin);
-    {ok, "404", _Headers, _Bin} ->
-      error_logger:error_msg("No selected versions on server~n"),
+    {ok, "404", _Headers, Bin} ->
+      error_logger:error_msg("No selected versions on server: ~p~n", [erlang:binary_to_term(Bin)]),
       {error, notfound};
     {error, Reason} ->
       {error, Reason};

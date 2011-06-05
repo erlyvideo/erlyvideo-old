@@ -1,6 +1,7 @@
 private var nc:NetConnection;
 private var ns_in:NetStream;
 private var ns_out:NetStream;
+import mx.controls.Alert;
 
 [Bindable]
 private var registerEnabled:Boolean = false;
@@ -57,6 +58,10 @@ private function handleStatus(evt:NetStatusEvent) : void
 */
 
       m = Microphone.getMicrophone();
+      
+      if(!m) {
+        Alert.show("Cannot enable microphone");
+      }
 
       var cam:Camera;
       cam = Camera.getCamera();
@@ -68,6 +73,7 @@ private function handleStatus(evt:NetStatusEvent) : void
       m.codec = "Speex";
 			m.gain = 80;
 			m.rate = speexWB ? 16000 : 8000;
+			m.framesPerPacket = 1;
       ns_out.attachAudio(m);
       ns_out.attachCamera(cam);
       ns_out.publish(obj.out_stream);

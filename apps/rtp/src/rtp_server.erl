@@ -291,7 +291,7 @@ handle_info({udp, _Socket, Addr, Port, Bin},
   %%[Consumer ! transcode(Frame, Transcoder) || Frame <- Frames],
   {noreply, State#rtp_server{rtp_loc = NewRTPState, transcoder_in = NewTranscoder}};
 
-handle_info(#video_frame{} = Frame,
+handle_info(#video_frame{content = audio} = Frame,
             #rtp_server{rtp_rmt = RTPState,
                         transcoder_out = Transcoder,
                         file = _File} = State) ->
@@ -312,6 +312,10 @@ handle_info(#video_frame{} = Frame,
   %%{ok, NewRTPState} = rtp:handle_frame(RTPState, NewFrame#video_frame{body = NewBody}),
   {noreply, State#rtp_server{rtp_rmt = NewRTPState,
                              transcoder_out = NewTranscoder}};
+
+handle_info(#video_frame{content = video},
+            #rtp_server{} = State) ->
+  {noreply, State};
 
 handle_info(_Info, State) ->
   {stop, {unknown_message, _Info}, State}.

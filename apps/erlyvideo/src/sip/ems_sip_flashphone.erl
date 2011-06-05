@@ -454,6 +454,7 @@ dialog(Request,
                        {consumer, Media}] ++ TranscodeOpts,
             {ok, RTP} = rtp:start_server(RtpOpts),
             {ok, {_PortRTP, _PortRTCP}} = rtp_server:listen_ports(RTP, 1, [{transport, udp}]),
+            rtp_server:add_stream(RTP, local, MediaInfoReply),
             rtp_server:add_stream(RTP, remote, MediaInfoReply),
 
             apps_sip:sip_call(RTMP, StreamOut, StreamIn),
@@ -548,6 +549,7 @@ ok(Response, _Origin,
 
   ?DBG("AudioResult:~n~p", [AudioResult]),
 
+  rtp_server:add_stream(RTP, local, MediaInfo),
   rtp_server:add_stream(RTP, remote, MediaInfo),
 
   timer:sleep(500),
