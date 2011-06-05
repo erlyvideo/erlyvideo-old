@@ -27,6 +27,7 @@ typedef struct {
   ErlDrvTermData owner_pid;
   int socket;
   uint32_t backlog;
+  uint32_t limit;
   SocketMode mode;
 } Emstcp;
 
@@ -44,18 +45,55 @@ static ErlDrvData microtcp_drv_start(ErlDrvPort port, char *buff)
 static void microtcp_drv_stop(ErlDrvData handle)
 {
   Emstcp* d = (Emstcp *)handle;
-  driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 0);
+  driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ|DO_WRITE, 0);
   close(d->socket);
   driver_free((char*)handle);
 }
 
 
-static void microtcp_drv_output(ErlDrvData handle, char *buff, int bufflen)
+static void microtcp_drv_outputv(ErlDrvData handle, ErlIOVec *ev)
 {
     Emstcp* d = (Emstcp *)handle;
-    char fn = buff[0], arg = buff[1], res;
-    res = 5;
-    driver_output(d->port, &res, 1);
+    if(ev->size + driver_sizeq(d->port) > d->limit) {
+      fprintf(stderr, "Blocking output %d bytes because it will overflow limit %d/%d\r\n", ev->size, driver_sizeq(d->port), d->limit);
+    } else {
+      fprintf(stderr, "Output %d bytes (%d in queue)\r\n", ev->size, driver_sizeq(d->port));
+      driver_enqv(d->port, ev, 0);
+      driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 1);
+    }
+}
+
+
+
+static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
+{
+  Emstcp* d = (Emstcp*) handle;
+  SysIOVec* vec;
+  int vlen;
+  size_t written;
+  vec = driver_peekq(d->port, &vlen);
+  if(!vec) {
+    driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 0);
+    return;
+  }
+  written = writev(d->socket, vec, vlen);
+  if(written == -1) {
+    if((errno != EWOULDBLOCK) && (errno != EINTR)) {
+      driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 0);
+      ErlDrvTermData reply[] = {
+        ERL_DRV_ATOM, driver_mk_atom("tcp_closed"),
+        ERL_DRV_PORT, driver_mk_port(d->port),
+        ERL_DRV_TUPLE, 2
+      };
+      driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
+      driver_exit(d->port, 0);
+      return;
+    }
+    fprintf(stderr, "Error(%d): %s\r\n", errno, strerror(errno));
+  } else {
+    driver_deq(d->port, written);
+    fprintf(stderr, "Flush %d to net, %d left\r\n", written, driver_sizeq(d->port));
+  }
 }
 
 static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *buf, 
@@ -121,6 +159,7 @@ static void accept_tcp(Emstcp *d)
 
   ErlDrvPort client = driver_create_port(d->port, d->owner_pid, "microtcp_drv", (ErlDrvData)c);
   c->port = client;
+  c->limit = 10000000;
   set_port_control_flags(client, PORT_CONTROL_FLAG_BINARY);
   ErlDrvTermData reply[] = {
     ERL_DRV_ATOM, driver_mk_atom("tcp_connection"),
@@ -173,20 +212,19 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
   
 }
 
-
 ErlDrvEntry microtcp_driver_entry = {
     NULL,			/* F_PTR init, N/A */
     microtcp_drv_start,		/* L_PTR start, called when port is opened */
     microtcp_drv_stop,		/* F_PTR stop, called when port is closed */
-    microtcp_drv_output,		/* F_PTR output, called when erlang has sent */
-    microtcp_drv_input,			/* F_PTR ready_input, called when input descriptor ready */
-    NULL,			/* F_PTR ready_output, called when output descriptor ready */
+    NULL,	                /* F_PTR output, called when erlang has sent */
+    microtcp_drv_input,		/* F_PTR ready_input, called when input descriptor ready */
+    microtcp_drv_output,	/* F_PTR ready_output, called when output descriptor ready */
     "microtcp_drv",		/* char *driver_name, the argument to open_port */
     NULL,			/* F_PTR finish, called when unloaded */
     NULL,     /* void *handle */
     microtcp_drv_command,			/* F_PTR control, port_command callback */
     NULL,			/* F_PTR timeout, reserved */
-    NULL,			/* F_PTR outputv, reserved */
+    microtcp_drv_outputv,	/* F_PTR outputv, reserved */
     NULL,                      /* ready_async */
     NULL,                             /* flush */
     NULL,                             /* call */

@@ -1,7 +1,7 @@
 -module(microtcp).
 -include("log.hrl").
 
--export([listen/2, listen/1, controlling_process/2, active_once/1]).
+-export([listen/2, listen/1, controlling_process/2, active_once/1, send/2]).
 
 listen(Port) -> listen(Port, []).
 
@@ -44,5 +44,9 @@ controlling_process(Socket, NewOwner) when is_port(Socket), is_pid(NewOwner) ->
 
 active_once(Socket) ->
   port_control(Socket, ?CMD_ACTIVE_ONCE, <<>>).
+
+
+send(Socket, Bin) when is_port(Socket) andalso is_binary(Bin) ->
+  port_command(Socket, Bin).
 
 

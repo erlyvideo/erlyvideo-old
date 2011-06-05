@@ -24,18 +24,21 @@ main([]) ->
 
 
 client_launch() ->
+  Bin = crypto:rand_bytes(100000),
   receive
-    {socket, Socket} -> client_loop(Socket)
+    {socket, Socket} -> client_loop(Socket, Bin)
   end.
 
-client_loop(Socket) ->
-  % io:format("Activate socket~n"),
-  microtcp:active_once(Socket),
-  receive
-    {tcp, Socket, Data} ->
-      io:format("Data from client: ~p~n", [Data]),
-      client_loop(Socket);
-    Else ->
-      io:format("Client msg: ~p~n", [Else]),
-      ok
-  end.
+client_loop(Socket, Bin) ->
+  microtcp:send(Socket, Bin),
+  timer:sleep(10),
+  client_loop(Socket, Bin).
+  % microtcp:active_once(Socket),
+  % receive
+  %   {tcp, Socket, Data} ->
+  %     io:format("Data from client: ~p~n", [Data]),
+  %     client_loop(Socket);
+  %   Else ->
+  %     io:format("Client msg: ~p~n", [Else]),
+  %     ok
+  % end.
