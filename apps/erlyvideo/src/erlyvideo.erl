@@ -71,6 +71,8 @@ test() ->
     rtmp,
     rtmp_handshake,
     rtsp,
+    mpegts_reader,
+    mpegts_psi_decoder,
     ems_media_clients,
     ems_media_timeout_tests,
     ems_media_flow_tests,

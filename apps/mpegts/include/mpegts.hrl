@@ -7,6 +7,15 @@
   body
 }).
 
+-record(psi_table, {
+  id,
+  ts_stream_id,
+  version,
+  current_next,
+  section_number,
+  last_section_number
+}).
+
 
 -define(PAT_PID, 0).
 -define(CAT_PID, 1).
@@ -17,18 +26,25 @@
 -define(TDT_PID, 20). % TOT here
 
 
--define(PAT_TABLEID, 0).
--define(CAT_TABLEID, 1).
--define(PMT_TABLEID, 2).
--define(TSDT_TABLEID, 3).
-
--define(NIT_TABLEID, 16#40).
+-define(PAT_TABLEID,       16#00).
+-define(CAT_TABLEID,       16#01).
+-define(PMT_TABLEID,       16#02).
+-define(TSDT_TABLEID,      16#03).
+-define(NIT_TABLEID,       16#40).
 -define(NIT_OTHER_TABLEID, 16#41).
--define(SDT_TABLEID, 16#42).
+-define(SDT_TABLEID,       16#42).
 -define(SDT_OTHER_TABLEID, 16#43).
+-define(BAT_TABLEID,       16#42).
+-define(EIT_1_TABLEID,     16#4E).
+-define(EIT_2_TABLEID,     16#4F).
+-define(EIT_3_TABLEID,     16#5F).
+-define(EIT_4_TABLEID,     16#6F).
 
 
-
+-define(SERVICE_DESC,      16#48).
+-define(SHORT_DESC,        16#4D).
+-define(CONTENT_DESC,      16#54).
+-define(PARENTAL_RATING_DESC, 16#55).
 
 -define(TYPE_VIDEO_MPEG1, 1).
 -define(TYPE_VIDEO_MPEG2, 2).

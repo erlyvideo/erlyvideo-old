@@ -41,6 +41,7 @@ fix_undefined_dts/2,
 calculate_new_stream_shift/2,
 shift_dts_delta/2,
 warn_bad_dts_delta/2,
+sort_frames/2,
 save_last_dts/2,
 fix_negative_dts/2,
 start_on_keyframe/2,
@@ -79,7 +80,13 @@ frame_filters(#ems_media{options = Options} = _Media) ->
     true -> [warn_bad_dts_delta];
     _ -> []
   end ++  
-  [ fix_negative_dts,
+  [ fix_negative_dts] ++
+  % case SortCount of
+  %   0 -> [];
+  %   undefined -> [];
+  %   _ -> [sort_frames]
+  % end ++ 
+  [
     save_last_dts,
     start_on_keyframe,
     store_frame,
@@ -111,7 +118,18 @@ pass_filter_chain([Frame|Frames], #ems_media{} = Media, [Filter|Filters]) ->
   put(current_filter, Filter),
   case ?MODULE:Filter(Frame, Media) of
     {reply, NewFrames, #ems_media{} = Media1} when is_list(NewFrames) ->
-      pass_filter_chain(NewFrames ++ Frames, Media1, Filters);
+      Reply = lists:foldl(fun
+          (InnerFrame, {noreply, InnerMedia, _}) ->
+            pass_filter_chain([InnerFrame], InnerMedia, Filters);
+          (_InnerFrame, {stop, Reason, InnerMedia}) ->
+            {stop, Reason, InnerMedia}
+      end, {noreply, Media1, ?TIMEOUT}, NewFrames),
+      case Reply of
+        {noreply, Media2, _} ->
+          pass_filter_chain(Frames, Media2, Filters);
+        {stop, Reason, Media2} ->
+          {stop, Reason, Media2}
+      end;
     {reply, #video_frame{} = NewFrame, #ems_media{} = Media1} ->
       pass_filter_chain([NewFrame|Frames], Media1, Filters);
     {reply, undefined, #ems_media{frame_filters = FrameFilters} = Media1} ->
@@ -192,6 +210,16 @@ calculate_new_stream_shift(Frame, Media) ->
 shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
   {reply, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media}.
 
+
+sort_frames(#video_frame{} = Frame, #ems_media{sort_buffer = Buffer, sort_count = Count} = Media) when length(Buffer) < 2*Count ->
+  {noreply, Media#ems_media{sort_buffer = [Frame|Buffer]}};
+
+sort_frames(#video_frame{} = Frame, #ems_media{sort_buffer = Buffer, sort_count = Count} = Media) ->
+  Sorted = lists:keysort(#video_frame.dts, [Frame|Buffer]),
+  {Send, Store} = lists:split(Count, Sorted),
+  F = fun(List) -> [DTS || #video_frame{dts = DTS} <- List] end,
+  ?D({F(Send), F(Store)}),
+  {reply, Send, Media#ems_media{sort_buffer = Store}}.
 
 
 save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->

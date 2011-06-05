@@ -404,6 +404,7 @@ init([Module, Options]) ->
                      clients = ems_media_clients:init(Options), host = proplists:get_value(host, Options),
                      media_info = proplists:get_value(media_info, Options, #media_info{flow_type = stream}),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
+                     sort_count = proplists:get_value(sort_count, Options, 10),
                      created_at = ems:now(utc), last_dts_at = os:timestamp()},
   
   Media_ = ems_media_frame:init(Media),                   
