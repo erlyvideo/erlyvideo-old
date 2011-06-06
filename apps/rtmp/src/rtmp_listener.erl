@@ -40,16 +40,18 @@ start_link(Port, Name, Callback, Args) ->
   gen_listener:start_link(Name, Port, ?MODULE, [Callback|Args]).
 
 accept(CliSocket, Args) ->
-  try raw_accept(CliSocket, Args) of
-    Reply -> Reply
-  catch
-    _Error:Reason -> {error, Reason}
-  end.  
+  raw_accept(CliSocket, Args).
+  % try raw_accept(CliSocket, Args) of
+  %   Reply -> Reply
+  % catch
+  %   _Error:Reason -> {error, Reason}
+  % end.  
 
 raw_accept(CliSocket, [Callback|Args]) ->
+  Driver = ems:get_var(rtmp_tcp, gen_tcp),
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
-  gen_tcp:controlling_process(CliSocket, RTMP),
-  rtmp_socket:set_socket(RTMP, CliSocket),
+  Driver:controlling_process(CliSocket, RTMP),
+  rtmp_socket:set_socket(RTMP, {Driver, CliSocket}),
   {ok, Pid} = erlang:apply(Callback, create_client, [RTMP|Args]),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   ok.

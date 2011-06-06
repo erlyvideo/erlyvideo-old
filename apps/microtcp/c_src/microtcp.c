@@ -64,6 +64,11 @@ static ErlDrvData microtcp_drv_start(ErlDrvPort port, char *buff)
 static void microtcp_drv_stop(ErlDrvData handle)
 {
   Emstcp* d = (Emstcp *)handle;
+  if(d->mode == LISTENER_MODE) {
+    fprintf(stderr, "Listener port is closing: %d\r\n", ntohs(d->config.port));
+  } else {
+    fprintf(stderr, "Client socket is closing\r\n");
+  }
   driver_select(d->port, (ErlDrvEvent)(d->socket), DO_READ|DO_WRITE, 0);
   close(d->socket);
   driver_free((char*)handle);
@@ -172,6 +177,7 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
       
       int on = 1;
       if(d->config.reuseaddr) {
+        fprintf(stderr, "Reusing listen addr\r\n");
         setsockopt(d->socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)); 
       }
       if(d->config.keepalive) {
@@ -227,6 +233,7 @@ static void accept_tcp(Emstcp *d)
     ERL_DRV_TUPLE, 3
   };
   driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
+  driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 1);
 }
 
 
@@ -265,6 +272,7 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
 static void tcp_inet_timeout(ErlDrvData handle)
 {
   Emstcp* d = (Emstcp *)handle;
+  fprintf(stderr, "Timeout in socket\r\n");
   tcp_exit(d);
 }
 

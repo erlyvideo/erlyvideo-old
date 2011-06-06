@@ -1,7 +1,30 @@
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009-2011 Max Lapshin
+%%% @doc        Special TCP driver
+%%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
+%%% @end
+%%%
+%%% This file is part of erlyvideo.
+%%% 
+%%% erlyvideo is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% erlyvideo is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
+%%%
+%%%---------------------------------------------------------------------------------------
 -module(microtcp).
+-author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
 
--export([listen/2, listen/1, controlling_process/2, active_once/1, send/2]).
+-export([listen/2, listen/1, controlling_process/2, active_once/1, send/2, close/1, peername/1]).
 
 listen(Port) -> listen(Port, []).
 
@@ -16,10 +39,8 @@ listen(Port, Options) ->
   	{error, already_loaded} -> ok;
   	{error, Error} -> exit({error, {could_not_load_driver,erl_ddll:format_error(Error)}})
   end,
-  ?D({loaded,microtcp}),
   Socket = open_port({spawn, microtcp_drv}, [binary]),
-  ?D({open_socket, Socket}),
-  Reuseaddr = case proplists:get_value(reuseaddr, Options) of
+  Reuseaddr = case proplists:get_value(reuseaddr, Options, true) of
     true -> 1;
     _ -> 0
   end,
@@ -33,7 +54,6 @@ listen(Port, Options) ->
   Backlog = proplists:get_value(backlog, Options, 30),
   
   <<"ok">> = port_control(Socket, ?CMD_LISTEN, <<Port:16, Backlog:16/little, Reuseaddr, Keepalive, Timeout:16/little, UpperLimit:32/little, LowerLimit:32/little>>),
-  ?D({all_great}),
   {ok, Socket}.
 
 
@@ -54,12 +74,17 @@ controlling_process(Socket, NewOwner) when is_port(Socket), is_pid(NewOwner) ->
 		end
   end.
 
+peername(Socket) when is_port(Socket) ->
+  {ok, {{0,0,0,0}, 4000}}.
+
+close(Socket) when is_port(Socket) ->
+  erlang:port_close(Socket).
 
 active_once(Socket) ->
   port_control(Socket, ?CMD_ACTIVE_ONCE, <<>>).
 
 
-send(Socket, Bin) when is_port(Socket) andalso is_binary(Bin) ->
+send(Socket, Bin) when is_port(Socket) ->
   port_command(Socket, Bin).
 
 
