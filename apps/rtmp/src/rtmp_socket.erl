@@ -549,6 +549,12 @@ handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
 handle_info({'DOWN', _, process, _Client, _Reason}, _StateName, State) ->
   {stop, normal, State};
 
+handle_info({tcp_paused, _Socket}, StateName, StateData) ->
+  {next_state, StateName, StateData, ?RTMP_TIMEOUT};
+
+handle_info({tcp_resumed, _Socket}, StateName, StateData) ->
+  {next_state, StateName, StateData, ?RTMP_TIMEOUT};
+
 handle_info(_Info, StateName, StateData) ->
   error_logger:error_msg("Unknown message to rtmp socket: ~p ~p ~p~n", [_Info, StateName, StateData]),
   {next_state, StateName, StateData, ?RTMP_TIMEOUT}.

@@ -49,7 +49,7 @@ listen(Port, Options) ->
     _ -> 0
   end,
   Timeout = proplists:get_value(timeout, Options, 60000),
-  UpperLimit = proplists:get_value(upper_limit, Options, 2000000),
+  UpperLimit = proplists:get_value(upper_limit, Options, 1000000),
   LowerLimit = proplists:get_value(lower_limit, Options, 0),
   Backlog = proplists:get_value(backlog, Options, 30),
   
