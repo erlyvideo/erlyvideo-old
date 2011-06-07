@@ -143,7 +143,7 @@ compose_rtp(RTP, [], Acc, _Timecode) ->
   {ok, RTP, lists:reverse(Acc)};
 
 compose_rtp(#rtp_channel{sequence = Sequence} = RTP, [Part|Parts], Acc, Timecode) ->
-  Pack = make_rtp_pack(RTP, case length(Parts) of 0 -> 0; _ -> 1 end, Part, Timecode),
+  Pack = make_rtp_pack(RTP, case length(Parts) of 0 -> 1; _ -> 0 end, Part, Timecode),
   compose_rtp(RTP#rtp_channel{sequence = inc_seq(Sequence)}, Parts, [Pack|Acc], Timecode).
 
 
