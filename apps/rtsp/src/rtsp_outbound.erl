@@ -2,15 +2,15 @@
 %%% @copyright  2010-2011 Max Lapshin
 %%% @doc        RTSP socket module
 %%%
-%%% 
+%%%
 %%% 1. connect
 %%% 2. describe
 %%% 3. each setup
 %%% 4. play, possible Rtp-Sync
 %%% 5. get each packet
 %%% 6. decode
-%%% 
-%%% 
+%%%
+%%%
 %%% @end
 %%% @reference  See <a href="http://erlyvideo.org/rtsp" target="_top">http://erlyvideo.org</a> for common information.
 %%% @end
@@ -52,14 +52,14 @@ handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers
     {ok, Media} ->
       handle_authorized_describe(Socket, URL, Headers, Media)
   end.
-  
+
 handle_authorized_describe(#rtsp_socket{} = Socket, URL, Headers, Media) ->
   Socket1 = Socket#rtsp_socket{session = rtsp_socket:generate_session()},
   MediaInfo = ems_media:media_info(Media),
   Info1 = add_rtsp_options(MediaInfo, Socket1),
   SDP = sdp:encode(Info1),
-  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out, rtp = rtp:init(out, Info1)}, Info1),
-  rtsp_socket:reply(Socket2, "200 OK", [{'Cseq', seq(Headers)}, {'Server', ?SERVER_NAME}, 
+  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out, rtp = rtp:init(remote, Info1)}, Info1),
+  rtsp_socket:reply(Socket2, "200 OK", [{'Cseq', seq(Headers)}, {'Server', ?SERVER_NAME},
       {'Date', httpd_util:rfc1123_date()}, {'Expires', httpd_util:rfc1123_date()},
       {'Content-Base', io_lib:format("~s/", [URL])}], SDP).
 
@@ -86,7 +86,7 @@ add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info, #r
        {range, "npt=0-"}
       ]
   },
-  
+
   AddControl = fun(Streams, Timescale) ->
     lists:map(fun(#stream_info{options = Opts, stream_id = Id} = Stream) ->
       Control = "trackID="++integer_to_list(Id),
@@ -123,7 +123,7 @@ handle_play_setup(#rtsp_socket{rtp = RTP, addr = Addr, socket = Sock} = Socket, 
   rtsp_socket:reply(Socket#rtsp_socket{rtp = RTP1}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', encode_transport(Transport, Reply)}]).
 
 
-  
+
 handle_play_request(#rtsp_socket{callback = Callback, rtp = RTP} = Socket, URL, Headers, Body) ->
   case Callback:play(URL, Headers, Body) of
     {ok, Media} ->

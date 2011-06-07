@@ -3,15 +3,15 @@
 %%% @copyright  2010 Max Lapshin
 %%% @doc        RTSP socket module
 %%%
-%%% 
+%%%
 %%% 1. connect
 %%% 2. describe
 %%% 3. each setup
 %%% 4. play, possible Rtp-Sync
 %%% 5. get each packet
 %%% 6. decode
-%%% 
-%%% 
+%%%
+%%%
 %%% @end
 %%% @reference  See <a href="http://erlyvideo.org/rtsp" target="_top">http://erlyvideo.org</a> for common information.
 %%% @end
@@ -80,7 +80,7 @@ read_raw(URL, Options) ->
 
 options(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
-  gen_server:call(RTSP, {request, options}, Timeout).  
+  gen_server:call(RTSP, {request, options}, Timeout).
 
 describe(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
@@ -231,7 +231,7 @@ dump_io({response, Code, Message, Headers, undefined}) ->
 dump_io({response, Code, Message, Headers, Body}) ->
   HeaderS = lists:flatten([io_lib:format("~p: ~p~n", [K, V]) || {K,V} <- Headers]),
   io:format("<<<<<< RTSP IN (~p:~p)  <<<<<~nRTSP/1.0 ~p ~s~n~s~n~s~n", [?MODULE, ?LINE, Code, Message, HeaderS, Body]).
-  
+
 -define(DUMP_REQUEST(Flag, X), dump_io(Flag, X)).
 -define(DUMP_RESPONSE(Flag, X), dump_io(Flag, X)).
 
@@ -278,7 +278,7 @@ handle_response(#rtsp_socket{state = {setup, StreamId}, rtp = RTP, transport = T
 
 handle_response(Socket, {response, _Code, _Message, _Headers, _Body}) ->
   reply_pending(Socket).
-  
+
 
 reply_pending(#rtsp_socket{pending = undefined} = Socket) ->
   Socket;
@@ -293,19 +293,19 @@ reply_pending(#rtsp_socket{pending = From, pending_reply = Reply} = Socket) ->
 handle_sdp(#rtsp_socket{} = Socket, Headers, Body) ->
   <<"application/sdp">> = proplists:get_value('Content-Type', Headers),
   MediaInfo = sdp:decode(Body),
-  RTP = rtp:init(in, MediaInfo),
+  RTP = rtp:init(local, MediaInfo),
   save_media_info(Socket#rtsp_socket{rtp = RTP}, MediaInfo).
 
 save_media_info(#rtsp_socket{} = Socket, #media_info{audio = Audio, video = Video} = MediaInfo) ->
   StreamNums = lists:seq(1, length(Audio)+length(Video)),
-  
+
   Streams = lists:sort(fun(#stream_info{stream_id = Id1}, #stream_info{stream_id = Id2}) ->
     Id1 =< Id2
   end, Audio ++ Video),
-  
+
   StreamInfos = list_to_tuple(Streams),
   ControlMap = [{proplists:get_value(control, Opt),S} || #stream_info{options = Opt, stream_id = S} <- Streams],
-  
+
   % ?D({"Streams", StreamInfos, StreamNums, ControlMap}),
   Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}}.
 
@@ -319,13 +319,13 @@ generate_session() ->
 
 seq(Headers) ->
   proplists:get_value('Cseq', Headers, 1).
-  
+
 %
 % Wirecast goes:
-% 
+%
 % ANNOUNCE with SDP
 % OPTIONS
-% SETUP  
+% SETUP
 
 user_agents() ->
   [
@@ -345,7 +345,7 @@ find_user_agent(UA, [{Match, Name}|Matches]) ->
     {match, _} -> Name;
     _ -> find_user_agent(UA, Matches)
   end.
-  
+
 
 setup_user_agent_preferences(#rtsp_socket{} = Socket, Headers) ->
   UserAgent = detect_user_agent(Headers),
@@ -372,7 +372,7 @@ handle_request({request, 'PLAY', URL, Headers, Body}, #rtsp_socket{} = Socket) -
   rtsp_outbound:handle_play_request(Socket, URL, Headers, Body);
 
 handle_request({request, 'OPTIONS', _URL, Headers, _Body}, State) ->
-  reply(setup_user_agent_preferences(State, Headers), "200 OK", 
+  reply(setup_user_agent_preferences(State, Headers), "200 OK",
       [{'Server', ?SERVER_NAME}, {'Cseq', seq(Headers)}, {"Supported", "play.basic, con.persistent"},
        {'Public', "SETUP, TEARDOWN, PLAY, PAUSE, OPTIONS, ANNOUNCE, DESCRIBE, RECORD, GET_PARAMETER"}]);
 
@@ -381,7 +381,7 @@ handle_request({request, 'ANNOUNCE', URL, Headers, Body}, Socket) ->
 
 handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{} = State) ->
   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
-% 
+%
 % handle_request({request, 'PAUSE', _URL, Headers, _Body}, #rtsp_socket{rtp = Consumer} = State) ->
 %   gen_server:call(Consumer, {pause, self()}),
 %   reply(State, "200 OK", [{'Cseq', seq(Headers)}]);
@@ -443,8 +443,8 @@ append_session(#rtsp_socket{session = undefined} = Socket, Headers) ->
 append_session(#rtsp_socket{session = Session, timeout = Timeout} = Socket, Headers) ->
   Sess = lists:flatten(io_lib:format("~s;timeout=~p", [Session, Timeout div 1000])),
   {Socket#rtsp_socket{session = Session}, [{'Session', Sess}|Headers]}.
-  
-  
+
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
