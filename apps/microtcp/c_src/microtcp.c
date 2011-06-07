@@ -10,10 +10,9 @@
 #include <assert.h>
 #include <sys/uio.h>
 
-const int MPEGTS_SIZE = 188;
-const int BUFFER_SIZE = 12000;
-const int LIMIT_SIZE = 1300;
-#define PID_COUNT 8192
+#ifndef IOV_MAX
+#define IOV_MAX 1000
+#endif
 
 typedef enum {LISTENER_MODE, CLIENT_MODE} SocketMode;
 
@@ -64,6 +63,11 @@ static ErlDrvData microtcp_drv_start(ErlDrvPort port, char *buff)
 static void microtcp_drv_stop(ErlDrvData handle)
 {
   Emstcp* d = (Emstcp *)handle;
+  if(d->mode == LISTENER_MODE) {
+    fprintf(stderr, "Listener port is closing: %d\r\n", ntohs(d->config.port));
+  } else {
+    fprintf(stderr, "Client socket is closing\r\n");
+  }
   driver_select(d->port, (ErlDrvEvent)(d->socket), DO_READ|DO_WRITE, 0);
   close(d->socket);
   driver_free((char*)handle);
@@ -89,6 +93,7 @@ static void microtcp_drv_outputv(ErlDrvData handle, ErlIOVec *ev)
       return;
     } else if(ev->size + driver_sizeq(d->port) > d->upper_limit) {
       d->paused_output = 1;
+      fprintf(stderr, "Pausing client\r\n");
       ErlDrvTermData reply[] = {
         ERL_DRV_ATOM, driver_mk_atom("tcp_paused"),
         ERL_DRV_PORT, driver_mk_port(d->port),
@@ -98,6 +103,7 @@ static void microtcp_drv_outputv(ErlDrvData handle, ErlIOVec *ev)
       
     } else {
       driver_enqv(d->port, ev, 0);
+      //fprintf(stderr, "Queue %d bytes, %d\r\n", ev->size,  driver_sizeq(d->port));
       driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 1);
     }
 }
@@ -108,17 +114,24 @@ static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
 {
   Emstcp* d = (Emstcp*) handle;
   SysIOVec* vec;
-  int vlen;
+  int vlen = 0;
   size_t written;
   driver_set_timer(d->port, d->timeout);
   vec = driver_peekq(d->port, &vlen);
-  if(!vec) {
+  if(!vec || !vlen) {
     driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 0);
     return;
   }
-  written = writev(d->socket, (const struct iovec *)vec, vlen);
+  fprintf(stderr, "Flushing buffer %d\r\n", driver_sizeq(d->port));
+  written = writev(d->socket, (const struct iovec *)vec, vlen > IOV_MAX ? IOV_MAX : vlen);
+  if(vlen > IOV_MAX) {
+    fprintf(stderr, "Buffer overloaded: %d, %d\r\n", vlen, driver_sizeq(d->port) - written);
+  } else {
+    fprintf(stderr, "Network write: %d (%d)\r\n", written, driver_sizeq(d->port) - written);
+  }
   if(written == -1) {
     if((errno != EWOULDBLOCK) && (errno != EINTR)) {
+        fprintf(stderr, "Error in writev: %s %p %d/%d\r\n", strerror(errno), vec, vlen, driver_sizeq(d->port));
       tcp_exit(d);
       return;
     }
@@ -131,6 +144,7 @@ static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
         ERL_DRV_TUPLE, 2
       };
       driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
+      fprintf(stderr, "Resuming client\r\n");
       d->paused_output = 0;
     }
   }
@@ -172,6 +186,7 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
       
       int on = 1;
       if(d->config.reuseaddr) {
+        fprintf(stderr, "Reusing listen addr\r\n");
         setsockopt(d->socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)); 
       }
       if(d->config.keepalive) {
@@ -245,6 +260,7 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
     size_t n = recv(d->socket, bin->orig_bytes, bin->orig_size, 0);
     if(n <= 0) {
       if((errno != EWOULDBLOCK) && (errno != EINTR)) {
+        fprintf(stderr, "Error in recv: %s\r\n", strerror(errno));
         tcp_exit(d);
       }  
       return;
@@ -262,9 +278,10 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
 }
 
 
-static void tcp_inet_timeout(ErlDrvData handle)
+static void microtcp_inet_timeout(ErlDrvData handle)
 {
   Emstcp* d = (Emstcp *)handle;
+  fprintf(stderr, "Timeout in socket\r\n");
   tcp_exit(d);
 }
 
@@ -279,7 +296,7 @@ ErlDrvEntry microtcp_driver_entry = {
     NULL,			/* F_PTR finish, called when unloaded */
     NULL,     /* void *handle */
     microtcp_drv_command,			/* F_PTR control, port_command callback */
-    tcp_inet_timeout,			/* F_PTR timeout, reserved */
+    microtcp_inet_timeout,			/* F_PTR timeout, reserved */
     microtcp_drv_outputv,	/* F_PTR outputv, reserved */
     NULL,                      /* ready_async */
     NULL,                             /* flush */

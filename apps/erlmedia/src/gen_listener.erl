@@ -52,7 +52,8 @@ start_link(Name, BindSpec, Callback, Args) ->
   addr,
   port,
   callback,
-  args
+  args,
+  driver
 }).
 
 %%----------------------------------------------------------------------
@@ -69,7 +70,11 @@ start_link(Name, BindSpec, Callback, Args) ->
 
 init([BindSpec, Callback, Args]) ->
   self() ! bind,
-  {ok, #listener{bindspec = BindSpec, callback = Callback, args = Args}}.
+  Driver = case {Callback, ems:get_var(rtmp_tcp, undefined)} of
+    {rtmp_listener, microtcp} -> microtcp;
+    _ -> gen_tcp
+  end,
+  {ok, #listener{bindspec = BindSpec, callback = Callback, args = Args, driver = Driver}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -109,7 +114,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info(bind, #listener{bindspec = BindSpec} = Server) ->
+handle_info(bind, #listener{bindspec = BindSpec, driver = Driver} = Server) ->
   Opts1 = [binary, {packet, raw}, {reuseaddr, true}, 
           {keepalive, true}, {backlog, 30}, {active, false}],
   {BindAddr, Port} = case BindSpec of
@@ -124,16 +129,18 @@ handle_info(bind, #listener{bindspec = BindSpec} = Server) ->
     undefined -> Opts1;
     _ -> [{ip,BindAddr}|Opts1]
   end,
-  case gen_tcp:listen(Port, Opts2) of
-    {ok, ListenSocket} ->
-      %%Create first accepting process
+  
+  case Driver:listen(Port, Opts2) of
+    {ok, ListenSocket} when Driver == gen_tcp ->
       {ok, Ref} = prim_inet:async_accept(ListenSocket, -1),
       {noreply, Server#listener{addr = BindAddr, port = Port, socket = ListenSocket, ref = Ref}};
+    {ok, ListenSocket} when Driver == microtcp ->
+      {noreply, Server#listener{addr = BindAddr, port = Port, socket = ListenSocket}};
     {error, eaccess} ->
       error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
-      {stop, eaccess};
+      {stop, eaccess, Server};
     {error, Reason} ->
-      {stop, Reason}
+      {stop, Reason, Server}
   end;
     
 handle_info({inet_async, ListenSock, Ref, {ok, CliSocket}},
@@ -142,7 +149,9 @@ handle_info({inet_async, ListenSock, Ref, {ok, CliSocket}},
     ok ->
       case Callback:accept(CliSocket, Args) of
         ok -> ok;
-        _Else -> gen_tcp:close(CliSocket)
+        {error, Reason} ->
+          error_logger:error_msg("Error while accepting socket: ~p~n~p~n", [Reason, erlang:get_stacktrace()]),
+          gen_tcp:close(CliSocket)
       end,
       {ok, NewRef} = prim_inet:async_accept(ListenSock, -1),
       {noreply, State#listener{ref = NewRef}};
@@ -150,10 +159,17 @@ handle_info({inet_async, ListenSock, Ref, {ok, CliSocket}},
       error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
       {stop, Reason, State}
   end;
-  
+
+
+handle_info({tcp_connection, ListenSocket, CliSocket}, #listener{socket = ListenSocket, callback = Callback, args = Args} = Server) ->
+  case Callback:accept(CliSocket, Args) of
+    ok -> ok;
+    _Else -> microtcp:close(CliSocket)
+  end,
+  {noreply, Server};
 
 handle_info(_Info, State) ->
-  {noreply, State}.
+  {stop, {unknown_info, _Info}, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any

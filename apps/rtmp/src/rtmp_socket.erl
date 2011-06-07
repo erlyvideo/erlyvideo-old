@@ -264,11 +264,20 @@ init([connect]) ->
 wait_for_socket_on_server(timeout, State) ->
   {stop, normal, State};
 
-wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
+wait_for_socket_on_server({socket, {gen_tcp, Socket}}, #rtmp_socket{} = State) when is_port(Socket) ->
   case inet:peername(Socket) of
     {ok, {IP, Port}} ->
       ok =  inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
-      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
+      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port, driver = gen_tcp}, ?RTMP_TIMEOUT};
+    {error, _Error} ->
+      {stop, normal, State}
+  end;
+
+wait_for_socket_on_server({socket, {microtcp, Socket}}, #rtmp_socket{} = State) when is_port(Socket) ->
+  case microtcp:peername(Socket) of
+    {ok, {IP, Port}} ->
+      microtcp:active_once(Socket),
+      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port, driver = microtcp}, ?RTMP_TIMEOUT};
     {error, _Error} ->
       {stop, normal, State}
   end;
@@ -380,7 +389,7 @@ set_options(#rtmp_socket{socket = Socket, buffer = Data} = State, [{active, Acti
     once when size(Data) > 0 ->
       handle_rtmp_data(State1);
     once ->
-      activate_socket(Socket),
+      activate_socket(State),
       State1
   end,
   set_options(State2, Options);
@@ -456,11 +465,11 @@ handle_sync_event(Event, _From, StateName, StateData) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN + 1 ->
-  activate_socket(Socket),
+  activate_socket(State),
   {next_state, handshake_c1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
 handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) ->
-  activate_socket(Socket),
+  activate_socket(State),
   <<Handshake:(?HS_BODY_LEN+1)/binary, Rest/binary>> = <<Buffer/binary, Data/binary>>,
   State1 = case rtmp_handshake:server(Handshake) of
     {uncrypted, Reply} -> 
@@ -474,7 +483,7 @@ handle_info({tcp, Socket, Data}, handshake_c1, #rtmp_socket{socket=Socket, buffe
 
 
 handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN ->
-  activate_socket(Socket),
+  activate_socket(State),
   {next_state, handshake_c3, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
   
 handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active, key_in = KeyIn} = State) ->
@@ -498,7 +507,7 @@ handle_info({tcp, Socket, Data}, handshake_c3, #rtmp_socket{socket=Socket, consu
   end;
 
 handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, buffer = Buffer, bytes_read = BytesRead} = State) when size(Buffer) + size(Data) < ?HS_BODY_LEN*2 + 1 ->
-  activate_socket(Socket),
+  activate_socket(State),
   {next_state, handshake_s1, State#rtmp_socket{buffer = <<Buffer/binary, Data/binary>>, bytes_read = BytesRead + size(Data)}, ?RTMP_TIMEOUT};
 
 handle_info({tcp, Socket, Data}, handshake_s1, #rtmp_socket{socket=Socket, consumer = Consumer, buffer = Buffer, bytes_read = BytesRead, active = Active} = State) ->
@@ -540,6 +549,12 @@ handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
 handle_info({'DOWN', _, process, _Client, _Reason}, _StateName, State) ->
   {stop, normal, State};
 
+handle_info({tcp_paused, _Socket}, StateName, StateData) ->
+  {next_state, StateName, StateData, ?RTMP_TIMEOUT};
+
+handle_info({tcp_resumed, _Socket}, StateName, StateData) ->
+  {next_state, StateName, StateData, ?RTMP_TIMEOUT};
+
 handle_info(_Info, StateName, StateData) ->
   error_logger:error_msg("Unknown message to rtmp socket: ~p ~p ~p~n", [_Info, StateName, StateData]),
   {next_state, StateName, StateData, ?RTMP_TIMEOUT}.
@@ -558,9 +573,11 @@ flush_send(State) ->
     0 -> State
   end.
   
-activate_socket(Socket) when is_port(Socket) ->
+activate_socket(#rtmp_socket{driver = gen_tcp, socket = Socket}) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}]);
-activate_socket(Socket) when is_pid(Socket) ->
+activate_socket(#rtmp_socket{driver = microtcp, socket = Socket}) when is_port(Socket) ->
+  microtcp:active_once(Socket);
+activate_socket(#rtmp_socket{socket = Socket}) when is_pid(Socket) ->
   ok.
   
 
@@ -587,7 +604,7 @@ send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = 
 send_data(#rtmp_socket{sent_video_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
   send_data(Socket#rtmp_socket{sent_video_notify = false}, Message);
 
-send_data(#rtmp_socket{socket = Socket, key_out = KeyOut} = State, Message) ->
+send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, driver = Driver} = State, Message) ->
   case State#rtmp_socket.debug of
     true -> print_rtmp_message(out, Message);
     _ -> ok
@@ -605,8 +622,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut} = State, Message) ->
   end,
   % (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
   if
-    is_port(Socket) ->
+    is_port(Socket) andalso Driver == gen_tcp ->
       gen_tcp:send(Socket, Crypt);
+    is_port(Socket) andalso Driver == microtcp ->
+      microtcp:send(Socket, Crypt);
     is_pid(Socket) ->
       rtmpt:write(Socket, Crypt)
   end,
@@ -666,12 +685,12 @@ handle_rtmp_message({#rtmp_socket{consumer = Consumer} = State, Message, Rest}) 
   Consumer ! {rtmp, self(), Message},
   rtmp_message_sent(State#rtmp_socket{buffer = Rest});
 
-handle_rtmp_message({#rtmp_socket{socket=Socket} = State, Rest}) -> 
-  activate_socket(Socket),
+handle_rtmp_message({#rtmp_socket{} = State, Rest}) -> 
+  activate_socket(State),
   State#rtmp_socket{buffer = Rest}.
 
-rtmp_message_sent(#rtmp_socket{active = true,socket = Socket} = State) ->
-  activate_socket(Socket),
+rtmp_message_sent(#rtmp_socket{active = true} = State) ->
+  activate_socket(State),
   handle_rtmp_data(State);
 
 rtmp_message_sent(#rtmp_socket{active = _} = State) ->
