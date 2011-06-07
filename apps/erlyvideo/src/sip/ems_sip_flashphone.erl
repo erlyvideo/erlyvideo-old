@@ -312,7 +312,7 @@ originating(Name, #sip_cb_state{pid = DPid} = CbState) ->
   {ok, RTP} = rtp:start_server([{media_info_loc, MediaInfo},
                                 {consumer, Media}] ++ TranscodeOpts),
   ?DBG("Started RTP server: ~p", [RTP]),
-  {ok, {PortRTP, PortRTCP}} = rtp_server:listen_ports(RTP, 1, [{transport, udp}]),
+  {ok, {PortRTP, PortRTCP}} = rtp_server:listen_ports(RTP, audio, [{transport, udp}]),
 
   ?DBG("RTP: ~p, ~p, ~p", [RTP, PortRTP, PortRTCP]),
   DPid ! {config, Media, StreamIn, StreamOut, RTP},
@@ -434,11 +434,13 @@ dialog(Request,
   case esip_registrator:find(Name) of
     {ok, RTMP, _Pass} ->
 
-      MediaInfoRequest = #media_info{audio = Audio} = sdp:decode(Body),
+      MediaInfoRequest = #media_info{audio = Audio, video = Video} = sdp:decode(Body),
       ?DBG("MediaIn:~n~p", [MediaInfoRequest]),
       AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
                       #stream_info{codec = speex, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
-
+      %% VideoResult = [StreamInfo#stream_info{stream_id = 1} ||
+      %%                 #stream_info{codec = h263} = StreamInfo <- Video],
+      VideoResult = [],
 
       RtpGlue =
         fun(MediaInfoReply, TranscodeOpts) ->
@@ -453,7 +455,7 @@ dialog(Request,
                        {media_info_rmt,MediaInfoReply},
                        {consumer, Media}] ++ TranscodeOpts,
             {ok, RTP} = rtp:start_server(RtpOpts),
-            {ok, {_PortRTP, _PortRTCP}} = rtp_server:listen_ports(RTP, 1, [{transport, udp}]),
+            {ok, {_PortRTP, _PortRTCP}} = rtp_server:listen_ports(RTP, audio, [{transport, udp}]),
             rtp_server:add_stream(RTP, local, MediaInfoReply),
             rtp_server:add_stream(RTP, remote, MediaInfoReply),
 
@@ -505,7 +507,7 @@ dialog(Request,
           MediaInfoReply =
             MediaInfoRequest#media_info{
               audio = RecAudioResult,
-              video = []
+              video = VideoResult
              },
           ?DBG("MediaInfoReply:~n~p", [MediaInfoReply]),
 
@@ -517,7 +519,7 @@ dialog(Request,
           MediaInfoReply =
             MediaInfoRequest#media_info{
               audio = AudioResult,
-              video = []
+              video = VideoResult
              },
           RtpGlue(MediaInfoReply, [])
       end;
