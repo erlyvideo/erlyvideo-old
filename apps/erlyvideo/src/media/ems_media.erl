@@ -797,8 +797,8 @@ source_is_restored(#ems_media{} = Media) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(normal, #ems_media{source = Source}) when Source =/= undefined ->
-  ?D("ems_media exit normal"),
+terminate(normal, #ems_media{source = Source, name = Name}) when Source =/= undefined ->
+  ?D({"ems_media exit normal", Name}),
   erlang:exit(Source, shutdown),
   ok;
 

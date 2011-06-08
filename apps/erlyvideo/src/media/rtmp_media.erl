@@ -165,7 +165,8 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = metadata, timestamp = Timestamp, 
   self() ! Frame,
   {noreply, Recorder};
 
-handle_info({rtmp, _RTMP, #rtmp_message{type = Type}}, State) when Type == ping orelse Type == pong ->
+handle_info({rtmp, _RTMP, #rtmp_message{type = Type}}, State) when Type == ping orelse Type == pong 
+  orelse Type == burst_start orelse Type == burst_stop ->
   % Ignore ping/pong messages
   {noreply, State};
 
