@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -smp enable -name reverse_mpegts -mnesia debug verbose -pa ebin -pa deps
+%%! -smp enable -name reverse_mpegts
 
 
 main([FromUrl, ToUrl]) ->

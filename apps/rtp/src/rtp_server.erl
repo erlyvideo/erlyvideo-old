@@ -209,8 +209,8 @@ handle_call({listen_ports, Content, Transport},
                      udp_conn = UDPConn}};
 
 handle_call({add_stream, Location,
-             #media_info{audio = Audio,
-                         video = Video} = MediaInfo}, _From,
+             #media_info{audio = _Audio,
+                         video = _Video} = MediaInfo}, _From,
             #rtp_server{udp_conn = UDPConn} = Server)
   when Location =:= local orelse
        Location =:= remote ->
@@ -363,8 +363,8 @@ handle_info(#video_frame{content = audio} = Frame,
   {noreply, State#rtp_server{rtp_rmt = NewRTPState,
                              transcoder_out = NewTranscoder}};
 
-handle_info(#video_frame{content = video} = Frame,
-            #rtp_server{rtp_rmt = RTPState} = State) ->
+handle_info(#video_frame{content = video} = _Frame,
+            #rtp_server{rtp_rmt = _RTPState} = State) ->
   %%?DBG("V:~n~p", [Frame]),
   %%rtp:handle_frame(RTPState, Frame),
   {noreply, State};

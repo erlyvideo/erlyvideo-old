@@ -434,7 +434,7 @@ dialog(Request,
   case esip_registrator:find(Name) of
     {ok, RTMP, _Pass} ->
 
-      MediaInfoRequest = #media_info{audio = Audio, video = Video} = sdp:decode(Body),
+      MediaInfoRequest = #media_info{audio = Audio, video = _Video} = sdp:decode(Body),
       ?DBG("MediaIn:~n~p", [MediaInfoRequest]),
       AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
                       #stream_info{codec = speex, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
