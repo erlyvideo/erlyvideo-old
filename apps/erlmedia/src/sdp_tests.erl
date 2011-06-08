@@ -135,7 +135,7 @@ quicktime_broadcaster_test() ->
       codec = h264,
       config = <<1,77,0,12,255,225,0,20,39,77,64,12,169,24,80,143,203,128,53,6,1,6,182,194,
         181,239,124,4,1,0,5,40,222,9,23,160>>, 
-      params = #video_params{width = 160, height = 128},
+      params = #video_params{width = 160, height = 120},
       timescale = 90.0,
       options = [{control,"trackid=2"},{payload_num, 97}]
     }],
