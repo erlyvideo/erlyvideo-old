@@ -24,7 +24,6 @@
 -module(ems_http_mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
--include("jsonerl.hrl").
 -include_lib("mpegts/include/mpegts.hrl").
 
 -export([http/4]).
