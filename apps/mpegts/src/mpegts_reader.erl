@@ -48,7 +48,7 @@
 -export([decode/2, decode_ts/2, decode_pes/2]).
 
 -export([pes/3, psi/3]).
-
+-export([program_info/1]).
 
 load_nif() ->
   Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
@@ -62,6 +62,10 @@ start_link(Options) ->
 set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
   gen_tcp:controlling_process(Socket, Reader),
   gen_server:call(Reader, {set_socket, Socket}).
+
+
+program_info(MpegTS) when is_pid(MpegTS) ->
+  gen_server:call(MpegTS, program_info).
 
 init([Options]) ->
   Consumer = case proplists:get_value(consumer, Options) of
@@ -86,6 +90,9 @@ handle_call({set_socket, Socket}, _From, #decoder{} = Decoder) ->
   % ?D({passive_accepted, Socket}),
   {reply, ok, Decoder#decoder{socket = Socket}};
 
+
+handle_call(program_info, _From, #decoder{program_info = Program} = Decoder) ->
+  {reply, Program, Decoder};
 
 handle_call(connect, _From, #decoder{options = Options} = Decoder) ->
   URL = proplists:get_value(url, Options),
@@ -179,8 +186,7 @@ decode(Bin, Decoder, Frames) ->
 
 
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
-  Decoder1 = handle_pat(ts_payload(Packet), Decoder),
-  {ok, Decoder1, undefined};
+  mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
@@ -281,48 +287,9 @@ extract_pcr(_) ->
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
-handle_pat(PATBin, #decoder{options = Options, pids = Pids} = Decoder) ->
-  % ?D({"Full PAT", size(PATBin), PATBin}),
-  #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  {PmtPid, SelectedProgram} = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
-  case lists:keyfind(PmtPid, #stream.pid, Pids) of
-    false ->
-      ?D({"Selecting program", SelectedProgram, "on pid",PmtPid}),
-      Decoder#decoder{pids = [#stream{handler = psi, pid = PmtPid}|Pids]};
-    _ ->
-      Decoder
-  end.      
 
-
-select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
-  {PmtPid, _ProgramNum};
-select_pmt_pid(Descriptors, SelectedProgram) ->
-  case lists:keyfind(SelectedProgram, 1, Descriptors) of
-    {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
-    _ ->
-      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors}),
-      {undefined, undefined}
-  end.
-  
-
-pat(<<_PtField, ?PAT_TABLEID, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
-  ProgramCount = round((Length - 5)/4) - 1,
-  % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
-  % ?D({"PAT descriptors", ProgramCount, PAT}),
-  Descriptors = extract_pat(PAT, ProgramCount, []),
-  #mpegts_pat{descriptors = Descriptors}.
-
-
-
-extract_pat(<<_CRC32/binary>>, 0, Descriptors) ->
-  lists:keysort(#stream.pid, Descriptors);
-  
-extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
-  extract_pat(PAT, ProgramCount - 1, [{Pid, ProgramNum} | Descriptors]).
-
-
-psi(PSI, PSITable, Decoder) ->
-  mpegts_psi_decoder:psi(PSI, PSITable, Decoder).
+psi(PSI, Stream, #decoder{pids = Streams} = Decoder) ->
+  mpegts_psi_decoder:psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
 
 
 pes(_, #stream{codec = unhandled} = Stream, #decoder{pids = Streams} = Decoder) ->

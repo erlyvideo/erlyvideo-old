@@ -17,6 +17,20 @@
 }).
 
 
+
+-record(eit_event, {
+  pid,
+  id,
+  start,
+  duration,
+  status,
+  language,
+  name,
+  about,
+  encrypted
+}).
+
+
 -define(PAT_PID, 0).
 -define(CAT_PID, 1).
 -define(NIT_PID, 16). % ECM
