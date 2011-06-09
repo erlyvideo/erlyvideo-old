@@ -266,6 +266,7 @@ Ext.onReady(function(){
   
   var playPanel = new Ext.Panel({
     title: "Play",
+    id: 'play-panel',
     collapsible: true,
     html: video_launcher_html
   });
@@ -396,27 +397,24 @@ Ext.onReady(function(){
       for(var i = 0; i < licenses.length; i++) {
         var data = [["", "Remove"]];
         for(var j = 0; j < licenses[i].versions.length; j++) {
-          var title;
-          if(licenses[i].versions[j]) {
-            title = licenses[i].versions[j];
-          } else {
-            "HEAD";
-          }
+          var title = licenses[i].versions[j];
           data[data.length] = [licenses[i].versions[j], title];
         }
+        
          
         var cb = new Ext.form.ComboBox({
           typeAhead: true,
           triggerAction: 'all',
           lazyRender:true,
           mode: 'local',
+          value: licenses[i].current_version,
           store: new Ext.data.SimpleStore({
             fields:[
               'name',
-	       'version'],
+	            'version'],
             data: data
           }),
-          id: licenses[i].name,
+          id: licenses[i].name+"-version-select",
           title: licenses[i].name,
           valueField: 'version',
           displayField: 'version'
@@ -427,6 +425,7 @@ Ext.onReady(function(){
       var licensePanel = new Ext.FormPanel({
         title : 'Product licenses',
         items: items,
+        id: 'license-panel',
         buttons: [{
           text: "Select versions",
           handler: function() {
@@ -444,7 +443,7 @@ Ext.onReady(function(){
         }]
       });
       
-      viewport.items.get(1).items.add(licensePanel);
+      viewport.items.get(1).items.insert(1, licensePanel);
       viewport.items.get(1).doLayout();
       viewport.items.get(1).syncSize();
       viewport.doLayout();

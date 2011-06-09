@@ -95,18 +95,14 @@ http(_Host, 'POST', ["erlyvideo","api","licenses","write"], Req) ->
           <<"Remove">> ->
             {};
           _Else ->         
-            {Name,Version} 
+            {binary_to_atom(Name, latin1), binary_to_list(Version)} 
         end
       end, RawVersions),
-      Config = ems_license_client:read_config(),
-      LicensePath = proplists:get_value(license_dir,Config),
-      case dets:open_file(?LICENSE_TABLE,[{file,ems:pathjoin(LicensePath,"license_storage.db")}]) of
-        {ok,Table} ->
-        dets:insert(Table,[{projects,[{binary_to_atom(Name,utf8),binary_to_list(Version)} || {Name,Version} <- Versions]}]),
-        dets:close(Table)
-      end,
-      Reply = true,
-      Req:respond(200, [{'Content-Type', "application/json"}], [mochijson2:encode([{success,Reply}])]);
+      io:format("Versions: ~p~n", [Versions]),
+      case ems_license_client:save(Versions) of
+        ok -> Req:respond(200, [{'Content-Type', "application/json"}], [<<"true\n">>]);
+        {error, Reason} -> Req:respond(500, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, iolist_to_binary(io_lib:format("~p", [Reason]))}])])
+      end;
 
 
 http(_, _, _, _) ->

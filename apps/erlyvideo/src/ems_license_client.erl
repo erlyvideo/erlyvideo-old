@@ -30,7 +30,7 @@
 -define(TIMEOUT, 20*60000).
 -define(LICENSE_TABLE, license_storage).
 %% External API
--export([list/0, load/0, afterload/1, read_config/2,read_config/0]).
+-export([list/0, load/0, save/1, afterload/1, read_config/2,read_config/0]).
 
 %% gen_server callbacks
 
@@ -45,10 +45,41 @@ list() ->
     Config ->
       case construct_url(Config,list) of 
         undefined -> [];
-        URL ->  
-          load_by_url(URL)
+        URL -> 
+          case load_by_url(URL) of
+            {ok, Commands} -> {ok, append_current_version(Commands)};
+            Else -> Else
+          end
       end
   end.
+
+
+append_current_version(Commands) ->
+  lists:map(fun({project, Project}) ->
+    Name = proplists:get_value(name, Project),
+    case application:get_key(Name, vsn) of
+      {ok, Version} ->
+        {project, [{current_version, list_to_binary(Version)}|Project]};
+      undefined ->
+        {project, Project}
+    end  
+  end, Commands). 
+
+save(Versions) ->
+  case read_config() of
+    undefined -> {error, no_config};
+    Config ->
+      Config1 = lists:keystore(projects, 1, Config, {projects, Versions}),
+      case load_from_server(Config1) of
+        {ok, ServerReply} ->
+          load_code(ServerReply),
+          save_to_storage(Config1, ServerReply),
+          ok;
+        {error, Error} ->
+          {error, Error}
+      end
+  end.
+  
   
 %%-------------------------------------------------------------------------
 %% @spec () -> ok | {error, Reason}
@@ -126,7 +157,8 @@ load_from_storage(undefined) ->
 load_from_storage(Config) ->
   StrictVersions = versions_of_projects(Config),
   StoredContent = read_storage(Config),
-  ?D(StoredContent),
+  % ?D(StoredContent),
+  % io:format("Hi!!!: ~p ~p~n", [StoredContent, StrictVersions]),
   case storage_has_versions(StoredContent, StrictVersions) of
     ok ->
       StartupModules = load_code(StoredContent),
