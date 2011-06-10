@@ -248,7 +248,7 @@ load_frames(Media, Consumer, Pos, PlayingTill, Count, Frames) when Count > 0 ->
     eof ->
       {eof, Frames};
     
-    #video_frame{dts = NewDTS} when NewDTS > PlayingTill ->
+    #video_frame{dts = NewDTS} when NewDTS >= PlayingTill ->
       {eof, Frames};
       
     #video_frame{next_id = NewPos} = Frame ->

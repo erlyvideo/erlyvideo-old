@@ -57,7 +57,7 @@
 }).
 
 
--export([mp4_desc_length/1, open/2, read_frame/2, frame_count/1, seek/3, seek/4, mp4_read_tag/1]).
+-export([mp4_desc_length/1, open/2, read_frame/2, frame_count/1, seek/4, seek/5, mp4_read_tag/1]).
 
 -define(FRAMESIZE, 32).
 
@@ -169,20 +169,24 @@ read_atom_header({Module, Device}, Pos) ->
   end.
 
 
-seek(#mp4_media{} = Media, TrackId, Timestamp) ->
-  seek(Media, TrackId, Timestamp, keyframe).
+seek(#mp4_media{} = Media, Audio, Video, Timestamp) ->
+  seek(Media, Audio, Video, Timestamp, keyframe).
 
 
-seek(#mp4_media{} = Media, TrackId, Timestamp, SeekMode) ->
-  seek(Media, TrackId, Timestamp, 0, undefined, SeekMode).
+seek(#mp4_media{} = Media, Audio, Video, Timestamp, SeekMode) ->
+  A = case SeekMode of
+    keyframe -> undefined;
+    _ -> Audio
+  end,
+  seek(Media, A, Video, Timestamp, 0, undefined, SeekMode).
 
-seek(Media, TrackId, Timestamp, Id, Found, SeekMode) ->
-  case read_frame(Media, #frame_id{id = Id, v = TrackId}) of
-    #mp4_frame{dts = DTS} when DTS > Timestamp andalso SeekMode == frame -> {Id,DTS};
+seek(Media, Audio, Video, Timestamp, Id, Found, SeekMode) ->
+  case read_frame(Media, #frame_id{id = Id, a = Audio, v = Video}) of
+    #mp4_frame{dts = DTS} when DTS >= Timestamp andalso SeekMode == frame -> {Id,DTS};
     #mp4_frame{keyframe = true, dts = DTS} when DTS > Timestamp andalso SeekMode == keyframe -> Found;
-    #mp4_frame{keyframe = true, dts = DTS} when SeekMode == keyframe -> seek(Media, TrackId, Timestamp, Id+1, {Id,DTS}, SeekMode);
-    #mp4_frame{dts = DTS} when SeekMode == frame -> seek(Media, TrackId, Timestamp, Id+1, {Id, DTS}, SeekMode);
-    #mp4_frame{dts = _DTS} -> seek(Media, TrackId, Timestamp, Id+1, Found, SeekMode);
+    #mp4_frame{keyframe = true, dts = DTS} when SeekMode == keyframe -> seek(Media, Audio, Video, Timestamp, Id+1, {Id,DTS}, SeekMode);
+    #mp4_frame{dts = DTS} when SeekMode == frame -> seek(Media, Audio, Video, Timestamp, Id+1, {Id, DTS}, SeekMode);
+    #mp4_frame{dts = _DTS} -> seek(Media, Audio, Video, Timestamp, Id+1, Found, SeekMode);
     eof -> undefined
   end.
 
