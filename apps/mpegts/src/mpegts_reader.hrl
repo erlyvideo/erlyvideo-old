@@ -9,7 +9,8 @@
   options,
   byte_counter = 0,
   program_info = [],
-  sdt
+  sdt,
+  current_time
 }).
 
 -record(mpegts_pat, {

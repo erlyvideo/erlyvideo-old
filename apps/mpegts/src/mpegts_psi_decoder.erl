@@ -34,37 +34,58 @@
 %   [{service_id,ServiceId},{eit_schedule,EIT_Schedule},{eit_present,EIT_present_following},{running,RunningStatus},{free_ca,FreeCA},{desc_len,DescLength}].
 
 psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
-             SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, #decoder{} = Decoder) ->
-  PSILength = SectionLength - 5,             
-  % {PSI, _Trash} = erlang:split_binary(PSIRaw, PSILength),
-  {PSI, _Trash} = if
-    size(PSIRaw) >= PSILength -> erlang:split_binary(PSIRaw, PSILength);
-    true ->
-      ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
-      {PSIRaw, <<>>}
-  end,
-  PSITable = #psi_table{
-    id = TableId,
-    ts_stream_id = TransportStreamId,
-    version = Version,
-    current_next = CurrentNext,
-    section_number = SectionNumber,
-    last_section_number = LastSectionNumber
-  },
-  % ?D({psi, TableId}),
-  Decoder2 = case TableId of
+             SectionNumber, LastSectionNumber, PSIPayload/binary>> = PSIRaw, #decoder{} = Decoder) ->
+  case extract_valid_psi(PSIRaw) of
+    {ok, PSI} -> 
+      PSITable = #psi_table{
+        table_id = TableId,
+        ts_stream_id = TransportStreamId,
+        version = Version,
+        current_next = CurrentNext,
+        section_number = SectionNumber,
+        last_section_number = LastSectionNumber
+      },
+      Decoder1 = handle_valid_psi(PSI, PSITable, Decoder),
+      {ok, Decoder1, undefined};
+    {error, Reason} ->
+      ?D({invalid_psi, TableId, Reason, SectionLength - 5, size(PSIPayload)}),
+      {ok, Decoder, undefined}
+  end.
+
+extract_valid_psi(<<_Ptr, ?TDT_TABLEID, _:4, 5:12, PSI:5/binary, _/binary>>) -> %% TDT has special treatment. Its header is its payload
+  {ok, PSI};
+
+extract_valid_psi(<<_Ptr, _:12, Length:12, _/binary>> = Bin) ->
+  TotalLen = Length+3 - 4, % PSI table and length and table id minus CRC32
+  case Bin of
+    <<_Ptr, PSIRaw:TotalLen/binary, CRC32:32, _Trash/binary>> ->
+      case mpeg2_crc32:crc32(PSIRaw) of
+        CRC32 ->
+          <<_PSIHeader:8/binary, PSI/binary>> = PSIRaw,
+          {ok, PSI};
+        _Else ->
+          {error, {invalid_crc32, CRC32, _Else}}
+      end;
+    _ -> {error, too_short_data}
+  end;
+
+extract_valid_psi(_) ->
+  {error, too_short_data}.
+    
+
+handle_valid_psi(PSI, #psi_table{table_id = TableId} = PSITable, Decoder) ->
+  case TableId of
     ?PAT_TABLEID -> pat(PSI, PSITable, Decoder);
     ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder);
     ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder);
     ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder);
     _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder);
     16#4E -> eit(PSI, PSITable, Decoder);
+    ?TDT_TABLEID -> tdt(PSI, PSITable, Decoder);
     _ ->
       % ?D({psi, TableId, PSI}),
       Decoder
-  end,
-  % ?D({psi, length(Decoder1#decoder.pids)}),
-  {ok, Decoder2, undefined}.
+  end.
 
 pat(PAT, _PSITable, #decoder{options = Options, pids = Pids} = Decoder) ->
   Descriptors = extract_pat(PAT, []),
@@ -95,6 +116,8 @@ extract_pat(<<_CRC32/binary>>, Descriptors) ->
   lists:reverse(Descriptors).
 
 
+tdt(<<UTC:40>>, _Table, Decoder) ->
+  Decoder#decoder{current_time = UTC}.
 
 pmt(<<_Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>,
   #psi_table{ts_stream_id = ProgramNum}, #decoder{pids = Pids} = Decoder) ->
@@ -140,7 +163,7 @@ stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 
 
-sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{id = _TableId}, Decoder) ->
+sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{table_id = _TableId}, Decoder) ->
   Info = parse_sdt(SDT, []),
   % ?D({sdt, OriginalNetwork, Info}),
   Decoder#decoder{sdt = Info}.

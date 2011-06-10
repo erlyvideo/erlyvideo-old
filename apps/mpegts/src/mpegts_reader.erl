@@ -189,10 +189,14 @@ decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
-            _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
+            HasAdaptation:1, _HasPayload:1, _Counter:4, TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),
   Payload = ts_payload(Packet),
-  % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, _Counter]),
+  Keyframe = case {HasAdaptation, TSRest} of
+    {1, <<_:1, 1:1, _/bitstring>>} -> true; % random_access_indicator is 1
+    _ -> false
+  end,
+  % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, Keyframe]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
       <<_:20, Len:12, _/binary>> = Payload,
@@ -211,8 +215,8 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
       {ok, Decoder, undefined};
 
     % This clauses happens when comes first start-payload packet on new decoder
-    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 ->
-      ?D({"Synced PES", Pid}),
+    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 andalso Keyframe == true ->
+      ?D({"Synced PES", Pid, Keyframe}),
       {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = Payload}|Streams]}, undefined};
 
     % This clauses happens when start-payload packets comes to already filled stream decoder
