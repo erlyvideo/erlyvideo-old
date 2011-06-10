@@ -215,7 +215,7 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
       {ok, Decoder, undefined};
 
     % This clauses happens when comes first start-payload packet on new decoder
-    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 andalso Keyframe == true ->
+    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 -> %  andalso Keyframe == true
       ?D({"Synced PES", Pid, Keyframe}),
       {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = Payload}|Streams]}, undefined};
 
@@ -226,9 +226,14 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
     
     
     {value, #stream{ts_buffer = Buf, handler = Handler, payload_size = PayloadSize} = Stream, Streams} 
-      when PayloadStart == 1 orelse size(Buf) + size(Payload) >= PayloadSize ->  
+      when PayloadStart == 1 orelse size(Buf) + size(Payload) >= PayloadSize ->
+        
+      % Здесь надо решить: что показываем, что сохраняем
+      % Могут быть разные варианты: мы натолкнулись на начало нового PES-пакета, а старый в буфере
+      % или мы вытащили TS пакет, а в нём всё содержимое, которое сразу надо сбросить
+      % Или мы вытащили какой-то по очереди TS-пакет, наполнили им буфер и заполнили требуемый PayloadSize
       {Body, Rest} = case {PayloadStart, Buf} of
-        {1, <<>>} -> {Payload, <<>>};
+        {1, <<>>} -> {Payload, <<>>}; % Если у нас начало нового PayloadStart,  но пустой буфер, текущий Payload — единственный 
         {1, _} -> {Buf, Payload};
         {0, _} -> {<<Buf/binary, Payload/binary>>, undefined}
       end,
@@ -252,12 +257,10 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
 
 decode_ts({eof,Codec}, #decoder{pids = Pids} = Decoder) ->
   case lists:keytake(Codec, #stream.codec, Pids) of
-    {value, #stream{ts_buffer = Buf, handler = pes} = Stream, Streams} ->
-      Body = iolist_to_binary(lists:reverse(Buf)),
+    {value, #stream{ts_buffer = Body, handler = pes} = Stream, Streams} ->
       % ?D({eof,Codec,Body}),
       Stream1 = stream_timestamp(Body, Stream),
-      {PESPacket, Stream2, Decoder1} = pes(Body, Stream1, Decoder),
-      {ok, Decoder1#decoder{pids = [Stream2#stream{ts_buffer = <<>>, es_buffer = <<>>}|Streams]}, PESPacket};
+      pes(Body, Stream1, Decoder#decoder{pids = Streams});
     false ->
       % ?D({unknown_pid, Pid}),
       {ok, Decoder, undefined}

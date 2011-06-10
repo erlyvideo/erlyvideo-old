@@ -267,7 +267,7 @@ send_pmt(#streamer{video_config = _VideoConfig, audio_codec = AudioCodec, video_
   AudioCodecId = case AudioCodec of
     aac -> ?TYPE_AUDIO_AAC;
     mpeg2audio -> ?TYPE_AUDIO_MPEG2;
-    mp3 -> ?TYPE_AUDIO_MPEG1
+    mp3 -> ?TYPE_AUDIO_MPEG2
   end, 
   AudioStream = <<AudioCodecId, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
   
