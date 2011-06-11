@@ -192,10 +192,10 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
             HasAdaptation:1, _HasPayload:1, _Counter:4, TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),
   Payload = ts_payload(Packet),
-  Keyframe = case {HasAdaptation, TSRest} of
-    {1, <<_:1, 1:1, _/bitstring>>} -> true; % random_access_indicator is 1
-    _ -> false
-  end,
+  % Keyframe = case {HasAdaptation, TSRest} of
+  %   {1, <<_:1, 1:1, _/bitstring>>} -> keyframe; % random_access_indicator is 1
+  %   _ -> frame
+  % end,
   % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, Keyframe]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
@@ -216,7 +216,7 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
 
     % This clauses happens when comes first start-payload packet on new decoder
     {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 -> %  andalso Keyframe == true
-      ?D({"Synced PES", Pid, Keyframe}),
+      ?D({"Synced PES", Pid}),
       {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = Payload}|Streams]}, undefined};
 
     % This clauses happens when start-payload packets comes to already filled stream decoder
@@ -314,7 +314,8 @@ pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:Heade
     _ -> <<Buffer/binary, Data/binary>>
   end,
   % ?D({pes, Codec, DTS, size(Body)}),
-  {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
+  {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, 
+       #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
 
 
 
@@ -349,17 +350,53 @@ decode_pes_packet(#stream{codec = mp3, dts = DTS, pts = PTS, es_buffer = Data} =
   {Stream, [AudioFrame]};
 
 decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
-  TC1 = get(mp2_aac),
-  {TC2, Frames} = ems_sound2:mp2_aac(TC1, #video_frame{codec = mpeg2audio, pts = PTS, dts = DTS, body = Data, content = audio}),
-  put(mp2_aac, TC2),
+  % TC1 = get(mp2_aac),
+  % {TC2, Frames} = ems_sound2:mp2_aac(TC1, #video_frame{codec = mpeg2audio, pts = PTS, dts = DTS, body = Data, content = audio}),
+  % put(mp2_aac, TC2),
+  Frames = [#video_frame{
+    content = audio,
+    flavor = frame,
+    dts = DTS,
+    pts = PTS,
+    body = Data,
+    codec = mpeg2audio,
+    sound = {stereo, bit16, rate44}
+  }],
   {Stream#stream{es_buffer = <<>>}, Frames};
 
 
-decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Block, codec = mpeg2video} = Stream) ->
-  TC1 = get(mpeg2_h264),
-  {TC2, Frames} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Block, content = video}),
-  put(mpeg2_h264, TC2),
+decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Data, codec = mpeg2video} = Stream) ->
+  % TC1 = get(mpeg2_h264),
+  % {TC2, Frames} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Data, content = video}),
+  % put(mpeg2_h264, TC2),
+  Keyframe = detect_mp2v_keyframe(Data),
+  % ?D({mpeg2video, round(DTS), Keyframe}),
+  Frames = [#video_frame{
+    content = video,
+    flavor = Keyframe,
+    dts = DTS,
+    pts = PTS,
+    body = Data,
+    codec = mpeg2video
+  }],
   {Stream#stream{es_buffer = <<>>}, Frames}.
+  
+detect_mp2v_keyframe(Data) ->
+  case extract_nal(Data) of
+    undefined ->
+      % ?D(false),
+      frame;
+    {ok, <<16#b3, _/binary>>, Rest} ->
+      keyframe;
+    {ok, <<Code, _/binary>>, Rest} ->
+      % if
+      %   Code == 181 -> ok;
+      %   Code > 35 -> ?D({mp2v, Code});
+      %   true -> ok
+      % end,
+      detect_mp2v_keyframe(Rest)
+  end.
+  
     
 pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 

@@ -333,7 +333,7 @@ timestamps(DTS, PTS, _Force) ->
   {2#11, AddPesHeader}.
 
   
-send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Flavor, codec = h264} = _F) ->
+send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Flavor, codec = Codec} = _F) ->
   Marker = 2#10,
   Scrambling = 0,
   Priority = 0,
@@ -356,7 +356,11 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
   % NALHeader = <<1:32>>,
   % PES = <<1:24, ?MPEGTS_STREAMID_H264, (size(PesHeader) + size(Body) + size(NALHeader) + 1):16, PesHeader/binary, NALHeader/binary, Body/binary, 0>>,
   % no PES size should be provided for video
-  PES = <<1:24, ?MPEGTS_STREAMID_H264, 0:16, PesHeader/binary, 1:32, Body/binary>>,
+  Code = case Codec of
+    h264 -> ?MPEGTS_STREAMID_H264;
+    mpeg2video -> ?TYPE_VIDEO_MPEG2
+  end,
+  PES = <<1:24, Code, 0:16, PesHeader/binary, 1:32, Body/binary>>,
   
   Keyframe = case Flavor of
     config -> 1;
