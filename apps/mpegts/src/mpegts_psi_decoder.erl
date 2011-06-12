@@ -76,6 +76,7 @@ extract_valid_psi(_) ->
 handle_valid_psi(PSI, #psi_table{table_id = TableId} = PSITable, Decoder) ->
   case TableId of
     ?PAT_TABLEID -> pat(PSI, PSITable, Decoder);
+    ?CAT_TABLEID -> cat(PSI, PSITable, Decoder);
     ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder);
     ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder);
     ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder);
@@ -114,6 +115,12 @@ extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
 
 extract_pat(<<_CRC32/binary>>, Descriptors) ->
   lists:reverse(Descriptors).
+
+
+cat(PSI, _Table, Decoder) ->
+  Descriptors = parse_descriptors(PSI, []),
+  ?D({cat, Descriptors}),
+  Decoder.
 
 
 tdt(<<UTC:40>>, _Table, Decoder) ->
@@ -262,6 +269,9 @@ parse_descriptors(<<DescId, Len, Content:Len/binary, Bin/binary>>, Acc) ->
     Else ->
       parse_descriptors(Bin, [Else|Acc])
   end.
+
+parse_descriptor(?CA_DESC, <<CaSystemId:16, _:3, Pid:13, Private/binary>>) ->
+  {ca, [{system_id, CaSystemId},{pid, Pid}, {private, Private}]};
 
 parse_descriptor(?SERVICE_DESC, <<TypeId, ProvNameLen, ProvName:ProvNameLen/binary, NameLen, Name:NameLen/binary>>) ->
   Type = case TypeId of

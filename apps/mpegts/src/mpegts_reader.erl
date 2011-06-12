@@ -188,6 +188,10 @@ decode(Bin, Decoder, Frames) ->
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
 
+decode_ts(<<_:3, Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
+  % ?D({scrambled, Pid}),
+  {ok, Decoder, undefined};
+
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),

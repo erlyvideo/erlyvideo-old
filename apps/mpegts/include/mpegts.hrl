@@ -56,6 +56,7 @@
 -define(TDT_TABLEID,       16#70).
 
 
+-define(CA_DESC,           16#09).
 -define(SERVICE_DESC,      16#48).
 -define(SHORT_DESC,        16#4D).
 -define(CONTENT_DESC,      16#54).
