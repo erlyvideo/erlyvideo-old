@@ -189,7 +189,7 @@ decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
-            HasAdaptation:1, _HasPayload:1, _Counter:4, TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
+            _HasAdaptation:1, _HasPayload:1, _Counter:4, _TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),
   Payload = ts_payload(Packet),
   % Keyframe = case {HasAdaptation, TSRest} of
@@ -386,9 +386,9 @@ detect_mp2v_keyframe(Data) ->
     undefined ->
       % ?D(false),
       frame;
-    {ok, <<16#b3, _/binary>>, Rest} ->
+    {ok, <<16#b3, _/binary>>, _Rest} ->
       keyframe;
-    {ok, <<Code, _/binary>>, Rest} ->
+    {ok, <<_Code, _/binary>>, Rest} ->
       % if
       %   Code == 181 -> ok;
       %   Code > 35 -> ?D({mp2v, Code});
