@@ -30,6 +30,12 @@
   encrypted
 }).
 
+-record(dvb_ca_desc, {
+  system_id,
+  pid,
+  private
+}).
+
 
 -define(PAT_PID, 0).
 -define(CAT_PID, 1).

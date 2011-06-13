@@ -117,10 +117,17 @@ extract_pat(<<_CRC32/binary>>, Descriptors) ->
   lists:reverse(Descriptors).
 
 
-cat(PSI, _Table, Decoder) ->
+cat(PSI, _Table, #decoder{pids = Pids} = Decoder) ->
   Descriptors = parse_descriptors(PSI, []),
-  ?D({cat, Descriptors}),
-  Decoder.
+  CaPids = [Pid || #dvb_ca_desc{pid = Pid} <- Descriptors],
+  Pids1 = lists:foldl(fun(CaPid, DecodedPids) ->
+    case lists:keymember(CaPid, #stream.pid, DecodedPids) of
+      true -> DecodedPids;
+      false -> [#stream{handler = emm, pid = CaPid}|DecodedPids]
+    end
+  end, Pids, CaPids),
+  % ?D({cat, Descriptors}),
+  Decoder#decoder{pids = Pids1}.
 
 
 tdt(<<UTC:40>>, _Table, Decoder) ->
@@ -271,7 +278,7 @@ parse_descriptors(<<DescId, Len, Content:Len/binary, Bin/binary>>, Acc) ->
   end.
 
 parse_descriptor(?CA_DESC, <<CaSystemId:16, _:3, Pid:13, Private/binary>>) ->
-  {ca, [{system_id, CaSystemId},{pid, Pid}, {private, Private}]};
+  #dvb_ca_desc{system_id = CaSystemId, pid = Pid, private = Private};
 
 parse_descriptor(?SERVICE_DESC, <<TypeId, ProvNameLen, ProvName:ProvNameLen/binary, NameLen, Name:NameLen/binary>>) ->
   Type = case TypeId of

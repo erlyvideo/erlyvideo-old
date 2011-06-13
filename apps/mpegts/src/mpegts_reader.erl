@@ -47,7 +47,7 @@
 
 -export([decode/2, decode_ts/2, decode_pes/2]).
 
--export([pes/3, psi/3]).
+-export([pes/3, psi/3, emm/3]).
 -export([program_info/1]).
 
 load_nif() ->
@@ -188,7 +188,7 @@ decode(Bin, Decoder, Frames) ->
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
 
-decode_ts(<<_:3, Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
+decode_ts(<<_:3, _Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
   % ?D({scrambled, Pid}),
   {ok, Decoder, undefined};
 
@@ -321,6 +321,10 @@ pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:Heade
   {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, 
        #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
 
+
+emm(Packet, Stream, #decoder{pids = Streams} = Decoder) ->
+  ?D({emm, Packet}),
+  {ok, Decoder#decoder{pids = [Stream|Streams]}, undefined}.
 
 
 decode_pes(#decoder{pids = Pids} = Decoder, #pes_packet{body = Body, pid = Pid}) ->
