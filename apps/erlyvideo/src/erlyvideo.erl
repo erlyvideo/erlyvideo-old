@@ -27,7 +27,7 @@
 
 
 -export([start/2, stop/1]).
--export([start/0,stop/0,restart/0,rebuild/0,reload/0]).
+-export([start/0,stop/0,restart/0,rebuild/0,reload/0,reload/1]).
 -export([load_config/0, reconfigure/0]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
@@ -314,26 +314,28 @@ rebuild() ->
 %% @end
 %%--------------------------------------------------------------------
 reload() ->
-	application:load(erlyvideo),
-	case application:get_key(erlyvideo,modules) of
-		undefined    ->
-			application:load(erlyvideo),
-			reload();
+  reload(erlyvideo).
+
+reload(App) ->
+	application:load(App),
+	case application:get_key(App,modules) of
+		undefined ->
+			ok;
 		{ok,Modules} ->
-			io:format("Reloading EMS Modules ...~n"),
-			reload(lists:usort(Modules))
+			io:format("Reloading ~p Modules: ~p~n", [App, Modules]),
+			reload_mods(lists:usort(Modules))
 	end.
 
-reload(Module) when is_atom(Module) ->
+reload_mod(Module) when is_atom(Module) ->
 	code:soft_purge(Module),
 	code:load_file(Module),
-	true;
-reload([]) -> ok;
-reload([?MODULE | T]) -> reload(T);
-reload([H|T]) ->
-	reload(H),
-	reload(H),
-	reload(T).
+	true.
+
+reload_mods([]) -> ok;
+reload_mods([?MODULE | T]) -> reload(T);
+reload_mods([H|T]) ->
+	reload_mod(H),
+	reload_mods(T).
 
 
 %%--------------------------------------------------------------------

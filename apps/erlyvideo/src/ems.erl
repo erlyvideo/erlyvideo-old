@@ -31,12 +31,14 @@
 -export([expand_tuple/2, element/2, setelement/3]).
 -export([str_split/2, multicall/3, pathjoin/2, pathjoin/1, expand_path/1]).
 
--export([rebuild/0, restart/0]).
+-export([rebuild/0, reload/0, reload/1, restart/0]).
 
 -export([list_by/1, top_info/1, top_info/2, now/1]).
 
 rebuild() -> erlyvideo:rebuild().
 restart() -> erlyvideo:restart().
+reload() -> erlyvideo:reload().
+reload(App) -> erlyvideo:reload(App).
 
  
 
