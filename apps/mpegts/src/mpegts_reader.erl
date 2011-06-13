@@ -184,13 +184,13 @@ decode(<<_, Bin/binary>>, Decoder, Frames) when size(Bin) >= 374 ->
 decode(Bin, Decoder, Frames) ->
   {ok, Decoder#decoder{buffer = Bin}, Frames}.
 
-
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
 
 decode_ts(<<_:3, _Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
   % ?D({scrambled, Pid}),
   {ok, Decoder, undefined};
+
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
             _HasAdaptation:1, _HasPayload:1, _Counter:4, _TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
@@ -322,8 +322,7 @@ pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:Heade
        #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
 
 
-emm(Packet, Stream, #decoder{pids = Streams} = Decoder) ->
-  ?D({emm, Packet}),
+emm(_Packet, Stream, #decoder{pids = Streams} = Decoder) ->
   {ok, Decoder#decoder{pids = [Stream|Streams]}, undefined}.
 
 
