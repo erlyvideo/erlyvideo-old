@@ -83,7 +83,7 @@ real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId}
   ]},
   Msg = rtmp_socket:prepare_invoke(StreamId, onStatus, [Arg]),
   rtmp_socket:send(Socket, Msg),
-  rtmp_session:set_stream(#rtmp_stream{pid = Recorder, stream_id = StreamId, started = true}, State).
+  rtmp_session:set_stream(#rtmp_stream{pid = Recorder, stream_id = StreamId, started = true, recording = true, name = Name}, State).
   
 extract_publish_args([]) -> [];
 extract_publish_args({"record", "true"}) -> {type, record};

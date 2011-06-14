@@ -106,7 +106,7 @@ handle_msg(#http_player{} = Streamer, Message) ->
 
 send_frame(#http_player{req = Req, buffer = Buffer, streamer = Streamer} = HTTPPlayer, #video_frame{dts = DTS, pts = PTS} = Frame) ->
   % ?D({mpegts,Frame#video_frame.codec,Frame#video_frame.flavor,round(Frame#video_frame.dts)}),
-  case mpegts:encode(Streamer, Frame#video_frame{dts = 10000 + DTS, pts = 10000 + PTS}) of
+  case mpegts:encode(Streamer, Frame#video_frame{dts = DTS, pts = PTS}) of
     {Streamer1, none} -> 
       {ok, HTTPPlayer#http_player{streamer = Streamer1}};
     {Streamer1, Bin} when Req == undefined ->

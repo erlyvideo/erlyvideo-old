@@ -1,0 +1,40 @@
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <script type="text/javascript" src="/js/jquery.js"></script>
+  </head>
+  <body>
+    <script type="text/javascript">
+    $.get("/mpegts/schedule/mpeg2", {}, function(object) {
+      var list = object.program;
+      var i;
+      var html = "";
+      for(i = 0; i < list.length; i++) {
+        var program = list[i];
+        html += "<tr>";
+        html += "<td>"+program.id+"</td>";
+        html += "<td>"+program.start+"</td>";
+        html += "<td>"+program.duration+"</td>";
+        html += "<td>"+program.name+"</td>";
+        html += "<td>"+program.about+"</td>";
+        html += "</tr>";
+      }
+      $("#program").html(html);
+    }, "json");
+    </script>
+    <table>
+      <thead>
+        <tr>
+          <th>Id</th>
+          <th>Старт</th>
+          <th>Время</th>
+          <th>Название</th>
+          <th>Описание</th>
+        </tr>
+      </thead>
+      <tbody id="program">
+        
+      </tbody>
+    </table>
+  </body>
+</html>

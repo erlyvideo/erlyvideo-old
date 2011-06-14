@@ -26,5 +26,7 @@
   seeking = false,
   receive_audio = true,
   receive_video = true,
+  recording = false,
+  name,
   properties = []
 }).

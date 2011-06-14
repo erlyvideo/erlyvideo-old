@@ -24,6 +24,7 @@
 -module(ems_http_mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
+-include_lib("mpegts/include/mpegts.hrl").
 
 -export([http/4]).
 
@@ -50,6 +51,14 @@ http(Host, 'GET', ["stream" | Name], Req) ->
       Req:stream(io_lib:format("500 Internal Server Error.~n Failed to start video player: ~p~n ~p: ~p", [Reason, Name, Req])),
       Req:stream(close)
   end;
+
+http(Host, 'GET', ["mpegts", "schedule" | Name], Req) ->
+  {ok, Media} = media_provider:open(Host, Name),
+  MpegTS = ems_media:get(Media, source),
+  Program = mpegts_reader:program_info(MpegTS),
+  ?D({zzz, length(Program)}),
+  Encoded = [format_eit_event(Event) || Event <- Program],
+  Req:respond(200, [{"Content-Type", "application/json"}], mochijson2:encode([{program, Encoded}]));
 
 http(Host, 'GET', ["iphone", "playlists" | StreamName] = Path, Req) ->
   ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
@@ -81,3 +90,14 @@ http(Host, 'PUT', ["stream", Name], Req) ->
 
 http(_Host, _Method, _Path, _Req) ->
   unhandled.
+
+format_start({{Year,Month,Day},{Hour,Min,Sec}}) ->
+  iolist_to_binary(io_lib:format("~4.10.0B-~2.10.0B-~2.10.0B ~2.10.0B:~2.10.0B:~2.10.0B",
+          [Year, Month, Day, Hour, Min, Sec])).
+
+format_duration({Hour, Min, _Sec}) -> iolist_to_binary(io_lib:format("~2.10.0B:~2.10.0B", [Hour, Min])).
+  
+
+format_eit_event(#eit_event{id = Id, start = Start, duration = Duration, status = Status, language = Lang, name = Name, about = About}) ->
+  % io:format("~w~n", [Name]),
+  [{id,Id},{start, format_start(Start)},{duration, format_duration(Duration)}, {status, atom_to_binary(Status, latin1)}, {language, Lang}, {name, Name}, {about, About}].

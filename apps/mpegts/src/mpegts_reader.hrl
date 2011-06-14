@@ -8,13 +8,14 @@
   socket,
   options,
   byte_counter = 0,
-  sdt
+  program_info = [],
+  sdt,
+  current_time
 }).
 
 -record(mpegts_pat, {
   descriptors
 }).
-
 
 -record(stream, {
   pid,

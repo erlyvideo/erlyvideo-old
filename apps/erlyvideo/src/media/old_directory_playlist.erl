@@ -20,7 +20,7 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(directory_playlist).
+-module(old_directory_playlist).
 -author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(ems_media).
 -include("ems_media.hrl").

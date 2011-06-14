@@ -110,10 +110,14 @@ closeStream(#rtmp_session{} = State, #rtmp_funcall{} = AMF) ->
 %%-------------------------------------------------------------------------
 %% @private
 %%-------------------------------------------------------------------------
-deleteStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
+deleteStream(#rtmp_session{host = Host} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> 
+    #rtmp_stream{pid = Player, recording = Recording, name = Name} when is_pid(Player) -> 
       ems_media:stop(Player),
+      case Recording of
+        true -> media_provider:remove(Host, Name);
+        false -> ok
+      end,  
       rtmp_session:flush_stream(StreamId);
     _ -> ok
   end,
@@ -147,7 +151,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State;
     {ok, Media} ->
-      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId, options = Options}, State),
+      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name}, State),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State1
   end.

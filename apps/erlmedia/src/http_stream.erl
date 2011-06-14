@@ -38,7 +38,7 @@ open_socket(URL, Options) ->
     false -> Path
   end,
 
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}], Timeout),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}, {recbuf, 65536}], Timeout),
   ok = gen_tcp:send(Socket, "GET "++RequestPath++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\n"),
   [gen_tcp:send(Socket, Key++": "++Value++"\r\n") || {Key,Value} <- proplists:get_value(headers, Options, [])],
   gen_tcp:send(Socket, "\r\n"),

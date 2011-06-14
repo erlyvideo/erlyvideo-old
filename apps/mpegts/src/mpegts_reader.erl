@@ -47,8 +47,8 @@
 
 -export([decode/2, decode_ts/2, decode_pes/2]).
 
--export([pes/3, psi/3]).
-
+-export([pes/3, psi/3, emm/3]).
+-export([program_info/1]).
 
 load_nif() ->
   Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
@@ -62,6 +62,10 @@ start_link(Options) ->
 set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
   gen_tcp:controlling_process(Socket, Reader),
   gen_server:call(Reader, {set_socket, Socket}).
+
+
+program_info(MpegTS) when is_pid(MpegTS) ->
+  gen_server:call(MpegTS, program_info).
 
 init([Options]) ->
   Consumer = case proplists:get_value(consumer, Options) of
@@ -86,6 +90,9 @@ handle_call({set_socket, Socket}, _From, #decoder{} = Decoder) ->
   % ?D({passive_accepted, Socket}),
   {reply, ok, Decoder#decoder{socket = Socket}};
 
+
+handle_call(program_info, _From, #decoder{program_info = Program} = Decoder) ->
+  {reply, Program, Decoder};
 
 handle_call(connect, _From, #decoder{options = Options} = Decoder) ->
   URL = proplists:get_value(url, Options),
@@ -177,16 +184,23 @@ decode(<<_, Bin/binary>>, Decoder, Frames) when size(Bin) >= 374 ->
 decode(Bin, Decoder, Frames) ->
   {ok, Decoder#decoder{buffer = Bin}, Frames}.
 
-
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
-  Decoder1 = handle_pat(ts_payload(Packet), Decoder),
-  {ok, Decoder1, undefined};
+  mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
+
+decode_ts(<<_:3, _Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
+  % ?D({scrambled, Pid}),
+  {ok, Decoder, undefined};
+
 
 decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:2,
-            _HasAdaptation:1, _HasPayload:1, _Counter:4, _/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
+            _HasAdaptation:1, _HasPayload:1, _Counter:4, _TSRest/binary>> = Packet, #decoder{pids = Pids} = Decoder) ->
   PCR = get_pcr(Packet),
   Payload = ts_payload(Packet),
-  % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, _Counter]),
+  % Keyframe = case {HasAdaptation, TSRest} of
+  %   {1, <<_:1, 1:1, _/bitstring>>} -> keyframe; % random_access_indicator is 1
+  %   _ -> frame
+  % end,
+  % io:format("ts: ~p (~p) ~p~n", [Pid,PayloadStart, Keyframe]),
   case lists:keytake(Pid, #stream.pid, Pids) of
     {value, #stream{ts_buffer = undefined, handler = psi} = Stream, Streams} when PayloadStart == 1 ->
       <<_:20, Len:12, _/binary>> = Payload,
@@ -205,7 +219,7 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
       {ok, Decoder, undefined};
 
     % This clauses happens when comes first start-payload packet on new decoder
-    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 ->
+    {value, #stream{ts_buffer = undefined} = Stream, Streams} when PayloadStart == 1 -> %  andalso Keyframe == true
       ?D({"Synced PES", Pid}),
       {ok, Decoder#decoder{pids = [Stream#stream{pcr = PCR, ts_buffer = Payload}|Streams]}, undefined};
 
@@ -216,9 +230,14 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
     
     
     {value, #stream{ts_buffer = Buf, handler = Handler, payload_size = PayloadSize} = Stream, Streams} 
-      when PayloadStart == 1 orelse size(Buf) + size(Payload) >= PayloadSize ->  
+      when PayloadStart == 1 orelse size(Buf) + size(Payload) >= PayloadSize ->
+        
+      % Здесь надо решить: что показываем, что сохраняем
+      % Могут быть разные варианты: мы натолкнулись на начало нового PES-пакета, а старый в буфере
+      % или мы вытащили TS пакет, а в нём всё содержимое, которое сразу надо сбросить
+      % Или мы вытащили какой-то по очереди TS-пакет, наполнили им буфер и заполнили требуемый PayloadSize
       {Body, Rest} = case {PayloadStart, Buf} of
-        {1, <<>>} -> {Payload, <<>>};
+        {1, <<>>} -> {Payload, <<>>}; % Если у нас начало нового PayloadStart,  но пустой буфер, текущий Payload — единственный 
         {1, _} -> {Buf, Payload};
         {0, _} -> {<<Buf/binary, Payload/binary>>, undefined}
       end,
@@ -242,12 +261,10 @@ decode_ts(<<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _Scrambling:
 
 decode_ts({eof,Codec}, #decoder{pids = Pids} = Decoder) ->
   case lists:keytake(Codec, #stream.codec, Pids) of
-    {value, #stream{ts_buffer = Buf, handler = pes} = Stream, Streams} ->
-      Body = iolist_to_binary(lists:reverse(Buf)),
+    {value, #stream{ts_buffer = Body, handler = pes} = Stream, Streams} ->
       % ?D({eof,Codec,Body}),
       Stream1 = stream_timestamp(Body, Stream),
-      {PESPacket, Stream2, Decoder1} = pes(Body, Stream1, Decoder),
-      {ok, Decoder1#decoder{pids = [Stream2#stream{ts_buffer = <<>>, es_buffer = <<>>}|Streams]}, PESPacket};
+      pes(Body, Stream1, Decoder#decoder{pids = Streams});
     false ->
       % ?D({unknown_pid, Pid}),
       {ok, Decoder, undefined}
@@ -281,48 +298,9 @@ extract_pcr(_) ->
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
-handle_pat(PATBin, #decoder{options = Options, pids = Pids} = Decoder) ->
-  % ?D({"Full PAT", size(PATBin), PATBin}),
-  #mpegts_pat{descriptors = Descriptors} = pat(PATBin),
-  {PmtPid, SelectedProgram} = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
-  case lists:keyfind(PmtPid, #stream.pid, Pids) of
-    false ->
-      ?D({"Selecting program", SelectedProgram, "on pid",PmtPid}),
-      Decoder#decoder{pids = [#stream{handler = psi, pid = PmtPid}|Pids]};
-    _ ->
-      Decoder
-  end.      
 
-
-select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
-  {PmtPid, _ProgramNum};
-select_pmt_pid(Descriptors, SelectedProgram) ->
-  case lists:keyfind(SelectedProgram, 1, Descriptors) of
-    {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
-    _ ->
-      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors}),
-      {undefined, undefined}
-  end.
-  
-
-pat(<<_PtField, ?PAT_TABLEID, 2#10:2, 2#11:2, Length:12, _Misc:5/binary, PAT/binary>> = _PATBin) -> % PAT
-  ProgramCount = round((Length - 5)/4) - 1,
-  % io:format("PAT: ~p programs (~p)~n", [ProgramCount, size(PAT)]),
-  % ?D({"PAT descriptors", ProgramCount, PAT}),
-  Descriptors = extract_pat(PAT, ProgramCount, []),
-  #mpegts_pat{descriptors = Descriptors}.
-
-
-
-extract_pat(<<_CRC32/binary>>, 0, Descriptors) ->
-  lists:keysort(#stream.pid, Descriptors);
-  
-extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, ProgramCount, Descriptors) ->
-  extract_pat(PAT, ProgramCount - 1, [{Pid, ProgramNum} | Descriptors]).
-
-
-psi(PSI, PSITable, Decoder) ->
-  mpegts_psi_decoder:psi(PSI, PSITable, Decoder).
+psi(PSI, Stream, #decoder{pids = Streams} = Decoder) ->
+  mpegts_psi_decoder:psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
 
 
 pes(_, #stream{codec = unhandled} = Stream, #decoder{pids = Streams} = Decoder) ->
@@ -340,8 +318,12 @@ pes(<<1:24, _StreamId, _PESLength:16, _:2/binary, HeaderLength, _PESHeader:Heade
     _ -> <<Buffer/binary, Data/binary>>
   end,
   % ?D({pes, Codec, DTS, size(Body)}),
-  {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
+  {ok, Decoder#decoder{pids = [Stream#stream{es_buffer = <<>>}|Streams]}, 
+       #pes_packet{pid = Pid, codec = Codec, dts = DTS, pts = PTS, body = Body}}.
 
+
+emm(_Packet, Stream, #decoder{pids = Streams} = Decoder) ->
+  {ok, Decoder#decoder{pids = [Stream|Streams]}, undefined}.
 
 
 decode_pes(#decoder{pids = Pids} = Decoder, #pes_packet{body = Body, pid = Pid}) ->
@@ -375,17 +357,53 @@ decode_pes_packet(#stream{codec = mp3, dts = DTS, pts = PTS, es_buffer = Data} =
   {Stream, [AudioFrame]};
 
 decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
-  TC1 = get(mp2_aac),
-  {TC2, Frames} = ems_sound2:mp2_aac(TC1, #video_frame{codec = mpeg2audio, pts = PTS, dts = DTS, body = Data, content = audio}),
-  put(mp2_aac, TC2),
+  % TC1 = get(mp2_aac),
+  % {TC2, Frames} = ems_sound2:mp2_aac(TC1, #video_frame{codec = mpeg2audio, pts = PTS, dts = DTS, body = Data, content = audio}),
+  % put(mp2_aac, TC2),
+  Frames = [#video_frame{
+    content = audio,
+    flavor = frame,
+    dts = DTS,
+    pts = PTS,
+    body = Data,
+    codec = mpeg2audio,
+    sound = {stereo, bit16, rate44}
+  }],
   {Stream#stream{es_buffer = <<>>}, Frames};
 
 
-decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Block, codec = mpeg2video} = Stream) ->
-  TC1 = get(mpeg2_h264),
-  {TC2, Frames} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Block, content = video}),
-  put(mpeg2_h264, TC2),
+decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Data, codec = mpeg2video} = Stream) ->
+  % TC1 = get(mpeg2_h264),
+  % {TC2, Frames} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Data, content = video}),
+  % put(mpeg2_h264, TC2),
+  Keyframe = detect_mp2v_keyframe(Data),
+  % ?D({mpeg2video, round(DTS), Keyframe}),
+  Frames = [#video_frame{
+    content = video,
+    flavor = Keyframe,
+    dts = DTS,
+    pts = PTS,
+    body = Data,
+    codec = mpeg2video
+  }],
   {Stream#stream{es_buffer = <<>>}, Frames}.
+  
+detect_mp2v_keyframe(Data) ->
+  case extract_nal(Data) of
+    undefined ->
+      % ?D(false),
+      frame;
+    {ok, <<16#b3, _/binary>>, _Rest} ->
+      keyframe;
+    {ok, <<_Code, _/binary>>, Rest} ->
+      % if
+      %   Code == 181 -> ok;
+      %   Code > 35 -> ?D({mp2v, Code});
+      %   true -> ok
+      % end,
+      detect_mp2v_keyframe(Rest)
+  end.
+  
     
 pes_timestamp(<<_:7/binary, 2#11:2, _:6, PESHeaderLength, PESHeader:PESHeaderLength/binary, _/binary>>) ->
   <<2#0011:4, Pts1:3, 1:1, Pts2:15, 1:1, Pts3:15, 1:1, 

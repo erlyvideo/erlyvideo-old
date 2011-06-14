@@ -8,12 +8,32 @@
 }).
 
 -record(psi_table, {
-  id,
+  table_id,
   ts_stream_id,
   version,
   current_next,
   section_number,
   last_section_number
+}).
+
+
+
+-record(eit_event, {
+  pid,
+  id,
+  start,
+  duration,
+  status,
+  language,
+  name,
+  about,
+  encrypted
+}).
+
+-record(dvb_ca_desc, {
+  system_id,
+  pid,
+  private
 }).
 
 
@@ -39,8 +59,10 @@
 -define(EIT_2_TABLEID,     16#4F).
 -define(EIT_3_TABLEID,     16#5F).
 -define(EIT_4_TABLEID,     16#6F).
+-define(TDT_TABLEID,       16#70).
 
 
+-define(CA_DESC,           16#09).
 -define(SERVICE_DESC,      16#48).
 -define(SHORT_DESC,        16#4D).
 -define(CONTENT_DESC,      16#54).

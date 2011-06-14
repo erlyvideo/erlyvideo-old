@@ -27,47 +27,111 @@
 -include("../include/mpegts.hrl").
 -include("mpegts_reader.hrl").
 
--export([psi/3]).
+-export([psi/2]).
 
 
 % parse_sdt(<<ServiceId:16, _Reserved:6, EIT_Schedule:1, EIT_present_following:1, RunningStatus:3, FreeCA:1, DescLength:12, _/binary>>) ->
 %   [{service_id,ServiceId},{eit_schedule,EIT_Schedule},{eit_present,EIT_present_following},{running,RunningStatus},{free_ca,FreeCA},{desc_len,DescLength}].
 
 psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
-             SectionNumber, LastSectionNumber, PSIRaw/binary>> = _Bin, Stream, #decoder{pids = Streams} = Decoder) ->
-  PSILength = SectionLength - 5,             
-  % {PSI, _Trash} = erlang:split_binary(PSIRaw, PSILength),
-  {PSI, _Trash} = if
-    size(PSIRaw) >= PSILength -> erlang:split_binary(PSIRaw, PSILength);
-    true ->
-      ?D({too_short_psi,PSILength, TableId, size(PSIRaw), PSIRaw}),
-      {PSIRaw, <<>>}
-  end,
-  PSITable = #psi_table{
-    id = TableId,
-    ts_stream_id = TransportStreamId,
-    version = Version,
-    current_next = CurrentNext,
-    section_number = SectionNumber,
-    last_section_number = LastSectionNumber
-  },
-  % ?D({psi, TableId}),
-  Decoder1 = Decoder#decoder{pids = [Stream|Streams]},
-  Decoder2 = case TableId of
-    ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder1);
-    ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder1);
-    ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder1);
-    % _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder1);
-    16#4E -> eit(PSI, PSITable, Decoder1);
+             SectionNumber, LastSectionNumber, PSIPayload/binary>> = PSIRaw, #decoder{} = Decoder) ->
+  case extract_valid_psi(PSIRaw) of
+    {ok, PSI} -> 
+      PSITable = #psi_table{
+        table_id = TableId,
+        ts_stream_id = TransportStreamId,
+        version = Version,
+        current_next = CurrentNext,
+        section_number = SectionNumber,
+        last_section_number = LastSectionNumber
+      },
+      Decoder1 = handle_valid_psi(PSI, PSITable, Decoder),
+      {ok, Decoder1, undefined};
+    {error, Reason} ->
+      ?D({invalid_psi, TableId, Reason, SectionLength - 5, size(PSIPayload)}),
+      {ok, Decoder, undefined}
+  end.
+
+extract_valid_psi(<<_Ptr, ?TDT_TABLEID, _:4, 5:12, PSI:5/binary, _/binary>>) -> %% TDT has special treatment. Its header is its payload
+  {ok, PSI};
+
+extract_valid_psi(<<_Ptr, _:12, Length:12, _/binary>> = Bin) ->
+  TotalLen = Length+3 - 4, % PSI table and length and table id minus CRC32
+  case Bin of
+    <<_Ptr, PSIRaw:TotalLen/binary, CRC32:32, _Trash/binary>> ->
+      case mpeg2_crc32:crc32(PSIRaw) of
+        CRC32 ->
+          <<_PSIHeader:8/binary, PSI/binary>> = PSIRaw,
+          {ok, PSI};
+        _Else ->
+          {error, {invalid_crc32, CRC32, _Else}}
+      end;
+    _ -> {error, too_short_data}
+  end;
+
+extract_valid_psi(_) ->
+  {error, too_short_data}.
+    
+
+handle_valid_psi(PSI, #psi_table{table_id = TableId} = PSITable, Decoder) ->
+  case TableId of
+    ?PAT_TABLEID -> pat(PSI, PSITable, Decoder);
+    ?CAT_TABLEID -> cat(PSI, PSITable, Decoder);
+    ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder);
+    ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder);
+    ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder);
+    _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder);
+    16#4E -> eit(PSI, PSITable, Decoder);
+    ?TDT_TABLEID -> tdt(PSI, PSITable, Decoder);
     _ ->
       % ?D({psi, TableId, PSI}),
-      Decoder1
-  end,
-  % ?D({psi, length(Decoder1#decoder.pids)}),
-  {ok, Decoder2, undefined}.
+      Decoder
+  end.
+
+pat(PAT, _PSITable, #decoder{options = Options, pids = Pids} = Decoder) ->
+  Descriptors = extract_pat(PAT, []),
+  {PmtPid, SelectedProgram} = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
+  case lists:keyfind(PmtPid, #stream.pid, Pids) of
+    false ->
+      ?D({"Selecting program", SelectedProgram, "on pid",PmtPid}),
+      Decoder#decoder{pids = [#stream{handler = psi, pid = PmtPid}|Pids]};
+    _ ->
+      Decoder
+  end.
 
 
+select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
+  {PmtPid, _ProgramNum};
+select_pmt_pid(Descriptors, SelectedProgram) ->
+  case lists:keyfind(SelectedProgram, 1, Descriptors) of
+    {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
+    _ ->
+      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors}),
+      {undefined, undefined}
+  end.
 
+extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
+  extract_pat(PAT, [{Pid, ProgramNum} | Descriptors]);
+
+extract_pat(<<_CRC32/binary>>, Descriptors) ->
+  lists:reverse(Descriptors).
+
+
+cat(PSI, _Table, #decoder{pids = Pids} = Decoder) ->
+  Descriptors = parse_descriptors(PSI, []),
+  CaPids = [Pid || #dvb_ca_desc{pid = Pid} <- Descriptors],
+  Pids1 = lists:foldl(fun(CaPid, DecodedPids) ->
+    case lists:keymember(CaPid, #stream.pid, DecodedPids) of
+      true -> DecodedPids;
+      false -> [#stream{handler = emm, pid = CaPid}|DecodedPids]
+    end
+  end, Pids, CaPids),
+  % ?D({cat, Descriptors}),
+  Decoder#decoder{pids = Pids1}.
+
+
+tdt(<<UTC:40>>, _Table, Decoder) ->
+  Decoder#decoder{current_time = UTC}.
 
 pmt(<<_Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>,
   #psi_table{ts_stream_id = ProgramNum}, #decoder{pids = Pids} = Decoder) ->
@@ -113,14 +177,11 @@ stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 
 
-sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{id = _TableId}, Decoder) ->
+sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{table_id = _TableId}, Decoder) ->
   Info = parse_sdt(SDT, []),
   % ?D({sdt, OriginalNetwork, Info}),
   Decoder#decoder{sdt = Info}.
 
-
-parse_sdt(<<_CRC32:32>>, Info) ->
-  lists:reverse(Info);
 
 parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, SDT/binary>>, Acc) ->
   Descriptors = parse_descriptors(DescriptorsBin, []),
@@ -129,26 +190,42 @@ parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, 
     1 -> true
   end,
   Info = [{pid, ServiceId},{eit_schedule,EIT_schedule},{eit_following,EIT_present_following},{status,decode_status(StatusId)},{encrypted,Encryped}]++Descriptors,
-  parse_sdt(SDT, [Info|Acc]).
+  parse_sdt(SDT, [Info|Acc]);
+
+
+parse_sdt(<<_CRC32/binary>>, Info) ->
+  lists:reverse(Info).
 
 
 
 
-eit(<<_TSId:16, _Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = _Pid, version = _Version}, Decoder) ->
-  _Info = parse_eit(EIT, []),
-  % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [Pid, Version, TSId, Network]),
-  % [begin
-  %   Id = proplists:get_value(id, Event),
-  %   Start = proplists:get_value(start, Event),
-  %   Duration = proplists:get_value(duration, Event),
-  %   Status = proplists:get_value(status, Event),
-  %   Lang = proplists:get_value(language, Event),
-  %   Name = proplists:get_value(name, Event),
-  %   About = proplists:get_value(about, Event),
-  %   io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
-  % end || Event <- _Info],  
-  % ?D({eit, _Info}),
-  Decoder.
+
+
+eit(<<_TSId:16, _Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = _Pid, version = _Version}, 
+    #decoder{pids = Streams, program_info = Program} = Decoder) ->
+  Pids = [Pid || #stream{pid = Pid} <- Streams],
+  case lists:member(_Pid, Pids) of
+    true ->
+      NewProgram = parse_eit(EIT, []),
+      % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [_Pid, _Version, _TSId, _Network]),
+      % [begin
+      %   #eit_event{
+      %     id = Id,
+      %     start = Start,
+      %     duration = Duration,
+      %     status = Status,
+      %     name = Name,
+      %     language = Lang,
+      %     about = About
+      %   } = Event,
+      %   io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
+      % end || Event <- _Info],
+      % ?D({prg1, [Id || #eit_event{id = Id} <- NewProgram]}),
+      % ?D({prg2, [Id || #eit_event{id = Id} <- Program]}),
+      Decoder#decoder{program_info = lists:ukeymerge(#eit_event.id, NewProgram, Program)};
+    _ ->
+      Decoder
+  end.
 
 parse_eit(<<EventId:16, StartTime:5/binary, Duration:3/binary, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, EIT/binary>>, Acc) ->
   Descriptors = parse_descriptors(DescriptorsBin, []),
@@ -156,10 +233,19 @@ parse_eit(<<EventId:16, StartTime:5/binary, Duration:3/binary, StatusId:3, FreeC
     0 -> false;
     1 -> true
   end,
-  Info = [{id, EventId},{start,eit_date_to_erlang(StartTime)},{duration,eit_duration_to_erlang(Duration)},{status,decode_status(StatusId)},{encrypted,Encryped}]++Descriptors,
-  parse_eit(EIT, [Info|Acc]);
+  Event = #eit_event{
+    id = EventId,
+    start = eit_date_to_erlang(StartTime),
+    duration = eit_duration_to_erlang(Duration),
+    status = decode_status(StatusId),
+    encrypted = Encryped,
+    name = proplists:get_value(name, Descriptors),
+    language = proplists:get_value(lang, Descriptors),
+    about = proplists:get_value(about, Descriptors)
+  },
+  parse_eit(EIT, [Event|Acc]);
 
-parse_eit(<<_CRC32/binary>>, Acc) -> lists:reverse(Acc).
+parse_eit(<<_CRC32/binary>>, Acc) -> lists:keysort(#eit_event.id, Acc).
 
 
   
@@ -190,6 +276,9 @@ parse_descriptors(<<DescId, Len, Content:Len/binary, Bin/binary>>, Acc) ->
     Else ->
       parse_descriptors(Bin, [Else|Acc])
   end.
+
+parse_descriptor(?CA_DESC, <<CaSystemId:16, _:3, Pid:13, Private/binary>>) ->
+  #dvb_ca_desc{system_id = CaSystemId, pid = Pid, private = Private};
 
 parse_descriptor(?SERVICE_DESC, <<TypeId, ProvNameLen, ProvName:ProvNameLen/binary, NameLen, Name:NameLen/binary>>) ->
   Type = case TypeId of
@@ -238,16 +327,17 @@ parse_text(Text) ->
   Text.
 
 from_latin(Text) ->
-  Iconv = case get(iconv_8859_5) of
-    undefined ->
-      {ok, Conv} = iconv:open("utf-8", "iso8859-5"),
-      put(iconv_8859_5, Conv),
-      Conv;
-    Else ->
-      Else
-  end,
-  {ok, Output} = iconv:conv(Iconv, Text),
-  Output.
+  iso8859_5:decode(Text).
+  % Iconv = case get(iconv_8859_5) of
+  %   undefined ->
+  %     {ok, Conv} = iconv:open("utf-8", "iso8859-5"),
+  %     put(iconv_8859_5, Conv),
+  %     Conv;
+  %   Else ->
+  %     Else
+  % end,
+  % {ok, Output} = iconv:conv(Iconv, Text),
+  % Output.
   % <<1, Text/binary>>.
 
 -define(MJD_1970_01_01, 40587).

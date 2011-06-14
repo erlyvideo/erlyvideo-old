@@ -129,6 +129,8 @@ read_frame(#shift{frames = Frames}, Key) ->
     Frame -> Frame#video_frame{next_id = (Key + 1) rem array:size(Frames)}
   end.
 
+write_frame(eof, MediaInfo) ->
+  {ok, MediaInfo};
 
 write_frame(#video_frame{flavor = config, content = video} = Frame, #shift{} = MediaInfo) ->
   {ok, MediaInfo#shift{video_config = Frame}};
