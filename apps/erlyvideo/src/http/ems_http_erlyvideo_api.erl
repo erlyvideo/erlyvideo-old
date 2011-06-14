@@ -66,6 +66,7 @@ http(Host, 'GET', ["erlyvideo", "api", "stream" | Path], Req) ->
       Req:respond(500, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, unknown}]), "\n"])
   end;
 
+
 http(_Host, 'GET', ["erlyvideo","api","licenses"], Req) -> 
   case ems_license_client:list() of
     {ok, List} -> 
