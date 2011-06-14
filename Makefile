@@ -86,7 +86,7 @@ packages: release
 
 upload_packages: 
 	scp *$(VERSION)* erlyhub@git.erlyvideo.org:/apps/erlyvideo/debian/public/binary
-	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update"
+	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update ; cd public/binary ; ln -sf erlyvideo-$(VERSION).tgz erlyvideo-latest.tgz ; ln -sf erlyvideo-$(VERSION).x86_64.rpm erlyvideo-latest.x86_64.rpm"
 
 .PHONY: doc debian compile
 
