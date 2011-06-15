@@ -11,6 +11,7 @@
   options,
   video_config,
   audio_config,
+  hls_state,
   metadata,
   clients,
   waiting_for_config = [],

@@ -468,7 +468,7 @@ enqueue_frame(#streamer{length_size = LengthSize, video_config = VideoConfig, vi
   F = fun(NAL, S) ->
     <<S/binary, 1:24, NAL/binary>>
   end,
-  Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS),
+  Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS), % Need to add AU (9 NAL) for HLS
   {Streamer2, Video} = send_video(Streamer#streamer{last_dts = DTS}, Frame#video_frame{body = Packed}),
   Streamer2#streamer{video_buffer = [Video|Buffer]};
 

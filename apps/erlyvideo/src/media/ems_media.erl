@@ -342,8 +342,8 @@ info(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 info(Media, Properties) ->
-  properties_are_valid(Properties) orelse erlang:error({badarg, Properties}),
-  gen_server:call(Media, {info, Properties}).
+  ValidProperties = clean_properties(Properties),
+  gen_server:call(Media, {info, ValidProperties}).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
@@ -355,10 +355,18 @@ full_info(Media) ->
   info(Media, known_properties()).
   
 known_properties() ->
-  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at, options].
+  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at, options, hls_playlist].
   
-properties_are_valid(Properties) ->
-  lists:subtract(Properties, known_properties()) == [].
+clean_properties(Properties) ->
+  clean_properties(Properties, []).
+
+clean_properties([], Acc) -> lists:reverse(Acc);
+clean_properties([{hls_segment, N}|Props], Acc) when is_integer(N) -> clean_properties(Props, [{hls_segment, N}|Acc]);
+clean_properties([Property|Props], Acc) ->
+  case lists:member(Property, known_properties()) of
+    true -> clean_properties(Props, [Property|Acc]);
+    false -> clean_properties(Props, Acc)
+  end.
   
   
 
@@ -552,8 +560,16 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   end,
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
-handle_call({info, Properties}, _From, Media) ->
-  {reply, reply_with_info(Media, Properties), Media, ?TIMEOUT};
+handle_call({info, Properties}, _From, #ems_media{hls_state = HLS} = Media) ->
+  Media1 = case HLS of
+    undefined ->
+      case lists:member(hls_playlist, Properties) of
+        true -> Media#ems_media{hls_state = hls_media:init(Media)};
+        false -> Media
+      end;
+    _ -> Media
+  end,  
+  {reply, reply_with_info(Media1, Properties), Media1, ?TIMEOUT};
 
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -767,6 +783,8 @@ storage_properties(#ems_media{format = Format, storage = Storage}) -> lists:ukey
 
 reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, last_dts_at = LastDTSAt, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
+    (hls_playlist, Props) -> [{hls_playlist, hls_media:playlist(Media#ems_media.hls_state)}|Props];
+    ({hls_segment, Num}, Props) -> [{{hls_segment, Num}, hls_media:segment(Media#ems_media.hls_state, Num)}|Props];
     (type, Props)         -> [{type,Type}|Props];
     (url, Props)          -> [{url,URL}|Props];
     (last_dts, Props)     -> [{last_dts,LastDTS}|Props];

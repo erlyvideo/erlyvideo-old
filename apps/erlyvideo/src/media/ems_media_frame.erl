@@ -48,6 +48,7 @@ start_on_keyframe/2,
 store_frame/2,
 save_config/2,
 send_audio_to_starting_clients/2,
+accumulate_hls_data/2,
 send_frame_to_clients/2,
 store_last_gop/2,
 dump_frame/2
@@ -100,6 +101,7 @@ frame_filters(#ems_media{options = Options} = _Media) ->
     _ -> [send_audio_to_starting_clients]
   end ++
   [
+    accumulate_hls_data,
     send_frame_to_clients
   ].
 
@@ -296,6 +298,14 @@ send_audio_to_starting_clients(#video_frame{content = audio} = Frame, #ems_media
 
 send_audio_to_starting_clients(Frame, Media) ->
   {reply, Frame, Media}.
+
+
+accumulate_hls_data(#video_frame{} = Frame, #ems_media{hls_state = undefined} = Media) ->
+  {reply, Frame, Media};
+
+accumulate_hls_data(#video_frame{} = Frame, #ems_media{hls_state = State} = Media) ->
+  State1 = hls_media:accumulate(Frame, State),
+  {reply, Frame, Media#ems_media{hls_state = State1}}.
 
 
 send_frame_to_clients(#video_frame{content = Content} = Frame, #ems_media{clients = Clients} = Media) ->
