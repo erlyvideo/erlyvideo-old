@@ -261,7 +261,7 @@ find_frame_in_file(Media, Timestamp, SeekMode) ->
 find_frame_in_file(Media, Timestamp, PrevTS, PrevOffset, Offset, SeekMode) ->
   case read_frame(Media, Offset) of
     
-    #video_frame{dts = DTS} when DTS > Timestamp andalso SeekMode == frame -> 
+    #video_frame{dts = DTS} when DTS >= Timestamp andalso SeekMode == frame -> 
       {{audio_config, Offset, DTS}, DTS};
     #video_frame{flavor = keyframe, dts = DTS} when DTS > Timestamp andalso SeekMode == keyframe -> 
       {{audio_config, PrevOffset, PrevTS}, PrevTS};
