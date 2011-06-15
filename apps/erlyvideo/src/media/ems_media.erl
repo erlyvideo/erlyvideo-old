@@ -563,7 +563,8 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
 handle_call({info, Properties}, _From, #ems_media{hls_state = HLS} = Media) ->
   Media1 = case HLS of
     undefined ->
-      case lists:member(hls_playlist, Properties) of
+      HLSRequested = lists:member(hls_playlist, Properties) or (length([1 || {hls_segment, _} <- Properties]) > 0),
+      case HLSRequested of
         true -> Media#ems_media{hls_state = hls_media:init(Media)};
         false -> Media
       end;
