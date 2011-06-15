@@ -100,6 +100,16 @@ public function onMetaData(object:Object) : void
   
 }
 
+public function unregister() : void
+{
+  nc.call("unregister", null, registerNumber.text);
+}
+
+public function bye() : void
+{
+  nc.call("bye", null);
+}
+
 public function register() : void
 {
   var r:Responder = new Responder(function(reply:Boolean):void {

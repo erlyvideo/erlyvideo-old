@@ -16,6 +16,10 @@
   	    <mx:Button click="call()" label="{callLabel}" enabled="{callEnabled}" />
   	    
   	  </mx:HBox>
+  	  <mx:HBox>
+  	    <mx:Button click="bye()" label="Bye"/>
+  	    <mx:Button click="unregister()" label="Unregister"/>
+  	  </mx:HBox>
   	</mx:VBox>
 	</mx:Panel>
 </mx:Application>
