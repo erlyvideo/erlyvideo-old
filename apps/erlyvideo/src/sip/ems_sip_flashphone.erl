@@ -593,8 +593,3 @@ response(#sip_cb_state{response = Response}) ->
 
 origin(#sip_cb_state{origin = Origin}) ->
   Origin.
-
-a2l(A) when is_binary(A) ->
-  binary_to_list(A);
-a2l(A) ->
-  A.
