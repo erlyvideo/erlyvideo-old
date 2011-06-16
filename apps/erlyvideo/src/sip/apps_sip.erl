@@ -31,7 +31,8 @@
 -export([
          register/2,
          unregister/2,
-         ring/2
+         ring/2,
+         bye/2
         ]).
 
 -export([
@@ -59,7 +60,7 @@ unregister(State, #rtmp_funcall{args = [_, Number]}) ->
   State.
 
 ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
-  case ems_sip_flashphone:call(Number, []) of
+  case ems_sip_flashphone:call(Number, [], self()) of
     {ok, _Pid} ->
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->
@@ -67,6 +68,10 @@ ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
   end,
   State.
 
+bye(State, #rtmp_funcall{args = Args}) ->
+  ?DBG("BYE (~p): ~p", [self(), Args]),
+  ems_sip_flashphone:bye(self()),
+  State.
 
 'WAIT_FOR_DATA'({sip_call, OutStream, InStream}, #rtmp_session{socket = Socket} = State) ->
   % io:format("NetConnection.Message ~s~n", [Message]),
