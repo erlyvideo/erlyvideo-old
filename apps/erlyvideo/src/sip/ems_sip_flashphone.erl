@@ -174,6 +174,12 @@ handle_info({bye}, _StateName,
   %% STOP HERE
   {stop, normal, State};
 
+handle_info({declined, _Response}, _StateName,
+            #state{rtp = RTP} = State) ->
+  ?DBG("Declined", []),
+  rtp_server:stop(RTP),
+  {stop, normal, State};
+
 handle_info({send_create}, StateName,
             #state{tu = TU} = State) ->
   esip_transaction_user:async_event(TU, {dialog_created, self()}),

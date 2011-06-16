@@ -53,6 +53,10 @@ play(RTP, Fun) ->
   ?DBG("Play: ~p, ~p", [RTP, Fun]),
   gen_server:call(RTP, {play, Fun}).
 
+stop(RTP) ->
+  ?DBG("Stop: ~p", [RTP]),
+  gen_server:call(RTP, {stop}).
+
 media_info_loc(RTP) ->
   gen_server:call(RTP, media_info_loc).
 
@@ -171,6 +175,9 @@ handle_call({play, Fun}, _From, #rtp_server{} = Server) ->
   Res = Fun(),
   ?DBG("Play Fun: ~p", [Res]),
   {reply, ok, Server};
+
+handle_call({stop}, _From, #rtp_server{} = Server) ->
+  {stop, normal, ok, Server};
 
 handle_call(media_info_loc, _From, #rtp_server{media_info_loc = MediaInfo} = Server) ->
   ?DBG("RTP State:~n~p", [Server]),
