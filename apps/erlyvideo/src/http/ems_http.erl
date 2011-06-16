@@ -56,6 +56,7 @@ handle_http(Req) ->
   Path = Req:resource([urldecode]),
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
   Headers = Req:get(headers),
+  % ?D({http, Method, Path, Headers}),
   case ems:get_var(http_admin_password,Host,[]) of
     [] ->
       try_handler(Chain, Host, Method, Path, Req);

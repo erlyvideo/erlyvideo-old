@@ -37,7 +37,7 @@
 -export([start_link/2]).
 
 % internale
--export([accept/3, request/2, headers/3, headers/4, body/2]).
+-export([accept/3, request/2, headers/3, headers/4, body/2, send/2]).
 
 % macros
 -define(MAX_HEADERS_COUNT, 100).
@@ -96,7 +96,12 @@ request(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req) ->
 			?DEBUG(debug, "received full headers of a new HTTP packet", []),
 			?MODULE:headers(C, Req#req{vsn = Version, method = Method, uri = Path, connection = close}, []);
 		{http, Sock, {http_error, Error}} ->
-		  exit({http_error, Error})
+		  exit({http_error, Error});
+		{tcp_closed, Sock} ->
+		  ok;
+		Else ->
+		  io:format("Message: ~p~n", [Else]),
+		  request(C, Req)
 	after RecvTimeout ->
 		?DEBUG(debug, "request timeout, sending error", []),
 		send(Sock, ?REQUEST_TIMEOUT_408)
@@ -110,6 +115,8 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 	receive
 		{http, Sock, {http_header, _, 'Content-Length', _, Val}} ->
 			?MODULE:headers(C, Req#req{content_length = list_to_integer(Val)}, [{'Content-Length', list_to_integer(Val)}|H], HeaderCount + 1);
+		{http, Sock, {http_header, _, 'Connection', _, "Keep-Alive"}} ->
+			?MODULE:headers(C, Req#req{connection = keepalive}, [{'Connection', "Keep-Alive"}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, 'Host', _, Val}} ->
 		  Host = list_to_binary(hd(string:tokens(Val, ":"))),
 			?MODULE:headers(C, Req#req{host = Host}, [{'Host', Host}|H], HeaderCount + 1);
@@ -119,14 +126,16 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 		  erlang:exit({http_error, Error});
 		{http, Sock, http_eoh} ->
 			case ?MODULE:body(C, Req#req{headers = lists:reverse(H), socket = Sock}) of
-			  #c{} = C1 ->
-			    inet:setopts(Sock, [{active,once},{packet,http}]),
-			    ?MODULE:request(C1, Req);
+			  #c{} = C1 when Req#req.connection == keepalive ->
+          % io:format("keepalive~n"),
+			    inet:setopts(Sock, [{active,false},{packet,http}]),
+          ?MODULE:request(C1, Req);
 			  _ ->
 			    exit(normal)
 			end
 	after RecvTimeout ->
 		?DEBUG(debug, "headers timeout, sending error", []),
+		io:format("Headers timeout ~p ~n", [H]),
 		send(Sock, ?REQUEST_TIMEOUT_408)
 	end;
 headers(_C, _Req, _H, _HeaderCount) ->
@@ -177,12 +186,10 @@ handle_get(C, #req{} = Req) ->
 	case Req#req.uri of
 		{abs_path, Path} ->
 			{F, Args} = split_at_q_mark(Path, []),
-			call_mfa(C, Req#req{args = Args, uri = {abs_path, F}}),
-			C;
+			call_mfa(C, Req#req{args = Args, uri = {abs_path, F}});
 		{absoluteURI, http, _Host, _, Path} ->
 			{F, Args} = split_at_q_mark(Path, []),
-			call_mfa(C, Req#req{args = Args, uri = {absoluteURI, F}}),
-			C;
+			call_mfa(C, Req#req{args = Args, uri = {absoluteURI, F}});
 		{absoluteURI, _Other_method, _Host, _, _Path} ->
 			send(C#c.sock, ?NOT_IMPLEMENTED_501),
 			close;
@@ -198,11 +205,9 @@ handle_get(C, #req{} = Req) ->
 handle_post(C, #req{} = Req) ->
 	case Req#req.uri of
 		{abs_path, _Path} ->
-			call_mfa(C, Req),
-			C;
+			call_mfa(C, Req);
 		{absoluteURI, http, _Host, _, _Path} ->
-			call_mfa(C, Req),
-			C;
+			call_mfa(C, Req);
 		{absoluteURI, _Other_method, _Host, _, _Path} ->
 			send(C#c.sock, ?NOT_IMPLEMENTED_501),
 			close;
@@ -215,50 +220,56 @@ handle_post(C, #req{} = Req) ->
 	end.
 
 % Description: Main dispatcher
-call_mfa(#c{sock = Sock, loop = Loop} = _C, Request) ->
+call_mfa(#c{sock = Sock, loop = Loop} = C, Request) ->
 	% spawn listening process for Request messages [only used to support stream requests]
 	% create request
-	inet:setopts(Sock, [{active, once}]),
+	inet:setopts(Sock, [{active, once},{sndbuf,1048576}]),
 	Req = misultin_req:new(Request),
 	% call loop
 	try Loop(Req) of
 	  {HttpCode, Headers0, Body} ->
 			% received normal response
 			?DEBUG(debug, "sending response", []),
-			% flatten body [optimization since needed for content length]
-			BodyBinary = convert_to_binary(Body),
-			% provide response
-			Headers = add_content_length(Headers0, BodyBinary),
+			Headers1 = add_content_length(Headers0, Body),
+			Headers = add_connection(Headers1),
 			Req:stream(head, HttpCode, Headers),
-			Req:stream(BodyBinary);
+			Req:stream(Body),
+			case proplists:get_value('Connection', Headers) of
+			  "close" -> close;
+			  _ -> C
+		  end;
 		{raw, Body} ->
-			send(Sock, Body);
+			send(Sock, Body),
+			close;
 		_ ->
 			% loop exited normally, kill listening socket
-			ok
+			close
 	catch	
+	  exit:connection_closed ->
+	    exit(normal); 
 		_Class:_Error ->
 			?DEBUG(error, "worker crash: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
       error_logger:error_msg("FAIL ~p ~p~n~p:~p:~p", [Req:get(method), Req:get(uri), _Class, _Error, erlang:get_stacktrace()]),
-      send(Sock, [?INTERNAL_SERVER_ERROR_500, io_lib:format("~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()])])
+      send(Sock, [?INTERNAL_SERVER_ERROR_500, io_lib:format("~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()])]),
+      close
 	end.
 
 % Description: Ensure Body is binary.
-convert_to_binary(Body) when is_list(Body) ->
-	list_to_binary(lists:flatten(Body));
-convert_to_binary(Body) when is_binary(Body) ->
-	Body;
-convert_to_binary(Body) when is_atom(Body) ->
-	list_to_binary(atom_to_list(Body)).
 
 % Description: Add content length
 add_content_length(Headers, Body) ->
 	case proplists:get_value('Content-Length', Headers) of
 		undefined ->
-			[{'Content-Length', size(Body)}|Headers];
+			[{'Content-Length', iolist_size(Body)}|Headers];
 		false ->
 			Headers
 	end.
+
+add_connection(Headers) ->
+  case proplists:get_value('Connection', Headers) of
+    undefined -> [{'Connection', "Keep-Alive"}|Headers];
+    _ -> Headers
+  end.
 
 % Description: Encode headers
 
@@ -272,7 +283,7 @@ split_at_q_mark([], Acc) ->
 
 % TCP send
 send(Sock, Data) ->
-	case gen_tcp:send(Sock, Data) of
+  case gen_tcp:send(Sock, Data) of
 		ok ->
 			ok;
 		{error, _Reason} ->
