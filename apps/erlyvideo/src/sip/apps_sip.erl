@@ -27,9 +27,20 @@
 -include("../rtmp/rtmp_session.hrl").
 -include("../log.hrl").
 
--export([register/2, ring/2, 'WAIT_FOR_DATA'/2]).
+%% RTMP callbacks
+-export([
+         register/2,
+         unregister/2,
+         ring/2
+        ]).
 
--export([sip_call/3]).
+-export([
+         sip_call/3
+        ]).
+
+-export([
+         'WAIT_FOR_DATA'/2
+        ]).
 
 sip_call(RTMP, OutStream, InStream) when is_pid(RTMP) andalso is_binary(OutStream) andalso is_binary(InStream) ->
   gen_fsm:send_event(RTMP, {sip_call, OutStream, InStream}).
@@ -40,6 +51,11 @@ register(State, #rtmp_funcall{args = [_, Number, Password] = Args} = AMF) ->
     {ok, _Ref} -> rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     _Else -> ?D({failed_register,_Else}), rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
   end,
+  State.
+
+unregister(State, #rtmp_funcall{args = [_, Number]}) ->
+  ?DBG("Unregister ~p: ~p", [self(), Number]),
+  ems_sip_flashphone:unregister(Number, self()),
   State.
 
 ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->

@@ -61,6 +61,7 @@
          progress/3,
          ack/2,
          register/3,
+         unregister/2,
          reregister/2,
          call/2
         ]).
@@ -208,10 +209,20 @@ cb_init(Args) ->
 %% @end
 %%--------------------------------------------------------------------
 register(Number, Password, Client) when is_pid(Client) ->
-  esip_registrator:register(a2l(Number), a2l(Password), Client, ?MODULE),
+  esip_registrator:register(Number, Password, Client, ?MODULE),
   send_reg(Number, Password).
 
+unregister(Number, Client) when is_pid(Client) ->
+  %%esip_registrator:unregister(Number, Client),
+  {ok, OrigNameS, Password} = esip_registrator:find(self()),
+  OrigName = list_to_binary(OrigNameS),
+  ?DBG("OrigName: ~p", [OrigName]),
+  send_reg(Number, Password, 0).
+
 send_reg(Number, Password) ->
+  send_reg(Number, Password, 3600).
+
+send_reg(Number, Password, Expires) ->
   FlashPhoneConfig = ems:get_var(flashphone, undefined),
   case proplists:get_value(sip, FlashPhoneConfig) of
     undefined -> ok;
@@ -244,7 +255,8 @@ send_reg(Number, Password) ->
          {from_name, FromName},
          {to, ToURI},
          {to_name, ToName},
-         {contact_name, Number}
+         {contact_name, Number},
+         {expires, Expires}
         ],
       {ok, _TUPid} = esip_transaction_sup:start_user({registration, RegUserOpts})
   end.
