@@ -75,7 +75,7 @@ dump_frames(File, Reader, Count) ->
   case file:read(File, 188) of
     {ok, <<16#47, Bin/binary>>} ->
       <<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _/binary>> = Bin,
-      io:format("TS: ~p (~p)~n", [Pid, PayloadStart]),
+      io:format("TS: ~p (~p) ~s~n", [Pid, PayloadStart, mpegts_reader:adapt_field_info(Bin)]),
       case mpegts_reader:decode_ts(Bin, Reader) of
         {ok, Reader1, undefined} ->
           dump_frames(File, Reader1, Count);
@@ -101,8 +101,11 @@ dump_frames(File, Reader, Count) ->
       {ok, Count}
   end.            
 
-dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
-  io:format("  h264(keyframe) ~p(~p)~n", [round(DTS), iolist_size(Body)]);
+% dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
+%   io:format("  h264(keyframe) ~p(~p)~n", [round(DTS), iolist_size(Body)]);
+
+dump_frame(#video_frame{flavor = config, codec = aac, dts = DTS, body = Body}) ->
+  io:format("  aac(config) ~p(~p)~n", [round(DTS), Body]);
 
 dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}) ->
   io:format("  ~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),
