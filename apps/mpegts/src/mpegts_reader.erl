@@ -598,7 +598,14 @@ handle_nal(#stream{dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   {Stream#stream{h264 = H264_1}, [Frame#video_frame{dts = DTS, pts = PTS} || Frame <- Frames] ++ ConfigFrames}.
 
 
-extract_nal(Data) -> extract_nal_erl(Data).
+extract_nal(Data) ->
+  case extract_nal1(Data) of
+    undefined -> undefined;
+    {ok, <<>>, Rest} -> extract_nal(Rest);
+    {ok, NAL, Rest} -> {ok, NAL, Rest}
+  end.
+
+extract_nal1(Data) -> extract_nal_erl(Data).
 
 extract_nal_erl(Data) ->
   find_nal_start_erl(Data).

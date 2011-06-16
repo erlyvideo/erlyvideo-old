@@ -112,7 +112,7 @@ extract_nal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
 static ErlNifFunc mpegts_reader_funcs[] =
 {
-    {"extract_nal", 1, extract_nal}
+    {"extract_nal1", 1, extract_nal}
 };
 
 ERL_NIF_INIT(mpegts_reader, mpegts_reader_funcs, NULL, reload, upgrade, unload)
