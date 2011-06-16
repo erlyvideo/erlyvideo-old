@@ -39,9 +39,9 @@
 
 
 -define(TS_PACKET, 184). % 188 - 4 bytes of header
--define(PMT_PID, 256).
+-define(PMT_PID, 4095).
 -define(AUDIO_PID, 257).
--define(VIDEO_PID, 258).
+-define(VIDEO_PID, 256).
 -define(PCR_PID, ?VIDEO_PID).
 
 
@@ -99,7 +99,10 @@ encode(Streamer, #video_frame{content = Content} = Frame) when Content == audio 
     true ->
       {Streamer3, Audio} = flush_audio(Streamer2),
       {Streamer4, Video} = flush_video(Streamer3),
-      {Streamer4, [Bin1, interleave(Audio,Video)]};
+      case Bin1 of
+        <<>> -> {Streamer4, interleave(Audio,Video)};
+        _ -> {Streamer4, [Bin1, interleave(Audio,Video)]}
+      end;
     false ->
       {Streamer2, Bin1}
   end;
@@ -466,7 +469,7 @@ enqueue_frame(#streamer{length_size = LengthSize, video_config = VideoConfig, vi
       []
   end,
   F = fun(NAL, S) ->
-    <<S/binary, 1:24, NAL/binary>>
+    <<S/binary, 1:32, NAL/binary>>
   end,
   Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS), % Need to add AU (9 NAL) for HLS
   {Streamer2, Video} = send_video(Streamer#streamer{last_dts = DTS}, Frame#video_frame{body = Packed}),
@@ -511,16 +514,17 @@ flush_video(#streamer{video_buffer = Buffer} = Streamer) ->
 
 
 interleave(Audio, Video) ->
-  A = iolist_to_binary(Audio),
-  V = iolist_to_binary(Video),
-  interleave(A, V, size(A), size(V), <<>>).
-
-interleave(<<>>, V, _, _, Accum) -> <<Accum/binary, V/binary>>;
-interleave(A, <<>>, _, _, Accum) -> <<Accum/binary, A/binary>>;
-interleave(<<Packet:188/binary, Rest/binary>> = A, V, C1, C2, Accum) when size(A)*C2 > size(V)*C1 ->
-  interleave(Rest, V, C1, C2, <<Accum/binary, Packet/binary>>);
-interleave(A, <<Packet:188/binary, Rest/binary>>, C1, C2, Accum) ->
-  interleave(A, Rest, C1, C2, <<Accum/binary, Packet/binary>>).
+  [Video, Audio].
+%   A = iolist_to_binary(Audio),
+%   V = iolist_to_binary(Video),
+%   interleave(A, V, size(A), size(V), <<>>).
+% 
+% interleave(<<>>, V, _, _, Accum) -> <<Accum/binary, V/binary>>;
+% interleave(A, <<>>, _, _, Accum) -> <<Accum/binary, A/binary>>;
+% interleave(<<Packet:188/binary, Rest/binary>> = A, V, C1, C2, Accum) when size(A)*C2 > size(V)*C1 ->
+%   interleave(Rest, V, C1, C2, <<Accum/binary, Packet/binary>>);
+% interleave(A, <<Packet:188/binary, Rest/binary>>, C1, C2, Accum) ->
+%   interleave(A, Rest, C1, C2, <<Accum/binary, Packet/binary>>).
 
 
 video_config(#streamer{video_config = V}) -> V.
