@@ -143,10 +143,10 @@ adaptation_field(Data, _Pid) when is_binary(Data) ->
 adaptation_field({Timestamp, Data}, Pid) ->
   adaptation_field({Timestamp, 0, Data}, Pid);
   
-adaptation_field({Timestamp, _Keyframe, Data}, Pid) ->
+adaptation_field({Timestamp, Keyframe, Data}, Pid) ->
   % ?D({"PCR", PCR}),
   Discontinuity = 0,
-  RandomAccess = 0,
+  RandomAccess = Keyframe,
   Priority = 0,
   {HasPCR, PCR} = case Pid of
     ?PCR_PID ->
@@ -370,8 +370,8 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
     keyframe -> 1;
     _ -> 0
   end,
-  % ?D({mux,h264,round(DTS)}),
-  mux({PTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
+  % ?D({mux,h264,round(DTS), PTS}),
+  mux({DTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec = Codec, dts = DTS, body = Body}) ->
   Marker = 2#10,
