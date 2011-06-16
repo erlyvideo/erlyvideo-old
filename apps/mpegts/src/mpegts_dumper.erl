@@ -34,10 +34,39 @@
 %   {Reader1, length(Frames)}.
 
 dump_pes(Reader, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES) ->
+  % PesStart = case Body of
+  %   <<PesStart_:20/binary, _/binary>> -> PesStart_;
+  %   _ -> Body
+  % end,
+  % io:format("PES(~p) ~p, ~p ~p~n", [Codec, round(DTS), size(Body), PesStart]),
   io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
+  case Codec of
+    h264 -> dump_avc(Body);
+    _ -> ok
+  end,
   {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
   [dump_frame(Frame) || Frame <- Frames],
   {Reader1, length(Frames)}.
+
+dump_avc(Body) ->
+  dump_avc(Body, []).
+
+dump_avc(Body, Acc) ->
+  case mpegts_reader:extract_nal(Body) of
+    undefined -> 
+      NALS = lists:reverse(Acc),
+      NextNal = case Body of
+        <<1:24, Rest/binary>> -> Rest;
+        <<1:32, Rest/binary>> -> Rest;
+        _ -> <<>>
+      end,
+      Dump = "  " ++ [io_lib:format("NAL(~p) ~p, ", [h264:type(NAL), size(NAL)]) || NAL <- NALS] ++ 
+      io_lib:format("left: ~p (~p)~n", [size(NextNal), case NextNal of <<>> -> empty ; _ -> h264:type(NextNal) end]),
+      io:format(Dump);
+    {ok, NAL, Rest} ->
+      dump_avc(Rest, [NAL|Acc])
+  end.
+    
 
 dump_frames(_, _, Count) when Count > 30000 ->
   {ok, Count};
@@ -45,6 +74,8 @@ dump_frames(_, _, Count) when Count > 30000 ->
 dump_frames(File, Reader, Count) ->
   case file:read(File, 188) of
     {ok, <<16#47, Bin/binary>>} ->
+      <<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _/binary>> = Bin,
+      io:format("TS: ~p (~p) ~s~n", [Pid, PayloadStart, mpegts_reader:adapt_field_info(Bin)]),
       case mpegts_reader:decode_ts(Bin, Reader) of
         {ok, Reader1, undefined} ->
           dump_frames(File, Reader1, Count);
@@ -70,8 +101,11 @@ dump_frames(File, Reader, Count) ->
       {ok, Count}
   end.            
 
-dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
-  io:format("  h264(keyframe) ~p(~p)~n", [round(DTS), iolist_size(Body)]);
+% dump_frame(#video_frame{flavor = keyframe, codec = h264, dts = DTS, body = Body}) ->
+%   io:format("  h264(keyframe) ~p(~p)~n", [round(DTS), iolist_size(Body)]);
+
+dump_frame(#video_frame{flavor = config, codec = aac, dts = DTS, body = Body}) ->
+  io:format("  aac(config) ~p(~p)~n", [round(DTS), Body]);
 
 dump_frame(#video_frame{flavor = Flavor, codec = Codec, dts = DTS, body = Body}) ->
   io:format("  ~p(~p): ~p (~p)~n", [Codec, Flavor, round(DTS), iolist_size(Body)]),

@@ -40,7 +40,7 @@
 
 
 
--export([extract_nal/1]).
+-export([extract_nal/1, adapt_field_info/1]).
 
 -export([start_link/1, set_socket/2]).
 -export([init/1, handle_info/2, handle_call/3, handle_cast/2, code_change/3, terminate/2]).
@@ -294,6 +294,15 @@ extract_pcr(<<_Discontinuity:1, _RandomAccess:1, _Priority:1, PCR:1, _OPCR:1, _S
 extract_pcr(_) ->
   undefined.
 
+adapt_field_info(<<_:18, 1:1, _:5, Length, Field:Length/binary, _/binary>>) when Length > 0 ->
+  <<_Disc:1, RandomAccess:1, _/bitstring>> = Field,
+  PCR = case extract_pcr(Field) of
+    undefined -> "";
+    PCR_ -> io_lib:format("~f", [PCR_])
+  end,
+  io_lib:format("~p ~s", [RandomAccess, PCR]);
+
+adapt_field_info(_) -> "".
 
 
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
@@ -598,7 +607,14 @@ handle_nal(#stream{dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
   {Stream#stream{h264 = H264_1}, [Frame#video_frame{dts = DTS, pts = PTS} || Frame <- Frames] ++ ConfigFrames}.
 
 
-extract_nal(Data) -> extract_nal_erl(Data).
+extract_nal(Data) ->
+  case extract_nal1(Data) of
+    undefined -> undefined;
+    {ok, <<>>, Rest} -> extract_nal(Rest);
+    {ok, NAL, Rest} -> {ok, NAL, Rest}
+  end.
+
+extract_nal1(Data) -> extract_nal_erl(Data).
 
 extract_nal_erl(Data) ->
   find_nal_start_erl(Data).

@@ -80,11 +80,7 @@ stream(close) ->
 stream(head) ->
 	stream(head, 200, []);
 stream(Template) ->
-  case gen_tcp:send(Req#req.socket, Template) of
-    ok -> ok;
-    {error, closed} -> exit(normal);
-    {error, Reason} -> exit(Reason)
-  end.
+  misultin_socket:send(Req#req.socket, Template).
   
 stream(head, Headers) ->
 	stream(head, 200, Headers);
@@ -94,7 +90,7 @@ stream(Template, Vars) when is_list(Template) ->
 stream(head, HttpCode, Headers) ->
   Enc_headers = enc_headers(Headers),
 	Resp = ["HTTP/1.1 ", integer_to_list(HttpCode), " OK\r\n", Enc_headers, <<"\r\n">>],
-  gen_tcp:send(Req#req.socket, Resp).
+  misultin_socket:send(Req#req.socket, Resp).
 
 
 enc_headers([{Tag, Val}|T]) when is_atom(Tag) ->

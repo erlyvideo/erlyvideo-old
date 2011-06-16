@@ -572,8 +572,17 @@ handle_call({info, Properties}, _From, #ems_media{hls_state = HLS} = Media) ->
   end,  
   {reply, reply_with_info(Media1, Properties), Media1, ?TIMEOUT};
 
-handle_call(Request, _From, State) ->
-  {stop, {unknown_call, Request}, State}.
+handle_call(Request, _From, #ems_media{module = M} = Media) ->
+  case M:handle_control(Request, Media) of
+    {noreply, Media1} ->
+      {reply, {error, {unknown_call, Request}}, Media1, ?TIMEOUT};
+    {reply, Reply, Media1} ->
+      {reply, Reply, Media1, ?TIMEOUT};
+    {stop, Reason, Reply, Media1} ->
+      {stop, Reason, Reply, Media1};
+    {stop, Reason, Media1} ->
+      {stop, Reason, Media1}
+  end.
 
 
 %%-------------------------------------------------------------------------
