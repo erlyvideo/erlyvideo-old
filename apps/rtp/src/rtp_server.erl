@@ -34,6 +34,7 @@
 -export([start_link/1]).
 -export([
          play/2,
+         stop/1,
          media_info_loc/1,
          listen_ports/3,
          add_stream/3

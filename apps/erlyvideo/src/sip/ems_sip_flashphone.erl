@@ -189,7 +189,12 @@ handle_info(_Info, StateName, State) ->
   ?DBG("Unhandled info: ~p", [_Info]),
   {next_state, StateName, State}.
 
-terminate(_Reason, _StateName, _State) ->
+terminate(_Reason, _StateName,
+          #state{rtp = RTP} = _State) ->
+  if is_pid(RTP) ->
+      rtp_server:stop(RTP);
+     true -> pass
+  end,
   ok.
 
 code_change(_OldVsn, StateName, State, _Extra) ->
