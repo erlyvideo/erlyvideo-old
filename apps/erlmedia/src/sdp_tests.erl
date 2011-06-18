@@ -576,6 +576,27 @@ a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdelta
 ">>.
 
 
+
+treart_sdp() ->
+<<"v=0
+o=- 1 2  IN IP4 192.168.0.175
+c=IN IP4 0.0.0.0/127
+s=RTSP Session
+i=Triart 1.0 Streaming Server
+u=www.url.ru
+e=admin@url.ru
+t=0 0
+a=range:npt=0.000000-
+a=control:rtsp://192.168.0.175:5555/
+m=video 0 RTP/AVP 33
+a=rtpmap:33 MP2T/90000
+a=fmtp:33 profile-level-id=1 config=
+c=IN IP4 0.0.0.0/127
+a=control:trackID=0
+">>.
+
+
+
 encoder_test() ->
   Session = #sdp_session{version = 0,
                 originator = #sdp_o{username = <<"-">>,

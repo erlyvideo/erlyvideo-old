@@ -251,8 +251,12 @@ add_configs(#rtp_state{sent_audio_config = false} = Socket, [#video_frame{codec 
   add_configs(Socket#rtp_state{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
 
 add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
-  Config = (video_frame:config_frame(stream(Socket, video)))#video_frame{dts = DTS, pts = DTS},
-  add_configs(Socket, Frames, [Frame,Config|Acc]);
+  case video_frame:config_frame(stream(Socket, video)) of
+    #video_frame{} = Config ->
+      add_configs(Socket, Frames, [Frame,Config#video_frame{dts = DTS, pts = DTS}|Acc]);
+    undefined ->
+      add_configs(Socket, Frames, [Frame|Acc])
+  end;
 
 add_configs(Socket, [], Acc) ->
   {Socket, lists:reverse(Acc)};

@@ -83,7 +83,8 @@ sdp_codecs() ->
   {ilbc, "iLBC"},
   {g728, "G728"},
   {dvi4, "DVI4"},
-  {telephone, "telephone-event"}
+  {telephone, "telephone-event"},
+  {mpegts, "MP2T"}
   ].
 
 parse_sdp(SDP) ->
