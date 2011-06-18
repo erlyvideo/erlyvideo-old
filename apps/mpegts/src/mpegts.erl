@@ -373,6 +373,9 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
   % ?D({mux,h264,round(DTS), PTS}),
   mux({DTS, Keyframe, PES}, Streamer, ?VIDEO_PID).
 
+send_audio(#streamer{} = Streamer, #video_frame{codec = empty}) ->
+  {Streamer, <<>>};
+
 send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec = Codec, dts = DTS, body = Body}) ->
   Marker = 2#10,
   Scrambling = 0,
