@@ -41,6 +41,7 @@
 -include("rtsp.hrl").
 
 -export([handle_call/3, sync_rtp/2, handle_announce_request/4, handle_receive_setup/4]).
+-export([dump_io/2]).
 
 
 dump_io(#rtsp_socket{dump_traffic = false}, _) -> ok;

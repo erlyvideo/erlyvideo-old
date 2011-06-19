@@ -46,7 +46,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([read/2, connect/3, options/2, describe/2, setup/3, play/2]).
+-export([read/2, connect/3, options/2, describe/2, setup/3, play/2, teardown/1]).
 
 
 -export([handle_sdp/3, reply/3, reply/4, save_media_info/2, generate_session/0]).
@@ -98,6 +98,9 @@ connect(RTSP, URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 10000)*2,
   gen_server:call(RTSP, {connect, URL, Options}, Timeout).
 
+teardown(RTSP) ->
+  gen_server:call(RTSP, teardown).
+
 start_link(Callback) ->
   gen_server:start_link(?MODULE, [Callback], []).
 
@@ -108,6 +111,7 @@ set_socket(Pid, Socket) when is_pid(Pid), is_port(Socket) ->
 
 
 init([Callback]) ->
+  process_flag(trap_exit, true),
   {ok, #rtsp_socket{callback = Callback, timeout = ?DEFAULT_TIMEOUT}}.
 
 
@@ -137,8 +141,14 @@ handle_call({request, _Request} = Call, From, RTSP) ->
 handle_call({request, setup, _Num} = Call, From, RTSP) ->
   rtsp_inbound:handle_call(Call, From, RTSP);
 
+handle_call(teardown, _From, RTSP) ->
+  send_teardown(RTSP),
+  {stop, normal, ok, RTSP};
+
 handle_call(Request, _From, #rtsp_socket{} = RTSP) ->
   {stop, {unknown_call, Request}, RTSP}.
+
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -209,6 +219,9 @@ handle_info({ems_stream,_Num,burst_start}, #rtsp_socket{} = Socket) ->
 
 handle_info({ems_stream,_Num,burst_stop}, #rtsp_socket{} = Socket) ->
   {noreply, Socket};
+
+handle_info({'EXIT', _, _}, RTSP) ->
+  {noreply, RTSP};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
   {stop, {uknown_message, Message}, Socket}.
@@ -446,6 +459,17 @@ append_session(#rtsp_socket{session = Session, timeout = Timeout} = Socket, Head
 
 
 
+send_teardown(#rtsp_socket{socket = undefined}) ->
+  ?D({warning, teardown,"on closed socket"}),
+  ok;
+
+send_teardown(#rtsp_socket{socket = Socket, url = URL, auth = Auth, seq = Seq} = RTSP) ->
+  Call = io_lib:format("TEARDOWN ~s RTSP/1.0\r\nCSeq: ~p\r\nAccept: application/sdp\r\n"++Auth++"\r\n", [URL, Seq+1]),
+  gen_tcp:send(Socket, Call),
+  rtsp_inbound:dump_io(RTSP, Call),
+  gen_tcp:close(Socket).
+
+
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
 %% @doc  Callback executed on server shutdown. It is only invoked if
@@ -454,7 +478,8 @@ append_session(#rtsp_socket{session = Session, timeout = Timeout} = Socket, Head
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, RTSP) ->
+  send_teardown(RTSP),
   ok.
 
 %%-------------------------------------------------------------------------
