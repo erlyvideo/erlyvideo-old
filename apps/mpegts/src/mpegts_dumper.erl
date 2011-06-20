@@ -27,6 +27,8 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("mpegts/include/mpegts.hrl").
 
+-define(D(X), io:format("~p~n", [X])).
+
 -compile(export_all).
 
 % dump_pes(Reader, PES) ->
@@ -39,13 +41,13 @@ dump_pes(Reader, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES) ->
   %   _ -> Body
   % end,
   % io:format("PES(~p) ~p, ~p ~p~n", [Codec, round(DTS), size(Body), PesStart]),
-  io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
-  case Codec of
-    h264 -> dump_avc(Body);
-    _ -> ok
-  end,
+  % io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
+  % case Codec of
+  %   h264 -> dump_avc(Body);
+  %   _ -> ok
+  % end,
   {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
-  [dump_frame(Frame) || Frame <- Frames],
+  % [dump_frame(Frame) || Frame <- Frames],
   {Reader1, length(Frames)}.
 
 dump_avc(Body) ->
@@ -68,21 +70,36 @@ dump_avc(Body, Acc) ->
   end.
     
 
-dump_frames(_, _, Count) when Count > 30000 ->
-  {ok, Count};
+% dump_frames(_, _, Count) when Count > 30000 ->
+%   {ok, Count};
 
 dump_frames(File, Reader, Count) ->
-  case file:read(File, 188) of
+  put(start_time, erlang:now()),
+  dump_frames(File, 0, Reader, Count).
+
+dump_frames(File, Position, Reader, Count) ->
+  PrevIOCount = get(prev_io_count),
+  if
+    Count rem 1000 == 0 andalso Count > 0 andalso Count =/= PrevIOCount -> 
+      put(prev_io_count, Count),
+      DeltaTime = timer:now_diff(erlang:now(), get(start_time)) div 1000,
+      ?D({Count, DeltaTime, Count / DeltaTime, Position div (DeltaTime*1000)});
+    true -> ok
+  end,
+  case file:pread(File, Position, 188) of
     {ok, <<16#47, Bin/binary>>} ->
-      <<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _/binary>> = Bin,
-      io:format("TS: ~p (~p) ~s~n", [Pid, PayloadStart, mpegts_reader:adapt_field_info(Bin)]),
+      % <<_Error:1, PayloadStart:1, _TransportPriority:1, Pid:13, _/binary>> = Bin,
+      % io:format("TS: ~p (~p) ~s~n", [Pid, PayloadStart, mpegts_reader:adapt_field_info(Bin)]),
       case mpegts_reader:decode_ts(Bin, Reader) of
         {ok, Reader1, undefined} ->
-          dump_frames(File, Reader1, Count);
+          dump_frames(File, Position+188, Reader1, Count);
         {ok, Reader1, PES} ->
           {Reader2, Cnt} = dump_pes(Reader1, PES),
-          dump_frames(File, Reader2, Count + Cnt)
+          dump_frames(File, Position+188, Reader2, Count + Cnt)
       end;
+    {ok, <<_/binary>>} ->
+      % ?D(desync),
+      dump_frames(File, Position + 1, Reader, Count);
     eof ->
       {ok, Reader1, PES1} = mpegts_reader:decode_ts({eof, h264}, Reader),
       Reader2 = case PES1 of
