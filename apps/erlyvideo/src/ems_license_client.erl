@@ -59,7 +59,12 @@ append_current_version(Commands) ->
     Name = proplists:get_value(name, Project),
     case application:get_key(Name, vsn) of
       {ok, Version} ->
-        {project, [{current_version, list_to_binary(Version)}|Project]};
+        case is_binary(Version) of
+ 	  true ->
+            {project, [{current_version, list_to_binary(Version)}|Project]};
+          false -> 
+            {project, [{current_version, Version}|Project]}
+         end;
       undefined ->
         {project, Project}
     end  

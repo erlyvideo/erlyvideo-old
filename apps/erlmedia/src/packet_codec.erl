@@ -47,8 +47,8 @@ parse(ready, <<"RTSP/1.0 ", Response/binary>> = Data) ->
 parse(ready, <<"SIP/2.0 ", Response/binary>> = Data) ->
   case erlang:decode_packet(line, Response, []) of
     {ok, Line, Rest} ->
-      {ok, Re} = re:compile("(\\d+) ([^\\r]+)"),
-      {match, [_, Code, Message]} = re:run(Line, Re, [{capture, all, binary}]),
+      {ok, Re} = re:compile("(\\d+) ([^\\r]+)?"),
+      {match, [Code, Message]} = re:run(Line, Re, [{capture, [1, 2], binary}]),
       {ok, {sip_response, erlang:list_to_integer(binary_to_list(Code)), Message}, Rest};
     _ ->
       {more, ready, Data}
@@ -177,7 +177,7 @@ decode_headers(Data, Headers, BodyLength) ->
 % <<"RTP/AVP/TCP;unicast;mode=receive;interleaved=2-3">>
 parse_transport_header(Header) ->
   Fields = lists:foldl(fun
-    ("interleaved="++Interleaved, Opts) -> 
+    ("interleaved="++Interleaved, Opts) ->
       [Chan0, Chan1] = string:tokens(Interleaved, "-"),
       [{interleaved, {list_to_integer(Chan0), list_to_integer(Chan1)}}|Opts];
     ("RTP/AVP/TCP", Opts) -> [{proto, tcp}|Opts];
@@ -216,8 +216,8 @@ parse_rtp_info_header(String) when is_list(String) ->
     {Key, Value}
   end,
   [[F(S1) || S1 <- string:tokens(S, ";")] || S <- string:tokens(String, ",")].
-  
-  
+
+
 
 %%----------------------------------------------------------------------
 %% @spec ({rtcp, Channel::integer(), Bin::binary()}) -> Data::binary()
@@ -280,11 +280,11 @@ parse_tcp_transport_header_test() ->
                  parse_transport_header(<<"RTP/AVP/TCP;unicast;mode=receive;interleaved=2-3">>)).
 
 parse_udp_transport_header_test() ->
-  ?assertEqual([{proto,udp},{unicast,true},{client_port,{42276,42277}},{server_port,{2052,2053}}], 
+  ?assertEqual([{proto,udp},{unicast,true},{client_port,{42276,42277}},{server_port,{2052,2053}}],
                 parse_transport_header(<<"RTP/AVP;unicast;client_port=42276-42277;server_port=2052-2053">>)).
 
 parse_rtp_info_test() ->
-  ?assertEqual([[{url,"rtsp://erlyvideo.org/h264/trackID=1"},{seq,60183},{rtptime,4274184387}], [{url,"rtsp://erlyvideo.org/h264/trackID=2"},{seq,51194},{rtptime,1003801948}]], 
+  ?assertEqual([[{url,"rtsp://erlyvideo.org/h264/trackID=1"},{seq,60183},{rtptime,4274184387}], [{url,"rtsp://erlyvideo.org/h264/trackID=2"},{seq,51194},{rtptime,1003801948}]],
     parse_rtp_info_header(<<"url=rtsp://erlyvideo.org/h264/trackID=1;seq=60183;rtptime=4274184387, url=rtsp://erlyvideo.org/h264/trackID=2;seq=51194;rtptime=1003801948">>)).
 
 parse_rtp_test() ->

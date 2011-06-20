@@ -34,6 +34,7 @@
 -export([start_link/1]).
 -export([
          play/2,
+         stop/1,
          media_info_loc/1,
          listen_ports/3,
          add_stream/3
@@ -52,6 +53,10 @@ start_link(Args) ->
 play(RTP, Fun) ->
   ?DBG("Play: ~p, ~p", [RTP, Fun]),
   gen_server:call(RTP, {play, Fun}).
+
+stop(RTP) ->
+  ?DBG("Stop: ~p", [RTP]),
+  gen_server:call(RTP, {stop}).
 
 media_info_loc(RTP) ->
   gen_server:call(RTP, media_info_loc).
@@ -172,6 +177,9 @@ handle_call({play, Fun}, _From, #rtp_server{} = Server) ->
   ?DBG("Play Fun: ~p", [Res]),
   {reply, ok, Server};
 
+handle_call({stop}, _From, #rtp_server{} = Server) ->
+  {stop, normal, ok, Server};
+
 handle_call(media_info_loc, _From, #rtp_server{media_info_loc = MediaInfo} = Server) ->
   ?DBG("RTP State:~n~p", [Server]),
   {reply, MediaInfo, Server};
@@ -273,17 +281,18 @@ handle_call({add_stream, Location,
                                         ]),
 
       ?DBG("RTP State: NewRTP_RMT:~n~p~nChanOpts:~n~p", [NewRTP_RMT, ChanOpts]),
-      Transport = [],
 
       %% FIXME: Store remote ports in local state
       RTP_LOC = Server#rtp_server.rtp_loc,
+      {UDPRmt, undefined} = NewRTP_RMT#rtp_state.udp,
       {UDPLoc, undefined} = RTP_LOC#rtp_state.udp,
       UDPLoc1 = UDPLoc#rtp_udp{
-                  remote_rtp_port = proplists:get_value(remote_rtp_port, Transport),
-                  remote_rtcp_port = proplists:get_value(remote_rtcp_port, Transport),
-                  remote_addr = proplists:get_value(remote_addr, Transport)
+                  remote_rtp_port = UDPRmt#rtp_udp.remote_rtp_port,
+                  remote_rtcp_port = UDPRmt#rtp_udp.remote_rtcp_port,
+                  remote_addr = UDPRmt#rtp_udp.remote_addr
                  },
       NewRTP_LOC = RTP_LOC#rtp_state{udp = {UDPLoc1, undefined}},
+      ?DBG("RTP State: NewRTP_LOC:~n~p", [NewRTP_LOC]),
 
       %% [{local_rtp_port, LPort1}, {local_rtcp_port, _LPort2}, {local_addr, _LAddr}] = Reply,
       %% StreamInfo1 = StreamInfo#stream_info{options = lists:keystore(port, 1, StreamOpts, {port, RPort1})},
