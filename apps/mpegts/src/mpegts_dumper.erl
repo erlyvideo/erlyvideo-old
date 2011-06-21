@@ -35,7 +35,7 @@
 %   {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
 %   {Reader1, length(Frames)}.
 
-dump_pes(Reader, #pes_packet{codec = Codec, dts = DTS, body = Body} = PES) ->
+dump_pes(Reader, #pes_packet{codec = _Codec, dts = _DTS, body = _Body} = PES) ->
   % PesStart = case Body of
   %   <<PesStart_:20/binary, _/binary>> -> PesStart_;
   %   _ -> Body

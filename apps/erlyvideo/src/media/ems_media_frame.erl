@@ -201,7 +201,7 @@ calculate_new_stream_shift(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta 
     undefined -> {DTS, 0};
     _ -> {LDTS, LDTS - DTS + GlueDelta}
   end,
-  ?D({"New instance of stream", LastDTS, DTS, TSDelta}),
+  ?D({"New instance of stream", Media#ems_media.name, LastDTS, DTS, TSDelta}),
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
   {reply, Frame, Media#ems_media{ts_delta = TSDelta}}; %% Lets glue new instance of stream to old one plus small glue time
 
