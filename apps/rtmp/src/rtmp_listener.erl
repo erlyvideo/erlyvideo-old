@@ -40,12 +40,12 @@ start_link(Port, Name, Callback, Args) ->
   gen_listener:start_link(Name, Port, ?MODULE, [Callback|Args]).
 
 accept(CliSocket, Args) ->
-  raw_accept(CliSocket, Args).
-  % try raw_accept(CliSocket, Args) of
-  %   Reply -> Reply
-  % catch
-  %   _Error:Reason -> {error, Reason}
-  % end.  
+  % raw_accept(CliSocket, Args).
+  try raw_accept(CliSocket, Args) of
+    Reply -> Reply
+  catch
+    _Error:Reason -> error_logger:error_msg("Error in RTMP Listener: ~p~n~p~n", [Reason, erlang:get_stacktrace()])
+  end.  
 
 raw_accept(CliSocket, [Callback|Args]) ->
   Driver = ems:get_var(rtmp_tcp, gen_tcp),
