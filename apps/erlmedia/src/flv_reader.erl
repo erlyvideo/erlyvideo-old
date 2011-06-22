@@ -25,6 +25,8 @@
 -include("../include/video_frame.hrl").
 -include("../include/media_info.hrl").
 -include("../include/flv.hrl").
+-include("../include/aac.hrl").
+-include("../include/mp3.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("log.hrl").
 
@@ -316,7 +318,23 @@ read_frame(#flv_media{metadata_offset = Offset, reader = Reader} = Media, Offset
     Else -> Else
   end;
 
-read_frame(#flv_media{reader = Reader}, Offset) ->
-  flv:read_frame(Reader, Offset).
+read_frame(#flv_media{reader = Reader} = Media, Offset) ->
+  normalize_audio_dts(Media, flv:read_frame(Reader, Offset)).
 
+normalize_audio_dts(_Media, #video_frame{codec = mp3, body = Body, dts = DTS} = Frame) ->
+  {ok, #mp3_frame{samples = Samples, sample_rate = SampleRate}, _} = mp3:read(Body),
+  Count = (DTS*SampleRate)/(Samples*1000),
+  PureDTS = round(Count)*Samples*1000 / SampleRate,
+  % ?D({mp3,Count,DTS, PureDTS}),
+  Frame#video_frame{dts = PureDTS, pts = PureDTS};
+
+normalize_audio_dts(#flv_media{audio_config = #video_frame{body = Config}}, #video_frame{codec = aac, dts = DTS} = Frame) ->
+  #aac_config{sample_rate = SampleRate, samples_per_frame = Samples} = aac:decode_config(Config),
+  Count = (DTS*SampleRate)/(Samples*1000),
+  PureDTS = round(Count)*Samples*1000 / SampleRate,
+  % ?D({aac,Count,DTS, PureDTS}),
+  Frame#video_frame{dts = PureDTS, pts = PureDTS};
+  % Frame;
+
+normalize_audio_dts(_Media, Frame) -> Frame.
 

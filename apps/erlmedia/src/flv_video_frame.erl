@@ -24,7 +24,6 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../include/video_frame.hrl").
 -include("../include/flv.hrl").
--include("../include/mp3.hrl").
 -include("log.hrl").
 -include("flv_constants.hrl").
 
@@ -110,7 +109,7 @@ tag_to_video_frame(Metadata) ->
 tag_to_video_frame(Tag, Timestamp) ->
   Frame = tag_to_video_frame(Tag),
   CTime = Frame#video_frame.pts,
-  normalize_audio_dts(Frame#video_frame{dts = Timestamp, pts = Timestamp+CTime}).
+  Frame#video_frame{dts = Timestamp, pts = Timestamp+CTime}.
 
 decode(<<FlvHeader:?FLV_TAG_HEADER_LENGTH/binary, Bin/binary>>) ->
   Tag = flv:tag_header(FlvHeader),
@@ -128,20 +127,11 @@ decode(#video_frame{content = audio} = Frame, <<>>) ->
 
 decode(#video_frame{content = audio} = Frame, Data) ->
   #flv_audio_tag{codec = Codec, rate = Rate, bitsize = Bitsize, channels = Channels, flavor = Flavor, body = Body} = flv:decode_audio_tag(Data),
-  normalize_audio_dts(Frame#video_frame{codec = Codec, sound = {Channels, Bitsize, Rate}, body= Body, flavor = Flavor});
+  Frame#video_frame{codec = Codec, sound = {Channels, Bitsize, Rate}, body= Body, flavor = Flavor};
 
 decode(#video_frame{content = metadata} = Frame, Metadata) ->
   Frame#video_frame{body = flv:decode_meta_tag(Metadata)}.
 
-
-normalize_audio_dts(#video_frame{codec = mp3, body = Body, dts = DTS} = Frame) ->
-  {ok, #mp3_frame{samples = Samples, sample_rate = SampleRate}, _} = mp3:read(Body),
-  Count = (DTS*SampleRate)/(Samples*1000),
-  PureDTS = round(Count)*Samples*1000 / SampleRate,
-  % ?D({mp3,Count,DTS, PureDTS}),
-  Frame#video_frame{dts = PureDTS, pts = PureDTS};
-
-normalize_audio_dts(Frame) -> Frame.
 
 %%--------------------------------------------------------------------
 %% @spec (Frame::video_frame()) -> FLVTag::binary()
