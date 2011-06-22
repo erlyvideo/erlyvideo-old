@@ -88,6 +88,21 @@ decode(Body, #rtp_channel{stream_info = #stream_info{codec = Codec, content = Co
   {ok, RTP, [Frame]}.
 
 
+% FIXME:
+% Тут надо по-другому. 
+% Надо аккумулировать все RTP-пейлоады с одним Timecode
+% Потом проходить по ним депакетизатором FUA. Отрефакторить это в h264 в depacketize
+% Потом взять результирующие NAL-юниты, склеить их в один или два кадра.
+% SPS, PPS оформить в конфиг, остальное положить в один кадр. Бевард зачем-то шлет два полукадра.
+%
+% decode_h264(Body, OldDts, OldDts) -> accumulate
+% decode_h264(NewBody, OldDts, NewDts) ->
+%   depacketize(Accum)
+%   split_into_frames(NALS)
+%   flush_buffer
+%   accumulate(Body, NewDts)
+%   return_frames_and_new_buffer
+%
 decode_h264(Body, #h264_buffer{time = OldDTS} = RTP, DTS) when OldDTS > DTS ->
   Reply = case h264:decode_nal(Body, h264:init()) of
     {#h264{buffer = undefined}, Frames} -> [F#video_frame{dts = DTS, pts = DTS} || F <- Frames];
