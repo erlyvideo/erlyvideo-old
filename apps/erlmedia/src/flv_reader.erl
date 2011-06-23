@@ -334,7 +334,8 @@ normalize_audio_dts(#flv_media{audio_config = #video_frame{body = Config}}, #vid
   PureDTS = round(Count)*Samples*1000 / SampleRate,
   % ?D({aac,Count,DTS, PureDTS}),
   Frame#video_frame{dts = PureDTS, pts = PureDTS};
-  % Frame;
 
-normalize_audio_dts(_Media, Frame) -> Frame.
+normalize_audio_dts(_Media, Frame) ->
+  % ?D({Frame#video_frame.codec, Frame#video_frame.dts}),
+  Frame.
 
