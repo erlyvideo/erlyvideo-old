@@ -60,7 +60,6 @@ real_start() ->
 
 stop() ->
   application:stop(esip),
-  application:unload(esip),
   ok.
 
 
