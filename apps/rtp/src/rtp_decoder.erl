@@ -74,6 +74,10 @@ decode(Body, #rtp_channel{codec = h264, buffer = Buffer} = RTP, Timecode) ->
   % ?D({decode,h264,Timecode,DTS, length(Frames), size(Body), size(Buffer1#h264_buffer.buffer)}),
   {ok, RTP#rtp_channel{buffer = Buffer1}, Frames};
 
+decode(Body, #rtp_channel{codec = mpegts, buffer = Decoder} = RTP, _Timecode) ->
+  {ok, Decoder1, Frames} = rtp_mpegts:decode(Body, Decoder),
+  {ok, RTP#rtp_channel{buffer = Decoder1}, Frames};
+
 decode(Body, #rtp_channel{stream_info = #stream_info{codec = Codec, content = Content} = Info} = RTP, Timecode) ->
   DTS = timecode_to_dts(RTP, Timecode),
   Frame = #video_frame{
