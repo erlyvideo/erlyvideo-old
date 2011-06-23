@@ -573,10 +573,10 @@ flush_send(State) ->
     0 -> State
   end.
   
-activate_socket(#rtmp_socket{driver = gen_tcp, socket = Socket}) when is_port(Socket) ->
-  inet:setopts(Socket, [{active, once}]);
 activate_socket(#rtmp_socket{driver = microtcp, socket = Socket}) when is_port(Socket) ->
   microtcp:active_once(Socket);
+activate_socket(#rtmp_socket{socket = Socket}) when is_port(Socket) ->
+  inet:setopts(Socket, [{active, once}]);
 activate_socket(#rtmp_socket{socket = Socket}) when is_pid(Socket) ->
   ok.
   
