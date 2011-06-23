@@ -100,13 +100,13 @@ pat(PAT, _PSITable, #decoder{options = Options, pids = Pids} = Decoder) ->
   end.
 
 
-select_pmt_pid([{PmtPid, _ProgramNum}], undefined) -> % Means no program specified and only one in stream
-  {PmtPid, _ProgramNum};
+select_pmt_pid([{PmtPid, ProgramNum}], undefined) -> % Means no program specified and only one in stream
+  {PmtPid, ProgramNum};
 select_pmt_pid(Descriptors, SelectedProgram) ->
   case lists:keyfind(SelectedProgram, 1, Descriptors) of
     {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
     _ ->
-      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors}),
+      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors, SelectedProgram}),
       {undefined, undefined}
   end.
 

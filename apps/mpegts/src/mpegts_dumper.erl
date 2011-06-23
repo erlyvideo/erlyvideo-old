@@ -35,19 +35,19 @@
 %   {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
 %   {Reader1, length(Frames)}.
 
-dump_pes(Reader, #pes_packet{codec = _Codec, dts = _DTS, body = _Body} = PES) ->
+dump_pes(Reader, PES) ->
   % PesStart = case Body of
   %   <<PesStart_:20/binary, _/binary>> -> PesStart_;
   %   _ -> Body
   % end,
   % io:format("PES(~p) ~p, ~p ~p~n", [Codec, round(DTS), size(Body), PesStart]),
-  % io:format("PES(~p) ~p, ~p~n", [Codec, round(DTS), size(Body)]),
-  % case Codec of
-  %   h264 -> dump_avc(Body);
-  %   _ -> ok
-  % end,
+  io:format("PES(~p) ~p, ~p~n", [PES#pes_packet.codec, round(PES#pes_packet.dts), size(PES#pes_packet.body)]),
+  case PES#pes_packet.codec of
+    h264 -> dump_avc(PES#pes_packet.body);
+    _ -> ok
+  end,
   {ok, Reader1, Frames} = mpegts_reader:decode_pes(Reader, PES),
-  % [dump_frame(Frame) || Frame <- Frames],
+  [dump_frame(Frame) || Frame <- Frames],
   {Reader1, length(Frames)}.
 
 dump_avc(Body) ->
