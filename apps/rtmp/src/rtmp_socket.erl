@@ -622,10 +622,10 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, driver = Driver} = Sta
   end,
   % (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
   if
-    is_port(Socket) andalso Driver == gen_tcp ->
-      gen_tcp:send(Socket, Crypt);
     is_port(Socket) andalso Driver == microtcp ->
       microtcp:send(Socket, Crypt);
+    is_port(Socket) ->
+      gen_tcp:send(Socket, Crypt);
     is_pid(Socket) ->
       rtmpt:write(Socket, Crypt)
   end,
