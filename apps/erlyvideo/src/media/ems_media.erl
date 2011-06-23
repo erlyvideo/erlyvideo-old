@@ -427,7 +427,12 @@ init([Module, Options]) ->
       {ok, Media4, ?TIMEOUT};
     {stop, Reason} ->
       ?D({"ems_media failed to initialize",Module,Reason}),
-      {stop, Reason}
+      ExitReason = case Reason of
+        normal -> normal;
+        notfound -> normal;
+        _ -> Reason
+      end,
+      {stop, ExitReason}
   end.
 
 

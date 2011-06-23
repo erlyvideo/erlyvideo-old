@@ -115,8 +115,8 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 	receive
 		{http, Sock, {http_header, _, 'Content-Length', _, Val}} ->
 			?MODULE:headers(C, Req#req{content_length = list_to_integer(Val)}, [{'Content-Length', list_to_integer(Val)}|H], HeaderCount + 1);
-		{http, Sock, {http_header, _, 'Connection', _, "Keep-Alive"}} ->
-			?MODULE:headers(C, Req#req{connection = keepalive}, [{'Connection', "Keep-Alive"}|H], HeaderCount + 1);
+		{http, Sock, {http_header, _, 'Connection', _, "keep-alive"}} ->
+			?MODULE:headers(C, Req#req{connection = keepalive}, [{'Connection', "keep-alive"}|H], HeaderCount + 1);
 		{http, Sock, {http_header, _, 'Host', _, Val}} ->
 		  Host = list_to_binary(hd(string:tokens(Val, ":"))),
 			?MODULE:headers(C, Req#req{host = Host}, [{'Host', Host}|H], HeaderCount + 1);
@@ -127,7 +127,6 @@ headers(#c{sock = Sock, recv_timeout = RecvTimeout} = C, Req, H, HeaderCount) wh
 		{http, Sock, http_eoh} ->
 			case ?MODULE:body(C, Req#req{headers = lists:reverse(H), socket = Sock}) of
 			  #c{} = C1 when Req#req.connection == keepalive ->
-          % io:format("keepalive~n"),
 			    inet:setopts(Sock, [{active,false},{packet,http}]),
           ?MODULE:request(C1, Req);
 			  _ ->
