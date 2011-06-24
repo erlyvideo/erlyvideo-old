@@ -63,7 +63,7 @@ connect_source("http://"++_ = From) ->
   case gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000) of
     {ok, Socket} -> 
       ?D({"Connected to", From, Socket}),
-      ok = gen_tcp:send(Socket, "GET "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
+      ok = gen_tcp:send(Socket, "GET "++Path++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
       read_response(Socket, From);
     Else ->
       ?D({"Cannot connect source", From, Else}),
@@ -118,7 +118,7 @@ connect_to(To) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(To),
   case gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000) of
     {ok, Socket} ->
-      ok = gen_tcp:send(Socket, "PUT "++Path++"?"++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
+      ok = gen_tcp:send(Socket, "PUT "++Path++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
       ?D({"Connected to destination"}),
       Socket;
     Else ->

@@ -84,12 +84,21 @@ http(Host, 'PUT', ["stream", Name], Req) ->
   _Session = Module:Function(Host, http, proplists:get_value('Authorization', Req:get(headers))),
 
   ems_log:access(Host, "MPEGTS PUT ~s ~s", [Host, Name]),
-  {ok, Stream} = media_provider:open(Host, Name, [{type, mpegts_passive}]),
-  ems_media:set_socket(Stream, Req:socket()),
+  {ok, Stream} = media_provider:open(Host, Name, [{type, mpegts_passive}|validate_passive_options(Req:parse_qs())]),
+  ems_media:set_socket(Stream, Req:get(give_up_socket)),
   ok;
 
 http(_Host, _Method, _Path, _Req) ->
   unhandled.
+
+validate_passive_options(Options) ->
+  validate_passive_options(Options, []).
+
+validate_passive_options([{"program",Program}|Options], Acc) ->
+  validate_passive_options(Options, [{program,list_to_integer(Program)}|Acc]);
+
+validate_passive_options([], Acc) -> Acc.
+
 
 format_start({{Year,Month,Day},{Hour,Min,Sec}}) ->
   iolist_to_binary(io_lib:format("~4.10.0B-~2.10.0B-~2.10.0B ~2.10.0B:~2.10.0B:~2.10.0B",

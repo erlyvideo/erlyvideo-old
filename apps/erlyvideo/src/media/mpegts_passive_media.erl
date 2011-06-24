@@ -82,8 +82,8 @@ handle_control({set_source, _Source}, State) ->
   %% {stop, Reason, State}
   {noreply, State};
   
-handle_control({set_socket, Socket}, Media) ->
-  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()}]),
+handle_control({set_socket, Socket}, #ems_media{options = Options} = Media) ->
+  {ok, Reader} = mpegts_sup:start_reader([{consumer,self()}|Options]),
   ems_media:set_source(self(), Reader),
   mpegts_reader:set_socket(Reader, Socket),
   {noreply, Media};
