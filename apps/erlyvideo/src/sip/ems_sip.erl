@@ -34,13 +34,6 @@
 -export([register/2, call/2]).
 
 start() ->
-  case lists:member(esip, [App || {App, _, _} <- application:loaded_applications()]) of
-    true -> ok;
-    false -> real_start()
-  end.
-  
-
-real_start() ->
   ?D("Start EMS SIP"),
   case ems:get_var(?MODULE, undefined) of
     undefined ->
