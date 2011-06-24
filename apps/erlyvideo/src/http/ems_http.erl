@@ -28,8 +28,10 @@
 
   
 % start misultin http server
-start_listener(BindSpec) ->
-  gen_listener:start_link(BindSpec, ems_http, []).
+start_listener(Port) when is_number(Port) ->
+  % gen_listener:start_link(BindSpec, ems_http, []).
+  misultin:start_link([{port, Port}, {loop, fun(Req) -> handle_http(Req) end}]).
+	
   
   
 accept(Socket, []) ->
@@ -51,7 +53,7 @@ start_link(ClientSocket) ->
 % callback on request received
 handle_http(Req) ->
   random:seed(now()),
-  Host = ems:host(Req:host()),
+  Host = ems:host(Req:get(host)),
   Method = Req:get(method),
   Path = Req:resource([urldecode]),
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
