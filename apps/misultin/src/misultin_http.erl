@@ -513,7 +513,7 @@ socket_loop(#c{sock = Sock, socket_mode = SocketMode, compress = Compress} = C, 
 			socket_loop(C, Req, LoopPid, ReqOptions);
 		{tcp_closed, Sock} ->
 			?LOG_DEBUG("client closed socket",[]),
-			tcp_closed;
+			ok;
 		{ssl_closed, Sock} ->
 			?LOG_DEBUG("client closed ssl socket",[]),
 			ssl_closed;
