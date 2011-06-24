@@ -23,25 +23,16 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_http).
--export([start_listener/1, start_link/1, accept/2, stop/0, handle_http/1, http/4, wwwroot/1]).
+-export([start_listener/1, start_link/1, stop/0, handle_http/1, http/4, wwwroot/1]).
 -include("../log.hrl").
 
   
 % start misultin http server
 start_listener(Port) when is_number(Port) ->
-  % gen_listener:start_link(BindSpec, ems_http, []).
   misultin:start_link([{port, Port}, {loop, fun(Req) -> handle_http(Req) end}]).
 	
   
   
-accept(Socket, []) ->
-  inet:setopts(Socket, [{packet,http}]),
-  {ok, Worker} = ems_sup:start_http_worker(Socket),
-  gen_tcp:controlling_process(Socket, Worker),
-  ems_network_lag_monitor:watch(Worker),
-  Worker ! socket,
-  ok.
-
 % stop misultin
 stop() ->
 	misultin:stop().

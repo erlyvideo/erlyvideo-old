@@ -196,8 +196,8 @@ set_source(Media, Source) when is_pid(Media) ->
 %% submodule. For example, PUT mpegts requires it.
 %% @end
 %%----------------------------------------------------------------------
-set_socket(Media, Socket) when is_pid(Media) ->
-  gen_tcp:controlling_process(Socket, Media),
+set_socket(Media, Socket) when is_pid(Media) andalso is_port(Socket) ->
+  ok = gen_tcp:controlling_process(Socket, Media),
   gen_server:cast(Media, {set_socket, Socket}).
   
 %%----------------------------------------------------------------------
