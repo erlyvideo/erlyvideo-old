@@ -185,7 +185,7 @@ decode(Bin, Decoder, Frames) ->
   {ok, Decoder#decoder{buffer = Bin}, Frames}.
 
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
-  mpegts_psi_decoder:psi(ts_payload(Packet), Decoder);
+  mpegts_psi:psi(ts_payload(Packet), Decoder);
 
 decode_ts(<<_:3, _Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
   % ?D({scrambled, Pid}),
@@ -309,7 +309,7 @@ adapt_field_info(_) -> "".
 
 
 psi(PSI, Stream, #decoder{pids = Streams} = Decoder) ->
-  mpegts_psi_decoder:psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
+  mpegts_psi:psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
 
 
 pes(_, #stream{codec = unhandled} = Stream, #decoder{pids = Streams} = Decoder) ->
