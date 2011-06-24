@@ -225,86 +225,14 @@ padding(Padding, Size) when size(Padding) < Size ->
   padding(<<Padding/binary, Pad/binary>>, Size - size(Pad)).
   
 send_pat(Streamer, _DTS) ->
-  Programs = <<1:16, 111:3, ?PMT_PID:13>>,
-  TSStream = 1, % Just the same, as VLC does
-  Version = 0,
-  CNI = 1,
-  Section = 0,
-  LastSection = 0,
-  Misc = <<2#11:2, Version:5, CNI:1, Section, LastSection>>,
-  Length = size(Programs)+5+4,
-  PAT1 = <<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary, Programs/binary>>,
-  CRC32 = mpeg2_crc32:crc32(PAT1),
-  PAT = <<0, PAT1/binary, CRC32:32>>,
+  PAT = mpegts_psi:encode(pat, [{programs, [{1, ?PMT_PID}]}]),
   PATBin = padding(PAT, ?TS_PACKET),
   % ?D({"Sending PAT", size(PAT), size(PATBin)}),
   mux(PATBin, Streamer, ?PAT_PID).
 
 send_pmt(#streamer{video_config = _VideoConfig, audio_codec = AudioCodec, video_codec = VideoCodec} = Streamer, _DTS) ->
-  SectionSyntaxInd = 1,
-  ProgramNum = 1,
-  Version = 0,
-  CurrentNext = 1,
-  _SectionNumber = 0,
-  _LastSectionNumber = 0,
-  
-  % Some hardcoded output from VLC
-  IOD = <<17,1,2,128,128,7,0,79,255,255,254,254,255>>,
-  
-  
-  %% FIXME: Program info is not just for IOD, but also for other descriptors
-  %% Look at libdvbpsi/src/tables/pmt.c:468
-  _ProgramInfo1 = <<?DESCRIPTOR_IOD, (size(IOD)), IOD/binary>>,
-  ProgramInfo = <<>>,
-  
-  %% FIXME: Here also goes the same descriptor as in ProgramInfo
-  %% libdvbpsi/src/tables/pmt.c:499
-  %% Also, look at mp4:esds_tag, here goes the same content
-  %%
-  %% It is required to add audio config here, if we don't want to see 
-  %% "MPEG-4 descriptor not found" from VLC
-  %% Code, that read it is in vlc/modules/demux/ts.c:3177
-  %%
-  _AudioES1 = <<?DESCRIPTOR_SL, 2, 1:16>>, % means, 2 byte and ES ID = 1
-  AudioES = <<>>,
-  AudioCodecId = case AudioCodec of
-    aac -> ?TYPE_AUDIO_AAC;
-    mpeg2audio -> ?TYPE_AUDIO_MPEG2;
-    mp3 -> ?TYPE_AUDIO_MPEG2
-  end, 
-  AudioStream = <<AudioCodecId, 2#111:3, ?AUDIO_PID:13, 2#1111:4, (size(AudioES)):12, AudioES/binary>>,
-  
-  % MultipleFrameRate = 0,
-  % FrameRateCode = 0,
-  % MPEG1Only = 0,
-  % ProfileLevel = 0,
-  % Chroma = 0,
-  % FrameRateExt = 0,
-  % VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
-  %             0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig/binary>>,
-  VideoES = <<>>,
-  VideoCodecId = case VideoCodec of
-    h264 -> ?TYPE_VIDEO_H264;
-    mpeg2video -> ?TYPE_VIDEO_MPEG2
-  end,
-  VideoStream = <<VideoCodecId, 2#111:3, ?VIDEO_PID:13, 2#1111:4, (size(VideoES)):12, VideoES/binary>>,
-  Streams = iolist_to_binary([VideoStream, AudioStream]),
-  Program = <<ProgramNum:16, 
-           2#11:2, Version:5, CurrentNext:1, 
-           _SectionNumber,
-           _LastSectionNumber, 
-           2#111:3, ?PCR_PID:13, 
-           2#1111:4, (size(ProgramInfo)):12, 
-           ProgramInfo/binary, 
-           Streams/binary>>,
-           
-  Programs = Program, % Only one program for now
-  SectionLength = size(Programs) + 4, % Add CRC32
-  PMT = <<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12, Programs/binary>>,
-
-  CRC32 = mpeg2_crc32:crc32(PMT),
-  PMTBin = <<0, PMT/binary, CRC32:32>>,
-  mux(padding(PMTBin, ?TS_PACKET), Streamer, ?PMT_PID).
+  PMT = mpegts_psi:encode(pmt, [{program,1},{pcr_pid,?PCR_PID},{streams, [{AudioCodec, ?AUDIO_PID, []}, {VideoCodec, ?VIDEO_PID, []}]}]),
+  mux(padding(PMT, ?TS_PACKET), Streamer, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
   %     ProgramNum:16, _:2, _Version:5, _CurrentNext:1, _SectionNumber,

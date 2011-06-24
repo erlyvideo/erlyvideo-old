@@ -20,14 +20,130 @@
 %%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(mpegts_psi_decoder).
+-module(mpegts_psi).
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include("log.hrl").
 -include("../include/mpegts.hrl").
 -include("mpegts_reader.hrl").
 
--export([psi/2]).
+-export([psi/2, encode/2]).
+
+-define(PAT_TABLEID,       16#00).
+-define(CAT_TABLEID,       16#01).
+-define(PMT_TABLEID,       16#02).
+-define(TSDT_TABLEID,      16#03).
+-define(NIT_TABLEID,       16#40).
+-define(NIT_OTHER_TABLEID, 16#41).
+-define(SDT_TABLEID,       16#42).
+-define(SDT_OTHER_TABLEID, 16#43).
+-define(BAT_TABLEID,       16#42).
+-define(EIT_1_TABLEID,     16#4E).
+-define(EIT_2_TABLEID,     16#4F).
+-define(EIT_3_TABLEID,     16#5F).
+-define(EIT_4_TABLEID,     16#6F).
+-define(TDT_TABLEID,       16#70).
+
+
+-define(CA_DESC,           16#09).
+-define(SERVICE_DESC,      16#48).
+-define(SHORT_DESC,        16#4D).
+-define(CONTENT_DESC,      16#54).
+-define(PARENTAL_RATING_DESC, 16#55).
+
+
+%
+% Options:
+% {programs, [{Number, Pid}]}
+% {ts_stream, TSStream = 1}
+% {current_next, CNT = 1}
+% {section, Section = 0}
+encode(pat, Options) ->
+  Programs = [<<Number:16, 111:3, Pid:13>> || {Number, Pid} <- proplists:get_value(programs, Options)],
+  TSStream = proplists:get_value(ts_stream, Options, 1), % Just the same, as VLC does
+  Version = proplists:get_value(version, Options, 0),
+  CNI = proplists:get_value(current_next, Options, 1),
+  Section = proplists:get_value(section, Options, 0),
+  LastSection = 0,
+  Misc = <<2#11:2, Version:5, CNI:1, Section, LastSection>>,
+  Length = iolist_size(Programs)+5+4,
+  PAT1 = iolist_to_binary([<<?PAT_TABLEID, 2#1011:4, Length:12, TSStream:16, Misc/binary>>|Programs]),
+  CRC32 = mpeg2_crc32:crc32(PAT1),
+  <<0, PAT1/binary, CRC32:32>>;
+
+%
+% {program, Program = 1}
+% {streams, [{Codec, Pid, Info = []}]}
+% {}
+encode(pmt, Options) ->
+  SectionSyntaxInd = 1,
+  ProgramNum = proplists:get_value(program, Options, 1),
+  Version = 0,
+  CurrentNext = 1,
+  _SectionNumber = 0,
+  _LastSectionNumber = 0,
+  
+  PcrPid = case proplists:get_value(pcr_pid, Options) of
+    undefined ->
+      [{_, FirstPid, _}|_] = proplists:get_value(streams, Options),
+      FirstPid;
+    Else -> Else
+  end,  
+  
+  % Some hardcoded output from VLC
+  IOD = <<17,1,2,128,128,7,0,79,255,255,254,254,255>>,
+  
+  
+  %% FIXME: Program info is not just for IOD, but also for other descriptors
+  %% Look at libdvbpsi/src/tables/pmt.c:468
+  _ProgramInfo1 = <<?DESCRIPTOR_IOD, (size(IOD)), IOD/binary>>,
+  ProgramInfo = <<>>,
+  
+  %% FIXME: Here also goes the same descriptor as in ProgramInfo
+  %% libdvbpsi/src/tables/pmt.c:499
+  %% Also, look at mp4:esds_tag, here goes the same content
+  %%
+  %% It is required to add audio config here, if we don't want to see 
+  %% "MPEG-4 descriptor not found" from VLC
+  %% Code, that read it is in vlc/modules/demux/ts.c:3177
+  %%
+  
+  Streams = lists:map(fun({Codec, Pid, _Info = []}) ->
+    ESInfo = <<>>,
+    CodecId = case Codec of
+      aac -> ?TYPE_AUDIO_AAC;
+      mpeg2audio -> ?TYPE_AUDIO_MPEG2;
+      mp3 -> ?TYPE_AUDIO_MPEG2;
+      h264 -> ?TYPE_VIDEO_H264;
+      mpeg2video -> ?TYPE_VIDEO_MPEG2
+    end, 
+    <<CodecId, 2#111:3, Pid:13, 2#1111:4, (size(ESInfo)):12, ESInfo/binary>>
+  end, proplists:get_value(streams, Options)),
+  
+  %
+  % Maybe add this for ES info
+  % MultipleFrameRate = 0,
+  % FrameRateCode = 0,
+  % MPEG1Only = 0,
+  % ProfileLevel = 0,
+  % Chroma = 0,
+  % FrameRateExt = 0,
+  % VideoES = <<2, (size(VideoConfig)+3), MultipleFrameRate:1, FrameRateCode:4, MPEG1Only:1,
+  %             0:1, 0:1, ProfileLevel, Chroma:2, FrameRateExt:1, 0:5,    VideoConfig/binary>>,
+  Program = [<<ProgramNum:16, 
+           2#11:2, Version:5, CurrentNext:1, 
+           _SectionNumber,
+           _LastSectionNumber, 
+           2#111:3, PcrPid:13, 
+           2#1111:4, (size(ProgramInfo)):12, 
+           ProgramInfo/binary>>|Streams],
+           
+  SectionLength = iolist_size(Program) + 4, % Add CRC32
+  PMT = iolist_to_binary([<<?PMT_TABLEID, SectionSyntaxInd:1, 0:1, 2#11:2, SectionLength:12>>|Program]),
+  
+  CRC32 = mpeg2_crc32:crc32(PMT),
+  <<0, PMT/binary, CRC32:32>>.
+
 
 
 % parse_sdt(<<ServiceId:16, _Reserved:6, EIT_Schedule:1, EIT_present_following:1, RunningStatus:3, FreeCA:1, DescLength:12, _/binary>>) ->
