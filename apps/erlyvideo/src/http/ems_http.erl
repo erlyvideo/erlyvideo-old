@@ -29,7 +29,7 @@
   
 % start misultin http server
 start_listener(Port) when is_number(Port) ->
-  misultin:start_link([{port, Port}, {loop, fun(Req) -> handle_http(Req) end}]).
+  misultin:start_link([{port, Port},{recbuf,65536},{max_connections,10240}, {loop, fun(Req) -> handle_http(Req) end}]).
 	
   
   
