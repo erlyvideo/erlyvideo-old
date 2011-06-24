@@ -308,6 +308,8 @@ read_post_body(C, #req{content_length = ContentLength} = Req, NoContentNoChunkOu
 		undefined ->
 			% no specified content length, check transfer encoding header
 			case misultin_utility:get_key_value('Transfer-Encoding', Req#req.headers) of
+			  undefined when Req#req.method == 'PUT' ->
+			    {ok, <<>>};
 				undefined ->
 					NoContentNoChunkOutput;
 				TE ->
@@ -491,6 +493,11 @@ socket_loop(#c{sock = Sock, socket_mode = SocketMode, compress = Compress} = C, 
 			?LOG_DEBUG("sending stream data", []),
 			misultin_socket:send(Sock, Data, SocketMode),
 			socket_loop(C, Req, LoopPid, ReqOptions);
+		{give_up_socket, Pid} ->
+		  ok = gen_tcp:controlling_process(Sock, Pid),
+		  Pid ! {socket, Sock},
+		  ?LOG_DEBUG("Closing stream without explicit closing socket", []),
+		  erlang:exit(normal);
 		stream_close ->
 			?LOG_DEBUG("closing stream", []),
 			misultin_socket:close(Sock, SocketMode),

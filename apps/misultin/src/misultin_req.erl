@@ -58,6 +58,14 @@ raw({misultin_req, Req, _SocketPid}) ->
 % Description: Get request info.
 get(socket, {misultin_req, Req, _SocketPid}) ->
 	Req#req.socket;
+get(give_up_socket, {misultin_req, Req, SocketPid}) ->
+  SocketPid ! {give_up_socket, self()},
+  Socket = Req#req.socket,
+  receive
+    {socket, Socket} -> Socket
+  after
+    1000 -> error:exit({give_up_timeout,Socket})
+  end;
 get(socket_mode, {misultin_req, Req, _SocketPid}) ->
 	Req#req.socket_mode;
 get(peer_addr, {misultin_req, #req{headers = Headers} = Req, _SocketPid}) ->
