@@ -240,10 +240,10 @@ keep_alive(_Vsn, _KA)	-> close.
 get_uri_and_args(Req) ->
 	case Req#req.uri of
 		{abs_path, Path} ->
-			{F, Args} = split_at_q_mark(Path, []),
+			{F, Args} = split_at_q_mark(Path),
 			Req#req{args = Args, uri = {abs_path, F}};
 		{absoluteURI, http, _Host, _, Path} ->
-			{F, Args} = split_at_q_mark(Path, []),
+			{F, Args} = split_at_q_mark(Path),
 			Req#req{args = Args, uri = {absoluteURI, F}};
 		{absoluteURI, _Other_method, _Host, _, _Path} ->
 			{error, 501};
@@ -623,12 +623,11 @@ enc_header_val(Val) ->
 	Val.
 
 % Split the path at the ?
-split_at_q_mark([$?|T], Acc) ->
-	{lists:reverse(Acc), T};
-split_at_q_mark([H|T], Acc) ->
-	split_at_q_mark(T, [H|Acc]);
-split_at_q_mark([], Acc) ->
-	{lists:reverse(Acc), []}.
+split_at_q_mark(String) ->
+  case re:split(String, "\\?", [{return,list},{parts,2}]) of
+    [URI] -> {URI, []};
+    [URI, QueryString] -> {URI, QueryString}
+  end.
 
 % Function: -> {EncodingHeader, binary()}
 % Description: Compress body depending on Request Headers and misultin supported encodings.
