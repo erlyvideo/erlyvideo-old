@@ -53,7 +53,10 @@ start_link(ClientSocket) ->
 % callback on request received
 handle_http(Req) ->
   random:seed(now()),
-  Host = ems:host(Req:get(host)),
+  Host = case proplists:get_value('Host', Req:get(headers)) of
+    undefined -> default;
+    Val -> ems:host(hd(string:tokens(Val, ":")))
+  end,
   Method = Req:get(method),
   Path = Req:resource([urldecode]),
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
