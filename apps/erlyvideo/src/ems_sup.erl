@@ -59,7 +59,7 @@
 -export([start_rtmp_session/1, start_media/3, start_shared_object/3,
           start_shoutcast_reader/1,
           start_deskshare_capture/2,
-          start_http_server/1, start_http_worker/1, start_ticker/3, start_mjpeg_reader/2]).
+          start_http_server/1, start_ticker/3, start_mjpeg_reader/2]).
 
 -export([static_streams/0,start_static_streams/0]).
 
@@ -73,9 +73,6 @@ start_rtmp_session(RTMPSocket) ->
   {ok, Pid} = supervisor:start_child(rtmp_session_sup, []),
   rtmp_session:set_socket(Pid, RTMPSocket),
   {ok, Pid}.
-
-start_http_worker(ClientSocket) ->
-  supervisor:start_child(ems_http_worker_sup, [ClientSocket]).
 
 start_shoutcast_reader(Consumer) ->
   supervisor:start_child(shoutcast_reader_sup, [Consumer]).
@@ -168,8 +165,6 @@ init([deskshare_capture_sup]) ->
 
 init([ems_user_sessions_sup]) ->
   {ok, {{one_for_one, 1000, 20},[
-    ?NAMED_SERVER(ems_users_sup, ems_users, []),
-    ?SUPERVISOR_LINK(ems_http_worker_sup),
     ?SUPERVISOR_LINK(rtmp_session_sup)
   ]}};
 
@@ -179,9 +174,6 @@ init([rtmp_session_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(rtmp_session, [])]}};
 
   
-init([ems_http_worker_sup]) ->
-  {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(ems_http, [])]}};
-
 
 %%%%%%%%  HTTP Listener  %%%%%%%%
 

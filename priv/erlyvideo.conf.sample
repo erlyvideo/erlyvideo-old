@@ -5,12 +5,11 @@
 {iphone_segment_size, 10000}.
 {rtmp_default_wait, false}.
 {modules,[]}.
-{license_cache_dir, "/var/cache/erlyvideo/licensed"}.
 {paths, ["/var/lib/erlyvideo/plugins", "/usr/local/lib/erlyvideo/plugins"]}.
 {file_formats,[mp4_reader,flv_reader,mp3_reader]}.
 {vhosts, [
   {default, [
-	{file_access, file},
+	  {file_access, file},
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
     {rtmp_handlers, [{auth_users_limit, 200}, trusted_login, apps_push, remove_useless_prefix, apps_streaming, apps_recording]},
@@ -21,9 +20,10 @@
     {secret_key, "123"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},
-    {www_handlers, [ems_http_erlyvideo_api, ems_http_rtmpt, ems_http_push, ems_http_mpegts, ems_http_flv, {ems_http_file,"wwwroot"}]},
+    {www_handlers, [ems_http_erlyvideo_api, ems_http_rtmpt, ems_http_mpegts, ems_http_flv, {ems_http_file,"wwwroot"}]},
     {rewrite, [
-      {"stream/vlc.ts", mpegts, "http://localhost:8080", [{timeshift, 60000}]}
+      {"vlc.ts", mpegts, "http://localhost:8080"},
+      {"camera0", rtsp, "rtsp://root:password@camera-ip:554/h264/1"}
     ]}
   ]}
 ]}.
