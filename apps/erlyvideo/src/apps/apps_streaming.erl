@@ -159,7 +159,6 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State1
   end.
-  % gen_fsm:send_event(self(), {play, Name, Options}),
 
 parse_play(FullName, Args) ->
   Options1 = extract_play_args(Args),

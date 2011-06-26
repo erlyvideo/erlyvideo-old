@@ -40,11 +40,11 @@
         ]).
 
 -export([
-         'WAIT_FOR_DATA'/2
+         handle_info/2
         ]).
 
 sip_call(RTMP, OutStream, InStream) when is_pid(RTMP) andalso is_binary(OutStream) andalso is_binary(InStream) ->
-  gen_fsm:send_event(RTMP, {sip_call, OutStream, InStream}).
+  RTMP ! {sip_call, OutStream, InStream}.
 
 register(State, #rtmp_funcall{args = [_, Number, Password] = Args} = AMF) ->
   ?D({sip_register, self(), Args}),
@@ -73,7 +73,7 @@ bye(State, #rtmp_funcall{args = Args}) ->
   ems_sip_flashphone:bye(self()),
   State.
 
-'WAIT_FOR_DATA'({sip_call, OutStream, InStream}, #rtmp_session{socket = Socket} = State) ->
+handle_info({sip_call, OutStream, InStream}, #rtmp_session{socket = Socket} = State) ->
   % io:format("NetConnection.Message ~s~n", [Message]),
   rtmp_socket:status(Socket, 0, <<"NetConnection.SipCall">>, {object, [{in_stream, InStream},{out_stream,OutStream}]}),
-  {next_state, 'WAIT_FOR_DATA', State}.
+  {noreply, State}.

@@ -29,7 +29,7 @@
 -include_lib("rtmp/include/rtmp.hrl").
 -include("rtmp_session.hrl").
 
--behaviour(gen_fsm).
+-behaviour(gen_server).
 
 
 -export([start_link/0, set_socket/2]).
@@ -37,18 +37,10 @@
 -define(RTMP_WINDOW_SIZE, 2500000).
 -define(FMS_VERSION, "4,0,0,1121").
 
-%% gen_fsm callbacks
--export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([send/2, send_frame/2, flush_stream/1]).
 -export([metadata/1, metadata/2]).
-
-%% FSM States
--export([
-  'WAIT_FOR_SOCKET'/2,
-  'WAIT_FOR_HANDSHAKE'/2,
-  'WAIT_FOR_DATA'/2,
-  'WAIT_FOR_DATA'/3]).
 
 
 -export([create_client/1]).
@@ -87,12 +79,12 @@ collect_stats(_Host) ->
 
 
 stop(Pid) when is_pid(Pid) ->
-  gen_fsm:send_event(Pid, exit).
+  gen_server:call(Pid, exit).
 
 
 accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
   Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
-  % gen_fsm:send_event(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
+  % gen_server:call(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
@@ -110,7 +102,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   Session;
 
 accept_connection(Session) when is_pid(Session) ->
-  gen_fsm:send_event(Session, accept_connection).
+  gen_server:call(Session, accept_connection).
 
 
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
@@ -119,19 +111,19 @@ reject_connection(#rtmp_session{socket = Socket} = Session) ->
                {code, <<"NetConnection.Connect.Rejected">>},
                {description, <<"Connection rejected.">>}],
   fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
-  gen_fsm:send_event(self(), exit),
+  self() ! exit,
   Session;
 
 reject_connection(Session) when is_pid(Session) ->
-  gen_fsm:send_event(Session, reject_connection).
+  gen_server:call(Session, reject_connection).
 
 
 close_connection(#rtmp_session{} = Session) ->
-  gen_fsm:send_event(self(), exit),
+  self() ! exit,
   Session;
 
 close_connection(Session) when is_pid(Session) ->
-  gen_fsm:send_event(Session, close_connection).
+  gen_server:call(Session, close_connection).
 
 
 
@@ -149,7 +141,7 @@ fail(Socket, AMF) when is_pid(Socket) ->
 
 
 message(Pid, Stream, Code, Body) ->
-  gen_fsm:send_event(Pid, {message, Stream, Code, Body}).
+  gen_server:call(Pid, {message, Stream, Code, Body}).
 
 
 
@@ -200,10 +192,10 @@ video_parameters(#media_info{}) ->
 %%%------------------------------------------------------------------------
 
 start_link() ->
-  gen_fsm:start_link(?MODULE, [], []).
+  gen_server:start_link(?MODULE, [], []).
 
 set_socket(Pid, Socket) when is_pid(Pid) ->
-  gen_fsm:send_event(Pid, {socket_ready, Socket}).
+  gen_server:call(Pid, {socket_ready, Socket}).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -219,8 +211,7 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %%-------------------------------------------------------------------------
 init([]) ->
   random:seed(now()),
-  process_flag(trap_exit, true),
-  {ok, 'WAIT_FOR_SOCKET', #rtmp_session{}}.
+  {ok, #rtmp_session{}}.
 
 
 send(Session, Message) ->
@@ -234,6 +225,126 @@ send(Session, Message) ->
 
 
 
+%%-------------------------------------------------------------------------
+%% Func: handle_sync_event/4
+%% Returns: {next_state, NextStateName, NextStateData}            |
+%%          {next_state, NextStateName, NextStateData, Timeout}   |
+%%          {reply, Reply, NextStateName, NextStateData}          |
+%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
+%%          {stop, Reason, NewStateData}                          |
+%%          {stop, Reason, Reply, NewStateData}
+%% @private
+%%-------------------------------------------------------------------------
+handle_call({socket_ready, RTMP}, _From, State) ->
+  {address, {IP, Port}} = rtmp_socket:getopts(RTMP, address),
+  Addr = case IP of
+    undefined -> "0.0.0.0";
+    _ -> lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP)))
+  end,
+  erlang:monitor(process, RTMP),
+  % rtmp_socket:setopts(RTMP, [{debug,true}]),
+  {reply, ok, State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
+
+handle_call(info, _From, #rtmp_session{} = State) ->
+  {reply, session_stats(State), State};
+
+handle_call({get_field, Field}, _From, State) ->
+  {reply, get(State, Field), State};
+
+
+handle_call(accept_connection, _From, Session) ->
+  {reply, ok, accept_connection(Session)};
+
+handle_call(reject_connection, _From, Session) ->
+  reject_connection(Session),
+  {stop, normal, Session};
+
+handle_call(close_connection, _From, Session) ->
+  close_connection(Session),
+  {stop, normal, Session};
+
+handle_call(Call, _From, StateData) ->
+  {stop, {unknown_call, Call}, StateData}.
+
+
+handle_cast(Cast, State) ->
+  {stop, {unknown_cast, Cast}, State}.
+
+%%-------------------------------------------------------------------------
+%% Func: handle_info/3
+%% Returns: {next_state, NextStateName, NextStateData}          |
+%%          {next_state, NextStateName, NextStateData, Timeout} |
+%%          {stop, Reason, NewStateData}
+%% @private
+%%-------------------------------------------------------------------------
+handle_info({rtmp, _Socket, disconnect, Stats}, #rtmp_session{} = StateData) ->
+  BytesSent = proplists:get_value(send_oct, Stats, 0),
+  BytesRecv = proplists:get_value(recv_oct, Stats, 0),
+  {stop, normal, StateData#rtmp_session{bytes_sent = BytesSent, bytes_recv = BytesRecv}};
+
+handle_info({rtmp, Socket, #rtmp_message{} = Message}, State) ->
+  State1 = handle_rtmp_message(State, Message),
+  State2 = flush_reply(State1),
+  % [{message_queue_len, Messages}, {memory, Memory}] = process_info(self(), [message_queue_len, memory]),
+  % io:format("messages=~p,memory=~p~n", [Messages, Memory]),
+  rtmp_socket:setopts(Socket, [{active, once}]),
+  {noreply, State2};
+
+handle_info({rtmp, Socket, connected}, State) ->
+  rtmp_socket:setopts(Socket, [{active, once}]),
+  {noreply, State};
+
+handle_info({rtmp, _Socket, timeout}, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
+  ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
+  {stop, normal, State};
+
+handle_info({'DOWN', _Ref, process, Socket, _Reason}, #rtmp_session{socket = Socket} = State) ->
+  {stop, normal, State};
+
+handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, #rtmp_session{socket = Socket} = State) ->
+  %FIXME: add passing down this message to plugins
+  case find_stream_by_pid(PlayerPid, State) of
+    undefined ->
+      ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
+      {noreply, State};
+    #rtmp_stream{stream_id = StreamId} ->
+      ?D({"Failed played stream", StreamId, PlayerPid}),
+      rtmp_lib:play_complete(Socket, StreamId, [{duration, 0}]),
+      flush_stream(StreamId),
+      {noreply, delete_stream(StreamId, State)}
+  end;
+
+handle_info({Port, {data, _Line}}, State) when is_port(Port) ->
+  % No-op. Just child program
+  {noreply, State};
+
+handle_info(#video_frame{} = Frame, #rtmp_session{} = State) ->
+  {noreply, handle_frame(Frame, State)};
+
+handle_info(#rtmp_message{} = Message, State) ->
+  rtmp_socket:send(State#rtmp_session.socket, Message),
+  {noreply, State};
+
+handle_info(exit, StateData) ->
+  {stop, normal, StateData};
+
+handle_info({rtmp_lag, _Media}, State) ->
+  ?D("Client stop due to rtmp_lag"),
+  {stop, normal, State};
+
+handle_info({message, Stream, Code, Body}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:status(Socket, Stream, Code, Body),
+  {noreply, State};
+
+
+handle_info(Message, #rtmp_session{host = Host} = State) ->
+  case ems:try_method_chain(Host, handle_info, [Message, State]) of
+    {unhandled} -> {noreply, State};
+    unhandled -> {noreply, State};
+    #rtmp_session{} = State1 -> {noreply, State1};
+    {noreply, #rtmp_session{} = State1} -> {noreply, State1}
+  end.
+
 
 
 %%-------------------------------------------------------------------------
@@ -243,63 +354,7 @@ send(Session, Message) ->
 %%          {stop, Reason, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-'WAIT_FOR_SOCKET'({socket_ready, RTMP}, State) when is_pid(RTMP) ->
-  {address, {IP, Port}} = rtmp_socket:getopts(RTMP, address),
-  Addr = case IP of
-    undefined -> "0.0.0.0";
-    _ -> lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP)))
-  end,
-  erlang:monitor(process, RTMP),
-  ems_network_lag_monitor:watch(RTMP),
-  % rtmp_socket:setopts(RTMP, [{debug,true}]),
-  {next_state, 'WAIT_FOR_HANDSHAKE', State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 
-
-
-'WAIT_FOR_SOCKET'(Other, State) ->
-  error_logger:error_msg("State: 'WAIT_FOR_SOCKET'. Unexpected message: ~p\n", [Other]),
-  {next_state, 'WAIT_FOR_SOCKET', State}.
-
-'WAIT_FOR_HANDSHAKE'(timeout, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p", [UserId, IP]),
-  {stop, normal, State}.
-
-%% Notification event coming from client
-
-'WAIT_FOR_DATA'(exit, State) ->
-  {stop, normal, State};
-
-'WAIT_FOR_DATA'(#rtmp_message{} = Message, State) ->
-  rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, 'WAIT_FOR_DATA', State};
-
-'WAIT_FOR_DATA'(accept_connection, Session) ->
-  {next_state, 'WAIT_FOR_DATA', accept_connection(Session)};
-
-'WAIT_FOR_DATA'(reject_connection, Session) ->
-  reject_connection(Session),
-  {stop, normal, Session};
-
-'WAIT_FOR_DATA'(close_connection, Session) ->
-  close_connection(Session),
-  {stop, normal, Session};
-
-'WAIT_FOR_DATA'({message, Stream, Code, Body}, #rtmp_session{socket = Socket} = State) ->
-  rtmp_socket:status(Socket, Stream, Code, Body),
-  {next_state, 'WAIT_FOR_DATA', State};
-
-'WAIT_FOR_DATA'(Message, #rtmp_session{host = Host} = State) ->
-  case ems:try_method_chain(Host, 'WAIT_FOR_DATA', [Message, State]) of
-    unhandled -> {next_state, 'WAIT_FOR_DATA', State};
-    Reply -> Reply
-  end.
-
-%% Sync event
-
-
-'WAIT_FOR_DATA'(Data, _From, State) ->
-	io:format("~p Ignoring data: ~p\n", [self(), Data]),
-  {next_state, 'WAIT_FOR_DATA', State}.
 
 
 % send(#rtmp_session{server_chunk_size = ChunkSize} = State, {#channel{} = Channel, Data}) ->
@@ -435,120 +490,9 @@ mod_name(Mod) -> Mod.
 
 
 
-%%-------------------------------------------------------------------------
-%% Func: handle_event/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
-handle_event(Event, StateName, StateData) ->
-  {stop, {StateName, undefined_event, Event}, StateData}.
 
 
-%%-------------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
 
-handle_sync_event(info, _From, StateName, #rtmp_session{} = State) ->
-  {reply, session_stats(State), StateName, State};
-
-handle_sync_event({get_field, Field}, _From, StateName, State) ->
-  {reply, get(State, Field), StateName, State};
-
-handle_sync_event(Event, _From, StateName, StateData) ->
-  io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, got_sync_request2]),
-  {stop, {StateName, undefined_event, Event}, StateData}.
-
-%%-------------------------------------------------------------------------
-%% Func: handle_info/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%% @private
-%%-------------------------------------------------------------------------
-handle_info({rtmp, _Socket, disconnect, Stats}, _StateName, #rtmp_session{} = StateData) ->
-  BytesSent = proplists:get_value(send_oct, Stats, 0),
-  BytesRecv = proplists:get_value(recv_oct, Stats, 0),
-  {stop, normal, StateData#rtmp_session{bytes_sent = BytesSent, bytes_recv = BytesRecv}};
-
-handle_info({rtmp, Socket, #rtmp_message{} = Message}, StateName, State) ->
-  State1 = handle_rtmp_message(State, Message),
-  State2 = flush_reply(State1),
-  % [{message_queue_len, Messages}, {memory, Memory}] = process_info(self(), [message_queue_len, memory]),
-  % io:format("messages=~p,memory=~p~n", [Messages, Memory]),
-  rtmp_socket:setopts(Socket, [{active, once}]),
-  {next_state, StateName, State2};
-
-handle_info({rtmp, Socket, connected}, 'WAIT_FOR_HANDSHAKE', State) ->
-  rtmp_socket:setopts(Socket, [{active, once}]),
-  {next_state, 'WAIT_FOR_DATA', State};
-
-handle_info({rtmp, _Socket, timeout}, _StateName, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
-  {stop, normal, State};
-
-handle_info({'DOWN', _Ref, process, Socket, _Reason}, _StateName, #rtmp_session{socket = Socket} = State) ->
-  {stop,normal,State};
-
-handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, StateName, #rtmp_session{socket = Socket} = State) ->
-  %FIXME: add passing down this message to plugins
-  case find_stream_by_pid(PlayerPid, State) of
-    undefined ->
-      ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
-      {next_state, StateName, State};
-    #rtmp_stream{stream_id = StreamId} ->
-      ?D({"Failed played stream", StreamId, PlayerPid}),
-      rtmp_lib:play_complete(Socket, StreamId, [{duration, 0}]),
-      flush_stream(StreamId),
-      {next_state, StateName, delete_stream(StreamId, State)}
-  end;
-
-handle_info({Port, {data, _Line}}, StateName, State) when is_port(Port) ->
-  % No-op. Just child program
-  {next_state, StateName, State};
-
-handle_info(#video_frame{} = Frame, 'WAIT_FOR_DATA', #rtmp_session{} = State) ->
-  {next_state, 'WAIT_FOR_DATA', handle_frame(Frame, State)};
-
-handle_info(#rtmp_message{} = Message, StateName, State) ->
-  rtmp_socket:send(State#rtmp_session.socket, Message),
-  {next_state, StateName, State};
-
-handle_info(exit, _StateName, StateData) ->
-  {stop, normal, StateData};
-
-handle_info({'$gen_call', From, Request}, StateName, StateData) ->
-  case ?MODULE:handle_sync_event(Request, From, StateName, StateData) of
-    {reply, Reply, NewStateName, NewState} ->
-      gen:reply(From, Reply),
-      {next_state, NewStateName, NewState};
-    {next_state, NewStateName, NewState} ->
-      {next_state, NewStateName, NewState}
-  end;
-
-handle_info({rtmp_lag, _Media}, _StateName, State) ->
-  ?D("Client stop due to rtmp_lag"),
-  {stop, normal, State};
-
-handle_info(Message, 'WAIT_FOR_DATA', #rtmp_session{host = Host} = State) ->
-  case ems:try_method_chain(Host, handle_info, [Message, State]) of
-    {unhandled} -> {next_state, 'WAIT_FOR_DATA', State};
-    unhandled -> {next_state, 'WAIT_FOR_DATA', State};
-    #rtmp_session{} = State1 -> {next_state, 'WAIT_FOR_DATA', State1}
-  end;
-
-
-handle_info(_Info, StateName, StateData) ->
-  ?D({"Some info handled", _Info, StateName, StateData}),
-  {next_state, StateName, StateData}.
 
 
 handle_frame(#video_frame{} = Frame, Session) ->
@@ -623,7 +567,7 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, _StateName, #rtmp_session{host = Host, addr = Addr, user_id = UserId, session_id = SessionId, bytes_recv = Recv, bytes_sent = Sent} = State) ->
+terminate(_Reason, #rtmp_session{host = Host, addr = Addr, user_id = UserId, session_id = SessionId, bytes_recv = Recv, bytes_sent = Sent} = State) ->
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p ~p", [Addr, Host, UserId, SessionId, Recv, Sent]),
   ems_event:user_disconnected(State#rtmp_session.host, self(), session_stats(State)),
   (catch call_function(Host, logout, [State])),
@@ -647,7 +591,7 @@ flush_stream(StreamId) ->
 %% Returns: {ok, NewState, NewStateData}
 %% @private
 %%-------------------------------------------------------------------------
-code_change(_OldVersion, _StateName, _State, _Extra) ->
+code_change(_OldVersion, _State, _Extra) ->
   ok.
 
 find_stream_by_pid(PlayerPid, #rtmp_session{streams1 = Streams}) ->
