@@ -145,7 +145,7 @@ function openFile(url) {
         listeners: {
           activate: function(panel) {
             if (currentPlayedFile) {
-              document.getElementById("hls_video").innerHTML = "<video src='/iphone/playlists/"+currentPlayedFile+".m3u8' controls autoplay></video>";
+              document.getElementById("hls_video").innerHTML = "<video src='/hls/"+currentPlayedFile+"/index.m3u8' controls autoplay></video>";
             }
           },
           deactivate: function(panel) {
