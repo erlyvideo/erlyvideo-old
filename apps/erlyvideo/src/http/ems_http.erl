@@ -23,7 +23,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_http).
--export([start_listener/1, start_link/1, stop/0, handle_http/1, http/4, wwwroot/1]).
+-export([start_listener/1, start_link/1, stop/0, handle_http/1, http/4, wwwroot/1, host/1]).
 -include("../log.hrl").
 
   
@@ -41,13 +41,16 @@ stop() ->
 start_link(ClientSocket) ->
   misultin_socket:start_link(ClientSocket, fun handle_http/1).
 
+host(Req) ->
+  case proplists:get_value('Host', Req:get(headers)) of
+    undefined -> default;
+    Val -> ems:host(hd(string:tokens(Val, ":")))
+  end.
+
 % callback on request received
 handle_http(Req) ->
   random:seed(now()),
-  Host = case proplists:get_value('Host', Req:get(headers)) of
-    undefined -> default;
-    Val -> ems:host(hd(string:tokens(Val, ":")))
-  end,
+  Host = host(Req),
   Method = Req:get(method),
   Path = Req:resource([urldecode]),
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
