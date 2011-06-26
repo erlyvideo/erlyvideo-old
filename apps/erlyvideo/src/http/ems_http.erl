@@ -23,7 +23,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(ems_http).
--export([start_listener/1, start_link/1, stop/0, handle_http/1, http/4, wwwroot/1, host/1]).
+-export([start_listener/1, stop/0, handle_http/1, http/4, wwwroot/1, host/1]).
 -include("../log.hrl").
 
   
@@ -37,9 +37,6 @@ start_listener(Port) when is_number(Port) ->
 stop() ->
 	misultin:stop().
 	
-	
-start_link(ClientSocket) ->
-  misultin_socket:start_link(ClientSocket, fun handle_http/1).
 
 host(Req) ->
   case proplists:get_value('Host', Req:get(headers)) of
