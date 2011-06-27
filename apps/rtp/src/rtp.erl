@@ -236,7 +236,7 @@ send_rtcp(#rtp_state{channels = Channels} = State, receiver_report, Options) ->
 
 
 
-stream(#rtp_state{streams = Streams}, C) -> hd([Stream || #stream_info{content = Content} = Stream <- Streams, C == Content]).
+% stream(#rtp_state{streams = Streams}, C) -> hd([Stream || #stream_info{content = Content} = Stream <- Streams, C == Content]).
 
 
 reorder_frames(#rtp_state{frames = OldFrames, reorder_length = ReorderLength} = RTP, NewFrames) ->
