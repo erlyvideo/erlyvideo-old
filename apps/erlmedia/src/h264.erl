@@ -34,6 +34,7 @@
 -export([profile_name/1, exp_golomb_read_list/2, exp_golomb_read_list/3, exp_golomb_read_s/1]).
 -export([parse_sps/1, to_fmtp/1, init/0, init/1]).
 -export([type/1, fua_split/2]).
+-export([unpack_rtp_list/2, nal_list_flavor/1]).
 
 
 video_config(H264) ->
@@ -91,9 +92,10 @@ has_config(_) -> false.
 
 decoder_config(#h264{sps = undefined}) -> undefined;
 decoder_config(#h264{pps = undefined}) -> undefined;
-decoder_config(#h264{pps = PPS, sps = SPS, profile = Profile, profile_compat = ProfileCompat, level = Level}) ->
+decoder_config(#h264{pps = PPS, sps = SPS, profile_compat = ProfileCompat}) ->
   LengthSize = 4-1,
   Version = 1,
+  [<<_:8, Profile, _:8, Level, _/binary>>|_] = SPS,
   SPSBin = iolist_to_binary(SPS),
   PPSBin = iolist_to_binary(PPS),
   <<Version, Profile, ProfileCompat, Level, 2#111111:6, LengthSize:2,
@@ -205,43 +207,6 @@ decode_nal(<<0:1, _NalRefIdc:2, ?NAL_DELIM:5, _PrimaryPicTypeId:3, _:5, _/binary
 
 
 
-decode_nal(<<0:1, _NRI:2, ?NAL_STAP_A:5, Rest/binary>>, H264) ->
-  % ?D("STAPA"),
-  decode_stapa(Rest, [], H264);
-
-decode_nal(<<0:1, _NRI:2, ?NAL_STAP_B:5, _/binary>>, _H264) ->
-  erlang:error(h264_star_b_unsupported);
-
-decode_nal(<<0:1, _NRI:2, ?NAL_MTAP16:5, _/binary>>, _H264) ->
-  erlang:error(h264_mtap16_unsupported);
-
-decode_nal(<<0:1, _NRI:2, ?NAL_MTAP24:5, _/binary>>, _H264) ->
-  erlang:error(h264_mtap24_unsupported);
-
-decode_nal(<<0:1, _NRI:2, ?NAL_FUB:5, _/binary>>, _H264) ->
-  erlang:error(h264_fub_unsupported);
-
-
-%          <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, R:1, Type:1,  _Rest/binary>>, R === 0
-decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, _End:1, 0:1, Type:5, Rest/binary>>, H264) ->
-  % ?D("FUA start"),
-  {H264#h264{buffer = <<0:1, NRI:2, Type:5, Rest/binary>>}, []};
-
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, _/binary>>, #h264{buffer = undefined} = H264) ->
-  ?D({skip_broken_fua}),
-  {H264, []};
-
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
-  % ?D("FUA cont"),
-  {H264#h264{buffer = <<Buf/binary, Rest/binary>>}, []};
-
-decode_nal(<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 1:1, 0:1, Type:5, Rest/binary>>, H264) ->
-  % ?D("FUA one"),
-  decode_nal(<<0:1, NRI:2, Type:5, Rest/binary>>, H264#h264{buffer = undefined});
-
-decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
-  % ?D("FUA end"),
-  decode_nal(<<Buf/binary, Rest/binary>>, H264#h264{buffer = undefined});
 
 
 % decode_nal(<<0:1, _NRI:2, ?NAL_FUA:5, S:1, E:1, R:1, _Type:5, Rest/binary>>, #h264{buffer = Buf} = H264) ->
@@ -257,12 +222,6 @@ decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>> = _NAL, H264) ->
   % ?D({"Unknown NAL unit type", _NalUnitType, size(_NAL)}),
   {H264, []}.
 
-decode_stapa(<<Size:16, NAL:Size/binary, Rest/binary>>, Frames, H264) ->
-  {H264_1, NewFrames} = decode_nal(NAL, H264),
-  decode_stapa(Rest, Frames ++ NewFrames, H264_1);
-
-decode_stapa(<<>>, Frames, H264) ->
-  {H264, Frames}.
 
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
 
@@ -475,7 +434,71 @@ fua_split(Bin, Size, NRI, Type, Acc) ->
       lists:reverse([<<0:1, NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, Type:5, Bin/binary>>|Acc])
   end.
     
+
+nal_list_flavor([]) -> frame;
+nal_list_flavor([<<_:3, ?NAL_IDR:5, _/binary>>|_]) -> keyframe;
+nal_list_flavor([<<_:3, ?NAL_SINGLE:5, _/binary>> = NAL|List]) -> 
+  case slice_header(NAL) of
+    #h264_nal{slice_type = 'I'} -> keyframe;
+    _ -> nal_list_flavor(List)
+  end;
+nal_list_flavor([_|List]) -> nal_list_flavor(List).
+
+
+decode_stapa(<<Size:16, NAL:Size/binary, Rest/binary>>, NALS) ->
+  decode_stapa(Rest, [NAL|NALS]);
+
+decode_stapa(<<>>, NALS) ->
+  NALS.
+
+
+depacketize(List) -> depacketize(List, undefined, []).
+
+depacketize([], undefined, NALS) -> 
+  lists:reverse(NALS);
+depacketize([], NAL, NALS) -> 
+  depacketize([], undefined, [NAL|NALS]);
+depacketize([<<0:1, _NRI:2, ?NAL_STAP_A:5, Rest/binary>>|List], undefined, NALS) -> 
+  depacketize(List, undefined, decode_stapa(Rest, NALS));
+%  <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, Reserved:1, Type:1,  _Rest/binary>>
+depacketize([<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 1:1, 0:1, Type:5, Rest/binary>>|List], undefined, NALS) ->  %% Start = End = 1
+  depacketize(List, undefined, [<<0:1, NRI:2, Type:5, Rest/binary>>|NALS]);
+depacketize([<<0:1, NRI:2, ?NAL_FUA:5, 1:1, 0:1, 0:1, Type:5, Rest/binary>>|List], undefined, NALS) ->  %% Start = 1, End = 0
+  depacketize(List, <<0:1, NRI:2, Type:5, Rest/binary>>, NALS);
+depacketize([<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 0:1, 0:1, _Type:5, Rest/binary>>|List], NAL, NALS) when is_binary(NAL) -> %% Start = 0, End = 0
+  depacketize(List, <<NAL/binary, Rest/binary>>, NALS);
+depacketize([<<0:1, _NRI:2, ?NAL_FUA:5, 0:1, 1:1, 0:1, _Type:5, Rest/binary>>|List], NAL, NALS) when is_binary(NAL) -> %% Start = 0, End = 1
+  depacketize(List, undefined, [<<NAL/binary, Rest/binary>>|NALS]);
+depacketize([<<0:1, _NRI:2, ?NAL_STAP_B:5, _/binary>>|_List], undefined, _NALS) -> erlang:error(h264_star_b_unsupported);
+depacketize([<<0:1, _NRI:2, ?NAL_MTAP16:5, _/binary>>|_List], undefined, _NALS) -> erlang:error(h264_mtap16_unsupported);
+depacketize([<<0:1, _NRI:2, ?NAL_MTAP24:5, _/binary>>|_List], undefined, _NALS) -> erlang:error(h264_mtap24_unsupported);
+depacketize([<<0:1, _NRI:2, ?NAL_FUB:5, _/binary>>|_List], undefined, _NALS) -> erlang:error(h264_fub_unsupported);
+depacketize([<<0:1, _NRI:2, _Type:5, _/binary>> = NAL|List], undefined, NALS) -> depacketize(List, undefined, [NAL|NALS]).
+
+
+
+unpack_rtp_list(Buffer, DTS) ->
+  NALS = depacketize(Buffer),
+  H264 = #h264{
+    sps = [SPS || <<_:3, ?NAL_SPS:5, _/binary>> = SPS <- NALS],
+    pps = [SPS || <<_:3, ?NAL_PPS:5, _/binary>> = SPS <- NALS]
+  },
+  OtherNALS = [NAL || <<_:3, Type:5, _/binary>> = NAL <- NALS, Type =/= ?NAL_PPS andalso Type =/= ?NAL_SPS],
   
+  
+  Frame = #video_frame{
+    content = video,
+    codec = h264,
+    flavor = nal_list_flavor(OtherNALS),
+    dts = DTS,
+    pts = DTS,
+    body = iolist_to_binary([[<<(size(NAL)):32>>, NAL] || NAL <- OtherNALS])
+  },
+  case h264:video_config(H264) of
+    undefined -> [Frame];
+    Config -> [Config#video_frame{dts = DTS, pts = DTS}, Frame]
+  end.
+
 
 %% http://www.rfc-editor.org/rfc/rfc3984.txt
 to_fmtp(Body) ->
@@ -502,6 +525,18 @@ to_fmtp(Body) ->
 %% Tests
 %%
 -include_lib("eunit/include/eunit.hrl").
+
+depacketize_test() ->
+  ?assertEqual([<<0:3, ?NAL_SPS:5>>, <<0:3, ?NAL_IDR:5, 1,2,3,4,5,6>>, <<0:3, ?NAL_SINGLE:5, 1,2,3,4,5,6>>], depacketize(rtp_test_fua())).
+
+%  <<0:1, _NRI:2, ?NAL_FUA:5, Start:1, End:1, R:1, Type:1,  _Rest/binary>>
+
+rtp_test_fua() ->
+  [<<0:3, ?NAL_STAP_A:5, 1:16, 0:3, ?NAL_SPS:5>>, 
+    <<0:3, ?NAL_FUA:5, 1:1, 0:1, 0:1, ?NAL_IDR:5, 1,2>>,<<0:3, ?NAL_FUA:5, 0:1, 0:1, 0:1, ?NAL_IDR:5, 3,4>>, <<0:3, ?NAL_FUA:5, 0:1, 1:1, 0:1, ?NAL_IDR:5, 5,6>>,
+    <<0:3, ?NAL_FUA:5, 1:1, 0:1, 0:1, ?NAL_SINGLE:5, 1,2>>,<<0:3, ?NAL_FUA:5, 0:1, 0:1, 0:1, ?NAL_SINGLE:5, 3,4>>, <<0:3, ?NAL_FUA:5, 0:1, 1:1, 0:1, ?NAL_SINGLE:5, 5,6>>
+    ].
+
 
 parse_sps_for_high_profile_test() ->
   ?assertMatch(#h264_sps{profile = 100, level = 50, width = 1280, height = 720}, parse_sps(<<103,100,0,50,172,52,226,192,80,5,187,1,16,0,0,62,144,0,11,184,8,241,131,24,184>>)).

@@ -34,9 +34,7 @@
 
 -record(h264_buffer, {
   time,
-  h264,
-  buffer,
-  flavor
+  buffer
 }).
 
 -export([init/1, decode/2, sync/2]).
@@ -107,76 +105,16 @@ decode(Body, #rtp_channel{stream_info = #stream_info{codec = Codec, content = Co
 %   accumulate(Body, NewDts)
 %   return_frames_and_new_buffer
 %
-decode_h264(Body, #h264_buffer{time = OldDTS} = RTP, DTS) when OldDTS > DTS ->
-  Reply = case h264:decode_nal(Body, h264:init()) of
-    {#h264{buffer = undefined}, Frames} -> [F#video_frame{dts = DTS, pts = DTS} || F <- Frames];
-    _ ->
-      ?D({drop_late_h264, DTS, OldDTS, h264:type(Body), size(Body)}),
-      []
-  end,
-  {ok, RTP, Reply};
 
 decode_h264(Body, undefined, DTS) ->
-%   decode_h264(Body, #h264_buffer{}, DTS);
-%
-% decode_h264(_Body, #h264_buffer{time = undefined} = RTP, DTS) ->
-  % {ok, RTP#h264_buffer{time = DTS}, []}; % Here we are entering sync-wait state which will last till current inteleaved frame is over
-  % ?D(init_h264_buffer),
-  decode_h264(Body, #h264_buffer{h264 = h264:init(), time = DTS, buffer = <<>>}, DTS);
+  {ok, #h264_buffer{time = DTS, buffer = [Body]}, []};
 
-% decode_h264(_Body, #h264_buffer{time = OldDTS, h264 = undefined} = RTP, DTS) when OldDTS =/= DTS ->
-%   {ok, RTP#h264_buffer{time = DTS, h264 = h264:init(), buffer = <<>>}, []};
-%
-% decode_h264(_Body, #h264_buffer{time = DTS, h264 = undefined} = RTP, DTS) ->
-%   {ok, RTP, []};
+decode_h264(Body, #h264_buffer{time = DTS, buffer = Buffer} = H264, DTS) ->
+  {ok, H264#h264_buffer{buffer = [Body|Buffer]}, []};
 
-decode_h264(Body, #h264_buffer{h264 = H264, time = DTS, buffer = Buffer, flavor = Flavor} = RTP, DTS) ->
-  {H264_1, Frames} = h264:decode_nal(Body, H264),
-  Buf1 = lists:foldl(fun(#video_frame{body = AVC}, Buf) -> <<Buf/binary, AVC/binary>> end, Buffer, Frames),
-  % ?D({avc, h264:type(Body), [{F#video_frame.flavor, size(F#video_frame.body)} || F <- Frames], size(Buf1)}),
-  [F#video_frame.flavor =/= undefined orelse erlang:error(h264_decoder_flavor_undefined) || F <- Frames],
-  Flavor1 = case Frames of
-    [#video_frame{flavor = Fl}|_] -> Fl;
-    [] -> Flavor
-  end,
-  % ?D({h264_decode_fragment, DTS, Flavor1, size(Buf1)}),
-  {ok, RTP#h264_buffer{h264 = H264_1, buffer = Buf1, flavor = Flavor1}, []};
+decode_h264(Body, #h264_buffer{time = OldDTS, buffer = Buffer}, DTS) when OldDTS =/= DTS ->
+  {ok, #h264_buffer{time = DTS, buffer = [Body]}, h264:unpack_rtp_list(lists:reverse(Buffer), OldDTS)}.
 
-
-% decode_h264(Body, #h264_buffer{time = OldDTS, buffer = <<>>} = RTP, DTS) when OldDTS < DTS ->
-%   ?D(zerobuf),
-%   decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), time = DTS}, DTS);
-
-
-decode_h264(Body, #h264_buffer{h264 = OldH264, time = OldDTS, buffer = Buffer, flavor = OldFlavor} = RTP, DTS) when OldDTS < DTS ->
-
-   % orelse erlang:error({non_decoded_h264_left, OldH264, Buffer}),
-
-  {H264, Flavor} = case {OldH264#h264.buffer, Buffer} of
-    {<<>>, <<>>} -> {undefined, undefined};
-    {undefined, <<>>} -> {undefined, undefined};
-    {Bin, <<>>} ->
-      {_, [#video_frame{flavor = Fl}]} = h264:decode_nal(Bin, OldH264),
-      {<<(size(Bin)):32, Bin/binary>>, Fl};
-    {_, Bin} when size(Bin) > 0 -> {Bin, OldFlavor}
-  end,
-
-  Frames = case H264 of
-    undefined -> [];
-    _ ->
-      Flavor =/= undefined orelse erlang:error({h264_frame_flavor_undefined, size(Buffer)}),
-      [#video_frame{
-        content = video,
-        codec = h264,
-        body = H264,
-        flavor = Flavor,
-        dts = OldDTS,
-        pts = OldDTS
-      }]
-  end,
-
-  {ok, RTP1, []} = decode_h264(Body, RTP#h264_buffer{h264 = h264:init(), flavor = undefined, time = DTS, buffer = <<>>}, DTS),
-  {ok, RTP1, Frames}.
 
 
 decode_aac(<<>>, <<>>, RTP, _, Frames) ->

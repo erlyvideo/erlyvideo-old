@@ -36,24 +36,20 @@
 
 rtp_state1() ->
   #rtp_channel{sequence = 11143,
-  wall_clock = 1300433001498,
+  wall_clock = 1300433001598,
   timecode = 193161,
   timescale = 90.0,
   codec = h264,
-  buffer = {h264_buffer,1300433001564.6667,
-                              {h264,undefined,0,undefined,32,undefined,
-                               undefined,undefined},
-                              <<>>,undefined},
-  stream_info = {stream_info,video,2,h264,
+  buffer = undefined,
+  stream_info = #stream_info{content = video, stream_id = 2, codec = h264, config = 
                               <<1,77,0,30,255,225,0,21,39,77,64,30,169,24,60,23,
                                 252,184,3,80,96,16,107,108,43,94,247,192,64,1,0,
-                                4,40,222,9,200>>,
-  [{control,"trackid=2"}]}}.
+                                4,40,222,9,200>>, options = [{control,"trackid=2"}]}}.
 
 
 rtp_decode_test() ->
-  Packet1 = <<128,97,43,135,0,3,21,177,0,201,89,153,6,5,17,3,135,244,78,205,10,75,220,161,148,58,195,212,155,23,31,0,128>>,
-  Packet2 = <<128,97,43,136,0,3,21,176,0,201,89,153,6,5,17,3,135,244,78,205,10,75,220,161,148,58,195,212,155,23,31,0,128>>,
+  Packet1 = <<128,97,43,135,0,3,21,176,0,201,89,153,6,5,17,3,135,244,78,205,10,75,220,161,148,58,195,212,155,23,31,0,128>>,
+  Packet2 = <<128,97,43,136,0,3,21,177,0,201,89,153,6,5,17,3,135,244,78,205,10,75,220,161,148,58,195,212,155,23,31,0,128>>,
   {ok, RTP1, Frames1} = rtp_decoder:decode(Packet1, rtp_state1()),
   {ok, RTP2, Frames2} = rtp_decoder:decode(Packet2, RTP1),
   ?assertMatch({ok, #rtp_channel{}, []}, {ok, RTP1, Frames1}),

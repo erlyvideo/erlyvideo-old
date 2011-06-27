@@ -242,27 +242,27 @@ stream(#rtp_state{streams = Streams}, C) -> hd([Stream || #stream_info{content =
 reorder_frames(#rtp_state{frames = OldFrames, reorder_length = ReorderLength} = RTP, NewFrames) ->
   Ordered = lists:sort(fun frame_sort/2, OldFrames++NewFrames),
   {Store, Send} = lists:split(ReorderLength, Ordered),
-  {RTP1, ClientFrames} = add_configs(RTP#rtp_state{frames = Store}, Send, []),
+  % {RTP1, ClientFrames} = add_configs(RTP#rtp_state{frames = Store}, Send, []),
   % [?D({F#video_frame.codec,F#video_frame.flavor,F#video_frame.dts, d(F#video_frame.body)}) || F <- ClientFrames],
-  {ok, RTP1, ClientFrames}.
+  {ok, RTP#rtp_state{frames = Store}, Send}.
 
-add_configs(#rtp_state{sent_audio_config = false} = Socket, [#video_frame{codec = aac, dts = DTS} = Frame|Frames], Acc) ->
-  Config = (video_frame:config_frame(stream(Socket, audio)))#video_frame{dts = DTS, pts = DTS},
-  add_configs(Socket#rtp_state{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
-
-add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
-  case video_frame:config_frame(stream(Socket, video)) of
-    #video_frame{} = Config ->
-      add_configs(Socket, Frames, [Frame,Config#video_frame{dts = DTS, pts = DTS}|Acc]);
-    undefined ->
-      add_configs(Socket, Frames, [Frame|Acc])
-  end;
-
-add_configs(Socket, [], Acc) ->
-  {Socket, lists:reverse(Acc)};
-
-add_configs(Socket, [Frame|Frames], Acc) ->
-  add_configs(Socket, Frames, [Frame|Acc]).
+% add_configs(#rtp_state{sent_audio_config = false} = Socket, [#video_frame{codec = aac, dts = DTS} = Frame|Frames], Acc) ->
+%   Config = (video_frame:config_frame(stream(Socket, audio)))#video_frame{dts = DTS, pts = DTS},
+%   add_configs(Socket#rtp_state{sent_audio_config = true}, Frames, [Frame,Config|Acc]);
+% 
+% add_configs(Socket, [#video_frame{codec = h264, flavor = keyframe, dts = DTS} = Frame|Frames], Acc) ->
+%   case video_frame:config_frame(stream(Socket, video)) of
+%     #video_frame{} = Config ->
+%       add_configs(Socket, Frames, [Frame,Config#video_frame{dts = DTS, pts = DTS}|Acc]);
+%     undefined ->
+%       add_configs(Socket, Frames, [Frame|Acc])
+%   end;
+% 
+% add_configs(Socket, [], Acc) ->
+%   {Socket, lists:reverse(Acc)};
+% 
+% add_configs(Socket, [Frame|Frames], Acc) ->
+%   add_configs(Socket, Frames, [Frame|Acc]).
 
 
 frame_sort(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) -> DTS1 =< DTS2.
