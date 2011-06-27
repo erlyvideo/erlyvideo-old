@@ -414,22 +414,22 @@ hdlr(<<0:32, 0:32, "hint", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   end,
   Mp4Track#mp4_track{content = hint};
 
-hdlr(<<0:32, 0:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_media{} = Mp4Media) ->
+hdlr(<<0:32, 0:32, _Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_media{} = Mp4Media) ->
   Len = (size(NameNull) - 1),
-  Name = case NameNull of
+  _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
-  ?D({hdlr, Handler, Name}),
+  % ?D({hdlr, Handler, Name}),
   Mp4Media;
 
 hdlr(<<0:32, 0:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
   Len = (size(NameNull) - 1),
-  Name = case NameNull of
+  _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
-  ?D({hdlr, Handler, Name}),
+  % ?D({hdlr, Handler, Name}),
   Mp4Track#mp4_track{content = binary_to_atom(Handler, latin1)}.
   
 % SMHD atom
