@@ -148,7 +148,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
   end,
   
   SocketOptions = case rtmp_socket:get_socket(Socket) of
-    % {rtmp, RTMPSocket} -> [{socket,{rtmp,RTMPSocket}}];
+    {rtmp, RTMPSocket} -> [{socket,{rtmp,RTMPSocket}}];
     _ -> []
   end,
   case media_provider:find(Host, Name) of

@@ -255,7 +255,7 @@ repeater_send_frame(#video_frame{body = Body} = VideoFrame, #clients{bytes = Byt
     (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
       Frame; 
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId}, Frame) when is_function(FlvFrameGen)->
-      ?D(accel_send),
+      % ?D({accel_send, StreamId, VideoFrame#video_frame.codec,VideoFrame#video_frame.flavor, round(VideoFrame#video_frame.dts - DTS)}),
       case (catch port_command(Socket, FlvFrameGen(DTS, StreamId),[nosuspend])) of
         true -> ok;
         _ -> Pid ! {rtmp_lag, self()}
