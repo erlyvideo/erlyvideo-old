@@ -39,7 +39,7 @@
 -define(SNDBUF, 4194304).
 
 -define(REPEATER_COUNT, 1).
--define(ACCEL_CLIENTS_LIMIT, 3).
+-define(ACCEL_CLIENTS_LIMIT, 300).
 
 -record(clients, {
   active,
@@ -49,6 +49,7 @@
   list = [],
   bytes,
   type,
+  name,
   send_buffer
 }).
 
@@ -63,11 +64,13 @@
 init(Options) ->
   Clients = #clients{
     type = proplists:get_value(type, Options),
+    name = proplists:get_value(name, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   },
-  init_accel(Clients).
+  Clients.
 
 init_accel(#clients{list = Entries} = Clients) ->
+  ?D({"Init accelerated mode for stream", Clients#clients.name}),
   Clients1 = Clients#clients{
     bytes = ets:new(clients, [set, public]),
     active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
