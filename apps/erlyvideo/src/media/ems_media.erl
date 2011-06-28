@@ -408,8 +408,10 @@ init([Module, Options]) ->
     is_atom(URL_) -> atom_to_binary(URL_, latin1);
     true -> iolist_to_binary(io_lib:format("~p", [URL_]))
   end,
-  Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = proplists:get_value(type, Options),
-                     clients = ems_media_clients:init(Options), host = proplists:get_value(host, Options),
+  Host = proplists:get_value(host, Options),
+  Type = proplists:get_value(type, Options),
+  Media = #ems_media{options = Options, module = Module, name = Name, url = URL, type = Type,
+                     clients = ems_media_clients:init(Options), host = Host,
                      media_info = proplists:get_value(media_info, Options, #media_info{flow_type = stream}),
                      glue_delta = proplists:get_value(glue_delta, Options, ?DEFAULT_GLUE_DELTA),
                      sort_count = proplists:get_value(sort_count, Options, 10),
@@ -418,6 +420,11 @@ init([Module, Options]) ->
   Media_ = ems_media_frame:init(Media),                   
   timer:send_interval(30000, garbage_collect),
   timer:send_after(5000, stop_wait_for_config),
+  
+  % For diagnostic:
+  put(ems_media, [
+    {host, Host}, {url, URL}, {name, Name}, {module, Module}, {type, Type}, {created_at, ems:now(utc)}
+  ]),
   case Module:init(Media_, Options) of
     {ok, Media1} ->
       Media2 = init_timeshift(Media1, Options),

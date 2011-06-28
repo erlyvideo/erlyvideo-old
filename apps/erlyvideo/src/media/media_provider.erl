@@ -38,7 +38,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/0, create/3, open/2, open/3, play/2, play/3, entries/1, remove/2, find/2, register/3, register/4]).
+-export([start_link/0, create/3, open/2, open/3, play/2, play/3, entries/1, remove/2, find/2, register/3, register/4, stop/2]).
 -export([info/1, info/2, media_info/2, detect_type/3]). % just for getStreamLength
 
 %% gen_server callbacks
@@ -190,6 +190,12 @@ media_info(Host, Name) ->
   end.
   
 
+
+stop(Host, Name) ->
+  case find(Host, Name) of
+    {ok, Media} -> ems_media:stop_stream(Media);
+    _ -> {error, notfound}
+  end.
 
   
 
