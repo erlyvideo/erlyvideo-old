@@ -60,20 +60,18 @@
 
 init(Options) ->
   Clients = #clients{
-    bytes = ets:new(clients, [set, public]),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   },
-  case proplists:get_value(type, Options) of
-    file -> Clients;
-    _ -> init_accel(Clients)
-  end.
+  Clients.
 
-init_accel(Clients) ->
+init_accel(#clients{list = Entries} = Clients) ->
   Clients1 = Clients#clients{
+    bytes = ets:new(clients, [set, public]),
     active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
     passive = ets:new(passive, [set, public, {keypos, #cached_entry.pid}]),
     starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}])
   },
+  [insert_client(Clients1, Entry) || Entry <- Entries],
   Repeaters = [proc_lib:spawn_link(?MODULE, init_repeater, [Clients1, self(), Key]) || Key <- lists:seq(1, ?REPEATER_COUNT)],
   Clients1#clients{repeaters = Repeaters}.
   
@@ -92,6 +90,7 @@ repeater(#clients{} = Clients, Key) ->
   end.
 
 
+flush(#clients{repeaters = undefined}) -> ok;
 flush(#clients{repeaters = Repeaters}) ->
   Ref = erlang:make_ref(),
   [Repeater ! {flush, Ref, self()} || Repeater <- Repeaters],
@@ -133,7 +132,8 @@ insert_client(#clients{bytes = Bytes} = Clients, #client{state = State, consumer
 remove_client(#clients{active = undefined}, _Client) ->
   ok;
 
-remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
+remove_client(#clients{active = A, passive = P, starting = S, bytes = Bytes}, Client) ->
+  ets:delete(Bytes, Client),
   ets:delete(A, Client),
   ets:delete(P, Client),
   ets:delete(S, Client),
@@ -162,8 +162,11 @@ list(#clients{list = List, bytes = Bytes}) ->
 find(#clients{bytes = Bytes, list = List}, Client) ->
   case lists:keyfind(Client, #client.consumer, List) of
     false -> undefined;
-    Entry -> Entry#client{bytes = ets:lookup_element(Bytes, Client, 2)}
+    Entry -> Entry#client{bytes = fetch_bytes(Bytes, Client)}
   end.
+
+fetch_bytes(undefined, _Client) -> 0;
+fetch_bytes(Bytes, Client) -> ets:lookup_element(Bytes, Client, 2).
   
 find_by_ticker(Storage, Pid) ->
   find(Storage, Pid, #client.ticker).
@@ -211,14 +214,16 @@ update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B
   List1 = lists:keystore(Client, #client.consumer, List, NewEntry),
   Clients#clients{list = List1}.
 
-delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
-  ets:delete(Bytes, Client),
+delete(#clients{list = List} = Clients, Client) ->
   remove_client(Clients, Client),
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
 
 
 % send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
 %   repeater_send_frame(Frame, Clients, starting, undefined);
+send_frame(#video_frame{} = Frame, #clients{repeaters = undefined, list = Entries} = Clients, State) ->
+  [Pid ! Frame#video_frame{stream_id = StreamId} || #client{state = State1, consumer = Pid, stream_id = StreamId} <- Entries, State1 == State],
+  Clients;
 
 send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, State) ->
 %  case Frame#video_frame.content of
