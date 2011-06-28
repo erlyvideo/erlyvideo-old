@@ -39,6 +39,7 @@
 -define(SNDBUF, 4194304).
 
 -define(REPEATER_COUNT, 1).
+-define(ACCEL_CLIENTS_LIMIT, 3).
 
 -record(clients, {
   active,
@@ -47,6 +48,7 @@
   repeaters,
   list = [],
   bytes,
+  type,
   send_buffer
 }).
 
@@ -60,9 +62,10 @@
 
 init(Options) ->
   Clients = #clients{
+    type = proplists:get_value(type, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   },
-  Clients.
+  init_accel(Clients).
 
 init_accel(#clients{list = Entries} = Clients) ->
   Clients1 = Clients#clients{
@@ -139,9 +142,13 @@ remove_client(#clients{active = A, passive = P, starting = S, bytes = Bytes}, Cl
   ets:delete(S, Client),
   ok.
   
-insert(#clients{list = List} = Clients, #client{consumer = Client} = Entry) ->
+insert(#clients{list = List, type = Type, active = A} = Clients, #client{consumer = Client} = Entry) ->
   insert_client(Clients, Entry),
-  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
+  Clients1 = Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})},
+  if
+    A == undefined andalso length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
+    true -> Clients1
+  end.
 
 list(#clients{list = List, bytes = Bytes}) ->
   Now = ems:now(utc),
@@ -178,6 +185,9 @@ find(#clients{bytes = Bytes, list = List}, Value, Pos) ->
   end.
 
 
+count(#clients{active = undefined, list = Entries}) ->
+  length(Entries);
+  
 count(#clients{bytes = Bytes}) ->
   ets:info(Bytes, size).
   
@@ -245,6 +255,7 @@ repeater_send_frame(#video_frame{body = Body} = VideoFrame, #clients{bytes = Byt
     (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
       Frame; 
     (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId}, Frame) when is_function(FlvFrameGen)->
+      ?D(accel_send),
       case (catch port_command(Socket, FlvFrameGen(DTS, StreamId),[nosuspend])) of
         true -> ok;
         _ -> Pid ! {rtmp_lag, self()}
