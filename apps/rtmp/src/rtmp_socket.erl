@@ -124,10 +124,10 @@ get_socket(RTMP) ->
       gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT).
 
 notify_audio(RTMP, StreamId, DTS) ->
-  RTMP ! {notify_audio, StreamId, DTS}.
+  gen_fsm:sync_send_all_state_event(RTMP, {notify_audio, StreamId, DTS}).
 
 notify_video(RTMP, StreamId, DTS) ->
-  RTMP ! {notify_video, StreamId, DTS}.
+  gen_fsm:sync_send_all_state_event(RTMP, {notify_video, StreamId, DTS}).
   
 %% @private
 start_link(Type) ->
@@ -459,6 +459,12 @@ handle_sync_event({setopts, Options}, _From, StateName, State) ->
   NewState = set_options(State, Options),
   {reply, ok, StateName, NewState, ?RTMP_TIMEOUT};
 
+handle_sync_event({notify_audio, StreamId, DTS}, _From, loop, Socket) ->
+  {reply, ok, loop, send_audio_notify(Socket, StreamId, DTS), ?RTMP_TIMEOUT};
+
+handle_sync_event({notify_video, StreamId, DTS}, _From, loop, Socket) ->
+  {reply, ok, loop, send_video_notify(Socket, StreamId, DTS), ?RTMP_TIMEOUT};
+
 handle_sync_event(Event, _From, StateName, StateData) ->
   {stop, {StateName, undefined_event, Event}, StateData}.
 
@@ -555,12 +561,6 @@ handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
 handle_info({'DOWN', _, process, _Client, _Reason}, _StateName, State) ->
   {stop, normal, State};
 
-handle_info({notify_audio, StreamId, DTS}, loop, Socket) ->
-  {next_state, loop, send_audio_notify(Socket, StreamId, DTS), ?RTMP_TIMEOUT};
-
-handle_info({notify_video, StreamId, DTS}, loop, Socket) ->
-  {next_state, loop, send_video_notify(Socket, StreamId, DTS), ?RTMP_TIMEOUT};
-
 handle_info({tcp_paused, _Socket}, StateName, StateData) ->
   {next_state, StateName, StateData, ?RTMP_TIMEOUT};
 
@@ -594,9 +594,11 @@ activate_socket(#rtmp_socket{socket = Socket}) when is_pid(Socket) ->
 
 
 send_audio_notify(Socket, StreamId, DTS) ->
+  ?D({notify_audio,StreamId}),
   send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)).
 
 send_video_notify(Socket, StreamId, DTS) ->
+  ?D({notify_video,StreamId}),
   Msg = [
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,0>>, ts_type = new},
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<23,2,0,0,0>>, ts_type = new},
