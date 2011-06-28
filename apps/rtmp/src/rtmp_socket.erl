@@ -51,6 +51,7 @@
 
 -export([accept/1, connect/1, start_link/1, getopts/2, setopts/2, getstat/2, getstat/1, send/2, get_socket/1]).
 -export([status/3, status/4, prepare_status/2, prepare_status/3, invoke/2, invoke/4, prepare_invoke/3, notify/4, prepare_notify/3]).
+-export([notify_audio/3, notify_video/3]).
 
 -export([start_socket/2, start_server/3, start_server/4, set_socket/2]).
   
@@ -121,7 +122,12 @@ set_socket(RTMP, Socket) ->
 
 get_socket(RTMP) -> 
       gen_fsm:sync_send_all_state_event(RTMP, get_socket, ?RTMP_TIMEOUT).
-  
+
+notify_audio(RTMP, StreamId, DTS) ->
+  RTMP ! {notify_audio, StreamId, DTS}.
+
+notify_video(RTMP, StreamId, DTS) ->
+  RTMP ! {notify_video, StreamId, DTS}.
   
 %% @private
 start_link(Type) ->
@@ -549,6 +555,12 @@ handle_info({rtmpt, RTMPT, Data}, StateName, State) ->
 handle_info({'DOWN', _, process, _Client, _Reason}, _StateName, State) ->
   {stop, normal, State};
 
+handle_info({notify_audio, StreamId, DTS}, loop, Socket) ->
+  {next_state, loop, send_audio_notify(Socket, StreamId, DTS), ?RTMP_TIMEOUT};
+
+handle_info({notify_video, StreamId, DTS}, loop, Socket) ->
+  {next_state, loop, send_video_notify(Socket, StreamId, DTS), ?RTMP_TIMEOUT};
+
 handle_info({tcp_paused, _Socket}, StateName, StateData) ->
   {next_state, StateName, StateData, ?RTMP_TIMEOUT};
 
@@ -579,23 +591,30 @@ activate_socket(#rtmp_socket{socket = Socket}) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}]);
 activate_socket(#rtmp_socket{socket = Socket}) when is_pid(Socket) ->
   ok.
-  
 
-send_data(#rtmp_socket{sent_audio_notify = false} = Socket, 
-          #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId, body = Body} = Message) when size(Body) > 0 ->
-  State1 = send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)),
-  send_data(State1, Message#rtmp_message{ts_type = new});
 
-send_data(#rtmp_socket{sent_video_notify = false} = Socket, #rtmp_message{type = video, timestamp = DTS, stream_id = StreamId} = Message) ->
+send_audio_notify(Socket, StreamId, DTS) ->
+  send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)).
+
+send_video_notify(Socket, StreamId, DTS) ->
   Msg = [
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,0>>, ts_type = new},
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<23,2,0,0,0>>, ts_type = new},
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,1>>, ts_type = delta}
   ],
   
-  State2 = lists:foldl(fun(M, State1) ->
+  lists:foldl(fun(M, State1) ->
     send_data(State1, M)
-  end, Socket#rtmp_socket{sent_video_notify = true}, Msg),
+  end, Socket#rtmp_socket{sent_video_notify = true}, Msg).
+      
+
+send_data(#rtmp_socket{sent_audio_notify = false} = Socket, 
+          #rtmp_message{type = audio, timestamp = DTS, stream_id = StreamId, body = Body} = Message) when size(Body) > 0 ->
+  State1 = send_audio_notify(Socket, StreamId, DTS),
+  send_data(State1, Message#rtmp_message{ts_type = new});
+
+send_data(#rtmp_socket{sent_video_notify = false} = Socket, #rtmp_message{type = video, timestamp = DTS, stream_id = StreamId} = Message) ->
+  State2 = send_video_notify(Socket, StreamId, DTS),
   send_data(State2, Message);
   
 send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
