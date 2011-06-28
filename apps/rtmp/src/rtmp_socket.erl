@@ -594,11 +594,9 @@ activate_socket(#rtmp_socket{socket = Socket}) when is_pid(Socket) ->
 
 
 send_audio_notify(Socket, StreamId, DTS) ->
-  ?D({notify_audio,StreamId}),
   send_data(Socket#rtmp_socket{sent_audio_notify = true}, rtmp_lib:empty_audio(StreamId, DTS)).
 
 send_video_notify(Socket, StreamId, DTS) ->
-  ?D({notify_video,StreamId}),
   Msg = [
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<87,0>>, ts_type = new},
     #rtmp_message{type = video, channel_id = rtmp_lib:channel_id(video, StreamId), timestamp = DTS, stream_id = StreamId, body = <<23,2,0,0,0>>, ts_type = new},
