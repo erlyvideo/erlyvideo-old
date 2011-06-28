@@ -529,7 +529,7 @@ handle_call(media_info, _From, #ems_media{media_info = #media_info{audio = A, vi
 
 
 handle_call(media_info, From, #ems_media{waiting_for_config = Waiting} = Media) ->
-  ?D({"No decoder config in live stream, waiting"}),
+  ?D({"No decoder config in stream, waiting", Media#ems_media.name}),
   {noreply, Media#ems_media{waiting_for_config = [From|Waiting]}, ?TIMEOUT};
 
 handle_call({set_media_info, Info}, _From, #ems_media{} = Media) ->

@@ -151,13 +151,15 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
     {rtmp, RTMPSocket} -> [{socket,{rtmp,RTMPSocket}}];
     _ -> []
   end,
-  case media_provider:find(Host, Name) of
+  case media_provider:open(Host, Name) of
     {notfound, _Reason} -> 
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State;
     {ok, Media} ->
-      #media_info{audio = A, video = V} = ems_media:media_info(Media),
+      MediaInfo = ems_media:media_info(Media),
+      ?D({media_info,MediaInfo}),
+      #media_info{audio = A, video = V} = MediaInfo,
       case A of [] -> ok; _ -> rtmp_socket:notify_audio(Socket, StreamId, 0) end,
       case V of [] -> ok; _ -> rtmp_socket:notify_video(Socket, StreamId, 0) end,
       {ok, Media1} = media_provider:play(Host, Name, SocketOptions ++ [{stream_id,StreamId}|Options]),
