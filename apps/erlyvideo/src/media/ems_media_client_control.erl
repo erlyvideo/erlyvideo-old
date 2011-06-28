@@ -62,11 +62,18 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         % It is very important to understand, that we need to send audio config here, because client starts receiving music
         % right after subscribing, but it will wait for video till keyframe
         %
+        SendAudioBeforeKeyframe = proplists:get_value(send_audio_before_keyframe, Options, true),
         ClientState = case proplists:get_value(paused, Options, false) of
           true -> paused;
-          false when HasVideo == true -> starting;
-          false when is_record(A, video_frame) -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId}, active;
-          false -> starting
+          false ->
+            if
+              is_record(A, video_frame) andalso SendAudioBeforeKeyframe == true -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId};
+              true -> ok
+            end,
+            if
+              HasVideo == true -> starting;
+              true -> active
+            end
         end,
         ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS})
     end,
