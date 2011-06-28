@@ -328,6 +328,7 @@ reload(App) ->
 
 reload_mod(Module) when is_atom(Module) ->
 	code:soft_purge(Module),
+	code:purge(Module),
 	code:load_file(Module),
 	true.
 

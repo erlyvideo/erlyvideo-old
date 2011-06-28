@@ -432,7 +432,8 @@ call_mfa(#c{loop = Loop, autoexit = AutoExit, no_headers = NoHeaders} = C, Req) 
 	% trap exit
 	process_flag(trap_exit, true),
 	% spawn
-	LoopPid = spawn_link(fun() ->
+	LoopPid = proc_lib:spawn_link(fun() ->
+	  erlang:monitor(process, Self),
 		% create request
 		ReqT = case NoHeaders of
 			true -> {misultin_req, Req#req{headers = []}, Self};

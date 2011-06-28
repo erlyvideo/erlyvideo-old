@@ -70,7 +70,7 @@ acceptor(ServerRef, TableDateRef, ListenSocket, ListenPort, RecvTimeout, SocketM
 	case catch misultin_socket:accept(ListenSocket, SocketMode) of
 		{ok, Sock} when SocketMode =:= http ->
 			?LOG_DEBUG("received a new http request, spawning a controlling process",[]),
-			Pid = spawn(fun() ->
+			Pid = proc_lib:spawn_link(fun() ->
 				activate_controller_process(ServerRef, TableDateRef, Sock, ListenPort, RecvTimeout, SocketMode, CustomOpts)
 			end),
 			% set controlling process

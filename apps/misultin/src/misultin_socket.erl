@@ -96,10 +96,10 @@ send(Sock, Data, F) ->
 	case F(Sock, Data) of
 		ok ->
 			ok;
-		{error, closed}	->
-		  exit(normal);
+    {error, closed} ->
+      exit(normal);
 		{error, _Reason} ->
-			?LOG_ERROR("error sending data: ~p", [_Reason]),
+			?LOG_ERROR("error sending data: (~p)~p", [self(), _Reason]),
 			exit(normal)
 	end.
 
