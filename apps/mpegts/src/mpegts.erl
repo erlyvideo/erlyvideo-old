@@ -31,7 +31,6 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("log.hrl").
 -include("../include/mpegts.hrl").
--include("../include/mpegts_psi.hrl").
 
 -export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1, counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).
@@ -290,7 +289,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
   % no PES size should be provided for video
   Code = case Codec of
     h264 -> ?MPEGTS_STREAMID_H264;
-    mpeg2video -> ?TYPE_VIDEO_MPEG2
+    mpeg2video -> ?MPEGTS_STREAMID_MPEG2
   end,
   PES = <<1:24, Code, 0:16, PesHeader/binary, 1:32, Body/binary>>,
   
@@ -322,8 +321,8 @@ send_audio(#streamer{audio_config = AudioConfig} = Streamer, #video_frame{codec 
   Code = case Codec of
     aac -> ?MPEGTS_STREAMID_AAC;
     adts -> ?MPEGTS_STREAMID_AAC;
-    mp3 -> ?TYPE_AUDIO_MPEG1;
-    mpeg2audio -> ?TYPE_AUDIO_MPEG2
+    mp3 -> ?MPEGTS_STREAMID_MPGA1;
+    mpeg2audio -> ?MPEGTS_STREAMID_MPGA2
   end,
   PES = <<1:24, Code, (size(PesHeader) + size(Packed)):16, PesHeader/binary, Packed/binary>>,
   % PES = <<1:24, ?TYPE_AUDIO_AAC, 0:16, PesHeader/binary, ADTS/binary>>,

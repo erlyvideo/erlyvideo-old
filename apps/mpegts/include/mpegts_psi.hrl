@@ -51,6 +51,4 @@
 -define(TYPE_AUDIO_AC3,   129).
 -define(TYPE_AUDIO_DTS,   138).
 
--define(MPEGTS_STREAMID_AAC, 192).
--define(MPEGTS_STREAMID_H264, 224).
 
