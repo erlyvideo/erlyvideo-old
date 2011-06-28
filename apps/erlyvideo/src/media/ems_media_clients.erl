@@ -113,16 +113,20 @@ table(#clients{passive = Table}, passive) -> Table;
 table(#clients{starting = Table}, starting) -> Table.
 
 
-insert_client(_Clients, paused, _Entry) ->
+insert_client(_Clients, #client{state = paused}) ->
   ?D({"Wasn't inserted"}),
   ok;
 
 % No ETS tables for files and low-usage streams
-insert_client(#clients{active = undefined}, _State, _Entry)  ->
+insert_client(#clients{active = undefined}, _Entry)  ->
   ok;
   
-insert_client(Clients, State, Entry)  ->
-  ets:insert(table(Clients, State), Entry#cached_entry{key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1}),
+insert_client(#clients{bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS}) ->
+  CachedEntry = #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId,
+    key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1
+  },
+  ets:insert(Bytes, {Client,0}),
+  ets:insert(table(Clients, State), CachedEntry),
   ok.
 
 
@@ -135,9 +139,8 @@ remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
   ets:delete(S, Client),
   ok.
   
-insert(#clients{list = List, bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS} = Entry) ->
-  ets:insert(Bytes, {Client,0}),
-  insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
+insert(#clients{list = List} = Clients, #client{consumer = Client} = Entry) ->
+  insert_client(Clients, Entry),
   Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
 
 list(#clients{list = List, bytes = Bytes}) ->
@@ -187,24 +190,23 @@ make_client_passive(Storage, Client, Ticker) ->
     _ -> Storage
   end.
   
-
 update(#clients{bytes = Bytes}, Client, #client.bytes, Value) ->
-  ets:insert(Bytes, {Client, Value});
+  catch ets:insert(Bytes, {Client, Value});
 
 update(#clients{list = List} = Clients, Client, Pos, Value) ->
   remove_client(Clients, Client),
   case lists:keytake(Client, #client.consumer, List) of
-    {value, #client{state = State, tcp_socket = Socket, dts = DTS, stream_id = StreamId} = Entry, List1} ->
-      insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
+    {value, #client{} = Entry, List1} ->
+      insert_client(Clients, Entry),
       Entry1 = setelement(Pos, Entry, Value),
       Clients#clients{list = [Entry1|List1]};
     false ->
       Clients
   end.
 
-update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B, state = State, tcp_socket = Socket, dts = DTS, stream_id = StreamId} = NewEntry) ->
+update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B} = NewEntry) ->
   remove_client(Clients, Client),
-  insert_client(Clients, State, #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId}),
+  insert_client(Clients, NewEntry),
   ets:insert(Bytes, {Client, B}),
   List1 = lists:keystore(Client, #client.consumer, List, NewEntry),
   Clients#clients{list = List1}.
@@ -269,12 +271,12 @@ mass_update_state(#clients{list = List} = Clients, From, To) ->
     S = case State of
       From ->
         remove_client(Clients, Pid),
-        insert_client(Clients, To, #cached_entry{pid = Pid, socket = Socket, dts = DTS, stream_id = StreamId}),
+        insert_client(Clients, Entry#client{state = To}),
         To;
       S1 -> S1
     end,
     Entry#client{state = S}
-  end || #client{consumer = Pid, stream_id = StreamId, state = State, tcp_socket = Socket, dts = DTS} = Entry <- List]}.
+  end || #client{consumer = Pid, state = State} = Entry <- List]}.
   
 increment_bytes(#clients{bytes = Bytes} = Clients, Client, Size) ->
   (catch ets:update_counter(Bytes, Client, Size)),
