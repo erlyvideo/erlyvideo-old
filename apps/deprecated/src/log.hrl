@@ -1,0 +1,1 @@
+-define(D(X), ems_log:debug(3, deprec, "~p:~p ~p",[?MODULE, ?LINE, X])).
