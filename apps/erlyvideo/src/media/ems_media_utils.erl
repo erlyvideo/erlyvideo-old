@@ -59,18 +59,14 @@ source_is_lost(#ems_media{module = M, source = Source, source_timeout = SourceTi
 
 
 
-source_is_restored(#ems_media{source = NewSource, source_timeout_ref = OldRef} = Media) ->
+source_is_restored(#ems_media{source = NewSource, source_timeout_ref = OldRef, clients = Clients} = Media) ->
   (catch timer:cancel(OldRef)),
   Ref = case NewSource of
     undefined -> undefined;
     _ -> erlang:monitor(process, NewSource)
   end,
-  Media2 = mark_clients_as_starting(Media),
-  {noreply, Media2#ems_media{source = NewSource, source_timeout_ref = undefined, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}.
+  Clients1 = ems_media_clients:mark_active_as_starting(Clients),
+  {noreply, Media#ems_media{source = NewSource, source_timeout_ref = undefined, source_ref = Ref, ts_delta = undefined, clients = Clients1}, ?TIMEOUT}.
 
-
-mark_clients_as_starting(#ems_media{clients = Clients} = Media) ->
-  Clients1 = ems_media_clients:mass_update_state(Clients, active, starting),
-  Media#ems_media{clients = Clients1}.
 
 

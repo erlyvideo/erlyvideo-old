@@ -28,8 +28,9 @@
 -include("ems_media_client.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([init/1, insert/2, find/2, find_by_ticker/2, count/1, update/3, update_state/3, delete/2, 
-         send_frame/3, mass_update_state/3, increment_bytes/3, list/1, flush/1]).
+-export([init/1, insert/2, find/2, find_by_ticker/2, count/1, make_client_passive/3, update_state/3, delete/2, 
+         send_frame/3, increment_bytes/3, list/1, flush/1,
+         mark_active_as_starting/1, mark_starting_as_active/1]).
          
 -export([init_repeater/3, repeater/2]).
 
@@ -43,7 +44,7 @@
   active,
   passive,
   starting,
-  repeaters = {},
+  repeaters,
   list = [],
   bytes,
   send_buffer
@@ -61,19 +62,21 @@
 
 init(Options) ->
   Clients = #clients{
+    send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF),
+    bytes = ets:new(clients, [set, public])
+  },
+  init_accel(Clients).
+
+init_accel(Clients) ->
+  Clients1 = Clients#clients{
     active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
     passive = ets:new(passive, [set, public, {keypos, #cached_entry.pid}]),
-    starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}]),
-    bytes = ets:new(clients, [set, public]),
-    send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
+    starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}])
   },
-  Repeaters = lists:map(fun(Key) ->
-    Repeater = proc_lib:spawn_link(?MODULE, init_repeater, [Clients, self(), Key]),
-    erlang:link(Repeater),
-    Repeater
-  end, lists:seq(1, ?REPEATER_COUNT)),
-  Clients#clients{repeaters = Repeaters}.
+  Repeaters = [proc_lib:spawn_link(?MODULE, init_repeater, [Clients1, self(), Key]) || Key <- lists:seq(1, ?REPEATER_COUNT)],
+  Clients1#clients{repeaters = Repeaters}.
   
+
 init_repeater(#clients{} = Clients, Media, Key) when is_pid(Media) ->
   erlang:monitor(process, Media),
   ?MODULE:repeater(Clients, Key).
@@ -167,6 +170,15 @@ count(#clients{bytes = Bytes}) ->
 
 update_state(Storage, Client, State) ->
   update(Storage, Client, #client.state, State).
+
+make_client_passive(Storage, Client, Ticker) ->
+  case find(Storage, Client) of
+    #client{} = Entry ->
+      TickerRef = erlang:monitor(process,Ticker),
+      update(Storage, Client, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive});
+    _ -> Storage
+  end.
+  
 
 update(#clients{bytes = Bytes}, Client, #client.bytes, Value) ->
   ets:insert(Bytes, {Client, Value});
@@ -266,7 +278,11 @@ repeater_send_frame0(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clie
   Clients.
 
 
+mark_active_as_starting(Clients) -> mass_update_state(Clients, active, starting).
+mark_starting_as_active(Clients) -> mass_update_state(Clients, starting, active).
+
 mass_update_state(#clients{list = List} = Clients, From, To) ->
+  flush(Clients),
   % ?D({update,From,ets:tab2list(table(Clients,From)),To,ets:tab2list(table(Clients,To))}),
   Clients#clients{list = [begin
     S = case State of

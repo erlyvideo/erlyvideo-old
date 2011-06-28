@@ -254,8 +254,7 @@ start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = 
     undefined -> Clients2;
     _ -> ems_media_clients:send_frame(V#video_frame{dts = DTS, pts = DTS}, Clients2, starting)
   end,
-  ems_media_clients:flush(Clients3),
-  Clients4 = ems_media_clients:mass_update_state(Clients3, starting, active),
+  Clients4 = ems_media_clients:mark_starting_as_active(Clients3),
   {reply, F, M#ems_media{clients = Clients4}};
 
 

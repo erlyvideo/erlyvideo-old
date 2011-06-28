@@ -230,11 +230,10 @@ default_seek_reply(Client, {DTS, _NewPos, NewDTS}, #ems_media{clients = Clients}
       media_ticker:seek(Ticker, DTS),
       {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
 
-    #client{stream_id = StreamId} = Entry ->
+    #client{stream_id = StreamId} ->
       {ok, Ticker} = ems_sup:start_ticker(self(), Client, [{stream_id, StreamId}]),
-      TickerRef = erlang:monitor(process,Ticker),
       media_ticker:seek(Ticker, NewDTS),
-      Clients1 = ems_media_clients:update(Clients, Client, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive}),
+      Clients1 = ems_media_clients:make_client_passive(Clients, Client, Ticker),
       {reply, {seek_success, NewDTS}, Media#ems_media{clients = Clients1}, ?TIMEOUT};
 
     _ ->
