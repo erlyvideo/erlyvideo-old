@@ -59,7 +59,10 @@
 }).
 
 init(Options) ->
-  Clients = #clients{send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)},
+  Clients = #clients{
+    bytes = ets:new(clients, [set, public]),
+    send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
+  },
   case proplists:get_value(type, Options) of
     file -> Clients;
     _ -> init_accel(Clients)
@@ -67,7 +70,6 @@ init(Options) ->
 
 init_accel(Clients) ->
   Clients1 = Clients#clients{
-    bytes = ets:new(clients, [set, public]),
     active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
     passive = ets:new(passive, [set, public, {keypos, #cached_entry.pid}]),
     starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}])
@@ -115,10 +117,17 @@ insert_client(_Clients, paused, _Entry) ->
   ?D({"Wasn't inserted"}),
   ok;
 
+% No ETS tables for files and low-usage streams
+insert_client(#clients{active = undefined}, _State, _Entry)  ->
+  ok;
+  
 insert_client(Clients, State, Entry)  ->
   ets:insert(table(Clients, State), Entry#cached_entry{key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1}),
   ok.
 
+
+remove_client(#clients{active = undefined}, _Client) ->
+  ok;
 
 remove_client(#clients{active = A, passive = P, starting = S}, Client) ->
   ets:delete(A, Client),
