@@ -55,20 +55,19 @@
   socket, 
   dts, 
   stream_id,
-  key,
-  audio_notified = false,
-  video_notified = false
+  key
 }).
 
 init(Options) ->
-  Clients = #clients{
-    send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF),
-    bytes = ets:new(clients, [set, public])
-  },
-  init_accel(Clients).
+  Clients = #clients{send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)},
+  case proplists:get_value(type, Options) of
+    file -> Clients;
+    _ -> init_accel(Clients)
+  end.
 
 init_accel(Clients) ->
   Clients1 = Clients#clients{
+    bytes = ets:new(clients, [set, public]),
     active = ets:new(active, [set, public, {keypos, #cached_entry.pid}]),
     passive = ets:new(passive, [set, public, {keypos, #cached_entry.pid}]),
     starting = ets:new(starting, [set, public, {keypos, #cached_entry.pid}])
@@ -207,8 +206,8 @@ delete(#clients{list = List, bytes = Bytes} = Clients, Client) ->
   Clients#clients{list = lists:keydelete(Client, #client.consumer, List)}.
 
 
-send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
-  repeater_send_frame(Frame, Clients, starting, undefined);
+% send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
+%   repeater_send_frame(Frame, Clients, starting, undefined);
 
 send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, State) ->
 %  case Frame#video_frame.content of
@@ -219,49 +218,22 @@ send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters} = Clients, St
   Clients.
   % repeater_send_frame(Frame, Clients, State, undefined).
 
-repeater_send_frame(#video_frame{} = VideoFrame, Clients, State, Key) ->
-  case flv_video_frame:is_good_flv(VideoFrame) of
-    true -> repeater_send_frame0(VideoFrame, Clients, State, Key);
-    false ->
-      Sender = fun
-        (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
-          Frame; 
-        (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
-          % ?D({bad,self(), Pid,Frame}),
-          Pid ! Frame#video_frame{stream_id = StreamId},
-          Frame
-      end,
-      ets:foldl(Sender, VideoFrame, table(Clients, State)),
-      Clients
-  end.
-  
-repeater_send_frame0(#video_frame{} = VideoFrame, #clients{bytes = Bytes} = Clients, State, Key) ->
-  FrameGen = flv:rtmp_tag_generator(VideoFrame),
+repeater_send_frame(#video_frame{body = Body} = VideoFrame, #clients{bytes = Bytes} = Clients, State, Key) ->
+  FlvFrameGen = flv:rtmp_tag_generator(VideoFrame),
   Table = table(Clients, State),
-  Size = iolist_size(FrameGen(0, 0)),
+  Size = case (catch iolist_size(Body)) of
+    {'EXIT', _} -> 0;
+    BinSize -> BinSize
+  end,
   Sender = fun
     (#cached_entry{key = EntryKey}, Frame) when is_number(Key) andalso Key =/= EntryKey ->
       Frame; 
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId, audio_notified = true, video_notified = true}, Frame) ->
-      case (catch port_command(Socket, FrameGen(DTS, StreamId),[nosuspend])) of
+    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, dts = DTS, stream_id = StreamId}, Frame) when is_function(FlvFrameGen)->
+      case (catch port_command(Socket, FlvFrameGen(DTS, StreamId),[nosuspend])) of
         true -> ok;
         _ -> Pid ! {rtmp_lag, self()}
       end,
       (catch ets:update_counter(Bytes, Pid, Size)),
-      Frame;
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, audio_notified = false}, #video_frame{content = audio, flavor = frame} = Frame) ->
-      % ?D("send with pid, audio not notified"),
-      Pid ! Frame#video_frame{stream_id = StreamId},
-      (catch ets:update_counter(Bytes, Pid, Size)),
-      inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
-      ets:update_element(Table, Pid, {#cached_entry.audio_notified,true}),
-      Frame;
-    (#cached_entry{socket = {rtmp, Socket}, pid = Pid, stream_id = StreamId, video_notified = false}, #video_frame{content = video, flavor = keyframe} = Frame) ->
-      % ?D("send with pid, video not notified"),
-      Pid ! Frame#video_frame{stream_id = StreamId},
-      (catch ets:update_counter(Bytes, Pid, Size)),
-      inet:setopts(Socket, [{sndbuf,?SNDBUF}]),
-      ets:update_element(Table, Pid, {#cached_entry.video_notified,true}),
       Frame;
     (#cached_entry{pid = Pid, stream_id = StreamId}, Frame) ->
       (catch ets:update_counter(Bytes, Pid, Size)),
