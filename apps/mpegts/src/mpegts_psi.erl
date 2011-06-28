@@ -24,10 +24,12 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include("log.hrl").
+-include("../include/mpegts_psi.hrl").
 -include("../include/mpegts.hrl").
--include("mpegts_reader.hrl").
+% -include("mpegts_reader.hrl").
 
--export([psi/2, encode/2]).
+
+-export([psi/1, encode/2]).
 
 -define(PAT_TABLEID,       16#00).
 -define(CAT_TABLEID,       16#01).
@@ -150,7 +152,7 @@ encode(pmt, Options) ->
 %   [{service_id,ServiceId},{eit_schedule,EIT_Schedule},{eit_present,EIT_present_following},{running,RunningStatus},{free_ca,FreeCA},{desc_len,DescLength}].
 
 psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId:16, _:2, Version:5, CurrentNext:1, 
-             SectionNumber, LastSectionNumber, PSIPayload/binary>> = PSIRaw, #decoder{} = Decoder) ->
+             SectionNumber, LastSectionNumber, PSIPayload/binary>> = PSIRaw) ->
   case extract_valid_psi(PSIRaw) of
     {ok, PSI} -> 
       PSITable = #psi_table{
@@ -161,11 +163,10 @@ psi(<<_Pointer, TableId, _SectionInd:1, _:3, SectionLength:12, TransportStreamId
         section_number = SectionNumber,
         last_section_number = LastSectionNumber
       },
-      Decoder1 = handle_valid_psi(PSI, PSITable, Decoder),
-      {ok, Decoder1, undefined};
+      handle_valid_psi(PSI, PSITable);
     {error, Reason} ->
       ?D({invalid_psi, TableId, Reason, SectionLength - 5, size(PSIPayload)}),
-      {ok, Decoder, undefined}
+      {error, Reason}
   end.
 
 extract_valid_psi(<<_Ptr, ?TDT_TABLEID, _:4, 5:12, PSI:5/binary, _/binary>>) -> %% TDT has special treatment. Its header is its payload
@@ -189,42 +190,24 @@ extract_valid_psi(_) ->
   {error, too_short_data}.
     
 
-handle_valid_psi(PSI, #psi_table{table_id = TableId} = PSITable, Decoder) ->
+handle_valid_psi(PSI, #psi_table{table_id = TableId} = PSITable) ->
   case TableId of
-    ?PAT_TABLEID -> pat(PSI, PSITable, Decoder);
-    ?CAT_TABLEID -> cat(PSI, PSITable, Decoder);
-    ?PMT_TABLEID -> pmt(PSI, PSITable, Decoder);
-    ?SDT_TABLEID -> sdt(PSI, PSITable, Decoder);
-    ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable, Decoder);
-    _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable, Decoder);
-    16#4E -> eit(PSI, PSITable, Decoder);
-    ?TDT_TABLEID -> tdt(PSI, PSITable, Decoder);
+    ?PAT_TABLEID -> pat(PSI, PSITable);
+    ?CAT_TABLEID -> cat(PSI, PSITable);
+    ?PMT_TABLEID -> pmt(PSI, PSITable);
+    ?SDT_TABLEID -> sdt(PSI, PSITable);
+    ?SDT_OTHER_TABLEID -> sdt(PSI, PSITable);
+    _ when TableId == 16#4E orelse TableId == 16#4F orelse (TableId >= 16#50 andalso TableId =< 16#6F) -> eit(PSI, PSITable);
+    16#4E -> eit(PSI, PSITable);
+    ?TDT_TABLEID -> tdt(PSI, PSITable);
     _ ->
       % ?D({psi, TableId, PSI}),
-      Decoder
+      {TableId, {PSITable, PSI}}
   end.
 
-pat(PAT, _PSITable, #decoder{options = Options, pids = Pids} = Decoder) ->
+pat(PAT, _PSITable) ->
   Descriptors = extract_pat(PAT, []),
-  {PmtPid, SelectedProgram} = select_pmt_pid(Descriptors, proplists:get_value(program, Options)),
-  case lists:keyfind(PmtPid, #stream.pid, Pids) of
-    false ->
-      ?D({"Selecting program", SelectedProgram, "on pid",PmtPid}),
-      Decoder#decoder{pids = [#stream{handler = psi, pid = PmtPid}|Pids]};
-    _ ->
-      Decoder
-  end.
-
-
-select_pmt_pid([{PmtPid, ProgramNum}], undefined) -> % Means no program specified and only one in stream
-  {PmtPid, ProgramNum};
-select_pmt_pid(Descriptors, SelectedProgram) ->
-  case lists:keyfind(SelectedProgram, 2, Descriptors) of
-    {PmtPid, SelectedProgram} -> {PmtPid, SelectedProgram};
-    _ ->
-      ?D({"Has many programs in MPEG-TS, don't know which to choose", Descriptors, SelectedProgram}),
-      {undefined, undefined}
-  end.
+  {pat, Descriptors}.
 
 extract_pat(<<ProgramNum:16, _:3, Pid:13, PAT/binary>>, Descriptors) ->
   extract_pat(PAT, [{Pid, ProgramNum} | Descriptors]);
@@ -233,53 +216,24 @@ extract_pat(<<_CRC32/binary>>, Descriptors) ->
   lists:reverse(Descriptors).
 
 
-cat(PSI, _Table, #decoder{pids = Pids} = Decoder) ->
+cat(PSI, _Table) ->
   Descriptors = parse_descriptors(PSI, []),
-  CaPids = [Pid || #dvb_ca_desc{pid = Pid} <- Descriptors],
-  Pids1 = lists:foldl(fun(CaPid, DecodedPids) ->
-    case lists:keymember(CaPid, #stream.pid, DecodedPids) of
-      true -> DecodedPids;
-      false -> [#stream{handler = emm, pid = CaPid}|DecodedPids]
-    end
-  end, Pids, CaPids),
-  % ?D({cat, Descriptors}),
-  Decoder#decoder{pids = Pids1}.
+  {cat, Descriptors}.
+
+tdt(<<UTC:40>>, _Table) ->
+  {tdt, UTC}.
 
 
-tdt(<<UTC:40>>, _Table, Decoder) ->
-  Decoder#decoder{current_time = UTC}.
+pmt(<<_Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>, #psi_table{ts_stream_id = ProgramNum}) ->
+  Descriptors = extract_pmt(PMT, []),
+  Descriptors1 = [Entry#pmt_entry{program = ProgramNum} || Entry <- Descriptors],
+  {pmt, Descriptors1}.
 
-pmt(<<_Some:3, _PCRPID:13, _Some2:4, ProgramInfoLength:12, _ProgramInfo:ProgramInfoLength/binary, PMT/binary>>,
-  #psi_table{ts_stream_id = ProgramNum}, #decoder{pids = Pids} = Decoder) ->
-  % ?D({"PMT", size(PMTBin), PMTBin, SectionLength - 13, size(PMT), PMT}),
-  % ?D({"Selecting MPEG-TS program", ProgramNum}),
-  % io:format("Program info: ~p~n", [_ProgramInfo]),
-  % ?D({"PMT", size(PMT), PMTLength, _ProgramInfo}),
-  Descriptors = extract_pmt(PMT, Pids),
-  % io:format("Streams: ~p~n", [Descriptors]),
-  Descriptors1 = lists:map(fun(#stream{} = Stream) ->
-    Stream#stream{program_num = ProgramNum, h264 = h264:init()}
-  end, Descriptors),
-  % AllPids = [self() | lists:map(fun(A) -> element(#stream_out.handler, A) end, Descriptors1)],
-  % eprof:start(),
-  % eprof:start_profiling(AllPids),
-  % Decoder#decoder{pids = lists:keymerge(#stream.pid, Pids, Descriptors1)}.
-  Decoder#decoder{pids = Descriptors1}.
-
-extract_pmt(<<_CRC32:32>>, Descriptors) ->
-  lists:keysort(#stream.pid, Descriptors);
-
-extract_pmt(<<>>, Descriptors) ->
-  lists:keysort(#stream.pid, Descriptors);
+extract_pmt(<<>>, Descriptors) -> lists:reverse(Descriptors);
 
 extract_pmt(<<StreamType, 2#111:3, Pid:13, _:4, ESLength:12, _ES:ESLength/binary, Rest/binary>>, Descriptors) ->
-  Descriptors1 = case lists:keyfind(Pid, #stream.pid, Descriptors) of
-    false -> 
-      ?D({"Pid -> Type", Pid, StreamType, _ES}),
-      [#stream{handler = pes, counter = 0, pid = Pid, codec = stream_codec(StreamType)}|Descriptors];
-    _ -> Descriptors
-  end,
-  extract_pmt(Rest, Descriptors1).
+  Entry = #pmt_entry{pid = Pid, codec = stream_codec(StreamType)},
+  extract_pmt(Rest, [Entry|Descriptors]).
 
 
 stream_codec(?TYPE_VIDEO_H264) -> h264;
@@ -293,10 +247,10 @@ stream_codec(Type) -> ?D({"Unknown TS PID type", Type}), unhandled.
 
 
 
-sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{table_id = _TableId}, Decoder) ->
+sdt(<<_OriginalNetwork:16, _Reserved:8, SDT/binary>>, #psi_table{table_id = _TableId}) ->
   Info = parse_sdt(SDT, []),
-  % ?D({sdt, OriginalNetwork, Info}),
-  Decoder#decoder{sdt = Info}.
+  {sdt, Info}.
+  
 
 
 parse_sdt(<<ServiceId:16, _Reserved:6, EIT_schedule:1, EIT_present_following:1, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, SDT/binary>>, Acc) ->
@@ -317,31 +271,9 @@ parse_sdt(<<_CRC32/binary>>, Info) ->
 
 
 
-eit(<<_TSId:16, _Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = _Pid, version = _Version}, 
-    #decoder{pids = Streams, program_info = Program} = Decoder) ->
-  Pids = [Pid || #stream{pid = Pid} <- Streams],
-  case lists:member(_Pid, Pids) of
-    true ->
-      NewProgram = parse_eit(EIT, []),
-      % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [_Pid, _Version, _TSId, _Network]),
-      % [begin
-      %   #eit_event{
-      %     id = Id,
-      %     start = Start,
-      %     duration = Duration,
-      %     status = Status,
-      %     name = Name,
-      %     language = Lang,
-      %     about = About
-      %   } = Event,
-      %   io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
-      % end || Event <- _Info],
-      % ?D({prg1, [Id || #eit_event{id = Id} <- NewProgram]}),
-      % ?D({prg2, [Id || #eit_event{id = Id} <- Program]}),
-      Decoder#decoder{program_info = lists:ukeymerge(#eit_event.id, NewProgram, Program)};
-    _ ->
-      Decoder
-  end.
+eit(<<_TSId:16, _Network:16, _LastSect:8, _LastTable:8, EIT/binary>>, #psi_table{ts_stream_id = _Pid, version = _Version}) ->
+  NewProgram = parse_eit(EIT, []),
+  {eit, NewProgram}.
 
 parse_eit(<<EventId:16, StartTime:5/binary, Duration:3/binary, StatusId:3, FreeCA:1, Length:12, DescriptorsBin:Length/binary, EIT/binary>>, Acc) ->
   Descriptors = parse_descriptors(DescriptorsBin, []),

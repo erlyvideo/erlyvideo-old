@@ -31,6 +31,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include("log.hrl").
 -include("../include/mpegts.hrl").
+-include("../include/mpegts_psi.hrl").
 
 -export([init/0, init/1, flush/1, encode/2, pad_continuity_counters/1, counters/1]).
 -export([continuity_counters/1, video_config/1, audio_config/1]).

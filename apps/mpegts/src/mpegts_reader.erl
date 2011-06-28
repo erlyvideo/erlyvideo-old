@@ -27,6 +27,7 @@
 -include_lib("erlmedia/include/aac.hrl").
 -include("log.hrl").
 -include("../include/mpegts.hrl").
+-include("../include/mpegts_psi.hrl").
 -include("mpegts_reader.hrl").
 
 -include_lib("erlmedia/include/video_frame.hrl").
@@ -185,7 +186,8 @@ decode(Bin, Decoder, Frames) ->
   {ok, Decoder#decoder{buffer = Bin}, Frames}.
 
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
-  mpegts_psi:psi(ts_payload(Packet), Decoder);
+  handle_psi(ts_payload(Packet), Decoder);
+      
 
 decode_ts(<<_:3, _Pid:13, Scrambling:2, _:6, _/binary>>, Decoder) when Scrambling > 0 ->
   % ?D({scrambled, Pid}),
@@ -308,8 +310,66 @@ adapt_field_info(_) -> "".
 %%%%%%%%%%%%%%%   Program access table  %%%%%%%%%%%%%%
 
 
+insert_pid(#stream{pid = Pid} = Stream, #decoder{pids = Streams} = Decoder) ->
+  case lists:keymember(Pid, #stream.pid, Streams) of
+    true -> Decoder;
+    false -> ?D({"New pid",Stream#stream.handler,Stream#stream.codec,Pid}), Decoder#decoder{pids = [Stream|Streams]}
+  end.
+
+insert_pids(Streams, Decoder) ->
+  lists:foldl(fun(Stream, Decoder1) ->
+    insert_pid(Stream, Decoder1)
+  end, Decoder, Streams).
+
+
 psi(PSI, Stream, #decoder{pids = Streams} = Decoder) ->
-  mpegts_psi:psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
+  handle_psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
+
+handle_psi(PSI, Decoder) ->
+  Decoder1 = case mpegts_psi:psi(PSI) of
+    {pat, Descriptors} -> 
+      Streams = [#stream{handler = psi, pid = Pid, program_num = Program} || {Pid,Program} <- Descriptors],
+      insert_pids(Streams, Decoder);
+    {tdt, UTC} -> 
+      Decoder#decoder{current_time = UTC};
+    {cat, Descriptors} ->
+      Streams = [#stream{handler = emm, pid = Pid} || #dvb_ca_desc{pid = Pid} <- Descriptors],
+      insert_pids(Streams, Decoder);
+    {pmt, Descriptors} ->
+      Streams = [#stream{handler = pes, pid = Pid, counter = 0, codec = Codec, program_num = Prnum, h264 = h264:init()} || 
+                 #pmt_entry{pid = Pid, codec = Codec, program = Prnum} <- Descriptors],
+      insert_pids(Streams, Decoder);
+    {sdt, Info} ->
+      Decoder#decoder{sdt = Info};
+    {eit, #eit_event{pid = EitPid} = Event} ->
+      Pids = [Pid || #stream{pid = Pid} <- Decoder#decoder.pids],
+      case lists:member(EitPid, Pids) of
+        true ->
+          % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [_Pid, _Version, _TSId, _Network]),
+          % [begin
+          %   #eit_event{
+          %     id = Id,
+          %     start = Start,
+          %     duration = Duration,
+          %     status = Status,
+          %     name = Name,
+          %     language = Lang,
+          %     about = About
+          %   } = Event,
+          %   io:format("  * event id=~p start_time:~p duration=~p running=~p~n    - short lang=~s '~s' : '~s'~n", [Id, Start, Duration, Status, Lang, Name, About])
+          % end || Event <- _Info],
+          % ?D({prg1, [Id || #eit_event{id = Id} <- NewProgram]}),
+          % ?D({prg2, [Id || #eit_event{id = Id} <- Program]}),
+          Program = Decoder#decoder.program_info,
+          Decoder#decoder{program_info = lists:ukeymerge(#eit_event.id, Event, Program)};
+        _ ->
+          Decoder
+      end;
+    _ ->
+      Decoder
+  end,
+  {ok, Decoder1, undefined}.
+  
 
 
 pes(_, #stream{codec = unhandled} = Stream, #decoder{pids = Streams} = Decoder) ->
