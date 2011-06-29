@@ -158,13 +158,18 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       State;
     {ok, Media} ->
       MediaInfo = ems_media:media_info(Media),
-      #media_info{audio = A, video = V} = MediaInfo,
-      case A of [] -> ok; _ -> rtmp_socket:notify_audio(Socket, StreamId, 0) end,
-      case V of [] -> ok; _ -> rtmp_socket:notify_video(Socket, StreamId, 0) end,
-      {ok, Media1} = media_provider:play(Host, Name, SocketOptions ++ [{stream_id,StreamId}|Options]),
-      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media1, stream_id = StreamId, options = Options, name = Name}, State),
+      ConfigFrames = video_frame:config_frames(MediaInfo),
+      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name}, State),
+      State2 = lists:foldl(fun(ConfigFrame, RTMPSess) ->
+        rtmp_session:send_frame(ConfigFrame#video_frame{stream_id = StreamId}, RTMPSess)
+      end, State1, ConfigFrames),
+      % ?D({media_info,MediaInfo}),
+      % #media_info{audio = A, video = V} = MediaInfo,
+      % case A of [] -> ok; _ -> rtmp_socket:notify_audio(Socket, StreamId, 0) end,
+      % case V of [] -> ok; _ -> rtmp_socket:notify_video(Socket, StreamId, 0) end,
+      {ok, Media} = media_provider:play(Host, Name, SocketOptions ++ [{stream_id,StreamId}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      State1
+      State2
   end.
 
 parse_play(FullName, Args) ->
