@@ -29,21 +29,14 @@
 -export([http/4]).
 
 
-http(Host, _Method, ["write_control", "enable" | Path], Req) ->
+http(Host, _Method, ["write_control", Command | Path], Req) when Command == "enable" orelse Command == "disable" ->
   Name = string:join(Path, "/"),
+  ?D({write_control, Command, Name}),
   case media_provider:find(Host, Name) of
-    {ok, Media} ->
-      ?D({'query', Req:parse_qs()}),
+    {ok, Media} when Command == "enable" ->
       live_media:start_writing(Media, atomize(Req:parse_qs())),
       Req:ok([{'Content-Type', "application/json"}], "true\n");
-    undefined ->
-      Req:respond(404, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, no_stream}]), "\n"])
-  end;
-
-http(Host, _Method, ["write_control", "disable" | Path], Req) ->
-  Name = string:join(Path, "/"),
-  case media_provider:find(Host, Name) of
-    {ok, Media} ->
+    {ok, Media} when Command == "disable" ->
       live_media:stop_writing(Media),
       Req:ok([{'Content-Type', "application/json"}], "true\n");
     undefined ->
