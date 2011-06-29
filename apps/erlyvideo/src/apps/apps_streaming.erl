@@ -158,7 +158,6 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       State;
     {ok, Media} ->
       MediaInfo = ems_media:media_info(Media),
-      ?D({media_info,MediaInfo}),
       #media_info{audio = A, video = V} = MediaInfo,
       case A of [] -> ok; _ -> rtmp_socket:notify_audio(Socket, StreamId, 0) end,
       case V of [] -> ok; _ -> rtmp_socket:notify_video(Socket, StreamId, 0) end,
