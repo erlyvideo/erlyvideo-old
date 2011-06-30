@@ -89,8 +89,8 @@ client_scheme_version(C1) ->
 c1() ->
   [?HS_UNCRYPTED, <<0:32, 0:32>>, crypto:rand_bytes(?HS_BODY_LEN - 8)].
   
-c2(<<Time:32, V1,V2,V3,V4, _Rand/binary>> = S1) ->
-  io:format("Server: ~p, ~p.~p.~p.~p~n", [Time, V1, V2, V3, V4]),
+c2(<<_Time:32, _V1,_V2,_V3,_V4, _Rand/binary>> = S1) ->
+  % io:format("Server: ~p, ~p.~p.~p.~p~n", [Time, V1, V2, V3, V4]),
   S1.
 
 
