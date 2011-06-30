@@ -128,7 +128,7 @@ handle_play_request(#rtsp_socket{callback = Callback, rtp = RTP} = Socket, URL, 
   case Callback:play(URL, Headers, Body) of
     {ok, Media} ->
       rtp:send_rtcp(RTP, sender_report, []),
-      timer:send_interval(1000, send_sr),
+      timer:send_interval(ems:get_var(rtcp_interval, 5000), send_sr),
       rtsp_socket:reply(Socket#rtsp_socket{media = Media}, "200 OK", [{'Cseq', seq(Headers)}, {'Range', "npt=0-"}, {'RTP-Info', rtp:rtp_info(RTP)}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}])

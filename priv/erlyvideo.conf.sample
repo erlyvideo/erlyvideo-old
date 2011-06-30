@@ -1,18 +1,33 @@
+% Bing ports where to listen for RTMP, RTSP and HTTP traffic
 {rtmp_port, 1935}.
 {rtsp_port, 8081}.
-{rtsp_callback, ems_rtsp}.
 {http_port, 8082}.
+% Useful for those, who want to intercept RTSP traffic and for example rewrite RTSP requests
+{rtsp_callback, ems_rtsp}.
+% iPhone streaming splits media stream in segments of this size. Size given in milliseconds
 {iphone_segment_size, 10000}.
+% RTCP is a synchronization messaging for RTSP/RTP protocols. Tell how often to send it in milliseconds
+{rtcp_interval, 5000}.
+% This is a very thin configuration option. If you ask a web-server for a nonexistent file, it replies you 404
+% This behaviour is good and clean. But if you ask a default RTMP server for a nonexistent file, it will block you
+% and tell: ok, I've started a new live stream for you, let's wait untill publisher comes.
+% This option tunes this behaviour. When false, it will behave as RTMP server. When true, it will return you 404.
 {rtmp_default_wait, false}.
+% List of additional applications to start. Erlyvideo will take this list and call Module:start() one by one.
 {modules,[]}.
+% Additional load paths. Better follow OTP conventions than use this option
 {paths, ["/var/lib/erlyvideo/plugins", "/usr/local/lib/erlyvideo/plugins"]}.
+% List of file formats. Add your own if you wish more
 {file_formats,[mp4_reader,flv_reader,mp3_reader]}.
 {vhosts, [
+% default virtual host is a fallback vhost, if no other hosts matched
   {default, [
+    % This may be changed to mmap, if you are brave
 	  {file_access, file},
+	  % When new stream is asked by any client, erlyvideo goes through this list of detectors and try them
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
-    {rtmp_handlers, [{auth_users_limit, 200}, trusted_login, apps_push, remove_useless_prefix, apps_streaming, apps_recording]},
+    {rtmp_handlers, [{auth_users_limit, 200}, trusted_login, remove_useless_prefix, apps_streaming, apps_recording]},
     {event_handlers, [
 %      {stream_stopped, {ems_hook_http, "http://localhost:8082/stopped"}},
 %      {user_connected, {ems_hook_http, "http://localhost:3000/"}}
