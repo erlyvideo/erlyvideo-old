@@ -31,7 +31,7 @@
 
 
 %% External API
--export([start_link/2, start_link/3, publish/3]).
+-export([start_link/2, start_link/3, publish/3, continue_publish/1, wait_for_end/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -54,14 +54,17 @@
 
 
 publish(Path, URL, Options) ->
-  {ok, Pid} = start_link(Path, URL, Options),
+  start_link(Path, URL, Options).
+    
+continue_publish(Publisher) ->
+  Publisher ! timeout.  
+
+wait_for_end(Pid) ->
   erlang:monitor(process, Pid),
   receive
     {'DOWN', _Ref, process, Pid, normal} -> ok;
     {'DOWN', _Ref, process, Pid, Reason} -> {error, Reason}
   end.
-    
-  
 
 start_link(Path, URL) ->
   start_link(Path, URL, []).
@@ -93,13 +96,12 @@ init([Path, URL, Options]) ->
 	{#flv_header{} = _Header, Offset} = flv:read_header(File),
 	{rtmp, _UserInfo, Host, Port, [$/ | ServerPath], _Query} = http_uri2:parse(URL),
 	Publisher = #publisher{path = Path, file = File, offset = Offset, url = URL, host = Host, port = Port, server_path = ServerPath},
-	{_Frame, Publisher1} = read_frame(Publisher),
 	
 	{ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
   {ok, RTMP} = rtmp_socket:connect(Socket),
   io:format("Connecting to ~s~n", [URL]),
   
-  {ok, Publisher1#publisher{socket = Socket, rtmp = RTMP, counter = 1, no_timeout = proplists:get_value(no_timeout, Options, false)}}.
+  {ok, Publisher#publisher{socket = Socket, rtmp = RTMP, counter = 1, no_timeout = proplists:get_value(no_timeout, Options, false)}}.
 
 
 read_frame(#publisher{file = File, offset = Offset} = Publisher) ->
@@ -148,18 +150,21 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({rtmp, RTMP, connected}, #publisher{server_path = Path} = Server) ->
+handle_info({rtmp, RTMP, connected}, #publisher{server_path = Path} = Publisher) ->
   rtmp_socket:setopts(RTMP, [{active, true}]),
   rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:publish(RTMP, Stream, Path),
-  self() ! timeout,
+  {Frame1, Publisher1} = read_frame(Publisher),
+  {Frame2, Publisher2} = read_frame(Publisher1),
+  {Frame3, Publisher3} = read_frame(Publisher2),
+  {_Frame, Publisher4} = read_frame(Publisher3),
+  [send_frame(RTMP, Stream, Frame) || Frame <- [Frame1, Frame2, Frame3]],
   io:format("Connected, publishing to ~s (~p)~n", [Path, Stream]),
-  {noreply, Server#publisher{stream = Stream}};
+  {noreply, Publisher4#publisher{stream = Stream}};
 
 handle_info(timeout, #publisher{frame = Frame1, stream = Stream, rtmp = RTMP, counter = Counter, no_timeout = NoTimeout} = Server) ->
-  Message = rtmp_message(Frame1, Stream),
-	rtmp_socket:send(RTMP, Message),
+  send_frame(RTMP, Stream, Frame1),
   
   case read_frame(Server) of
     {Frame2, Server2} ->
@@ -196,6 +201,10 @@ rtmp_message(#video_frame{dts = DTS, content = Type} = Frame, StreamId) ->
     type = Type,
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame)}.
+
+send_frame(RTMP, Stream, Frame) ->
+  Message = rtmp_message(Frame, Stream),
+	rtmp_socket:send(RTMP, Message).
   
 
 channel_id(#video_frame{content = metadata}) -> 4;

@@ -36,9 +36,11 @@ publish_file(Path, URL) ->
 
 check_publish(Name) ->
   log4erl:change_log_level(error),
+  {ok, Publisher} = publish_file(Name, "rtmp://localhost/testStream"),
   {ok, Media} = media_provider:play(default, "testStream", [{type,live},{source_timeout,0},{clients_timeout, 0},{stream_id,1}]),
   link(Media),
-  publish_file(Name, "rtmp://localhost/testStream"),
+  rtmp_publish:continue_publish(Publisher),
+  rtmp_publish:wait_for_end(Publisher),
   (catch ems_media:stop_stream(Media)),
   log4erl:change_log_level(debug),
   Frames = ems_test_helper:receive_all_frames(),
