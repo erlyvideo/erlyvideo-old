@@ -326,7 +326,9 @@ insert_test_() ->
 increment_bytes_test_() ->
   [
     fun() ->
+      log4erl:change_log_level(error),
       Storage = ?MODULE:init([{stream_mode,accelerated}]),
+      log4erl:change_log_level(debug),
       Ticker = ticker_pid,
       StreamId = 1,
       Client = client_pid,
