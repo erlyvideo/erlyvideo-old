@@ -67,7 +67,10 @@ init(Options) ->
     name = proplists:get_value(name, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   },
-  Clients.
+  case proplists:get_value(stream_mode, Options) of
+    accelerated -> init_accel(Clients);
+    _ -> Clients
+  end.
 
 init_accel(#clients{list = Entries} = Clients) ->
   ?D({"Init accelerated mode for stream", Clients#clients.name}),
@@ -323,7 +326,7 @@ insert_test_() ->
 increment_bytes_test_() ->
   [
     fun() ->
-      Storage = ?MODULE:init([]),
+      Storage = ?MODULE:init([{stream_mode,accelerated}]),
       Ticker = ticker_pid,
       StreamId = 1,
       Client = client_pid,

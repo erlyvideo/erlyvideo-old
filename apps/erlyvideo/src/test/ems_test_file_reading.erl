@@ -120,8 +120,9 @@ mpegts_reader_file_test_() ->
       erlang:monitor(process, Pid),
       Frames = ems_test_helper:receive_all_frames(500),
       ?assert(length(Frames) > 100),
+      ems_test_helper:dump_frames(Frames),
       ?assertNot(ems_test_helper:is_interleaved(Frames,15)),
-      ?assert(ems_test_helper:is_monotonic(Frames))
+      ?assert(ems_test_helper:is_soft_monotonic(Frames))
     end]
   }}.
 
@@ -196,10 +197,6 @@ h264_aac_2_mp4_test() ->
         bitrate = undefined,
         language = <<"ger">>
       }
-    ],
-    metadata = [
-      #stream_info{content = text, stream_id = 4, codec = srt, language = <<"eng">>},
-      #stream_info{content = text, stream_id = 5, codec = srt, language = <<"rus">>}
     ]
   }, mp4_reader:media_info(Media)).
 
@@ -334,8 +331,7 @@ mp3_1_mp3_test() ->
         config = undefined,
         params = #audio_params{channels = 2, sample_rate = 44100}
       }
-    ],
-    metadata = []
+    ]
   }, mp3_reader:media_info(Media)).
 
 

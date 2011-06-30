@@ -76,6 +76,15 @@ wait4(Pid) ->
   end.
 
 
+dump_frames(Frames) ->
+  io:format("~p~n", [[{C, Fl, DTS, StrId} || #video_frame{content = C, flavor = Fl, dts = DTS, stream_id = StrId} <- Frames]]).
+  
+-define(SOFT_THRESHOLD, 100).
+
+is_soft_monotonic([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames]) when DTS1 > DTS2 + ?SOFT_THRESHOLD -> false;
+is_soft_monotonic([#video_frame{}, #video_frame{} = F|Frames]) -> is_soft_monotonic([F|Frames]);
+is_soft_monotonic([_F]) -> true;
+is_soft_monotonic([]) -> true.
 
 
 is_monotonic([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}|_Frames]) when DTS1 > DTS2 -> false;

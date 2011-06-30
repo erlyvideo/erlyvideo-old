@@ -246,9 +246,10 @@ fix_negative_dts(Frame, Media) ->
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
+  SendAudioBeforeKeyframe = proplists:get_value(send_audio_before_keyframe, M#ems_media.options, true),
   Clients2 = case A of
-    undefined -> Clients;
-    _ -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients, starting)
+    #video_frame{} when SendAudioBeforeKeyframe == false -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients, starting);
+    _ -> Clients
   end,
   Clients3 = case V of
     undefined -> Clients2;

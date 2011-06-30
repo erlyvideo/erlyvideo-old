@@ -49,7 +49,7 @@ read_flow(FlowName) ->
 prepare_test_flow(Options, Fun) ->
   {spawn, {setup,
   fun() ->
-    % log4erl:change_log_level(error),
+    log4erl:change_log_level(error),
     {ok, _Pid} = ems_media:start_link(test_media, Options)
   end,
   fun({ok, Pid}) ->
@@ -96,7 +96,6 @@ av_test_() ->
     after
       500 -> ?assertNot(false)  
     end,
-    % io:format("~p~n", [[{C, Fl, DTS, StrId} || #video_frame{content = C, flavor = Fl, dts = DTS, stream_id = StrId} <- Frames]]),
     ?assertEqual(6, length(Frames)),
     ?assert(ems_test_helper:has_small_delta(Frames, 100))
   end).
