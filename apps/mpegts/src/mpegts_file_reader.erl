@@ -29,7 +29,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([start_link/2, read_frame/1]).
+-export([start_link/2, read_frames/1]).
 
 -record(file_reader, {
   reader,
@@ -38,15 +38,13 @@
   offset = 0,
   first_dts,
   timer_start,
-  consumer,
-  frame,
-  frames = []
+  consumer
 }).
 
 
 start_link(Path, Options) ->
   {ok, Reader} = gen_server:start_link(?MODULE, [Path, Options], []),
-  Reader ! start,
+  Reader ! timeout,
   {ok, Reader}.
   
 %%----------------------------------------------------------------------
@@ -111,70 +109,57 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_info(start, #file_reader{} = State) ->
-  {NewState1, Frame} = read_frame(State),
-  case Frame of
-    undefined -> 
-      {stop, normal, NewState1};
-    #video_frame{dts = DTS} ->
-      {TimerStart, _} = erlang:statistics(wall_clock),
-      self() ! timeout,
-      {noreply, NewState1#file_reader{frames = [Frame], first_dts = DTS, timer_start = TimerStart}}
-  end;
-  
-handle_info(timeout, #file_reader{consumer = Consumer} = State) ->
-  {NewState, Frame, Timeout} = read_and_store_frame(State),
-  case Frame of
-    undefined -> ok;
-    _ -> Consumer ! Frame
-  end,
-  % ?D({timeout,Timeout}),
+handle_info(timeout, #file_reader{} = State) ->
+  {State1, Frames} = read_frames(State),
+  {State2, Timeout} = send_frames(State1, Frames),
   case Timeout of
-    undefined ->
-      {stop, normal, NewState};
+    eof ->
+      {stop, normal, State2};
+    0 ->
+      handle_info(timeout, State2);
     _ ->
-      timer:send_after(Timeout, timeout),
-      {noreply, NewState}
+      {noreply, State2, Timeout}
   end;
   
 handle_info({'DOWN', _Ref, process, _Consumer, _Reason}, State) ->
   {stop, normal, State};
   
-handle_info(#video_frame{} = Frame, #file_reader{frames = Frames} = State) ->
-  {noreply, State#file_reader{frames = Frames ++ [Frame]}};
-
 handle_info(_Info, State) ->
   ?D({"Unknown message", _Info}),
   {noreply, State}.
 
+send_frames(State, eof) ->
+  {State, eof};
+send_frames(State, []) -> 
+  {State, 0};
+send_frames(#file_reader{first_dts = undefined, consumer = Consumer} = State, [#video_frame{dts = DTS} = Frame]) ->
+  Consumer ! Frame,
+  {TimerStart, _} = erlang:statistics(wall_clock),
+  {State#file_reader{first_dts = DTS, timer_start = TimerStart}, 0};
+send_frames(#file_reader{first_dts = DTS, timer_start = TimerStart, consumer = Consumer} = State, [#video_frame{dts = LastDTS} = Frame]) ->
+  Consumer ! Frame,
+  DTSDelta = LastDTS - DTS,
+  {Now, _} = erlang:statistics(wall_clock),
+  RealDelta = Now - TimerStart,
+  Timeout = if
+    DTSDelta > RealDelta -> round(DTSDelta - RealDelta);
+    true -> 0
+  end,
+  {State, Timeout};
+send_frames(#file_reader{consumer = Consumer} = State, [Frame|Frames]) ->
+  Consumer ! Frame,
+  send_frames(State, Frames).
 
-read_frame(#file_reader{file = File, offset = Offset, reader = Reader} = State) ->
+read_frames(#file_reader{file = File, offset = Offset, reader = Reader} = State) ->
   NewOffset = Offset + 188,
   case file:pread(File, Offset, 188) of
     {ok, Data} ->
       {ok, Reader1, Frames} = mpegts_reader:decode(Data, Reader),
       {State#file_reader{offset = NewOffset, reader = Reader1}, Frames};
     _ ->
-      {State, undefined}
+      {State, eof}
   end.
 
-
-read_and_store_frame(#file_reader{frame = PrevFrame} = State) ->
-  #video_frame{dts = PrevDTS} = PrevFrame,
-  {NewState, Frame} = read_frame(State),
-  case Frame of
-    undefined ->
-      {NewState, undefined};
-    #video_frame{dts = 0} ->
-      {NewState#file_reader{frame = Frame}, 0};
-    #video_frame{dts = DTS} ->
-      Timeout = case PrevDTS of
-        _ when DTS < PrevDTS -> 0;
-        _ when DTS - PrevDTS > 1000 -> 0;
-        _ -> round(DTS - PrevDTS)
-      end,
-      {NewState#file_reader{frame = Frame}, Timeout}
-  end.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
