@@ -108,9 +108,8 @@ play(Host, Name, Options) ->
     {notfound, Reason} -> 
       {notfound, Reason};
     {ok, Stream} ->
-      Opts = lists:ukeymerge(1, lists:ukeysort(1, Options), [{host,Host},{stream_id,1}]),
+      Opts = lists:ukeymerge(1, lists:ukeysort(1, Options), [{host,Host},{name,Name},{stream_id,1}]),
       ems_media:play(Stream, Opts),
-      ems_event:user_play(Host, self(), Stream, lists:ukeymerge(1,[{name,Name}], Opts)),
       {ok, Stream}
   end.
 

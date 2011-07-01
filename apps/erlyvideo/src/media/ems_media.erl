@@ -112,6 +112,8 @@ start_custom(Module, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 play(Media, Options) when is_pid(Media) andalso is_list(Options) ->
+  Host = proplists:get_value(host, Options),
+  ems_event:user_play(Host, self(), Media, Options),
   ok = subscribe(Media, Options),
   gen_server:call(Media, {start, self()}),
   ok.

@@ -167,7 +167,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       % #media_info{audio = A, video = V} = MediaInfo,
       % case A of [] -> ok; _ -> rtmp_socket:notify_audio(Socket, StreamId, 0) end,
       % case V of [] -> ok; _ -> rtmp_socket:notify_video(Socket, StreamId, 0) end,
-      {ok, Media} = media_provider:play(Host, Name, SocketOptions ++ [{stream_id,StreamId}|Options]),
+      ems_media:play(Media, SocketOptions ++ [{stream_id,StreamId}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State2
   end.
