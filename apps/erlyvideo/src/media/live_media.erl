@@ -75,7 +75,7 @@ init(Media, Options) ->
 start_writing(Media, Options) when is_pid(Media) andalso is_list(Options) ->
   gen_server:cast(Media, {start_writing, Options});
 
-start_writing(#ems_media{format = undefined, options = OldOptions} = Media, NewOptions) ->
+start_writing(#ems_media{format = undefined, options = OldOptions, media_info = MediaInfo} = Media, NewOptions) ->
   Options = lists:ukeymerge(1, lists:ukeysort(1, NewOptions), lists:ukeysort(1, OldOptions)),
   ?D({start_writing, OldOptions}),
   SortBuffer = proplists:get_value(sort_buffer, Options, 10),
@@ -99,8 +99,15 @@ start_writing(#ems_media{format = undefined, options = OldOptions} = Media, NewO
     	(catch file:delete(FileName)),
     	ok = filelib:ensure_dir(FileName),
       {ok, Writer} = flv_writer:start_link(FileName, [{sort_buffer,SortBuffer}]),
+      ConfigFrames = video_frame:config_frames(MediaInfo),
+      Writer1 = lists:foldl(fun(Cfg, Writer_) -> 
+          case flv_writer:write_frame(Cfg, Writer_) of
+            {ok, Writer1_} -> Writer1_;
+            _ -> Writer_
+          end
+      end, Writer, ConfigFrames),
       ?D({live_media,record,FileName}),
-      Media#ems_media{format = flv_writer, storage = Writer}
+      Media#ems_media{format = flv_writer, storage = Writer1}
   end;
 
 start_writing(#ems_media{format = Format} = Media, NewOptions) when Format =/= undefined ->
