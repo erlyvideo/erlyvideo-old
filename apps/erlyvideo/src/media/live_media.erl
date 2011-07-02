@@ -36,7 +36,6 @@
 
 -export([init/2, handle_frame/2, handle_control/2, handle_info/2]).
 -export([default_timeout/0]).
--export([start_writing/2, stop_writing/1]).
 
 -record(live, {
   timeout,
@@ -68,63 +67,9 @@ init(Media, Options) ->
       #live{}
   end,
   Media1 = Media#ems_media{state = State, clients_timeout = false, source_timeout = default_timeout()},
-  Media2 = start_writing(Media1, []),
-  {ok, Media2}.
+  {ok, Media1}.
 
 
-start_writing(Media, Options) when is_pid(Media) andalso is_list(Options) ->
-  gen_server:cast(Media, {start_writing, Options});
-
-start_writing(#ems_media{format = undefined, options = OldOptions, media_info = MediaInfo} = Media, NewOptions) ->
-  Options = lists:ukeymerge(1, lists:ukeysort(1, NewOptions), lists:ukeysort(1, OldOptions)),
-  ?D({start_writing, OldOptions}),
-  SortBuffer = proplists:get_value(sort_buffer, Options, 10),
-  case proplists:get_value(type, Options) of
-    live -> 
-      Media;
-    undefined -> 
-      Media;
-    append ->
-      URL = proplists:get_value(url, Options),
-      Host = proplists:get_value(host, Options),
-    	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
-    	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:start_link(FileName, [{mode,append},{sort_buffer,SortBuffer}]),
-      ?D({live_media,append,FileName}),
-      Media#ems_media{format = flv_writer, storage = Writer};
-    record ->
-      URL = proplists:get_value(url, Options),
-      Host = proplists:get_value(host, Options),
-    	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
-    	(catch file:delete(FileName)),
-    	ok = filelib:ensure_dir(FileName),
-      {ok, Writer} = flv_writer:start_link(FileName, [{sort_buffer,SortBuffer}]),
-      ConfigFrames = video_frame:config_frames(MediaInfo),
-      Writer1 = lists:foldl(fun(Cfg, Writer_) -> 
-          case flv_writer:write_frame(Cfg, Writer_) of
-            {ok, Writer1_} -> Writer1_;
-            _ -> Writer_
-          end
-      end, Writer, ConfigFrames),
-      ?D({live_media,record,FileName}),
-      Media#ems_media{format = flv_writer, storage = Writer1}
-  end;
-
-start_writing(#ems_media{format = Format} = Media, NewOptions) when Format =/= undefined ->
-  Media1 = stop_writing(Media),
-  start_writing(Media1, NewOptions).
-
-
-stop_writing(Media) when is_pid(Media) ->
-  gen_server:cast(Media, stop_writing);
-
-
-stop_writing(#ems_media{format = undefined} = Media) ->
-  Media;
-
-stop_writing(#ems_media{format = Format, storage = Storage} = Media) when Format =/= undefined ->
-  {ok, _Storage1} = Format:write_frame(eof, Storage),
-  Media#ems_media{format = undefined, storage = undefined}.
 
 
 %%----------------------------------------------------------------------
@@ -171,14 +116,6 @@ handle_control(no_clients, State) ->
   
 handle_control(timeout, State) ->
   {noreply, State};
-
-handle_control({start_writing, Options}, Media) ->
-  Media1 = start_writing(Media, Options),
-  {noreply, Media1};
-
-handle_control(stop_writing, Media) ->
-  Media1 = stop_writing(Media),
-  {noreply, Media1};
 
 handle_control(_Control, State) ->
   {noreply, State}.

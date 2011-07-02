@@ -28,29 +28,27 @@
 
 -export([http/4]).
 
-
-http(Host, _Method, ["write_control", Command | Path], Req) when Command == "enable" orelse Command == "disable" ->
+http(Host, _Method, ["write_control", "enable" | Path], Req) ->
   Name = string:join(Path, "/"),
-  ?D({write_control, Command, Name}),
-  case media_provider:find(Host, Name) of
-    {ok, Media} when Command == "enable" ->
-      live_media:start_writing(Media, atomize(Req:parse_qs())),
-      Req:ok([{'Content-Type', "application/json"}], "true\n");
-    {ok, Media} when Command == "disable" ->
-      live_media:stop_writing(Media),
-      Req:ok([{'Content-Type', "application/json"}], "true\n");
-    undefined ->
-      Req:respond(404, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, no_stream}]), "\n"])
-  end;
+  ?D({write_enable, Host, Name}),
+  ems_recorder:start_recorder(Host, Name, atomize(Req:parse_qs())),
+  Req:ok([{'Content-Type', "application/json"}], "true\n");
+
+http(Host, _Method, ["write_control", "disable" | Path], Req) ->
+  Name = string:join(Path, "/"),
+  ?D({write_disable, Host, Name}),
+  ems_recorder:stop(Host, Name),
+  Req:ok([{'Content-Type', "application/json"}], "true\n");
 
 http(_Host, _Method, _Path, _Req) ->
   unhandled.
 
 atomize(Query) ->
-  atomize(Query, [{type,record}]).
+  atomize(Query, [{type,write}]).
 
 atomize([{"url", Url}|Query], Acc) -> atomize(Query, [{url, list_to_binary(Url)}|Acc]);
-atomize([{"type", "record"}|Query], Acc) -> atomize(Query, [{type, record}|Acc]);
+atomize([{"type", "record"}|Query], Acc) -> atomize(Query, [{type, write}|Acc]);
+atomize([{"type", "write"}|Query], Acc) -> atomize(Query, [{type, write}|Acc]);
 atomize([{"type", "append"}|Query], Acc) -> atomize(Query, [{type, append}|Acc]);
 atomize([{"sort_buffer", Buffer}|Query], Acc) -> atomize(Query, [{sort_buffer, list_to_integer(Buffer)}|Acc]);
 atomize([{_K, _V}|Query], Acc) -> atomize(Query, Acc);

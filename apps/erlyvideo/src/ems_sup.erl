@@ -57,7 +57,7 @@
 
 -export([init/1,start_link/0]).
 -export([start_rtmp_session/1, start_media/3, start_shared_object/3,
-          start_shoutcast_reader/1,
+          start_shoutcast_reader/1, start_recorder/3,
           start_deskshare_capture/2,
           start_http_server/1, start_ticker/3, start_mjpeg_reader/2]).
 
@@ -79,7 +79,14 @@ start_shoutcast_reader(Consumer) ->
 
 start_mjpeg_reader(URL, Consumer) ->
   supervisor:start_child(mjpeg_reader_sup, [URL, Consumer]).
-  
+
+start_recorder(Host, Name, Options) ->
+  case media_provider:open(Host, Name) of
+    {ok, Media} -> supervisor:start_child(ems_recorder_sup, [Media, [{host,Host},{name,Name}|Options]]);
+    Else -> Else
+  end.
+
+
 start_deskshare_capture(Name, Options) ->
   supervisor:start_child(deskshare_capture_sup, [Name, Options]).
 
@@ -129,6 +136,7 @@ init([erlyvideo_media_sup]) ->
   {ok,
     {{one_for_one, 1000, 20},[
       ?SUPERVISOR_LINK(ems_media_sup),
+      ?SUPERVISOR_LINK(ems_recorder_sup),
       ?SUPERVISOR_LINK(media_ticker_sup),
       ?SUPERVISOR_LINK(shoutcast_reader_sup),
       ?SUPERVISOR_LINK(mjpeg_reader_sup),
@@ -140,6 +148,8 @@ init([erlyvideo_media_sup]) ->
 init([ems_media_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(ems_media, [])]}};
 
+init([ems_recorder_sup]) ->
+  {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(ems_recorder, [])]}};
 
 init([media_ticker_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(media_ticker, [])]}};
