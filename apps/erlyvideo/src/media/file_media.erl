@@ -68,6 +68,7 @@ open_file(Access, Path, Options) ->
     file -> [binary, raw, read, {read_ahead, 100000}];
     _ -> Options
   end,
+
 	{ok, File} = Access:open(Path, Opts),
 	case file_media:file_format(Path) of
 	  undefined ->
@@ -165,7 +166,13 @@ file_dir(Host) ->
 
 file_format(Name) ->
   Readers = ems:get_var(file_formats, [mp4_reader, flv_reader, mp3_reader]),
-  file_format(Name, Readers).
+  {ok,Re} = re:compile("http://video.tvigle(.*)"),
+  case re:run(Name,Re) of
+    {match, _Captured} -> 
+      mp4_reader;
+    _ -> 
+      file_format(Name, Readers)
+  end.
 
 file_format(_Name, []) ->
   undefined;
