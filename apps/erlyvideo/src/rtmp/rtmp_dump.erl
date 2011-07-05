@@ -31,19 +31,37 @@
 
 -export([run/1]).
 
--export([connect/2, play/2, wait/2, pause/2, resume/2, seek/2, fcpublish/2, publish/2]).
+-export([protect/2, connect/2, play/2, wait/2, pause/2, resume/2, seek/2, fcpublish/2, publish/2]).
 
 -record(dumper, {
+  id = 0,
   commands,
   rtmp,
   stream,
-  last_dts
+  last_dts,
+  substreams = []
 }).
 
 
 run(Filename) when is_list(Filename) ->
   {ok, Commands} = file:consult(Filename),
   run(#dumper{commands = Commands});
+
+run(#dumper{commands = [{parallel,N}|Commands]} = Dumper) ->
+  run(Dumper#dumper{commands = [{parallel,N,0}|Commands]});
+
+
+run(#dumper{commands = [{parallel,N,Delay}|Commands]} = Dumper) ->
+  ?D({spawn,N,clients}),
+  Pids = [begin
+  Pid = spawn(fun() ->
+    run(Dumper#dumper{id = I, commands = Commands})
+  end),
+  erlang:monitor(process, Pid),
+  timer:sleep(Delay),
+  Pid
+  end || I <- lists:seq(1,N)],
+  wait_for(Pids);
   
 run(#dumper{commands = [Command|Commands]} = Dumper) ->
   [Function|Args] = erlang:tuple_to_list(Command),
@@ -59,6 +77,21 @@ run(#dumper{commands = [Command|Commands]} = Dumper) ->
   
 run(#dumper{commands = []}) ->
   ok.
+
+wait_for([]) -> ok;
+wait_for(Pids) ->
+  receive
+    {'DOWN', _, process, Pid, _Reason} -> wait_for(lists:delete(Pid, Pids))
+  end.
+
+protect(#dumper{id = Id} = Dumper, []) ->
+  try run(Dumper) of
+    Reply -> Reply
+  catch
+    Class:Error ->
+      ?D({respawn,Id,Class,Error, erlang:get_stacktrace()}),
+      protect(Dumper, [])
+  end.
 
 connect(#dumper{} = Dumper, [URL]) ->
   connect(Dumper, [URL, []]);

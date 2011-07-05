@@ -3,12 +3,8 @@
 
 
 main([FileName]) ->
-  Root = filename:join(filename:dirname(escript:script_name()), "..")++"/",
-  true = code:add_pathz(Root ++ "ebin"),
-  true = code:add_pathz(Root ++ "deps/rtmp/ebin"),
-  true = code:add_pathz(Root ++ "deps/log4erl/ebin"),
-  true = code:add_pathz(Root ++ "deps/amf/ebin"),
-  true = code:add_pathz(Root ++ "deps/erlmedia/ebin"),
+  Root = filename:join(filename:dirname(escript:script_name()), ".."),
+  [code:add_pathz(Path) || Path <- filelib:wildcard(Root ++ "/apps/*/ebin")],
   application:start(log4erl),
   application:start(rtmp),
   rtmp_dump:run(FileName),
