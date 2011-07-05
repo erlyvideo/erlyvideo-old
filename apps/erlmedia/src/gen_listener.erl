@@ -116,7 +116,7 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 handle_info(bind, #listener{bindspec = BindSpec, driver = Driver} = Server) ->
   Opts1 = [binary, {packet, raw}, {reuseaddr, true}, 
-          {keepalive, true}, {backlog, 30}, {active, false}],
+          {keepalive, true}, {backlog, 250}, {active, false}],
   {BindAddr, Port} = case BindSpec of
     P when is_number(P) -> {undefined, P};
     {Addr, P} -> {Addr, P};
