@@ -309,6 +309,7 @@ set_media_info(#ems_media{waiting_for_config = Waiting, options = Options} = Med
     true ->
       Media#ems_media{media_info = Info1};
     false ->
+      ?D({set_media_info, Media#ems_media.url}),
       Reply = reply_with_media_info(Media, Info1),
       [gen_server:reply(From, Reply) || From <- Waiting],
       Media#ems_media{media_info = Info1, waiting_for_config = []}
@@ -560,8 +561,13 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
     Else -> {Storage, Else}
   end,
   Media1 = case Frame of
-    #video_frame{content = video, flavor = config} -> Media#ems_media{video_config = Frame};
-    #video_frame{content = audio, flavor = config} -> Media#ems_media{audio_config = Frame};
+    #video_frame{flavor = config, content = Content} -> 
+      Media_1 = case Content of
+        audio -> Media#ems_media{audio_config = Frame};
+        video -> Media#ems_media{video_config = Frame}
+      end,
+      {reply, _, Media_2} = ems_media_frame:define_media_info(Frame, Media_1),
+      Media_2;
     #video_frame{content = C, body = Body} when C == audio orelse C == video ->
       Bytes = try erlang:iolist_size(Body) of
         Size -> Size
