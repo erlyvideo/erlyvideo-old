@@ -1,0 +1,27 @@
+Flash->RTMPSession: play("video.mp4")
+RTMPSession->MediaProvider: open("video.mp4", paused:true)
+MediaProvider->RTMPSession: take this Media
+RTMPSession->Media: get media_info(Media)
+note right of Media: 
+   if Media is a live stream, it will 
+   block call unless find enough 
+   frames to detect codecs 
+end note
+Media->RTMPSession: MediaInfo
+RTMPSession->RTMPSocket: send_av_notification(MediaInfo)
+note left of RTMPSocket:
+    RTMP protocols require some useless, 
+    but mandatory bytes to send before 
+    audio and video flows.
+end note
+RTMPSocket->TCPSocket: send RTMP stream_start
+RTMPSession->RTMPSocket: get TCP socket
+RTMPSocket->RTMPSession: take this TCPSocket
+RTMPSession->Media: subscribe(socket:TCPSocket)
+note right of Media:
+    RTMPSession is now in list of clients
+    marked as starting client.
+    It will not receive any video before keyframe
+    but will receive audio, if it is audio-only stream
+end note
+Media->TCPSocket: send preformatted RTMP data
