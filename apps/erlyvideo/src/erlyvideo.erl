@@ -196,9 +196,7 @@ stop() ->
   ems_vhosts:stop(),
 	stop_modules(),
 	application:stop(erlyvideo),
-	application:unload(erlyvideo),
 	application:stop(rtmp),
-	application:unload(rtmp),
   ems_log:stop(),
 	ok.
 

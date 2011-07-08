@@ -58,13 +58,10 @@ append_current_version(Commands) ->
   lists:map(fun({project, Project}) ->
     Name = proplists:get_value(name, Project),
     case application:get_key(Name, vsn) of
-      {ok, Version} ->
-        case is_binary(Version) of
- 	  true ->
-            {project, [{current_version, list_to_binary(Version)}|Project]};
-          false -> 
-            {project, [{current_version, Version}|Project]}
-         end;
+      {ok, Version} when is_binary(Version) ->
+        {project, [{current_version, Version}|Project]};
+      {ok, Version} when is_list(Version) ->
+        {project, [{current_version, list_to_binary(Version)}|Project]};
       undefined ->
         {project, Project}
     end  
@@ -249,6 +246,7 @@ load_from_server(Config) ->
   end.
 
 load_by_url(URL) ->
+  error_logger:info_msg("License request: ~p", [URL]),
   case ibrowse:send_req(URL,[],get,[],[{response_format,binary}]) of
     {ok, "200", _Headers, Bin} ->
       unpack_server_response(Bin);
