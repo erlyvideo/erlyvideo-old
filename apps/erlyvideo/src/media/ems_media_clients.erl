@@ -148,7 +148,7 @@ remove_client(#clients{active = A, passive = P, starting = S, bytes = Bytes}, Cl
   ets:delete(S, Client),
   ok.
   
-insert(#clients{list = List, type = Type, active = A} = Clients, #client{consumer = Client} = Entry) ->
+insert(#clients{list = List, type = Type} = Clients, #client{consumer = Client} = Entry) ->
   insert_client(Clients, Entry),
   Clients1 = Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})},
   if
