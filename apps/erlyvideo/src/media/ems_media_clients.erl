@@ -152,7 +152,7 @@ insert(#clients{list = List, type = Type, active = A} = Clients, #client{consume
   insert_client(Clients, Entry),
   Clients1 = Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})},
   if
-    A == undefined andalso length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
+    length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
     true -> Clients1
   end.
 
