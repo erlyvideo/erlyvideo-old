@@ -33,7 +33,7 @@ http(Host, 'GET', ["erlyvideo", "api", "filelist"], Req) ->
   RawList = case file:list_dir(file_media:file_dir(Host)) of
     {ok, FL} -> FL;
     {error, Error} -> 
-      error_logger:error_msg("Invalid file_dir directory: ~p (~p)~n", [file_media:file_dir(Req:host()), Error]),
+      error_logger:error_msg("Invalid file_dir directory: ~p (~p)~n", [file_media:file_dir(Host), Error]),
       []
   end,
   
