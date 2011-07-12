@@ -99,3 +99,31 @@ av_test_() ->
     ?assertEqual(6, length(Frames)),
     ?assert(ems_test_helper:has_small_delta(Frames, 100))
   end).
+
+
+% В этом тесте надо проверить одну неприятную особенность флеша:
+% мы шлем конфиг с DTS=0, а потом идет поток с DTS = 4535353.
+% Это неверно, надо вычислять last_dts и слать конфиги с ним
+rtmp_low_gap_test_() ->
+  prepare_test_flow([{send_audio_before_keyframe,true}], fun(Media) ->
+    feed_with_flow(Media, av_header),
+    feed_with_flow(Media, audio_video),
+    Master = self(),
+    Reader = spawn_link(fun() ->
+      ems_media:play(Media, [{stream_id,1}]),
+      Master ! {ready, self()},
+      Master ! {frames, ems_test_helper:receive_all_frames(100)}
+    end),
+    receive
+      {ready, Reader} -> ok
+    end,
+    feed_with_flow(Media, audio_video2),
+    timer:sleep(100),
+    Frames = receive
+      {frames, Frames_} -> Frames_
+    after
+      500 -> ?assertNot(false)  
+    end,
+    ?assertEqual(13, length(Frames)), %% 11 frames in audio_video2 flow, 2 decoder configs and metadata
+    ?assert(ems_test_helper:has_small_delta(Frames, 50))
+  end).
