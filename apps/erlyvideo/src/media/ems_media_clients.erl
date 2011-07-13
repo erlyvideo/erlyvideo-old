@@ -187,7 +187,7 @@ find_by_ticker(Storage, Pid) ->
 find(#clients{bytes = Bytes, list = List}, Value, Pos) ->
   case lists:keyfind(Value, Pos, List) of
     false -> undefined;
-    #client{consumer = Client} = Entry -> Entry#client{bytes = ets:lookup_element(Bytes, Client, 2)}
+    #client{consumer = Client} = Entry -> Entry#client{bytes = fetch_bytes(Bytes, Client)}
   end.
 
 
