@@ -373,7 +373,7 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvi
         normal -> ok;
         _ -> ?D({"Stream died", Media, Host, Name, io_lib_pretty_limited:print(_Reason, 2000)})
       end,
-      ems_event:stream_stopped(Host, Name, Media),
+      (catch ems_event:stream_stopped(Host, Name, Media)),
       {noreply, MediaProvider}
   end;
 
