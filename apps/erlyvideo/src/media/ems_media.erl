@@ -188,7 +188,34 @@ pause(Media) when is_pid(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 set_source(Media, Source) when is_pid(Media) ->
-  gen_server:cast(Media, {set_source, Source}).
+  gen_server:cast(Media, {set_source, Source});
+
+
+set_source(#ems_media{source_ref = OldRef, module = M} = Media, Source) ->
+  case OldRef of
+    undefined -> ok;
+    _ -> erlang:demonitor(OldRef, [flush])
+  end,
+
+  DefaultSource = fun(OtherSource, Media1) ->
+    Ref = case OtherSource of
+      undefined -> undefined;
+      _ -> erlang:monitor(process, OtherSource)
+    end,
+    {ok, Media1#ems_media{source = OtherSource, source_ref = Ref, ts_delta = undefined}}
+  end,
+
+  case M:handle_control({set_source, Source}, Media) of
+    {noreply, Media1} ->
+      DefaultSource(Source, Media1);
+    {reply, OtherSource, Media1} ->
+      DefaultSource(OtherSource, Media1);
+    {stop, Reason, S2} ->
+      ?D({"ems_media failed to set_source", M, Source, Reason}),
+      {error, Reason, Media#ems_media{state = S2}}
+  end.
+
+
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Socket::port()) -> ok
@@ -309,7 +336,7 @@ set_media_info(#ems_media{waiting_for_config = Waiting, options = Options} = Med
     true ->
       Media#ems_media{media_info = Info1};
     false ->
-      ?D({set_media_info, Media#ems_media.url}),
+      % ?D({set_media_info, Media#ems_media.url}),
       Reply = reply_with_media_info(Media, Info1),
       [gen_server:reply(From, Reply) || From <- Waiting],
       Media#ems_media{media_info = Info1, waiting_for_config = []}
@@ -614,30 +641,14 @@ handle_call(Request, _From, #ems_media{module = M} = Media) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_cast({set_source, Source}, #ems_media{source_ref = OldRef, module = M} = Media) ->
-  case OldRef of
-    undefined -> ok;
-    _ -> erlang:demonitor(OldRef, [flush])
-  end,
-  
-  DefaultSource = fun(OtherSource, Media1) ->
-    Ref = case OtherSource of
-      undefined -> undefined;
-      _ -> erlang:monitor(process, OtherSource)
-    end,
-    {noreply, Media1#ems_media{source = OtherSource, source_ref = Ref, ts_delta = undefined}, ?TIMEOUT}
-  end,
-  
-  case M:handle_control({set_source, Source}, Media) of
-    {noreply, Media1} ->
-      DefaultSource(Source, Media1);
-    {reply, OtherSource, Media1} ->
-      DefaultSource(OtherSource, Media1);
-    {stop, Reason, S2} ->
-      ?D({"ems_media failed to set_source", M, Source, Reason}),
-      {stop, Reason, Media#ems_media{state = S2}}
+handle_cast({set_source, Source}, Media) ->
+  case set_source(Media, Source) of
+    {ok, Media1} ->
+      {noreply, Media1, ?TIMEOUT};
+    {error, Reason, Media1} ->
+      {stop, Reason, Media1}
   end;
-
+  
 handle_cast({play_setup, Client, Options}, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{state = passive, ticker = Ticker} ->
@@ -761,11 +772,11 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, url = Nat
 
   case M:handle_control({make_request, URL}, Media) of
     {ok, Reader} when is_pid(Reader) ->
-      ems_media:set_source(self(), Reader),
-      {noreply, Media#ems_media{retry_count = 0}, ?TIMEOUT};
+      {ok, Media1} = ems_media:set_source(Media, Reader),
+      {noreply, Media1#ems_media{retry_count = 0}, ?TIMEOUT};
     {ok, Reader, #media_info{} = MediaInfo} when is_pid(Reader) ->
-      ems_media:set_source(self(), Reader),
-      {noreply, ems_media:set_media_info(Media#ems_media{retry_count = 0}, MediaInfo), ?TIMEOUT};
+      {ok, Media1} = ems_media:set_source(Media, Reader),
+      {noreply, ems_media:set_media_info(Media1#ems_media{retry_count = 0}, MediaInfo), ?TIMEOUT};
     {noreply, Media1} ->
       handle_info_with_module(make_request, Media1);
     {stop, Reason, Media1} ->

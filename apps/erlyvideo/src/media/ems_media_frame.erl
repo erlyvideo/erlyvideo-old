@@ -210,6 +210,9 @@ calculate_new_stream_shift(Frame, Media) ->
 
 
 shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
+  if DTS + Delta < -1000 -> ?D({broken_frame,Frame#video_frame.content,Frame#video_frame.flavor,DTS});
+    true -> ok
+  end,
   {reply, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media}.
 
 
@@ -225,6 +228,9 @@ sort_frames(#video_frame{} = Frame, #ems_media{sort_buffer = Buffer, sort_count 
 
 
 save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->
+  if DTS < 0 -> ?D({save_negative_dts, DTS, Frame#video_frame.content, Media#ems_media.ts_delta});
+    true -> ok
+  end,
   {reply, Frame, Media#ems_media{last_dts = DTS, last_dts_at = os:timestamp()}}.
   
 

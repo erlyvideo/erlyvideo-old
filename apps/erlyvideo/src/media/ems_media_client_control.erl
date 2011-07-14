@@ -50,6 +50,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
       notick -> false;
       _ -> proplists:get_value(start, Options) =/= undefined
     end,
+    % ?D({need_ticker,Clients,Options,Reply,RequireTicker}),
     Clients1 = case RequireTicker of
       true ->
         {ok, Ticker} = ems_sup:start_ticker(self(), Client, Options),
