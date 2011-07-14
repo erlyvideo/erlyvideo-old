@@ -47,6 +47,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
     Ref = erlang:monitor(process,Client),
     RequireTicker = case Reply of
       tick -> true;
+      notick -> false;
       _ -> proplists:get_value(start, Options) =/= undefined
     end,
     Clients1 = case RequireTicker of
@@ -246,7 +247,11 @@ default_seek_reply(Client, {DTS, _NewPos, NewDTS}, #ems_media{clients = Clients}
     _ ->
       ?D("Client requested seek not in list"),
       {reply, seek_failed, Media, ?TIMEOUT}
-  end.
+  end;
+
+default_seek_reply(_Client, undefined, Media) ->
+  {reply, seek_failed, Media, ?TIMEOUT}.
+  
 
 
 
