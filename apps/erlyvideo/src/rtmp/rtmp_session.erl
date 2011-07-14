@@ -162,7 +162,7 @@ metadata(Media, Options) when is_pid(Media) ->
 
 
 add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
-add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options);
+add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) when Duration =/= undefined -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options);
 add_metadata_options(#media_info{} = MediaInfo, [_|Options]) -> add_metadata_options(MediaInfo, Options).
 
 
@@ -211,6 +211,7 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %%-------------------------------------------------------------------------
 init([]) ->
   random:seed(now()),
+  ems_network_lag_monitor:watch(self()),
   {ok, #rtmp_session{}}.
 
 
@@ -510,11 +511,12 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
       {State, DTS_, false, false};
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
-    #rtmp_stream{pid = Media, started = false} = Stream ->
+    #rtmp_stream{pid = Media, started = false, options = Options} = Stream ->
       MediaType = proplists:get_value(type, ems_media:info(Media)),
       rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
       State1_ = set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State),
-      State2_ = rtmp_session:send_frame(rtmp_session:metadata(Media, [{stream_id,StreamId},{dts,DTS}]), State1_),
+      Duration = proplists:get_value(duration, Options),
+      State2_ = rtmp_session:send_frame(rtmp_session:metadata(Media, [{duration,Duration},{stream_id,StreamId},{dts,DTS}]), State1_),
       {State2_, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
       {State, DTS_, false, true};
@@ -525,7 +527,7 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
   % case Frame#video_frame.content of
   %   metadata -> ?D(Frame);
   %   _ ->
-  %     ?D({Frame#video_frame.codec,Frame#video_frame.flavor,Frame#video_frame.sound,round(DTS), size(Frame#video_frame.body)}),
+  %     % (catch ?D({Frame#video_frame.codec,Frame#video_frame.flavor,rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)})),
   %     ok
   % end,
   case Allow of
