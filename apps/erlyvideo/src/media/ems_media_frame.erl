@@ -201,7 +201,7 @@ calculate_new_stream_shift(#video_frame{dts = DTS} = Frame, #ems_media{ts_delta 
     undefined -> {DTS, 0};
     _ -> {LDTS, LDTS - DTS + GlueDelta}
   end,
-  ?D({"New instance of stream", Media#ems_media.name, LastDTS, DTS, TSDelta}),
+  ?D({"New ts_delta", Media#ems_media.name, round(LastDTS), round(DTS), round(TSDelta)}),
   ems_event:stream_started(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self(), Media#ems_media.options),
   {reply, Frame, Media#ems_media{ts_delta = TSDelta}}; %% Lets glue new instance of stream to old one plus small glue time
 
@@ -228,9 +228,9 @@ sort_frames(#video_frame{} = Frame, #ems_media{sort_buffer = Buffer, sort_count 
 
 
 save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->
-  if DTS < 0 -> ?D({save_negative_dts, DTS, Frame#video_frame.content, Media#ems_media.ts_delta});
-    true -> ok
-  end,
+  % if DTS < 0 -> ?D({save_negative_dts, DTS, Frame#video_frame.content, Media#ems_media.ts_delta});
+  %   true -> ok
+  % end,
   {reply, Frame, Media#ems_media{last_dts = DTS, last_dts_at = os:timestamp()}}.
   
 
@@ -244,6 +244,7 @@ warn_bad_dts_delta(Frame, Media) ->
 
 
 fix_negative_dts(#video_frame{dts = DTS, pts = PTS} = Frame,  Media) when (DTS < 0 andalso DTS >= -1000) orelse (PTS < 0 andalso PTS >= -1000) ->
+  % ?D({negative,DTS}),
   {reply, Frame#video_frame{dts = 0, pts = 0}, Media};
 
 fix_negative_dts(Frame, Media) ->

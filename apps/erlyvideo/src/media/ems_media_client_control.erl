@@ -206,10 +206,12 @@ handle_seek({seek, Client, DTS} = Seek, #ems_media{module = M} = Media) ->
   ?D({"Going to seek", Seek}),
   case M:handle_control(Seek, Media) of
     {noreply, Media1} ->
-      ?D({"default seek", Seek}),
+      % ?D({"default seek", Seek}),
       default_ems_media_seek(Seek, Media1);
     {stop, Reason, Media1} ->
       {stop, Reason, Media1};
+    {reply, {ok, _NewDTS} = Reply, Media1} ->
+      default_seek_reply(Client, Reply, Media1);
     {reply, {NewKey, NewDTS}, Media1} ->
       default_seek_reply(Client, {DTS, NewKey, NewDTS}, Media1);
     {reply, Reply, Media1} ->
@@ -222,16 +224,24 @@ default_ems_media_seek(_, #ems_media{format = undefined} = Media) ->
   {reply, seek_failed, Media, ?TIMEOUT};
 
 default_ems_media_seek({seek, Client, DTS}, #ems_media{format = Format, storage = Storage} = Media) ->
-  ?D({"default seek", Client, DTS}),
+  % ?D({"default seek", Client, DTS}),
   case Format:seek(Storage, DTS, []) of
     {NewPos, NewDTS} ->
-      ?D({"seek ready", NewPos, NewDTS}),
+      % ?D({"seek ready", NewPos, NewDTS}),
       default_seek_reply(Client, {DTS, NewPos, NewDTS}, Media);
     undefined ->
       ?D({"no flv seek"}),
       {reply, seek_failed, Media, ?TIMEOUT}
   end.
 
+default_seek_reply(Client, {ok, NewDTS}, #ems_media{clients = Clients} = Media) ->
+  case ems_media_clients:find(Clients, Client) of
+    #client{stream_id = StreamId} ->
+      % ?D({seek_reply_stream,NewDTS}),
+      Client ! {ems_stream, StreamId, seek_success, NewDTS};
+    _ -> ok
+  end,
+  {reply, {seek_success, NewDTS}, Media, ?TIMEOUT};
 
 default_seek_reply(Client, {DTS, _NewPos, NewDTS}, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of

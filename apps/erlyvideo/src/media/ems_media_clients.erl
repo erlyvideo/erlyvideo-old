@@ -208,9 +208,13 @@ make_client_passive(Storage, Client, Ticker) ->
       update(Storage, Client, Entry#client{ticker = Ticker, ticker_ref = TickerRef, state = passive});
     _ -> Storage
   end.
+
+update(#clients{bytes = undefined} = Clients, _Client, #client.bytes, _Value) ->
+  Clients;
   
-update(#clients{bytes = Bytes}, Client, #client.bytes, Value) ->
-  catch ets:insert(Bytes, {Client, Value});
+update(#clients{bytes = Bytes} = Clients, Client, #client.bytes, Value) ->
+  catch ets:insert(Bytes, {Client, Value}),
+  Clients;
 
 update(#clients{list = List} = Clients, Client, Pos, Value) ->
   remove_client(Clients, Client),
@@ -226,7 +230,7 @@ update(#clients{list = List} = Clients, Client, Pos, Value) ->
 update(#clients{list = List, bytes = Bytes} = Clients, Client, #client{bytes = B} = NewEntry) ->
   remove_client(Clients, Client),
   insert_client(Clients, NewEntry),
-  ets:insert(Bytes, {Client, B}),
+  catch ets:insert(Bytes, {Client, B}),
   List1 = lists:keystore(Client, #client.consumer, List, NewEntry),
   Clients#clients{list = List1}.
 
