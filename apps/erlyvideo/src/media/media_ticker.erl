@@ -189,7 +189,7 @@ handle_message({seek, DTS}, #ticker{media = Media, paused = Paused, stream_id = 
     true -> ok;
     false -> self() ! tick
   end,
-  Consumer ! {ems_stream, StreamId, seek_success, DTS},
+  Consumer ! {ems_stream, StreamId, seek_success, NewDTS},
   {noreply, Ticker#ticker{pos = Pos, dts = NewDTS, timer_start = undefined}};
 
 handle_message({play_setup, Options}, #ticker{client_buffer = OldCB, media = _Media, paused = Paused} = Ticker) ->

@@ -68,7 +68,7 @@ handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} 
 handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
   #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   
-  ?D({self(), "seek to", NewDTS, rtmp:justify_ts(NewDTS - BaseDTS)}),
+  ?D({self(), "seek to", round(NewDTS), rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
   rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
 
@@ -266,14 +266,18 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   Options = extract_url_args(Args),
 
-  {Length,Type} = case proplists:get_value(duration, Options) of 
+  {Length1,Type} = case proplists:get_value(duration, Options) of 
     undefined ->
       Info = media_provider:info(Host, Name),
       L = proplists:get_value(duration, Info),
       T = proplists:get_value(type, Info),
       {L,T};
     N when is_number(N) ->
-      {N / 1000, file}
+      {N, file}
+  end,
+  Length = case Length1 of
+    undefined -> undefined;
+    _ -> Length1 / 1000
   end,
   case {Length,Type} of
     {Length, file} when is_number(Length) ->
@@ -294,7 +298,7 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
   #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   ?D({self(), "seek", round(Timestamp), BaseDTS, Player}),
-  case ems_media:seek(Player, Timestamp + BaseDTS) of
+  case ems_media:seek(Player, Timestamp) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),
       State;
