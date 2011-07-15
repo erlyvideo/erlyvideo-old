@@ -210,7 +210,7 @@ calculate_new_stream_shift(Frame, Media) ->
 
 
 shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  if DTS + Delta < -1000 -> ?D({broken_frame,Frame#video_frame.content,Frame#video_frame.flavor,DTS});
+  if DTS + Delta < -1000 -> ?D({broken_frame,Media#ems_media.name,DTS});
     true -> ok
   end,
   {reply, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media}.
