@@ -243,6 +243,7 @@ handle_call({socket_ready, RTMP}, _From, State) ->
     _ -> lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP)))
   end,
   erlang:monitor(process, RTMP),
+  ems_network_lag_monitor:watch(RTMP),
   % rtmp_socket:setopts(RTMP, [{debug,true}]),
   {reply, ok, State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
 

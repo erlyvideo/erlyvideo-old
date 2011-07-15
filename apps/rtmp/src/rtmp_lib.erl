@@ -43,7 +43,7 @@ wait_for_reply(RTMP, InvokeId) ->
   end.
 
 default_connect_options() ->
-  [
+  lists:ukeysort(1, [
     {app, <<"ondemand">>},
     {flashVer,<<"MAC 10,0,32,18">>},
     {swfUrl,<<"http://localhost/player/Player.swf">>},
@@ -55,7 +55,7 @@ default_connect_options() ->
     {videoFunction,1.0},
     {pageUrl,<<"http://localhost:8082/">>},
     {objectEncoding,0.0}
-  ].
+  ]).
 
 empty_audio(StreamId, DTS) ->
   #rtmp_message{type = audio, body = <<>>, timestamp = DTS, ts_type = new, stream_id = StreamId, channel_id = rtmp_lib:channel_id(audio, StreamId)}.
@@ -70,7 +70,7 @@ connect(RTMP) ->
 %% @spec (RTMP::rtmp_socket(), Options::[{Key::atom(), Value::any()}]) -> any()
 %% @doc Send connect request to server
 connect(RTMP, Options) ->
-  ConnectArgs = lists:ukeymerge(1, Options, default_connect_options()),
+  ConnectArgs = lists:ukeymerge(1, lists:ukeysort(1, Options), default_connect_options()),
   InvokeId = 1,
   AMF = #rtmp_funcall{
     command = connect,
@@ -79,6 +79,7 @@ connect(RTMP, Options) ->
     stream_id = 0,
     args = [{object, ConnectArgs}]
   },
+  io:format("~p -> ~p~n", [{connect, Options}, ConnectArgs]),
   rtmp_socket:invoke(RTMP, AMF),
   wait_for_reply(RTMP, InvokeId).
   
