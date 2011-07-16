@@ -167,7 +167,7 @@ publish(Dumper, [File, Path, Command]) when Command == record orelse Command == 
 
 publish(#dumper{rtmp = RTMP} = Dumper, [File, Path, Command, Type]) ->
   StreamId = rtmp_lib:createStream(RTMP),
-  {ok, Media} = ems_media:start_link(file_media, [{host,default},{name,File}]++media_detector:file(default, File, [])),
+  {ok, Media} = ems_media:start_link(file_media, [{host,default},{name,File},{clients_timeout,false}]++media_detector:file(default, File, [])),
   Cmd = if
     is_atom(Command) -> atom_to_binary(Command,latin1);
     is_list(Command) -> list_to_binary(Command);

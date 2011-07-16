@@ -219,9 +219,14 @@ flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
 %% @end
 %%-------------------------------------------------------------------------
 dump_frame_in_file(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined} = FlvWriter) ->
+  put(last_dts, 0),
   dump_frame_in_file(Frame#video_frame{dts = 0, pts = 0}, FlvWriter#flv_file_writer{base_dts = DTS});
   
 dump_frame_in_file(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
+  LastDTS = get(last_dts),
+  if DTS < LastDTS -> ?D({non_monotonic_timestamp, DTS, LastDTS, Frame#video_frame.flavor, Frame#video_frame.codec});
+    true -> ok
+  end,
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS, pts = PTS - BaseDTS})),
   {ok, FlvWriter}.
 
