@@ -40,10 +40,8 @@ define_media_info/2,
 fix_undefined_dts/2,
 calculate_new_stream_shift/2,
 shift_dts_delta/2,
-warn_bad_dts_delta/2,
-sort_frames/2,
+fix_large_dts_jump/2,
 save_last_dts/2,
-fix_negative_dts/2,
 start_on_keyframe/2,
 store_frame/2,
 save_config/2,
@@ -76,18 +74,8 @@ frame_filters(#ems_media{options = Options} = _Media) ->
     define_media_info,
     fix_undefined_dts,
     calculate_new_stream_shift,
-    shift_dts_delta] ++ 
-  case proplists:get_value(warn_dts_delta, Options) of
-    true -> [warn_bad_dts_delta];
-    _ -> []
-  end ++  
-  [ fix_negative_dts] ++
-  % case SortCount of
-  %   0 -> [];
-  %   undefined -> [];
-  %   _ -> [sort_frames]
-  % end ++ 
-  [
+    shift_dts_delta,
+    fix_large_dts_jump,
     save_last_dts,
     start_on_keyframe,
     store_frame,
@@ -210,50 +198,25 @@ calculate_new_stream_shift(Frame, Media) ->
 
 
 shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta = Delta} = Media) ->
-  % if DTS + Delta < -10000 -> ?D({broken_frame,Media#ems_media.name,DTS});
-  %   true -> ok
-  % end,
   {reply, Frame#video_frame{dts = DTS + Delta, pts = PTS + Delta}, Media}.
 
 
-sort_frames(#video_frame{} = Frame, #ems_media{sort_buffer = Buffer, sort_count = Count} = Media) when length(Buffer) < 2*Count ->
-  {noreply, Media#ems_media{sort_buffer = [Frame|Buffer]}};
+-define(DTS_THRESHOLD, 60000).
 
-sort_frames(#video_frame{} = Frame, #ems_media{sort_buffer = Buffer, sort_count = Count} = Media) ->
-  Sorted = lists:keysort(#video_frame.dts, [Frame|Buffer]),
-  {Send, Store} = lists:split(Count, Sorted),
-  F = fun(List) -> [DTS || #video_frame{dts = DTS} <- List] end,
-  ?D({F(Send), F(Store)}),
-  {reply, Send, Media#ems_media{sort_buffer = Store}}.
+fix_large_dts_jump(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{last_dts = LastDTS, glue_delta = Delta} = Media) when DTS - LastDTS > ?DTS_THRESHOLD ->
+  ?D({large_dts_jump,forward,Media#ems_media.name,Media#ems_media.last_dts,DTS}),
+  {reply, Frame#video_frame{dts = LastDTS + Delta, pts = PTS + LastDTS - DTS + Delta}, Media};
 
+fix_large_dts_jump(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{last_dts = LastDTS, glue_delta = Delta} = Media) when LastDTS - DTS > ?DTS_THRESHOLD ->
+  ?D({large_dts_jump,backward,Media#ems_media.name,Media#ems_media.last_dts,DTS}),
+  {reply, Frame#video_frame{dts = LastDTS + Delta, pts = PTS + LastDTS - DTS + Delta}, Media};
+
+fix_large_dts_jump(Frame, Media) ->
+  {reply, Frame, Media}.
 
 save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->
-  if 
-    DTS - Media#ems_media.last_dts > 60000 -> ?D({large_dts_jump,forward,Media#ems_media.name,Media#ems_media.last_dts,DTS});
-    DTS - Media#ems_media.last_dts < -60000 -> ?D({large_dts_jump,backward,Media#ems_media.name,Media#ems_media.last_dts,DTS});
-    true -> ok
-  end,
-  % if DTS < 0 -> ?D({save_negative_dts, DTS, Frame#video_frame.content, Media#ems_media.ts_delta});
-  %   true -> ok
-  % end,
   {reply, Frame, Media#ems_media{last_dts = DTS, last_dts_at = os:timestamp()}}.
   
-
-warn_bad_dts_delta(#video_frame{dts = DTS} = Frame, #ems_media{last_dts = LastDTS} = Media) when DTS < 0 orelse abs(DTS - LastDTS) > 4000 ->
-  ?D({large_dts_delta, DTS, LastDTS}),
-  {reply, Frame, Media};
-
-warn_bad_dts_delta(Frame, Media) ->
-  {reply, Frame, Media}.
-
-
-
-fix_negative_dts(#video_frame{dts = DTS, pts = PTS} = Frame,  Media) when (DTS < 0 andalso DTS >= -1000) orelse (PTS < 0 andalso PTS >= -1000) ->
-  % ?D({negative,DTS}),
-  {reply, Frame#video_frame{dts = 0, pts = 0}, Media};
-
-fix_negative_dts(Frame, Media) ->
-  {reply, Frame, Media}.
 
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = F, 
