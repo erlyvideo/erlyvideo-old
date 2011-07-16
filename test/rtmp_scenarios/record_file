@@ -1,0 +1,2 @@
+{connect, "rtmp://localhost/rtmp", [{debug,true}]}.
+{publish, "video.mp4", "test15.flv", record}.

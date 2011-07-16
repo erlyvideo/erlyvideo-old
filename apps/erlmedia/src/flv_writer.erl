@@ -140,6 +140,9 @@ writer_no_timeout(FlvWriter) ->
     Message -> handle_message(Message, FlvWriter)
   end.
 
+write_frame(#video_frame{flavor = command}, FlvWriter) ->
+  {ok, FlvWriter};
+
 %% External interface for spawned writer
 write_frame(#video_frame{} = Frame, FlvWriter) when is_pid(FlvWriter) ->
   FlvWriter ! Frame,
@@ -180,9 +183,13 @@ store_message(Frame, #flv_file_writer{buffer = Buffer, buffer_size = Size} = Flv
 store_message(Frame, #flv_file_writer{buffer = Buffer} = FlvWriter) ->
   {ok, FlvWriter#flv_file_writer{buffer = [Frame|Buffer]}}.
   
+frame_sorter(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) when DTS1 < DTS2 -> true;
+frame_sorter(#video_frame{dts = DTS, flavor = config}, #video_frame{dts = DTS, flavor = Flavor}) when Flavor =/= config -> true;
+frame_sorter(#video_frame{dts = DTS, flavor = config, content = video}, #video_frame{dts = DTS, flavor = config, content = Content}) when Content=/= video -> true;
+frame_sorter(#video_frame{}, #video_frame{}) -> false.
 
 flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
-  Sorted = lists:keysort(#video_frame.dts, Buf1),
+  Sorted = lists:sort(fun frame_sorter/2, Buf1),
 
   % Buffer = lists:reverse(Buf1),
   % case Sorted of
@@ -211,9 +218,8 @@ flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
 %% @doc  Writes one flv frame
 %% @end
 %%-------------------------------------------------------------------------
-dump_frame_in_file(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined, writer = Writer} = FlvWriter) ->
-  Writer(flv_video_frame:to_tag(Frame#video_frame{dts = 0, pts = 0})),
-  {ok, FlvWriter#flv_file_writer{base_dts = DTS}};
+dump_frame_in_file(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined} = FlvWriter) ->
+  dump_frame_in_file(Frame#video_frame{dts = 0, pts = 0}, FlvWriter#flv_file_writer{base_dts = DTS});
   
 dump_frame_in_file(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS, pts = PTS - BaseDTS})),

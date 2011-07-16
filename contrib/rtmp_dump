@@ -5,6 +5,8 @@
 main([FileName]) ->
   Root = filename:join(filename:dirname(escript:script_name()), ".."),
   [code:add_pathz(Path) || Path <- filelib:wildcard(Root ++ "/apps/*/ebin")],
+  erlyvideo:load_config(),
+  ems_vhosts:start(),
   application:start(log4erl),
   application:start(rtmp),
   rtmp_dump:run(FileName),

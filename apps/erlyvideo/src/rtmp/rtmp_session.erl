@@ -39,7 +39,7 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([send/2, send_frame/2, flush_stream/1]).
+-export([send/2, send_frame/2, flush_stream/1, send_rtmp_frame/2]).
 -export([metadata/1, metadata/2]).
 
 
@@ -533,13 +533,7 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
   % end,
   case Allow of
     true ->
-      Message = #rtmp_message{
-        channel_id = rtmp_lib:channel_id(Type, StreamId),
-        timestamp = DTS - BaseDts,
-        type = Type,
-        stream_id = StreamId,
-        body = flv_video_frame:encode(Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)})},
-    	rtmp_socket:send(Socket, Message),
+      send_rtmp_frame(Socket, Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)}),
     	Size = try iolist_size(Frame#video_frame.body) of
     	  S -> S
     	catch
@@ -549,6 +543,16 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
     false ->
       State1
   end.
+
+send_rtmp_frame(Socket, #video_frame{content = Type, stream_id = StreamId, dts = DTS} = Frame) ->
+  Message = #rtmp_message{
+    channel_id = rtmp_lib:channel_id(Type, StreamId),
+    timestamp = DTS,
+    type = Type,
+    stream_id = StreamId,
+    body = flv_video_frame:encode(Frame)},
+	rtmp_socket:send(Socket, Message).
+  
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive

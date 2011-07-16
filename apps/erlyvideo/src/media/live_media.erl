@@ -42,7 +42,6 @@
   ref
 }).
 
-
 default_timeout() ->
   3000.
 
@@ -59,6 +58,7 @@ default_timeout() ->
 %%----------------------------------------------------------------------
 
 init(Media, Options) ->
+  SortBuffer = proplists:get_value(sort_buffer, Options, 10),
   State = case proplists:get_value(wait, Options, default_timeout()) of
     Timeout when is_number(Timeout) ->
       {ok, Ref} = timer:send_after(Timeout, source_timeout),
@@ -67,10 +67,27 @@ init(Media, Options) ->
       #live{}
   end,
   Media1 = Media#ems_media{state = State, clients_timeout = false, source_timeout = default_timeout()},
-  {ok, Media1}.
-
-
-
+  case proplists:get_value(type, Options) of
+    live -> 
+      {ok, Media1};
+    undefined -> 
+      {ok, Media1};
+    append ->
+      URL = proplists:get_value(url, Options),
+      Host = proplists:get_value(host, Options),
+    	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
+    	ok = filelib:ensure_dir(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName, [{mode,append},{sort_buffer,SortBuffer}]),
+      {ok, Media1#ems_media{format = flv_writer, storage = Writer}};
+    record ->
+      URL = proplists:get_value(url, Options),
+      Host = proplists:get_value(host, Options),
+    	FileName = ems:pathjoin(file_media:file_dir(Host), binary_to_list(URL)),
+    	(catch file:delete(FileName)),
+    	ok = filelib:ensure_dir(FileName),
+      {ok, Writer} = flv_writer:start_link(FileName, [{sort_buffer,SortBuffer}]),
+      {ok, Media1#ems_media{format = flv_writer, storage = Writer}}
+  end.
 
 %%----------------------------------------------------------------------
 %% @spec (ControlInfo::tuple(), State) -> {reply, Reply, State} |

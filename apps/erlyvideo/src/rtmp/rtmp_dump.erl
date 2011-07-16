@@ -37,6 +37,7 @@
   id = 0,
   commands,
   rtmp,
+  worker_pid,
   stream,
   last_dts,
   substreams = []
@@ -107,7 +108,7 @@ connect(#dumper{} = Dumper, [URL, Options]) ->
   receive 
     {rtmp, RTMP, connected} ->
       rtmp_socket:setopts(RTMP, [{active, true},{debug,Debug}]),
-      rtmp_lib:connect(RTMP, Options ++ [{app, App}, {tcUrl, URL}]),
+      rtmp_lib:connect(RTMP, Options ++ [{app, App}, {tcUrl, list_to_binary(URL)}]),
       Dumper#dumper{rtmp = RTMP}
   after
     Timeout ->
@@ -155,11 +156,44 @@ fcpublish(#dumper{rtmp = RTMP} = Dumper, [Path]) ->
   rtmp_socket:send(RTMP, Invoke2#rtmp_message{body = FC2#rtmp_funcall{id = 3}}),
   Dumper.
 
-publish(#dumper{rtmp = RTMP} = Dumper, [Path]) ->
-  Stream = rtmp_lib:createStream(RTMP),
-  rtmp_socket:invoke(RTMP, Stream, publish, [list_to_binary(Path)]),
-  Dumper#dumper{stream = Stream}.
+publish(Dumper, [File, Path]) ->
+  publish(Dumper, [File, Path, <<"live">>, sync]);
 
+publish(Dumper, [File, Path, Type]) when Type == sync orelse Type == async ->
+  publish(Dumper, [File, Path, <<"live">>, Type]);
+
+publish(Dumper, [File, Path, Command]) when Command == record orelse Command == live ->
+  publish(Dumper, [File, Path, atom_to_binary(Command,latin1), sync]);
+
+publish(#dumper{rtmp = RTMP} = Dumper, [File, Path, Command, Type]) ->
+  StreamId = rtmp_lib:createStream(RTMP),
+  {ok, Media} = ems_media:start_link(file_media, [{host,default},{name,File}]++media_detector:file(default, File, [])),
+  Cmd = if
+    is_atom(Command) -> atom_to_binary(Command,latin1);
+    is_list(Command) -> list_to_binary(Command);
+    is_binary(Command) -> Command
+  end,
+  rtmp_socket:invoke(RTMP, StreamId, publish, [list_to_binary(Path), Cmd]),
+  case Type of
+    sync ->
+      put(filename, File),
+      run_publish(Media, RTMP, StreamId, undefined),
+      Dumper#dumper{stream = StreamId};
+    async ->
+      Pid = spawn_link(fun() ->
+        put(filename, File),
+        run_publish(Media, RTMP, StreamId, undefined)
+      end),
+      Dumper#dumper{stream = StreamId, worker_pid = Pid}
+  end.
+
+run_publish(Media, RTMP, StreamId, Key) ->
+  case ems_media:read_frame(Media, Key) of
+    eof -> ?D({file_published, get(filename)});
+    #video_frame{next_id = Next} = Frame ->
+      rtmp_session:send_rtmp_frame(RTMP, Frame#video_frame{stream_id = StreamId}),
+      run_publish(Media, RTMP, StreamId, Next)
+  end.
   
 flush() ->
   receive
