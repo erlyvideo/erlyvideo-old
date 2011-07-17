@@ -56,6 +56,22 @@ http(Host, 'GET', ["erlyvideo", "api", "streams"], Req) ->
   Streams = [ clean_values([{name,Name}|Info]) || {Name, _Pid, Info} <- media_provider:entries(Host)],
   Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{streams,Streams}]), "\n"]);
 
+
+http(Host, 'GET', ["erlyvideo", "api", "stream_health" | Path], Req) ->
+  Name = string:join(Path, "/"),
+  case media_provider:find(Host, Name) of
+    {ok, Media} ->
+      Delay = proplists:get_value(ts_delay, ems_media:info(Media)),
+      Limit = list_to_integer(proplists:get_value("limit", Req:parse_qs(), "5000")),
+      if
+        Delay < Limit -> Req:ok([{'Content-Type', "application/json"}], "true\n");
+        true -> Req:respond(412, [{'Content-Type', "application/json"}], "false\n")
+      end;
+    undefined ->
+      Req:respond(404, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, unknown}]), "\n"])
+  end;
+
+
 http(Host, 'GET', ["erlyvideo", "api", "stream" | Path], Req) ->
   Name = string:join(Path, "/"),
   case media_provider:find(Host, Name) of
@@ -63,7 +79,7 @@ http(Host, 'GET', ["erlyvideo", "api", "stream" | Path], Req) ->
       Info = ems_media:full_info(Media),
       Req:ok([{'Content-Type', "application/json"}], [mochijson2:encode([{stream,Info}]), "\n"]);
     undefined ->
-      Req:respond(500, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, unknown}]), "\n"])
+      Req:respond(404, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, unknown}]), "\n"])
   end;
 
 
