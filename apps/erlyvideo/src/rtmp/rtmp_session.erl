@@ -525,12 +525,12 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
       erlang:error({old_frame, Else,StreamId})
   end,
 
-  case Frame#video_frame.content of
-    metadata -> ?D(Frame);
-    _ ->
-      % (catch ?D({Frame#video_frame.codec,Frame#video_frame.flavor,rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)})),
-      ok
-  end,
+  % case Frame#video_frame.content of
+  %   metadata -> ?D(Frame);
+  %   _ ->
+  %     % (catch ?D({Frame#video_frame.codec,Frame#video_frame.flavor,rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)})),
+  %     ok
+  % end,
   case Allow of
     true ->
       send_rtmp_frame(Socket, Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)}),
