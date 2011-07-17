@@ -143,8 +143,13 @@ writer_no_timeout(FlvWriter) ->
 write_frame(#video_frame{flavor = command}, FlvWriter) ->
   {ok, FlvWriter};
 
+% Skip magic bytes
+write_frame(#video_frame{flavor = keyframe, codec = h264, body = <<2,0,0,0>>}, FlvWriter) ->
+  {ok, FlvWriter};
+
 %% External interface for spawned writer
 write_frame(#video_frame{} = Frame, FlvWriter) when is_pid(FlvWriter) ->
+  % ?D({store,Frame#video_frame.flavor,Frame#video_frame.codec,round(Frame#video_frame.dts),size(Frame#video_frame.body)}),
   FlvWriter ! Frame,
   {ok, FlvWriter};
 
@@ -220,13 +225,14 @@ flush_messages(#flv_file_writer{buffer = Buf1} = FlvWriter, How) ->
 %%-------------------------------------------------------------------------
 dump_frame_in_file(#video_frame{dts = DTS} = Frame, #flv_file_writer{base_dts = undefined} = FlvWriter) ->
   put(last_dts, 0),
-  dump_frame_in_file(Frame#video_frame{dts = 0, pts = 0}, FlvWriter#flv_file_writer{base_dts = DTS});
+  dump_frame_in_file(Frame, FlvWriter#flv_file_writer{base_dts = DTS});
   
 dump_frame_in_file(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{base_dts = BaseDTS, writer = Writer} = FlvWriter) ->
   LastDTS = get(last_dts),
   if DTS < LastDTS -> ?D({non_monotonic_timestamp, DTS, LastDTS, Frame#video_frame.flavor, Frame#video_frame.codec});
     true -> ok
   end,
+  % ?D({write,Frame#video_frame.flavor,Frame#video_frame.codec,round(Frame#video_frame.dts),size(Frame#video_frame.body)}),
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS, pts = PTS - BaseDTS})),
   {ok, FlvWriter}.
 
