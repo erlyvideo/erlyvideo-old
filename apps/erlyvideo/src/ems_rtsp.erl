@@ -91,7 +91,7 @@ play(URL, _Headers, _Body) ->
   {Host, Path} = hostpath(URL),
   % {Module, Function} = ems:check_app(Host, auth, 3),
   ems_log:access(Host, "RTSP PLAY ~s ~s", [Host, Path]),
-  {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}, {client_buffer,100}]),
+  {ok, Media} = media_provider:play(Host, Path, [{stream_id,1}, {client_buffer,50}, {burst_size, 1}]),
   ems_network_lag_monitor:watch(self()),
   {ok, Media}.
 

@@ -44,6 +44,7 @@ http(Host, 'GET', ["mp4" | PathSpec], Req) ->
   Req:stream(close);
 
 
+
 http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
   Root1 = if
     is_list(DocRoot) -> DocRoot;
@@ -56,13 +57,15 @@ http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
   end,
   
   Root = ems:expand_path(Root1),
-  
+  Accept = proplists:get_value('Accept', Req:get(headers)),
   if
+    Accept == "application/x-rtsp-tunnelled" -> serve_rtsp(Host, Method, Path, Req);
     is_list(Root) -> serve_file(Host, Method, Root, Path, Req);
     true -> unhandled
   end;    
 
 http(_Host, _Method, _Path, _Req) ->
+  ?D({unhandled, _Host, _Method, _Path}),
   unhandled.
 
 
@@ -86,4 +89,8 @@ serve_file(Host, Method, Root, Path, Req) ->
           unhandled
       end
   end.
-  
+
+
+serve_rtsp(_Host, _Method, _Path, Req) ->
+  % ?D({rtsp, Host, Path, Req:get(headers), Req:get(body)}),
+  Req:respond(200, [{'Content-Type', "application/x-rtsp-tunnelled"},{'Cache-Control', "no-store"},{'Pragma',"no-cache"},{'Connection', "close"}], ["\n"]).
