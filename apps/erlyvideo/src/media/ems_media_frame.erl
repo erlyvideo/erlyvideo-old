@@ -205,11 +205,11 @@ shift_dts_delta(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{ts_delta 
 
 fix_large_dts_jump(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{last_dts = LastDTS, glue_delta = Delta} = Media) when DTS - LastDTS > ?DTS_THRESHOLD ->
   ?D({large_dts_jump,forward,Media#ems_media.name,Media#ems_media.last_dts,DTS}),
-  {reply, Frame#video_frame{dts = LastDTS + Delta, pts = PTS + LastDTS - DTS + Delta}, Media};
+  {reply, Frame#video_frame{dts = LastDTS + Delta, pts = PTS + LastDTS - DTS + Delta}, Media#ems_media{ts_delta = undefined}};
 
 fix_large_dts_jump(#video_frame{dts = DTS, pts = PTS} = Frame, #ems_media{last_dts = LastDTS, glue_delta = Delta} = Media) when LastDTS - DTS > ?DTS_THRESHOLD ->
-  ?D({large_dts_jump,backward,Media#ems_media.name,Media#ems_media.last_dts,DTS}),
-  {reply, Frame#video_frame{dts = LastDTS + Delta, pts = PTS + LastDTS - DTS + Delta}, Media};
+  ?D({large_dts_jump,backward,Media#ems_media.name,Media#ems_media.last_dts,DTS,Delta}),
+  {reply, Frame#video_frame{dts = LastDTS + Delta, pts = PTS + LastDTS - DTS + Delta}, Media#ems_media{ts_delta = undefined}};
 
 fix_large_dts_jump(Frame, Media) ->
   {reply, Frame, Media}.
