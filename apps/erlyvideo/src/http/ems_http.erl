@@ -53,10 +53,10 @@ handle_http(Req) ->
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
   Headers = Req:get(headers),
   % ?D({http, Method, Path, Headers}),
-  case Path  of
-    ["iphone"| _] -> 
+  case Path of 
+    [Value | _] when Value == "iphone" orelse Value == "hls" ->
       try_handler(Chain, Host, Method, Path, Req);
-    _Else ->
+    _ ->
       admin_protect(Headers, Chain, Host, Method, Path, Req)
   end.
 
