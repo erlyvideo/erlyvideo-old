@@ -57,7 +57,7 @@ clean-doc:
 
 
 run: priv/erlyvideo.conf priv/log4erl.conf 
-	ERL_LIBS=apps:..:deps:../commercial/apps erl -args_file files/vm.args -sname ev -boot start_sasl -s erlyvideo -config files/app.config
+	ERL_LIBS=apps:..:deps:../commercial/apps erl -K true -A 16 -a 2048 -e 2048 -sname ev -boot start_sasl -s erlyvideo -config files/app.config
 
 priv/log4erl.conf: priv/log4erl.conf.sample
 	[ -f priv/log4erl.conf ] || cp priv/log4erl.conf.sample priv/log4erl.conf
