@@ -62,14 +62,15 @@
 }).
 
 init(Options) ->
+  Type = proplists:get_value(type, Options),
   Clients = #clients{
-    type = proplists:get_value(type, Options),
+    type = Type,
     name = proplists:get_value(name, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   },
-  case proplists:get_value(stream_mode, Options) of
-    accelerated -> init_accel(Clients);
-    _ -> Clients
+  case Type of
+    file -> Clients;
+    _ -> init_accel(Clients)
   end.
 
 init_accel(#clients{list = Entries} = Clients) ->
@@ -148,13 +149,13 @@ remove_client(#clients{active = A, passive = P, starting = S, bytes = Bytes}, Cl
   ets:delete(S, Client),
   ok.
   
-insert(#clients{list = List, type = Type} = Clients, #client{consumer = Client} = Entry) ->
+insert(#clients{list = List} = Clients, #client{consumer = Client} = Entry) ->
   insert_client(Clients, Entry),
-  Clients1 = Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})},
-  if
-    length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
-    true -> Clients1
-  end.
+  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
+  % if
+  %   length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
+  %   true -> Clients1
+  % end.
 
 list(#clients{list = List, bytes = Bytes}) ->
   Now = ems:now(utc),

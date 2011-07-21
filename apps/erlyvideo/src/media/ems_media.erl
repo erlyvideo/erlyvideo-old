@@ -382,7 +382,7 @@ info(Media, Properties) ->
 %% @end
 %%----------------------------------------------------------------------
 full_info(Media) ->
-  info(Media, known_properties()).
+  info(Media, known_properties() -- [hls_playlist]).
   
 known_properties() ->
   [client_count, url, type, storage, clients, last_dts, ts_delay, created_at, options, hls_playlist].
