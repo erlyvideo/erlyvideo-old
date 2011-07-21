@@ -200,6 +200,7 @@ init([]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   ets:new(?MODULE, [set, public, named_table, {keypos, #media_entry.name}]),
   ets:new(ems_media_stats, [set, public, named_table]),
+  timer:send_after(10000, check_streams),
   {ok, #media_provider{}}.
   
 
@@ -380,6 +381,16 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvi
       (catch ems_event:stream_stopped(Host, Name, Media)),
       {noreply, MediaProvider}
   end;
+
+handle_info(check_streams, MediaProvider) ->
+  timer:send_after(10000, check_streams),
+  Streams1 = [{Pid, proplists:get_value(client_count,Info),proplists:get_value(name,Info),(catch element(2,process_info(Pid,message_queue_len)))} || 
+             {Pid, Info} <- ets:tab2list(ems_media_stats)],
+  Streams2 = [Desc || {_Pid,_Clients,_URL, Messages} = Desc <- Streams1, is_number(Messages) andalso Messages > 100],
+  if Streams2 == [] -> ok;
+    true -> ?D({delayed_streams,Streams2})
+  end,
+  {noreply, MediaProvider};
 
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),

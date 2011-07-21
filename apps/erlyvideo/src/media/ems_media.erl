@@ -718,6 +718,10 @@ handle_cast(Cast, #ems_media{module = M} = Media) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({inet_reply,_Socket,_Reply}, Media) ->
+  F = fun(G) ->
+    receive {inet_reply,_Socket,_Reply} -> G(G) after 0 -> ok end
+  end,
+  F(F),
   {noreply, Media};
 
 handle_info({'DOWN', _Ref, process, Source, _Reason}, #ems_media{source = Source, source_timeout = shutdown} = Media) ->
@@ -750,6 +754,10 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
   end;
 
 handle_info(flush_stats, Media) ->
+  F = fun(G) ->
+    receive flush_stats -> G(G) after 0 -> ok end
+  end,
+  F(F),
   flush_stats(Media),
   timer:send_after(ems:get_var(stats_frequency, 2040), flush_stats),
   {noreply, Media, ?TIMEOUT};
@@ -788,6 +796,10 @@ handle_info(timeout, #ems_media{source = undefined} = Media) ->
 
 
 handle_info(garbage_collect, Media) ->
+  F = fun(G) ->
+    receive garbage_collect -> G(G) after 0 -> ok end
+  end,
+  F(F),
   garbage_collect(self()),
   {noreply, Media, ?TIMEOUT};
 
