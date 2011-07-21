@@ -88,7 +88,7 @@
 -export([program_info/1]).
 
 load_nif() ->
-  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpegts_reader", 0),
+  Load = erlang:load_nif(code:lib_dir(mpegts,priv)++ "/mpegts_reader", 0),
   io:format("Load mpegts_reader: ~p~n", [Load]),
   ok.
 

@@ -27,7 +27,7 @@
 
 
 -export([start/2, stop/1]).
--export([start/0,stop/0,restart/0,rebuild/0,reload/0,reload/1]).
+-export([start/0,stop/0,restart/0,rebuild/0,reload/0,reload/1,upgrade/0]).
 -export([load_config/0, reconfigure/0]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
@@ -83,6 +83,18 @@ test() ->
     rtmp_read_tests
   ]).
 
+
+upgrade() ->
+  ems:reload(amf),
+  ems:reload(erlmedia),
+  ems:reload(erlyvideo),
+  ems:reload(ibrowse),
+  ems:reload(log4erl),
+  ems:reload(misultin),
+  ems:reload(mpegts),
+  ems:reload(rtmp),
+  ems:reload(rtp),
+  ems:reload(rtsp).
 
 
 start(normal, []) ->

@@ -72,6 +72,16 @@ case "$1" in
              sleep 1
         done
         ;;
+    
+    upgrade)
+        ## Reload all erlyvideo modules. Possibly with state loss
+        $NODETOOL upgrade
+        ;;
+
+    soft-restart)
+        ## Restart the VM without exiting the process
+        $NODETOOL soft-restart
+        ;;
 
     restart)
         ## Restart the VM without exiting the process
@@ -125,7 +135,7 @@ case "$1" in
         ;;
 
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|console|attach}"
+        echo "Usage: $SCRIPT {start|stop|soft-restart|restart|upgrade|reboot|ping|console|attach}"
         exit 1
         ;;
 esac

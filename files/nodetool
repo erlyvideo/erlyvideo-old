@@ -27,6 +27,10 @@ main(Args) ->
             io:format("~p\n", [rpc:call(TargetNode, init, stop, [], 60000)]);
         ["restart"] ->
             io:format("~p\n", [rpc:call(TargetNode, init, restart, [], 60000)]);
+        ["soft-restart"] ->
+            io:format("~p\n", [rpc:call(TargetNode, erlyvideo, restart, [], 60000)]);
+        ["upgrade"] ->
+            io:format("~p\n", [rpc:call(TargetNode, erlyvideo, upgrade, [], 60000)]);
         ["reboot"] ->
             io:format("~p\n", [rpc:call(TargetNode, init, reboot, [], 60000)]);
         ["rpc", Module, Function | RpcArgs] ->
@@ -41,7 +45,7 @@ main(Args) ->
             end;
         Other ->
             io:format("Other: ~p\n", [Other]),
-            io:format("Usage: nodetool {ping|stop|restart|reboot}\n")
+            io:format("Usage: nodetool {ping|stop|restart|soft-restart|upgrade|reboot}\n")
     end,
     net_kernel:stop().
 
