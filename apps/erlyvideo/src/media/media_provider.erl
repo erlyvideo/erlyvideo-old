@@ -220,13 +220,16 @@ handle_call({unregister, Pid}, _From, #media_provider{} = MediaProvider) ->
   case ets:match(?MODULE, #media_entry{name = '$1', ref = '$2', handler = Pid}) of
     [] -> 
       {noreply, MediaProvider};
-    [[{Host, Name}, Ref]] ->
-      erlang:demonitor(Ref, [flush]),
+    [[{Host, Name}, _Ref]] ->
       ets:delete(?MODULE, {Host, Name}),
       ?D({"Unregistering", Host, Name, Pid}),
       ems_event:stream_stopped(Host, Name, Pid),
       {noreply, MediaProvider}
   end;
+
+handle_call({watch, Pid}, _From, #media_provider{} = MediaProvider) ->
+  erlang:monitor(process, Pid),
+  {reply, ok, MediaProvider};
     
 handle_call({register, Host, Name, Pid, Options}, _From, #media_provider{} = MediaProvider) ->
   case find(Host, Name) of
@@ -234,7 +237,7 @@ handle_call({register, Host, Name, Pid, Options}, _From, #media_provider{} = Med
       {reply, {error, {already_set, Name, OldPid}}, MediaProvider};
     undefined ->
       Ref = erlang:monitor(process, Pid),
-      ?D({register,Host,Name,Pid}),
+      % ?D({register,Host,Name,Pid}),
       ets:insert(?MODULE, #media_entry{name = {Host,Name}, handler = Pid, ref = Ref}),
       ems_event:stream_created(Host, Name, Pid, Options),
       {reply, {ok, {Name, Pid}}, MediaProvider}
@@ -306,6 +309,7 @@ start_new_media_entry(Host, Name, Opts) ->
               {ok, OldPid}
           end;
         _ ->
+          gen_server:call(?MODULE, {watch,Pid}),
           ?D({"Skip registration of", Type, URL}),
           {ok, Pid}
       end;
@@ -362,13 +366,13 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvider) ->
+  ets:delete(ems_media_stats, Media),
   MS = ets:fun2ms(fun(#media_entry{handler = Pid, name = Key}) when Pid == Media -> Key end),
   case ets:select(?MODULE, MS) of
     [] -> 
       {noreply, MediaProvider};
     [{Host, Name}] ->
       ets:delete(?MODULE, {Host,Name}),
-      ets:delete(ems_media_stats, Media),
       case _Reason of
         normal -> ok;
         _ -> ?D({"Stream died", Media, Host, Name, io_lib_pretty_limited:print(_Reason, 2000)})

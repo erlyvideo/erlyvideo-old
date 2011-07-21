@@ -39,7 +39,7 @@
 -define(SNDBUF, 4194304).
 
 -define(REPEATER_COUNT, 1).
--define(ACCEL_CLIENTS_LIMIT, 300).
+-define(ACCEL_CLIENTS_LIMIT, 20).
 
 -record(clients, {
   active,
@@ -62,16 +62,11 @@
 }).
 
 init(Options) ->
-  Type = proplists:get_value(type, Options),
-  Clients = #clients{
-    type = Type,
+  #clients{
+    type = proplists:get_value(type, Options),
     name = proplists:get_value(name, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
-  },
-  case Type of
-    file -> Clients;
-    _ -> init_accel(Clients)
-  end.
+  }.
 
 init_accel(#clients{list = Entries} = Clients) ->
   ?D({"Init accelerated mode for stream", Clients#clients.name}),
@@ -149,13 +144,13 @@ remove_client(#clients{active = A, passive = P, starting = S, bytes = Bytes}, Cl
   ets:delete(S, Client),
   ok.
   
-insert(#clients{list = List} = Clients, #client{consumer = Client} = Entry) ->
+insert(#clients{list = List, type = Type} = Clients, #client{consumer = Client} = Entry) ->
   insert_client(Clients, Entry),
-  Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})}.
-  % if
-  %   length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
-  %   true -> Clients1
-  % end.
+  Clients1 = Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})},
+  if
+    length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
+    true -> Clients1
+  end.
 
 list(#clients{list = List, bytes = Bytes}) ->
   Now = ems:now(utc),

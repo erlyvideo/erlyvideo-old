@@ -126,12 +126,12 @@ handle_call({resume, Client}, _From, #ems_media{clients = Clients} = Media) ->
 handle_call({pause, Client}, _From, #ems_media{clients = Clients} = Media) ->
   case ems_media_clients:find(Clients, Client) of
     #client{state = passive, ticker = Ticker} ->
-      ?D({"Pausing passive client", Client}),
+      % ?D({"Pausing passive client", Client}),
       media_ticker:pause(Ticker),
       {reply, ok, Media, ?TIMEOUT};
 
     #client{} ->
-      ?D({"Pausing active client", Client}),
+      % ?D({"Pausing active client", Client}),
       Clients1 = ems_media_clients:update_state(Clients, Client, paused),
       {reply, ok, Media#ems_media{clients = Clients1}, ?TIMEOUT};
 
@@ -203,7 +203,7 @@ handle_info({'DOWN', _Ref, process, Pid, ClientReason} = Msg, #ems_media{clients
   end.
 
 handle_seek({seek, Client, DTS} = Seek, #ems_media{module = M} = Media) ->
-  ?D({"Going to seek", Seek}),
+  % ?D({"Going to seek", Seek}),
   case M:handle_control(Seek, Media) of
     {noreply, Media1} ->
       % ?D({"default seek", Seek}),
