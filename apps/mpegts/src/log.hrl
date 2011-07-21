@@ -1,1 +1,1 @@
--define(D(X), ems_log:debug(3, mpegts, "~p:~p ~p",[?MODULE, ?LINE, X])).
+-define(D(X), ems_log:debug(3, mpegts, "~p:~p ~240p",[?MODULE, ?LINE, X])).
