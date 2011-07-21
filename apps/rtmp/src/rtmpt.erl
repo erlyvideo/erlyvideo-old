@@ -154,6 +154,7 @@ set_consumer(RTMPT, Consumer) ->
 %%-------------------------------------------------------------------------
 init([SessionId, IP]) ->
   process_flag(trap_exit, true),
+  ems_network_lag_monitor:watch(self()),
   {ok, #rtmpt{session_id = SessionId, ip = IP}, ?RTMPT_TIMEOUT}.
         
 
