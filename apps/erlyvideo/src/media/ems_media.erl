@@ -356,7 +356,7 @@ status(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 info(Media) ->
-  info(Media, [client_count, url, type, storage, last_dts, ts_delay, options]).
+  info(Media, fast_properties()).
   
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
@@ -372,8 +372,21 @@ info(Media) ->
 %% @end
 %%----------------------------------------------------------------------
 info(Media, Properties) ->
-  ValidProperties = clean_properties(Properties),
-  gen_server:call(Media, {info, ValidProperties}).
+  ValidProperties = clean_properties(Properties) -- [ts_delay],
+  Reply = case ValidProperties -- fast_properties() of
+    [] -> ets:lookup_element(ems_media_stats, Media, 2);
+    _ -> gen_server:call(Media, {info, ValidProperties})
+  end,
+  case lists:member(ts_delay, Properties) of
+    true ->
+      Now = os:timestamp(),
+      LastDTSAt = proplists:get_value(last_dts_at,Reply, Now),
+      LastDTSAt1 = timer:now_diff(LastDTSAt,{0,0,0}) div 1000000,
+      lists:ukeymerge(1, [{last_dts_at,LastDTSAt1},{ts_delay,timer:now_diff(Now, LastDTSAt) div 1000}], Reply);
+    false ->
+      Reply
+  end.  
+
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), Properties::list()) -> Info::list()
@@ -385,13 +398,17 @@ full_info(Media) ->
   info(Media, known_properties() -- [hls_playlist]).
   
 known_properties() ->
-  [client_count, url, type, storage, clients, last_dts, ts_delay, created_at, options, hls_playlist].
-  
+  [client_count, url, type, name, storage, clients, last_dts, last_dts_at, ts_delay, created_at, options, hls_playlist].
+
+fast_properties() ->
+  [client_count, url, type, name, storage, last_dts, last_dts_at, ts_delay, created_at, options].
+
 clean_properties(Properties) ->
   clean_properties(Properties, []).
 
-clean_properties([], Acc) -> lists:reverse(Acc);
+clean_properties([], Acc) -> lists:usort(lists:reverse(Acc));
 clean_properties([{hls_segment, N}|Props], Acc) when is_integer(N) -> clean_properties(Props, [{hls_segment, N}|Acc]);
+clean_properties([ts_delay|Props], Acc) -> clean_properties(Props, [last_dts_at|Acc]);
 clean_properties([Property|Props], Acc) ->
   case lists:member(Property, known_properties()) of
     true -> clean_properties(Props, [Property|Acc]);
@@ -450,6 +467,8 @@ init([Module, Options]) ->
   Media_ = ems_media_frame:init(Media),                   
   timer:send_interval(30000, garbage_collect),
   timer:send_after(5000, stop_wait_for_config),
+  timer:send_after(ems:get_var(stats_frequency, 2040), flush_stats),
+  
   
   % For diagnostic:
   put(ems_media, [
@@ -460,6 +479,7 @@ init([Module, Options]) ->
       Media2 = init_timeshift(Media1, Options),
       Media3 = init_timeouts(Media2, Options),
       Media4 = init_transcoder(Media3, Options),
+      flush_stats(Media4),
       ?D({"Started", Module, URL}),
       {ok, Media4, ?TIMEOUT};
     {stop, Reason} ->
@@ -508,6 +528,11 @@ init_transcoder(Media, Options) ->
 or_time(undefined, undefined) -> ?LIFE_TIMEOUT;
 or_time(undefined, Timeout) -> Timeout;
 or_time(Timeout, _) -> Timeout.
+
+flush_stats(Media) ->
+  Info = reply_with_info(Media, fast_properties()),
+  ets:insert(ems_media_stats, {self(),Info}).
+
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -608,6 +633,7 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
 handle_call({info, Properties}, _From, #ems_media{hls_state = HLS} = Media) ->
+  ?D({call, Properties}),
   Media1 = case HLS of
     undefined ->
       HLSRequested = lists:member(hls_playlist, Properties) or (length([1 || {hls_segment, _} <- Properties]) > 0),
@@ -723,6 +749,11 @@ handle_info(no_source, #ems_media{source = undefined, module = M} = Media) ->
       ems_media_utils:source_is_restored(Media1#ems_media{source = NewSource})
   end;
 
+handle_info(flush_stats, Media) ->
+  flush_stats(Media),
+  timer:send_after(ems:get_var(stats_frequency, 2040), flush_stats),
+  {noreply, Media, ?TIMEOUT};
+
 handle_info(no_clients, Media) ->
   ems_media_client_control:handle_info(no_clients, Media);
   
@@ -822,20 +853,22 @@ storage_properties(#ems_media{format = Format, storage = Storage}) -> lists:ukey
 
 
 
-reply_with_info(#ems_media{type = Type, url = URL, last_dts = LastDTS, last_dts_at = LastDTSAt, created_at = CreatedAt, options = Options} = Media, Properties) ->
+reply_with_info(#ems_media{type = Type, url = URL, name = Name, last_dts = LastDTS, last_dts_at = LastDTSAt, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
     (hls_playlist, Props) -> [{hls_playlist, hls_media:playlist(Media#ems_media.hls_state)}|Props];
     ({hls_segment, Num}, Props) -> [{{hls_segment, Num}, hls_media:segment(Media#ems_media.hls_state, Num)}|Props];
     (type, Props)         -> [{type,Type}|Props];
     (url, Props)          -> [{url,URL}|Props];
-    (last_dts, Props)     -> [{last_dts,LastDTS}|Props];
+    (name, Props)         -> [{name,Name}|Props];
+    (last_dts, Props)     -> [{last_dts,round(LastDTS)}|Props];
+    (last_dts_at, Props)  -> [{last_dts_at,LastDTSAt}|Props];
     (created_at, Props)   -> [{created_at,CreatedAt}|Props];
     (ts_delay, Props) when Type == file -> [{ts_delay,0}|Props];
     (ts_delay, Props)     -> [{ts_delay,timer:now_diff(os:timestamp(), LastDTSAt) div 1000}|Props];
     (client_count, Props) -> [{client_count,ems_media_client_control:client_count(Media)}|Props];
     (storage, Props)      -> storage_properties(Media) ++ Props;
     (clients, Props)      -> [{clients,ems_media_clients:list(Media#ems_media.clients)}|Props];
-    (options, Props)      -> Props ++ Options
+    (options, Props)      -> lists:ukeymerge(1, lists:ukeysort(1, Props), lists:ukeysort(1, Options))
   end, [], Properties).
 
 

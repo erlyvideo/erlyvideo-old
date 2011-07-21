@@ -158,9 +158,7 @@ register(Host, Name, Pid, Options) ->
 entries(Host) ->
   MS = ets:fun2ms(fun(#media_entry{name = {H, Name}, handler = Pid}) when H == Host -> {Name,Pid} end),
   Entries = ets:select(?MODULE, MS),
-  Info1 = [{Name, Pid, (catch ems_media:status(Pid))} || {Name,Pid} <- Entries],
-  Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
-  Info.
+  [{Name, Pid, ems_media:status(Pid)} || {Name,Pid} <- Entries].
   
 remove(Host, Name) when is_list(Name) ->
   remove(Host, list_to_binary(Name));
@@ -201,6 +199,7 @@ stop(Host, Name) ->
 init([]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   ets:new(?MODULE, [set, public, named_table, {keypos, #media_entry.name}]),
+  ets:new(ems_media_stats, [set, public, named_table]),
   {ok, #media_provider{}}.
   
 
@@ -369,6 +368,7 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvi
       {noreply, MediaProvider};
     [{Host, Name}] ->
       ets:delete(?MODULE, {Host,Name}),
+      ets:delete(ems_media_stats, Media),
       case _Reason of
         normal -> ok;
         _ -> ?D({"Stream died", Media, Host, Name, io_lib_pretty_limited:print(_Reason, 2000)})
