@@ -85,6 +85,12 @@ test() ->
 
 
 upgrade() ->
+  Paths = filelib:wildcard("/opt/erlyvideo/lib/*/ebin"),
+  OldPaths = code:get_path(),
+  NewPaths = lists:filter(fun(Path) ->
+    not lists:member(Path, OldPaths)
+  end, Paths),
+  [code:add_patha(Path) || Path <- NewPaths],
   ems:reload(amf),
   ems:reload(erlmedia),
   ems:reload(erlyvideo),
