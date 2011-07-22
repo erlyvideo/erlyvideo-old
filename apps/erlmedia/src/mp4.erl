@@ -330,7 +330,10 @@ trak(<<>>, MediaInfo) ->
   
 trak(Atom, MediaInfo) ->
   Track = parse_atom(Atom, #mp4_track{}),
-  fill_track_info(MediaInfo, Track).
+  case Track#mp4_track.data_format of
+    undefined -> ?D({skip_mp4_track, undefined_codec}),MediaInfo;
+    _ -> fill_track_info(MediaInfo, Track)
+  end.
 
 
 
