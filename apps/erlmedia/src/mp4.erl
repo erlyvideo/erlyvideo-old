@@ -128,6 +128,7 @@ read_header(#mp4_media{additional = Additional} = Mp4Media, {Module, Device} = R
     {atom, AtomName, Offset, Length} -> 
       % ?D({"Root atom", AtomName, Length}),
       {ok, AtomData} = Module:pread(Device, Offset, Length),
+      % ?D({atom, AtomName, size(AtomData)}),
       NewMedia = case atom_to_binary(AtomName, latin1) of
         <<"EV", _/binary>> ->
           Mp4Media#mp4_media{additional = [{AtomName,AtomData}| Additional]};
