@@ -31,27 +31,37 @@ open_socket(URL, Options) ->
   {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
   
-  ?D({http_connect, Host, Port, Path}),
-  
   RequestPath = case proplists:get_value(send_hostpath, Options, false) of
     true -> URL;
     false -> Path
   end,
 
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}, {recbuf, 65536}], Timeout),
-  ok = gen_tcp:send(Socket, "GET "++RequestPath++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\n"),
-  [gen_tcp:send(Socket, Key++": "++Value++"\r\n") || {Key,Value} <- proplists:get_value(headers, Options, [])],
-  gen_tcp:send(Socket, "\r\n"),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}, {recbuf, 65536}, inet], Timeout),
+  Headers = proplists:get_value(headers, Options, []) ++ case proplists:get_value(range, Options) of
+    {Start,End} -> [{"Range", lists:flatten(io_lib:format("bytes=~p-~p", [Start,End-1]))}];
+    undefined -> []
+  end,
+  PortSpec = case Port of
+    80 -> "";
+    _ -> ":"++integer_to_list(Port)
+  end,
+  Request = lists:flatten("GET "++RequestPath++" HTTP/1.1\r\nHost: "++Host++PortSpec++"\r\n" ++
+  [Key++": "++Value++"\r\n" || {Key,Value} <- Headers] ++ "\r\n"),
+  % ?D({http_connect, Request}),
+  
+  ok = gen_tcp:send(Socket, Request),
   ok = inet:setopts(Socket, [{active, once}]),
   receive
-    {http, Socket, {http_response, _Version, 200, _Reply}} ->
+    {http, Socket, {http_response, _Version, Code, _Reply}} when Code >= 200 andalso Code < 300->
       {ok, Socket};
+    % {http, Socket, {http_response, _Version, Redirect, _Reply}} when Redirect == 301 orelse Redirect == 302 ->
+    %   {ok, Socket};
     {tcp_closed, Socket} ->
       {error, normal};
     {tcp_error, Socket, Reason} ->
       {error, Reason}
   after
-    Timeout -> 
+    Timeout ->
       gen_tcp:close(Socket),
       {error, timeout}
   end.
