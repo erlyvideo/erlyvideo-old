@@ -38,35 +38,24 @@ source_is_lost(#ems_media{source = Source} = Media) ->
   (catch ems_media:stop(Source)),
   ?D(Media#ems_media.options),
   Options = Media#ems_media.options,
-  case proplists:get_value(flush_roll,Options,[]) of
+  case proplists:get_value(failure_movie,Options,undefined) of
     undefined ->
       module_handling(Media);
     List ->
-      flush_roll(Media,List)
+      failure_movie(Media,List)
   end.
 
-flush_roll(#ems_media{source = Source} = Media, List) ->
-  _Name = proplists:get_value(name,List,"mezzzz.flv"),
-  _Host = proplists:get_value(host,List,default),
+%
+% {failure_movie,[{name,"sample.mp4"},{host,default}]} -- is a option in config file 
+%
+failure_movie(#ems_media{source = Source} = Media, List) ->
+  Name = proplists:get_value(name,List),
+  Host = proplists:get_value(host,List,default),
   _FOptions = proplists:get_value(options,List,[]), 
   ?D({"ems_media lost source", Source}),
-  %ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
-  %{ok,NewSource} = media_provider:open(Host,Name,FOptions),
- % MediaInfo = ems_media:media_info(NewSource),
- % Media0 = ems_media:set(Media, module, file_media),
- % Media1 = ems_media:set_media_info(Media0,MediaInfo),
- % Media2 = ems_media:set(Media1,last_dts,0),
- % Media3 = ems_media:set(Media2,ts_delta,undefined),
- % Metadata = rtmp_session:metadata(NewSource,[]),
- % StreamId=Metadata#video_frame.stream_id,
- % Options = [{stream_id,StreamId},{client_buffer, 1000},{start,0}],
- % ems_media:set_source(Media,NewSource),
- % ConfigFrames = video_frame:config_frames(MediaInfo)++ [#video_frame{content = audio, flavor = frame, codec = empty}, Metadata],
- % [?D(F#video_frame.dts)|| F <- ConfigFrames],
-  %?D({Media1#ems_media.last_dts,Media3}),
-  %[ems_media_frame:send_frame(F#video_frame{dts = 0,pts = 0,stream_id = StreamId},Media3) || F <- ConfigFrames],
-  media_provider:play(default,"mezzzz.flv",[{stream_id, 0},{client_buffer,0}]),
-  {noreply, Media#ems_media{ts_delta = undefined}, ?TIMEOUT}.    
+  {ok, FailureSource} = media_provider:play(Host,Name,[{stream_id, 0},{client_buffer,0}]),
+  module_handling(Media),
+  {noreply, Media#ems_media{ts_delta = undefined,failure_source = FailureSource}, ?TIMEOUT}.    
 
 module_handling(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
   case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined}) of
