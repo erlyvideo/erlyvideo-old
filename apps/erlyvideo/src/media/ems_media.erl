@@ -772,9 +772,11 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, url = Nat
 
   case M:handle_control({make_request, URL}, Media) of
     {ok, Reader} when is_pid(Reader) ->
+      stop_failure_movie(Media),
       {ok, Media1} = ems_media:set_source(Media, Reader),
       {noreply, Media1#ems_media{retry_count = 0}, ?TIMEOUT};
     {ok, Reader, #media_info{} = MediaInfo} when is_pid(Reader) ->
+      stop_failure_movie(Media),
       {ok, Media1} = ems_media:set_source(Media, Reader),
       {noreply, ems_media:set_media_info(Media1#ems_media{retry_count = 0}, MediaInfo), ?TIMEOUT};
     {noreply, Media1} ->
@@ -805,6 +807,14 @@ handle_info_with_module(Message, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
+
+stop_failure_movie(Media) ->
+  case Media#ems_media.failure_source of
+    undefined ->
+      ok;
+    FailureStream ->
+      ems_media:stop(FailureStream)
+  end.
 
 reply_with_media_info(#ems_media{} = Media, #media_info{options = Options} = Info) ->
   Props = storage_properties(Media),
