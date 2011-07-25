@@ -34,15 +34,18 @@
 -export([source_is_lost/1, source_is_restored/1]).
 
 
-source_is_lost(#ems_media{source = Source} = Media) ->
+source_is_lost(#ems_media{source = Source,media_info = #media_info{video = [Video]}} = Media) ->
   (catch ems_media:stop(Source)),
   ?D(Media#ems_media.options),
   Options = Media#ems_media.options,
+  #stream_info{codec = Codec} = Video, 
   case proplists:get_value(failure_movie,Options,undefined) of
     undefined ->
       module_handling(Media);
-    List ->
-      failure_movie(Media,List)
+    List when Codec == h264 ->
+      failure_movie(Media,[{stream_id,0}|List]);
+    _ ->
+      module_handling(Media)
   end.
 
 %
@@ -51,10 +54,18 @@ source_is_lost(#ems_media{source = Source} = Media) ->
 failure_movie(#ems_media{source = Source} = Media, List) ->
   Name = proplists:get_value(name,List),
   Host = proplists:get_value(host,List,default),
-  _FOptions = proplists:get_value(options,List,[]), 
+  StreamId = proplists:get_value(stream_id,List), 
   ?D({"ems_media lost source", Source}),
-  {ok, FailureSource} = media_provider:play(Host,Name,[{stream_id, 0},{client_buffer,0}]),
-  module_handling(Media),
+  {ok, Stream} = media_provider:open(Host,Name,[{stream_id, StreamId},{client_buffer,0}]),
+  #media_info{video = [Video]} = ems_media:media_info(Stream),
+  {ok,FailureSource} = case Video of
+    #stream_info{codec = h264} ->    
+      media_provider:play(Stream,[{stream_id, 0},{client_buffer,0}]);  
+    _ ->
+     catch(ems_media:stop(Stream)),
+     {ok,undefined}
+   end,
+   module_handling(Media),
   {noreply, Media#ems_media{ts_delta = undefined,failure_source = FailureSource}, ?TIMEOUT}.    
 
 module_handling(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
