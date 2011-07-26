@@ -34,46 +34,40 @@
 -export([source_is_lost/1, source_is_restored/1]).
 
 
-source_is_lost(#ems_media{source = Source,media_info = #media_info{video = [Video]}} = Media) ->
+source_is_lost(#ems_media{source = Source,media_info = #media_info{video = []}} = Media) ->
   (catch ems_media:stop(Source)),
-  ?D(Media#ems_media.options),
+  handle_lost_source(Media);
+
+source_is_lost(#ems_media{source = Source,media_info = #media_info{video = [Video|_]}} = Media) ->
+  (catch ems_media:stop(Source)),
   Options = Media#ems_media.options,
-  Codec = case Video of
-    #stream_info{codec = VideoCodec} ->
-      VideoCodec;
-    undefined ->
-      undefined
-  end,
-  case proplists:get_value(failure_movie,Options,undefined) of
-    undefined ->
-      module_handling(Media);
-    List when Codec == h264 ->
-      failure_movie(Media,[{stream_id,0}|List]);
+  #stream_info{codec = Codec} = Video,
+  ems_event:stream_source_lost(ems_media:get(Media,host), Media#ems_media.name, self()),
+  case proplists:get_value(failure_movie,Options) of
+    Name when is_list(Name) andalso Codec == h264 ->
+      failure_movie(Media, Name);
     _ ->
-      module_handling(Media)
+      handle_lost_source(Media)
   end.
 
 %
-% {failure_movie,[{name,"sample.mp4"},{host,default}]} -- is a option in config file 
+% {failure_movie,"sample.mp4"} -- is a option in config file 
 %
-failure_movie(#ems_media{source = Source} = Media, List) ->
-  Name = proplists:get_value(name,List),
-  Host = proplists:get_value(host,List,default),
-  StreamId = proplists:get_value(stream_id,List), 
+failure_movie(#ems_media{source = Source} = Media, Name) ->
+  Host = ems_media:get(Media, host),
   ?D({"ems_media lost source", Source}),
-  {ok, Stream} = media_provider:open(Host,Name,[{stream_id, StreamId},{client_buffer,0}]),
+  {ok, Stream} = media_provider:open(Host,Name),
   #media_info{video = [Video]} = ems_media:media_info(Stream),
   {ok,FailureSource} = case Video of
     #stream_info{codec = h264} ->    
       media_provider:play(Stream,[{stream_id, 0},{client_buffer,0}]);  
     _ ->
-     catch(ems_media:stop(Stream)),
-     {ok,undefined}
-   end,
-  module_handling(Media),
-  {noreply, Media#ems_media{ts_delta = undefined,failure_source = FailureSource}, ?TIMEOUT}.    
+      catch(ems_media:stop(Stream)),
+      {ok,undefined}
+  end,
+  handle_lost_source(Media#ems_media{ts_delta = undefined, failure_source = FailureSource}).
 
-module_handling(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
+handle_lost_source(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
   case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined}) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
