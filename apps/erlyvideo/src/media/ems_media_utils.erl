@@ -38,7 +38,12 @@ source_is_lost(#ems_media{source = Source,media_info = #media_info{video = [Vide
   (catch ems_media:stop(Source)),
   ?D(Media#ems_media.options),
   Options = Media#ems_media.options,
-  #stream_info{codec = Codec} = Video, 
+  Codec = case Video of
+    #stream_info{codec = VideoCodec} ->
+      VideoCodec;
+    undefined ->
+      undefined
+  end,
   case proplists:get_value(failure_movie,Options,undefined) of
     undefined ->
       module_handling(Media);
@@ -65,7 +70,7 @@ failure_movie(#ems_media{source = Source} = Media, List) ->
      catch(ems_media:stop(Stream)),
      {ok,undefined}
    end,
-   module_handling(Media),
+  module_handling(Media),
   {noreply, Media#ems_media{ts_delta = undefined,failure_source = FailureSource}, ?TIMEOUT}.    
 
 module_handling(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
