@@ -15,13 +15,29 @@ private var callEnabled:Boolean = false;
 [Bindable]
 private var callLabel:String = "Call";
 
-var speexWB:Boolean = true;
+[Bindable]
+private var callingLabel:String = "";
+
+[Bindable]
+private var acceptEnabled:Boolean = false;
+
+[Bindable]
+private var acceptLabel:String = "Accept";
+
+[Bindable]
+private var declineEnabled:Boolean = false;
+
+[Bindable]
+private var declineLabel:String = "Decline";
+
+private var speexWB:Boolean = true;
+private var inTalk:Boolean = false;
 
 public function init()  : void
 {
 	Security.allowDomain("*");
   System.useCodePage = true;
-  
+
   nc = new NetConnection();
   nc.client = this;
   nc.addEventListener(NetStatusEvent.NET_STATUS, handleStatus);
@@ -33,53 +49,52 @@ public function init()  : void
 
 private function handleStatus(evt:NetStatusEvent) : void
 {
+  var obj:Object = evt.info.description;
   switch(evt.info.code) {
     case "NetConnection.Connect.Success":
       registerEnabled = true;
       break;
-      
-    case "NetConnection.SipCall":
-      var obj:Object = evt.info.description;
-      ns_out = new NetStream(nc);
-      
-      var m:Microphone;
-/*      if (m['getEnhancedMicrophone'] && false) {
-        m = Microphone.getEnhancedMicrophone();
 
-        var options:MicrophoneEnhancedOptions = new MicrophoneEnhancedOptions();
-        options.mode = MicrophoneEnhancedMode.FULL_DUPLEX;
-        options.autoGain = false;
-        options.echoPath = 128;
-        options.nonLinearProcessing = true;
-        m.enhancedOptions = options;
-      } else {
-        m = Microphone.getMicrophone();
-      }
-*/
+    case "NetConnection.SipCall":
+      ns_out = new NetStream(nc);
+
+      var m:Microphone;
+      /*      if (m['getEnhancedMicrophone'] && false) {
+              m = Microphone.getEnhancedMicrophone();
+
+              var options:MicrophoneEnhancedOptions = new MicrophoneEnhancedOptions();
+              options.mode = MicrophoneEnhancedMode.FULL_DUPLEX;
+              options.autoGain = false;
+              options.echoPath = 128;
+              options.nonLinearProcessing = true;
+              m.enhancedOptions = options;
+              } else {
+              m = Microphone.getMicrophone();
+              }
+      */
 
       m = Microphone.getMicrophone();
-      
+
       if(!m) {
         Alert.show("Cannot enable microphone");
       }
-
       var cam:Camera;
       cam = Camera.getCamera();
       cam.setMode(320, 240, 15);
-      cam.setQuality(0, 90);  
-      
-      
-			//m.rate = 44;
+      cam.setQuality(0, 90);
+
+
+      //m.rate = 44;
       m.codec = "Speex";
-			m.gain = 80;
-			m.rate = speexWB ? 16000 : 8000;
-			m.framesPerPacket = 1;
+      m.gain = 80;
+      m.rate = speexWB ? 16000 : 8000;
+      m.framesPerPacket = 1;
       ns_out.attachAudio(m);
       ns_out.attachCamera(cam);
       ns_out.publish(obj.out_stream);
-      
-      
-      
+
+
+
       ns_in = new NetStream(nc);
       ns_in.play(obj.in_stream);
       videoContainer.video.attachNetStream(ns_in);
@@ -87,7 +102,18 @@ private function handleStatus(evt:NetStatusEvent) : void
       in_client.onMetaData = function(obj:Object):void {
       }
       ns_in.client = in_client;
-      
+      inTalk = true;
+      break;
+
+    case "NetConnection.IncomingCall":
+      callingLabel = obj.calling_id;
+      inTalk = false;
+      acceptEnabled = true;
+      declineEnabled = true;
+      acceptLabel = "Accept";
+      declineLabel = "Decline";
+
+      break;
     default:
       registerEnabled = false;
       callEnabled = false;
@@ -97,7 +123,7 @@ private function handleStatus(evt:NetStatusEvent) : void
 
 public function onMetaData(object:Object) : void
 {
-  
+
 }
 
 public function unregister() : void
@@ -123,14 +149,48 @@ public function register() : void
   nc.call("register", r, registerNumber.text, registerPassword.text);
 }
 
-public function call() : void
+public function outgoingCall() : void
 {
   var r:Responder = new Responder(function(reply:Boolean):void {
-    if(reply) {
-      callLabel = "Calling";
-    } else {
-      callLabel = "Failed to call";
-    }
-  })
-  nc.call("ring", r, callNumber.text);
+      if(reply) {
+        callLabel = "Calling";
+      } else {
+        callLabel = "Failed to call";
+      }
+    });
+  inTalk = false;
+  nc.call("outgoingCall", r, callNumber.text);
+}
+
+public function acceptCall() : void
+{
+  var r:Responder =
+    new Responder(function(reply:Boolean):void {
+        if(reply) {
+          acceptLabel = "Accepted";
+          declineLabel = "Hung On";
+        } else {
+          acceptLabel = "Failed to accept";
+        }
+      });
+  inTalk = false;
+  acceptEnabled = false;
+  declineEnabled = true;
+  nc.call("acceptCall", r);
+}
+
+public function declineCall() : void
+{
+  var r:Responder =
+    new Responder(function(reply:Boolean):void {
+        if(reply) {
+          declineLabel = "Declined";
+        } else {
+          declineLabel = "Failed to decline";
+        }
+      });
+  inTalk = false;
+  acceptEnabled = false;
+  declineEnabled = false;
+  nc.call("declineCall", r);
 }
