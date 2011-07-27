@@ -168,14 +168,13 @@ public function acceptCall() : void
     new Responder(function(reply:Boolean):void {
         if(reply) {
           acceptLabel = "Accepted";
-          declineLabel = "Hung On";
         } else {
           acceptLabel = "Failed to accept";
         }
       });
   inTalk = false;
   acceptEnabled = false;
-  declineEnabled = true;
+  declineEnabled = false;
   nc.call("acceptCall", r);
 }
 
