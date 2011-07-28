@@ -31,11 +31,14 @@
 -export([
          register/2,
          unregister/2,
-         ring/2,
+         outgoingCall/2,
+         acceptCall/2,
+         declineCall/2,
          bye/2
         ]).
 
 -export([
+         incoming/2,
          sip_call/3
         ]).
 
@@ -43,8 +46,15 @@
          handle_info/2
         ]).
 
-sip_call(RTMP, OutStream, InStream) when is_pid(RTMP) andalso is_binary(OutStream) andalso is_binary(InStream) ->
+sip_call(RTMP, OutStream, InStream)
+  when is_pid(RTMP) andalso
+       is_binary(OutStream) andalso
+       is_binary(InStream) ->
   RTMP ! {sip_call, OutStream, InStream}.
+
+incoming(RTMP, CallingId)
+  when is_pid(RTMP) ->
+  RTMP ! {incoming, CallingId}.
 
 register(State, #rtmp_funcall{args = [_, Number, Password] = Args} = AMF) ->
   ?D({sip_register, self(), Args}),
@@ -59,8 +69,28 @@ unregister(State, #rtmp_funcall{args = [_, Number]}) ->
   ems_sip_flashphone:unregister(Number, self()),
   State.
 
-ring(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
+outgoingCall(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
   case ems_sip_flashphone:call(Number, [], self()) of
+    {ok, _Pid} ->
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
+    undefined ->
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
+  end,
+  State.
+
+acceptCall(State, #rtmp_funcall{args = Args} = AMF) ->
+  ?DBG("Accept Call: ~p", [Args]),
+  case ems_sip_flashphone:accept_call(Args, [], self()) of
+    {ok, _Pid} ->
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
+    undefined ->
+      rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, false]})
+  end,
+  State.
+
+declineCall(State, #rtmp_funcall{args = Args} = AMF) ->
+  ?DBG("Decline Call: ~p", [Args]),
+  case ems_sip_flashphone:decline_call(Args, [], self()) of
     {ok, _Pid} ->
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->
@@ -76,4 +106,8 @@ bye(State, #rtmp_funcall{args = Args}) ->
 handle_info({sip_call, OutStream, InStream}, #rtmp_session{socket = Socket} = State) ->
   % io:format("NetConnection.Message ~s~n", [Message]),
   rtmp_socket:status(Socket, 0, <<"NetConnection.SipCall">>, {object, [{in_stream, InStream},{out_stream,OutStream}]}),
+  {noreply, State};
+handle_info({incoming, CallingId}, #rtmp_session{socket = Socket} = State) ->
+  % io:format("NetConnection.Message ~s~n", [Message]),
+  rtmp_socket:status(Socket, 0, <<"NetConnection.IncomingCall">>, {object, [{calling_id, CallingId}]}),
   {noreply, State}.
