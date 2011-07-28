@@ -158,9 +158,7 @@ register(Host, Name, Pid, Options) ->
 entries(Host) ->
   MS = ets:fun2ms(fun(#media_entry{name = {H, Name}, handler = Pid}) when H == Host -> {Name,Pid} end),
   Entries = ets:select(?MODULE, MS),
-  Info1 = [{Name, Pid, (catch ems_media:status(Pid))} || {Name,Pid} <- Entries],
-  Info = [Entry || Entry <- Info1, is_list(element(3, Entry))],
-  Info.
+  [{Name, Pid, ems_media:status(Pid)} || {Name,Pid} <- Entries].
   
 remove(Host, Name) when is_list(Name) ->
   remove(Host, list_to_binary(Name));
@@ -201,6 +199,8 @@ stop(Host, Name) ->
 init([]) ->
   % error_logger:info_msg("Starting with file directory ~p~n", [Path]),
   ets:new(?MODULE, [set, public, named_table, {keypos, #media_entry.name}]),
+  ets:new(ems_media_stats, [set, public, named_table]),
+  timer:send_after(10000, check_streams),
   {ok, #media_provider{}}.
   
 
@@ -221,13 +221,16 @@ handle_call({unregister, Pid}, _From, #media_provider{} = MediaProvider) ->
   case ets:match(?MODULE, #media_entry{name = '$1', ref = '$2', handler = Pid}) of
     [] -> 
       {noreply, MediaProvider};
-    [[{Host, Name}, Ref]] ->
-      erlang:demonitor(Ref, [flush]),
+    [[{Host, Name}, _Ref]] ->
       ets:delete(?MODULE, {Host, Name}),
       ?D({"Unregistering", Host, Name, Pid}),
       ems_event:stream_stopped(Host, Name, Pid),
       {noreply, MediaProvider}
   end;
+
+handle_call({watch, Pid}, _From, #media_provider{} = MediaProvider) ->
+  erlang:monitor(process, Pid),
+  {reply, ok, MediaProvider};
     
 handle_call({register, Host, Name, Pid, Options}, _From, #media_provider{} = MediaProvider) ->
   case find(Host, Name) of
@@ -235,7 +238,7 @@ handle_call({register, Host, Name, Pid, Options}, _From, #media_provider{} = Med
       {reply, {error, {already_set, Name, OldPid}}, MediaProvider};
     undefined ->
       Ref = erlang:monitor(process, Pid),
-      ?D({register,Host,Name,Pid}),
+      % ?D({register,Host,Name,Pid}),
       ets:insert(?MODULE, #media_entry{name = {Host,Name}, handler = Pid, ref = Ref}),
       ems_event:stream_created(Host, Name, Pid, Options),
       {reply, {ok, {Name, Pid}}, MediaProvider}
@@ -307,6 +310,7 @@ start_new_media_entry(Host, Name, Opts) ->
               {ok, OldPid}
           end;
         _ ->
+          gen_server:call(?MODULE, {watch,Pid}),
           ?D({"Skip registration of", Type, URL}),
           {ok, Pid}
       end;
@@ -363,6 +367,7 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvider) ->
+  ets:delete(ems_media_stats, Media),
   MS = ets:fun2ms(fun(#media_entry{handler = Pid, name = Key}) when Pid == Media -> Key end),
   case ets:select(?MODULE, MS) of
     [] -> 
@@ -376,6 +381,16 @@ handle_info({'DOWN', _, process, Media, _Reason}, #media_provider{} = MediaProvi
       (catch ems_event:stream_stopped(Host, Name, Media)),
       {noreply, MediaProvider}
   end;
+
+handle_info(check_streams, MediaProvider) ->
+  timer:send_after(10000, check_streams),
+  Streams1 = [{Pid, proplists:get_value(client_count,Info),proplists:get_value(name,Info),(catch element(2,process_info(Pid,message_queue_len)))} || 
+             {Pid, Info} <- ets:tab2list(ems_media_stats)],
+  Streams2 = [Desc || {_Pid,_Clients,_URL, Messages} = Desc <- Streams1, is_number(Messages) andalso Messages > 100],
+  if Streams2 == [] -> ok;
+    true -> ?D({delayed_streams,Streams2})
+  end,
+  {noreply, MediaProvider};
 
 handle_info(_Info, State) ->
   ?D({"Undefined info", _Info}),

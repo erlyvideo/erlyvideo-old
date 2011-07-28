@@ -44,7 +44,7 @@ start() ->
   load_nif(erlang:system_info(otp_release) >= "R13B04").
   
 load_nif(true) ->
-  Load = erlang:load_nif(code:lib_dir(mpegts,ebin)++ "/mpeg2_crc32", 0),
+  Load = erlang:load_nif(code:lib_dir(mpegts,priv)++ "/mpeg2_crc32", 0),
   io:format("Load mpeg2_crc32: ~p~n", [Load]),
   ok;
 

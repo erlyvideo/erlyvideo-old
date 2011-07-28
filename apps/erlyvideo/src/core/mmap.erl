@@ -25,7 +25,7 @@ init_nif() ->
   load_nif(erlang:system_info(otp_release) >= "R14").
   
 load_nif(true) ->
-  Load = erlang:load_nif(code:lib_dir(erlyvideo,ebin)++ "/mmap", 0),
+  Load = erlang:load_nif(code:lib_dir(erlyvideo,priv)++ "/mmap", 0),
   io:format("Load mmap: ~p~n", [Load]),
   ok;
 

@@ -85,8 +85,8 @@ frame_filters(#ems_media{options = Options} = _Media) ->
     _ -> []
   end ++ 
   case proplists:get_value(send_audio_before_keyframe, Options) of
-    false -> [];
-    _ -> [send_audio_to_starting_clients]
+    true -> [send_audio_to_starting_clients];
+    _ -> []
   end ++
   [
     accumulate_hls_data,

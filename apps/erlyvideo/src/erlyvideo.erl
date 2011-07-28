@@ -27,7 +27,7 @@
 
 
 -export([start/2, stop/1]).
--export([start/0,stop/0,restart/0,rebuild/0,reload/0,reload/1]).
+-export([start/0,stop/0,restart/0,rebuild/0,reload/0,reload/1,upgrade/0]).
 -export([load_config/0, reconfigure/0]).
 -export([start_modules/0, stop_modules/0]).
 -export([call_modules/2]).
@@ -35,8 +35,6 @@
 -export([vhosts/0]).
 -export([main/1, test/0]).
 
-
--export([edoc/0, edoc/1]).
 
 
 main([]) ->
@@ -84,6 +82,24 @@ test() ->
   ]).
 
 
+upgrade() ->
+  Paths = filelib:wildcard("/opt/erlyvideo/lib/*/ebin"),
+  OldPaths = code:get_path(),
+  NewPaths = lists:filter(fun(Path) ->
+    not lists:member(Path, OldPaths)
+  end, Paths),
+  [code:add_patha(Path) || Path <- NewPaths],
+  ems:reload(amf),
+  ems:reload(erlmedia),
+  ems:reload(erlyvideo),
+  ems:reload(ibrowse),
+  ems:reload(log4erl),
+  ems:reload(misultin),
+  ems:reload(mpegts),
+  ems:reload(rtmp),
+  ems:reload(rtp),
+  ems:reload(rtsp).
+
 
 start(normal, []) ->
 	error_logger:info_report("Starting Erlyvideo ..."),
@@ -115,12 +131,6 @@ start(normal, []) ->
 stop(_) ->
   %stop().
   ok.
-
-edoc() ->
-  edoc([{dir,"doc/html"}]).
-
-edoc(Options) ->
-  edoc:application(?MODULE,".",[{packages,false} | Options]).
 
 
 vhosts() ->

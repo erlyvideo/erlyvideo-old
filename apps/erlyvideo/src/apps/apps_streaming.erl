@@ -68,7 +68,7 @@ handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} 
 handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
   #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
   
-  ?D({self(), "seek to", round(NewDTS), rtmp:justify_ts(NewDTS - BaseDTS)}),
+  % ?D({self(), "seek to", round(NewDTS), rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
   rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
 
@@ -138,7 +138,7 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   {Name, Options} = parse_play(FullName, Args),
 
-  ?D({play_request, FullName,Args, '->', Name, Options}),
+  % ?D({play_request, FullName,Args, '->', Name, Options}),
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
       ?D({"Unsubscribe from old", OldMedia}), 
@@ -157,21 +157,10 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State;
     {ok, Media} ->
-      MediaInfo = ems_media:media_info(Media),
-      Info = ems_media:info(Media),
-      LastDTS = proplists:get_value(last_dts, Info, 0),
-      ConfigFrames = video_frame:config_frames(MediaInfo),
       State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name, started = false}, State),
-      % #media_info{audio = A, video = V} = MediaInfo,
-      % case A of [] -> ok; _ -> rtmp_socket:notify_audio(Socket, StreamId, 0) end,
-      % case V of [] -> ok; _ -> rtmp_socket:notify_video(Socket, StreamId, 0) end,
-      State2 = lists:foldl(fun(ConfigFrame, RTMPSess) ->
-        rtmp_session:send_frame(ConfigFrame#video_frame{stream_id = StreamId, dts = LastDTS}, RTMPSess)
-      end, State1, ConfigFrames),
-      % ?D({media_info,MediaInfo}),
       ems_media:play(Media, SocketOptions ++ [{stream_id,StreamId}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      State2
+      State1
   end.
 
 parse_play(FullName, Args) ->
@@ -296,8 +285,8 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %% @end
 %%-------------------------------------------------------------------------
 seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
-  #rtmp_stream{pid = Player, base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
-  ?D({self(), "seek", round(Timestamp), BaseDTS, Player}),
+  #rtmp_stream{pid = Player, base_dts = _BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
+  % ?D({self(), "seek", round(Timestamp), BaseDTS, Player}),
   case ems_media:seek(Player, Timestamp) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),

@@ -24,17 +24,29 @@
 -module(ems_debug).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--export([sorted_procs/1]).
+-compile(export_all).
 
-sorted_procs(Sort) ->
-  Info = [ case process_info(Pid, [Sort,memory,message_queue_len,total_heap_size,heap_size,stack_size,dictionary,current_function]) of
-    undefined -> undefined;
-    Else -> [{pid,Pid}|Else]
-  end || Pid <- processes()],
-  ClearedInfo = [I||I <- Info, I =/= undefined],
-  Sorted = lists:sort(fun(Info1, Info2) ->
-    Val1 = proplists:get_value(Sort, Info1),
-    Val2 = proplists:get_value(Sort, Info2),
-    Val1 > Val2
-  end, ClearedInfo),
-  lists:sublist(Sorted, 10).
+top(Sort) ->
+  DirtyList = [{Pid,(catch element(2,process_info(Pid,Sort)))} || Pid <- processes()],
+  lists:reverse(lists:keysort(2, [{Pid,Count} || {Pid,Count} <- DirtyList, is_number(Count)] )).
+
+top(Sort, Limit) ->
+  lists:sublist(top(Sort), Limit).
+
+kill(Sort, Limit) ->
+  [{Pid,Count} || {Pid,Count} <- top(Sort), Count >= Limit].
+
+
+full_info(Sort) -> full_info(Sort, 10).
+full_info(Sort, Limit) ->
+  [{Pid, process_info(Pid)} || {Pid, _Count} <- top(Sort, Limit)].
+
+
+get_state(Name) when is_atom(Name) -> get_state(whereis(Name));
+
+get_state(Server) when is_pid(Server) ->
+  Stat1 = fun(Pid) -> {status, _, _, Items} = sys:get_status(Pid), lists:nth(5,Items) end,
+  Stat2 = fun(Pid) -> element(2, lists:nth(3,Stat1(Pid))) end,
+  Stat3 = fun(Pid) -> proplists:get_value("State", Stat2(Pid)) end,
+  Stat3(Server).
+  

@@ -88,7 +88,6 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
   rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
   rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
-  rtmp_socket:setopts(Socket, [{chunk_size, 16#200000}]),
 
   ConnectObj = [{fmsVer, <<"FMS/",?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
   StatusObj = [{level, <<"status">>},
@@ -97,6 +96,7 @@ accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersi
                {data,[{<<"version">>, <<?FMS_VERSION>>}]},
                {objectEncoding, AMFVersion}],
   reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+  rtmp_socket:setopts(Socket, [{chunk_size, 16#200000}]),
   rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
   ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
   Session;

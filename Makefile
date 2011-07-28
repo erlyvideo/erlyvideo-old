@@ -57,7 +57,7 @@ clean-doc:
 
 
 run: priv/erlyvideo.conf priv/log4erl.conf 
-	ERL_LIBS=apps:..:deps:../commercial/apps erl +A 4 +a 2048 +K true -sname ev -boot start_sasl -s erlyvideo -config files/app.config
+	ERL_LIBS=apps:..:deps:../commercial/apps erl -args_file files/vm.args -sname ev -boot start_sasl -s erlyvideo -config files/app.config
 
 priv/log4erl.conf: priv/log4erl.conf.sample
 	[ -f priv/log4erl.conf ] || cp priv/log4erl.conf.sample priv/log4erl.conf
@@ -87,7 +87,7 @@ packages: release
 upload_packages: 
 	scp *$(VERSION)* erlyhub@git.erlyvideo.org:/apps/erlyvideo/debian/public/binary
 	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update ; cd public/binary ; ln -sf erlyvideo-$(VERSION).tgz erlyvideo-latest.tgz ; ln -sf erlyvideo-$(VERSION).x86_64.rpm erlyvideo-latest.x86_64.rpm"
-	echo "Erlyvideo version $(VERSION) uploaded to debian repo http://debian.erlyvideo.org/ ." | mail -r build@erlyvideo.org -s "Erlyvideo version $(VERSION)" -v erlyvideo-dev@googlegroups.com
+	echo "Erlyvideo version ${VERSION} uploaded to debian repo http://debian.erlyvideo.org/ ." | mail -r "Erlybuild <build@erlyvideo.org>" -s "Erlyvideo version ${VERSION}" -v erlyvideo-dev@googlegroups.com
 
 .PHONY: doc debian compile
 

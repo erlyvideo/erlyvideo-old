@@ -39,7 +39,7 @@
 -define(SNDBUF, 4194304).
 
 -define(REPEATER_COUNT, 1).
--define(ACCEL_CLIENTS_LIMIT, 300).
+-define(ACCEL_CLIENTS_LIMIT, 20).
 
 -record(clients, {
   active,
@@ -62,15 +62,11 @@
 }).
 
 init(Options) ->
-  Clients = #clients{
+  #clients{
     type = proplists:get_value(type, Options),
     name = proplists:get_value(name, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
-  },
-  case proplists:get_value(stream_mode, Options) of
-    accelerated -> init_accel(Clients);
-    _ -> Clients
-  end.
+  }.
 
 init_accel(#clients{list = Entries} = Clients) ->
   ?D({"Init accelerated mode for stream", Clients#clients.name}),
@@ -148,11 +144,11 @@ remove_client(#clients{active = A, passive = P, starting = S, bytes = Bytes}, Cl
   ets:delete(S, Client),
   ok.
   
-insert(#clients{list = List, type = Type} = Clients, #client{consumer = Client} = Entry) ->
+insert(#clients{list = List, type = Type, active = A} = Clients, #client{consumer = Client} = Entry) ->
   insert_client(Clients, Entry),
   Clients1 = Clients#clients{list = lists:keystore(Client, #client.consumer, List, Entry#client{connected_at = ems:now(utc)})},
   if
-    length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file -> init_accel(Clients1);
+    length(List) > ?ACCEL_CLIENTS_LIMIT andalso Type =/= file andalso A == undefined -> init_accel(Clients1);
     true -> Clients1
   end.
 
@@ -241,7 +237,7 @@ delete(#clients{list = List} = Clients, Client) ->
 
 % send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
 %   repeater_send_frame(Frame, Clients, starting, undefined);
-send_frame(#video_frame{} = Frame, #clients{repeaters = undefined, list = Entries} = Clients, State) ->
+send_frame(#video_frame{flavor = Flavor} = Frame, #clients{repeaters = Repeaters, list = Entries} = Clients, State) when Repeaters == undefined orelse Flavor == config ->
   [Pid ! Frame#video_frame{stream_id = StreamId} || #client{state = State1, consumer = Pid, stream_id = StreamId} <- Entries, State1 == State],
   Clients;
 
