@@ -103,6 +103,8 @@ private function handleStatus(evt:NetStatusEvent) : void
       }
       ns_in.client = in_client;
       inTalk = true;
+      declineEnabled = true;
+      declineLabel = "Bye";
       break;
 
     case "NetConnection.IncomingCall":
@@ -112,8 +114,18 @@ private function handleStatus(evt:NetStatusEvent) : void
       declineEnabled = true;
       acceptLabel = "Accept";
       declineLabel = "Decline";
-
       break;
+
+    case "NetConnection.Bye":
+      inTalk = false;
+      acceptEnabled = false;
+      declineEnabled = false;
+      callEnabled = true;
+      acceptLabel = "Accept";
+      declineLabel = "Decline";
+      callLabel = "Call";
+      break;
+
     default:
       registerEnabled = false;
       callEnabled = false;
@@ -131,10 +143,10 @@ public function unregister() : void
   nc.call("unregister", null, registerNumber.text);
 }
 
-public function bye() : void
-{
-  nc.call("bye", null);
-}
+// public function bye() : void
+// {
+//   nc.call("bye", null);
+// }
 
 public function register() : void
 {
@@ -159,6 +171,9 @@ public function outgoingCall() : void
       }
     });
   inTalk = false;
+  callEnabled = false;
+  declineEnabled = true;
+  declineLabel = "Cancel";
   nc.call("outgoingCall", r, callNumber.text);
 }
 
@@ -167,14 +182,15 @@ public function acceptCall() : void
   var r:Responder =
     new Responder(function(reply:Boolean):void {
         if(reply) {
-          acceptLabel = "Accepted";
+          acceptLabel = "InTalk";
         } else {
           acceptLabel = "Failed to accept";
         }
       });
-  inTalk = false;
+  inTalk = true;
   acceptEnabled = false;
-  declineEnabled = false;
+  declineEnabled = true;
+  declineLabel = "Bye";
   nc.call("acceptCall", r);
 }
 
@@ -191,5 +207,7 @@ public function declineCall() : void
   inTalk = false;
   acceptEnabled = false;
   declineEnabled = false;
+  callLabel = "Call";
+  callingLabel = "";
   nc.call("declineCall", r);
 }

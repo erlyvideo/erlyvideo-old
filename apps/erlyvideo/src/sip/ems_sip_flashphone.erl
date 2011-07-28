@@ -49,7 +49,7 @@
 
 -export([
          cb_init/1,
-         dialog/3,
+         dialog/2,
          progress/3,
          progress_timeout/1,
          create_dialog/3,
@@ -67,8 +67,7 @@
          reregister/2,
          accept_call/3,
          decline_call/3,
-         call/3,
-         bye/1
+         call/3
         ]).
 
 
@@ -85,6 +84,9 @@
           client_ref           :: reference(),
           progress_timeout     :: integer(),
           dialog_timeout       :: integer(),
+          opp_request          :: tuple(), % #request{}
+          opp_response         :: tuple(), % #response{}
+          request              :: tuple(), % #request{}
           response             :: tuple(), % #response{}
           origin               :: tuple()  % #origin{}
          }).
@@ -94,6 +96,8 @@
           tu_ref               :: reference(),
           name                 :: list(),
           media                :: pid(),
+          rtmp                 :: pid(),
+          rtmp_ref             :: reference(),
           rtp                  :: pid(),
           rtp_ref              :: reference(),
           stream_in            :: binary(),
@@ -114,10 +118,17 @@ init(Args) ->
        true -> undefined
     end,
   Name = binary_to_list(proplists:get_value(name, Args)),
-  esip_registrator:set_dialog(Name, self()),
+  {ok, RTMP} = esip_registrator:set_dialog(Name, self()),
+  RTMPRef =
+    if is_pid(RTMP) ->
+        erlang:monitor(process, RTMP);
+       true -> undefined
+    end,
   {ok, d_active, #state{
          tu = TU,
          tu_ref = TURef,
+         rtmp = RTMP,
+         rtmp_ref = RTMPRef,
          name = Name
         }}.
 
@@ -178,10 +189,19 @@ handle_info({config, Media, StreamIn, StreamOut, RTP}, StateName, State) ->
                rtp_ref = RTPRef
               }};
 
-handle_info({set_tu, TUPid}, StateName,
+handle_info({set_tu, TU}, StateName,
             #state{} = State) ->
-  ?DBG("Set TU: ~p", [TUPid]),
-  {next_state, StateName, State#state{tu = TUPid}};
+  ?DBG("Set TU: ~p", [TU]),
+  TURef =
+    if is_pid(TU) ->
+        erlang:monitor(process, TU);
+       true -> undefined
+    end,
+  {next_state, StateName,
+   State#state{
+     tu = TU,
+     tu_ref = TURef
+    }};
 
 handle_info({ok, Opts, _Response}, StateName,
             #state{} = State) ->
@@ -194,17 +214,18 @@ handle_info({ringing, _Response}, StateName,
   ?DBG("Ringing", []),
   {next_state, StateName, State};
 
-handle_info({bye}, _StateName,
-         #state{tu = TUPid} = State) ->
-  ?DBG("Bye: ~p (TU: ~p)", [self(), TUPid]),
-  %% STOP HERE
-  gen_fsm:send_event(TUPid, {opposite, {bye}}),
-  {stop, normal, State};
-
 handle_info({declined, _Response}, _StateName,
-            #state{rtp = RTP} = State) ->
+            #state{rtp = RTP,
+                   rtmp = RTMP} = State) ->
   ?DBG("Declined", []),
   rtp_server:stop(RTP),
+  apps_sip:bye(RTMP),
+  {stop, normal, State#state{rtp = undefined}};
+
+handle_info({bye}, _StateName,
+            #state{rtmp = RTMP} = State) ->
+  ?DBG("Bye", []),
+  apps_sip:bye(RTMP),
   {stop, normal, State};
 
 handle_info({send_create}, StateName,
@@ -225,16 +246,14 @@ handle_info(decline_call, StateName,
   {next_state, StateName, State};
 
 handle_info({'DOWN', RTPRef, process, RTP, _Reason}, StateName,
-            #state{rtp = RTP,
-                   rtp_ref = RTPRef} = State) ->
+            #state{rtp_ref = RTPRef} = State) ->
   ?DBG("RTP Down: ~p", [RTP]),
   {next_state, StateName,
    State#state{rtp = undefined,
                rtp_ref = undefined}};
 handle_info({'DOWN', TURef, process, TU, _Reason}, _StateName,
-            #state{tu = TU,
-                   tu_ref = TURef} = State) ->
-  ?DBG("TU Down", []),
+            #state{tu_ref = TURef} = State) ->
+  ?DBG("TU Down: ~p", [TU]),
   {stop, normal,
    State#state{tu = undefined,
                tu_ref = undefined}};
@@ -499,7 +518,7 @@ progress(Request,
   NewPH = [{'Contact', [Contact]}],
 
   From = esip:'#get-mheaders'(from, MH),
-  FromURI = esip:'#get-h_from'(uri, From),
+  FromURI = esip:'#get-h_contact'(uri, From),
   CallingId = iolist_to_binary(esip_headers:c_uri(FromURI)),
 
   Code = 183,
@@ -519,12 +538,13 @@ progress(Request,
     Other ->
       ?DBG("Error: ~p", Other)
   end,
-  NewState = State#sip_cb_state{response = Response},
+  NewState = State#sip_cb_state{opp_request = Request,
+                                response = Response},
   {ok, Response, NewState}.
 
-dialog(Request,
-       Origin,
+dialog(Origin,
        #sip_cb_state{
+         opp_request = Request,
          pid = CbPid
         } = State) ->
   URI = esip:'#get-request'(uri, Request),
@@ -659,22 +679,16 @@ ok(Response, _Origin,
   rtp_server:add_stream(RTP, local, MediaInfo),
   rtp_server:add_stream(RTP, remote, MediaInfo),
 
-  timer:sleep(500),
-  Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}]) end,
+  Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
   rtp_server:play(RTP, Fun),
 
-  timer:sleep(500),
   apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
   {ok, CbState}.
 
 ack(RTP, StreamOut) ->
-  Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}]) end,
+  Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
   rtp_server:play(RTP, Fun).
-
-bye(Client) when is_pid(Client) ->
-  {ok, _OrigNameS, _Password, DPid} = esip_registrator:find(self()),
-  DPid ! {bye}.
 
 progress_timeout(#sip_cb_state{progress_timeout = DTO}) ->
   DTO.

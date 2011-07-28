@@ -34,7 +34,7 @@
          outgoingCall/2,
          acceptCall/2,
          declineCall/2,
-         bye/2
+         bye/1
         ]).
 
 -export([
@@ -55,6 +55,10 @@ sip_call(RTMP, OutStream, InStream)
 incoming(RTMP, CallingId)
   when is_pid(RTMP) ->
   RTMP ! {incoming, CallingId}.
+
+bye(RTMP)
+  when is_pid(RTMP) ->
+  RTMP ! {bye}.
 
 register(State, #rtmp_funcall{args = [_, Number, Password] = Args} = AMF) ->
   ?D({sip_register, self(), Args}),
@@ -98,16 +102,12 @@ declineCall(State, #rtmp_funcall{args = Args} = AMF) ->
   end,
   State.
 
-bye(State, #rtmp_funcall{args = Args}) ->
-  ?DBG("BYE (~p): ~p", [self(), Args]),
-  ems_sip_flashphone:bye(self()),
-  State.
-
 handle_info({sip_call, OutStream, InStream}, #rtmp_session{socket = Socket} = State) ->
-  % io:format("NetConnection.Message ~s~n", [Message]),
   rtmp_socket:status(Socket, 0, <<"NetConnection.SipCall">>, {object, [{in_stream, InStream},{out_stream,OutStream}]}),
   {noreply, State};
 handle_info({incoming, CallingId}, #rtmp_session{socket = Socket} = State) ->
-  % io:format("NetConnection.Message ~s~n", [Message]),
   rtmp_socket:status(Socket, 0, <<"NetConnection.IncomingCall">>, {object, [{calling_id, CallingId}]}),
+  {noreply, State};
+handle_info({bye}, #rtmp_session{socket = Socket} = State) ->
+  rtmp_socket:status(Socket, 0, <<"NetConnection.Bye">>, {object, []}),
   {noreply, State}.
