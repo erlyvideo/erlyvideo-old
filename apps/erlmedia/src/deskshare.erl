@@ -40,7 +40,7 @@
 
 
 start_link(Consumer, Options) ->
-  gen_server:start_link(?MODULE, [Consumer, Options], []).
+  gen_server_ems:start_link(?MODULE, [Consumer, Options], []).
 
 
 is_valid_update(<<L:16, _C:L/binary, Rest/binary>>) -> is_valid_update(Rest);

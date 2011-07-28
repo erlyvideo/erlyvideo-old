@@ -54,7 +54,7 @@
 % {ok, Pid2} = ems_sup:start_shoutcast_media("http://205.188.215.230:8002").
 
 start_link(Options) ->
-  gen_server:start_link(?MODULE, [Options], []).
+  gen_server_ems:start_link(?MODULE, [Options], []).
 
 
 init([Options]) ->

@@ -43,7 +43,7 @@ start_recorder(Host, Name, Options) ->
   ems_sup:start_recorder(Host, Name, Options).
 
 start_link(Media, Options) ->
-  gen_server:start_link(?MODULE, [Media, Options], []).
+  gen_server_ems:start_link(?MODULE, [Media, Options], []).
 
 stop(Host, Name) ->
   case media_provider:find(Host, Name) of
