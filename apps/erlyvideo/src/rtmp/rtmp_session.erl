@@ -192,7 +192,7 @@ video_parameters(#media_info{}) ->
 %%%------------------------------------------------------------------------
 
 start_link() ->
-  gen_server:start_link(?MODULE, [], []).
+  gen_server_ems:start_link(?MODULE, [], []).
 
 set_socket(Pid, Socket) when is_pid(Pid) ->
   gen_server:call(Pid, {socket_ready, Socket}).

@@ -34,10 +34,10 @@
 
 
 start_link(BindSpec, Callback, Args) ->
-  gen_server:start_link(?MODULE, [BindSpec, Callback, Args], []).
+  gen_server_ems:start_link(?MODULE, [BindSpec, Callback, Args], []).
 
 start_link(Name, BindSpec, Callback, Args) ->
-  gen_server:start_link({local, Name}, ?MODULE, [BindSpec, Callback, Args], []).
+  gen_server_ems:start_link({local, Name}, ?MODULE, [BindSpec, Callback, Args], []).
 
 
 

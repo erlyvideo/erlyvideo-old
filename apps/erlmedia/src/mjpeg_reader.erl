@@ -37,7 +37,7 @@
 -export([is_valid_jpeg/1]).
 
 start_link(URL, Consumer) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [URL, Consumer], []).
+  gen_server_ems:start_link({local, ?MODULE}, ?MODULE, [URL, Consumer], []).
 
 -record(reader, {
   url,

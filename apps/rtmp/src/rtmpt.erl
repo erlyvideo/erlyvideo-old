@@ -133,7 +133,7 @@ write(RTMPT, Data) ->
 
 %% @private
 start_link(SessionId, IP) ->
-  gen_server:start_link(?MODULE, [SessionId, IP], []).
+  gen_server_ems:start_link(?MODULE, [SessionId, IP], []).
 
 %% @private
 set_consumer(RTMPT, Consumer) ->

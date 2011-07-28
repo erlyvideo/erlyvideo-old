@@ -52,7 +52,7 @@ set_threshold(Threshold) ->
 %% @end
 %%----------------------------------------------------------------------
 start_link() -> start_link([]).
-start_link(Options) -> gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []).
+start_link(Options) -> gen_server_ems:start_link({local, ?MODULE}, ?MODULE, [Options], []).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
