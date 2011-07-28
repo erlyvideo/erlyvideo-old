@@ -172,10 +172,11 @@ init([Options]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({play, Fun}, _From, #rtp_server{} = Server) ->
+handle_call({play, Fun}, From, #rtp_server{} = Server) ->
+  gen_server:reply(From, ok),
   Res = Fun(),
   ?DBG("Play Fun: ~p", [Res]),
-  {reply, ok, Server};
+  {noreply, Server};
 
 handle_call({stop}, _From, #rtp_server{} = Server) ->
   {stop, normal, ok, Server};
