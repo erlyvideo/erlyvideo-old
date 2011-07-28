@@ -33,9 +33,40 @@
 
 -export([source_is_lost/1, source_is_restored/1]).
 
-source_is_lost(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->
-  ?D({"ems_media lost source", Source}),
-  ems_event:stream_source_lost(proplists:get_value(host,Media#ems_media.options), Media#ems_media.name, self()),
+
+source_is_lost(#ems_media{source = Source,media_info = #media_info{video = []}} = Media) ->
+  (catch ems_media:stop(Source)),
+  handle_lost_source(Media);
+
+source_is_lost(#ems_media{source = Source, options = Options, media_info = #media_info{video = [Video|_]}} = Media) ->
+  (catch ems_media:stop(Source)),
+  #stream_info{codec = Codec} = Video,
+  ems_event:stream_source_lost(ems_media:get(Media,host), Media#ems_media.name, self()),
+  case proplists:get_value(failure_movie,Options) of
+    Name when is_list(Name) andalso Codec == h264 ->
+      failure_movie(Media, Name);
+    _ ->
+      handle_lost_source(Media)
+  end.
+
+%
+% {failure_movie,"sample.mp4"} -- is a option in config file 
+%
+failure_movie(#ems_media{source = Source} = Media, Name) ->
+  Host = ems_media:get(Media, host),
+  ?D({"ems_media ", ems_media:get(Media,name), "lost source", Source, "failover movie",Name}),
+  {ok, Stream} = media_provider:open(Host,Name),
+  #media_info{video = [Video]} = ems_media:media_info(Stream),
+  {ok,FailureSource} = case Video of
+    #stream_info{codec = h264} ->    
+      media_provider:play(Stream,[{stream_id, failure},{client_buffer,0}]);  
+    _ ->
+      catch(ems_media:stop(Stream)),
+      {ok,undefined}
+  end,
+  handle_lost_source(Media#ems_media{ts_delta = undefined, failure_source = FailureSource}).
+
+handle_lost_source(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
   case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined}) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
@@ -59,8 +90,9 @@ source_is_lost(#ems_media{module = M, source = Source, source_timeout = SourceTi
 
 
 
-source_is_restored(#ems_media{source = NewSource, source_timeout_ref = OldRef, clients = Clients} = Media) ->
+source_is_restored(#ems_media{source = NewSource, source_timeout_ref = OldRef, clients = Clients, failure_source = FailureSource} = Media) ->
   (catch timer:cancel(OldRef)),
+  ?D({restoring_stream,FailureSource}),
   Ref = case NewSource of
     undefined -> undefined;
     _ -> erlang:monitor(process, NewSource)

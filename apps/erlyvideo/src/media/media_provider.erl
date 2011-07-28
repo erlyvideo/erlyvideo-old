@@ -261,7 +261,10 @@ internal_open(Host, Name, Opts) ->
       % ?D({"Detecting type", Host, Name, Opts0, DetectedOpts}),
       lists:ukeymerge(1, DetectedOpts, Opts0);
     _ ->
-      Opts0
+      case lists:keyfind(binary_to_list(Name), 1, ems:get_var(rewrite, Host, [])) of
+        {_Name1, _Type1, _URL1, Opts1_} -> lists:ukeymerge(1, Opts0, lists:ukeysort(1, Opts1_));
+        _ -> Opts0
+      end
   end,
   Opts2 = lists:ukeymerge(1, Opts1, [{host, Host}, {name, Name}, {url, Name}]),
   case proplists:get_value(type, Opts2) of

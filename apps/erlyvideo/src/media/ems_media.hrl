@@ -17,6 +17,7 @@
   waiting_for_config = [],
   frame_number = 0,
   source,
+  failure_source,
   source_ref,
   storage,
   format,
