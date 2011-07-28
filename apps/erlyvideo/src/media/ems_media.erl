@@ -192,27 +192,29 @@ set_source(Media, Source) when is_pid(Media) ->
 
 
 set_source(#ems_media{source_ref = OldRef, module = M} = Media, Source) ->
+  Media1 = stop_failure_movie(Media),
+  
   case OldRef of
     undefined -> ok;
     _ -> erlang:demonitor(OldRef, [flush])
   end,
 
-  DefaultSource = fun(OtherSource, Media1) ->
+  DefaultSource = fun(OtherSource, Media1_) ->
     Ref = case OtherSource of
       undefined -> undefined;
       _ -> erlang:monitor(process, OtherSource)
     end,
-    {ok, Media1#ems_media{source = OtherSource, source_ref = Ref, ts_delta = undefined}}
+    {ok, Media1_#ems_media{source = OtherSource, source_ref = Ref, ts_delta = undefined}}
   end,
 
-  case M:handle_control({set_source, Source}, Media) of
-    {noreply, Media1} ->
-      DefaultSource(Source, Media1);
-    {reply, OtherSource, Media1} ->
-      DefaultSource(OtherSource, Media1);
+  case M:handle_control({set_source, Source}, Media1) of
+    {noreply, Media2} ->
+      DefaultSource(Source, Media2);
+    {reply, OtherSource, Media2} ->
+      DefaultSource(OtherSource, Media2);
     {stop, Reason, S2} ->
       ?D({"ems_media failed to set_source", M, Source, Reason}),
-      {error, Reason, Media#ems_media{state = S2}}
+      {error, Reason, Media1#ems_media{state = S2}}
   end.
 
 
@@ -815,12 +817,10 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, url = Nat
 
   case M:handle_control({make_request, URL}, Media) of
     {ok, Reader} when is_pid(Reader) ->
-      Media1 = stop_failure_movie(Media),
-      {ok, Media2} = ems_media:set_source(Media1, Reader),
+      {ok, Media2} = ems_media:set_source(Media, Reader),
       {noreply, Media2#ems_media{retry_count = 0}, ?TIMEOUT};
     {ok, Reader, #media_info{} = MediaInfo} when is_pid(Reader) ->
-      Media1 = stop_failure_movie(Media),
-      {ok, Media2} = ems_media:set_source(Media1, Reader),
+      {ok, Media2} = ems_media:set_source(Media, Reader),
       {noreply, ems_media:set_media_info(Media2#ems_media{retry_count = 0}, MediaInfo), ?TIMEOUT};
     {noreply, Media1} ->
       handle_info_with_module(make_request, Media1);
@@ -834,9 +834,14 @@ handle_info(make_request, #ems_media{retry_count = Count, host = Host, url = Nat
   end;
 
 
+handle_info({ems_stream, failure, play_complete, _DTS}, #ems_media{failure_source = FailureSource} = Media) when FailureSource =/= undefined ->
+  ems_media:play(FailureSource,[{stream_id, failure},{client_buffer,0}]),
+  {noreply, Media#ems_media{ts_delta = undefined}, ?TIMEOUT};
+
 handle_info(Message, Media) ->
   handle_info_with_module(Message, Media).
 
+  
 handle_info_with_module(Message, #ems_media{module = M} = Media) ->
   case M:handle_info(Message, Media) of
     {noreply, Media1} ->

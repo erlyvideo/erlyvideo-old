@@ -38,9 +38,8 @@ source_is_lost(#ems_media{source = Source,media_info = #media_info{video = []}} 
   (catch ems_media:stop(Source)),
   handle_lost_source(Media);
 
-source_is_lost(#ems_media{source = Source,media_info = #media_info{video = [Video|_]}} = Media) ->
+source_is_lost(#ems_media{source = Source, options = Options, media_info = #media_info{video = [Video|_]}} = Media) ->
   (catch ems_media:stop(Source)),
-  Options = Media#ems_media.options,
   #stream_info{codec = Codec} = Video,
   ems_event:stream_source_lost(ems_media:get(Media,host), Media#ems_media.name, self()),
   case proplists:get_value(failure_movie,Options) of
@@ -55,12 +54,12 @@ source_is_lost(#ems_media{source = Source,media_info = #media_info{video = [Vide
 %
 failure_movie(#ems_media{source = Source} = Media, Name) ->
   Host = ems_media:get(Media, host),
-  ?D({"ems_media lost source", Source}),
+  ?D({"ems_media ", ems_media:get(Media,name), "lost source", Source, "failover movie",Name}),
   {ok, Stream} = media_provider:open(Host,Name),
   #media_info{video = [Video]} = ems_media:media_info(Stream),
   {ok,FailureSource} = case Video of
     #stream_info{codec = h264} ->    
-      media_provider:play(Stream,[{stream_id, 0},{client_buffer,0}]);  
+      media_provider:play(Stream,[{stream_id, failure},{client_buffer,0}]);  
     _ ->
       catch(ems_media:stop(Stream)),
       {ok,undefined}
@@ -91,8 +90,9 @@ handle_lost_source(#ems_media{module = M, source = Source, source_timeout = Sour
 
 
 
-source_is_restored(#ems_media{source = NewSource, source_timeout_ref = OldRef, clients = Clients} = Media) ->
+source_is_restored(#ems_media{source = NewSource, source_timeout_ref = OldRef, clients = Clients, failure_source = FailureSource} = Media) ->
   (catch timer:cancel(OldRef)),
+  ?D({restoring_stream,FailureSource}),
   Ref = case NewSource of
     undefined -> undefined;
     _ -> erlang:monitor(process, NewSource)
