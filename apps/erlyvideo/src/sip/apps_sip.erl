@@ -84,7 +84,7 @@ outgoingCall(State, #rtmp_funcall{args = [_, Number]} = AMF) ->
 
 acceptCall(State, #rtmp_funcall{args = Args} = AMF) ->
   ?DBG("Accept Call: ~p", [Args]),
-  case ems_sip_flashphone:accept_call(Args, [], self()) of
+  case ems_sip_flashphone:accept_call(self()) of
     {ok, _Pid} ->
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->
@@ -94,7 +94,7 @@ acceptCall(State, #rtmp_funcall{args = Args} = AMF) ->
 
 declineCall(State, #rtmp_funcall{args = Args} = AMF) ->
   ?DBG("Decline Call: ~p", [Args]),
-  case ems_sip_flashphone:decline_call(Args, [], self()) of
+  case ems_sip_flashphone:decline_call(self()) of
     {ok, _Pid} ->
       rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, true]});
     undefined ->

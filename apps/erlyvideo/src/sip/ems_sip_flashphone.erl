@@ -65,8 +65,8 @@
          unregister/1,
          unregister/2,
          reregister/2,
-         accept_call/3,
-         decline_call/3,
+         accept_call/1,
+         decline_call/1,
          call/3
         ]).
 
@@ -218,14 +218,23 @@ handle_info({declined, _Response}, _StateName,
             #state{rtp = RTP,
                    rtmp = RTMP} = State) ->
   ?DBG("Declined", []),
-  rtp_server:stop(RTP),
-  apps_sip:bye(RTMP),
+  if is_pid(RTP) ->
+      rtp_server:stop(RTP);
+     true -> ok
+  end,
+  if is_pid(RTMP) ->
+      apps_sip:bye(RTMP);
+     true -> ok
+  end,
   {stop, normal, State#state{rtp = undefined}};
 
 handle_info({bye}, _StateName,
             #state{rtmp = RTMP} = State) ->
   ?DBG("Bye", []),
-  apps_sip:bye(RTMP),
+  if is_pid(RTMP) ->
+      apps_sip:bye(RTMP);
+     true -> ok
+  end,
   {stop, normal, State};
 
 handle_info({send_create}, StateName,
@@ -251,6 +260,14 @@ handle_info({'DOWN', RTPRef, process, RTP, _Reason}, StateName,
   {next_state, StateName,
    State#state{rtp = undefined,
                rtp_ref = undefined}};
+handle_info({'DOWN', RTMPRef, process, RTMP, _Reason}, StateName,
+            #state{tu = TU,
+                   rtmp_ref = RTMPRef} = State) ->
+  ?DBG("RTMP Down: ~p", [RTMP]),
+  gen_fsm:send_event(TU, {opposite, {decline_call}}),
+  {next_state, StateName,
+   State#state{rtmp = undefined,
+               rtmp_ref = undefined}};
 handle_info({'DOWN', TURef, process, TU, _Reason}, _StateName,
             #state{tu_ref = TURef} = State) ->
   ?DBG("TU Down: ~p", [TU]),
@@ -372,7 +389,7 @@ call(Name, _Options, Client) when is_binary(Name) ->
   end.
 
 
-accept_call(_, _Options, Client) ->
+accept_call(Client) ->
   {ok, _OrigNameS, _Password, Dialog} = esip_registrator:find(Client),
   if is_pid(Dialog) ->
       Dialog ! accept_call,
@@ -381,7 +398,7 @@ accept_call(_, _Options, Client) ->
       undefined
   end.
 
-decline_call(_, _Options, Client) ->
+decline_call(Client) ->
   {ok, _OrigNameS, _Password, Dialog} = esip_registrator:find(Client),
   if is_pid(Dialog) ->
       Dialog ! decline_call,
