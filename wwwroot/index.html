@@ -1,463 +1,247 @@
-<html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Erlyvideo Admin</title>
-
-    <link rel="stylesheet" type="text/css" href="/admin/resources/css/ext-all.css" />
-    <link rel="stylesheet" type="text/css" href="/admin/layout-browser.css" />
-	    
-    <script type="text/javascript" src="/admin/adapter/ext/ext-base.js"></script>
- 	  <script type="text/javascript" src="/admin/ext-all.js"></script>
-    <script type="text/javascript" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Erlyvideo admin</title>
+  <link rel="stylesheet" href="stylesheets/base.css" type="text/css" media="screen" />
+  <link rel="stylesheet" id="current-theme" href="stylesheets/themes/default/style.css" type="text/css" media="screen" />
+  <link rel="stylesheet" id="current-theme" href="stylesheets/override.css" type="text/css" media="screen" />
+  <script type="text/javascript" charset="utf-8" src="js/jquery.js"></script>
+  <script type="text/javascript" charset="utf-8" src="js/application.js"></script>
+  <script type="text/javascript" charset="utf-8" src="js/mustache.js"></script>
 </head>
 <body>
-<div id="header"><h1>Erlyvideo Admin Panel</h1></div>
+  <div id="container">
+    <div id="header">
+      <h1><a href="index.html">Erlyvideo admin panel</a></h1>
+      <div id="user-navigation">
+        <ul class="wat-cf">
+          <li><a href="#">Profile</a></li>
+          <li><a href="#">Settings</a></li>
+          <li><a class="logout" href="#">Logout</a></li>
+        </ul>
+      </div>
+      <div id="main-navigation">
+        <ul class="wat-cf">
+          <li class="first"><a href="#block-text">Main Page</a></li>
+          <li class="active"><a href="#block-text">Active</a></li>
+          <li><a href="#block-login">Login</a></li>
+          <li><a href="#block-signup">Signup</a></li>
+        </ul>
+      </div>
+    </div>
+    <div id="wrapper" class="wat-cf">
+      <div id="main">
 
+        <div class="block">
+          <div class="secondary-navigation">
+            <ul class="wat-cf tabbed-menu">
+              <li class="first active"><a href="#streams">Streams</a></li>
+              <li><a href="#license">Licensed code</a></li>
+              <li><a href="#block-messages">Messages</a></li>
+              <li><a href="#block-forms-2">2 Columns Forms</a></li>
+              <li><a href="#block-lists">Lists</a></li>
+            </ul>
+          </div>
+          <div class="content" id="streams-tab">
+            <h2 class="title">Streams</h2>
+            <div class="inner" id="stream-list">
+            <table class="table">
+						<thead>
+		                 <tr>
+		                   <th class="first">Name</th>
+		                   <th>Clients</th>
+		                   <th>Type</th>
+		                   <th>DTS delay</th>
+		                   <th class="last">&nbsp;</th>
+		                 </tr>
+						</thead>
+						<tbody id="stream-list-content">
+	            <tr class="odd">
+	              <td><input type="checkbox" class="checkbox" name="id" value="1" /></td><td>1</td><td>hulk</td><td>Hulk</td><td>Hogan</td><td class="last"><a href="#">show</a> | <a href="#">edit</a> | <a href="#">destroy</a></td>
+	            </tr>
+	            <tr class="even">
+	              <td><input type="checkbox" class="checkbox" name="id" value="1" /></td><td>2</td><td>ultimate</td><td>Ultimate</td><td>Warrior</td><td class="last"><a href="#">show</a> | <a href="#">edit</a> | <a href="#">destroy</a></td>
+	            </tr>
+						</tbody>
+	         	</table>
+	            <div class="actions-bar wat-cf">
+	              <div class="actions">
+	                <button class="button" type="submit">
+	                  <img src="images/icons/cross.png" alt="Delete" /> Delete
+	                </button>
+	              </div>
+	              <div class="pagination">
+	                <span class="disabled prev_page">« Previous</span><span class="current">1</span><a rel="next" href="#">2</a><a href="#">3</a><a href="#">4</a><a href="#">5</a><a href="#">6</a><a href="#">7</a><a href="#">8</a><a href="#">9</a><a href="#">10</a><a href="#">11</a><a rel="next" class="next_page" href="#">Next »</a>
+	              </div>
+	            </div>
+            </div>
+          </div>
 
-<script type="text/javascript">
-function embedFlowplayer(server, path) {
-  document.getElementById("flowplayer").href = path;
-  flowplayer("flowplayer", "/flowplayer/flowplayer-3.2.5.swf?"+(Math.random(10000)), {
-    log: {
-      // level: 'debug'
-      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*,org.flowplayer.core.*,org.flowplayer.model.*'
-      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*'
-    },
-    // streamCallbacks: ["onCuepoint"],
-		plugins: { 
-			rtmp: { 
-				url: '/flowplayer/flowplayer.rtmp-3.1.3.swf', 
-				netConnectionUrl: server
-			},
-      captions: {
-      	url: '/flowplayer/flowplayer.captions-3.2.2.swf?'+(Math.random(10000)),
-      	captionTarget: 'content'
-      },
-      // configure a content plugin to look good for our purpose
-      content: {
-    	  url:'/flowplayer/flowplayer.content-3.2.0.swf',
-    		top: 10,
-    		width: '80%',
-    		height:40,
-    		backgroundColor: 'black',
-    		backgroundGradient: 'none',
-    		border: 0,
-        textDecoration: 'outline',
-    		style: {
-    		  'body': {
-    			  fontSize: '14',
-      			fontFamily: 'Arial',
-      			textAlign: 'center',
-      			color: '#000000'
-    		  }
-    		}
-      }
-    },
-    clip: {
-      provider: 'rtmp',
-      bufferLength: 1,
-      cuepointMultiplier: 1,
-      autoPlay: true,
-      live: true
-      //, onCuepoint: function(clip, event) {
-      //   alert("hi");
-      //   // console.dir(event);
-      // }
-    }
-	});
-  
-}
+          <div class="content" id="license-tab" style="display: none">
+            <h2 class="title">Licensed code</h2>
+            <div class="inner">
+              <form action="/erlyvideo/api/licenses/write" method="post" class="form">
+                <div class="columns wat-cf" id="license-list">
+	                <div class="group navform wat-cf">
+	                  <button class="button" type="submit">
+	                    <img src="images/icons/tick.png" alt="Save" /> Save
+	                  </button>
+	                  <span class="text_button_padding">or</span>
+	                  <a class="text_button_padding link_button" href="#header">Cancel</a>
+	                </div>
+								</div>
+              </form>
+            </div>
+          </div>
 
-function embedJWPlayer(server, path) {
-  var flashvars = "provider=rtmp&bufferlength=1&autostart=true&streamer="+server+"&file="+path;
-  document.getElementById('jwplayer').innerHTML = '\
-  <object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="800" height="600"> \
-		<param name="movie" value="/jwplayer/player.swf" /> \
-		<param name="allowfullscreen" value="true" /> \
-		<param name="allowscriptaccess" value="always" /> \
-		<param name="flashvars" value="'+flashvars+'" /> \
-		<embed \
-			type="application/x-shockwave-flash" \
-			id="player2" \
-			name="player2" \
-			src="/jwplayer/player.swf"  \
-			width="800" \
-			height="600" \
-			allowscriptaccess="always" \
-			allowfullscreen="true" \
-			flashvars="'+flashvars+'" \
-		/> \
-	</object> ';
-  
-}
-</script>
+        </div>
 
+        <div id="footer">
+          <div class="block">
+            <p>Copyright &copy; 2009-2011 Max Lapshin, Erlyvideo.</p>
+          </div>
+        </div>
+      </div>
+      <div id="sidebar">
+        <div class="block">
+          <h3>Simple Block</h3>
+          <div class="content">
+            <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+          </div>
+        </div>
+        <div class="block">
+          <h3>Switch Theme</h3>
+          <ul class="navigation">
+            <li><a href="#" onclick="Theme.activate('default'); return false;">Default</a></li>
+            <li><a href="#" onclick="Theme.activate('activo'); return false;">Activo 2</a></li>
+            <li><a href="#" onclick="Theme.activate('red'); return false;">Red</a></li>
+            <li><a href="#" onclick="Theme.activate('amro'); return false;">Amro</a></li>
+            <li><a href="#" onclick="Theme.activate('bec'); return false;">Bec</a></li>
+            <li><a href="#" onclick="Theme.activate('bec-green'); return false;">Bec-Green</a></li>
+            <li><a href="#" onclick="Theme.activate('blue'); return false;">Blue</a></li>
+            <li><a href="#" onclick="Theme.activate('djime-cerulean'); return false;">Djime-Cerulean</a></li>
+            <li><a href="#" onclick="Theme.activate('drastic-dark'); return false;">Drastic Dark</a></li>
+            <li><a href="#" onclick="Theme.activate('kathleene'); return false;">Kathleene</a></li>
+            <li><a href="#" onclick="Theme.activate('olive'); return false;">Olive</a></li>
+            <li><a href="#" onclick="Theme.activate('orange'); return false;">Orange</a></li>
+            <li><a href="#" onclick="Theme.activate('reidb-greenish'); return false;">Greenish</a></li>
+            <li><a href="#" onclick="Theme.activate('warehouse'); return false;">Warehouse</a></li>
+          </ul>
+        </div>
+        <div class="block">
+          <h3>Sidebar</h3>
+          <ul class="navigation">
+            <li><a href="#block-text">Text</a></li>
+            <li><a href="#block-tables">Tables</a></li>
+            <li><a href="#block-forms">Forms</a></li>
+            <li><a href="#block-messages">Messages</a></li>
+            <li><a href="#block-forms-2">2 Columns Forms</a></li>
+            <li><a href="#block-lists">Lists</a></li>
+          </ul>
+        </div>
+        <div class="block notice">
+          <h4>Notice Title</h4>
+          <p>Morbi posuere urna vitae nunc. Curabitur ultrices, lorem ac aliquam blandit, lectus eros hendrerit eros, at eleifend libero ipsum hendrerit urna. Suspendisse viverra. Morbi ut magna. Praesent id ipsum. Sed feugiat ipsum ut felis. Fusce vitae nibh sed risus commodo pulvinar. Duis ut dolor. Cras ac erat pulvinar tortor porta sodales. Aenean tempor venenatis dolor.</p>
+        </div>
+        <div class="block">
+          <div class="sidebar-block">
+            <h4>Sidebar Inner block Title</h4>
+            <p>Morbi posuere urna vitae nunc. Curabitur ultrices, lorem ac <a href="#">aliquam blandit</a>, lectus eros hendrerit eros, at eleifend libero ipsum hendrerit urna. Suspendisse viverra. Morbi ut magna. Praesent id ipsum. Sed feugiat ipsum ut felis. Fusce vitae nibh sed risus commodo pulvinar. Duis ut dolor. Cras ac erat pulvinar tortor porta sodales. Aenean tempor venenatis dolor.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="box">
+      <h1>Web App Theme</h1>
+      <div class="block" id="block-login">
+        <h2>Login Box</h2>
+        <div class="content login">
+          <div class="flash">
+            <div class="message notice">
+              <p>Logged in successfully</p>
+            </div>
+          </div>
+          <form action="#" class="form login">
+            <div class="group wat-cf">
+              <div class="left">
+                <label class="label right">Login</label>
+              </div>
+              <div class="right">
+                <input type="text" class="text_field" />
+              </div>
+            </div>
+            <div class="group wat-cf">
+              <div class="left">
+                <label class="label right">Password</label>
+              </div>
+              <div class="right">
+                <input type="password" class="text_field" />
+              </div>
+            </div>
+            <div class="group navform wat-cf">
+              <div class="right">
+                <button class="button" type="submit">
+                  <img src="images/icons/key.png" alt="Save" /> Login
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
 
-<script type="text/javascript">
-streamInfoLoader = null;
+      <div class="block" id="block-signup">
+        <h2>Sign up</h2>
+        <div class="content">
+          <form action="#" class="form">
+            <div class="group wat-cf">
+              <div class="left">
+                <label class="label">Login</label>
+              </div>
+              <div class="right">
+                <input type="text" class="text_field" />
+                <span class="description">Ex: web-app-theme</span>
+              </div>
+            </div>
+            <div class="group wat-cf">
+              <div class="left">
+                <label class="label">Email</label>
+              </div>
+              <div class="right">
+                <input type="text" class="text_field" />
+                <span class="description">Ex: test@example.com</span>
+              </div>
+            </div>
+            <div class="group wat-cf">
+              <div class="left">
+                <label class="label">Password</label>
+              </div>
+              <div class="right">
+                <input type="password" class="text_field" />
+                <span class="description">Must contains the word 'yeah'</span>
+              </div>
+            </div>
 
-
-
-function openFile(url) {
-  var currentPlayedFile = url;
-  
-  if(window.playerWin) {
-    window.playerWin.close();
-  }
-  var flowplayer_html = '<a href="#" id="flowplayer"></a>';
-  var jwplayer_html = '<a href="#" id="jwplayer"></a>';
-  var hls_html = "<div id='hls_video'></div>";
-  
-
-  var playerTabs = new Ext.TabPanel({
-      region: 'center',
-      margins:'3 3 3 0', 
-      activeTab: 0,
-      defaults:{autoScroll:true},
-
-      items:[{
-          title: 'JWPlayer',
-          html: jwplayer_html,
-          listeners: {
-            activate: function(panel) {
-              if(currentPlayedFile)
-                embedJWPlayer(currentRTMPServer, escape(currentPlayedFile));
-            },
-            deactivate: function(panel) {
-              panel.body.innerHTML = jwplayer_html;
-            }
-          }
-      },{
-          title: 'Flowplayer',
-          html: flowplayer_html,
-          listeners: {
-            activate: function(panel) {
-              if(currentPlayedFile)
-                embedFlowplayer(currentRTMPServer, escape(currentPlayedFile));
-            },
-            deactivate: function(panel) {
-              panel.body.innerHTML = flowplayer_html;
-            }
-          }
-      },{
-        title: 'Apple HLS',
-        html: hls_html,
-        listeners: {
-          activate: function(panel) {
-            if (currentPlayedFile) {
-              document.getElementById("hls_video").innerHTML = "<video src='/hls/"+currentPlayedFile+"/index.m3u8' controls autoplay></video>";
-            }
-          },
-          deactivate: function(panel) {
-            Ext.get("hls_video").innerHTML = "";
-          }
-        }
-      }],
-
-  });
-
-  var playerWin = new Ext.Window({
-      title: 'Player',
-      closable:true,
-      width:821,
-      height:673,
-      //border:false,
-      plain:true,
-      layout: 'border',
-
-      items: [playerTabs]
-  });
-
-  playerWin.show();
-  window.playerWin = playerWin;
-  setTimeout(streamInfoLoader, 100);
-}
-
-
-function parseQueryString() {
-  var re1 = /^([^?]+)\?(.+)/
-  var urlHalves;
-  urlHalves = re1.exec(String(document.location));
-  if(!urlHalves) {
-    return {};
-  }
-  urlHalves = urlHalves[2];
-  var params = {};
-  var i;
-  
-  var re = /^([^=]+)=(.*)$/;
-  
-  var urlVars = urlHalves.split('&');
-  for(i=0; i< urlVars.length; i++){
-    var kv = re.exec(urlVars[i]);
-    params[kv[1]] = kv[2];
-  }
-  return params;
-}
-
-Ext.onReady(function(){
-  
-  
-  window.currentRTMPServer = "rtmp://"+window.location.hostname+"/rtmp";
-
-
-
-  Ext.QuickTips.init();
-  
-  
-  var treePanel = new Ext.tree.TreePanel({
-  	id: 'tree-panel',
-  	title: 'Files',
-      region:'north',
-      split: true,
-      minSize: 150,
-      autoScroll: true,
-    
-      // tree-specific configs:
-      rootVisible: false,
-      lines: false,
-      singleExpand: true,
-      useArrows: true,
-    
-      loader: new Ext.tree.TreeLoader({
-          dataUrl:'/erlyvideo/api/filelist',
-          requestMethod:'GET'
-      }),
-      
-      listeners: {
-        'click': function(n) {
-          openFile(n.attributes.text);
-        }
-      },
-    
-      root: new Ext.tree.AsyncTreeNode()
-  });
-  
-  var streamReader = new Ext.data.JsonReader({
-    idProperty: 'name',
-    root: 'streams'
-  }, [
-    {name: 'name'},
-    {name: 'type'},
-    {name: 'client_count', type: 'int'},
-    {name: 'last_dts',     type: 'int'},
-    {name: 'ts_delay',     type: 'int'}
-  ]);
-  var streamProxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
-  
-  var streamStore = new Ext.data.Store({proxy:streamProxy, reader: streamReader});
-  
-  streamInfoLoader = function(autorefresh) {
-    streamStore.load();
-    if(autorefresh) {
-      setTimeout(function() {
-        streamInfoLoader(true);
-      }, 3000);
-    }
-  }
-  streamInfoLoader(true);
-  
-  video_launcher_html = '<div id="video-launcher" style="padding: 6px">\
-    <form action="" onsubmit="openFile(document.getElementById(\'fileUrl\').value); return false;"> \
-      <input type="text" id="fileUrl" style="width: 80%"> \
-      <input type="submit" value="Play"> \
-    </form> \
-  </div>';
-  
-  var playPanel = new Ext.Panel({
-    title: "Play",
-    id: 'play-panel',
-    collapsible: true,
-    html: video_launcher_html
-  });
-  
-  
-  
-  
-  var streamsGrid = new Ext.grid.GridPanel({
-      store: streamStore,
-      columns: [
-          {
-              id       :'name',
-              header   : 'Name', 
-              sortable : true, 
-              dataIndex: 'name'
-          },
-          {
-              header   : 'Type', 
-              width    : 60, 
-              sortable : false, 
-              dataIndex: 'type'
-          },
-          {
-              header   : 'Clients', 
-              width    : 60, 
-              sortable : true,
-              dataIndex: 'client_count'
-          },
-          {
-              header   : 'Last DTS', 
-              width    : 75, 
-              sortable : false,
-              dataIndex: 'last_dts'
-          },
-          {
-              header   : 'DTS delay', 
-              width    : 75, 
-              sortable : false,
-              dataIndex: 'ts_delay'
-          },
-          {
-              xtype: 'actioncolumn',
-              width: 50,
-              items: [{
-                  icon   : '/admin/delete.gif',  // Use a URL in the icon config
-                  tooltip: 'Stop stream',
-                  handler: function(grid, rowIndex, colIndex) {
-                      var rec = store.getAt(rowIndex);
-                      alert("Stream stop not implemented");
-                  }
-              }, {
-                icon   : '/admin/resources/images/default/grid/page-next.gif',  // Use a URL in the icon config
-                tooltip: 'Play this stream',
-                handler: function(grid, rowIndex, colIndex) {
-                  var record = grid.getStore().getAt(rowIndex);
-                  openFile(record.id);
-                }
-            },{
-                  // getClass: function(v, meta, rec) {          // Or return a class from a function
-                  //     if (rec.get('change') < 0) {
-                  //         this.items[1].tooltip = 'Do not buy!';
-                  //         return 'alert-col';
-                  //     } else {
-                  //         this.items[1].tooltip = 'Buy stock';
-                  //         return 'buy-col';
-                  //     }
-                  // },
-                  handler: function(grid, rowIndex, colIndex) {
-                      var rec = store.getAt(rowIndex);
-                      alert("Buy " + rec.get('company'));
-                  }
-              }]
-          }
-      ],
-      listeners: {
-        cellclick: function(grid, rowIndex, colIndex, evt) {
-          if(colIndex == 0) {
-          }
-        }
-      },
-      stripeRows: true,
-      autoExpandColumn: 'name',
-      title: 'Streams',
-      // config options for stateful behavior
-      stateful: true,
-      stateId: 'grid'
-  });
-
-  
-  var viewport = new Ext.Viewport({
-		layout: 'border',
-		title: 'Erlyvideo panel',
-		items: [{
-			xtype: 'box',
-			region: 'north',
-			applyTo: 'header',
-			height: 30
-		},{
-			layout: 'auto',
-	    id: 'layout-browser',
-	    region:'west',
-	    border: false,
-			margins: '2 0 5 5',
-	    width: 300,
-	    minSize: 100,
-	    maxSize: 500,
-			items: [playPanel, treePanel]
-		}, {
-		  id: 'streams-grid',
-		  region: 'center',
-		  layout: 'fit',
-		  items: [streamsGrid],
-		  margins: '2 0 5 5',
-		  activeItem: 0,
-		  border: false
-		}
-	  ],
-    renderTo: Ext.getBody()
-  });
-  
-  
-  Ext.Ajax.request({
-    waitMsg: "Load license info",
-    url: '/erlyvideo/api/licenses',
-    callback: function(options, success, response) {
-      var licenses = eval("("+response.responseText+")").licenses;
-      var items = [];
-      for(var i = 0; i < licenses.length; i++) {
-        var data = [["", "Remove"]];
-        for(var j = 0; j < licenses[i].versions.length; j++) {
-          var title = licenses[i].versions[j];
-          data[data.length] = [licenses[i].versions[j], title];
-        }
-        
-         
-        var cb = new Ext.form.ComboBox({
-          typeAhead: true,
-          triggerAction: 'all',
-          lazyRender:true,
-          mode: 'local',
-          value: licenses[i].current_version,
-          store: new Ext.data.SimpleStore({
-            fields:[
-              'name',
-	            'version'],
-            data: data
-          }),
-          id: licenses[i].name+"-version-select",
-          name: licenses[i].name,
-          title: licenses[i].name,
-          valueField: 'version',
-          displayField: 'version'
-        });
-        items[items.length] = cb;
-      }
-      
-      var licensePanel = new Ext.FormPanel({
-        title : 'Product licenses',
-        items: items,
-        id: 'license-panel',
-        buttons: [{
-          text: "Select versions",
-          handler: function() {
-            licensePanel.getForm().submit({
-              url: '/erlyvideo/api/licenses/write',
-              waitMsg: "Saving license versions",
-              success: function(f,a) { 
-                Ext.Msg.alert("Success", "Restart erlyvideo to see effects");
-              },
-              failure: function(f,a) {
-                Ext.Msg.alert("Failure", "Failed to select software versions. Consult logs for details");
-              }
-            });
-          }
-        }]
-      });
-      
-      viewport.items.get(1).items.insert(1, licensePanel);
-      viewport.items.get(1).doLayout();
-      viewport.items.get(1).syncSize();
-      viewport.doLayout();
-      viewport.syncSize();
-    }
-  });
-  
-  var params = parseQueryString();
-  if(params["file"] && params["file"].length > 0) {
-    document.getElementById("fileUrl").value = params["file"];
-  }
-});
-</script>
-
+            <div class="group">
+              <label class="label">Text field</label>
+              <input type="text" class="text_field" />
+              <span class="description">Ex: a simple text</span>
+            </div>
+            <div class="group">
+              <label class="label">Text field</label>
+              <input type="text" class="text_field" />
+              <span class="description">Ex: a simple text</span>
+            </div>
+            <div class="group navform wat-cf">
+              <button class="button" type="submit">
+                <img src="images/icons/tick.png" alt="Save" /> Signup
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
+
