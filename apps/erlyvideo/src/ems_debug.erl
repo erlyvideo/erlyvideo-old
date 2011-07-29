@@ -33,9 +33,11 @@ top(Sort) ->
 top(Sort, Limit) ->
   lists:sublist(top(Sort), Limit).
 
-kill(Sort, Limit) ->
+limited(Sort, Limit) ->
   [{Pid,Count} || {Pid,Count} <- top(Sort), Count >= Limit].
 
+kill(Sort, Limit) ->
+  [erlang:exit(Pid,kill) || {Pid, _Count} <- limited(Sort, Limit)].
 
 full_info(Sort) -> full_info(Sort, 10).
 full_info(Sort, Limit) ->
