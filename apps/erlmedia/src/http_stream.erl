@@ -24,12 +24,15 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("log.hrl").
 
--export([get/2, get_with_body/2]).
+-export([get/2, get_with_body/2, head/2]).
 
 open_socket(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
   {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
+  Method = case proplists:get_value(method, Options, get) of
+    Meth when is_atom(Meth) -> string:to_upper(erlang:atom_to_list(Meth))
+  end,
   
   RequestPath = case proplists:get_value(send_hostpath, Options, false) of
     true -> URL;
@@ -45,7 +48,7 @@ open_socket(URL, Options) ->
     80 -> "";
     _ -> ":"++integer_to_list(Port)
   end,
-  Request = lists:flatten("GET "++RequestPath++" HTTP/1.1\r\nHost: "++Host++PortSpec++"\r\n" ++
+  Request = lists:flatten(Method ++ " "++RequestPath++" HTTP/1.1\r\nHost: "++Host++PortSpec++"\r\n" ++
   [Key++": "++Value++"\r\n" || {Key,Value} <- Headers] ++ "\r\n"),
   % ?D({http_connect, Request}),
   
@@ -82,7 +85,12 @@ get_with_body(URL, Options) ->
     Else ->
       Else
   end.  
-        
+
+
+head(URL, Options) ->
+  {ok, Headers, Socket} = get(URL, [{method,head}|Options]),
+  gen_tcp:close(Socket),
+  {ok, Headers}.
 
 get(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
