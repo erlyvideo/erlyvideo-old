@@ -118,16 +118,32 @@ Erlyvideo = {
       var i,j;
       for(i = 0; i < licenses["licenses"].length; i++) {
         var vers = [];
+        var name = licenses["licenses"][i].name;
         for(j = 0; j < licenses["licenses"][i].versions.length; j++) {
           var ver = licenses["licenses"][i].versions[j];
           vers[vers.length] = {
             version: ver,
+            name: name,
             checked: licenses["licenses"][i].current_version == ver
           };
         }
         licenses["licenses"][i].versions = vers;
       }
       $("#license-list").html(Mustache.to_html(Erlyvideo.license_template, licenses));
+    });
+  },
+  
+  enable_licenses: function() {
+    $("#license-save-form").submit(function() {
+      $.post(this.action, $(this).serialize(), function(reply) {
+        reply = eval('('+reply+')');
+        if(reply) {
+          alert("Licenses loaded, restart erlyvideo to see effects");
+        } else {
+          alert("Failed to select software versions. Consult logs for details");
+        }
+      });
+      return false;
     });
   },
   
@@ -178,6 +194,7 @@ $.mustache = function(template, view, partials) {
 
 $(function() {
   Erlyvideo.enable_tabs();
+  Erlyvideo.enable_licenses();
   if(window.location.hash != "") {
     Erlyvideo.activate_tab(window.location.hash.substring(1));
   } else {

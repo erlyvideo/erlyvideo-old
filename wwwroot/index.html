@@ -14,21 +14,6 @@
   <div id="container">
     <div id="header">
       <h1><a href="index.html">Erlyvideo admin panel</a></h1>
-      <div id="user-navigation">
-        <ul class="wat-cf">
-          <li><a href="#">Profile</a></li>
-          <li><a href="#">Settings</a></li>
-          <li><a class="logout" href="#">Logout</a></li>
-        </ul>
-      </div>
-      <div id="main-navigation">
-        <ul class="wat-cf">
-          <li class="first"><a href="#block-text">Main Page</a></li>
-          <li class="active"><a href="#block-text">Active</a></li>
-          <li><a href="#block-login">Login</a></li>
-          <li><a href="#block-signup">Signup</a></li>
-        </ul>
-      </div>
     </div>
     <div id="wrapper" class="wat-cf">
       <div id="main">
@@ -38,9 +23,7 @@
             <ul class="wat-cf tabbed-menu">
               <li class="first active"><a href="#streams">Streams</a></li>
               <li><a href="#license">Licensed code</a></li>
-              <li><a href="#block-messages">Messages</a></li>
-              <li><a href="#block-forms-2">2 Columns Forms</a></li>
-              <li><a href="#block-lists">Lists</a></li>
+              <li><a href="#stats">Statistics</a></li>
             </ul>
           </div>
           <div class="content" id="streams-tab">
@@ -81,7 +64,7 @@
           <div class="content" id="license-tab" style="display: none">
             <h2 class="title">Licensed code</h2>
             <div class="inner">
-              <form action="/erlyvideo/api/licenses/write" method="post" class="form">
+              <form action="/erlyvideo/api/licenses/write" method="post" id="license-save-form" class="form">
                 <div class="columns wat-cf" id="license-list">
 	                <div class="group navform wat-cf">
 	                  <button class="button" type="submit">
