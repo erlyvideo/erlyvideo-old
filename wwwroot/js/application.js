@@ -80,7 +80,7 @@ Erlyvideo = {
   },
   
   hls: function(element, stream) {
-    $(element).html("<video width=640 height=480 src=\""+stream+"\" autoplay></video>");
+    $(element).html("<video width=640 height=480 src=\""+stream+"\" autoplay controls></video>");
   },
   
   rtmp_server: "rtmp://"+window.location.hostname+"/rtmp",
