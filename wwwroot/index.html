@@ -6,9 +6,13 @@
   <link rel="stylesheet" href="stylesheets/base.css" type="text/css" media="screen" />
   <link rel="stylesheet" id="current-theme" href="stylesheets/themes/default/style.css" type="text/css" media="screen" />
   <link rel="stylesheet" id="current-theme" href="stylesheets/override.css" type="text/css" media="screen" />
-  <script type="text/javascript" charset="utf-8" src="js/jquery.js"></script>
-  <script type="text/javascript" charset="utf-8" src="js/application.js"></script>
-  <script type="text/javascript" charset="utf-8" src="js/mustache.js"></script>
+	<link type="text/css" href="css/smoothness/jquery-ui-1.8.14.custom.css" rel="stylesheet" />	
+	<script type="text/javascript" src="js/jquery-1.5.1.min.js"></script>
+	<script type="text/javascript" src="js/jquery-ui-1.8.14.custom.min.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/js/application.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/js/mustache.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/flowplayer/flowplayer.captions.js"></script>
 </head>
 <body>
   <div id="container">
@@ -24,40 +28,12 @@
               <li class="first active"><a href="#streams">Streams</a></li>
               <li><a href="#license">Licensed code</a></li>
               <li><a href="#stats">Statistics</a></li>
+              <li><a href="#play">Play</a></li>
             </ul>
           </div>
           <div class="content" id="streams-tab">
             <h2 class="title">Streams</h2>
             <div class="inner" id="stream-list">
-            <table class="table">
-						<thead>
-		                 <tr>
-		                   <th class="first">Name</th>
-		                   <th>Clients</th>
-		                   <th>Type</th>
-		                   <th>DTS delay</th>
-		                   <th class="last">&nbsp;</th>
-		                 </tr>
-						</thead>
-						<tbody id="stream-list-content">
-	            <tr class="odd">
-	              <td><input type="checkbox" class="checkbox" name="id" value="1" /></td><td>1</td><td>hulk</td><td>Hulk</td><td>Hogan</td><td class="last"><a href="#">show</a> | <a href="#">edit</a> | <a href="#">destroy</a></td>
-	            </tr>
-	            <tr class="even">
-	              <td><input type="checkbox" class="checkbox" name="id" value="1" /></td><td>2</td><td>ultimate</td><td>Ultimate</td><td>Warrior</td><td class="last"><a href="#">show</a> | <a href="#">edit</a> | <a href="#">destroy</a></td>
-	            </tr>
-						</tbody>
-	         	</table>
-	            <div class="actions-bar wat-cf">
-	              <div class="actions">
-	                <button class="button" type="submit">
-	                  <img src="images/icons/cross.png" alt="Delete" /> Delete
-	                </button>
-	              </div>
-	              <div class="pagination">
-	                <span class="disabled prev_page">« Previous</span><span class="current">1</span><a rel="next" href="#">2</a><a href="#">3</a><a href="#">4</a><a href="#">5</a><a href="#">6</a><a href="#">7</a><a href="#">8</a><a href="#">9</a><a href="#">10</a><a href="#">11</a><a rel="next" class="next_page" href="#">Next »</a>
-	              </div>
-	            </div>
             </div>
           </div>
 
@@ -77,6 +53,25 @@
               </form>
             </div>
           </div>
+
+          <div class="content" id="play-tab" style="display: none">
+            <h2 class="title">Play any stream</h2>
+            <div class="inner">
+              <form action="#" method="get" class="form">
+                <div class="group">
+                  <label class="label">Enter stream name</label>
+                  <input type="text" class="text_field" id="requested-stream-name" />
+                  <span class="description">Ex: video.mp4</span>
+                </div>
+                <div class="group navform wat-cf">
+                  <button class="button" type="submit">
+                    <img src="images/icons/tick.png" alt="Play" /> Play
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
 
         </div>
 
@@ -98,31 +93,6 @@
         </div>
   
         <div class="block">
-          <h3>Simple Block</h3>
-          <div class="content">
-            <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-          </div>
-        </div>
-        <div class="block">
-          <h3>Switch Theme</h3>
-          <ul class="navigation">
-            <li><a href="#" onclick="Theme.activate('default'); return false;">Default</a></li>
-            <li><a href="#" onclick="Theme.activate('activo'); return false;">Activo 2</a></li>
-            <li><a href="#" onclick="Theme.activate('red'); return false;">Red</a></li>
-            <li><a href="#" onclick="Theme.activate('amro'); return false;">Amro</a></li>
-            <li><a href="#" onclick="Theme.activate('bec'); return false;">Bec</a></li>
-            <li><a href="#" onclick="Theme.activate('bec-green'); return false;">Bec-Green</a></li>
-            <li><a href="#" onclick="Theme.activate('blue'); return false;">Blue</a></li>
-            <li><a href="#" onclick="Theme.activate('djime-cerulean'); return false;">Djime-Cerulean</a></li>
-            <li><a href="#" onclick="Theme.activate('drastic-dark'); return false;">Drastic Dark</a></li>
-            <li><a href="#" onclick="Theme.activate('kathleene'); return false;">Kathleene</a></li>
-            <li><a href="#" onclick="Theme.activate('olive'); return false;">Olive</a></li>
-            <li><a href="#" onclick="Theme.activate('orange'); return false;">Orange</a></li>
-            <li><a href="#" onclick="Theme.activate('reidb-greenish'); return false;">Greenish</a></li>
-            <li><a href="#" onclick="Theme.activate('warehouse'); return false;">Warehouse</a></li>
-          </ul>
-        </div>
-        <div class="block">
           <h3>Sidebar</h3>
           <ul class="navigation">
             <li><a href="#block-text">Text</a></li>
@@ -133,14 +103,15 @@
             <li><a href="#block-lists">Lists</a></li>
           </ul>
         </div>
-        <div class="block">
-          <div class="sidebar-block">
-            <h4>Sidebar Inner block Title</h4>
-            <p>Morbi posuere urna vitae nunc. Curabitur ultrices, lorem ac <a href="#">aliquam blandit</a>, lectus eros hendrerit eros, at eleifend libero ipsum hendrerit urna. Suspendisse viverra. Morbi ut magna. Praesent id ipsum. Sed feugiat ipsum ut felis. Fusce vitae nibh sed risus commodo pulvinar. Duis ut dolor. Cras ac erat pulvinar tortor porta sodales. Aenean tempor venenatis dolor.</p>
-          </div>
-        </div>
       </div>
     </div>
+		<div id="box">
+      <div class="block" id="block-login">
+        <div class="content login">
+					<div id="player-embed"></div>
+        </div>
+      </div>
+		</div>
   </div>
 </body>
 </html>

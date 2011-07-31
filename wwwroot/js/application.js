@@ -3,8 +3,8 @@
 Erlyvideo = {
   flowplayer: function(element, path) {
     var server = Erlyvideo.rtmp_server;
-    $(element).attr('href', path);
-    flowplayer($(element).get(0), "/flowplayer/flowplayer-3.2.5.swf?"+(Math.random(10000)), {
+    $(element).html('<a id="flowplayer-a-embed" href="'+path+'">video</a>');
+    flowplayer(document.getElementById("flowplayer-a-embed"), "/flowplayer/flowplayer-3.2.5.swf?"+(Math.random(10000)), {
       log: {
         // level: 'debug'
         // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*,org.flowplayer.core.*,org.flowplayer.model.*'
@@ -52,10 +52,9 @@ Erlyvideo = {
         // }
       }
   	});
-    
   },
   
-  jwplayer: function(element, player) {
+  jwplayer: function(element, path) {
     var server = Erlyvideo.rtmp_server;
     var flashvars = "provider=rtmp&bufferlength=1&autostart=true&streamer="+server+"&file="+path;
     var html = '\
@@ -80,14 +79,17 @@ Erlyvideo = {
     $(element).html(html);
   },
   
+  hls: function(element, stream) {
+    $(element).html("<video width=640 height=480 src=\""+stream+"\" autoplay></video>");
+  },
+  
   rtmp_server: "rtmp://"+window.location.hostname+"/rtmp",
   
   load_stream_info: function() {
-    $.get("/erlyvideo/api/streams", {}, function(reply) {
-      var streams = eval('('+reply+')');
+    $.get("/erlyvideo/api/streams", {}, function(streams) {
       Erlyvideo.draw_stream_info(streams);
     });
-    Erlyvideo.stream_load_timer = setTimeout(Erlyvideo.load_stream_info, 3000);
+    // Erlyvideo.stream_load_timer = setTimeout(Erlyvideo.load_stream_info, 3000);
   },
   
   stream_template: "<p>\
@@ -95,13 +97,18 @@ Erlyvideo = {
   Total file clients: {{total_file}}<br/> \
   </p>\
   <table class='table'> \
-    <thead><tr><th class='first'>Name</th><th width='70'>Clients</th><th width='150'>Type</th> \
+    <thead><tr><th class='first'>Name</th><th>Play</th><th width='70'>Clients</th><th width='150'>Type</th> \
     <th width='70'>Lifetime</th><th width='70'>DTS Delay</th></tr></thead> \
     <tbody> \
     {{#streams}}<tr>\
       <td class='first'>\
-      <a href='#' onclick='Erlyvideo.open_stream_tab(\"{{name}}\"); return false;'>{{name}}</a>&nbsp;&nbsp;&nbsp; \
+      <a href='#' onclick='Erlyvideo.open_stream_tab(\"{{name}}\"); return false;'>{{name}}</a> \
       </td> \
+      <td class='stream-play'>\
+      <a href='#' onclick='Erlyvideo.play_stream(\"{{name}}\",\"jwplayer\"); return false;'><span class='jwplayer'></span>{{name}}</a> \
+      <a href='#' onclick='Erlyvideo.play_stream(\"{{name}}\",\"flowplayer\"); return false;'><span class='flowplayer'></span>{{name}}</a> \
+      <a href='#' onclick='Erlyvideo.play_stream(\"{{name}}\",\"hls\"); return false;'><span class='hls'></span>{{name}}</a> \
+      </td>\
       <td>{{client_count}}</td> \
       <td>{{type}}</td> \
       <td>{{lifetime}}</td> \
@@ -191,10 +198,21 @@ Erlyvideo = {
   open_stream_tab: function(stream) {
   },
   
+  play_stream: function(stream, player) {
+    if(player == "flowplayer") {
+      Erlyvideo.flowplayer("#player-embed", stream);
+    } else if(player == "jwplayer") {
+      Erlyvideo.jwplayer("#player-embed", stream);
+    } else if(player == "hls") {
+      Erlyvideo.hls("#player-embed", "/hls/"+stream+"/index.m3u8");
+    }
+    $("#block-login").dialog('open');
+  },
+  
   activate_tab: function(tabname) {
     Erlyvideo.stop_periodic_stream_loader();
     $(".tabbed-menu li").removeClass("active");
-    $(".content").hide();
+    $("#main .content").hide();
     $("#"+tabname+"-tab").show();
     $(".tabbed-menu a[href=#"+tabname+"]").parent().addClass("active");
     
@@ -223,6 +241,8 @@ $(function() {
   } else {
     Erlyvideo.activate_tab("streams");
   }
+  $("#block-login").dialog({autoOpen:false, title : "Play Stream", width: 840, height: 700});
+  
 })
 
 })(jQuery);

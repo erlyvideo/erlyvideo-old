@@ -635,7 +635,7 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
 handle_call({info, Properties}, _From, #ems_media{hls_state = HLS} = Media) ->
-  ?D({call, Properties}),
+  % ?D({call, Properties}),
   Media1 = case HLS of
     undefined ->
       HLSRequested = lists:member(hls_playlist, Properties) or (length([1 || {hls_segment, _} <- Properties]) > 0),

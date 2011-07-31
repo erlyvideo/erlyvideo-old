@@ -31,3 +31,35 @@
 #license-tab .navform {
   clear: both;
 }
+
+.stream-play a {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  position: relative;
+}
+
+.stream-play a span {
+  display: block;
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  top: 0;
+  left: 0;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-color: white;
+  padding-left: 20px;
+  overflow: hidden;
+}
+
+#player-embed a {
+  style: display: block;
+  width: 800px;
+  height: 650px;
+}
+
+.stream-play a .jwplayer {background-image: url("/images/jwplayer.png");}
+.stream-play a .flowplayer {background-image: url("/images/flowplayer.png");}
+.stream-play a .hls {background-image: url("/images/hls.png");}
+
