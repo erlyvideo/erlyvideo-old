@@ -198,6 +198,13 @@ Erlyvideo = {
   open_stream_tab: function(stream) {
   },
   
+  enable_play_tab: function() {
+    $("#play-tab form").submit(function() {
+      Erlyvideo.play_stream($("#requested-stream-name").val(), "jwplayer");
+      return false;
+    });
+  },
+  
   play_stream: function(stream, player) {
     if(player == "flowplayer") {
       Erlyvideo.flowplayer("#player-embed", stream);
@@ -241,6 +248,7 @@ $(function() {
   } else {
     Erlyvideo.activate_tab("streams");
   }
+  Erlyvideo.enable_play_tab();
   $("#block-login").dialog({autoOpen:false, title : "Play Stream", width: 840, height: 700});
   
 })
