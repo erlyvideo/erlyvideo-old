@@ -1,463 +1,106 @@
-<html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Erlyvideo Admin</title>
-
-    <link rel="stylesheet" type="text/css" href="/admin/resources/css/ext-all.css" />
-    <link rel="stylesheet" type="text/css" href="/admin/layout-browser.css" />
-	    
-    <script type="text/javascript" src="/admin/adapter/ext/ext-base.js"></script>
- 	  <script type="text/javascript" src="/admin/ext-all.js"></script>
-    <script type="text/javascript" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Erlyvideo admin</title>
+  <link rel="stylesheet" href="stylesheets/base.css" type="text/css" media="screen" />
+  <link rel="stylesheet" id="current-theme" href="stylesheets/themes/default/style.css" type="text/css" media="screen" />
+  <link rel="stylesheet" id="current-theme" href="stylesheets/override.css" type="text/css" media="screen" />
+	<link type="text/css" href="css/smoothness/jquery-ui-1.8.14.custom.css" rel="stylesheet" />	
+	<script type="text/javascript" src="js/jquery-1.5.1.min.js"></script>
+	<script type="text/javascript" src="js/jquery-ui-1.8.14.custom.min.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/js/application.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/js/mustache.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/flowplayer/flowplayer.captions.js"></script>
 </head>
 <body>
-<div id="header"><h1>Erlyvideo Admin Panel</h1></div>
+  <div id="container">
+    <div id="header">
+      <h1><a href="index.html">Erlyvideo admin panel</a></h1>
+    </div>
+    <div id="wrapper" class="wat-cf">
+      <div id="main">
+
+        <div class="block">
+          <div class="secondary-navigation">
+            <ul class="wat-cf tabbed-menu">
+              <li class="first active"><a href="#streams">Streams</a></li>
+              <li><a href="#license">Licensed code</a></li>
+              <li><a href="#stats">Statistics</a></li>
+              <li><a href="#play">Play</a></li>
+            </ul>
+          </div>
+          <div class="content" id="streams-tab">
+            <h2 class="title">Streams</h2>
+            <div class="inner" id="stream-list">
+            </div>
+          </div>
+
+          <div class="content" id="license-tab" style="display: none">
+            <h2 class="title">Licensed code</h2>
+            <div class="inner">
+              <form action="/erlyvideo/api/licenses/write" method="post" id="license-save-form" class="form">
+                <div class="columns wat-cf" id="license-list">
+	                <div class="group navform wat-cf">
+	                  <button class="button" type="submit">
+	                    <img src="images/icons/tick.png" alt="Save" /> Save
+	                  </button>
+	                  <span class="text_button_padding">or</span>
+	                  <a class="text_button_padding link_button" href="#header">Cancel</a>
+	                </div>
+								</div>
+              </form>
+            </div>
+          </div>
+
+          <div class="content" id="play-tab" style="display: none">
+            <h2 class="title">Play any stream</h2>
+            <div class="inner">
+              <form action="#" method="get" class="form">
+                <div class="group">
+                  <label class="label">Enter stream name</label>
+                  <input type="text" class="text_field" id="requested-stream-name" />
+                  <span class="description">Ex: video.mp4</span>
+                </div>
+                <div class="group navform wat-cf">
+                  <button class="button" type="submit">
+                    <img src="images/icons/tick.png" alt="Play" /> Play
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
 
 
-<script type="text/javascript">
-function embedFlowplayer(server, path) {
-  document.getElementById("flowplayer").href = path;
-  flowplayer("flowplayer", "/flowplayer/flowplayer-3.2.5.swf?"+(Math.random(10000)), {
-    log: {
-      // level: 'debug'
-      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*,org.flowplayer.core.*,org.flowplayer.model.*'
-      // ,filter: 'org.flowplayer.rtmp.*,org.flowplayer.captions.*'
-    },
-    // streamCallbacks: ["onCuepoint"],
-		plugins: { 
-			rtmp: { 
-				url: '/flowplayer/flowplayer.rtmp-3.1.3.swf', 
-				netConnectionUrl: server
-			},
-      captions: {
-      	url: '/flowplayer/flowplayer.captions-3.2.2.swf?'+(Math.random(10000)),
-      	captionTarget: 'content'
-      },
-      // configure a content plugin to look good for our purpose
-      content: {
-    	  url:'/flowplayer/flowplayer.content-3.2.0.swf',
-    		top: 10,
-    		width: '80%',
-    		height:40,
-    		backgroundColor: 'black',
-    		backgroundGradient: 'none',
-    		border: 0,
-        textDecoration: 'outline',
-    		style: {
-    		  'body': {
-    			  fontSize: '14',
-      			fontFamily: 'Arial',
-      			textAlign: 'center',
-      			color: '#000000'
-    		  }
-    		}
-      }
-    },
-    clip: {
-      provider: 'rtmp',
-      bufferLength: 1,
-      cuepointMultiplier: 1,
-      autoPlay: true,
-      live: true
-      //, onCuepoint: function(clip, event) {
-      //   alert("hi");
-      //   // console.dir(event);
-      // }
-    }
-	});
-  
-}
+        </div>
 
-function embedJWPlayer(server, path) {
-  var flashvars = "provider=rtmp&bufferlength=1&autostart=true&streamer="+server+"&file="+path;
-  document.getElementById('jwplayer').innerHTML = '\
-  <object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="800" height="600"> \
-		<param name="movie" value="/jwplayer/player.swf" /> \
-		<param name="allowfullscreen" value="true" /> \
-		<param name="allowscriptaccess" value="always" /> \
-		<param name="flashvars" value="'+flashvars+'" /> \
-		<embed \
-			type="application/x-shockwave-flash" \
-			id="player2" \
-			name="player2" \
-			src="/jwplayer/player.swf"  \
-			width="800" \
-			height="600" \
-			allowscriptaccess="always" \
-			allowfullscreen="true" \
-			flashvars="'+flashvars+'" \
-		/> \
-	</object> ';
-  
-}
-</script>
-
-
-<script type="text/javascript">
-streamInfoLoader = null;
-
-
-
-function openFile(url) {
-  var currentPlayedFile = url;
-  
-  if(window.playerWin) {
-    window.playerWin.close();
-  }
-  var flowplayer_html = '<a href="#" id="flowplayer"></a>';
-  var jwplayer_html = '<a href="#" id="jwplayer"></a>';
-  var hls_html = "<div id='hls_video'></div>";
-  
-
-  var playerTabs = new Ext.TabPanel({
-      region: 'center',
-      margins:'3 3 3 0', 
-      activeTab: 0,
-      defaults:{autoScroll:true},
-
-      items:[{
-          title: 'JWPlayer',
-          html: jwplayer_html,
-          listeners: {
-            activate: function(panel) {
-              if(currentPlayedFile)
-                embedJWPlayer(currentRTMPServer, escape(currentPlayedFile));
-            },
-            deactivate: function(panel) {
-              panel.body.innerHTML = jwplayer_html;
-            }
-          }
-      },{
-          title: 'Flowplayer',
-          html: flowplayer_html,
-          listeners: {
-            activate: function(panel) {
-              if(currentPlayedFile)
-                embedFlowplayer(currentRTMPServer, escape(currentPlayedFile));
-            },
-            deactivate: function(panel) {
-              panel.body.innerHTML = flowplayer_html;
-            }
-          }
-      },{
-        title: 'Apple HLS',
-        html: hls_html,
-        listeners: {
-          activate: function(panel) {
-            if (currentPlayedFile) {
-              document.getElementById("hls_video").innerHTML = "<video src='/hls/"+currentPlayedFile+"/index.m3u8' controls autoplay></video>";
-            }
-          },
-          deactivate: function(panel) {
-            Ext.get("hls_video").innerHTML = "";
-          }
-        }
-      }],
-
-  });
-
-  var playerWin = new Ext.Window({
-      title: 'Player',
-      closable:true,
-      width:821,
-      height:673,
-      //border:false,
-      plain:true,
-      layout: 'border',
-
-      items: [playerTabs]
-  });
-
-  playerWin.show();
-  window.playerWin = playerWin;
-  setTimeout(streamInfoLoader, 100);
-}
-
-
-function parseQueryString() {
-  var re1 = /^([^?]+)\?(.+)/
-  var urlHalves;
-  urlHalves = re1.exec(String(document.location));
-  if(!urlHalves) {
-    return {};
-  }
-  urlHalves = urlHalves[2];
-  var params = {};
-  var i;
-  
-  var re = /^([^=]+)=(.*)$/;
-  
-  var urlVars = urlHalves.split('&');
-  for(i=0; i< urlVars.length; i++){
-    var kv = re.exec(urlVars[i]);
-    params[kv[1]] = kv[2];
-  }
-  return params;
-}
-
-Ext.onReady(function(){
-  
-  
-  window.currentRTMPServer = "rtmp://"+window.location.hostname+"/rtmp";
-
-
-
-  Ext.QuickTips.init();
-  
-  
-  var treePanel = new Ext.tree.TreePanel({
-  	id: 'tree-panel',
-  	title: 'Files',
-      region:'north',
-      split: true,
-      minSize: 150,
-      autoScroll: true,
-    
-      // tree-specific configs:
-      rootVisible: false,
-      lines: false,
-      singleExpand: true,
-      useArrows: true,
-    
-      loader: new Ext.tree.TreeLoader({
-          dataUrl:'/erlyvideo/api/filelist',
-          requestMethod:'GET'
-      }),
-      
-      listeners: {
-        'click': function(n) {
-          openFile(n.attributes.text);
-        }
-      },
-    
-      root: new Ext.tree.AsyncTreeNode()
-  });
-  
-  var streamReader = new Ext.data.JsonReader({
-    idProperty: 'name',
-    root: 'streams'
-  }, [
-    {name: 'name'},
-    {name: 'type'},
-    {name: 'client_count', type: 'int'},
-    {name: 'last_dts',     type: 'int'},
-    {name: 'ts_delay',     type: 'int'}
-  ]);
-  var streamProxy = new Ext.data.HttpProxy({url:'/erlyvideo/api/streams'});
-  
-  var streamStore = new Ext.data.Store({proxy:streamProxy, reader: streamReader});
-  
-  streamInfoLoader = function(autorefresh) {
-    streamStore.load();
-    if(autorefresh) {
-      setTimeout(function() {
-        streamInfoLoader(true);
-      }, 3000);
-    }
-  }
-  streamInfoLoader(true);
-  
-  video_launcher_html = '<div id="video-launcher" style="padding: 6px">\
-    <form action="" onsubmit="openFile(document.getElementById(\'fileUrl\').value); return false;"> \
-      <input type="text" id="fileUrl" style="width: 80%"> \
-      <input type="submit" value="Play"> \
-    </form> \
-  </div>';
-  
-  var playPanel = new Ext.Panel({
-    title: "Play",
-    id: 'play-panel',
-    collapsible: true,
-    html: video_launcher_html
-  });
-  
-  
-  
-  
-  var streamsGrid = new Ext.grid.GridPanel({
-      store: streamStore,
-      columns: [
-          {
-              id       :'name',
-              header   : 'Name', 
-              sortable : true, 
-              dataIndex: 'name'
-          },
-          {
-              header   : 'Type', 
-              width    : 60, 
-              sortable : false, 
-              dataIndex: 'type'
-          },
-          {
-              header   : 'Clients', 
-              width    : 60, 
-              sortable : true,
-              dataIndex: 'client_count'
-          },
-          {
-              header   : 'Last DTS', 
-              width    : 75, 
-              sortable : false,
-              dataIndex: 'last_dts'
-          },
-          {
-              header   : 'DTS delay', 
-              width    : 75, 
-              sortable : false,
-              dataIndex: 'ts_delay'
-          },
-          {
-              xtype: 'actioncolumn',
-              width: 50,
-              items: [{
-                  icon   : '/admin/delete.gif',  // Use a URL in the icon config
-                  tooltip: 'Stop stream',
-                  handler: function(grid, rowIndex, colIndex) {
-                      var rec = store.getAt(rowIndex);
-                      alert("Stream stop not implemented");
-                  }
-              }, {
-                icon   : '/admin/resources/images/default/grid/page-next.gif',  // Use a URL in the icon config
-                tooltip: 'Play this stream',
-                handler: function(grid, rowIndex, colIndex) {
-                  var record = grid.getStore().getAt(rowIndex);
-                  openFile(record.id);
-                }
-            },{
-                  // getClass: function(v, meta, rec) {          // Or return a class from a function
-                  //     if (rec.get('change') < 0) {
-                  //         this.items[1].tooltip = 'Do not buy!';
-                  //         return 'alert-col';
-                  //     } else {
-                  //         this.items[1].tooltip = 'Buy stock';
-                  //         return 'buy-col';
-                  //     }
-                  // },
-                  handler: function(grid, rowIndex, colIndex) {
-                      var rec = store.getAt(rowIndex);
-                      alert("Buy " + rec.get('company'));
-                  }
-              }]
-          }
-      ],
-      listeners: {
-        cellclick: function(grid, rowIndex, colIndex, evt) {
-          if(colIndex == 0) {
-          }
-        }
-      },
-      stripeRows: true,
-      autoExpandColumn: 'name',
-      title: 'Streams',
-      // config options for stateful behavior
-      stateful: true,
-      stateId: 'grid'
-  });
-
-  
-  var viewport = new Ext.Viewport({
-		layout: 'border',
-		title: 'Erlyvideo panel',
-		items: [{
-			xtype: 'box',
-			region: 'north',
-			applyTo: 'header',
-			height: 30
-		},{
-			layout: 'auto',
-	    id: 'layout-browser',
-	    region:'west',
-	    border: false,
-			margins: '2 0 5 5',
-	    width: 300,
-	    minSize: 100,
-	    maxSize: 500,
-			items: [playPanel, treePanel]
-		}, {
-		  id: 'streams-grid',
-		  region: 'center',
-		  layout: 'fit',
-		  items: [streamsGrid],
-		  margins: '2 0 5 5',
-		  activeItem: 0,
-		  border: false
-		}
-	  ],
-    renderTo: Ext.getBody()
-  });
-  
-  
-  Ext.Ajax.request({
-    waitMsg: "Load license info",
-    url: '/erlyvideo/api/licenses',
-    callback: function(options, success, response) {
-      var licenses = eval("("+response.responseText+")").licenses;
-      var items = [];
-      for(var i = 0; i < licenses.length; i++) {
-        var data = [["", "Remove"]];
-        for(var j = 0; j < licenses[i].versions.length; j++) {
-          var title = licenses[i].versions[j];
-          data[data.length] = [licenses[i].versions[j], title];
-        }
-        
-         
-        var cb = new Ext.form.ComboBox({
-          typeAhead: true,
-          triggerAction: 'all',
-          lazyRender:true,
-          mode: 'local',
-          value: licenses[i].current_version,
-          store: new Ext.data.SimpleStore({
-            fields:[
-              'name',
-	            'version'],
-            data: data
-          }),
-          id: licenses[i].name+"-version-select",
-          name: licenses[i].name,
-          title: licenses[i].name,
-          valueField: 'version',
-          displayField: 'version'
-        });
-        items[items.length] = cb;
-      }
-      
-      var licensePanel = new Ext.FormPanel({
-        title : 'Product licenses',
-        items: items,
-        id: 'license-panel',
-        buttons: [{
-          text: "Select versions",
-          handler: function() {
-            licensePanel.getForm().submit({
-              url: '/erlyvideo/api/licenses/write',
-              waitMsg: "Saving license versions",
-              success: function(f,a) { 
-                Ext.Msg.alert("Success", "Restart erlyvideo to see effects");
-              },
-              failure: function(f,a) {
-                Ext.Msg.alert("Failure", "Failed to select software versions. Consult logs for details");
-              }
-            });
-          }
-        }]
-      });
-      
-      viewport.items.get(1).items.insert(1, licensePanel);
-      viewport.items.get(1).doLayout();
-      viewport.items.get(1).syncSize();
-      viewport.doLayout();
-      viewport.syncSize();
-    }
-  });
-  
-  var params = parseQueryString();
-  if(params["file"] && params["file"].length > 0) {
-    document.getElementById("fileUrl").value = params["file"];
-  }
-});
-</script>
-
+        <div id="footer">
+          <div class="block">
+            <p>Copyright &copy; 2009-2011 Max Lapshin, Erlyvideo.</p>
+          </div>
+        </div>
+      </div>
+      <div id="sidebar">
+	      <div class="block notice">
+          <h4>Erlyvideo console</h4>
+          <p>
+          	This is console of your erlyvideo streaming server. You can watch enabled streams, take a look at details of stream and watch live statistics of your server.
+          </p>
+					<p>
+						 Note, that some functions are available only in commercial version of server.
+					</p>
+        </div>
+      </div>
+    </div>
+		<div id="box">
+      <div class="block" id="block-login">
+        <div class="content login">
+					<div id="player-embed"></div>
+        </div>
+      </div>
+		</div>
+  </div>
 </body>
 </html>
+

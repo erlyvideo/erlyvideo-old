@@ -1,0 +1,65 @@
+/* Override here any style defined by web-app-theme */
+
+#header {
+  padding-left: 90px;
+  background-image: url("/erly-small.png");
+  background-position: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.table td {
+  border-left: 1px solid #EAEAEA;
+}
+
+.table th {
+  border-left: 1px solid white;
+}
+
+.table td.first, .table th.first {
+  border-left: none;
+}
+
+.table th.first {
+  width: auto;
+}
+
+#license-tab .column {
+  width: 300px;
+  float: left;
+}
+
+#license-tab .navform {
+  clear: both;
+}
+
+.stream-play a {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  position: relative;
+}
+
+.stream-play a span {
+  display: block;
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  top: 0;
+  left: 0;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-color: white;
+  padding-left: 20px;
+  overflow: hidden;
+}
+
+#player-embed a {
+  style: display: block;
+  width: 800px;
+  height: 650px;
+}
+
+.stream-play a .jwplayer {background-image: url("/images/jwplayer.png");}
+.stream-play a .flowplayer {background-image: url("/images/flowplayer.png");}
+.stream-play a .hls {background-image: url("/images/hls.png");}
+
