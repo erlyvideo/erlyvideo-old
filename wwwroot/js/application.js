@@ -271,11 +271,37 @@ $.mustache = function(template, view, partials) {
 };
 
 
+function parseQueryString() {
+  var re1 = /^([^?]+)\?(.+)/
+  var urlHalves;
+  urlHalves = re1.exec(String(document.location));
+  if(!urlHalves) {
+    return {};
+  }
+  urlHalves = urlHalves[2];
+  var params = {};
+  var i;
+  
+  var re = /^([^=]+)=(.*)$/;
+  
+  var urlVars = urlHalves.split('&');
+  for(i=0; i< urlVars.length; i++){
+    var kv = re.exec(urlVars[i]);
+    params[kv[1]] = kv[2];
+  }
+  return params;
+}
+
+
 $(function() {
+  var params = parseQueryString();
   Erlyvideo.enable_tabs();
   Erlyvideo.enable_licenses();
   if(window.location.hash != "") {
     Erlyvideo.activate_tab(window.location.hash.substring(1));
+  } else if(params["file"] && params["file"].length > 0) {
+    Erlyvideo.activate_tab("play");
+    $("#requested-stream-name").val(params["file"]);
   } else {
     Erlyvideo.activate_tab("streams");
   }
