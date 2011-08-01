@@ -63,3 +63,6 @@
 .stream-play a .flowplayer {background-image: url("/images/flowplayer.png");}
 .stream-play a .hls {background-image: url("/images/hls.png");}
 
+#traffic-stats table {
+  display: none;
+}

@@ -89,7 +89,7 @@ Erlyvideo = {
     $.get("/erlyvideo/api/streams", {}, function(streams) {
       Erlyvideo.draw_stream_info(streams);
     });
-    // Erlyvideo.stream_load_timer = setTimeout(Erlyvideo.load_stream_info, 3000);
+    Erlyvideo.stream_load_timer = setTimeout(Erlyvideo.load_stream_info, 3000);
   },
   
   stream_template: "<p>\
@@ -218,6 +218,7 @@ Erlyvideo = {
   
   activate_tab: function(tabname) {
     Erlyvideo.stop_periodic_stream_loader();
+    Erlyvideo.stop_periodic_traffic_loader();
     $(".tabbed-menu li").removeClass("active");
     $("#main .content").hide();
     $("#"+tabname+"-tab").show();
@@ -225,6 +226,7 @@ Erlyvideo = {
     
     if(tabname == "streams") Erlyvideo.load_stream_info();
     if(tabname == "license") Erlyvideo.load_license_info();
+    if(tabname == "stats") Erlyvideo.load_traffic_stat();
     return false;
   },
   
@@ -232,6 +234,33 @@ Erlyvideo = {
     $(".tabbed-menu a, a.link-button").live('click', function() {
       Erlyvideo.activate_tab($(this).attr('href').substring(1));
     });
+  },
+  
+  traffic_template: "<table><caption>Traffic statistics for {{iface}}</caption> \
+  <thead><tr><td></td>\
+  {{#traffic}}<th>{{time}}</th>{{/traffic}}\
+  </tr></thead>\
+  <tbody>\
+  <tr><td>Input</td>\
+  {{#traffic}}<td>{{input}}</td>{{/traffic}} \
+  </tr>\
+  <tr><td>Output</td>\
+  {{#traffic}}<td>{{output}}</td>{{/traffic}} \
+  </tr>\
+  </tbody>\
+  </table>",
+  
+  load_traffic_stat: function() {
+    $.get("/erlyvideo/api/traffic", {}, function(traffic) {
+      $("#traffic-stats").html(Mustache.to_html(Erlyvideo.traffic_template, traffic));
+      $('#traffic-stats table').visualize({type: 'line', width: '800px'});
+    });
+    Erlyvideo.traffic_load_timer = setTimeout(Erlyvideo.load_traffic_stat, 3000);
+  },
+  
+  stop_periodic_traffic_loader: function() {
+    if(Erlyvideo.traffic_load_timer) clearTimeout(Erlyvideo.traffic_load_timer);
+    Erlyvideo.traffic_load_timer = undefined;
   }
 };
 
@@ -249,6 +278,8 @@ $(function() {
     Erlyvideo.activate_tab("streams");
   }
   Erlyvideo.enable_play_tab();
+  // $('#traffic-stats').visualize({type: 'line', width: '800px'});
+	
   $("#block-login").dialog({autoOpen:false, title : "Play Stream", width: 840, height: 700});
   
 })
