@@ -1,12 +1,10 @@
-/* page styles */
-body { font-size:62.5%; }
 
 /*demo styles*/
-table {width: 500px; height: 200px; margin-left: 30px; }
-table.accessHide { position: absolute; left: -999999px; }
-td, th {  font-size: 1.2em; padding: 2px; width: 13%; }
-th { background-color:#f4f4f4; } 
-caption { font-size: 1.5em;  }
+.visualised table {width: 500px; height: 200px; margin-left: 30px; }
+.visualised table.accessHide { position: absolute; left: -999999px; }
+.visualised td, .visualise  th {  font-size: 1.2em; padding: 2px; width: 13%; }
+.visualised th { background-color:#f4f4f4; } 
+.visualised caption { font-size: 1.5em;  }
 
 /*visualize extension styles*/
 .visualize { margin: 60px 0 0 30px; padding: 70px 40px 90px; background: #222 url(../images/chartbg.png) top repeat-x; border: 1px solid #000; -moz-border-radius: 12px; -webkit-border-radius: 12px; border-radius: 12px; }
