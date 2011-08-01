@@ -89,7 +89,7 @@ Erlyvideo = {
     $.get("/erlyvideo/api/streams", {}, function(streams) {
       Erlyvideo.draw_stream_info(streams);
     });
-    // Erlyvideo.stream_load_timer = setTimeout(Erlyvideo.load_stream_info, 3000);
+    Erlyvideo.stream_load_timer = setTimeout(Erlyvideo.load_stream_info, 3000);
   },
   
   stream_template: "<p>\
@@ -140,24 +140,24 @@ Erlyvideo = {
   },
   
   load_license_info: function() {
-    $.get("/erlyvideo/api/licenses", {}, function(reply) {
-      var licenses = eval('('+reply+')');
+    $.get("/erlyvideo/api/licenses", {}, function(licenses) {
+      licenses = licenses["licenses"];
       var i,j;
-      for(i = 0; i < licenses["licenses"].length; i++) {
+      for(i = 0; i < licenses.length; i++) {
         var vers = [];
-        var name = licenses["licenses"][i].name;
-        for(j = 0; j < licenses["licenses"][i].versions.length; j++) {
-          var ver = licenses["licenses"][i].versions[j];
+        var name = licenses[i].name;
+        for(j = 0; j < licenses[i].versions.length; j++) {
+          var ver = licenses[i].versions[j];
           vers[vers.length] = {
             version: ver,
             name: name,
-            checked: licenses["licenses"][i].current_version == ver
+            checked: licenses[i].current_version == ver
           };
         }
-        licenses["licenses"][i].versions = vers;
+        licenses[i].versions = vers;
       }
-      if(licenses["licenses"].count > 0) {
-        $("#license-list").html(Mustache.to_html(Erlyvideo.license_template, licenses));
+      if(licenses.length > 0) {
+        $("#license-list").html(Mustache.to_html(Erlyvideo.license_template, {"licenses" : licenses}));
       }
     });
   },
