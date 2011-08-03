@@ -27,6 +27,9 @@ case "$1" in
   upgrade)
   cd /opt/erlyvideo && ./bin/erlyvideo "$1"
   ;;
+  reconfigure)
+  cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
   reboot)
   cd /opt/erlyvideo && ./bin/erlyvideo "$1"
   ;;
@@ -38,6 +41,9 @@ case "$1" in
   ;;
   attach)
   cd /opt/erlyvideo && ./bin/erlyvideo "$1"
+  ;;
+  attach-erl)
+  cd /opt/erlyvideo && ./erts-5.8.4/bin/erl -name debug@127.0.0.1 -remsh erlyvideo@127.0.0.1
   ;;
   *)
   echo $"Usage: $0 {start|stop|restart|soft-restart|upgrade|reboot|ping|console|attach}"
