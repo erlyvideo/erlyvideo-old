@@ -318,8 +318,12 @@ publish(Media, #video_frame{} = Frame) when is_pid(Media) ->
 %%  
 %% @end
 %%----------------------------------------------------------------------
-media_info(Media) ->
+media_info(#ems_media{media_info = MediaInfo}) ->
+  MediaInfo;
+
+media_info(Media) when is_pid(Media) ->
   gen_server:call(Media, media_info, 120000).
+
 
 
 
@@ -634,16 +638,11 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   end,
   {reply, Frame, Media1#ems_media{storage = Storage1}, ?TIMEOUT};
 
-handle_call({info, Properties}, _From, #ems_media{hls_state = HLS} = Media) ->
+handle_call({info, Properties}, _From, #ems_media{} = Media) ->
   % ?D({call, Properties}),
-  Media1 = case HLS of
-    undefined ->
-      HLSRequested = lists:member(hls_playlist, Properties) or (length([1 || {hls_segment, _} <- Properties]) > 0),
-      case HLSRequested of
-        true -> Media#ems_media{hls_state = hls_media:init(Media)};
-        false -> Media
-      end;
-    _ -> Media
+  Media1 = case need_to_start_hls(Media, Properties) of
+    true -> Media#ems_media{hls_state = hls_media:init(Media)};
+    false -> Media
   end,  
   {reply, reply_with_info(Media1, Properties), Media1, ?TIMEOUT};
 
@@ -659,6 +658,22 @@ handle_call(Request, _From, #ems_media{module = M} = Media) ->
       {stop, Reason, Media1}
   end.
 
+
+need_to_start_hls(#ems_media{hls_state = HLS}, _Props) when HLS =/= undefined -> false;
+need_to_start_hls(#ems_media{hls_state = undefined} = Media, Properties) ->
+  HLSRequested = lists:member(hls_playlist, Properties) orelse length([1 || {hls_segment, _} <- Properties]) > 0,
+  case is_media_good_for_hls(Media) of
+    _ when not HLSRequested -> false;
+    Else -> Else
+  end.
+
+is_media_good_for_hls(#ems_media{} = Media) ->
+  case media_info(Media) of
+    #media_info{video = [#stream_info{codec = h264}|_], audio = [#stream_info{codec = ACodec}|_]} when ACodec == aac orelse ACodec == mp3 -> true;
+    #media_info{video = [], audio = [#stream_info{codec = ACodec}|_]} when ACodec == aac orelse ACodec == mp3 -> true;
+    #media_info{video = [#stream_info{codec = h264}|_], audio = []} -> true;
+    _ -> false
+  end.
 
 %%-------------------------------------------------------------------------
 %% @spec (Msg, State) ->{noreply, State}          |
@@ -880,7 +895,10 @@ storage_properties(#ems_media{format = Format, storage = Storage}) -> lists:ukey
 
 reply_with_info(#ems_media{type = Type, url = URL, name = Name, last_dts = LastDTS, last_dts_at = LastDTSAt, created_at = CreatedAt, options = Options} = Media, Properties) ->
   lists:foldl(fun
-    (hls_playlist, Props) -> [{hls_playlist, hls_media:playlist(Media#ems_media.hls_state)}|Props];
+    (hls_playlist, Props) -> case is_media_good_for_hls(Media) of
+      true -> [{hls_playlist, hls_media:playlist(Media#ems_media.hls_state)}|Props];
+      false -> Props
+    end;
     ({hls_segment, Num}, Props) -> [{{hls_segment, Num}, hls_media:segment(Media#ems_media.hls_state, Num)}|Props];
     (type, Props)         -> [{type,Type}|Props];
     (url, Props)          -> [{url,URL}|Props];
