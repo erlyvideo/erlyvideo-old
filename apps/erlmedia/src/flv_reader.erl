@@ -313,8 +313,9 @@ read_frame(Media, undefined) ->
 
 read_frame(#flv_media{metadata_offset = Offset, reader = Reader} = Media, Offset) ->
   % ?D({"Skip metadata", Offset}),
-  case flv:read_frame(Reader, Offset) of
+  case (catch flv:read_frame(Reader, Offset)) of
     #video_frame{next_id = Next} -> read_frame(Media, Next);
+    {'EXIT', Error} -> ?D({error_reading_flv,Offset,Error, erlang:get_stacktrace()}), {M,D} = Reader, ?D({flv_dump, M:pread(D,Offset - 300, 600)}), erlang:exit(Error);
     Else -> Else
   end;
 

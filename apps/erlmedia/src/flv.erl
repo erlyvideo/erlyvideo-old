@@ -266,6 +266,13 @@ read_tag({Module,Device} = Reader, Offset) ->
 
     #flv_tag{type = Type, size = Size} = Tag ->
       {ok, Body} = Module:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH, Size),
+      {ok, <<PrevTagSize:32>>} = Module:pread(Device, Offset + ?FLV_TAG_HEADER_LENGTH + Size, 4),
+	    case ?FLV_TAG_HEADER_LENGTH + Size of
+	      PrevTagSize -> ok;
+	      _ -> ?D({broken_flv, Offset, Size, PrevTagSize, ?FLV_TAG_HEADER_LENGTH + Size, Module:pread(Device, Offset - 100, Size + 200)}), erlang:error({broken_flv,Offset})
+	    end,
+	    ?D({flv, Offset, Size, Tag#flv_tag.next_tag_offset}),
+      PrevTagSize = ?FLV_TAG_HEADER_LENGTH + Size,
 
       Flavor = case Type of
         video ->
