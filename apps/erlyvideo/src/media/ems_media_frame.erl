@@ -84,7 +84,7 @@ frame_filters(#ems_media{options = Options} = _Media) ->
     true -> [dump_frame];
     _ -> []
   end ++ 
-  case proplists:get_value(send_audio_before_keyframe, Options) of
+  case proplists:get_value(send_audio_before_keyframe, Options, false) of
     true -> [send_audio_to_starting_clients];
     _ -> []
   end ++
@@ -221,7 +221,7 @@ save_last_dts(#video_frame{dts = DTS} = Frame, Media) ->
 
 start_on_keyframe(#video_frame{content = video, flavor = keyframe, dts = DTS} = F, 
                   #ems_media{clients = Clients, video_config = V, audio_config = A} = M) ->
-  SendAudioBeforeKeyframe = proplists:get_value(send_audio_before_keyframe, M#ems_media.options, true),
+  SendAudioBeforeKeyframe = proplists:get_value(send_audio_before_keyframe, M#ems_media.options, false),
   Clients2 = case A of
     #video_frame{} when SendAudioBeforeKeyframe == false -> ems_media_clients:send_frame(A#video_frame{dts = DTS, pts = DTS}, Clients, starting);
     _ -> Clients

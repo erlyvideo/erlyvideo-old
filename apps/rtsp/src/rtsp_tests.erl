@@ -31,8 +31,14 @@
 axis_m1011_test_() ->
   run_camera_test("axis-m1011", 8092).
 
+axis_q7404_test_() ->
+  run_camera_test("axis-q7404", 8092, aac).
+
+axis_p5534_test_() ->
+  run_camera_test("axis-p5534", 8092, aac).
+
 axis_m1031_w_test_() ->
-  run_camera_test("axis-m1031-w", 8092).
+  run_camera_test("axis-m1031-w", 8092, aac).
 
 beward_test_() ->
   run_camera_test("beward", 8092).
@@ -64,8 +70,9 @@ capture_output() ->
     % Msg -> io:format("msg: ~p~n", [Msg]), capture_output()
   end.
     
+test_camera(Name) -> test_camera(Name, undefined).
 
-test_camera(Name) ->
+test_camera(Name, ACodec) ->
   % log4erl:change_log_level(error),
   Self = self(),
   Logger = spawn_link(fun() ->
@@ -81,8 +88,7 @@ test_camera(Name) ->
   {ok, P} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0}]),
   timer:send_after(40000, stop),
   Frames = read_frames([]),
-  Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
-  true = Delta >= 20000,
+  validate_frames(Frames, ACodec),
   ems_media:unsubscribe(P),
   (catch unlink(Pid)),
   (catch erlang:exit(Pid)),
@@ -90,8 +96,10 @@ test_camera(Name) ->
   erlang:group_leader(OldLeader, self()).
   
     
-
 run_camera_test(Name, Port) ->
+  run_camera_test(Name, Port, undefined).
+
+run_camera_test(Name, Port, ACodec) ->
   {spawn, {setup,
     fun() -> 
       log4erl:change_log_level(error),
@@ -114,20 +122,30 @@ run_camera_test(Name, Port) ->
     end,
     fun(Pid) ->
       [fun() ->
+        io:format("Camera: ~s~n", [Name]),
         erlang:monitor(process, Pid),
         {ok, Media} = media_provider:play(default, "rtsp://localhost:8092/"++Name, [{retry_limit,0},{clients_timeout,0},{dump_traffic,false}]),
         timer:send_after(40000, stop),
         Frames = read_frames([]),
-        ?assert(length(Frames) > 40),
-        Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
         (catch ems_media:stop_stream(Media)),
-        ?assert(Delta >= 20000),
+        validate_frames(Frames, ACodec),
         erlang:monitor(process, Pid),
         ?assertEqual(normal, ems_test_helper:wait4(Pid))
       end]
     end
   }}.
 
+
+validate_frames(Frames, ACodec) ->
+  ?assert(length(Frames) > 40),
+  Delta = (hd(lists:reverse(Frames)))#video_frame.dts - (hd(Frames))#video_frame.dts,
+  ?assert(Delta >= 20000),
+  ?assert(length([F || #video_frame{flavor = config, content = video} = F <- Frames]) > 0),
+  case ACodec of
+    aac -> ?assert(length([F || #video_frame{flavor = config, codec = C} = F <- Frames, C == ACodec]) > 0);
+    _ -> ok
+  end.
+    
 
 read_frames(Acc) ->
   receive

@@ -30,6 +30,7 @@
   session,
   rtp_udp,
   dump_traffic = true,
+  sent_sdp_config = false,
   
   rtp           :: pid()
   

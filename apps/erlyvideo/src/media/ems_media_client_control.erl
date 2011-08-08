@@ -64,7 +64,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         % It is very important to understand, that we need to send audio config here, because client starts receiving music
         % right after subscribing, but it will wait for video till keyframe
         %
-        SendAudioBeforeKeyframe = proplists:get_value(send_audio_before_keyframe, Media#ems_media.options, true),
+        SendAudioBeforeKeyframe = proplists:get_value(send_audio_before_keyframe, Media#ems_media.options, false),
         ClientState = case proplists:get_value(paused, Options, false) of
           true -> paused;
           false ->

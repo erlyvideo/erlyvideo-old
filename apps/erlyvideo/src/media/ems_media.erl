@@ -241,7 +241,7 @@ set_socket(Media, Socket) when is_pid(Media) andalso is_port(Socket) ->
 %% @end
 %%----------------------------------------------------------------------
 read_frame(Media, Key) ->
-  gen_server:call(Media, {read_frame, self(), Key}, 10000).
+  read_frame(Media, self(), Key).
 
 
 %%----------------------------------------------------------------------
@@ -253,7 +253,7 @@ read_frame(Media, Key) ->
 %% @end
 %%----------------------------------------------------------------------
 read_frame(Media, Client, Key) ->
-  gen_server:call(Media, {read_frame, Client, Key}, 10000).
+  gen_server:call(Media, {read_frame, Client, Key}, 60000).
 
 %%----------------------------------------------------------------------
 %% @spec (Media::pid(), DTS::number()) -> ok | {error, Reason}
@@ -263,7 +263,7 @@ read_frame(Media, Client, Key) ->
 %% @end
 %%----------------------------------------------------------------------
 seek(Media, DTS) ->
-  gen_server:call(Media, {seek, self(), DTS}, 5000).
+  gen_server:call(Media, {seek, self(), DTS}, 10000).
 
 seek(Media, BeforeAfter, DTS) when BeforeAfter == before orelse BeforeAfter == 'after' ->
   seek(Media, DTS).

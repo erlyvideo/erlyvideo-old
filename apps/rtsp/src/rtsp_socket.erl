@@ -254,8 +254,15 @@ handle_packet(#rtsp_socket{buffer = Data, rtp = RTP, media = Consumer, dump_traf
       Socket;
     {ok, {rtp, Channel, Packet}, Rest} ->
       {ok, RTP1, NewFrames} = rtp:handle_data(RTP, Channel, Packet),
+      Socket1 = case NewFrames of
+        [#video_frame{dts = DTS}|_] when Socket#rtsp_socket.sent_sdp_config == false ->
+          [Consumer ! Frame#video_frame{dts = DTS, pts = DTS} || Frame <- video_frame:config_frames(Socket#rtsp_socket.media_info)],
+          Socket#rtsp_socket{sent_sdp_config = true};
+        _ ->
+          Socket
+      end,
       [Consumer ! Frame || Frame <- NewFrames],
-      handle_packet(Socket#rtsp_socket{buffer = Rest, rtp = RTP1});
+      handle_packet(Socket1#rtsp_socket{buffer = Rest, rtp = RTP1});
     {ok, {response, _Code, _Message, Headers, _Body} = Response, Rest} ->
       ?DUMP_RESPONSE(Dump, Response),
       Socket1 = handle_response(extract_session(Socket#rtsp_socket{buffer = Rest}, Headers), Response),
@@ -320,7 +327,7 @@ save_media_info(#rtsp_socket{} = Socket, #media_info{audio = Audio, video = Vide
   ControlMap = [{proplists:get_value(control, Opt),S} || #stream_info{options = Opt, stream_id = S} <- Streams],
 
   % ?D({"Streams", StreamInfos, StreamNums, ControlMap}),
-  Socket#rtsp_socket{rtp_streams = StreamInfos, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}}.
+  Socket#rtsp_socket{rtp_streams = StreamInfos, media_info = MediaInfo, control_map = ControlMap, pending_reply = {ok, MediaInfo, StreamNums}}.
 
 
 generate_session() ->
