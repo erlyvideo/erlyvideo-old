@@ -123,6 +123,7 @@ http(_Host, 'POST', ["erlyvideo","api","licenses","write"], Req) ->
 
 
 http(Host, Method, ["erlyvideo", "api" | _] = Path, Req) ->
+  (catch commercial:start()),
   case erlang:function_exported(ems_http_commercial_api, http, 4) of
     true -> ems_http_commercial_api:http(Host, Method, Path, Req);
     false -> Req:respond(503, [{'Content-Type', "application/json"}], [mochijson2:encode([{error, commercial_required}]), "\n"])
