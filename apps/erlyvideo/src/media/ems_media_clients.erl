@@ -130,7 +130,7 @@ insert_client(#clients{bytes = Bytes} = Clients, #client{state = State, consumer
     key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1
   },
   case Socket of
-    {rtmp, Sock} -> inet:setopts(Sock, [{sndbuf, Clients#clients.send_buffer}]);
+    {rtmp, Sock} -> inet:setopts(Sock, [{sndbuf, Clients#clients.send_buffer},{send_timeout,120000},{send_timeout_close,true}]);
     _ -> ok
   end,
   ets:insert(Bytes, {Client,0}),
