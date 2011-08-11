@@ -179,7 +179,10 @@ find(#clients{bytes = Bytes, list = List}, Client) ->
   end.
 
 fetch_bytes(undefined, _Client) -> 0;
-fetch_bytes(Bytes, Client) -> ets:lookup_element(Bytes, Client, 2).
+fetch_bytes(Bytes, Client) -> case (catch ets:lookup_element(Bytes, Client, 2)) of
+    {'EXIT', _} -> 0;
+    Count -> Count
+  end.
   
 find_by_ticker(Storage, Pid) ->
   find(Storage, Pid, #client.ticker).
