@@ -79,7 +79,7 @@ connect(RTMP, Options) ->
     stream_id = 0,
     args = [{object, ConnectArgs}]
   },
-  io:format("~p -> ~p~n", [{connect, Options}, ConnectArgs]),
+  % io:format("~p -> ~p~n", [{connect, Options}, ConnectArgs]),
   rtmp_socket:invoke(RTMP, AMF),
   wait_for_reply(RTMP, InvokeId).
   
