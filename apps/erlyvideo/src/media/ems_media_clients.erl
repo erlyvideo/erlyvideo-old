@@ -129,6 +129,10 @@ insert_client(#clients{bytes = Bytes} = Clients, #client{state = State, consumer
   CachedEntry = #cached_entry{pid = Client, socket = Socket, dts = DTS, stream_id = StreamId,
     key = ets:info(table(Clients, State), size) rem ?REPEATER_COUNT + 1
   },
+  case Socket of
+    {rtmp, Sock} -> inet:setopts(Sock, [{sndbuf, Clients#clients.send_buffer}]);
+    _ -> ok
+  end,
   ets:insert(Bytes, {Client,0}),
   ets:insert(table(Clients, State), CachedEntry),
   ok.
