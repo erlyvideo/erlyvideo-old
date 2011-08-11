@@ -123,6 +123,7 @@ case "$1" in
         export BINDIR
         export PROGNAME
         sysctl -w net.core.wmem_max=4194304
+        ulimit -n 8192
 
         # Dump environment info for logging purposes
         echo "Exec: $CMD"

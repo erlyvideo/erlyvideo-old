@@ -39,7 +39,7 @@
 -define(SNDBUF, 4194304).
 
 -define(REPEATER_COUNT, 1).
--define(ACCEL_CLIENTS_LIMIT, 20).
+-define(ACCEL_CLIENTS_LIMIT, 1).
 
 -record(clients, {
   active,
@@ -244,7 +244,7 @@ delete(#clients{list = List} = Clients, Client) ->
 
 % send_frame(#video_frame{} = Frame, #clients{} = Clients, starting) ->
 %   repeater_send_frame(Frame, Clients, starting, undefined);
-send_frame(#video_frame{} = Frame, #clients{repeaters = Repeaters, list = Entries} = Clients, State) when Repeaters == undefined ->
+send_frame(#video_frame{flavor = Flavor} = Frame, #clients{repeaters = Repeaters, list = Entries} = Clients, State) when Repeaters == undefined orelse Flavor == config ->
   [Pid ! Frame#video_frame{stream_id = StreamId} || #client{state = State1, consumer = Pid, stream_id = StreamId} <- Entries, State1 == State],
   Clients;
 
