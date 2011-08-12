@@ -173,6 +173,8 @@ read_atom_header({Module, Device}, Pos) ->
 seek(#mp4_media{} = Media, Audio, Video, Timestamp) ->
   seek(Media, Audio, Video, Timestamp, keyframe).
 
+seek(#mp4_media{} = Media, Audio, undefined, Timestamp, keyframe) ->
+  seek(Media, Audio, undefined, Timestamp, frame);
 
 seek(#mp4_media{} = Media, Audio, Video, Timestamp, SeekMode) ->
   A = case SeekMode of
