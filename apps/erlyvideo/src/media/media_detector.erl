@@ -66,38 +66,21 @@ ts_file(Host, Name, _Opts) ->
     _ -> false
   end.
 
-file(Host, Name, Opts) ->
+file(Host, Name, _Opts) ->
   case check_path(Host, Name) of
     {true, Path} -> [{type, file}, {url, Path}];
     _ ->
-      case check_path(Host, <<Name/binary, ".flv">>) of
-        {true, Path} -> [{type, file}, {url, Path}];
-        _ -> detect_prefixed_file(Host, Name, Opts)
+      case re:run(Name, "\\w+:(\\w+)", [{capture,all_but_first,binary}]) of
+        {match, [UnprefixedName]} ->
+          case check_path(Host, UnprefixedName) of
+            {true, Path} -> [{type, file}, {url, Path}];
+            false -> false
+          end;
+        _ ->
+          false
       end
   end.
 
-detect_prefixed_file(Host, <<"flv:", Name/binary>>, _Opts) ->
-  case check_path(Host, Name) of
-    {true, Path} -> [{type, file}, {url, Path}];
-    _ -> 
-      case check_path(Host, <<Name/binary, ".flv">>) of
-        {true, Path} -> [{type, file}, {url, Path}];
-        false -> false
-      end
-  end;
-
-detect_prefixed_file(Host, <<"mp4:", Name/binary>>, _Opts) ->
-  case check_path(Host, Name) of
-    {true, Path} -> [{type, file}, {url, Path}];
-    _ -> 
-      case check_path(Host, <<Name/binary, ".mp4">>) of
-        {true, Path} -> [{type, file}, {url, Path}];
-        false -> false
-      end
-  end;
-  
-detect_prefixed_file(_Host, _Name, _Opts) ->
-  false.
   
   
 livestream(_Host, Name, Opts) ->
@@ -126,5 +109,11 @@ check_paths([Dir|Dirs], Name) ->
   Path = ems:pathjoin(Dir, Name), 
   case filelib:is_regular(Path) of
     true -> {true, list_to_binary(Path)};
-    false -> check_paths(Dirs, Name)
+    false -> case filename:extension(Path) of
+      [] -> case filelib:wildcard(Path ++ ".*") of
+          [FullPath|_] -> {true, list_to_binary(FullPath)};
+          _ -> check_paths(Dirs, Name)
+        end;
+      _ -> check_paths(Dirs, Name)
+    end
   end.
