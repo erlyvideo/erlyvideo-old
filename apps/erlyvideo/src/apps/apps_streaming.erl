@@ -139,12 +139,14 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
   {Name, Options} = parse_play(FullName, Args),
 
   % ?D({play_request, FullName,Args, '->', Name, Options}),
-  case rtmp_session:get_stream(StreamId, State) of
+  State1 = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
       ?D({"Unsubscribe from old", OldMedia}), 
       ems_media:stop(OldMedia),
-      rtmp_session:flush_stream(StreamId);
-    _ -> ok
+      rtmp_session:flush_stream(StreamId),
+      rtmp_session:delete_stream(StreamId, State);
+    _ ->
+      State
   end,
   
   SocketOptions = case rtmp_socket:get_socket(Socket) of
@@ -155,12 +157,16 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
     {notfound, _Reason} -> 
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      State;
+      State1;
     {ok, Media} ->
-      State1 = rtmp_session:set_stream(#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name, started = false}, State),
+      Stream = case rtmp_session:get_stream(StreamId, State1) of
+        undefined -> #rtmp_stream{};
+        Stream_ -> Stream_
+      end,
+      State2 = rtmp_session:set_stream(Stream#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name, started = false}, State1),
       ems_media:play(Media, SocketOptions ++ [{stream_id,StreamId}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
-      State1
+      State2
   end.
 
 parse_play(FullName, Args) ->
