@@ -34,10 +34,6 @@
 -export([source_is_lost/1, source_is_restored/1]).
 
 
-source_is_lost(#ems_media{source = Source,media_info = #media_info{video = []}} = Media) ->
-  (catch ems_media:stop(Source)),
-  handle_lost_source(Media);
-
 source_is_lost(#ems_media{source = Source, options = Options, media_info = #media_info{video = [Video|_]}} = Media) ->
   (catch ems_media:stop(Source)),
   #stream_info{codec = Codec} = Video,
@@ -47,7 +43,13 @@ source_is_lost(#ems_media{source = Source, options = Options, media_info = #medi
       failure_movie(Media, Name);
     _ ->
       handle_lost_source(Media)
-  end.
+  end;
+
+source_is_lost(#ems_media{source = Source,media_info = #media_info{video = []}} = Media) ->
+  (catch ems_media:stop(Source)),
+  handle_lost_source(Media).
+
+
 
 %
 % {failure_movie,"sample.mp4"} -- is a option in config file 
