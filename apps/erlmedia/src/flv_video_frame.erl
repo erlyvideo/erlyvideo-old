@@ -139,9 +139,9 @@ decode(#video_frame{content = metadata} = Frame, Metadata) ->
 %% @end
 %%--------------------------------------------------------------------
 
-to_tag(#video_frame{content = Content, stream_id = _RealStreamId, dts = DTS1} = Frame) ->
+to_tag(#video_frame{content = Content, stream_id = StreamId, dts = DTS1} = Frame) ->
   DTS = round(DTS1),
-  StreamId = 0, % by spec
+  % By spec StreamId MUST be 0. But fuck the spec, we need this streamid
   Body = encode(Frame),
 	BodyLength = size(Body),
 	<<TimeStampExt:8,TimeStamp:24>> = <<DTS:32>>,
