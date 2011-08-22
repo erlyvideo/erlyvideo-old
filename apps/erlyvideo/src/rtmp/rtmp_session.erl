@@ -512,6 +512,9 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
       {State, DTS_, false, false};
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
+    #rtmp_stream{pid = undefined, started = false} = Stream ->
+      State1_ = set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State),
+      {State1_, DTS, true, true};
     #rtmp_stream{pid = Media, started = false, options = Options} = Stream ->
       MediaType = proplists:get_value(type, ems_media:info(Media)),
       rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
