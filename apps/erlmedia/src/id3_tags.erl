@@ -69,7 +69,11 @@ get_textTags(List,[{FrameID,<<OrderByte:16,Body/binary>>}|Tail]) ->
     "TYER" -> lists:merge(List,[unicode:characters_to_binary(Body,get_encoding_from_bom(<<OrderByte:16>>))]);
     _Else -> lists:merge(List,[])
   end,
-  get_textTags(Result,Tail).
+  get_textTags(Result,Tail);
+
+get_textTags(List,[_FrameWithoutHeader|Tail]) ->
+   get_textTags(List,Tail).
+
 
         
 id3v2_get_tags(<<Body/binary>>, List)  ->
