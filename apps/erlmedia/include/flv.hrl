@@ -24,6 +24,7 @@
   flavor             ::frame_flavor(),  % keyframe or frame
   timestamp          ::number(),
   composition_offset ::number(),
+  stream_id          ::number(),
   size               ::non_neg_integer(),
   offset             ::non_neg_integer(),
   next_tag_offset    ::non_neg_integer(),

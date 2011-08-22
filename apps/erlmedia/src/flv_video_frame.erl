@@ -78,9 +78,9 @@ video_frame_to_tag(#video_frame{content = video,
 video_frame_to_tag(#video_frame{content = metadata, body = Metadata}) ->
   Metadata.
 
-tag_to_video_frame(#flv_tag{next_tag_offset = NextOffset, timestamp = Timestamp, body = AVTag}) ->
+tag_to_video_frame(#flv_tag{next_tag_offset = NextOffset, timestamp = Timestamp, body = AVTag, stream_id = StreamId}) ->
 	VideoFrame = tag_to_video_frame(AVTag, Timestamp),
-	VideoFrame#video_frame{next_id = NextOffset};
+	VideoFrame#video_frame{next_id = NextOffset, stream_id = StreamId};
 
 
 tag_to_video_frame(#flv_audio_tag{codec = Codec, rate = Rate, bitsize = Size, channels = Channels, body = Body, flavor = Flavor}) ->

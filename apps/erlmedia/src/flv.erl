@@ -199,9 +199,9 @@ read_header(Device) ->
 
 
 
-tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, _StreamId:24>>) ->
+tag_header(<<Type, Size:24, TimeStamp:24, TimeStampExt, StreamId:24>>) ->
   <<TimeStampAbs:32>> = <<TimeStampExt, TimeStamp:24>>,
-  #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size}.
+  #flv_tag{type = frame_format(Type), timestamp = TimeStampAbs, size = Size, stream_id = StreamId}.
 
 %%--------------------------------------------------------------------
 %% @spec (Body::binary()) -> Config::aac_config()
