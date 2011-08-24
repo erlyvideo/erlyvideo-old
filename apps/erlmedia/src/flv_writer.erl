@@ -177,7 +177,7 @@ handle_message(Message, FlvWriter) ->
   flush_messages(FlvWriter, hard),
   Message.
   
-store_message(Frame, #flv_file_writer{buffer_size = 0} = Writer) ->
+store_message(Frame, #flv_file_writer{buffer_size = Size} = Writer) when Size == 0 orelse not is_number(Size) ->
   % ?D({unbuffered_store}),
   dump_frame_in_file(Frame, Writer);
   
@@ -232,7 +232,7 @@ dump_frame_in_file(#video_frame{dts = DTS, pts = PTS} = Frame, #flv_file_writer{
   if DTS < LastDTS -> ?D({non_monotonic_timestamp, DTS, LastDTS, Frame#video_frame.flavor, Frame#video_frame.codec});
     true -> ok
   end,
-  % ?D({write,Frame#video_frame.flavor,Frame#video_frame.codec,round(Frame#video_frame.dts),size(Frame#video_frame.body)}),
+  % ?D({write,Frame#video_frame.flavor,Frame#video_frame.codec,round(Frame#video_frame.dts)}),
   Writer(flv_video_frame:to_tag(Frame#video_frame{dts = DTS - BaseDTS, pts = PTS - BaseDTS})),
   {ok, FlvWriter}.
 
