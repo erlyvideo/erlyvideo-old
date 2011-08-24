@@ -166,8 +166,7 @@ file_dir(Host) ->
 
 file_format(Name) ->
   Readers = ems:get_var(file_formats, [mp4_reader, flv_reader, mp3_reader]),
-  ?D(Name),
-  {ok,ReMP4} = re:compile("[http://video.tvigle(.*)]?[http://(.digitalaccess.)(.mp4)]"),
+  {ok,ReMP4} = re:compile("http://.*(.mp4).*"), 
   case re:run(Name,ReMP4) of
     {match, _Captured} -> 
       mp4_reader;
