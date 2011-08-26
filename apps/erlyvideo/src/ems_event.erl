@@ -166,7 +166,7 @@ remove_handler(Handler) ->
 user_connected(Host, Session, Stats) ->
   UserId = proplists:get_value(user_id, Stats),
   SessionId = proplists:get_value(session_id, Stats),
-  gen_event:notify(?MODULE, #erlyvideo_event{event = user_connected, host = Host, stats = Stats,
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user.connected, host = Host, stats = Stats,
                                              user = Session, user_id = UserId, session_id = SessionId}).
 
 %%--------------------------------------------------------------------
@@ -178,7 +178,7 @@ user_connected(Host, Session, Stats) ->
 user_disconnected(Host, Session, Stats) ->
   UserId = proplists:get_value(user_id, Stats),
   SessionId = proplists:get_value(session_id, Stats),
-  gen_event:notify(?MODULE, #erlyvideo_event{event = user_disconnected, host = Host, stats = Stats,
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user.disconnected, host = Host, stats = Stats,
                                              user = Session, user_id = UserId, session_id = SessionId}).
 
 %%--------------------------------------------------------------------
@@ -189,7 +189,7 @@ user_disconnected(Host, Session, Stats) ->
 %%----------------------------------------------------------------------
 user_play(Host, User, Stream, Options) ->
   Name = proplists:get_value(name, Options),
-  gen_event:notify(?MODULE, #erlyvideo_event{event = user_play, host = Host, user = User, 
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user.play, host = Host, user = User, 
                                              stream_name = Name, stream = Stream, options = Options}).
 
 %%--------------------------------------------------------------------
@@ -200,7 +200,7 @@ user_play(Host, User, Stream, Options) ->
 %%----------------------------------------------------------------------
 user_stop(Host, User, Stream, Options) ->
   Name = proplists:get_value(name, Options),
-  gen_event:notify(?MODULE, #erlyvideo_event{event = user_stop, host = Host, user = User, stream = Stream, stream_name = Name, options = Options}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = user.stop, host = Host, user = User, stream = Stream, stream_name = Name, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream, Options) -> ok
@@ -209,7 +209,7 @@ user_stop(Host, User, Stream, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_created(Host, Name, Stream, Options) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_created, host = Host, stream_name = Name, stream = Stream, options = Options}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream.created, host = Host, stream_name = Name, stream = Stream, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream, Options) -> ok
@@ -218,7 +218,7 @@ stream_created(Host, Name, Stream, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_started(Host, Name, Stream, Options) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_started, host = Host, stream_name = Name, stream = Stream, options = Options}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream.started, host = Host, stream_name = Name, stream = Stream, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -227,7 +227,7 @@ stream_started(Host, Name, Stream, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_source_lost(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_lost, host = Host, stream_name = Name, stream = Stream}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream.source_lost, host = Host, stream_name = Name, stream = Stream}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Options) -> ok
@@ -236,7 +236,7 @@ stream_source_lost(Host, Name, Stream) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_source_requested(Host, Name, Options) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_source_requested, host = Host, stream_name = Name, options = Options}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream.source_requested, host = Host, stream_name = Name, options = Options}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -245,7 +245,7 @@ stream_source_requested(Host, Name, Options) ->
 %% @end
 %%----------------------------------------------------------------------
 stream_stopped(Host, Name, Stream) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = stream_stopped, host = Host, stream_name = Name, stream = Stream}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream.stopped, host = Host, stream_name = Name, stream = Stream}).
 
 %%--------------------------------------------------------------------
 %% @spec (Host, Name, Stream) -> ok
@@ -254,7 +254,7 @@ stream_stopped(Host, Name, Stream) ->
 %% @end
 %%----------------------------------------------------------------------
 slow_media(Stream, Delay) when is_pid(Stream) andalso is_number(Delay) ->
-  gen_event:notify(?MODULE, #erlyvideo_event{event = slow_media, stream = Stream, options = [{delay,Delay}]}).
+  gen_event:notify(?MODULE, #erlyvideo_event{event = stream.slow_media, stream = Stream, options = [{delay,Delay}]}).
 
 
 %%%------------------------------------------------------------------------
