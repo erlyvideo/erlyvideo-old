@@ -34,8 +34,6 @@
 
 -export([start_link/0, set_socket/2]).
 
--define(RTMP_WINDOW_SIZE, 2500000).
--define(FMS_VERSION, "4,0,0,1121").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -83,21 +81,7 @@ stop(Pid) when is_pid(Pid) ->
 
 
 accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
-  Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
-  % gen_server:call(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
-  rtmp_socket:send(Socket, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
-  rtmp_socket:send(Socket, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
-  rtmp_socket:send(Socket, Message#rtmp_message{type = stream_begin, stream_id = 0}),
-
-  ConnectObj = [{fmsVer, <<"FMS/",?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
-  StatusObj = [{level, <<"status">>},
-               {code, <<"NetConnection.Connect.Success">>},
-               {description, <<"Connection succeeded.">>},
-               {data,[{<<"version">>, <<?FMS_VERSION>>}]},
-               {objectEncoding, AMFVersion}],
-  reply(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
-  rtmp_socket:setopts(Socket, [{chunk_size, 16#200000}]),
-  rtmp_socket:setopts(Socket, [{amf_version, AMFVersion}]),
+  rtmp_lib:accept_connection(Socket, [{amf_version, AMFVersion}]),
   ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
   Session;
 
@@ -106,11 +90,7 @@ accept_connection(Session) when is_pid(Session) ->
 
 
 reject_connection(#rtmp_session{socket = Socket} = Session) ->
-  ConnectObj = [{fmsVer, <<"FMS/", ?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
-  StatusObj = [{level, <<"status">>},
-               {code, <<"NetConnection.Connect.Rejected">>},
-               {description, <<"Connection rejected.">>}],
-  fail(Socket, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+  rtmp_lib:reject_connection(Socket),
   self() ! exit,
   Session;
 
@@ -127,17 +107,12 @@ close_connection(Session) when is_pid(Session) ->
 
 
 
-reply(#rtmp_session{socket = Socket}, AMF) ->
-  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke});
-reply(Socket, AMF) when is_pid(Socket) ->
-  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_result', type = invoke}).
+reply(#rtmp_session{socket = Socket}, AMF) -> reply(Socket, AMF);
+reply(Socket, AMF) when is_pid(Socket) -> rtmp_lib:reply(Socket, AMF).
 
 
-fail(#rtmp_session{socket = Socket} = State, AMF) ->
-  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}),
-  State;
-fail(Socket, AMF) when is_pid(Socket) ->
-  rtmp_socket:invoke(Socket, AMF#rtmp_funcall{command = '_error', type = invoke}).
+fail(#rtmp_session{socket = Socket} = State, AMF) -> fail(Socket, AMF), State;
+fail(Socket, AMF) when is_pid(Socket) -> rtmp_lib:fail(Socket, AMF).
 
 
 message(Pid, Stream, Code, Body) ->

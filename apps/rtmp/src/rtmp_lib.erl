@@ -30,6 +30,12 @@
 -export([shared_object_connect/2, shared_object_set/4]).
 -export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/4, pause_notify/2, unpause_notify/3]).
 -export([channel_id/2, empty_audio/2]).
+-export([accept_connection/1, accept_connection/2, reject_connection/1]).
+-export([reply/2, reply/3, fail/2]).
+
+-define(RTMP_WINDOW_SIZE, 2500000).
+-define(FMS_VERSION, "4,0,0,1121").
+
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
   wait_for_reply(RTMP, InvokeId*1.0);
@@ -60,6 +66,42 @@ default_connect_options() ->
 empty_audio(StreamId, DTS) ->
   #rtmp_message{type = audio, body = <<>>, timestamp = DTS, ts_type = new, stream_id = StreamId, channel_id = rtmp_lib:channel_id(audio, StreamId)}.
 
+
+accept_connection(RTMP) -> accept_connection(RTMP, []).
+
+accept_connection(RTMP, Options) ->
+  AMFVersion = proplists:get_value(amf_version, Options, 0),
+  
+  Message = #rtmp_message{channel_id = 2, timestamp = 0, body = <<>>},
+  % gen_server:call(self(), {invoke, AMF#rtmp_funcall{command = 'onBWDone', type = invoke, id = 2, stream_id = 0, args = [null]}}),
+  rtmp_socket:send(RTMP, Message#rtmp_message{type = window_size, body = ?RTMP_WINDOW_SIZE}),
+  rtmp_socket:send(RTMP, Message#rtmp_message{type = bw_peer, body = ?RTMP_WINDOW_SIZE}),
+  rtmp_socket:send(RTMP, Message#rtmp_message{type = stream_begin, stream_id = 0}),
+
+  ConnectObj = [{fmsVer, <<"FMS/",?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
+  StatusObj = [{level, <<"status">>},
+               {code, <<"NetConnection.Connect.Success">>},
+               {description, <<"Connection succeeded.">>},
+               {data,[{<<"version">>, <<?FMS_VERSION>>}]},
+               {objectEncoding, AMFVersion}],
+  reply(RTMP, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+  rtmp_socket:setopts(RTMP, [{chunk_size, 16#200000}]),
+  rtmp_socket:setopts(RTMP, [{amf_version, AMFVersion}]),
+  ok.
+
+reject_connection(RTMP) ->
+  ConnectObj = [{fmsVer, <<"FMS/", ?FMS_VERSION>>}, {capabilities, 31}, {mode, 1}],
+  StatusObj = [{level, <<"status">>},
+               {code, <<"NetConnection.Connect.Rejected">>},
+               {description, <<"Connection rejected.">>}],
+  reply(RTMP, #rtmp_funcall{id = 1, args = [{object, ConnectObj}, {object, StatusObj}]}),
+  ok.
+
+
+reply(RTMP, AMF, Args) -> reply(RTMP, AMF#rtmp_funcall{args = [null|Args]}).
+
+reply(RTMP, AMF) -> rtmp_socket:invoke(RTMP, AMF#rtmp_funcall{command = '_result', type = invoke}).
+fail(RTMP, AMF) -> rtmp_socket:invoke(RTMP, AMF#rtmp_funcall{command = '_error', type = invoke}).
 
 
 %% @spec (RTMP::rtmp_socket()) -> any()
