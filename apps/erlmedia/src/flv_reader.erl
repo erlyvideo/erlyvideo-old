@@ -144,7 +144,8 @@ read_frame_list(#flv_media{reader = Reader, frames = FrameTable, metadata = Meta
           % ?D({"Found metadata, looking 10 frames ahead"}),
 			    read_frame_list(MediaInfo1#flv_media{metadata_offset = Offset}, NextOffset, 10);
 			  {MediaInfo1, false} ->
-			    read_frame_list(MediaInfo1#flv_media{metadata_offset = Offset} , NextOffset, Limit - 1)
+			    ?D("Found metadata, but it is not a tagging. Seek will be disabled~n"),
+			    {ok, MediaInfo1}
 			end;
 		#video_frame{content = video, flavor = config, codec = Codec, next_id = NextOffset} = V ->
       % ?D({"Save flash video_config"}),
