@@ -588,16 +588,17 @@ find_stream_by_pid(PlayerPid, Streams) ->
 get_stream(StreamId, #rtmp_session{streams1 = Streams}) ->
   lists:keyfind(StreamId, #rtmp_stream.stream_id, Streams).
 
-set_stream(#rtmp_stream{stream_id = StreamId} = Stream, #rtmp_session{streams1 = Streams} = State) ->
-  Streams1 = lists:keystore(StreamId, #rtmp_stream.stream_id, Streams, Stream),
+set_stream(#rtmp_stream{} = Stream, #rtmp_session{streams1 = Streams} = State) ->
+  Streams1 = lists:ukeymerge(#rtmp_stream.stream_id, [Stream], Streams),
   State#rtmp_session{streams1 = Streams1}.
 
 alloc_stream(#rtmp_session{streams1 = Streams}) ->
-  alloc_stream(Streams, 1).
+  StreamNumbers = lists:sort([N || #rtmp_stream{stream_id = N} <- Streams]),
+  alloc_stream(StreamNumbers, 1).
 
+alloc_stream([N|StreamNumbers], N) -> alloc_stream(StreamNumbers, N+1);
 alloc_stream([], N) -> #rtmp_stream{stream_id = N};
-alloc_stream([undefined|_], N) -> #rtmp_stream{stream_id = N};
-alloc_stream([#rtmp_stream{}|Streams], N) -> alloc_stream(Streams, N+1).
+alloc_stream([M|_], N) when M > N -> #rtmp_stream{stream_id = N}.
 
 
 delete_stream(#rtmp_stream{stream_id = StreamId}, State) ->
