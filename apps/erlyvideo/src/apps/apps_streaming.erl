@@ -118,7 +118,7 @@ close_stream(#rtmp_session{host = Host} = State, StreamId) ->
         false -> ok
       end,  
       rtmp_session:flush_stream(StreamId),
-      rtmp_session:set_stream(Stream#rtmp_stream{pid = undefined, recording = undefined, name = undefined}, Stream);
+      rtmp_session:set_stream(Stream#rtmp_stream{pid = undefined, recording = undefined, name = undefined}, State);
     _ ->
       State
   end.
