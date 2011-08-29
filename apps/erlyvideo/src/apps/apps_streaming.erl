@@ -115,10 +115,10 @@ close_stream(#rtmp_session{host = Host} = State, StreamId) ->
       ems_media:stop(Player),
       case Recording of
         true -> media_provider:remove(Host, Name);
-        false -> ok
+        _ -> ok
       end,  
       rtmp_session:flush_stream(StreamId),
-      rtmp_session:set_stream(Stream#rtmp_stream{pid = undefined, recording = undefined, name = undefined}, State);
+      rtmp_session:set_stream(Stream#rtmp_stream{pid = undefined, recording = false, playing = false, name = undefined}, State);
     _ ->
       State
   end.
