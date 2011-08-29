@@ -105,24 +105,30 @@ releaseStream(State, #rtmp_funcall{} = _AMF) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-closeStream(#rtmp_session{} = State, #rtmp_funcall{} = AMF) -> 
-  deleteStream(State, AMF).
+closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) -> 
+  close_stream(State, StreamId).
 
 
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
-deleteStream(#rtmp_session{host = Host} = State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
+close_stream(#rtmp_session{host = Host} = State, StreamId) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player, recording = Recording, name = Name} when is_pid(Player) -> 
+    #rtmp_stream{pid = Player, recording = Recording, name = Name} = Stream when is_pid(Player) -> 
       ems_media:stop(Player),
       case Recording of
         true -> media_provider:remove(Host, Name);
         false -> ok
       end,  
-      rtmp_session:flush_stream(StreamId);
-    _ -> ok
-  end,
+      rtmp_session:flush_stream(StreamId),
+      rtmp_session:set_stream(Stream#rtmp_stream{pid = undefined, recording = undefined, name = undefined}, Stream);
+    _ ->
+      State
+  end.
+  
+
+%%-------------------------------------------------------------------------
+%% @private
+%%-------------------------------------------------------------------------
+deleteStream(State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
+  close_stream(State, StreamId),
   rtmp_session:delete_stream(StreamId, State).
 
 
