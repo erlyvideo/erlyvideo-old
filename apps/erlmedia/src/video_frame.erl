@@ -82,6 +82,11 @@ stream_count(#media_info{audio = A, video = V}) ->
   end,
   Count(A) + Count(V).
 
+
+define_media_info(Media, #video_frame{content = audio, codec = empty}) ->
+  Media;
+
+
 define_media_info(#media_info{audio = A} = Media, #video_frame{codec = aac, flavor = config, body = Body}) when A == [] orelse A == wait ->
   #aac_config{channel_count = Channels, sample_rate = Rate} = aac:decode_config(Body),
   Info = #stream_info{
