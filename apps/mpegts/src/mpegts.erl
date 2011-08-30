@@ -358,7 +358,7 @@ unpack_nals(Body, LengthSize, NALS) ->
 
 
 
-send_program_tables(#streamer{sent_pat = SentPat, audio_codec = A, video_codec = V} = Streamer, #video_frame{content = Content, flavor = Flavor, dts = DTS} = _Frame) 
+send_program_tables(#streamer{sent_pat = SentPat} = Streamer, #video_frame{content = Content, flavor = Flavor, dts = DTS} = _Frame) 
   when (SentPat == false orelse (Content == video andalso Flavor == keyframe)) -> %  andalso A =/= undefined andalso V =/= undefined
   {Streamer1, PATBin} = send_pat(Streamer, DTS),
   {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
