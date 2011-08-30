@@ -14,7 +14,7 @@
 	bytes_sent   = 0,
 	play_stats   = [],
 	cached_shared_objects = [],
-	properties
+	properties = []
 	}).
 
 -record(rtmp_stream, {

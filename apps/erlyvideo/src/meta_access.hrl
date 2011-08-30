@@ -22,7 +22,10 @@ set(Media, Key, Value) when is_pid(Media) ->
 set(#?MODULE{} = Media, Key, Value) ->
   case record_index(Key, record_info(fields, ?MODULE)) of
     undefined ->
-      Props = Media#?MODULE.properties,
+      Props = case Media#?MODULE.properties of
+        undefined -> [];
+        Else -> Else
+      end,
       Media#?MODULE{properties = lists:keystore(Key, 1, Props, {Key,Value})};
     Pos ->
       setelement(Pos, Media, Value)
