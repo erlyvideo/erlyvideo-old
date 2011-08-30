@@ -231,7 +231,15 @@ send_pat(Streamer, _DTS) ->
   mux(PATBin, Streamer, ?PAT_PID).
 
 send_pmt(#streamer{video_config = _VideoConfig, audio_codec = AudioCodec, video_codec = VideoCodec} = Streamer, _DTS) ->
-  PMT = mpegts_psi:encode(pmt, [{program,1},{pcr_pid,?PCR_PID},{streams, [{AudioCodec, ?AUDIO_PID, []}, {VideoCodec, ?VIDEO_PID, []}]}]),
+  AStream = case AudioCodec of
+    undefined -> [];
+    _ -> [{AudioCodec,?AUDIO_PID, []}]
+  end,
+  VStream = case VideoCodec of
+    undefined -> [];
+    _ -> [{VideoCodec,?VIDEO_PID, []}]
+  end,
+  PMT = mpegts_psi:encode(pmt, [{program,1},{pcr_pid,?PCR_PID},{streams, AStream ++ VStream}]),
   mux(padding(PMT, ?TS_PACKET), Streamer, ?PMT_PID).
 
   % <<_Pointer, 2, _SectionInd:1, 0:1, 2#11:2, SectionLength:12, 
@@ -351,7 +359,7 @@ unpack_nals(Body, LengthSize, NALS) ->
 
 
 send_program_tables(#streamer{sent_pat = SentPat, audio_codec = A, video_codec = V} = Streamer, #video_frame{content = Content, flavor = Flavor, dts = DTS} = _Frame) 
-  when (SentPat == false orelse (Content == video andalso Flavor == keyframe)) andalso A =/= undefined andalso V =/= undefined ->
+  when (SentPat == false orelse (Content == video andalso Flavor == keyframe)) -> %  andalso A =/= undefined andalso V =/= undefined
   {Streamer1, PATBin} = send_pat(Streamer, DTS),
   {Streamer2, PMTBin} = send_pmt(Streamer1, DTS),
   {Streamer2#streamer{sent_pat = true, last_dts = DTS}, <<PATBin/binary, PMTBin/binary>>};
