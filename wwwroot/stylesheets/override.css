@@ -36,6 +36,7 @@
   display: inline-block;
   width: 20px;
   height: 20px;
+  overflow: hidden;
   position: relative;
 }
 
@@ -62,6 +63,7 @@
 .stream-play a .jwplayer {background-image: url("/images/jwplayer.png");}
 .stream-play a .flowplayer {background-image: url("/images/flowplayer.png");}
 .stream-play a .hls {background-image: url("/images/hls.png");}
+.stream-play a .android {background-image: url("/images/android.png");}
 
 #traffic-stats table {
   display: none;
