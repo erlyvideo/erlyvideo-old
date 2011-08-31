@@ -26,8 +26,17 @@
 
 -compile(export_all).
 
+full_memory(Pid) ->
+  lists:sum([Mem || {_, Mem, _} <- element(2,process_info(Pid, binary))]).
+  
+proc_info(Pid, binary) ->
+  full_memory(Pid);
+
+proc_info(Pid, Sort) ->
+  element(2, process_info(Pid, Sort)).
+
 top(Sort) ->
-  DirtyList = [{Pid,(catch element(2,process_info(Pid,Sort)))} || Pid <- processes()],
+  DirtyList = [{Pid,(catch proc_info(Pid,Sort))} || Pid <- processes()],
   lists:reverse(lists:keysort(2, [{Pid,Count} || {Pid,Count} <- DirtyList, is_number(Count)] )).
 
 top(Sort, Limit) ->
