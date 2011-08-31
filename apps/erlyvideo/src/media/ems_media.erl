@@ -380,7 +380,10 @@ info(Media) ->
 info(Media, Properties) ->
   ValidProperties = clean_properties(Properties) -- [ts_delay],
   Reply = case ValidProperties -- fast_properties() of
-    [] -> ets:lookup_element(ems_media_stats, Media, 2);
+    [] -> case (catch ets:lookup_element(ems_media_stats, Media, 2)) of
+      {'EXIT', _} -> gen_server:call(Media, {info, ValidProperties});
+      Else -> Else
+    end;
     _ -> gen_server:call(Media, {info, ValidProperties})
   end,
   case lists:member(ts_delay, Properties) of
