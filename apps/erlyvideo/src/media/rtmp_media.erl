@@ -170,6 +170,24 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type}}, State) when Type == ping 
   % Ignore ping/pong messages
   {noreply, State};
 
+handle_info({rtmp, _RTMP, #rtmp_message{type = stream_end}}, State) ->
+  ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
+    Pid ! {ems_stream, StreamId, play_complete, 0}
+  end, ok, State),
+  {noreply, State};
+
+% handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>, args = [null, {object, Command} |_]}}}, State) ->
+%   case proplists:get_value(code, Command) of
+%     <<"NetStream.Play.StreamNotFound">> ->
+%       ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
+%         ?D({not_found, Pid, StreamId}),
+%         Pid ! {ems_stream, StreamId, not_found}
+%       end, ok, State),
+%       {stop, normal, State};
+%     _ ->
+%       {noreply, State}
+%   end;
+
 handle_info({rtmp, _RTMP, #rtmp_message{} = Message}, State) ->
   ?D({"RTMP message", Message}),
   {noreply, State};

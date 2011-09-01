@@ -31,6 +31,7 @@
 -export([init/1, insert/2, find/2, find_by_ticker/2, count/1, make_client_passive/3, update_state/3, delete/2, 
          send_frame/3, increment_bytes/3, list/1, flush/1,
          mark_active_as_starting/1, mark_starting_as_active/1]).
+-export([foldl/3]).
          
 -export([init_repeater/3, repeater/2]).
 
@@ -139,6 +140,13 @@ insert_client(#clients{bytes = Bytes} = Clients, #client{state = State, consumer
   ets:insert(table(Clients, State), CachedEntry),
   ok.
 
+foldl(Fun, Acc0, #clients{list = List}) ->
+  lists:foldl(fun(#client{consumer = Pid, stream_id = StreamId}, AccIn) ->
+    Fun({Pid, StreamId}, AccIn)
+  end, Acc0, List);
+
+foldl(Fun, Acc0, Media) ->
+  foldl(Fun, Acc0, ems_media:get(Media, clients)).
 
 remove_client(#clients{active = undefined}, _Client) ->
   ok;

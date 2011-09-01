@@ -84,6 +84,12 @@ handle_info({ems_stream, StreamId, seek_failed}, #rtmp_session{socket = Socket} 
   ?D({"seek failed"}),
   rtmp_lib:seek_failed(Socket, StreamId),
   State;
+
+handle_info({ems_stream, StreamId, not_found}, #rtmp_session{socket = Socket, host = Host} = State) ->
+  rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
+  ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, '??', StreamId]),
+  State;
+  
   
 handle_info(_, _) ->
   unhandled.
