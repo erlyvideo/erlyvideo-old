@@ -45,7 +45,7 @@ source_is_lost(#ems_media{source = Source, options = Options, media_info = #medi
       handle_lost_source(Media)
   end;
 
-source_is_lost(#ems_media{source = Source,media_info = #media_info{video = []}} = Media) ->
+source_is_lost(#ems_media{source = Source} = Media) ->
   (catch ems_media:stop(Source)),
   handle_lost_source(Media).
 
