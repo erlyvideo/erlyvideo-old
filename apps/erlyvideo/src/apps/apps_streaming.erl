@@ -95,6 +95,7 @@ handle_info(_, _) ->
 createStream(#rtmp_session{} = State, AMF) -> 
   #rtmp_stream{stream_id = StreamId} = Stream = rtmp_session:alloc_stream(State),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
+  % ?D({createStream,StreamId}),
   rtmp_session:set_stream(Stream, State).
 
 releaseStream(State, #rtmp_funcall{} = _AMF) -> 
@@ -106,6 +107,7 @@ releaseStream(State, #rtmp_funcall{} = _AMF) ->
 %%-------------------------------------------------------------------------
 
 closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) -> 
+  % ?D({closeStream,StreamId}),
   close_stream(State, StreamId).
 
 
@@ -144,13 +146,11 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   {Name, Options} = parse_play(FullName, Args),
 
-  % ?D({play_request, FullName,Args, '->', Name, Options}),
+  % ?D({play_request, StreamId, FullName,Args, '->', Name, Options}),
   State1 = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
       ?D({"Unsubscribe from old", OldMedia}), 
-      ems_media:stop(OldMedia),
-      rtmp_session:flush_stream(StreamId),
-      rtmp_session:delete_stream(StreamId, State);
+      close_stream(State, StreamId);
     _ ->
       State
   end,
@@ -204,10 +204,12 @@ extract_play_args([]) ->
     true -> [{wait,infinity}];
     false -> []
   end;
+extract_play_args([[Start, Duration]]) -> extract_play_args([Start, Duration]);
 extract_play_args([Start]) when is_number(Start) andalso Start > 0 -> [{start, Start}];
 extract_play_args([Start]) when Start == -2 -> [{wait, infinity}];
 extract_play_args([_Start]) -> [];
-extract_play_args([Start, Duration]) when is_number(Start) andalso Start > 0 andalso is_number(Duration) andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
+extract_play_args([Start, Duration]) when is_number(Start) andalso is_number(Duration) andalso Duration > 0 -> [{start, Start}, {duration, Duration}];
+extract_play_args([Start, Duration]) when is_number(Start) andalso Duration == 0 -> [{start, Start}, {duration, 1}];
 extract_play_args([Start, _Duration]) when is_number(Start) andalso Start > 0 -> [{start, Start}];
 extract_play_args([Start, Duration]) when is_number(Duration) andalso Start == -1 -> [{wait,Duration}];
 extract_play_args([_Start, _Duration]) -> 
