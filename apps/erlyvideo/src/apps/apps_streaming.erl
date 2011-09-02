@@ -117,9 +117,9 @@ closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) ->
   close_stream(State, StreamId).
 
 
-close_stream(#rtmp_session{host = Host} = State, StreamId) ->
+close_stream(#rtmp_session{host = _Host} = State, StreamId) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = Name} when is_pid(Player) -> 
+    #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = _Name} when is_pid(Player) -> 
       ems_media:stop(Player),
       case Recording of
         true ->
