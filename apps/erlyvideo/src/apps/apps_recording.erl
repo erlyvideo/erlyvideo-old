@@ -72,7 +72,7 @@ real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId}
   
   ems_log:access(Host, "PUBLISH ~p ~s ~p ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name]),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
-  erlang:monitor(process, Recorder),
+  Ref = erlang:monitor(process, Recorder),
   ?D({"publish",Type,Options,Recorder}),
   rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
   Arg = {object, [
@@ -83,7 +83,7 @@ real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId}
   ]},
   Msg = rtmp_socket:prepare_invoke(StreamId, onStatus, [Arg]),
   rtmp_socket:send(Socket, Msg),
-  rtmp_session:set_stream(#rtmp_stream{pid = Recorder, stream_id = StreamId, started = true, recording = true, name = Name}, State).
+  rtmp_session:set_stream(#rtmp_stream{pid = Recorder, recording_ref = Ref, stream_id = StreamId, started = true, recording = true, name = Name}, State).
   
 extract_publish_args([]) -> [];
 extract_publish_args({"record", "true"}) -> {type, record};

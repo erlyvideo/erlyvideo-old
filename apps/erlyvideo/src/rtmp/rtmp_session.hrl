@@ -27,6 +27,7 @@
   receive_audio = true,
   receive_video = true,
   recording = false,
+  recording_ref,
   name,
   properties = []
 }).

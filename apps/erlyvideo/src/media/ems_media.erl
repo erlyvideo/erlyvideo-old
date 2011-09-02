@@ -200,11 +200,15 @@ set_source(#ems_media{source_ref = OldRef, module = M} = Media, Source) ->
   end,
 
   DefaultSource = fun(OtherSource, Media1_) ->
-    Ref = case OtherSource of
-      undefined -> undefined;
-      _ -> erlang:monitor(process, OtherSource)
-    end,
-    {ok, Media1_#ems_media{source = OtherSource, source_ref = Ref, ts_delta = undefined}}
+    Media2_ = Media1_#ems_media{source = OtherSource, ts_delta = undefined, source_ref = undefined},
+    case OtherSource of
+      undefined when OldRef =/= undefined ->
+        source_is_lost(Media2_);
+      undefined -> 
+        {ok, Media2_};
+      _ -> 
+        {ok, Media2_#ems_media{source_ref = erlang:monitor(process, OtherSource)}}
+    end
   end,
 
   case M:handle_control({set_source, Source}, Media1) of
@@ -692,6 +696,10 @@ handle_cast({set_source, Source}, Media) ->
     {ok, Media1} ->
       {noreply, Media1, ?TIMEOUT};
     {error, Reason, Media1} ->
+      {stop, Reason, Media1};
+    {noreply, Media1, Timeout} ->
+      {noreply, Media1, Timeout};
+    {stop, Reason, Media1} ->
       {stop, Reason, Media1}
   end;
   

@@ -281,7 +281,7 @@ handle_info({'DOWN', _Ref, process, Socket, _Reason}, #rtmp_session{socket = Soc
 handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, #rtmp_session{socket = Socket} = State) ->
   %FIXME: add passing down this message to plugins
   case find_stream_by_pid(PlayerPid, State) of
-    undefined ->
+    false ->
       ?D({"Unknown linked pid failed", PlayerPid, _Reason}),
       {noreply, State};
     #rtmp_stream{stream_id = StreamId} ->

@@ -119,10 +119,14 @@ closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) ->
 
 close_stream(#rtmp_session{host = Host} = State, StreamId) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player, recording = Recording, name = Name} when is_pid(Player) -> 
+    #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = Name} when is_pid(Player) -> 
       ems_media:stop(Player),
       case Recording of
-        true -> media_provider:remove(Host, Name);
+        true ->
+          ems_media:set_source(Player, undefined),
+          (catch erlang:demonitor(Ref, [flush])),
+          ok;
+          % media_provider:remove(Host, Name);
         _ -> ok
       end,  
       rtmp_session:flush_stream(StreamId),
