@@ -52,9 +52,10 @@ perform_login(#rtmp_session{host = Host, addr = Address, player_info = PlayerInf
   UserId = proplists:get_value(user_id, Session),
   SessionId = proplists:get_value(session_id, Session, DefaultSessionId),
   Channels = proplists:get_value(channels, Session, []),
-	NewState = State#rtmp_session{user_id = UserId, session_id = SessionId},
+	NewState1 = State#rtmp_session{user_id = UserId, session_id = SessionId},
+	NewState2 = rtmp_session:set(NewState1, session_data, Session),
 	ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~w json_session", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
-	NewState.
+	NewState2.
   
 decode(undefined, undefined) ->
   [];
