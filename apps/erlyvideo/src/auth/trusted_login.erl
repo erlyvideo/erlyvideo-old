@@ -79,7 +79,6 @@ connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, ses
   
 	
 connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, session_id = SessionId} = State, _AMF) ->
-  ?D({zz, _AMF}),
   ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~p trusted_login", [Address, Host, undefined, SessionId, proplists:get_value(pageUrl, PlayerInfo), []]),
 	rtmp_session:accept_connection(State),
   State.

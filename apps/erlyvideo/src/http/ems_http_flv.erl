@@ -58,7 +58,7 @@ http(Host, 'PUT', ["flv" | Name] = Path, Req) ->
 
   ems_log:access(Host, "PUT ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
   {ok, Stream} = media_provider:open(Host, Name, [{type, http_flv},{passive,true}]),
-  ems_media:set_socket(Stream, Req:socket()),
+  ems_media:set_socket(Stream, Req:get(give_up_socket)),
   ok;  
   
 
