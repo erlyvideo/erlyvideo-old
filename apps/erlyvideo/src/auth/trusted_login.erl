@@ -58,28 +58,8 @@ auth(_Host, _Protocol, _Session) ->
 %% It can even subscribe to channels
 %% @end
 %%-------------------------------------------------------------------------
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, session_id = DefaultSessionId} = State, #rtmp_funcall{args = [_, SessionData|_]}) ->
-  Session = try json_session:decode(SessionData, ems:get_var(secret_key, Host, undefined)) of
-    S when is_list(S) -> S;
-    _ -> []
-  catch
-    _Class:_Error ->
-      % ems_log:error(Host, "Session decoding: ~p:~p:~p", [_Class, _Error, erlang:get_stacktrace()]),
-      ?D({"No session provided:", SessionData}),
-      []
-  end,
-  Channels = proplists:get_value(channels, Session, []),
-  UserId = proplists:get_value(user_id, Session),
-  SessionId = proplists:get_value(session_id, Session, DefaultSessionId),
-  NewState1 = State#rtmp_session{user_id = UserId, session_id = SessionId},
-	NewState2 = rtmp_session:set(NewState1, session_data, Session),
-  ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~w trusted_login_with_session", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo), Channels]),
-  rtmp_session:accept_connection(NewState2),
-  NewState2;
-  
-	
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, session_id = SessionId} = State, _AMF) ->
-  ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s ~p trusted_login", [Address, Host, undefined, SessionId, proplists:get_value(pageUrl, PlayerInfo), []]),
-	rtmp_session:accept_connection(State),
-  State.
+connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
+  #rtmp_session{session_id = SessionId, user_id = UserId} = State1 = rtmp_cookie:connect(State, AMF),
+  ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s trusted_login", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo)]),
+  rtmp_session:accept_connection(State1).
 	

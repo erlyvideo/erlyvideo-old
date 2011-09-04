@@ -78,7 +78,8 @@ test() ->
     mpegts_encode_tests,
     rtmp_publish_tests,
     % ems_license_client,
-    rtmp_read_tests
+    rtmp_read_tests,
+    rtmp_cookie
   ]).
 
 
