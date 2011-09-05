@@ -126,9 +126,14 @@ get_var(Opt, Default) ->
 
 
 get_var(Key, Host, Default) ->
-  case ets:match_object(vhosts, {{host(Host), Key}, '$1'}) of
-    [{{_Hostname, Key}, Value}] -> Value;
-    [] -> Default
+  case lists:member(vhosts, ets:all()) of
+    true ->
+      case ets:match_object(vhosts, {{host(Host), Key}, '$1'}) of
+        [{{_Hostname, Key}, Value}] -> Value;
+        [] -> Default
+      end;
+    false ->
+      Default
   end.
 
 
