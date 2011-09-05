@@ -334,6 +334,8 @@ get_content_type(FileName) ->
 		".wrz" -> "x-world/x-vrml";
 		".xaf" -> "x-world/x-vrml";
 		".xof" -> "x-world/x-vrml";
+		".m3u8" -> "application/vnd.apple.mpegurl";
+		".ts" -> "video/MP2T";
 		_ -> "application/octet-stream"
 	end.
 
