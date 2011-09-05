@@ -90,6 +90,9 @@ init_counters(Streamer, [PAT, PMT, Audio, Video]) ->
 counters(#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, video_counter = Video}) ->
   [PAT, PMT, Audio, Video].
 
+encode(Streamer, #video_frame{flavor = config} = Frame) ->
+  {enqueue_frame(set_stream_codec(Streamer, Frame), Frame), <<>>};
+
 encode(Streamer, #video_frame{content = Content} = Frame) when Content == audio orelse Content == video ->
   % ?D({Frame#video_frame.codec, Frame#video_frame.flavor, round(Frame#video_frame.dts)}),
   Streamer0 = set_stream_codec(Streamer, Frame),
