@@ -544,7 +544,7 @@ or_time(Timeout, _) -> Timeout.
 
 flush_stats(Media) ->
   Info = reply_with_info(Media, fast_properties()),
-  ets:insert(ems_media_stats, {self(),Info}).
+  (catch ets:insert(ems_media_stats, {self(),Info})).
 
 
 %%-------------------------------------------------------------------------
