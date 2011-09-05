@@ -43,6 +43,7 @@
   options,
   byte_counter = 0,
   program_info = [],
+  dump_psi = [],
   sdt,
   current_time
 }).
@@ -111,6 +112,7 @@ init([Options]) ->
       erlang:monitor(process, Cons),
       Cons
   end,
+  DumpPSI = proplists:get_value(dump_psi, Options, []),
   {ok, #decoder{consumer = Consumer, options = Options, pids = [
     #stream{handler = psi, pid = ?CAT_PID},
     #stream{handler = psi, pid = ?NIT_PID},
@@ -118,7 +120,7 @@ init([Options]) ->
     #stream{handler = psi, pid = ?EIT_PID},
     #stream{handler = psi, pid = ?RST_PID},
     #stream{handler = psi, pid = ?TDT_PID}
-  ]}}.
+  ], dump_psi = DumpPSI}}.
 
 
 
@@ -361,9 +363,10 @@ insert_pids(Streams, Decoder) ->
 psi(PSI, Stream, #decoder{pids = Streams} = Decoder) ->
   handle_psi(PSI, Decoder#decoder{pids = [Stream|Streams]}).
 
-handle_psi(PSI, Decoder) ->
+handle_psi(PSI, #decoder{dump_psi = Dump} = Decoder) ->
   Decoder1 = case mpegts_psi:psi(PSI) of
     {pat, Descriptors} -> 
+      case lists:member(pat, Dump) of true -> io:format("PAT: ~p~n", [Descriptors]); false -> ok end,
       Streams = [#stream{handler = psi, pid = Pid, program_num = Program} || {Pid,Program} <- Descriptors],
       insert_pids(Streams, Decoder);
     {tdt, UTC} -> 
@@ -372,6 +375,7 @@ handle_psi(PSI, Decoder) ->
       Streams = [#stream{handler = emm, pid = Pid} || #dvb_ca_desc{pid = Pid} <- Descriptors],
       insert_pids(Streams, Decoder);
     {pmt, Descriptors} ->
+      case lists:member(pmt, Dump) of true -> io:format("PMT: ~p~n", [Descriptors]); false -> ok end,
       Streams = [#stream{handler = pes, pid = Pid, counter = 0, codec = Codec, program_num = Prnum, h264 = h264:init()} || 
                  #pmt_entry{pid = Pid, codec = Codec, program = Prnum} <- Descriptors],
       insert_pids(Streams, Decoder);
