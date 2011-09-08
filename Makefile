@@ -79,9 +79,11 @@ packages: release
 	mv erlyvideo tmproot/opt/
 	mkdir -p tmproot/etc/init.d/
 	cp contrib/erlyvideo tmproot/etc/init.d/
+	mkdir -p tmproot/etc/erlyvideo
+	cp priv/erlyvideo.conf.sample priv/log4erl.conf.sample tmproot/etc/erlyvideo/
 	cd tmproot && \
-	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt && \
-	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo opt
+	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt && \
+	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt
 	mv tmproot/*.deb tmproot/*.rpm .
 
 upload_packages: 

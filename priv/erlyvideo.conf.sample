@@ -23,7 +23,7 @@
 % default virtual host is a fallback vhost, if no other hosts matched
   {default, [
     % This may be changed to mmap, if you are brave
-	  {file_access, file},
+    {file_access, file},
 	  % When new stream is asked by any client, erlyvideo goes through this list of detectors and try them
   	{detectors, [rewrite, http, rtsp, ts_file, file, livestream]},
     {hostname, ["localhost"]},
@@ -35,7 +35,15 @@
     {secret_key, "123"},
     {file_dir, "movies"},
     {wwwroot, "wwwroot"},
-    {www_handlers, [ems_http_erlyvideo_api, ems_http_rtmpt, ems_http_mpegts, ems_http_flv, {ems_http_file,"wwwroot"}]},
+    {www_handlers, [
+      ems_http_rtmpt, % RTMPT should be first handler, because it is called REALLY often
+      % ems_http_hls, % uncomment this line if you have purchased commercial license
+      % {ems_http_admin_protect, "erlyvideo", "password"}, % uncomment this line to enable password protection for admin panel
+      ems_http_mpegts, % This handler can response with endless MPEG-TS streams
+      ems_http_flv, % replies with endless FLV files for your streams
+      ems_http_erlyvideo_api, % this one replies with stream status and can modify your server.
+      {ems_http_file,"wwwroot"} % just plain static files
+    ]},
     {rewrite, [
       {"vlc.ts", mpegts, "http://localhost:8080"},
       {"camera0", rtsp, "rtsp://root:password@camera-ip:554/h264/1"}
