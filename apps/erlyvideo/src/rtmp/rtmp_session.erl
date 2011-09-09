@@ -593,12 +593,14 @@ set_stream(#rtmp_stream{} = Stream, #rtmp_session{streams1 = Streams} = State) -
   State#rtmp_session{streams1 = Streams1}.
 
 alloc_stream(#rtmp_session{streams1 = Streams}) ->
-  StreamNumbers = lists:sort([N || #rtmp_stream{stream_id = N} <- Streams]),
+  StreamNumbers = [N || #rtmp_stream{stream_id = N} <- Streams],
   alloc_stream(StreamNumbers, 1).
 
-alloc_stream([N|StreamNumbers], N) -> alloc_stream(StreamNumbers, N+1);
-alloc_stream([], N) -> #rtmp_stream{stream_id = N};
-alloc_stream([M|_], N) when M > N -> #rtmp_stream{stream_id = N}.
+alloc_stream(StreamNumbers, N) -> 
+  case lists:member(N, StreamNumbers) of
+    true -> alloc_stream(StreamNumbers, N+1);
+    false -> #rtmp_stream{stream_id = N}
+  end.
 
 
 delete_stream(#rtmp_stream{stream_id = StreamId}, State) ->
