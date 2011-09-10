@@ -55,7 +55,8 @@ Erlyvideo = {
   },
   
   jwplayer: function(element, path) {
-    var server = escape(Erlyvideo.rtmp_server+"?login=1/1&password=px7HH8i6");
+    // var server = escape(Erlyvideo.rtmp_server+"?login=1/1&password=px7HH8i6");
+    var server = Erlyvideo.rtmp_server;
     var flashvars = "provider=rtmp&bufferlength=1&autostart=true&streamer="+server+"&file="+path;
     var html = '\
     <object id="player" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" name="player" width="800" height="600"> \
