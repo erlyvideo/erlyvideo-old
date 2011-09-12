@@ -100,10 +100,6 @@ handle_control(no_clients, State) ->
 handle_control(timeout, State) ->
   {stop, normal, State};
 
-handle_control({unsubscribe,_Client}, State) ->
-  ?D({unsubscribe_media,_Client}),
-  {stop, normal, State};
-
 handle_control(_Control, State) ->
   {noreply, State}.
 
