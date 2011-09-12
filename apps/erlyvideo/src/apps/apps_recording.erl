@@ -52,7 +52,12 @@
 'FCUnpublish'(#rtmp_session{host = Host,session_id = SessionId} = State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
   {RawName, _Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
-  ?D({"FCunpublish", Name}),
+  case lists:keyfind(Name,12,State#rtmp_session.streams1) of
+    #rtmp_stream{pid = Media} ->
+      ems_media:stop_stream(Media);
+    _ ->
+      ?D({error,stream_is_abbsent,State})
+  end,     
   ems_event:stream_source_lost(Host,Name,SessionId),
   media_provider:remove(Host, Name),
   State.
