@@ -1,0 +1,132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Erlyvideo admin</title>
+  <link rel="stylesheet" href="/stylesheets/base.css" type="text/css" media="screen" />
+  <link rel="stylesheet" href="/stylesheets/themes/default/style.css" type="text/css" media="screen" />
+  <link rel="stylesheet" href="/stylesheets/override.css" type="text/css" media="screen" />
+	<link type="text/css" href="/css/smoothness/jquery-ui-1.8.14.custom.css" rel="stylesheet" />	
+	<script type="text/javascript" src="/js/jquery-1.5.1.min.js"></script>
+	<script type="text/javascript" src="/js/jquery-ui-1.8.14.custom.min.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/js/library.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/js/mustache.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/flowplayer/flowplayer-3.2.4.min.js"></script>
+  <script type="text/javascript" charset="utf-8" src="/flowplayer/flowplayer.captions.js"></script>
+
+	<link href="/css/basic.css" type="text/css" rel="stylesheet" />
+	<link href="/css/visualize.css" type="text/css" rel="stylesheet" />
+	<link href="/css/visualize-dark.css" type="text/css" rel="stylesheet" />
+	<script type="text/javascript" src="/js/enhance.js"></script>	
+	<script type="text/javascript" src="/js/visualize.jQuery.js"></script>	
+	<script type="text/javascript" src="/js/excanvas.js"></script>	
+	<script type="text/javascript" src="/js/library.js"></script>	
+
+</head>
+<body>
+	<style type="text/css">
+	#status {
+		width: 1263px;
+		margin: 40px 0 0 100px;
+		border-color: #303030;
+		border-style: solid;
+		border-width: 1px 0 0 1px;
+	}
+	#status div {
+		width: 20px;
+		height: 20px;
+		float: left;
+	}
+	#status div.ok {
+		background: green;
+	}
+	#status div.fail {
+		background: red;
+	}
+	#status div.first-col {
+		width: 50px;
+		border-right: 1px #303030 solid;
+	}
+	#status div.five {
+		border-right: 1px #303030 dashed;
+	}
+	#status div.ten {
+		border-right: 1px #303030 solid;
+	}
+	#status div.line {
+		width: auto;
+		float: none;
+		clear: both;
+		border-bottom: 1px #303030 solid;
+	}
+	</style>
+<div id="status">
+</div>
+<script type="text/javascript">
+function drawResponse(reply) {
+	var i,j;
+	
+	var minutes = {};
+	for(j = 0; j < 24; j++) {
+		minutes[j] = {};
+	}
+	for(i = 0; i < reply.length; i++) {
+		var matches = reply[i].path.match(/\d{4}\/\d+\/\d+\/(\d+)\/(\d+)/);
+		var h = parseInt(matches[1], 10);
+		var m = parseInt(matches[2], 10);
+		minutes[h][m] = true;
+	}
+	
+	s = "";
+	s += '<div class="line"><div class="first-col">&nbsp;</div>';
+	for(i = 0; i < 60; i++) {
+		klass = "";
+		if((i + 1) % 10 == 0) klass += " ten";
+		else if((i + 1) % 5 == 0) klass += " five";
+		s += '<div class="'+klass+'">'+i+'</div>';
+	}
+	s += "</div>";
+	for(j = 0; j < 24; j++) {
+		s += '<div class="line"><div class="first-col">'+j+'</div>';
+		for(i = 0; i < 60; i++) {
+			var klass = minutes[j][i] ? "ok" : "fail";
+			if((i + 1) % 10 == 0) klass += " ten";
+			else if((i + 1) % 5 == 0) klass += " five";
+			s += "<div class=\""+klass+"\">&nbsp;</div>";
+		}
+		s += "</div>";
+	}
+	$("#status").html(s);
+}
+
+function requestResponse(year, month, day, camera) {
+	$.get("/registrator/api/list/"+year+"/"+month+"/"+day+"/"+camera, {}, function(reply) {
+		drawResponse(eval('('+reply+')'));
+	});
+}
+
+$(function() {
+	var params = parseQueryString();
+	if(!params["camera"]) {
+		$("#status").html("Pass camera option to query string");
+		return;
+	}
+	var camera = params["camera"];
+	
+	var day = params["day"];
+	if(!day) {
+		var t = new Date();
+		day = "" + (t.getYear() + 1900) +"/" +(t.getMonth() + 1) + "/" + t.getDate();
+	}
+	var year, month, day;
+	var p = day.split("/");
+	year = p[0];
+	month = p[1];
+	day = p[2];
+	
+	requestResponse(year, month, day, camera);
+	// console.log(year,month,day);
+});	
+</script>
+</body>
+</html>
