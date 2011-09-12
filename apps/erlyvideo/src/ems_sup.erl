@@ -92,6 +92,7 @@ start_deskshare_capture(Name, Options) ->
 
 start_media(_Name, file,          Opts) -> supervisor:start_child(ems_media_sup, [file_media, Opts]);
 start_media(_Name, mpegts,        Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
+start_media(_Name, mmsh,          Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
 start_media(_Name, shoutcast,     Opts) -> supervisor:start_child(ems_media_sup, [mpegts_media, Opts]);
 start_media(_Name, mpegts_passive,Opts) -> supervisor:start_child(ems_media_sup, [mpegts_passive_media, Opts]);
 start_media(_Name, mpegts_file,   Opts) -> supervisor:start_child(ems_media_sup, [mpegts_file_media, Opts]);

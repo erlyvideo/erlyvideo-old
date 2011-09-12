@@ -29,7 +29,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
 
--export([createStream/2, play/2, deleteStream/2, closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
+-export([createStream/2, play/2, deleteStream/2,closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
          receiveAudio/2, receiveVideo/2, releaseStream/2,
          getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2, 'DVRGetStreamInfo'/2]).
 -export(['WAIT_FOR_DATA'/2, handle_info/2]).
@@ -89,7 +89,6 @@ handle_info({ems_stream, StreamId, not_found}, #rtmp_session{socket = Socket, ho
   rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
   ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, '??', StreamId]),
   State;
-  
   
 handle_info(_, _) ->
   unhandled.
@@ -175,6 +174,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
       State1;
     {ok, Media} ->
+      erlang:monitor(process,Media),
       Stream = case rtmp_session:get_stream(StreamId, State1) of
         undefined -> #rtmp_stream{};
         Stream_ -> Stream_
