@@ -14,7 +14,7 @@ orddict_merge([{K1,_}=E1|D1], [{K2,_}=E2|D2]) when K1 < K2 ->
     [E1|orddict_merge(D1, [E2|D2])];
 orddict_merge([{K1,_}=E1|D1], [{K2,_}=E2|D2]) when K1 > K2 ->
     [E2|orddict_merge([E1|D1], D2)];
-orddict_merge([{K1,V1}|D1], [{_K2,V2}|D2]) ->	%K1 == K2
+orddict_merge([{K1,_V1}|D1], [{_K2,V2}|D2]) ->	%K1 == K2
     [{K1,V2}|orddict_merge(D1, D2)];
 orddict_merge([], D2) -> D2;
 orddict_merge(D1, []) -> D1.

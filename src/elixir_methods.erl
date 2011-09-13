@@ -47,10 +47,10 @@ erlang_compiled() ->
   [{module_info,0},{module_info,1}].
 
 % Convert methods from Elixir arity to Erlang.
-convert_methods(Target) ->
-  lists:map(fun convert_method/1, Target).
-
-convert_method({Name, Arity}) -> { Name, Arity - 1 }.
+% convert_methods(Target) ->
+%   lists:map(fun convert_method/1, Target).
+% 
+% convert_method({Name, Arity}) -> { Name, Arity - 1 }.
 
 % Merge methods from mixins ensuring uniqueness.
 calculate_methods(_Self, Fun, List, Acc) ->
@@ -59,5 +59,5 @@ calculate_methods(_Self, Fun, List, Acc) ->
 calculate_methods(Fun, [H|T], Acc) ->
   calculate_methods(Fun, T, umerge(Acc, sort(Fun(H))));
 
-calculate_methods(Fun, [], Acc) ->
+calculate_methods(_Fun, [], Acc) ->
   Acc.

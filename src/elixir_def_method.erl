@@ -132,7 +132,7 @@ store_each_method(MethodTable, Visibility, Filename, {function, Line, Name, Arit
   ets:insert(MethodTable, {{Name, Arity}, FinalLine, FinalClauses}).
 
 % Unpack default args from clauses
-unpack_default_args(Name, [{default_arg, Line, Expr, Default}|T] = List, Acc, Clauses) ->
+unpack_default_args(Name, [{default_arg, Line, Expr, _Default}|T] = List, Acc, Clauses) ->
   { Args, Invoke } = build_default_arg(Acc, Line, [], []),
   Defaults = lists:map(fun extract_default/1, List),
   Clause = { clause, Line, Args, [], [
@@ -147,7 +147,7 @@ unpack_default_args(_Name, [], Acc, Clauses) ->
   { lists:reverse(Acc), lists:reverse(Clauses) }.
 
 % Extract default values
-extract_default({default_arg, Line, Expr, Default}) ->
+extract_default({default_arg, _Line, _Expr, Default}) ->
   Default.
 
 % Build an args list
@@ -202,7 +202,7 @@ check_valid_visibility(Line, Filename, Name, Arity, Visibility, Table) ->
     true -> []
   end.
 
-find_visibility(Name, Arity, [H|[]], Table) ->
+find_visibility(_Name, _Arity, [H|[]], _Table) ->
   H;
 
 find_visibility(Name, Arity, [Visibility|T], Table) ->

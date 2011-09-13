@@ -14,7 +14,7 @@ extract(Escaping, [], Buffer, [], Output, []) ->
 extract(Escaping, [Last], Buffer, [], Output, Last) ->
   { lists:reverse(build_interpol(s, Escaping, Buffer, Output)), [] };
 
-extract(Escaping, [Last], Buffer, Search, Output, Last) ->
+extract(_Escaping, [Last], _Buffer, Search, _Output, Last) ->
   { error, io_lib:format("unexpected end of string, expected ~ts", [[hd(Search)]]) };
 
 extract(Escaping, [$\\, $#, ${|Rest], Buffer, [], Output, Last) ->
@@ -71,14 +71,14 @@ transform(String, Line, S) ->
       { Final, FS, _ } = handle_string_extractions(hd(Interpolations), Line, S),
       { Final, FS };
     _ ->
-      Transformer = fun(X, Acc) -> handle_string_extractions(X, Line, S) end,
+      Transformer = fun(X, _Acc) -> handle_string_extractions(X, Line, S) end,
       elixir_tree_helpers:build_bin(Transformer, Interpolations, Line, S)
   end.
 
 % Unescape chars. For instance, "\" "n" (two chars) needs to be converted to "\n" (one char).
 
 unescape_chars(Escaping, String) -> unescape_chars(Escaping, String, []).
-unescape_chars(Escaping, [], Output) -> lists:reverse(Output);
+unescape_chars(_Escaping, [], Output) -> lists:reverse(Output);
 
 % Do not escape everything, just a few. Used by regular expressions.
 unescape_chars(false, [$\\, Escaped|Rest], Output) ->
@@ -135,13 +135,13 @@ handle_string_extractions({i, Interpolation}, Line, S) ->
   Stringify = elixir_tree_helpers:build_method_call(to_s, Line, [], hd(Tree)),
   { Stringify, NS, [binary] }.
 
-build_interpol(Piece, Escaping, [], Output) ->
+build_interpol(_Piece, _Escaping, [], Output) ->
   Output;
 
 build_interpol(s, Escaping, Buffer, Output) ->
   [{s, unescape_chars(Escaping, lists:reverse(Buffer))}|Output];
 
-build_interpol(i, Escaping, Buffer, Output) ->
+build_interpol(i, _Escaping, Buffer, Output) ->
   [{i, lists:reverse(Buffer)}|Output].
 
 extract_integers([H|T], Acc) when H >= 48 andalso H =< 57 -> 

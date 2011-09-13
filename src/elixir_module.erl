@@ -55,7 +55,7 @@ transform(Line, ElixirName, Body, S) ->
 
 % Main entry point for compilation. Receives the function and
 % execute it passing the module.
-compile(Line, Filename, Current, ElixirName, Fun) ->
+compile(Line, Filename, _Current, ElixirName, Fun) ->
   check_module_available(ElixirName),
   Module = build_module(ElixirName),
   MethodTable = elixir_def_method:new_method_table(ElixirName),
@@ -204,7 +204,7 @@ module_function(Line, #elixir_module__{name=Name}, Data) ->
     [{ clause, Line, [{var,Line,'_'}], [], [Reverse]}]
   }.
 
-mixins_function(Line, Module, Mixins) ->
+mixins_function(Line, _Module, Mixins) ->
   { MixinsTree, [] } = elixir_tree_helpers:build_list(fun(X,Y) -> {{atom,Line,X},Y} end, Mixins, Line, []),
   { function, Line, '__mixins__', 1,
     [{ clause, Line, [{var,Line,'_'}], [], [MixinsTree]}]
@@ -225,7 +225,7 @@ return_tuples_function(Line, MethodName, Tuples) ->
 
 % ERROR HANDLING
 
-format_errors(Filename, []) ->
+format_errors(_Filename, []) ->
   exit({nocompile, "compilation failed but no error was raised"});
 
 format_errors(Filename, Errors) ->

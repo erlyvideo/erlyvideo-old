@@ -45,7 +45,7 @@ unique_var_merge(_, _, _) -> [].
 % Merge variables trying to find the most recently created.
 var_merger(Var, Var, K2) -> K2;
 var_merger(Var, K1, Var) -> K1;
-var_merger(Var, K1, K2) ->
+var_merger(_Var, K1, K2) ->
   V1 = list_to_integer(tl(atom_to_list(K1))),
   V2 = list_to_integer(tl(atom_to_list(K2))),
   if V1 > V2 -> K1;
@@ -54,7 +54,7 @@ var_merger(Var, K1, K2) ->
 
 % Transform considering assigns manipulation.
 transform_assigns(Fun, Args, Scope) ->
-  Merger = fun(_,_,F) -> F end,
+  _Merger = fun(_,_,F) -> F end,
   { Result, NewScope } = Fun(Args, Scope#elixir_scope{assign=true}),
   { Result, NewScope#elixir_scope{assign=false, temp_vars=[] } }.
 
@@ -241,7 +241,7 @@ transform({ivar, Line, Name}, S) ->
 transform({set_ivars, Line, Exprs}, S) ->
   { TExprs, SE } = transform_tree(Exprs, S),
   Args = [{var, Line, self}|TExprs],
-  Call = case length(TExprs) of
+  _Call = case length(TExprs) of
     1 ->
       Else = ?ELIXIR_WRAP_CALL(Line, elixir_module_behavior, set_ivars, Args),
       elixir_inliner:set_ivars(Line, TExprs, Else, SE);
@@ -339,7 +339,7 @@ transform({bin_element, Line, Expr, Type, Specifiers }, S) ->
 % = Variables
 %
 % No variables can be defined in a string without interpolation.
-transform({string, Line, String } = Expr, S) ->
+transform({string, Line, _String } = Expr, S) ->
   { elixir_tree_helpers:build_simple_bin(Line, [Expr]), S };
 
 % Handle interpolated strings declarations.
@@ -364,7 +364,7 @@ transform({interpolated_atom, Line, String}, S) ->
 % = Variables
 %
 % No variables can be defined in a string without interpolation.
-transform({regexp, Line, String, Operators }, S) ->
+transform({regexp, _Line, String, Operators }, S) ->
   Final = 'exRegexp':new([], list_to_binary(String), Operators),
   { elixir_tree_helpers:abstract_syntax(Final), S };
 
@@ -384,7 +384,7 @@ transform({interpolated_regexp, Line, String, Operators }, S) ->
 % = Variables
 %
 % No variables can be defined in a char list without interpolation.
-transform({char_list, Line, String } = Expr, S) ->
+transform({char_list, Line, String } = _Expr, S) ->
   { {string, Line, String}, S };
 
 % Handle interpolated strings declarations.
@@ -672,7 +672,7 @@ transform({fun_call, Line, Var, Args }, S) ->
 % = Variables
 %
 % Variables defined inside the comprehensions do not leak.
-transform({lc, Line, Expr, Cases} = Form, S) ->
+transform({lc, _Line, _Expr, _Cases} = Form, S) ->
   transform_comprehension(Form, S);
 
 % Handle binary comprehensions.
@@ -723,7 +723,7 @@ transform(Expr, S) -> { Expr, S }.
 
 % Special case if clause has just one element. There is no need to pass
 % through all the drama below.
-transform_clauses_tree(Line, [Clause], S) ->
+transform_clauses_tree(_Line, [Clause], S) ->
   { TClause, TS } = transform(Clause, S),
   { [TClause], TS };
 
@@ -795,7 +795,7 @@ has_match_tuple(H) when is_tuple(H) ->
 has_match_tuple(H) when is_list(H) ->
   lists:any(fun has_match_tuple/1, H);
 
-has_match_tuple(H) -> false.
+has_match_tuple(_H) -> false.
 
 % For orddict compile time ordering
 is_atoms_dict([]) -> true;
@@ -833,17 +833,17 @@ transform_comprehension({Kind, Line, Expr, Cases}, S) ->
   { { Kind, Line, TExpr, TCases }, umergec(S, SE) }.
 
 transform_comprehension({undef_generate, Line, Left, Right}, L, S) ->
-  Final = case Left of
+  _Final = case Left of
     {bin, _Line, _Exprs} -> transform_comprehension({bin_generate, Line, Left, Right}, L, S);
     _ -> transform_comprehension({list_generate, Line, Left, Right}, L, S)
   end;
 
-transform_comprehension({list_generate, Line, Left, Right}, L, S) ->
+transform_comprehension({list_generate, Line, Left, Right}, _L, S) ->
   { TLeft, SL } = transform_assigns(fun transform/2, Left, S),
   { TRight, SR } = transform(Right, SL),
   { { generate, Line, TLeft, TRight }, SR };
 
-transform_comprehension({bin_generate, Line, Left, Right}, L, S) ->
+transform_comprehension({bin_generate, Line, Left, Right}, _L, S) ->
   { TLeft, SL } = transform_assigns(fun transform/2, Left, S),
   { TRight, SR } = transform(Right, SL),
   { { b_generate, Line, TLeft, TRight }, SR };

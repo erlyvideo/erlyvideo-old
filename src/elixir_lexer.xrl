@@ -166,7 +166,7 @@ convert_number(Kind, Chars) ->
   erlang:Converter(Number).
 
 % Handle heredoc and multiline heredocs
-build_heredoc(Chars, Line, Length) ->
+build_heredoc(Chars, Line, _Length) ->
   Start = string:str(Chars, "\n"),
   Stop = string:rstr(Chars, "\n"),
   Pushback = extract_heredoc_pushback(Chars, Start),
@@ -200,11 +200,11 @@ build_string(Kind, Chars, Line, Length, Distance) ->
   end.
 
 % Handle regular expressions.
-build_regexp(Kind, Chars, Line, Length) ->
+build_regexp(Kind, Chars, Line, _Length) ->
   { Regexp, Options, NewLength } = extract_regexp_options(Chars),
   case handle_chars(false, Kind == interpolated_regexp, Regexp, Line, NewLength, 4) of
     { error, Message } -> { error, Message };
-    { String, Pushback } -> 
+    { String, _Pushback } -> 
       { token, { Kind, Line, String, Options }, [] }
   end.
 
@@ -237,12 +237,12 @@ extract_regexp_options(Chars) ->
   Max = lists:max(lists:map(fun(X) -> string:rchr(Chars, X) end, Separators)),
   erlang:append_element(lists:split(Max, Chars), Max).
 
-handle_chars(Escaping, true, Chars, Line, Length, Distance) ->
+handle_chars(Escaping, true, Chars, _Line, Length, Distance) ->
   Last = lists:last(Chars),
   Substring = sublist(Chars, Distance, Length - Distance + 1),
   elixir_interpolation:extract(Escaping, Substring, Last);
 
-handle_chars(Escaping, false, Chars, Line, Length, Distance) ->
+handle_chars(Escaping, false, Chars, _Line, Length, Distance) ->
   { elixir_interpolation:unescape_chars(Escaping, sublist(Chars, Distance, Length - Distance)), [] }.
 
 reserved_word('Erlang')  -> true;

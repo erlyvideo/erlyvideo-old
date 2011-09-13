@@ -36,7 +36,7 @@ data(#elixir_module__{data=Data}) ->
     error:badarg -> orddict:new()
   end;
 
-data(Native) ->
+data(_Native) ->
   orddict:new(). % Native types has no data.
 
 %% ivars
@@ -44,7 +44,7 @@ data(Native) ->
 get_ivar(Self, Name) when is_atom(Name) ->
   elixir_helpers:orddict_find(Name, data(Self));
 
-get_ivar(Self, Name) ->
+get_ivar(_Self, Name) ->
   elixir_errors:error({bad_ivar, Name}).
 
 set_ivar(Self, Name, Value) when is_atom(Name) ->
@@ -63,13 +63,13 @@ remove_ivar(Self, Name) ->
 set_ivar_dict(_, Name, _, _) when not is_atom(Name) ->
   elixir_errors:error({bad_ivar, Name});
 
-set_ivar_dict(#elixir_slate__{data=Dict} = Self, Name, _, Function) ->
+set_ivar_dict(#elixir_slate__{data=Dict} = Self, _Name, _, Function) ->
   Self#elixir_slate__{data=Function(Dict)};
 
-set_ivar_dict(#elixir_module__{data=Dict} = Self, Name, _, Function) when not is_atom(Dict) ->
+set_ivar_dict(#elixir_module__{data=Dict} = Self, _Name, _, Function) when not is_atom(Dict) ->
   Self#elixir_module__{data=Function(Dict)};
 
-set_ivar_dict(#elixir_module__{data=Data} = Self, Name, _, Function) ->
+set_ivar_dict(#elixir_module__{data=Data} = Self, _Name, _, Function) ->
   Dict = ets:lookup_element(Data, data, 2),
   Object = Self#elixir_module__{data=Function(Dict)},
   ets:insert(Data, { data, Object#elixir_module__.data }),
@@ -102,7 +102,7 @@ bind(#elixir_slate__{} = Left, Right, Args) ->
   Bound = Left#elixir_slate__{module=Module},
   bind_callback(Module, Bound, Args);
 
-bind(Left, Right, Args) ->
+bind(Left, _Right, _Args) ->
   builtin_not_allowed(Left, '__bind__').
 
 bind_callback(Module, Bound, Args) ->
@@ -113,10 +113,10 @@ bind_callback(Module, Bound, Args) ->
 assert_same(Module,   #elixir_slate__{module=Module}) -> [];
 assert_same(Expected, Actual) -> elixir_errors:error({bad_binding, {?ELIXIR_EX_MODULE(Expected),Actual}}).
 
-bad_binding_error(Expected, Actual) ->
-  FinalExpected = ?ELIXIR_EX_MODULE(Expected),
-  FinalActual   = ?ELIXIR_EX_MODULE(Actual),
-  elixir_errors:error({bad_binding, {FinalExpected,FinalActual}}).
+% bad_binding_error(Expected, Actual) ->
+%   FinalExpected = ?ELIXIR_EX_MODULE(Expected),
+%   FinalActual   = ?ELIXIR_EX_MODULE(Actual),
+%   elixir_errors:error({bad_binding, {FinalExpected,FinalActual}}).
 
 check_module(#elixir_module__{}) -> [];
 check_module(Else) -> elixir_errors:error({not_a_module, Else}).

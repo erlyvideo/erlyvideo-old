@@ -843,7 +843,7 @@ build_string_list(Collection) ->
     false -> { string, Line, Chars }
   end.
 
-build_string_list(Interpol, [], Acc) ->
+build_string_list(_Interpol, [], Acc) ->
   lists:flatten(lists:reverse(Acc));
 
 build_string_list(Interpol, [{Kind, _, Chars}|T], Acc) ->

@@ -22,7 +22,7 @@ method_call(Line, Expr, Name, TArgs, Else) ->
       ?ELIXIR_WRAP_CALL(Line, Module, Name, [Reverse|TArgs])
   end.
 
-binary_op(Line, Left, Right, TLeft, TRight, Op, S, SF) ->
+binary_op(Line, Left, _Right, TLeft, TRight, Op, S, SF) ->
   Optimize = S#elixir_scope.assign or S#elixir_scope.guard,
 
   % Check if left side is an integer or float, if so, dispatch straight to the operator

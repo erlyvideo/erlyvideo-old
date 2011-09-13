@@ -26,7 +26,7 @@ syntax_error(Line, Filename, Error, Token) ->
 
 % Handle warnings
 
-handle_file_warning(Filename, {Line,_,{unused_var,self}}) ->
+handle_file_warning(_Filename, {_Line,_,{unused_var,self}}) ->
   [];
 
 handle_file_warning(Filename, {Line,Module,{unused_var,Var} = Desc}) ->
@@ -35,7 +35,7 @@ handle_file_warning(Filename, {Line,Module,{unused_var,Var} = Desc}) ->
     false -> io:format(file_format(Line, Filename, format_error(Module, Desc)) ++ [$\n])
   end;
 
-handle_file_warning(Filename, {Line,_,nomatch_clause_type}) ->
+handle_file_warning(_Filename, {_Line,_,nomatch_clause_type}) ->
   [];
 
 handle_file_warning(Filename, {Line,Module,Desc}) ->
