@@ -221,12 +221,12 @@ decode(#shoutcast{state = unsynced_body, format = aac,consumer = Consumer, sync_
             sound	    = {stereo, bit16, rate44}
           },
           #media_info{audio=Audio} = ems_media:media_info(Consumer),
-          MediaInfo = ems_media:set_media_info(Consumer,#media_info{video=[],audio=Audio}),
-        Config = aac:decode_config(AACConfig),
-        SampleRate = Config#aac_config.sample_rate / 1000,
-        ?D(AudioConfig),
-        send_frame(AudioConfig, State),
-       decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0, sample_rate = SampleRate})
+          _MediaInfo = ems_media:set_media_info(Consumer,#media_info{video=[],audio=Audio}),
+          Config = aac:decode_config(AACConfig),
+          SampleRate = Config#aac_config.sample_rate / 1000,
+          ?D(AudioConfig),
+          send_frame(AudioConfig, State),
+          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0, sample_rate = SampleRate})
       end;
     {more, undefined} ->
       ?D({"Want more AAC for first frame"}),
