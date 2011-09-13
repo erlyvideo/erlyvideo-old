@@ -67,19 +67,8 @@ encode(Session, Secret) when is_list(Session) ->
   Sign = session_sign(Json64, Secret),
   <<Json64/binary, "--", Sign/binary>>.
 
-binary_to_hexbin(L) ->
-  list_to_binary(lists:flatten(lists:map(fun(X) -> int_to_hex(X) end, binary_to_list(L)))).
-
-int_to_hex(N) when N < 256 ->
-  [hex(N div 16), hex(N rem 16)].
-
-hex(N) when N < 10 ->
-  $0+N;
-hex(N) when N >= 10, N < 16 ->
-  $a + (N-10).
-
 session_sign(Session, Secret) ->
-  binary_to_hexbin(crypto:sha_mac(Secret, Session)).
+  ems:binary_to_hexbin(crypto:sha_mac(Secret, Session)).
 
 
 verify_signature(_, _, undefined) ->

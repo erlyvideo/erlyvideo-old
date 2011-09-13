@@ -34,7 +34,7 @@
 -export([rebuild/0, reload/0, reload/1, restart/0]).
 
 -export([list_by/1, top_info/1, top_info/2, now/1]).
--export([to_i/1]).
+-export([to_i/1, binary_to_hexbin/1]).
 
 rebuild() -> erlyvideo:rebuild().
 restart() -> erlyvideo:restart().
@@ -303,6 +303,19 @@ collect_multicalls(Parent, Refs) ->
 to_i(L) when is_list(L) -> list_to_integer(L);
 to_i(B) when is_binary(B) -> to_i(binary_to_list(B));
 to_i(I) when is_number(I) -> I.
+
+
+binary_to_hexbin(L) ->
+  list_to_binary(lists:flatten(lists:map(fun(X) -> int_to_hex(X) end, binary_to_list(L)))).
+
+int_to_hex(N) when N < 256 ->
+  [hex(N div 16), hex(N rem 16)].
+
+hex(N) when N < 10 ->
+  $0+N;
+hex(N) when N >= 10, N < 16 ->
+  $a + (N-10).
+
 
 
 
