@@ -2,7 +2,6 @@
 [{description, "elixir"},
  {vsn, "0.3.1.dev"},
  {modules, [
-	elixir
   ]},
  {registered,[elixir_code_server]},
  {applications, [kernel,stdlib]},

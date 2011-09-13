@@ -9,46 +9,15 @@ TEST_EBIN_DIR=$(TEST_DIR)/ebin
 ERLC=erlc -I $(INCLUDE_DIR) -W0
 ERL=erl -I $(INCLUDE_DIR) -noshell -pa $(EBIN_DIR)
 
-.PHONY: test test_erlang test_elixir clean clean_exbin
+.PHONY: test exbin test_erlang test_elixir clean clean_exbin
 
 # This is the default task
-compile: ebin/elixir.beam ebin | src/elixir_lexer.erl src/elixir_parser.erl src/eex_lexer.erl exbin
+compile:
+	@ ./rebar compile
+	@ make exbin
 
 # install:
 # We will need to do this one at some point
-
-ebin/elixir.beam: include/elixir.hrl
-	@ echo Compiling Erlang source ...
-	@ mkdir -p $(EBIN_DIR)
-	$(ERLC) -o $(EBIN_DIR) src/*.erl
-	@ echo
-
-src/elixir_lexer.erl: src/elixir_lexer.xrl
-	@ echo Compiling lexer ...
-	$(ERL) -eval 'leex:file("$<"), halt().'
-	@ mkdir -p $(EBIN_DIR)
-	$(ERLC) -o $(EBIN_DIR) $@
-	@ echo
-
-src/elixir_parser.erl: src/elixir_parser.yrl
-	@ echo Compiling parser ...
-	$(ERL) -eval 'yecc:file("$<"), halt().'
-	@ mkdir -p $(EBIN_DIR)
-	$(ERLC) -o $(EBIN_DIR) $@
-	@ echo
-
-src/eex_lexer.erl: src/eex_lexer.xrl
-	@ echo Compiling eex lexer ...
-	$(ERL) -eval 'leex:file("$<"), halt().'
-	@ mkdir -p $(EBIN_DIR)
-	$(ERLC) -o $(EBIN_DIR) $@
-	@ echo
-
-ebin: src/*.erl
-	@ echo Compiling Erlang source ...
-	@ mkdir -p $(EBIN_DIR)
-	$(ERLC) -o $(EBIN_DIR) $?
-	@ echo
 
 exbin: lib/*.ex lib/*/*.ex
 	@ echo Compiling Elixir source ...
