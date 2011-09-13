@@ -29,6 +29,7 @@ update:
 	git pull
 
 compile:
+	./rebar get-deps
 	./rebar compile
 
 release: clean compile
