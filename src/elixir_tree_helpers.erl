@@ -23,7 +23,7 @@ build_list(Fun, Exprs, Line, S) ->
 build_list(Fun, Exprs, Line, S, Tail) ->
   build_list_each(Fun, lists:reverse(Exprs), Line, S, Tail).
 
-build_list_each(Fun, [], Line, S, Acc) ->
+build_list_each(_Fun, [], _Line, S, Acc) ->
   { Acc, S };
 
 build_list_each(Fun, [H|T], Line, S, Acc) ->
@@ -39,7 +39,7 @@ build_simple_list(Line, Args) ->
 build_bin(Fun, Exprs, Line, S) ->
   build_bin_each(Fun, Exprs, Line, S, []).
 
-build_bin_each(Fun, [], Line, S, Acc) ->
+build_bin_each(_Fun, [], Line, S, Acc) ->
   { { bin, Line, lists:reverse(Acc) }, S };
 
 build_bin_each(Fun, [H|T], Line, S, Acc) ->

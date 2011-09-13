@@ -33,14 +33,14 @@ set_visibility(#elixir_module__{name=Name, data=Data}, Visibility) when is_atom(
   MethodTable = ?ELIXIR_ATOM_CONCAT([m, Name]),
   ets:insert(MethodTable, { visibility, Visibility });
 
-set_visibility(Self, Visibility) ->
+set_visibility(Self, _Visibility) ->
   elixir_errors:error({module_defined, { set_visibility, Self }}).
 
 get_visibility(#elixir_module__{name=Name, data=Data}) when is_atom(Data) ->
   MethodTable = ?ELIXIR_ATOM_CONCAT([m, Name]),
   ets:lookup_element(MethodTable, visibility, 2);
 
-get_visibility(Self) ->
+get_visibility(_Self) ->
   [].
 
 % alias_local
@@ -67,7 +67,7 @@ module_eval(#elixir_module__{name=Name, data=Data} = Self, String, Filename, Lin
 module_eval(Self, _, _, _) ->
   elixir_errors:error({module_defined, { module_eval, Self }}).
 
-object_kind(#elixir_module__{}) -> module.
+% object_kind(#elixir_module__{}) -> module.
 
 % define_erlang_methods
 
