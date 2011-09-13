@@ -131,8 +131,8 @@ dump_media(Media, Options) when is_pid(Media) ->
   Writer = proplists:get_value(writer, Options),
     
   {ok, Converter} = mp4_writer:init(Writer, [{method,two_pass}]),
-  From = proplists:get_value(from, Options),
-  To = proplists:get_value(to, Options),
+  From = proplists:get_value(start, Options, proplists:get_value(start, Options)),
+  To = proplists:get_value(to, Options, proplists:get_value(duration, Options, 0) + From),
   
   {StartPos, _} = ems_media:seek_info(Media, From, []),
   {ok, Converter1} = dump_media_2pass(Media, Converter, StartPos, To),

@@ -39,7 +39,14 @@
 	}
 	#status div.ok {
 		background: green;
+		cursor: pointer;
 	}
+	#status div.ok:hover {
+		border: 1px dashed black;
+		width: 18px;
+		height: 18px;
+	}
+	
 	#status div.fail {
 		background: red;
 	}
@@ -59,11 +66,17 @@
 		clear: both;
 		border-bottom: 1px #303030 solid;
 	}
+	#info-line {
+		display: none;
+	}
 	</style>
 <div id="status">
 </div>
+<div id="info-line">
+	<a id="export-url" href="">Export archive</a>
+</div>
 <script type="text/javascript">
-function drawResponse(reply) {
+function drawResponse(year, month, day, camera, reply) {
 	var i,j;
 	
 	var minutes = {};
@@ -76,6 +89,7 @@ function drawResponse(reply) {
 		var m = parseInt(matches[2], 10);
 		minutes[h][m] = true;
 	}
+	
 	
 	s = "";
 	s += '<div class="line"><div class="first-col">&nbsp;</div>';
@@ -92,16 +106,31 @@ function drawResponse(reply) {
 			var klass = minutes[j][i] ? "ok" : "fail";
 			if((i + 1) % 10 == 0) klass += " ten";
 			else if((i + 1) % 5 == 0) klass += " five";
-			s += "<div class=\""+klass+"\">&nbsp;</div>";
+			var d = new Date(year, month - 1, day, j, i, 0);
+			s += "<div class=\"minute "+klass+"\" time='"+(d.getTime() / 1000 - d.getTimezoneOffset()*60)+"'>&nbsp;</div>";
 		}
 		s += "</div>";
 	}
 	$("#status").html(s);
+	var selection_start = null;
+	$("#status div.ok").mousedown(function() {
+		selection_start = parseInt($(this).attr('time'), 10);
+		console.log("start selection");
+	});
+	$("#status div.minute").mouseup(function() {
+		if(selection_start > 0) {
+			console.log("stop selection");
+			var selection_stop = parseInt($(this).attr('time'), 10);
+			$("#export-url").attr("href", "/mp4/archive/"+camera+"?start="+selection_start+"&duration="+(selection_stop - selection_start)).html("Export camera mp4");
+			$("#info-line").show();
+			selection_start = null;
+		}
+	});
 }
 
 function requestResponse(year, month, day, camera) {
 	$.get("/registrator/api/list/"+year+"/"+month+"/"+day+"/"+camera, {}, function(reply) {
-		drawResponse(eval('('+reply+')'));
+		drawResponse(year, month, day, camera, eval('('+reply+')'));
 	});
 }
 
