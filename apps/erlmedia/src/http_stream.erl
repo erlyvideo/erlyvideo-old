@@ -74,9 +74,21 @@ get_with_body(URL, Options) ->
   case get(URL, Options) of
     {ok, Headers, Socket} ->
       case proplists:get_value('Content-Length', Headers) of
-        undefined -> 
-          gen_tcp:close(Socket),
-          {error, no_length};
+        undefined ->
+          case proplists:get_value('Transfer-Encoding', Headers) of
+            <<"chunked">> ->
+              Body = get_chunked_body(Socket),
+              {ok, Headers, Body};
+            _ ->
+              case proplists:get_value('Connection', Headers) of
+                <<"close">> ->
+                  Body = get_plain_body(Socket),
+                  {ok, Headers, Body};
+                _ ->
+                  gen_tcp:close(Socket),
+                  {error, no_length}
+              end
+          end;
         Length ->
           {ok, Body} = gen_tcp:recv(Socket, ems:to_i(Length)),
           gen_tcp:close(Socket),
@@ -86,6 +98,35 @@ get_with_body(URL, Options) ->
       Else
   end.  
 
+get_plain_body(Socket) ->
+  get_plain_body(Socket, []).
+
+get_plain_body(Socket, Acc) ->
+  case gen_tcp:recv(Socket, 0) of
+    {ok, Bin} -> get_plain_body(Socket, [Bin|Acc]);
+    {error, closed} -> iolist_to_binary(lists:reverse(Acc))
+  end.
+
+get_chunked_body(Socket) ->
+  get_chunked_body(Socket, []).
+
+get_chunked_body(Socket, Acc) ->
+  inet:setopts(Socket, [{packet,line}]),
+  {ok, ChunkHeader} = gen_tcp:recv(Socket, 0),
+  inet:setopts(Socket, [{packet,raw}]),
+  case re:run(ChunkHeader, "^([\\d\\w]+)", [{capture,all_but_first, list}]) of
+    {match, [C]} ->
+      get_next_chunk(Socket, Acc, list_to_integer(C, 16));
+    nomatch ->
+      get_next_chunk(Socket, Acc, 0)  
+  end.
+
+get_next_chunk(_Socket, Acc, 0) ->
+  iolist_to_binary(lists:reverse(Acc));
+
+get_next_chunk(Socket, Acc, Length) ->
+  {ok, Body} = gen_tcp:recv(Socket, Length),
+  get_chunked_body(Socket, [Body|Acc]).
 
 head(URL, Options) ->
   {ok, Headers, Socket} = get(URL, [{method,head}|Options]),
