@@ -64,7 +64,7 @@ decoder(Options) ->
 %% @spec decode(iolist()) -> json_term()
 %% @doc Decode the given iolist to Erlang terms.
 decode(S) ->
-    json_decode(S, #decoder{}).
+    json_decode(S, #decoder{object_hook = fun(Obj) -> tuple_to_list(Obj) end}).
 
 test() ->
     test_all().
