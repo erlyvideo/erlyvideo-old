@@ -1,3 +1,4 @@
+
 %%%---------------------------------------------------------------------------------------
 %%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
 %%% @copyright  2010 Max Lapshin
@@ -36,14 +37,20 @@
   metaint,
   metadata,
   timeout = 5000,
-  buffer = <<>>
+  buffer = <<>>,
+  count = 0 
 }).
 
 write(Player,Req) -> 
   erlang:monitor(process,Player),
-  Codec = get_codec_info(Player),
+  {Codec,Body} = case get_codec_info(Player) of
+    #stream_info{codec = RawCodec,config = RawBody} ->
+      {RawCodec,RawBody};
+    _ ->
+      {undefined,undefined}
+  end,
   Metaint = get_metaint(Req),
-  State = #shoutcast{audio_config = undefined, metaint = Metaint, reader = Player},
+  State = #shoutcast{audio_config = aac:decode_config(Body), metaint = Metaint, reader = Player},
   case Codec of
     aac ->   
       Req:stream(head,[{"Content-Type","audio/aac"},{'Cache-Control', 'no-cache'},{'icy-metaint',Metaint}]),
@@ -65,11 +72,11 @@ get_metaint(Req) ->
 get_codec_info(Player) ->
   case ems_media:media_info(Player) of
     #media_info{audio = [Info]} ->
-      Info#stream_info.codec;
+      Info;
     _Else -> {error,info_notfound}
   end.
 
-receive_frame(#shoutcast{timeout = Timeout} = State, Req) ->
+receive_frame(#shoutcast{timeout = Timeout,count=Count} = State, Req) ->
   receive
     Message ->
       case handle_message(Message, State) of
@@ -77,7 +84,7 @@ receive_frame(#shoutcast{timeout = Timeout} = State, Req) ->
           ?MODULE:receive_frame(NewState, Req);
         {reply, Bin, NewState} ->
           Req:stream(Bin),
-          ?MODULE:receive_frame(NewState, Req);
+          ?MODULE:receive_frame(NewState#shoutcast{count=Count+1}, Req);
         {stop, Reason, NewState} ->
           {stop, Reason, NewState}
       end
@@ -85,14 +92,15 @@ receive_frame(#shoutcast{timeout = Timeout} = State, Req) ->
     Timeout -> {stop, timeout, State}
   end.    
 
-handle_message(#video_frame{flavor = config, content = audio, body = Config}, #shoutcast{} = State) ->
+handle_message(#video_frame{flavor = config, content = audio, body = Config}=_Frame, #shoutcast{} = State) ->
+  ?D(Config),
   {noreply, State#shoutcast{audio_config = aac:decode_config(Config)}};
 
 handle_message(#video_frame{content = Content}, State) when Content =/= audio -> 
   {noreply, State};
 
 handle_message(#video_frame{flavor = frame, content = audio, body = Body, codec = Codec}, 
-               #shoutcast{buffer = Buffer, audio_config = Config} = State) ->
+  #shoutcast{buffer = Buffer, audio_config = Config} = State) ->
   Packetized = packetize(Codec, Config, Body),
   {Reply, Rest} = split(<<Buffer/binary, Packetized/binary>>, State),
   {reply, Reply, State#shoutcast{buffer = Rest}};
@@ -131,6 +139,7 @@ prepend_metadata(undefined, Acc) ->
 
 prepend_metadata(Player, Acc) ->
          MediaInfo = ems_media:media_info(Player),
+         ?D(MediaInfo),
          CurrentName = get_name_current_track(MediaInfo),
          Size = size(CurrentName),
          {MetaSize,MetaRestSize} = case Size rem 16 of
@@ -172,7 +181,6 @@ metadata_without_name_test () ->
   erlang:monitor(process,Player),
   State = #shoutcast{audio_config = undefined, metaint = 48000, reader = Player},
   Body = aac_frame(<<>>,State),
-  ?D(size(Body)),
   test_meta(Body).
 
 test_meta(<<>>) ->
@@ -182,6 +190,7 @@ test_meta(Body) when size(Body) < 48000 ->
   ok;
 
 test_meta(<<_Data:48000/binary,Header:33/binary,Body/binary>>) ->
+  ?D(Header),
   ?assertEqual(<<2,83,116,114,101,97,109,84,105,116,108,101,61,
                39,69,114,108,121,118,105,100,101,111,39,59,0,0,
                0,0,0,0,0,0>>,Header),
