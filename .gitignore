@@ -5,3 +5,5 @@ test/ebin
 test/tmp
 ebin/*.beam
 exbin/*.beam
+ebin
+exbin
