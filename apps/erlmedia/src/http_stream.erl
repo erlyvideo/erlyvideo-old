@@ -39,7 +39,7 @@ open_socket(URL, Options) ->
     false -> Path
   end,
 
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http}, {active, false}, {recbuf, 65536}, inet], Timeout),
+  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}, {recbuf, 65536}, inet], Timeout),
   Headers = proplists:get_value(headers, Options, []) ++ case proplists:get_value(range, Options) of
     {Start,End} -> [{"Range", lists:flatten(io_lib:format("bytes=~p-~p", [Start,End-1]))}];
     undefined -> []
@@ -78,7 +78,7 @@ get_with_body(URL, Options) ->
           gen_tcp:close(Socket),
           {error, no_length};
         Length ->
-          {ok, Body} = gen_tcp:recv(Socket, list_to_integer(Length)),
+          {ok, Body} = gen_tcp:recv(Socket, ems:to_i(Length)),
           gen_tcp:close(Socket),
           {ok, Headers, Body}
       end;

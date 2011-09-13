@@ -34,6 +34,7 @@
 -export([rebuild/0, reload/0, reload/1, restart/0]).
 
 -export([list_by/1, top_info/1, top_info/2, now/1]).
+-export([to_i/1]).
 
 rebuild() -> erlyvideo:rebuild().
 restart() -> erlyvideo:restart().
@@ -297,6 +298,12 @@ collect_multicalls(Parent, Refs) ->
       end,
       collect_multicalls(Parent, Refs1)
   end.
+
+
+to_i(L) when is_list(L) -> list_to_integer(L);
+to_i(B) when is_binary(B) -> to_i(binary_to_list(B));
+to_i(I) when is_number(I) -> I.
+
 
 
 %%
