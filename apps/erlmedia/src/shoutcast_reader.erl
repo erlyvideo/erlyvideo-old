@@ -24,7 +24,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -export([start_link/1]).
 -behaviour(gen_server).
-
+-include("../include/media_info.hrl").
 -include("../include/video_frame.hrl").
 -include("../include/aac.hrl").
 -include("log.hrl").
@@ -46,12 +46,13 @@
 }).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1,handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 % AAC+ example
 % {ok, Pid1} = ems_sup:start_shoutcast_media("http://91.121.132.237:8052/").
 % MP3 example
 % {ok, Pid2} = ems_sup:start_shoutcast_media("http://205.188.215.230:8002").
+
 
 start_link(Options) ->
   gen_server_ems:start_link(?MODULE, [Options], []).
@@ -69,8 +70,9 @@ init([Options]) ->
 
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, once}], Timeout),
   ok = gen_tcp:send(Socket, "GET "++Path++" HTTP/1.1\r\nHost: "++Host++":"++integer_to_list(Port)++"\r\nAccept: */*\r\n\r\n"),
-
+  
   erlang:monitor(process, Consumer),
+
   {ok, #shoutcast{state = request, consumer = Consumer, url = URL, socket = Socket, options = Options}}.
 
 
@@ -194,7 +196,7 @@ decode(#shoutcast{state = unsynced_body, sync_count = SyncCount, format = mp3, b
   end;
 
 
-decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, buffer = <<_, Rest/binary>>} = State) ->
+decode(#shoutcast{state = unsynced_body, format = aac,consumer = Consumer, sync_count = SyncCount, buffer = <<_, Rest/binary>>} = State) ->
    %?D({"Decode"}),
   case aac:unpack_adts(State#shoutcast.buffer) of
     {ok, _Frame, Second} ->
@@ -210,22 +212,25 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
           ?D({"Synced AAC"}),
           AACConfig = aac:adts_to_config(Second),
           AudioConfig = #video_frame{       
-           	content   = audio,
-           	flavor    = config,
-        		dts       = 0,
-        		pts       = 0,
-        		body      = AACConfig,
-        	  codec	    = aac,
-        	  sound	    = {stereo, bit16, rate44}
-        	},
-        	Config = aac:decode_config(AACConfig),
-        	SampleRate = Config#aac_config.sample_rate / 1000,
-        	send_frame(AudioConfig, State),
-          decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0, sample_rate = SampleRate})
+            content   = audio,
+            flavor    = config,
+            dts       = 0,
+            pts       = 0,
+            body      = AACConfig,
+            codec	    = aac,
+            sound	    = {stereo, bit16, rate44}
+          },
+          #media_info{audio=Audio} = ems_media:media_info(Consumer),
+          MediaInfo = ems_media:set_media_info(Consumer,#media_info{video=[],audio=Audio}),
+        Config = aac:decode_config(AACConfig),
+        SampleRate = Config#aac_config.sample_rate / 1000,
+        ?D(AudioConfig),
+        send_frame(AudioConfig, State),
+       decode(State#shoutcast{buffer = Second, state = body, audio_config = AudioConfig, timestamp = 0, sample_rate = SampleRate})
       end;
     {more, undefined} ->
       ?D({"Want more AAC for first frame"}),
-      State;
+	  State;
     {error, unknown} ->
       decode(State#shoutcast{buffer = Rest})
   end;
@@ -236,7 +241,7 @@ decode(#shoutcast{state = unsynced_body, format = aac, sync_count = SyncCount, b
 % 
 
 decode(#shoutcast{state = unsynced_body, buffer = <<>>} = State) ->
-  State;
+    State;
 
 decode(#shoutcast{state = body, format = aac, buffer = Data, timestamp = Timestamp, sample_rate = SampleRate} = State) ->
    %?D({"Decode"}),
@@ -272,8 +277,8 @@ decode(#shoutcast{state = body, format = mp3, buffer = Data, timestamp = Timesta
         pts     = Timestamp / SampleRate,
         body    = Packet,
         flavor  = frame,
-    	  codec	  = mp3,
-    	  sound	  = {stereo, bit16, rate44}
+    	codec	  = mp3,
+    	sound	  = {stereo, bit16, rate44}
       },
       send_frame(Frame, State),
       decode(State#shoutcast{buffer = Rest, timestamp = Timestamp + 1024});
