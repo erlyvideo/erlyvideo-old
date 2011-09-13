@@ -269,8 +269,9 @@ module ListTest
   
   % It is very convenient to have hash-like proplists access to list
   def proplist_brackets_test
-    1 = [{'a,1},{'b,2},{'c,3}]['a]
-    'undefined = [{'a,1},{'b,2},{'c,3}]['d]
+    1 = [{'a,1},{"b",2},{'c,3}]['a]
+    2 = [{'a,1},{"b",2},{'c,3}]["b"]
+    nil = [{'a,1},{'b,2},{'c,3}]['d]
   end
 
   def brackets_negative_index_test

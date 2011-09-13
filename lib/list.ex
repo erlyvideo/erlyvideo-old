@@ -178,14 +178,19 @@ module List
     %     [1,2,3][-43] % => nil
     %
     def [](number)
-      if Erlang.is_atom(number)
-        Erlang.proplists.get_value(number, self)
-      else 
-        if number < 0
-          brackets(-1 * (1 + number), Erlang.lists.reverse(self))
+      case Erlang.proplists.get_value(number, self)
+      match 'undefined
+        if Erlang.is_number(number)
+          if number < 0
+            brackets(-1 * (1 + number), Erlang.lists.reverse(self))
+          else
+            brackets(number, self)
+          end
         else
-          brackets(number, self)
+          nil
         end
+      match value
+        value
       end
     end
 
