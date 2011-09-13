@@ -49,7 +49,7 @@
   rtmp_socket:invoke(Socket, 0, 'onFCPublish', [Args]),
   State.
 
-'FCUnpublish'(#rtmp_session{host = Host,session_id = SessionId} = State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
+'FCUnpublish'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
   {RawName, _Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   case media_provider:find(Host, Name) of
