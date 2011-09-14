@@ -32,6 +32,7 @@
   last_dts_at,
   ts_delta,
   glue_delta,
+  source_lost_at,
   
   source_timeout,
   source_timeout_ref,

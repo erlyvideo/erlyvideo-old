@@ -69,7 +69,7 @@ failure_movie(#ems_media{source = Source} = Media, Name) ->
   handle_lost_source(Media#ems_media{ts_delta = undefined, failure_source = FailureSource}).
 
 handle_lost_source(#ems_media{module = M, source = Source, source_timeout = SourceTimeout} = Media) ->  
-  case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined}) of
+  case M:handle_control({source_lost, Source}, Media#ems_media{source = undefined, source_lost_at = erlang:now()}) of
     {stop, Reason, Media1} ->
       ?D({"ems_media is stopping due to source_lost", M, Source, Reason}),
       {stop, Reason, Media1};
