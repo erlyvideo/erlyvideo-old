@@ -69,7 +69,13 @@ init(#ems_media{type = Type} = Media, Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({subscribe, _Client, _Options}, State) ->
+handle_control({subscribe, _Client, _Options}, #ems_media{type = _Type,audio_config =A,last_dts=DTS}=State) ->
+  StreamId = proplists:get_value(stream_id, _Options),
+  case _Type of
+    shoutcast when is_record(A,video_frame) ->  
+      _Client ! A#video_frame{dts = DTS, pts = DTS,stream_id=StreamId};
+    _->ok
+  end, 
   %% Subscribe returns:
   %% {ok, State} -> client is subscribed as active receiver
   %% {ok, State, tick} -> client requires ticker (file reader)
