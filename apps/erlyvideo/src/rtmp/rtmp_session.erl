@@ -286,7 +286,7 @@ handle_info({'DOWN', _Ref, process, PlayerPid, _Reason}, #rtmp_session{socket = 
       {noreply, State};
     #rtmp_stream{stream_id = StreamId} ->
       ?D({"Failed played stream", StreamId, PlayerPid}),
-      rtmp_lib:play_complete(Socket, StreamId, [{duration, 0}]),
+      rtmp_lib:play_failed(Socket, StreamId),
       flush_stream(StreamId),
       {noreply, delete_stream(StreamId, State)}
   end;
