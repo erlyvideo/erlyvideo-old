@@ -68,7 +68,7 @@ handle_control({source_lost, _Source}, State) ->
   %% Source lost returns:
   %% {reply, Source, State} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {stop, source_lost, State};
+  {stop, normal, State};
 
 handle_control({set_source, _Source}, State) ->
   %% Set source returns:
@@ -159,19 +159,25 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = stream_end}}, State) ->
   ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
     Pid ! {ems_stream, StreamId, play_complete, 0}
   end, ok, State),
-  {noreply, State};
+  {stop,normal, State};
 
-% handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>, args = [null, {object, Command} |_]}}}, State) ->
-%   case proplists:get_value(code, Command) of
-%     <<"NetStream.Play.StreamNotFound">> ->
+handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>,stream_id = StreamId, args = [null, {object, Command} |_]}}}, State) ->
+   ?D(Command),
+   ?D(State),
+   case proplists:get_value(code, Command) of
+     <<"NetStream.Play.StreamNotFound">> ->
+        lists:map(fun({Pid,_Ref})-> 
+          Pid ! {ems_stream,StreamId,not_found}
+        end,State#ems_media.waiting_for_config),    
+        {noreply,State};
 %       ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
-%         ?D({not_found, Pid, StreamId}),
-%         Pid ! {ems_stream, StreamId, not_found}
+%       ?D({Pid,killl}),
+%       Pid ! {ems_stream, StreamId, not_found}
 %       end, ok, State),
-%       {stop, normal, State};
-%     _ ->
-%       {noreply, State}
-%   end;
+%       {noreply, State};
+     _ ->
+       {noreply, State}
+   end;
 
 handle_info({rtmp, _RTMP, #rtmp_message{} = Message}, State) ->
   ?D({"RTMP message", Message}),
