@@ -162,8 +162,6 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = stream_end}}, State) ->
   {stop,normal, State};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>,stream_id = StreamId, args = [null, {object, Command} |_]}}}, State) ->
-   ?D(Command),
-   ?D(State),
    case proplists:get_value(code, Command) of
      <<"NetStream.Play.StreamNotFound">> ->
         lists:map(fun({Pid,_Ref})-> 
