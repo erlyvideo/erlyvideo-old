@@ -36,14 +36,22 @@ paths() ->
 init([]) ->
   application:start(elixir),
   timer:send_after(?TIMEOUT, recheck),
-  {ok, #tracker{paths = []}}.
+  Paths = case application:get_env(elixir, paths) of
+    {ok, P} -> P;
+    _ -> []
+  end,
+  {ok, #tracker{paths = Paths}}.
 
 
 handle_call({add_path, Path}, _From, #tracker{paths = Paths} = Tracker) ->
-  {reply, ok, Tracker#tracker{paths = lists:usort([Path|Paths])}};
+  NewPaths = lists:usort([Path|Paths]),
+  application:set_env(elixir, paths, NewPaths),
+  {reply, ok, Tracker#tracker{paths = NewPaths}};
 
 handle_call({remove_path, Path}, _From, #tracker{paths = Paths} = Tracker) ->
-  {reply, ok, Tracker#tracker{paths = lists:delete(Path, Paths)}};
+  NewPaths = lists:delete(Path, Paths),
+  application:set_env(elixir, paths, NewPaths),
+  {reply, ok, Tracker#tracker{paths = NewPaths}};
 
 handle_call(paths, _From, #tracker{paths = Paths} = Tracker) ->
   {reply, Paths, Tracker};
@@ -111,7 +119,12 @@ compile_new_modules(NewPaths) ->
 compile_new_module(Path) ->
   
   Module = mod_name(Path),
-  (catch elixir:file(Path)),
+  try elixir:file(Path) of
+    {#elixir_slate__{}, _} -> ok
+  catch
+    error:{module_defined, _} -> ok;
+    _Klass:Error -> error_logger:error_msg("Elixir error: ~p~n", [Error])
+  end,
   case erlang:module_loaded(ex_name(Module)) of
     true ->
       Forms = proxy_module_text(Module),
@@ -173,19 +186,24 @@ reload_module_if_required(Path) ->
   {ok, #file_info{mtime = Mtime}} = file:read_file_info(Path),
   Module = mod_name(Path),
   ExMod = ex_name(Module),
-  Options = ExMod:module_info(compile),
-  {Y,Mon,D,H,Min,S} = proplists:get_value(time, Options),
-  LocalCompileTime = calendar:universal_time_to_local_time({{Y,Mon,D},{H,Min,S}}),
-  LifeTime = calendar:datetime_to_gregorian_seconds(LocalCompileTime) - calendar:datetime_to_gregorian_seconds(Mtime),
-  if
-    LifeTime < 0 ->
-      % io:format("Reloading ~p~n", [Path]),
-      code:soft_purge(ExMod),
-      code:delete(ExMod),
-      compile_new_module(Path),
-      ok;
-    true -> 
-      ok
+  case erlang:module_loaded(ExMod) of
+    true ->
+      Options = ExMod:module_info(compile),
+      {Y,Mon,D,H,Min,S} = proplists:get_value(time, Options),
+      LocalCompileTime = calendar:universal_time_to_local_time({{Y,Mon,D},{H,Min,S}}),
+      LifeTime = calendar:datetime_to_gregorian_seconds(LocalCompileTime) - calendar:datetime_to_gregorian_seconds(Mtime),
+      if
+        LifeTime < 0 ->
+          % io:format("Reloading ~p~n", [Path]),
+          code:soft_purge(ExMod),
+          code:delete(ExMod),
+          compile_new_module(Path),
+          ok;
+        true -> 
+          ok
+      end;
+    false ->
+      compile_new_module(Path)
   end,
   Module.
 
