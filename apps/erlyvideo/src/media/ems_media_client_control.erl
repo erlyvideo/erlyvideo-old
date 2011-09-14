@@ -68,8 +68,8 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
         ClientState = case proplists:get_value(paused, Options, false) of
           true -> paused;
           false ->
-            if
-              is_record(A, video_frame) andalso SendAudioBeforeKeyframe == true -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId};
+            if 
+              is_record(A, video_frame) andalso (SendAudioBeforeKeyframe == true orelse not HasVideo) -> Client ! A#video_frame{dts = DTS, pts = DTS, stream_id = StreamId};
               true -> ok
             end,
             if
@@ -81,7 +81,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
   end,
-  
+  ?D({M,subscribe}),
   case M:handle_control({subscribe, Client, Options}, Media) of
     {stop, Reason, Media1} ->
       ?D({"ems_media failed to subscribe",Client,M,Reason}),
