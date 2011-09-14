@@ -19,6 +19,8 @@
 {paths, ["/var/lib/erlyvideo/plugins", "/usr/local/lib/erlyvideo/plugins"]}.
 % List of file formats. Add your own if you wish more
 {file_formats,[mp4_reader,flv_reader,mp3_reader]}.
+%
+{script_paths, ["scripts"]}.
 {vhosts, [
 % default virtual host is a fallback vhost, if no other hosts matched
   {default, [

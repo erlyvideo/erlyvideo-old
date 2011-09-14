@@ -114,6 +114,7 @@ start(normal, []) ->
   [code:add_pathz(Path) || Path <- filelib:wildcard("plugins/*/ebin")],
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
+  load_script_paths(),
   start_http(),
   start_rtmp(),
 	start_modules(),
@@ -259,6 +260,8 @@ load_config() ->
   [application:set_env(erlyvideo, Key, Value) || {Key, Value} <- Env],
   ok.
 
+load_script_paths() ->
+  [elixir_tracker:add_path(Path) || Path <- ems:get_var(script_paths, [])].
 
 load_file_config() ->
   case file:path_consult(["priv", "etc", "/etc/erlyvideo"], "erlyvideo.conf") of
