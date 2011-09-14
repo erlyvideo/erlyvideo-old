@@ -146,7 +146,7 @@ proxy_module_text(Module) ->
   PrependArgs = fun(Arity) ->
     lists:foldl(fun(Arg, Tuple) ->
       {cons, Line, Arg, Tuple}
-    end, {nil,Line}, Args(Arity))
+    end, {nil,Line}, lists:reverse(Args(Arity)))
   end,
 
   Apply = fun(Fun, Arity) ->
