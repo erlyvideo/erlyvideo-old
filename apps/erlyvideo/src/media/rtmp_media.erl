@@ -46,7 +46,7 @@
 
 init(Media, _Options) ->
   self() ! make_request,
-  {ok, Media#ems_media{media_info = #media_info{flow_type = stream, audio = wait, video = wait}}}.
+  {ok, Media}.
 
 
 %%----------------------------------------------------------------------
@@ -57,30 +57,12 @@ init(Media, _Options) ->
 %% @doc Called by ems_media to handle specific events
 %% @end
 %%----------------------------------------------------------------------
-handle_control({subscribe, _Client, _Options}, State) ->
-  %% Subscribe returns:
-  %% {reply, tick, State} -> client requires ticker (file reader)
-  %% {reply, Reply, State} -> client is subscribed as active receiver
-  %% {reply, {error, Reason}, State} -> client receives {error, Reason}
-  {noreply, State};
-
-handle_control({source_lost, _Source}, State) ->
+handle_control({source_lost, _Source}, #ems_media{} = Media) ->
   %% Source lost returns:
-  %% {reply, Source, State} -> new source is created
+  %% {ok, State, Source} -> new source is created
   %% {stop, Reason, State} -> stop with Reason
-  {stop, normal, State};
-
-handle_control({set_source, _Source}, State) ->
-  %% Set source returns:
-  %% {reply, Reply, State}
-  %% {stop, Reason, State}
-  {noreply, State};
-
-handle_control({set_socket, _Socket}, State) ->
-  %% Set socket returns:
-  %% {reply, Reply, State}
-  %% {stop, Reason, State}
-  {noreply, State};
+  self() ! make_request,
+  {noreply, Media};
 
 handle_control(no_clients, State) ->
   %% no_clients returns:
@@ -93,9 +75,9 @@ handle_control(no_clients, State) ->
 handle_control(timeout, State) ->
   {stop, normal, State};
 
-handle_control(make_request, Media) ->
-  {ok, RTMP} = rtmp_socket:connect(ems_media:get(Media, url)),
-  rtmp_lib:connect(RTMP),
+handle_control({make_request, URL}, _Media) ->
+  {ok, RTMP} = rtmp_socket:connect(URL),
+  rtmp_socket:setopts(RTMP, [{active, true}]),
   {ok, RTMP};
 
 handle_control(_Control, State) ->
@@ -123,7 +105,9 @@ handle_frame(Frame, State) ->
   
 
 handle_info({rtmp, RTMP, connected}, State) ->
-  URL = ems_media:get(State, url),
+  {url, URL} = rtmp_socket:getopts(RTMP, url),
+  ?D({mm, URL}),
+  rtmp_lib:connect(RTMP),
   {_, FullPath} = http_uri2:extract_path_with_query(URL),
   [_App|PathParts] = string:tokens(FullPath, "/"),
   Path = string:join(PathParts, "/"),
@@ -144,7 +128,7 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body
   {noreply, Recorder};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = metadata, timestamp = Timestamp, body = Meta}}, Recorder)  ->
-  % ?D(Meta),
+  ?D(Meta),
   % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
   Frame = #video_frame{content = metadata, dts = Timestamp, pts = Timestamp, body = Meta},
   self() ! Frame,
@@ -155,11 +139,11 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type}}, State) when Type == ping 
   % Ignore ping/pong messages
   {noreply, State};
 
-handle_info({rtmp, _RTMP, #rtmp_message{type = stream_end}}, State) ->
-  ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
-    Pid ! {ems_stream, StreamId, play_complete, 0}
-  end, ok, State),
-  {stop,normal, State};
+% handle_info({rtmp, _RTMP, #rtmp_message{type = stream_end}}, State) ->
+%   ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
+%     Pid ! {ems_stream, StreamId, play_complete, 0}
+%   end, ok, State),
+%   {stop,normal, State};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>,stream_id = StreamId, args = [null, {object, Command} |_]}}}, State) ->
    case proplists:get_value(code, Command) of
