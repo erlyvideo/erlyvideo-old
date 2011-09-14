@@ -151,12 +151,13 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{comm
         lists:map(fun({Pid,_Ref})-> 
           Pid ! {ems_stream,StreamId,not_found}
         end,State#ems_media.waiting_for_config),    
-        {noreply,State};
-%       ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
-%       ?D({Pid,killl}),
-%       Pid ! {ems_stream, StreamId, not_found}
-%       end, ok, State),
-%       {noreply, State};
+        {stop,normal,State};
+     <<"NetStream.Play.Failed">> ->
+       ems_media_clients:foldl(fun({Pid, ClientStreamId}, _) ->
+       ?D({Pid,killl}),
+       Pid ! {ems_stream, ClientStreamId, play_failed}
+       end, ok, State),
+       {stop,normal, State};
      _ ->
        {noreply, State}
    end;
