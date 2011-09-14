@@ -26,7 +26,7 @@
 
 -include("../include/rtmp.hrl").
 -export([wait_for_reply/2]).
--export([connect/1, connect/2, createStream/1, play/3, seek/3, pause/3, resume/3, publish/3, publish/4]).
+-export([connect/1, connect/2, createStream/1, play/1, play/3, seek/3, pause/3, resume/3, publish/3, publish/4]).
 -export([shared_object_connect/2, shared_object_set/4]).
 -export([play_complete/3, play_failed/2, seek_notify/3, seek_failed/2, play_start/4, pause_notify/2, unpause_notify/3]).
 -export([channel_id/2, empty_audio/2]).
@@ -35,6 +35,8 @@
 
 -define(RTMP_WINDOW_SIZE, 2500000).
 -define(FMS_VERSION, "4,0,0,1121").
+
+-define(D(X), ems_log:debug(3, rtmp, "~p:~p ~p",[?MODULE, ?LINE, X])).
 
 
 wait_for_reply(RTMP, InvokeId) when is_integer(InvokeId) ->
@@ -137,6 +139,35 @@ createStream(RTMP) ->
   rtmp_socket:invoke(RTMP, AMF),
   [null, StreamId] = wait_for_reply(RTMP, InvokeId),
   round(StreamId).
+
+
+play(URL) when is_list(URL) orelse is_binary(URL) ->
+  case rtmp_socket:connect(URL) of
+    {ok, RTMP} ->
+      receive
+        {rtmp, RTMP, connected} -> ok
+      after
+        10000 -> erlang:raise({timeout,{rtmp,URL}})
+      end,
+      invoke_rtmp_play(RTMP, URL);
+    Else ->
+      Else
+  end.
+
+invoke_rtmp_play(RTMP, URL) ->
+  rtmp_socket:setopts(RTMP, [{active, true}]),
+  connect(RTMP),
+  
+  {_, FullPath} = http_uri2:extract_path_with_query(URL),
+  [_App|PathParts] = string:tokens(FullPath, "/"),
+  Path = string:join(PathParts, "/"),
+  ?D({"Connected to RTMP source", URL}),
+  Stream = rtmp_lib:createStream(RTMP),
+  ?D({"Stream",Stream}),
+  rtmp_lib:play(RTMP, Stream, Path),
+  ?D({"Playing", Path}),
+  
+  {ok, RTMP}.
 
 
 play(RTMP, Stream, Path) when is_list(Path) ->
