@@ -127,6 +127,7 @@
 	sent_audio_notify = false ::boolean(),
 	sent_video_notify = false ::boolean(),
 	debug = false     ::boolean(),
+	url               ::string(),
 	address           ::tuple(),
 	port              ::integer(),
 	key_in            ::binary()|undefined,

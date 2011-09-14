@@ -93,10 +93,15 @@ accept(Socket) ->
 %% and returns pid of newly created RTMP socket.
 %% @end
 -spec(connect(Socket::port()|string()) -> {ok, RTMPSocket::pid()}).
+connect(ServerSpec) when is_binary(ServerSpec) ->
+  connect(binary_to_list(ServerSpec));
+
 connect(ServerSpec) when is_list(ServerSpec) ->
   {_Proto,_Auth,Host,Port,_Path,_Query} = http_uri2:parse(ServerSpec),
   {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
-  connect(Socket);
+  {ok, Pid} = connect(Socket),
+  setopts(Pid, [{url, ServerSpec}]),
+  {ok, Pid};
 
 connect(Socket) when is_port(Socket) ->
   {ok, Pid} = start_socket(connect, Socket),
@@ -350,6 +355,9 @@ get_options(State, chunk_size) ->
 get_options(State, window_size) ->
   {window_size, State#rtmp_socket.window_size};
 
+get_options(State, url) ->
+  {url, State#rtmp_socket.url};
+
 get_options(State, client_buffer) ->
   {client_buffer, State#rtmp_socket.client_buffer};
 
@@ -403,6 +411,9 @@ set_options(#rtmp_socket{socket = Socket, buffer = Data} = State, [{active, Acti
 set_options(#rtmp_socket{} = State, [{debug, Debug} | Options]) ->
   io:format("Set debug to ~p~n", [Debug]),
   set_options(State#rtmp_socket{debug = Debug}, Options);
+
+set_options(#rtmp_socket{} = State, [{url, URL} | Options]) ->
+  set_options(State#rtmp_socket{url = URL}, Options);
 
 set_options(#rtmp_socket{consumer = undefined} = State, [{consumer, Consumer} | Options]) ->
   erlang:monitor(process, Consumer),
