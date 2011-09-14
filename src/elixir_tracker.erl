@@ -8,13 +8,23 @@
 -define(D(X), error_logger:error_msg("~p", [X])).
 
 -export([start_link/0]).
+-export([add_path/1, remove_path/1, paths/0]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--compile(export_all).
-
 start_link() ->
   gen_server_ems:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+add_path(Path) when is_list(Path) ->
+  gen_server:call(?MODULE, {add_path, Path}).
+
+remove_path(Path) ->
+  gen_server:call(?MODULE, {remove_path, Path}).
+
+paths() ->
+  gen_server:call(?MODULE, paths).
+
+
 
 -record(tracker, {
   paths = [],
@@ -160,7 +170,7 @@ reload_module_if_required(Path) ->
   {Y,Mon,D,H,Min,S} = proplists:get_value(time, Options),
   LocalCompileTime = calendar:universal_time_to_local_time({{Y,Mon,D},{H,Min,S}}),
   LifeTime = calendar:datetime_to_gregorian_seconds(LocalCompileTime) - calendar:datetime_to_gregorian_seconds(Mtime),
-  if 
+  if
     LifeTime < 0 ->
       % io:format("Reloading ~p~n", [Path]),
       code:soft_purge(ExMod),
