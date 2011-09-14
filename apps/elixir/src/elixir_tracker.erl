@@ -112,11 +112,18 @@ compile_new_module(Path) ->
   
   Module = mod_name(Path),
   (catch elixir:file(Path)),
-  Forms = proxy_module_text(Module),
-  {ok, Module, Bin} = compile:forms(Forms, [binary]),
-  code:soft_purge(Module),
-  code:load_binary(Module, filename:basename(Path), Bin),
-  mod_name(Path).
+  case erlang:module_loaded(ex_name(Module)) of
+    true ->
+      Forms = proxy_module_text(Module),
+      {ok, Module, Bin} = compile:forms(Forms, [binary]),
+      code:soft_purge(Module),
+      code:load_binary(Module, filename:basename(Path), Bin),
+      error_logger:info_msg("Loaded module ~p from ~s", [Module, Path]),
+      mod_name(Path);
+    false ->
+      error_logger:error_msg("Couldn't load module from ~s", [Path]),
+      undefined
+  end.
 
 
 proxy_module_text(Module) ->
@@ -175,7 +182,6 @@ reload_module_if_required(Path) ->
       % io:format("Reloading ~p~n", [Path]),
       code:soft_purge(ExMod),
       code:delete(ExMod),
-      elixir:file(Path),
       compile_new_module(Path),
       ok;
     true -> 
