@@ -1,0 +1,184 @@
+-module(elixir_tracker).
+-author('Max Lapshin <max@maxidoors.ru>').
+-behaviour(gen_server).
+-include_lib("kernel/include/file.hrl").
+-include("elixir.hrl").
+
+
+-define(D(X), error_logger:error_msg("~p", [X])).
+
+-export([start_link/0]).
+
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+
+-compile(export_all).
+
+start_link() ->
+  gen_server_ems:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+-record(tracker, {
+  paths = [],
+  modules = []
+}).
+
+-define(TIMEOUT, 3000).
+
+init([]) ->
+  application:start(elixir),
+  timer:send_after(?TIMEOUT, recheck),
+  {ok, #tracker{paths = []}}.
+
+
+handle_call({add_path, Path}, _From, #tracker{paths = Paths} = Tracker) ->
+  {reply, ok, Tracker#tracker{paths = lists:usort([Path|Paths])}};
+
+handle_call({remove_path, Path}, _From, #tracker{paths = Paths} = Tracker) ->
+  {reply, ok, Tracker#tracker{paths = lists:delete(Path, Paths)}};
+
+handle_call(paths, _From, #tracker{paths = Paths} = Tracker) ->
+  {reply, Paths, Tracker};
+
+handle_call(Call, _From, Tracker) ->
+  {stop, {unknown_call, Call}, Tracker}.
+
+
+
+handle_cast(Cast, Tracker) ->
+  {stop, {unknown_cast, Cast}, Tracker}.
+
+handle_info(recheck, Tracker) ->
+  {noreply, recheck(Tracker)};
+
+handle_info(Info, Tracker) ->
+  {stop, {unknown_info, Info}, Tracker}.
+
+
+
+terminate(_,_) -> ok.
+code_change(_, State, _) -> {ok, State}.
+
+
+recheck(#tracker{paths = CodePaths, modules = OldModules} = Tracker) ->
+  ModulePaths = lists:foldl(fun(Path, List) ->
+    List ++ filelib:wildcard(Path++"/*.ex")
+  end, [], CodePaths),
+  AllModules = lists:usort([list_to_atom(filename:basename(Path, ".ex")) || Path <- ModulePaths]),
+  if
+    length(AllModules) =/= length(ModulePaths) -> ?D({have_clashed_modules, ModulePaths});
+    true -> ok
+  end,
+  
+  RemovedModules = OldModules -- AllModules,
+  remove_old_modules(RemovedModules),
+  
+  
+  NewPaths = lists:filter(fun(Path) ->
+    ModuleName = mod_name(Path),
+    not lists:member(ModuleName, OldModules)
+  end, ModulePaths),
+  
+  NewModules = compile_new_modules(NewPaths),
+  
+  PathsToCheck = ModulePaths -- NewPaths,
+  ReloadedModules = reload_if_required_paths(PathsToCheck),
+
+  timer:send_after(?TIMEOUT, recheck),
+  Tracker#tracker{modules = ReloadedModules ++ NewModules}.
+
+remove_old_modules(RemovedModules) ->
+  lists:foreach(fun(Module) ->
+    code:soft_purge(Module),
+    code:delete(Module),
+
+    ExMod = ex_name(Module),
+    code:soft_purge(ExMod),
+    code:delete(ExMod)
+  end, RemovedModules).
+
+compile_new_modules(NewPaths) ->
+  [compile_new_module(Path) || Path <- NewPaths].
+
+compile_new_module(Path) ->
+  
+  Module = mod_name(Path),
+  (catch elixir:file(Path)),
+  Forms = proxy_module_text(Module),
+  {ok, Module, Bin} = compile:forms(Forms, [binary]),
+  code:soft_purge(Module),
+  code:load_binary(Module, filename:basename(Path), Bin),
+  mod_name(Path).
+
+
+proxy_module_text(Module) ->
+  ExMod = ex_name(Module),
+  Exports = ExMod:'__local_methods__'([]),
+  Klass = list_to_atom(klass_name(Module)),
+
+  Line = 0,
+  
+  Context = {match,Line,
+            {var,Line,'Context'},
+            {call,Line,
+             {remote,Line,{atom,Line,elixir_constants},{atom,Line,lookup}},
+             [{atom,Line,Klass}]}},
+             
+  Args = fun(Arity) ->
+    [{var, Line, list_to_atom("Arg"++integer_to_list(I))} || I <- lists:seq(1, Arity)]
+  end,
+  
+  PrependArgs = fun(Arity) ->
+    lists:foldl(fun(Arg, Tuple) ->
+      {cons, Line, Arg, Tuple}
+    end, {nil,Line}, Args(Arity))
+  end,
+
+  Apply = fun(Fun, Arity) ->
+     {call, Line, {atom,Line,apply}, [
+    {atom,Line,ExMod}, {atom, Line,Fun}, {cons,Line,{var,22,'Context'},PrependArgs(Arity)}]}
+  end,
+  [
+  {attribute, Line, module, Module},
+  {attribute, Line, export, Exports}
+  ] ++ lists:map(fun({Fun,Arity}) ->
+    {function, Line, Fun, Arity, [
+      {clause, Line, Args(Arity), [], [
+        Context, Apply(Fun, Arity)
+      ]}
+    ]}
+  end, Exports) ++ [{eof,Line}].
+
+
+reload_if_required_paths(PathsToCheck) ->
+  [reload_module_if_required(Path) || Path <- PathsToCheck].
+
+
+reload_module_if_required(Path) ->
+  {ok, #file_info{mtime = Mtime}} = file:read_file_info(Path),
+  Module = mod_name(Path),
+  ExMod = ex_name(Module),
+  Options = ExMod:module_info(compile),
+  {Y,Mon,D,H,Min,S} = proplists:get_value(time, Options),
+  LocalCompileTime = calendar:universal_time_to_local_time({{Y,Mon,D},{H,Min,S}}),
+  LifeTime = calendar:datetime_to_gregorian_seconds(LocalCompileTime) - calendar:datetime_to_gregorian_seconds(Mtime),
+  if 
+    LifeTime < 0 ->
+      % io:format("Reloading ~p~n", [Path]),
+      code:soft_purge(ExMod),
+      code:delete(ExMod),
+      elixir:file(Path),
+      compile_new_module(Path),
+      ok;
+    true -> 
+      ok
+  end,
+  Module.
+
+mod_name(Path) when is_list(Path) ->
+  list_to_atom(filename:basename(Path, ".ex")).
+
+ex_name(Module) when is_atom(Module) ->
+  list_to_atom("ex"++klass_name(Module)).
+
+klass_name(Module) ->
+  string:join([[string:to_upper(H)]++T || [H|T] <- string:tokens(atom_to_list(Module), "_")], "").
+  

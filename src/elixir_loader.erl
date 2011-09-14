@@ -47,7 +47,7 @@ reload_module_if_required(Mtime, ExMod, Path) ->
   LifeTime = calendar:datetime_to_gregorian_seconds(LocalCompileTime) - calendar:datetime_to_gregorian_seconds(Mtime),
   if 
     LifeTime < 0 ->
-      io:format("Reloading ~p~n", [Path]),
+      % io:format("Reloading ~p~n", [Path]),
       code:soft_purge(ExMod),
       code:delete(ExMod),
       elixir:file(Path),
