@@ -54,6 +54,7 @@
 -export([notify_audio/3, notify_video/3]).
 
 -export([start_socket/2, start_server/3, start_server/4, set_socket/2]).
+-export([close/1]).
   
 
 
@@ -98,10 +99,14 @@ connect(ServerSpec) when is_binary(ServerSpec) ->
 
 connect(ServerSpec) when is_list(ServerSpec) ->
   {_Proto,_Auth,Host,Port,_Path,_Query} = http_uri2:parse(ServerSpec),
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]),
-  {ok, Pid} = connect(Socket),
-  setopts(Pid, [{url, ServerSpec}]),
-  {ok, Pid};
+  case gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}]) of
+    {ok, Socket} ->
+      {ok, Pid} = connect(Socket),
+      setopts(Pid, [{url, ServerSpec}]),
+      {ok, Pid};
+    {error, Reason} ->
+      {error, Reason}
+  end;
 
 connect(Socket) when is_port(Socket) ->
   {ok, Pid} = start_socket(connect, Socket),
@@ -133,6 +138,9 @@ notify_audio(RTMP, StreamId, DTS) ->
 
 notify_video(RTMP, StreamId, DTS) ->
   gen_fsm:sync_send_all_state_event(RTMP, {notify_video, StreamId, DTS}).
+
+close(Socket) ->
+  Socket ! stop.
   
 %% @private
 start_link(Type) ->
@@ -577,6 +585,9 @@ handle_info({tcp_paused, _Socket}, StateName, StateData) ->
 
 handle_info({tcp_resumed, _Socket}, StateName, StateData) ->
   {next_state, StateName, StateData, ?RTMP_TIMEOUT};
+
+handle_info(stop, _StateName, State) ->
+  {stop, normal, State};
 
 handle_info(_Info, StateName, StateData) ->
   error_logger:error_msg("Unknown message to rtmp socket: ~p ~p ~p~n", [_Info, StateName, StateData]),

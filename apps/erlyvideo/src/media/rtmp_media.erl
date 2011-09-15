@@ -76,9 +76,7 @@ handle_control(timeout, State) ->
   {stop, normal, State};
 
 handle_control({make_request, URL}, _Media) ->
-  {ok, RTMP} = rtmp_socket:connect(URL),
-  rtmp_socket:setopts(RTMP, [{active, true}]),
-  {ok, RTMP};
+  rtmp_lib:play(URL);
 
 handle_control(_Control, State) ->
   {noreply, State}.
@@ -103,20 +101,6 @@ handle_frame(Frame, State) ->
 %% @end
 %%----------------------------------------------------------------------
   
-
-handle_info({rtmp, RTMP, connected}, State) ->
-  {url, URL} = rtmp_socket:getopts(RTMP, url),
-  ?D({mm, URL}),
-  rtmp_lib:connect(RTMP),
-  {_, FullPath} = http_uri2:extract_path_with_query(URL),
-  [_App|PathParts] = string:tokens(FullPath, "/"),
-  Path = string:join(PathParts, "/"),
-  ?D({"Connected to RTMP source", URL}),
-  Stream = rtmp_lib:createStream(RTMP),
-  ?D({"Stream",Stream}),
-  rtmp_lib:play(RTMP, Stream, Path),
-  ?D({"Playing", Path}),
-  {noreply, State};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body = Body}}, Recorder) when (Type == audio orelse Type == video) andalso size(Body) > 0 ->
   Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
@@ -145,20 +129,44 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type}}, State) when Type == ping 
 %   end, ok, State),
 %   {stop,normal, State};
 
-handle_info({rtmp, _RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>,stream_id = StreamId, args = [null, {object, Command} |_]}}}, State) ->
-   case proplists:get_value(code, Command) of
-     <<"NetStream.Play.StreamNotFound">> ->
-        lists:map(fun({Pid,_Ref})-> 
-          Pid ! {ems_stream,StreamId,not_found}
-        end,State#ems_media.waiting_for_config),    
-        {stop,normal,State};
-     <<"NetStream.Play.Failed">> ->
-       ems_media_clients:foldl(fun({Pid, ClientStreamId}, _) ->
-       ?D({Pid,killl}),
-       Pid ! {ems_stream, ClientStreamId, play_failed}
-       end, ok, State),
-       {stop,normal, State};
-     _ ->
+handle_info({rtmp, RTMP, #rtmp_message{type = invoke, body = #rtmp_funcall{command = <<"onStatus">>,stream_id = StreamId, args = [null, {object, Command} |_]}}}, State) ->
+  case proplists:get_value(code, Command) of
+    <<"NetStream.Play.StreamNotFound">> ->
+      ?D({stream_not_found}),
+       
+      % Клиенты, которые сейчас ожидают первого фрейма получат not_found.
+      % Этого должно хватить, что бы отрисовать RTMP 404
+      lists:map(fun({Pid,_Ref})-> 
+        Pid ! {ems_stream,StreamId,not_found}
+      end,State#ems_media.waiting_for_config),
+        
+      % Эта строчка нужна, потому что клиент, который только-только стартовал наш поток
+      % ждет ответа ems_media:media_info (это блокирующий вызов) и нам надо его разблокировать
+      % пустой медиа инфо  
+      State1 = ems_media:set_media_info(State, #media_info{audio = [], video = []}),
+      
+      % посылаем себе асинхронно stop, что бы наши клиенты не отвалились с error normal
+      self() ! stop,
+      {noreply, State1};
+%       ems_media_clients:foldl(fun({Pid, StreamId}, _) ->
+%       ?D({Pid,killl}),
+%       Pid ! {ems_stream, StreamId, not_found}
+%       end, ok, State),
+%       {noreply, State};
+
+    <<"NetStream.Play.Stop">> ->
+      % Play.Stop означает нормальное завершение удаленного стрима
+      ?D({remote_stream_stoped, Command}),
+      {stop, normal, State};
+      
+    <<"NetStream.Play.Failed">> ->
+      ?D({play_failed}),
+      % Play.Failed означает, что стрим сдох, а следовательно нам имеет смысл попробовать рестартнуться
+      rtmp_socket:close(RTMP),
+      {noreply, State};
+      
+     _Else ->
+       ?D({unknown_status, _Else}),
        {noreply, State}
    end;
 
@@ -166,10 +174,11 @@ handle_info({rtmp, _RTMP, #rtmp_message{} = Message}, State) ->
   ?D({"RTMP message", Message}),
   {noreply, State};
 
+handle_info(stop, State) ->
+  {stop, normal, State};
+
 handle_info(_Message, State) ->
   {noreply, State}.
-
-
 
 
 

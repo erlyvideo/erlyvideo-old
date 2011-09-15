@@ -340,21 +340,21 @@ insert_test_() ->
     end
   ].
 
-increment_bytes_test_() ->
-  [
-    fun() ->
-      log4erl:change_log_level(error),
-      Storage = ?MODULE:init([{stream_mode,accelerated}]),
-      log4erl:change_log_level(debug),
-      Ticker = ticker_pid,
-      StreamId = 1,
-      Client = client_pid,
-      Ref = make_ref(),
-      TickerRef = make_ref(),
-      Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
-      Storage1 = ?MODULE:insert(Storage, Entry),
-      Storage2 = ?MODULE:increment_bytes(Storage1, client_pid, 100),
-      ?assertMatch(#client{bytes = 100}, ?MODULE:find(Storage2, client_pid))
-    end
-  ].
+% increment_bytes_test_() ->
+%   [
+%     fun() ->
+%       log4erl:change_log_level(error),
+%       Storage = ?MODULE:init([{stream_mode,accelerated}]),
+%       log4erl:change_log_level(debug),
+%       Ticker = ticker_pid,
+%       StreamId = 1,
+%       Client = client_pid,
+%       Ref = make_ref(),
+%       TickerRef = make_ref(),
+%       Entry = #client{consumer = Client, stream_id = StreamId, ref = Ref, ticker = Ticker, ticker_ref = TickerRef, state = passive},
+%       Storage1 = ?MODULE:insert(Storage, Entry),
+%       Storage2 = ?MODULE:increment_bytes(Storage1, client_pid, 100),
+%       ?assertMatch(#client{bytes = 100}, ?MODULE:find(Storage2, client_pid))
+%     end
+%   ].
 

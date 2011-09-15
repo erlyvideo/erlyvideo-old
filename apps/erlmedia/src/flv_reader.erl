@@ -145,10 +145,11 @@ read_frame_list(#flv_media{reader = Reader, frames = FrameTable, metadata = Meta
 			    read_frame_list(MediaInfo1#flv_media{metadata_offset = Offset}, NextOffset, 10);
 			  {MediaInfo1, false} ->
 			    ?D("Found metadata, but it is not a tagging. Seek will be disabled~n"),
-			    {ok, MediaInfo1}
+			    read_frame_list(MediaInfo1, NextOffset, 10)
 			end;
 		#video_frame{content = video, flavor = config, codec = Codec, next_id = NextOffset} = V ->
       % ?D({"Save flash video_config"}),
+      io:format("VConfig~n"),
 			read_frame_list(MediaInfo#flv_media{video_config = V, video_codec = Codec}, NextOffset, Limit - 1);
 
 		#video_frame{content = audio, flavor = config, codec = Codec, next_id = NextOffset} = A ->

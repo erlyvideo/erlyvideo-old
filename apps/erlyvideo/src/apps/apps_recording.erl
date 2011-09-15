@@ -53,7 +53,7 @@
   {RawName, _Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   case media_provider:find(Host, Name) of
-    {ok, Media} -> ems_media:stop_stream(Media);
+    {ok, Media} -> ems_media:set_source(Media, undefined);
     _ -> ?D({error,stream_is_absent,Host,Name})
   end,
   % ems_event:stream_source_lost(Host,Name,SessionId),
