@@ -171,8 +171,15 @@ file_format(Name) ->
     {match, _Captured} -> 
       mp4_reader;
     _ ->
-      file_format(Name, Readers)
+      {ok,ReFLV} = re:compile("http://.*(.flv).*"), 
+      case re:run(Name,ReFLV) of
+        {match, _Captured} -> 
+          flv_reader;
+         _ ->
+           file_format(Name, Readers)
+      end
   end.
+
 
 file_format(_Name, []) ->
   undefined;
