@@ -120,9 +120,8 @@ compile_new_module(Path) ->
   
   Module = mod_name(Path),
   try elixir:file(Path) of
-    {#elixir_slate__{}, _} -> ok
+    _ -> ok
   catch
-    error:{module_defined, _} -> ok;
     _Klass:Error -> error_logger:error_msg("Elixir error: ~p~n", [Error])
   end,
   case erlang:module_loaded(ex_name(Module)) of
