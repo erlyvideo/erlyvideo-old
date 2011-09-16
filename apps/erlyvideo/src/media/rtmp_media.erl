@@ -112,7 +112,7 @@ handle_info({rtmp, _RTMP, #rtmp_message{type = Type, timestamp = Timestamp, body
   {noreply, Recorder};
 
 handle_info({rtmp, _RTMP, #rtmp_message{type = metadata, timestamp = Timestamp, body = Meta}}, Recorder)  ->
-  ?D(Meta),
+  % ?D(Meta),
   % ?D({Frame#video_frame.codec_id, Frame#video_frame.frame_type, Frame#video_frame.decoder_config, Message#rtmp_message.timestamp}),
   Frame = #video_frame{content = metadata, dts = Timestamp, pts = Timestamp, body = Meta},
   self() ! Frame,
