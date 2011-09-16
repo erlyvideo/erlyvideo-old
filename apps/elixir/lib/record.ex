@@ -206,6 +206,18 @@ module Record
   def update(values)
     @(values)
   end
+  
+  def update_record(values)
+    update(values).to_record
+  end
+  
+  def record_values
+    self.record_keys.map -> (key) self[key]
+  end
+  
+  def to_record
+    Erlang.erlang.list_to_tuple([self.record_name | self.record_values])
+  end
 
   private
 
