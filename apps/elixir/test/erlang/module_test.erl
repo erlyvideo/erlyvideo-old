@@ -87,13 +87,6 @@ nested_module_name_with_methods_test() ->
   end,
   test_helper:run_and_remove(F, ['Bar::Baz']).
 
-module_defined_error_test() ->
-  F = fun() ->
-    elixir:eval("module Foo; def foo(); 1 + 2; end; end", [], "specialfile", 10),
-    ?assertError({module_defined, {'Foo',<<"specialfile">>,10}}, elixir:eval("module Foo; end"))
-  end,
-  test_helper:run_and_remove(F, ['Foo']).
-
 % Method invocation
 
 method_invocation_in_module_test() ->
