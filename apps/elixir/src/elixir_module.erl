@@ -56,7 +56,6 @@ transform(Line, ElixirName, Body, S) ->
 % Main entry point for compilation. Receives the function and
 % execute it passing the module.
 compile(Line, Filename, _Current, ElixirName, Fun) ->
-  check_module_available(ElixirName),
   Module = build_module(ElixirName),
   MethodTable = elixir_def_method:new_method_table(ElixirName),
 
@@ -124,6 +123,7 @@ load_form(Forms, Filename) ->
           []
       end,
       format_warnings(Filename, Warnings),
+      code:soft_purge(ModuleName),
       code:load_binary(ModuleName, Filename, Binary);
     {error, Errors, Warnings} ->
       format_warnings(Filename, Warnings),
@@ -131,15 +131,6 @@ load_form(Forms, Filename) ->
   end.
 
 %% BUILD AND LOAD HELPERS
-
-check_module_available(ElixirName) ->
-  try
-    ErrorInfo = elixir_constants:lookup(ElixirName, attributes),
-    [{ErrorFile,ErrorLine}] = proplists:get_value(exfile, ErrorInfo),
-    error({module_defined, {ElixirName, list_to_binary(ErrorFile), ErrorLine}})
-  catch
-    error:{no_module, _} -> []
-  end.
 
 destructive_read(Table, Attribute) ->
   Value = ets:lookup_element(Table, Attribute, 2),
