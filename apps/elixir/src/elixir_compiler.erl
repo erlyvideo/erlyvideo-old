@@ -25,14 +25,14 @@ binary_to_path({ModuleName, Binary}, CompilePath) ->
 
 internal_file(File) ->
   io:format("Compiling ~s~n", [File]),
-  file_to_path(File, "exbin", [{self,nil}]).
+  file_to_path(File, "ebin", [{self,nil}]).
 
 core() ->
   code:ensure_loaded(elixir_module_behavior),
   [internal_file(File) || File <- compile_main()],
   AllLists = [filelib:wildcard(Wildcard) || Wildcard <- compile_list()],
   Files = lists:append(AllLists) -- compile_main(),
-  [file_to_path(File, "exbin") || File <- Files].
+  [file_to_path(File, "ebin") || File <- Files].
 
 compile_list() ->
   [
