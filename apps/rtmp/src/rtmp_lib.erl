@@ -270,7 +270,7 @@ play_start(RTMP, StreamId, DTS, Type) ->
   end,
 
   case Type of
-    live -> ok;
+    live15 -> ok;
     _ -> rtmp_socket:send(RTMP, #rtmp_message{type = stream_recorded, stream_id = StreamId, timestamp = DTS, ts_type = new})
   end,
   rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId, timestamp = DTS, ts_type = new}),
