@@ -27,12 +27,53 @@
 -export([get/2, get_with_body/2, head/2]).
 
 open_socket(URL, Options) ->
+
+  MaxRedirects = proplists:get_value(max_redirects, Options, 5),
+  make_request_with_redirect(URL, Options, MaxRedirects).
+    
+make_request_with_redirect(_URL, _Options, 0) ->
+  {error, too_many_redirects};
+
+make_request_with_redirect(URL, Options, RedirectsLeft) ->
+  case make_raw_request(URL, Options) of
+    {http, Socket, Code} when Code >= 200 andalso Code < 300 ->
+      {ok, Socket};
+    {http, Socket, Code} when Code == 301 orelse Code == 302 ->
+      Timeout = proplists:get_value(timeout, Options, 3000),
+      case wait_for_headers(Socket, [], Timeout) of
+        {ok, Headers} ->
+          gen_tcp:close(Socket),
+          Location = proplists:get_value('Location', Headers),
+          NewURL = calculate_redirected_url(URL, Location),
+          make_request_with_redirect(NewURL, Options, RedirectsLeft - 1);
+        {error, Reason} ->
+          {error, Reason}
+      end;
+    {http, _Socket, Code} ->
+      {error, {http_code, Code}};
+    {tcp_closed, _Socket} ->
+      {error, normal};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+calculate_redirected_url(URL, Location) ->
+  case re:run(Location, "^/(.*)", [{capture,all_but_first,list}]) of
+    {match, _} ->
+      {match, [Host]} = re:run(URL, "^([^:]+://[^/]+)", [{capture,all_but_first,binary}]),
+      iolist_to_binary(io_lib:format("~s~s", [Host, Location]));
+    _ ->
+      iolist_to_binary(Location)
+  end.  
+
+make_raw_request(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
-  {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
-  {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
   Method = case proplists:get_value(method, Options, get) of
     Meth when is_atom(Meth) -> string:to_upper(erlang:atom_to_list(Meth))
   end,
+
+  {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
+  {_HostPort, Path} = http_uri2:extract_path_with_query(URL),
   
   RequestPath = case proplists:get_value(send_hostpath, Options, false) of
     true -> URL;
@@ -55,8 +96,8 @@ open_socket(URL, Options) ->
   ok = gen_tcp:send(Socket, Request),
   ok = inet:setopts(Socket, [{active, once}]),
   receive
-    {http, Socket, {http_response, _Version, Code, _Reply}} when Code >= 200 andalso Code < 300->
-      {ok, Socket};
+    {http, Socket, {http_response, _Version, Code, _Reply}} ->
+      {http, Socket, Code};
     % {http, Socket, {http_response, _Version, Redirect, _Reply}} when Redirect == 301 orelse Redirect == 302 ->
     %   {ok, Socket};
     {tcp_closed, Socket} ->
@@ -164,4 +205,23 @@ wait_for_headers(Socket, Headers, Timeout) ->
       gen_tcp:close(Socket),
       {error, Timeout}
   end.
+
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
+
+
+calculate_redirected_url_test() ->
+  ?assertEqual(<<"http://ya.ru/145">>, calculate_redirected_url("http://ya.ru/", "/145")),
+  ?assertEqual(<<"http://ya.ru/145">>, calculate_redirected_url("http://ya.ru/", "http://ya.ru/145")),
+  ?assertEqual(<<"http://yahoo.com/145">>, calculate_redirected_url("http://ya.ru/", "http://yahoo.com/145")).
+  
+
+
+
+
+
+
   
