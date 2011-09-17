@@ -147,7 +147,20 @@ deleteStream(State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-'FCSubscribe'(State, AMF) -> play(State, AMF).
+'FCSubscribe'(#rtmp_session{socket = RTMP} = Session, #rtmp_funcall{stream_id = StreamId, args = [null, Name]}) ->
+  Reply = {object, [
+    {code, <<"NetStream.Play.Start">>}, 
+    {level, <<"status">>}, 
+    {description, <<"FCSubscribe to ", Name/binary>>}
+  ]},
+  Status = #rtmp_funcall{
+    command = 'onFCSubscribe',
+    type = invoke,
+    id = 0,
+    stream_id = StreamId,
+    args = [null, Reply]},
+  rtmp_socket:invoke(RTMP, Status),
+  Session.
 
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
@@ -333,7 +346,6 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
       rtmp_session:flush_stream(StreamId),
       ems_log:access(Host, "STOP ~p ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, StreamId]),
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
-      % rtmp_socket:status(Socket, StreamId, <<?NS_PLAY_COMPLETE>>),
       State;
     _ -> State
   end.
