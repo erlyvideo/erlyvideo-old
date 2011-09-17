@@ -33,6 +33,8 @@
 -export([accept_connection/1, accept_connection/2, reject_connection/1]).
 -export([reply/2, reply/3, fail/2]).
 
+-export([call/4]).
+
 -define(RTMP_WINDOW_SIZE, 2500000).
 -define(FMS_VERSION, "4,0,0,1121").
 
@@ -187,34 +189,26 @@ play(RTMP, Stream, Path) ->
     30000 -> erlang:error(timeout)
   end.
 
-pause(RTMP, Stream, DTS) ->
+call(RTMP, Stream, Name, Args) ->
   AMF = #rtmp_funcall{
-    command = pause,
+    command = Name,
     type = invoke,
     stream_id = Stream,
-    args = [null, true, DTS]
+    args = [null | Args]
   },
   rtmp_socket:invoke(RTMP, AMF),
   ok.
+  
+
+pause(RTMP, Stream, DTS) ->
+  call(RTMP, Stream, pause, [true, DTS]).
+  
 
 resume(RTMP, Stream, DTS) ->
-  AMF = #rtmp_funcall{
-    command = pause,
-    type = invoke,
-    stream_id = Stream,
-    args = [null, false, DTS]
-  },
-  rtmp_socket:invoke(RTMP, AMF),
-  ok.
+  call(RTMP, Stream, pause, [false, DTS]).
 
 seek(RTMP, Stream, DTS) ->
-  AMF = #rtmp_funcall{
-    command = seek,
-    type = invoke,
-    stream_id = Stream,
-    args = [null, DTS]
-  },
-  rtmp_socket:invoke(RTMP, AMF),
+  call(RTMP, Stream, seek, [DTS]),
   receive
     {rtmp, RTMP, #rtmp_message{type = stream_begin}} -> ok
   after

@@ -32,6 +32,7 @@
 -export([run/1]).
 
 -export([protect/2, connect/2, play/2, wait/2, pause/2, resume/2, seek/2, fcpublish/2, publish/2]).
+-export([createStream/2, receiveAudio/2, receiveVideo/2]).
 
 -record(dumper, {
   id = 0,
@@ -115,8 +116,11 @@ connect(#dumper{} = Dumper, [URL, Options]) ->
       {error, timeout}
   end.
   
-play(#dumper{rtmp = RTMP} = Dumper, [Path]) ->
-  Stream = rtmp_lib:createStream(RTMP),
+play(#dumper{rtmp = RTMP, stream = Stream_} = Dumper, [Path]) ->
+  Stream = case Stream_ of
+    undefined -> rtmp_lib:createStream(RTMP);
+    _ -> Stream_
+  end,
   rtmp_lib:play(RTMP, Stream, Path),
   Dumper#dumper{stream = Stream}.
 
@@ -132,6 +136,17 @@ wait(#dumper{rtmp = RTMP} = Dumper, [AbsTime]) ->
       {error, disconnect}
   end.
 
+createStream(#dumper{rtmp = RTMP} = Dumper, []) ->
+  Stream = rtmp_lib:createStream(RTMP),
+  Dumper#dumper{stream = Stream}.
+
+receiveAudio(#dumper{rtmp = RTMP, stream = Stream} = Dumper, [Flag]) ->
+  rtmp_lib:call(RTMP, Stream, receiveAudio, [Flag]),
+  Dumper.
+
+receiveVideo(#dumper{rtmp = RTMP, stream = Stream} = Dumper, [Flag]) ->
+  rtmp_lib:call(RTMP, Stream, receiveVideo, [Flag]),
+  Dumper.
 
 pause(#dumper{rtmp = RTMP, stream = Stream, last_dts = DTS} = Dumper, []) ->
   rtmp_lib:pause(RTMP, Stream, DTS),
