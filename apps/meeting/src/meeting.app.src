@@ -1,0 +1,19 @@
+{application, meeting,
+ [
+  {description, "Base files required for conference"},
+  {vsn, git},
+  {id, "meeting"},
+  {registered,   []},
+  {applications, [erlyvideo]},
+  {mod, {meeting_sup, []}},
+  {env, []}
+ ]
+}.
+
+
+
+
+
+
+
+
