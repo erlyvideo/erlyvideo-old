@@ -164,8 +164,10 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
       State
   end,
   
-  SocketOptions = case rtmp_socket:get_socket(Socket) of
-    {rtmp, RTMPSocket} -> [{socket,{rtmp,RTMPSocket}}];
+  
+  SocketOptions = case {rtmp_session:get(State, disable_accel), rtmp_socket:get_socket(Socket)} of
+    {true, _} -> [];
+    {_, {rtmp, RTMPSocket}} -> [{socket,{rtmp,RTMPSocket}}];
     _ -> []
   end,
   case media_provider:open(Host, Name) of
