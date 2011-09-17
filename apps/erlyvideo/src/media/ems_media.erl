@@ -267,7 +267,7 @@ read_frame(Media, Client, Key) ->
 %% @end
 %%----------------------------------------------------------------------
 seek(Media, DTS) ->
-  gen_server:call(Media, {seek, self(), DTS}, 10000).
+  gen_server:call(Media, {seek, self(), DTS}, 60000).
 
 seek(Media, BeforeAfter, DTS) when BeforeAfter == before orelse BeforeAfter == 'after' ->
   seek(Media, DTS).
@@ -284,7 +284,7 @@ seek_info(Media, BeforeAfter, DTS) when BeforeAfter == before orelse BeforeAfter
   seek_info(Media, DTS, []);
 
 seek_info(Media, DTS, Options) when is_list(Options) ->
-  gen_server:call(Media, {seek_info, DTS, Options}).
+  gen_server:call(Media, {seek_info, DTS, Options}, 60000).
 
 
 seek_info(Media, DTS) when is_number(DTS) ->
