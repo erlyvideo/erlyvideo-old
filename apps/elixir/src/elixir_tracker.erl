@@ -35,7 +35,7 @@ paths() ->
 
 init([]) ->
   application:start(elixir),
-  timer:send_after(?TIMEOUT, recheck),
+  self() ! recheck,
   Paths = case application:get_env(elixir, paths) of
     {ok, P} -> P;
     _ -> []
