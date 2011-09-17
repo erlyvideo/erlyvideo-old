@@ -478,12 +478,12 @@ handle_frame(#video_frame{} = Frame, Session) ->
     _ -> Session
   end.
 
-send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = PTS} = Frame,
+send_frame(#video_frame{content = Content, stream_id = StreamId, dts = DTS, pts = PTS} = Frame,
              #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{base_dts = DTS_, receive_audio = false} when Type == audio ->
+    #rtmp_stream{base_dts = DTS_, receive_audio = false} when Content == audio ->
       {State, DTS_, false, false};
-    #rtmp_stream{base_dts = DTS_, receive_video = false} when Type == video ->
+    #rtmp_stream{base_dts = DTS_, receive_video = false} when Content == video ->
       {State, DTS_, false, false};
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
@@ -503,14 +503,15 @@ send_frame(#video_frame{content = Type, stream_id = StreamId, dts = DTS, pts = P
       erlang:error({old_frame, Else,StreamId})
   end,
 
-  % case Frame#video_frame.content of
-  %   metadata -> ?D(Frame);
-  %   _ ->
-  %     % (catch ?D({Frame#video_frame.codec,Frame#video_frame.flavor,rtmp:justify_ts(DTS - BaseDts), size(Frame#video_frame.body)})),
-  %     ok
-  % end,
   case Allow of
     true ->
+      % case Frame#video_frame.content of
+      %   metadata -> ?D(Frame);
+      %   _ ->
+      %     (catch ?D({StreamId, Frame#video_frame.codec,Frame#video_frame.flavor,rtmp:justify_ts(DTS - BaseDts), Frame#video_frame.sound})),
+      %     ok
+      % end,
+
       send_rtmp_frame(Socket, Frame#video_frame{dts = rtmp:justify_ts(DTS - BaseDts), pts = rtmp:justify_ts(PTS - BaseDts)}),
     	Size = try iolist_size(Frame#video_frame.body) of
     	  S -> S

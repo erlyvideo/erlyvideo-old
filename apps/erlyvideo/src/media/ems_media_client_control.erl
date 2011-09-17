@@ -81,7 +81,6 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
   end,
-  ?D({M,subscribe}),
   case M:handle_control({subscribe, Client, Options}, Media) of
     {stop, Reason, Media1} ->
       ?D({"ems_media failed to subscribe",Client,M,Reason}),
