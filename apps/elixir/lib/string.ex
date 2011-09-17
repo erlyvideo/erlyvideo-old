@@ -129,6 +129,22 @@ module String
         end
       end
     end
+    
+    % Returns if string is starting from this prefix
+    %
+    % ## Examples
+    %    true  = "hello".starts_with("he")
+    %    true  = "hello".starts_with("hello")
+    %    false = "hello".starts_with("foo")
+    %    false = "hello".starts_with("hellofoo")
+    %
+    def starts_with(prefix)
+      if prefix.length > length
+        false
+      else
+        index(prefix) == 0
+      end
+    end
 
     % Returns the index of the first occurence of the given substring or matching regex.
     % Returns nil if nothing is found.
