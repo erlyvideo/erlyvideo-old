@@ -80,7 +80,8 @@ http(Host, 'GET', ["iphone", "segments" | StreamName] = Path, Req) ->
   Segment = list_to_integer(hd(string:tokens(SegmentId, "."))),
   iphone_streams:play(Host, string:join(Name, "/"), Segment, Req);
 
-http(Host, 'PUT', ["stream", Name], Req) ->
+http(Host, 'PUT', ["stream" | FullName], Req) ->
+  Name = string:join(FullName, "/"),
   {Module, Function} = ems:check_app(Host, auth, 3),
   _Session = Module:Function(Host, http, proplists:get_value('Authorization', Req:get(headers))),
 
