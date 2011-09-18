@@ -35,12 +35,11 @@ paths() ->
 
 init([]) ->
   application:start(elixir),
-  self() ! recheck,
   Paths = case application:get_env(elixir, paths) of
     {ok, P} -> P;
     _ -> []
   end,
-  {ok, #tracker{paths = Paths}}.
+  {ok, recheck(#tracker{paths = Paths})}.
 
 
 handle_call({add_path, Path}, _From, #tracker{paths = Paths} = Tracker) ->

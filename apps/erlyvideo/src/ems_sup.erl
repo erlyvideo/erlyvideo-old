@@ -215,8 +215,8 @@ init([]) ->
 
   Supervisors = [
     ?SUPERVISOR_LINK(ems_network_lag_monitor_sup),
-    ?STATIC_SERVER(media_provider_sup, media_provider, []),
     ?STATIC_SERVER(elixir_tracker_sup, elixir_tracker, []),
+    ?STATIC_SERVER(media_provider_sup, media_provider, []),
     ?SUPERVISOR_LINK(erlyvideo_media_sup),
     ?SUPERVISOR_LINK(ems_user_sessions_sup),
     ?SUPERVISOR_LINK(ems_http_sup),

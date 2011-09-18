@@ -107,6 +107,7 @@ start(normal, []) ->
   LicenseReply = ems_license_client:load(),
   ems_log:start(),
 	load_config(),
+  load_script_paths(),
 	lists:foreach(fun(PluginPath) ->
   	[code:add_pathz(Path) || Path <- filelib:wildcard(PluginPath++"/*/ebin")]
 	end, ems:get_var(paths, [])),
@@ -114,7 +115,6 @@ start(normal, []) ->
   [code:add_pathz(Path) || Path <- filelib:wildcard("plugins/*/ebin")],
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
-  load_script_paths(),
   start_http(),
   start_rtmp(),
 	start_modules(),
@@ -261,7 +261,8 @@ load_config() ->
   ok.
 
 load_script_paths() ->
-  [elixir_tracker:add_path(Path) || Path <- ems:get_var(script_paths, ["scripts", "/opt/erlyvideo/scripts", "/etc/erlyvideo/scripts"])].
+  application:load(elixir),
+  application:set_env(elixir, paths, ems:get_var(script_paths, ["scripts", "/opt/erlyvideo/scripts", "/etc/erlyvideo/scripts"])).
 
 load_file_config() ->
   case file:path_consult(["priv", "etc", "/etc/erlyvideo"], "erlyvideo.conf") of
