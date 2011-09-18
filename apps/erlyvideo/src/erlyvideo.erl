@@ -261,7 +261,7 @@ load_config() ->
   ok.
 
 load_script_paths() ->
-  [elixir_tracker:add_path(Path) || Path <- ems:get_var(script_paths, [])].
+  [elixir_tracker:add_path(Path) || Path <- ems:get_var(script_paths, ["scripts", "/opt/erlyvideo/scripts", "/etc/erlyvideo/scripts"])].
 
 load_file_config() ->
   case file:path_consult(["priv", "etc", "/etc/erlyvideo"], "erlyvideo.conf") of
