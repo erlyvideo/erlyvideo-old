@@ -44,7 +44,7 @@ start_link() ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_meeting(Module, Options) ->
-  supervisor:start_child(meeting_sup, [Module, Options]).
+  supervisor:start_child(one_meeting_sup, [Module, Options]).
 
 start_meeting_saver(Source, Options) ->
   supervisor:start_child(meeting_saver_sup, [Source, Options]).
@@ -52,7 +52,7 @@ start_meeting_saver(Source, Options) ->
 start_meeting_player(Meeting, Options) ->
   supervisor:start_child(meeting_player_sup, [Meeting, Options]).
 
-init([meeting]) ->
+init([one_meeting]) ->
   {ok, {{simple_one_for_one, 5, 60}, [
   { undefined,                               % Id       = internal id
     {meeting,start_link,[]},             % StartFun = {M, F, A}
@@ -87,8 +87,8 @@ init([meeting_player]) ->
 
 init([]) ->
   Supervisors = [
-    { meeting_sup,
-      {supervisor,start_link,[{local, meeting_sup}, ?MODULE, [meeting]]},
+    { one_meeting_sup,
+      {supervisor,start_link,[{local, one_meeting_sup}, ?MODULE, [one_meeting]]},
       permanent,                               % Restart  = permanent | transient | temporary
       infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
       supervisor,                              % Type     = worker | supervisor
