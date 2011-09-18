@@ -59,10 +59,10 @@ loop(FromUrl, ToUrl) ->
 
 connect_source("http://"++_ = From) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(From),
-  ?D({connecting_to, From}),
+  ?D({connecting_to, source, From}),
   case gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000) of
     {ok, Socket} -> 
-      ?D({"Connected to", From, Socket}),
+      ?D({connected_to,source, From, Socket}),
       ok = gen_tcp:send(Socket, "GET "++Path++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
       read_response(Socket, From);
     Else ->
@@ -116,10 +116,11 @@ read_headers(Socket, From) ->
 
 connect_to(To) ->
   {_, _, Host, Port, Path, Query} = http_uri:parse(To),
+  ?D({connecting_to,destination,To}),
   case gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}], 1000) of
     {ok, Socket} ->
       ok = gen_tcp:send(Socket, "PUT "++Path++Query++" HTTP/1.1\r\nHost: "++Host++"\r\n\r\n"),
-      ?D({"Connected to destination"}),
+      ?D({connected_to,destination,To,Socket}),
       Socket;
     Else ->
       ?D({"Destination is down", To, Else}),
@@ -168,8 +169,13 @@ run_loop(#pusher{from = {Mode, From}, to = To} = Pusher) ->
       timer:sleep(500),
       run_loop(Pusher#pusher{from = undefined});
     {tcp_closed, To} ->
+      ?D({destination,closed_port}),
       timer:sleep(500),
       run_loop(Pusher#pusher{to = undefined});
+    {tcp_closed, From} ->
+      ?D({source, closed_port}),
+      timer:sleep(500),
+      run_loop(Pusher#pusher{from = undefined});
     Else ->
       ?D({"Undefined message", Else}),
       run_loop(Pusher)
