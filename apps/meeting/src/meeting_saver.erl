@@ -5,7 +5,6 @@
 %%% @end
 %%%
 %%%
-%%% Copyright (c) 2010 Max Lapshin
 %%%
 %%%---------------------------------------------------------------------------------------
 -module(meeting_saver).
@@ -74,7 +73,7 @@ get_records_dir(Host) ->
 init([Conference, Options]) ->
   Name = proplists:get_value(name, Options),
   Host = proplists:get_value(host, Options),
-  File = file_manager:get_for_writing(get_records_dir(Host), binary_to_list(Name)),
+  File = meeting_file_chooser:get_for_writing(get_records_dir(Host), binary_to_list(Name)),
   ?D({write_to_file, File}),
   {ok, Writer} = flv_writer:start_link(File, [{sort_buffer, 0}]),
   erlang:monitor(process, Conference),
