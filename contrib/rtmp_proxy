@@ -10,7 +10,8 @@ main([ListenPort, Forward]) ->
   {ok, Pid} = rtmp_proxy:run(list_to_integer(ListenPort), Forward),
   erlang:monitor(process, Pid),
   receive
-    {'DOWN', _, process, Pid, _Reason} -> ok
+    {'DOWN', _, process, Pid, normal} -> ok;
+    {'DOWN', _, process, Pid, Reason} -> io:format("Died: ~p~n", [Reason]), ok
   end,
   ok;
   
