@@ -262,7 +262,10 @@ load_config() ->
 
 load_script_paths() ->
   application:load(elixir),
-  application:set_env(elixir, paths, ems:get_var(script_paths, ["scripts", "/opt/erlyvideo/scripts", "/etc/erlyvideo/scripts"])).
+  Paths = ems:get_var(script_paths, ["scripts", "/opt/erlyvideo/scripts", "/etc/erlyvideo/scripts"]),
+  Paths1 = [filename:absname(Path) || Path <- Paths],
+  Paths2 = lists:usort(Paths1),
+  application:set_env(elixir, paths, Paths2).
 
 load_file_config() ->
   case file:path_consult(["priv", "etc", "/etc/erlyvideo"], "erlyvideo.conf") of
