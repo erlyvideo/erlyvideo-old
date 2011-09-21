@@ -84,13 +84,12 @@ packages: release
 	cp priv/erlyvideo.conf.sample tmproot/etc/erlyvideo/erlyvideo.conf.sample
 	cp priv/log4erl.conf.sample tmproot/etc/erlyvideo/log4erl.conf.sample
 	cd tmproot && \
-	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt && \
-	fpm -s dir -t rpm -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt
-	mv tmproot/*.deb tmproot/*.rpm .
+	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt 
+	mv tmproot/*.deb .
 
 upload_packages: 
 	scp *$(VERSION)* erlyhub@git.erlyvideo.org:/apps/erlyvideo/debian/public/binary
-	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update ; cd public/binary ; ln -sf erlyvideo-$(VERSION).tgz erlyvideo-latest.tgz ; ln -sf erlyvideo-$(VERSION).x86_64.rpm erlyvideo-latest.x86_64.rpm"
+	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update"
 	echo "Erlyvideo version ${VERSION} uploaded to debian repo http://debian.erlyvideo.org/ ." | mail -r "Erlybuild <build@erlyvideo.org>" -s "Erlyvideo version ${VERSION}" -v erlyvideo-dev@googlegroups.com
 
 .PHONY: doc debian compile
