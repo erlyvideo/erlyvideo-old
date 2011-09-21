@@ -27,8 +27,9 @@
 -export([get/2, get_with_body/2, head/2]).
 
 open_socket(URL, Options) ->
-
+  ?D(fiiirst),
   MaxRedirects = proplists:get_value(max_redirects, Options, 5),
+  ?D(secondddddddddddd),
   make_request_with_redirect(URL, Options, MaxRedirects).
     
 make_request_with_redirect(_URL, _Options, 0) ->
@@ -42,7 +43,7 @@ make_request_with_redirect(URL, Options, RedirectsLeft) ->
       Timeout = proplists:get_value(timeout, Options, 3000),
       case wait_for_headers(Socket, [], Timeout) of
         {ok, Headers} ->
-          gen_tcp:close(Socket),
+%          gen_tcp:close(Socket),
           Location = proplists:get_value('Location', Headers),
           NewURL = calculate_redirected_url(URL, Location),
           make_request_with_redirect(NewURL, Options, RedirectsLeft - 1);
@@ -67,6 +68,7 @@ calculate_redirected_url(URL, Location) ->
   end.  
 
 make_raw_request(URL, Options) ->
+  ?D(thirddddddd),
   Timeout = proplists:get_value(timeout, Options, 3000),
   Method = case proplists:get_value(method, Options, get) of
     Meth when is_atom(Meth) -> string:to_upper(erlang:atom_to_list(Meth))
@@ -101,12 +103,15 @@ make_raw_request(URL, Options) ->
     % {http, Socket, {http_response, _Version, Redirect, _Reply}} when Redirect == 301 orelse Redirect == 302 ->
     %   {ok, Socket};
     {tcp_closed, Socket} ->
+      ?D(normallll),
       {error, normal};
     {tcp_error, Socket, Reason} ->
+      ?D(Reason),
       {error, Reason}
   after
     Timeout ->
-      gen_tcp:close(Socket),
+      ?D(the_time),
+%      gen_tcp:close(Socket),
       {error, timeout}
   end.
 
@@ -126,13 +131,13 @@ get_with_body(URL, Options) ->
                   Body = get_plain_body(Socket),
                   {ok, Headers, Body};
                 _ ->
-                  gen_tcp:close(Socket),
+%                  gen_tcp:close(Socket),
                   {error, no_length}
               end
           end;
         Length ->
           {ok, Body} = gen_tcp:recv(Socket, ems:to_i(Length)),
-          gen_tcp:close(Socket),
+ %         gen_tcp:close(Socket),
           {ok, Headers, Body}
       end;
     Else ->
@@ -170,27 +175,31 @@ get_next_chunk(Socket, Acc, Length) ->
   get_chunked_body(Socket, [Body|Acc]).
 
 head(URL, Options) ->
-  {ok, Headers, Socket} = get(URL, [{method,head}|Options]),
-  gen_tcp:close(Socket),
+  {ok, Headers, _Socket} = get(URL, [{method,head}|Options]),
+%  gen_tcp:close(_Socket),
   {ok, Headers}.
 
 get(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
-  case open_socket(URL, Options) of
-    {ok, Socket} ->
-      case wait_for_headers(Socket, [], Timeout) of
-        {ok, Headers} ->
-          ok = inet:setopts(Socket, [{active, false},{packet,raw}]),
-          {ok, Headers, Socket};
-        {error, Reason} ->
-          {error, Reason}
-      end;
+  {ok,Socket} = case  proplists:get_value(socket,Options,undefined) of
+    undefined ->
+     ?D(Options),
+     open_socket(URL, Options);
+    Value -> {ok,Value}
+  end,
+  ?D(Socket),
+  case wait_for_headers(Socket, [], Timeout) of
+    {ok, Headers} ->
+      ok = inet:setopts(Socket, [{active, false},{packet,raw},{keepalive,true}]),
+      ?D(Headers),
+      {ok, Headers, Socket};
     {error, Reason} ->
+       ?D(Reason),
       {error, Reason}
   end.
   
 wait_for_headers(Socket, Headers, Timeout) ->
-  inet:setopts(Socket, [{active,once}]),
+  ok=inet:setopts(Socket, [{active,once}]),
   receive
     {http, Socket, {http_header, _, Header, _, Value}} ->
       wait_for_headers(Socket, [{Header, Value}|Headers], Timeout);
@@ -202,7 +211,8 @@ wait_for_headers(Socket, Headers, Timeout) ->
       {error, Reason}
   after
     Timeout -> 
-      gen_tcp:close(Socket),
+      ?D(timeeeeeeeeeeee),
+%      gen_tcp:close(Socket),
       {error, Timeout}
   end.
 
