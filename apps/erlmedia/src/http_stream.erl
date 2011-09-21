@@ -140,7 +140,7 @@ get_with_body(URL, Options) ->
         Length ->
           {ok, Body} = gen_tcp:recv(Socket, ems:to_i(Length)),
  %         gen_tcp:close(Socket),
-          {ok, Headers, Body}
+          {ok, Socket, Headers, Body}
       end;
     Else ->
       Else
