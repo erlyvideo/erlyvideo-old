@@ -27,9 +27,7 @@
 -export([get/2, get_with_body/2, head/2]).
 
 open_socket(URL, Options) ->
-  ?D(fiiirst),
   MaxRedirects = proplists:get_value(max_redirects, Options, 5),
-  ?D(secondddddddddddd),
   make_request_with_redirect(URL, Options, MaxRedirects).
     
 make_request_with_redirect(_URL, _Options, 0) ->
@@ -38,7 +36,7 @@ make_request_with_redirect(_URL, _Options, 0) ->
 make_request_with_redirect(URL, Options, RedirectsLeft) ->
   case make_raw_request(URL, Options) of
     {http, Socket, Code} when Code >= 200 andalso Code < 300 ->
-      {ok, Socket};
+      {ok, [{redirected_url, URL}], Socket};
     {http, Socket, Code} when Code == 301 orelse Code == 302 ->
       Timeout = proplists:get_value(timeout, Options, 3000),
       case wait_for_headers(Socket, [], Timeout) of
@@ -68,7 +66,6 @@ calculate_redirected_url(URL, Location) ->
   end.  
 
 make_raw_request(URL, Options) ->
-  ?D(thirddddddd),
   Timeout = proplists:get_value(timeout, Options, 3000),
   Method = case proplists:get_value(method, Options, get) of
     Meth when is_atom(Meth) -> string:to_upper(erlang:atom_to_list(Meth))
@@ -136,7 +133,7 @@ get_with_body(URL, Options) ->
                   Body = get_plain_body(Socket),
                   {ok, Headers, Body};
                 _ ->
-%                  gen_tcp:close(Socket),
+                  gen_tcp:close(Socket),
                   {error, no_length}
               end
           end;
@@ -186,14 +183,12 @@ head(URL, Options) ->
 
 get(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
-  {ok,Socket} = open_socket(URL, Options),
+  {ok, Headers1, Socket} = open_socket(URL, Options),
   case wait_for_headers(Socket, [], Timeout) of
     {ok, Headers} ->
       ok = inet:setopts(Socket, [{active, false},{packet,raw},{keepalive,true}]),
-      ?D(Headers),
-      {ok, Headers, Socket};
+      {ok, Headers ++ Headers1, Socket};
     {error, Reason} ->
-       ?D(Reason),
       {error, Reason}
   end.
   
@@ -210,8 +205,7 @@ wait_for_headers(Socket, Headers, Timeout) ->
       {error, Reason}
   after
     Timeout -> 
-      ?D(timeeeeeeeeeeee),
-%      gen_tcp:close(Socket),
+      gen_tcp:close(Socket),
       {error, Timeout}
   end.
 
