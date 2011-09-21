@@ -34,7 +34,7 @@
 -module(rtsp_test_client).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--export([capture_camera/2, simulate_camera/2]).
+-export([capture_camera/2, capture_camera/3, simulate_camera/2]).
 -export([capture_server/4]).
 
 
@@ -60,12 +60,16 @@ prepare_connect_socket(URL) ->
   ok.
 
 capture_camera(Name, URL) ->
+  capture_camera(Name, URL, []).
+  
+
+capture_camera(Name, URL, Options) ->
   CaptureDir = ?CAPTURE_DIR++Name,
   put(capture_dir, CaptureDir),
   io:format("Save session to ~s~n", [CaptureDir]),
   prepare_connect_socket(URL),
   put(interleave, 0),
-  {ok, Streams} = capture_camera_describe(),
+  {ok, Streams} = capture_camera_describe(Options),
   [capture_camera_setup(Stream) || Stream <- Streams],
   capture_camera_play(),
   capture_interleaved_data(50),
@@ -74,7 +78,7 @@ capture_camera(Name, URL) ->
 inc_seq() ->
   put(seq, get(seq) + 1).
 
-capture_camera_describe() ->
+capture_camera_describe(Options) ->
   {ok, Headers, Body} = send_and_receive("DESCRIBE", "~s RTSP/1.0\r\nCSeq: ~p\r\n~s\r\n", [get(url), get(seq), get(auth)]),
   SDP = string:tokens(binary_to_list(Body), "\r\n"),
   StreamDesc = lists:dropwhile(fun
@@ -90,8 +94,12 @@ capture_camera_describe() ->
     Else -> Else
   end,
   Controls = [ControlBase ++ Control || "a=control:"++Control <- ControlDesc],
-  ?D({Headers, Controls}),
-  {ok, Controls}.
+  FilteredControls = case proplists:get_value(tracks, Options) of
+    undefined -> Controls;
+    TrackList -> [lists:nth(N,Controls) || N <- TrackList]
+  end,
+  ?D({Headers, FilteredControls}),
+  {ok, FilteredControls}.
 
 capture_camera_setup(Control) ->
   Chan = get(interleave),
@@ -233,8 +241,10 @@ send_interleaved_reply(Bin, Socket) ->
 load_capture(Num, Method, Direction, URL) ->
   Filename = lists:flatten(io_lib:format("~s/~p-~p-~s.txt", [get(capture_dir), Num, Direction, Method])),
   ?D({request,Method,Num, URL, Filename}),
-  {ok, Data} = file:read_file(Filename),
-  re:replace(Data, "{{URL}}", URL, [{return,binary},global]).
+  case file:read_file(Filename) of
+    {ok, Data} -> re:replace(Data, "{{URL}}", URL, [{return,binary},global]);
+    _ -> erlang:error({cant_load_capture,Filename})
+  end.
   
 
 

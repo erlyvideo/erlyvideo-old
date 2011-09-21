@@ -11,10 +11,21 @@ prepare() ->
 
 main(Command) ->
   run_command(Command).
+
+eval(S) ->
+  {ok,Scanned,_} = erl_scan:string(S ++ "."),
+  {ok,Parsed} = erl_parse:parse_exprs(Scanned),
+  Environ = [],
+  {value, Val, _} = erl_eval:exprs(Parsed,Environ),
+  Val.
   
-run_command(["capture_camera", Name, URL]) ->
+run_command(["capture_camera", Name, URL | Args]) ->
+  Options = case Args of
+    [] -> [];
+    [Arg] -> eval(Arg)
+  end,
   prepare(),
-  rtsp_test_client:capture_camera(Name, URL);
+  rtsp_test_client:capture_camera(Name, URL, Options);
 
 run_command(["capture_camera"|_]) ->
   io:format("~s capture_camera Name URL~n", [escript:script_name()]);
