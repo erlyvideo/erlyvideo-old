@@ -1,0 +1,12 @@
+#!/usr/bin/env escript
+
+main([URL]) ->
+  Root = filename:join(filename:dirname(escript:script_name()), ".."),
+  [code:add_pathz(Path) || Path <- filelib:wildcard(Root ++ "/apps/*/ebin")],
+  [code:add_pathz(Path) || Path <- filelib:wildcard(Root ++ "/../commercial/apps/*/ebin")],
+  ems_log:start(),
+  hls_reader:verify_url(URL);
+
+main([]) ->
+  io:format("~s URL~n", [escript:script_name()]),
+  ok.

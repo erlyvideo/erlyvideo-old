@@ -105,6 +105,9 @@ set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
 program_info(MpegTS) when is_pid(MpegTS) ->
   gen_server:call(MpegTS, program_info).
 
+init([]) ->
+  init([[]]);
+
 init([Options]) ->
   Consumer = case proplists:get_value(consumer, Options) of
     undefined -> undefined;
