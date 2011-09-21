@@ -82,7 +82,14 @@ make_raw_request(URL, Options) ->
     false -> Path
   end,
 
-  {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}, {recbuf, 65536}, inet], Timeout),
+  Socket = case proplists:get_value(socket, Options) of
+    undefined ->
+      {ok, NewSock} = gen_tcp:connect(Host, Port, [binary, {packet, http_bin}, {active, false}, {recbuf, 65536}, inet], Timeout),
+      NewSock;
+    OldSocket ->
+      inet:setopts(OldSocket, [{packet,http_bin},{active,false}]),
+      OldSocket
+  end,  
   Headers = proplists:get_value(headers, Options, []) ++ case proplists:get_value(range, Options) of
     {Start,End} -> [{"Range", lists:flatten(io_lib:format("bytes=~p-~p", [Start,End-1]))}];
     undefined -> []
@@ -100,8 +107,6 @@ make_raw_request(URL, Options) ->
   receive
     {http, Socket, {http_response, _Version, Code, _Reply}} ->
       {http, Socket, Code};
-    % {http, Socket, {http_response, _Version, Redirect, _Reply}} when Redirect == 301 orelse Redirect == 302 ->
-    %   {ok, Socket};
     {tcp_closed, Socket} ->
       ?D(normallll),
       {error, normal};
@@ -111,7 +116,7 @@ make_raw_request(URL, Options) ->
   after
     Timeout ->
       ?D(the_time),
-%      gen_tcp:close(Socket),
+      gen_tcp:close(Socket),
       {error, timeout}
   end.
 
@@ -181,13 +186,7 @@ head(URL, Options) ->
 
 get(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
-  {ok,Socket} = case  proplists:get_value(socket,Options,undefined) of
-    undefined ->
-     ?D(Options),
-     open_socket(URL, Options);
-    Value -> {ok,Value}
-  end,
-  ?D(Socket),
+  {ok,Socket} = open_socket(URL, Options),
   case wait_for_headers(Socket, [], Timeout) of
     {ok, Headers} ->
       ok = inet:setopts(Socket, [{active, false},{packet,raw},{keepalive,true}]),
