@@ -31,5 +31,4 @@
 -export([handle_event/1]).
 
 handle_event(#erlyvideo_event{} = Event) ->
-  ibrowse:send_req(URL, [], post, ems_event:to_json(Event),
-  [{content_type, "application/json"},{response_format, binary}], ?TIMEOUT).
+  http_stream:get_with_body(URL, [{headers, [{'Content-Type', "application/json"}]}, {body, ems_event:to_json(Event)}, {method,post}]).

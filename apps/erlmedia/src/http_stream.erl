@@ -110,8 +110,8 @@ make_raw_request(URL, Options) ->
     80 -> "";
     _ -> ":"++integer_to_list(Port)
   end,
-  Request = lists:flatten(Method ++ " "++RequestPath++" HTTP/1.1\r\nHost: "++Host++PortSpec++"\r\n" ++
-  [io_lib:format("~s: ~s\r\n", [Key, Value]) || {Key,Value} <- Headers] ++ "\r\n" ++ Body),
+  Request = iolist_to_binary([Method, " ", RequestPath, " HTTP/1.1\r\nHost: ", Host, PortSpec, "\r\n",
+  [io_lib:format("~s: ~s\r\n", [Key, Value]) || {Key,Value} <- Headers], "\r\n", Body]),
   % ?D({http_connect, Request}),
   
   ok = gen_tcp:send(Socket, Request),

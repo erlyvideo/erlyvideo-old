@@ -52,6 +52,7 @@ start_handlers() ->
   gen_event:add_handler(?MODULE, ?MODULE, []),
   Hosts = proplists:get_keys(ems:get_var(vhosts,[])),
   lists:foreach(fun(Host) ->
+    ?D({install_handler, ems:get_var(event_handlers, Host, [])}),
     [gen_event:add_handler(?MODULE, ems_event_hook, [Host, Event, Handler]) || {Event, Handler} <- ems:get_var(event_handlers, Host, [])]
   end, Hosts),
   ok.
@@ -71,8 +72,12 @@ to_json(Event) ->
     (V) when is_reference(V) -> list_to_binary(erlang:ref_to_list(V));
     (V) -> V
   end,
+  Handler = fun
+    (_) -> null
+  end,
   Clean = [{K,Map(V)} || {K,V} <- tuple_to_list(?record_to_struct(erlyvideo_event, Event))],
-  JSON = mochijson2:encode(Clean),
+  Encoder = mochijson2:encoder([{handler,Handler}]),
+  JSON = Encoder(Clean),
   iolist_to_binary(JSON).
 
 to_xml(Event) ->

@@ -228,10 +228,12 @@ reconfigure() ->
   RTMP = ems:get_var(rtmp_port, undefined),
   HTTP = ems:get_var(http_port, undefined),
   % ems_vhosts:stop(),
+  ems_event:stop_handlers(),
   ems_log:stop(),
   ems_log:start(),
   load_config(),
   ems_vhosts:start(),
+  ems_event:start_handlers(),
   % ems_http:stop(),
   case {RTMP, ems:get_var(rtmp_port, undefined)} of
     {undefined, undefined} -> ok;
