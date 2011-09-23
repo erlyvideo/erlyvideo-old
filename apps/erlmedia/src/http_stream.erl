@@ -86,17 +86,32 @@ make_raw_request(URL, Options) ->
     OldSocket ->
       inet:setopts(OldSocket, [{packet,http_bin},{active,false}]),
       OldSocket
-  end,  
-  Headers = proplists:get_value(headers, Options, []) ++ case proplists:get_value(range, Options) of
+  end,
+  
+  Body = proplists:get_value(body, Options, ""),
+  
+  Headers = proplists:get_value(headers, Options, []) ++ 
+  case proplists:get_value(range, Options) of
     {Start,End} -> [{"Range", lists:flatten(io_lib:format("bytes=~p-~p", [Start,End-1]))}];
     undefined -> []
+  end ++
+  case proplists:get_value(body, Options) of
+    undefined -> 
+      case proplists:get_value(method, Options) of
+        post -> [{"Content-Length", "0"}];
+        _ -> []
+      end;
+    Body -> [{"Content-Length", integer_to_list(iolist_size(Body))}]
+  end ++ case proplists:get_value(basic_auth, Options) of
+    undefined -> [];
+    {Login,Password} -> [{"Authorization", "Basic "++base64:encode_to_string(lists:flatten(io_lib:format("~s:~s", [Login, Password])))}]
   end,
   PortSpec = case Port of
     80 -> "";
     _ -> ":"++integer_to_list(Port)
   end,
   Request = lists:flatten(Method ++ " "++RequestPath++" HTTP/1.1\r\nHost: "++Host++PortSpec++"\r\n" ++
-  [Key++": "++Value++"\r\n" || {Key,Value} <- Headers] ++ "\r\n"),
+  [io_lib:format("~s: ~s\r\n", [Key, Value]) || {Key,Value} <- Headers] ++ "\r\n" ++ Body),
   % ?D({http_connect, Request}),
   
   ok = gen_tcp:send(Socket, Request),
@@ -112,7 +127,6 @@ make_raw_request(URL, Options) ->
       {error, Reason}
   after
     Timeout ->
-      ?D(the_time),
       gen_tcp:close(Socket),
       {error, timeout}
   end.

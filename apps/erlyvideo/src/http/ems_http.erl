@@ -51,7 +51,7 @@ handle_http(Req) ->
   Method = Req:get(method),
   Path = Req:resource([urldecode]),
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
-  % ?D({http, Method, Path, Headers}),
+  % ?D({http, Method, Path, Req:get(headers), Req:get(body)}),
   try_handler(Chain, Host, Method, Path, Req).
 
 
