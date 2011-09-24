@@ -4,9 +4,9 @@
   {vsn, git},
   {id, "erlyvideo"},
   {registered,   []},
-  {applications, [kernel,stdlib,crypto,os_mon,amf,elixir,erlmedia,ibrowse,log4erl,misultin,mpegts,rtmp,rtp,rtsp,plugins,deprecated]},
+  {applications, [kernel,stdlib,crypto,amf,elixir,erlmedia,ibrowse,log4erl,misultin,mpegts,rtmp,rtp,rtsp,plugins,deprecated]},
   {mod, {erlyvideo, []}},
-  {env, []}
+  {env, [{escript_files, []}]}
  ]
 }.
 

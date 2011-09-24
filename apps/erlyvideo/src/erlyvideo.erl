@@ -36,10 +36,11 @@
 -export([main/1, test/0]).
 
 
-
 main([]) ->
-  start(),
+  ok = start(),
   Ref = erlang:monitor(process, whereis(ems_sup)),
+  {ok, EscriptFiles} = ems_file:load_escript_files(),
+  application:set_env(erlyvideo, escript_files, EscriptFiles),
   receive
     {'DOWN', Ref, process, _Client, _Reason} -> ok
   end.
@@ -384,9 +385,6 @@ call_modules(Function, Args, [Module|Modules]) ->
 %% @end
 %%--------------------------------------------------------------------
 stop_modules() -> io:format("Stopping modules: ~p~n", [ems:get_var(modules, [])]), call_modules(stop, []).
-
-
-
 
 
 

@@ -28,6 +28,9 @@ all: compile
 update:
 	git pull
 
+escriptize: compile
+	./contrib/escriptize
+
 compile:
 	./rebar get-deps
 	./rebar compile

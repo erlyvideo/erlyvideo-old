@@ -33,7 +33,7 @@
 
 
 http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
-  Root1 = if
+  Root = if
     is_list(DocRoot) -> DocRoot;
     is_atom(DocRoot) ->
       case code:lib_dir(DocRoot, wwwroot) of
@@ -43,7 +43,6 @@ http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
     true -> undefined
   end,
   
-  Root = ems:expand_path(Root1),
   Accept = proplists:get_value('Accept', Req:get(headers)),
   if
     Accept == "application/x-rtsp-tunnelled" -> serve_rtsp(Host, Method, Path, Req);
@@ -57,7 +56,17 @@ http(_Host, _Method, _Path, _Req) ->
 
 
 serve_file(Host, Method, Root, Path, Req) ->
-  FileName = filename:absname(ems:pathjoin([Root | Path])),
+  FullPath = ems:pathjoin([Root | Path]),
+  case serve_file_from_disk(Host, Method, FullPath, Req) of
+    unhandled ->
+      serve_file_from_disk(Host, Method, ems:pathjoin(FullPath, "/index.html"), Req);
+    Else ->
+      Else
+  end.
+
+serve_file_from_disk(Host, Method, Path, Req) ->
+  FileName = filename:absname(Path),
+  io:format("serve ~p~n",[FileName]),
   case filelib:is_regular(FileName) of
     true when Method == 'GET' ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
@@ -65,18 +74,28 @@ serve_file(Host, Method, Root, Path, Req) ->
     true when Method == 'HEAD' ->
       {ok, #file_info{size = Size}} = file:read_file_info(FileName),
     	Req:stream(head, [{'Content-Length', Size}]),
+      ems_log:access(Host, "HEAD ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
       Req:stream(close);
     false ->
-      AltPath = ems:pathjoin([FileName, "index.html"]),
-      case filelib:is_regular(AltPath) of
-        true ->
-          ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
-          Req:file(AltPath);
-        false ->  
-          unhandled
-      end
+      serve_file_from_escript(Host, Method, Path, Req)
   end.
 
+serve_file_from_escript(Host, Method, Path, Req) ->
+  io:format("escript file ~p~n", [Path]),
+  case ems_file:read_file_info(Path) of
+    {ok, #file_info{size = Size}} ->
+      {ok, Bin} = ems_file:read_file(Path),
+      Headers = [{'Content-Type', misultin_utility:get_content_type(Path)}, {'Content-Length', integer_to_list(Size)}],
+      ems_log:access(Host, "~s ~p ~s /~s", [Method, Req:get(peer_addr), "-", Path]),
+      case Method of
+        'HEAD' ->
+          Req:respond(200, Headers, []);
+        'GET' ->
+			    Req:respond(200, Headers, Bin)
+			end;
+		_Else ->
+		  unhandled
+	end.	
 
 serve_rtsp(_Host, _Method, _Path, Req) ->
   % ?D({rtsp, Host, Path, Req:get(headers), Req:get(body)}),
