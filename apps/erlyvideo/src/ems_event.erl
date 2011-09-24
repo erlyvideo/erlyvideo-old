@@ -52,7 +52,6 @@ start_handlers() ->
   gen_event:add_handler(?MODULE, ?MODULE, []),
   Hosts = proplists:get_keys(ems:get_var(vhosts,[])),
   lists:foreach(fun(Host) ->
-    ?D({install_handler, ems:get_var(event_handlers, Host, [])}),
     [gen_event:add_handler(?MODULE, ems_event_hook, [Host, Event, Handler]) || {Event, Handler} <- ems:get_var(event_handlers, Host, [])]
   end, Hosts),
   ok.
