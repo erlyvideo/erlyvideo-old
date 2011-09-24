@@ -10,9 +10,15 @@ main([]) ->
   Files2 = filelib:fold_files("wwwroot", ".*", true, fun(Path, Acc) -> 
     {ok, Bin} = file:read_file(Path),
     [{Path, Bin}|Acc] 
-  end, Files1),
+  end, []),
 
-  Files = Files2,
+  Files3 = lists:map(fun(Path) ->
+    {ok, Bin} = file:read_file(Path),
+    {Path, Bin}
+  end, filelib:wildcard("scripts/*.ex")),
+  
+
+  Files = Files1 ++ Files2 ++ Files3,
   {ok, {"mem", ZipBin}} = zip:create("mem", Files, [memory]),
   Script = <<"#!/usr/bin/env escript\n%%! -noshell -noinput\n", ZipBin/binary>>,
   ok = file:write_file("erlyvideo", Script),

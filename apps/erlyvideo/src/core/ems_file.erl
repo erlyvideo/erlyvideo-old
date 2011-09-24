@@ -4,6 +4,7 @@
 -export([read_file/1, read_file_info/1]).
 -export([load_escript_files/0]).
 
+
 read_file(Path) ->
   case file:read_file(Path) of
     {error, enoent} ->
@@ -14,7 +15,6 @@ read_file(Path) ->
 
 read_escript_file(Path) ->  
   {ok, EscriptFiles} = application:get_env(erlyvideo, escript_files),
-  io:format("lookup ~s in ~p~n", [Path, [P || {P,_I,_B} <- EscriptFiles]]),
   case lists:keyfind(Path, 1, EscriptFiles) of
     false -> {error, enoent};
     {_Path, _Info, Bin} -> {ok, Bin}
@@ -44,3 +44,6 @@ load_escript_files() ->
   end, [], {escript:script_name(), ArchiveBin}).
 
 
+
+  
+  

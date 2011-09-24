@@ -115,10 +115,16 @@ remove_old_modules(RemovedModules) ->
 compile_new_modules(NewPaths) ->
   [compile_new_module(Path) || Path <- NewPaths].
 
+compile_elixir_file(Path) ->
+  {ok, Content} = ems_file:read_file(Path),
+  Binding = [],
+  elixir:eval(binary_to_list(Content), Binding, Path).
+  
+
 compile_new_module(Path) ->
   
   Module = mod_name(Path),
-  try elixir:file(Path) of
+  try compile_elixir_file(Path) of
     _ -> ok
   catch
     _Klass:Error -> error_logger:error_msg("Elixir error: ~p~n", [Error])
@@ -181,7 +187,7 @@ reload_if_required_paths(PathsToCheck) ->
 
 
 reload_module_if_required(Path) ->
-  {ok, #file_info{mtime = Mtime}} = file:read_file_info(Path),
+  {ok, #file_info{mtime = Mtime}} = ems_file:read_file_info(Path),
   Module = mod_name(Path),
   ExMod = ex_name(Module),
   case erlang:module_loaded(ExMod) of

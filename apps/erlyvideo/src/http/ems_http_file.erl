@@ -66,7 +66,6 @@ serve_file(Host, Method, Root, Path, Req) ->
 
 serve_file_from_disk(Host, Method, Path, Req) ->
   FileName = filename:absname(Path),
-  io:format("serve ~p~n",[FileName]),
   case filelib:is_regular(FileName) of
     true when Method == 'GET' ->
       ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
@@ -81,7 +80,6 @@ serve_file_from_disk(Host, Method, Path, Req) ->
   end.
 
 serve_file_from_escript(Host, Method, Path, Req) ->
-  io:format("escript file ~p~n", [Path]),
   case ems_file:read_file_info(Path) of
     {ok, #file_info{size = Size}} ->
       {ok, Bin} = ems_file:read_file(Path),

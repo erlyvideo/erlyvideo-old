@@ -424,7 +424,7 @@ call_function(Host, #rtmp_session{} = State, #rtmp_funcall{command = Command} = 
   call_function(Host, Command, [State, AMF]);
 
 call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) andalso is_list(Args) ->
-  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login]), Command, Args).
+  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login, apps_streaming, apps_recording]), Command, Args).
 
 
 call_mfa([], Command, Args) ->

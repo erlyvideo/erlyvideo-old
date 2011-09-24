@@ -50,7 +50,7 @@ handle_http(Req) ->
   Host = host(Req),
   Method = Req:get(method),
   Path = Req:resource([urldecode]),
-  Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, {ems_http_file, "wwwroot"}]),  
+  Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, ems_http_erlyvideo_api, {ems_http_file, "wwwroot"}]),  
   % ?D({http, Method, Path, Req:get(headers), Req:get(body)}),
   try_handler(Chain, Host, Method, Path, Req).
 
