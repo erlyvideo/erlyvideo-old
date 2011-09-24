@@ -160,7 +160,7 @@ handle_info(_Message, State) ->
 %% @end
 %%-------------------------------------------------------------------------	
 file_dir(Host) ->
-  ems:get_var(file_dir, Host, undefined).
+  ems:get_var(file_dir, Host, ".").
 
 
 
