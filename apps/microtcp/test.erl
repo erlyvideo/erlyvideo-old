@@ -48,7 +48,7 @@ connect(Port) ->
   gen_tcp:recv(Sock, 0),
   gen_tcp:recv(Sock, 0),
   gen_tcp:recv(Sock, 0),
-  gen_tcp:close().
+  gen_tcp:close(Sock).
 
 client_launch() ->
   Bin = crypto:rand_bytes(?SIZE),

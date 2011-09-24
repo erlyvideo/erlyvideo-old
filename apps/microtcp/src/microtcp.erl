@@ -34,7 +34,7 @@ listen(Port) -> listen(Port, []).
 
 
 listen(Port, Options) ->
-  case erl_ddll:load_driver(code:lib_dir(microtcp,ebin), microtcp_drv) of
+  case erl_ddll:load_driver(code:lib_dir(microtcp,priv), microtcp_drv) of
   	ok -> ok;
   	{error, already_loaded} -> ok;
   	{error, Error} -> exit({error, {could_not_load_driver,erl_ddll:format_error(Error)}})
