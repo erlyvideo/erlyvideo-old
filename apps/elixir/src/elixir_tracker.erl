@@ -74,10 +74,15 @@ handle_info(Info, Tracker) ->
 terminate(_,_) -> ok.
 code_change(_, State, _) -> {ok, State}.
 
+scripts_in_path(Path) ->
+  case filelib:is_dir(Path) of
+    true -> filelib:wildcard(Path++"/*.ex");
+    false -> ems_file:find_by_prefix(Path)
+  end.
 
 recheck(#tracker{paths = CodePaths, modules = OldModules} = Tracker) ->
   ModulePaths = lists:foldl(fun(Path, List) ->
-    List ++ filelib:wildcard(Path++"/*.ex")
+    List ++ scripts_in_path(Path)
   end, [], CodePaths),
   AllModules = lists:usort([list_to_atom(filename:basename(Path, ".ex")) || Path <- ModulePaths]),
   if

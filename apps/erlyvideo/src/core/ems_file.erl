@@ -3,6 +3,7 @@
 
 -export([read_file/1, read_file_info/1]).
 -export([load_escript_files/0]).
+-export([find_by_prefix/1]).
 
 
 read_file(Path) ->
@@ -44,6 +45,15 @@ load_escript_files() ->
   end, [], {escript:script_name(), ArchiveBin}).
 
 
-
+find_by_prefix(Prefix) ->
+  {ok, EscriptFiles} = application:get_env(erlyvideo, escript_files),
+  lists:foldl(fun ({Path, _Info, _Bin}, Acc) when length(Path) >= length(Prefix) ->
+    
+    case string:left(Path, length(Prefix)) of
+      Prefix -> [Path|Acc];
+      _ -> Acc
+    end;
+  (_, Acc) -> Acc
+  end, [], EscriptFiles).
   
   
