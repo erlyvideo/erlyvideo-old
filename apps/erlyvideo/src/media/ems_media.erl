@@ -623,6 +623,7 @@ handle_call({read_frame, Client, Key}, _From, #ems_media{format = Format, storag
   {Storage1, Frame} = case Format:read_frame(Storage, Key) of
     #video_frame{} = F -> {Storage, F};
     {S, #video_frame{} = F} -> {S, F};
+    {S, eof} -> {S, eof};
     Else -> {Storage, Else}
   end,
   Media1 = case Frame of

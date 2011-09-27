@@ -76,17 +76,12 @@ serve_file_from_disk(Host, Method, Path, Req) ->
       ems_log:access(Host, "HEAD ~p ~s /~s", [Req:get(peer_addr), "-", Path]),
       Req:stream(close);
     false ->
-      case filelib:is_dir(FileName) of
-        true ->
-          unhandled;
-        false ->
-          serve_file_from_escript(Host, Method, Path, Req)
-      end
+      serve_file_from_escript(Host, Method, Path, Req)
   end.
 
 serve_file_from_escript(Host, Method, Path, Req) ->
   case ems_file:read_file_info(Path) of
-    {ok, #file_info{size = Size}} ->
+    {ok, #file_info{size = Size, type = regular}} ->
       {ok, Bin} = ems_file:read_file(Path),
       Headers = [{'Content-Type', misultin_utility:get_content_type(Path)}, {'Content-Length', integer_to_list(Size)}],
       ems_log:access(Host, "~s ~p ~s /~s", [Method, Req:get(peer_addr), "-", Path]),
