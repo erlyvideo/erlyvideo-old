@@ -53,7 +53,6 @@
          progress/3,
          progress_timeout/1,
          create_dialog/3,
-         ok/3,
          dialog_timeout/1,
          response/1,
          origin/1
@@ -98,6 +97,7 @@
           media                :: pid(),
           rtmp                 :: pid(),
           rtmp_ref             :: reference(),
+          sdp                  :: term(),
           rtp                  :: pid(),
           rtp_ref              :: reference(),
           stream_in            :: binary(),
@@ -203,16 +203,24 @@ handle_info({set_tu, TU}, StateName,
      tu_ref = TURef
     }};
 
-handle_info({ok, Opts, _Response}, StateName,
-            #state{} = State) ->
-  ?DBG("OK: ~p", [Opts]),
-  %% Duplex RTP
-  {next_state, StateName, State};
-
-handle_info({ringing, _Response}, StateName,
-            #state{} = State) ->
-  ?DBG("Ringing", []),
-  {next_state, StateName, State};
+handle_info({Action, Response, _Origin,
+             #sip_cb_state{} = CbState}, StateName,
+            #state{} = State)
+  when Action =:= ok orelse
+       Action =:= ringing ->
+  case Action of
+    ringing ->
+      ?DBG("Ringing", []);
+    ok ->
+      ?DBG("OK", [])
+  end,
+  SDP = esip:'#get-response'(body, Response),
+  if is_binary(SDP) andalso size(SDP) > 0 ->
+      NewState = start_media(SDP, CbState, State);
+     true ->
+      NewState = State
+  end,
+  {next_state, StateName, NewState};
 
 handle_info({declined, _Response}, _StateName,
             #state{rtp = RTP,
@@ -280,9 +288,14 @@ handle_info(_Info, StateName, State) ->
 
 terminate(_Reason, _StateName,
           #state{rtp = RTP,
+                 rtmp = RTMP,
                  name = Name} = _State) ->
   if is_pid(RTP) ->
       rtp_server:stop(RTP);
+     true -> pass
+  end,
+  if is_pid(RTMP) ->
+      apps_sip:bye(RTMP);
      true -> pass
   end,
   esip_registrator:set_dialog(Name, undefined),
@@ -674,35 +687,6 @@ create_dialog(_Response, _Origin, #sip_cb_state{pid = DPid}) ->
   ?DBG("Create dialog for terminating call: ~p", [DPid]),
   DPid ! {send_create}.
 
-ok(Response, _Origin,
-   #sip_cb_state{
-               pid = _DPid,
-               rtp = RTP,
-               rtmp = RTMP,
-               stream_in = StreamIn,
-               stream_out = StreamOut
-              } = CbState) ->
-
-  MediaInfo = #media_info{audio = Audio} = sdp:decode(esip:'#get-response'(body, Response)),
-  ?DBG("MediaOut:~n~p", [MediaInfo]),
-
-  %% AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
-  %%                 #stream_info{codec = speex, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
-  AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
-                  #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
-
-  ?DBG("AudioResult:~n~p", [AudioResult]),
-
-  rtp_server:add_stream(RTP, local, MediaInfo),
-  rtp_server:add_stream(RTP, remote, MediaInfo),
-
-  Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
-  rtp_server:play(RTP, Fun),
-
-  apps_sip:sip_call(RTMP, StreamOut, StreamIn),
-
-  {ok, CbState}.
-
 ack(RTP, StreamOut) ->
   Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
   rtp_server:play(RTP, Fun).
@@ -718,3 +702,39 @@ response(#sip_cb_state{response = Response}) ->
 
 origin(#sip_cb_state{origin = Origin}) ->
   Origin.
+
+%%
+start_media(SDP,
+            #sip_cb_state{
+              pid = _DPid,
+              rtp = RTP,
+              rtmp = RTMP,
+              stream_in = StreamIn,
+              stream_out = StreamOut
+             },
+            #state{sdp = OldMediaInfo} = State) ->
+
+  MediaInfo = #media_info{audio = Audio} = sdp:decode(SDP),
+  ?DBG("MediaOut:~n~p", [MediaInfo]),
+  %% TODO: Compare OldMediaInfo and MediaInfo
+
+  if
+    OldMediaInfo =:= undefined ->
+      %% AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
+      %%                 #stream_info{codec = speex, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
+      AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
+                      #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
+
+      ?DBG("AudioResult:~n~p", [AudioResult]),
+
+      rtp_server:add_stream(RTP, local, MediaInfo),
+      rtp_server:add_stream(RTP, remote, MediaInfo),
+
+      Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
+      rtp_server:play(RTP, Fun),
+
+      apps_sip:sip_call(RTMP, StreamOut, StreamIn),
+      State#state{sdp = MediaInfo};
+    true ->
+      State
+  end.
