@@ -117,6 +117,8 @@ private function handleStatus(evt:NetStatusEvent) : void
       break;
 
     case "NetConnection.Bye":
+      ns_out.attachAudio(null);
+      ns_out.attachCamera(null);
       inTalk = false;
       acceptEnabled = false;
       declineEnabled = false;
