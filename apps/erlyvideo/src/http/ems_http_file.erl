@@ -6,7 +6,7 @@
 %%% @end
 %%%
 %%% This file is part of erlyvideo.
-%%% 
+%%%
 %%% erlyvideo is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
@@ -42,13 +42,13 @@ http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
       end;
     true -> undefined
   end,
-  
+
   Accept = proplists:get_value('Accept', Req:get(headers)),
   if
     Accept == "application/x-rtsp-tunnelled" -> serve_rtsp(Host, Method, Path, Req);
     is_list(Root) -> serve_file(Host, Method, Root, Path, Req);
     true -> unhandled
-  end;    
+  end;
 
 http(_Host, _Method, _Path, _Req) ->
   ?D({unhandled, _Host, _Method, _Path}),
@@ -68,15 +68,20 @@ serve_file_from_disk(Host, Method, Path, Req) ->
   FileName = filename:absname(Path),
   case filelib:is_regular(FileName) of
     true when Method == 'GET' ->
-      ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
+      ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", Path]),
       Req:file(FileName);
     true when Method == 'HEAD' ->
       {ok, #file_info{size = Size}} = file:read_file_info(FileName),
     	Req:stream(head, [{'Content-Length', Size}]),
-      ems_log:access(Host, "HEAD ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
+      ems_log:access(Host, "HEAD ~p ~s /~s", [Req:get(peer_addr), "-", Path]),
       Req:stream(close);
     false ->
-      serve_file_from_escript(Host, Method, Path, Req)
+      case filelib:is_dir(FileName) of
+        true ->
+          unhandled;
+        false ->
+          serve_file_from_escript(Host, Method, Path, Req)
+      end
   end.
 
 serve_file_from_escript(Host, Method, Path, Req) ->
@@ -93,7 +98,7 @@ serve_file_from_escript(Host, Method, Path, Req) ->
 			end;
 		_Else ->
 		  unhandled
-	end.	
+	end.
 
 serve_rtsp(_Host, _Method, _Path, Req) ->
   % ?D({rtsp, Host, Path, Req:get(headers), Req:get(body)}),
