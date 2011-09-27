@@ -76,12 +76,7 @@ serve_file_from_disk(Host, Method, Path, Req) ->
       ems_log:access(Host, "HEAD ~p ~s /~s", [Req:get(peer_addr), "-", Path]),
       Req:stream(close);
     false ->
-      case filelib:is_dir(FileName) of
-        true ->
-          unhandled;
-        false ->
-          serve_file_from_escript(Host, Method, Path, Req)
-      end
+      serve_file_from_escript(Host, Method, Path, Req)
   end.
 
 serve_file_from_escript(Host, Method, Path, Req) ->
