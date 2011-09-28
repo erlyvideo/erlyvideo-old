@@ -42,7 +42,7 @@ http(Host, Method, Path, Req) when Method == 'GET' orelse Method == 'HEAD' ->
       end;
     true -> undefined
   end,
-
+  
   Accept = proplists:get_value('Accept', Req:get(headers)),
   if
     Accept == "application/x-rtsp-tunnelled" -> serve_rtsp(Host, Method, Path, Req);
@@ -56,7 +56,7 @@ http(_Host, _Method, _Path, _Req) ->
 
 
 serve_file(Host, Method, Root, Path, Req) ->
-  FullPath = ems:pathjoin([Root | Path]),
+  FullPath = filename:join([Root | Path]),
   case serve_file_from_disk(Host, Method, FullPath, Req) of
     unhandled ->
       serve_file_from_disk(Host, Method, ems:pathjoin(FullPath, "/index.html"), Req);
