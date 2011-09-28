@@ -49,7 +49,7 @@ handle_http(Req) ->
   random:seed(now()),
   Host = host(Req),
   Method = Req:get(method),
-  Path = Req:resource([urldecode]),
+  Path = [Segment || Segment <- Req:resource([urldecode]), Segment =/= ".."],
   Chain = ems:get_var(www_handlers, Host, [ems_http_rtmpt, ems_http_erlyvideo_api, {ems_http_file, "wwwroot"}]),  
   % ?D({http, Method, Path, Req:get(headers), Req:get(body)}),
   try_handler(Chain, Host, Method, Path, Req).
@@ -67,9 +67,9 @@ try_handler([Handler|Chain], Host, Method, Path, Req) ->
       Else
   catch
     Class:Error ->
-      ems_log:error(Host, "HTTP Error~n~p~n~p:~p:~p~n", [Path, Class, Error, erlang:get_stacktrace()]),
+      ems_log:error(Host, "HTTP Error~n~p~n~p:~p:~p~n", [Path, Class, io_lib_pretty_limited:print(Error, 500), erlang:get_stacktrace()]),
       Req:respond(500, [{"Content-Type", "text/plain"}], "500 Server Error~n~p~n~p:~p:~p~n", 
-                       [Path, Class, Error, erlang:get_stacktrace()])
+                       [Path, Class, io_lib_pretty_limited:print(Error, 500), erlang:get_stacktrace()])
   end.  	
 
 wwwroot(Host) ->
