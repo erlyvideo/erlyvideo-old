@@ -424,10 +424,7 @@ originating(OrigName, Password, Name, #sip_cb_state{pid = DPid} = CbState) ->
   ?DBG("Name: ~p, DPid: ~p", [Name, DPid]),
   StreamIn = <<OrigName/binary, <<"#-in">>/binary >>,
   StreamOut = << OrigName/binary, <<"#-out">>/binary >>,
-  {ok, Media} = media_provider:create(default, StreamIn,
-                                      [{type,live},{source_shutdown,shutdown}]),
-  %%apps_sip:sip_call(RTMP, StreamOut, StreamIn),
-  ?DBG("Media: ~p", [Media]),
+
   RtpConfig = ems:get_var(rtp, undefined),
   Binding = proplists:get_value(binding, RtpConfig),
 
@@ -451,10 +448,11 @@ originating(OrigName, Password, Name, #sip_cb_state{pid = DPid} = CbState) ->
                 options = [{sdp_session, Sess}]},
 
 
-
-  %% {ok, RTP} = rtp:start_server([{media_info_in, MediaInfo},
-  %%                               {media_info_out, MediaInfo},
-  %%                               {consumer, Media}]),
+  {ok, Media} = media_provider:create(default, StreamIn,
+                                      [{media_info, MediaInfo},
+                                       {type,live},
+                                       {source_shutdown,shutdown}]),
+  ?DBG("Media: ~p", [Media]),
 
   COpt = [{rate, 8000},{channels, 1}],
   TranscodeOpts = [{transcode_in, {{pcma, COpt}, {speex, COpt}}},
@@ -687,9 +685,8 @@ create_dialog(_Response, _Origin, #sip_cb_state{pid = DPid}) ->
   ?DBG("Create dialog for terminating call: ~p", [DPid]),
   DPid ! {send_create}.
 
-ack(RTP, StreamOut) ->
-  Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
-  rtp_server:play(RTP, Fun).
+ack(_RTP, _StreamOut) ->
+  ok.
 
 progress_timeout(#sip_cb_state{progress_timeout = DTO}) ->
   DTO.
@@ -729,11 +726,11 @@ start_media(SDP,
 
       rtp_server:add_stream(RTP, local, MediaInfo),
       rtp_server:add_stream(RTP, remote, MediaInfo),
+      apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
       Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
       rtp_server:play(RTP, Fun),
 
-      apps_sip:sip_call(RTMP, StreamOut, StreamIn),
       State#state{sdp = MediaInfo};
     true ->
       State
