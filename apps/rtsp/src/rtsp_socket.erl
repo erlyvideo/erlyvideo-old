@@ -214,17 +214,17 @@ handle_info(send_sr, #rtsp_socket{rtp = RTP} = Socket) ->
   rtp:send_rtcp(RTP, sender_report, []),
   {noreply, Socket};
 
-handle_info({ems_stream,_Num,burst_start}, #rtsp_socket{} = Socket) ->
+handle_info({ems_stream,_Num,_}, #rtsp_socket{} = Socket) ->
   {noreply, Socket};
 
-handle_info({ems_stream,_Num,burst_stop}, #rtsp_socket{} = Socket) ->
+handle_info({ems_stream,_Num,_Key,_}, #rtsp_socket{} = Socket) ->
   {noreply, Socket};
 
 handle_info({'EXIT', _, _}, RTSP) ->
   {noreply, RTSP};
 
 handle_info(Message, #rtsp_socket{} = Socket) ->
-  {stop, {uknown_message, Message}, Socket}.
+  {stop, {unknown_message, Message}, Socket}.
 
 dump_io(false, _) -> ok;
 dump_io(true, IO) -> dump_io(IO).

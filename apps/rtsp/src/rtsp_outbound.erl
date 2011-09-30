@@ -78,12 +78,10 @@ add_rtsp_options(#media_info{options = Options, video = V, audio = A} = Info, #r
     name = "Test",
     connect = {inet4, "0.0.0.0"},
     attrs = [
-       {tool, "LIVE555 Streaming Media v2008.04.09"},
+       {tool, "LIVE555 Streaming Media v2008.04.09"}
        % recvonly,
        % {type, "broadcast"},
-       {control, "*"},
        % {charset, "UTF-8"},
-       {range, "npt=0-"}
       ]
   },
 
@@ -129,7 +127,26 @@ handle_play_request(#rtsp_socket{callback = Callback, rtp = RTP} = Socket, URL, 
     {ok, Media} ->
       rtp:send_rtcp(RTP, sender_report, []),
       timer:send_interval(ems:get_var(rtcp_interval, 5000), send_sr),
-      rtsp_socket:reply(Socket#rtsp_socket{media = Media}, "200 OK", [{'Cseq', seq(Headers)}, {'Range', "npt=0-"}, {'RTP-Info', rtp:rtp_info(RTP)}]);
+      MediaInfo = ems_media:media_info(Media),
+      StartRange = case proplists:get_value('Range', Headers) of
+        <<"npt=", Range/binary>> ->
+          [StartS |_] = string:tokens(binary_to_list(Range), "-"),
+          Start = list_to_float(StartS),
+          if
+            Start > 0 -> ?D({seek,Media,Start}), ems_media:seek(Media, Start);
+            true -> ok
+          end,
+          StartS;
+        _ ->
+          "0"
+      end,  
+        
+      DurationRange = case MediaInfo of
+        #media_info{duration = Duration} when Duration =/= undefined -> io_lib:format("~f", [Duration / 1000]);
+        _ -> ""
+      end,
+      rtsp_socket:reply(Socket#rtsp_socket{media = Media}, "200 OK", [{'Cseq', seq(Headers)}, 
+        {'Range', "npt="++StartRange++"-"++DurationRange}, {'RTP-Info', rtp:rtp_info(RTP)}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}])
   end.

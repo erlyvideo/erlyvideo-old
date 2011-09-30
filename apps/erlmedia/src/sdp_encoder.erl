@@ -81,9 +81,10 @@ encode(#stream_info{content = Content, codec = Codec, stream_id = Id, options = 
   ],
   iolist_to_binary(SDP);
 
-encode(#media_info{video = Video, audio = Audio, options = Options}) ->
+encode(#media_info{video = Video, audio = Audio, options = Options} = MediaInfo) ->
   iolist_to_binary([
     encode_sdp_session(proplists:get_value(sdp_session, Options)),
+    encode_media_info(MediaInfo),
     [encode(V) || V <- Video],
     [encode(A) || A <- Audio]
   ]).
@@ -119,7 +120,14 @@ encode_attrs(Attrs) ->
   end, Attrs).
 
 
+encode_media_info(#media_info{duration = Duration}) when Duration =/= undefined ->
+  [
+    "a=control:*", ?LSEP,
+    "a=range:npt=0-", case Duration of undefined -> ""; _ -> io_lib:format("~f", [Duration / 1000]) end, ?LSEP
+  ];
 
+encode_media_info(_) ->
+  [].
 
 %
 % %%
