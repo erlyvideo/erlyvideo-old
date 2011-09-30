@@ -241,7 +241,7 @@ parse_atom(<<8:32, 0:32>>, Mp4Parser) ->
 parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
-  ?D({atom,BinaryAtomName}),
+  % ?D({atom,BinaryAtomName}),
   AtomName = case binary:bin_to_list(BinaryAtomName) of
    % [169|Value] -> 
    %   binary_to_atom(binary:list_to_bin(Value),latin1);
@@ -406,6 +406,7 @@ hdlr(<<0:32, _Mhdl:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) 
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
+  ?D({z, video}),
   Mp4Track#mp4_track{content = video};
 
 hdlr(<<0:32, _Mhdl:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
@@ -430,8 +431,11 @@ hdlr(<<0:32, _Mhdl:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, 
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
-  % ?D({hdlr, Handler, Name}),
-  Mp4Track#mp4_track{content = binary_to_atom(Handler, latin1)}.
+  Content = case Mp4Track#mp4_track.content of
+    undefined -> binary_to_atom(Handler, latin1);
+    OldContent -> OldContent
+  end,
+  Mp4Track#mp4_track{content = Content}.
   
 % SMHD atom
 smhd(<<0:8, _Flags:3/binary, 0:16/big-signed-integer, _Reserve:2/binary>>, Mp4Track) ->
