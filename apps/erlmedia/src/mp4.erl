@@ -39,7 +39,7 @@
 
 -export([ftyp/2, moov/2, mvhd/2, trak/2, tkhd/2, mdia/2, mdhd/2, stbl/2, stsd/2, esds/2, avcC/2]).
 -export([btrt/2, stsz/2, stts/2, stsc/2, stss/2, stco/2, co64/2, smhd/2, minf/2, ctts/2, udta/2]).
--export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2]).
+-export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2, wave/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
 -export([meta/2, ilst/2, covr/2, data/2, nam/2, alb/2]).
 -export([extract_language/1,get_coverart/1]).
@@ -234,13 +234,17 @@ parse_atom(<<>>, Mp4Parser) ->
   
 parse_atom(Atom, _) when size(Atom) < 4 ->
   {error, "Invalid atom"};
+
+parse_atom(<<8:32, 0:32>>, Mp4Parser) ->
+  Mp4Parser;
   
 parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
+  ?D({atom,BinaryAtomName}),
   AtomName = case binary:bin_to_list(BinaryAtomName) of
-   [169|Value] -> 
-     binary_to_atom(binary:list_to_bin(Value),latin1);
+   % [169|Value] -> 
+   %   binary_to_atom(binary:list_to_bin(Value),latin1);
    _ValidValue ->
      binary_to_atom(BinaryAtomName,latin1)
   end,
@@ -396,7 +400,7 @@ extract_language(<<L1:5, L2:5, L3:5>>) ->
 
 
 %% Handler Reference Box
-hdlr(<<0:32, 0:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, _Mhdl:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -404,7 +408,7 @@ hdlr(<<0:32, 0:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   end,
   Mp4Track#mp4_track{content = video};
 
-hdlr(<<0:32, 0:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, _Mhdl:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -420,16 +424,7 @@ hdlr(<<0:32, 0:32, "hint", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
   end,
   Mp4Track#mp4_track{content = hint};
 
-hdlr(<<0:32, 0:32, _Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_media{} = Mp4Media) ->
-  Len = (size(NameNull) - 1),
-  _Name = case NameNull of
-    <<N:Len/binary, 0>> -> N;
-    _ -> NameNull
-  end,
-  % ?D({hdlr, Handler, Name}),
-  Mp4Media;
-
-hdlr(<<0:32, 0:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
+hdlr(<<0:32, _Mhdl:32, Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -474,11 +469,21 @@ stsd(<<0:8, _Flags:3/binary, _EntryCount:32, EntryData/binary>>, Mp4Track) ->
   % ?D({_EntryCount, EntryData}),
   parse_atom(EntryData, Mp4Track).
 
+mp4a(<<0:32>>, Mp4Track) ->
+  Mp4Track;
 
-mp4a(<<_Reserved:6/binary, _RefIndex:16, _Unknown:8/binary, _ChannelsCount:32,
-       _SampleSize:32, _SampleRate:32, Atom/binary>>, Mp4Track) ->
+mp4a(<<_Reserved:6/binary, _RefIndex:16, SoundVersion:16, _Unknown:6/binary, _ChannelsCount:16,
+       _SampleSize:16, _PacketSize:16, _TimeScale:32, _Reserved3:16, Atom/binary>>, Mp4Track) when SoundVersion == 0 ->
+  parse_atom(Atom, Mp4Track#mp4_track{data_format = aac});
+
+mp4a(<<_Reserved:6/binary, _RefIndex:16, SoundVersion:16, _Reserved2:6/binary, _ChannelsCount:16,
+       _SampleSize:16, _Reserved3:16, _PacketSize:16, _TimeScale:16, _Reserved4:16, 
+       _SamplesPerPacket:32, _BytesPerPacket:32, _BytesPerFrame:32, _BytesPerSample:32, Atom/binary>>, Mp4Track) when SoundVersion == 1 ->
   parse_atom(Atom, Mp4Track#mp4_track{data_format = aac}).
-  
+
+wave(Atom, Mp4Track) ->
+  parse_atom(Atom, Mp4Track).
+
 mp4v(_T, Mp4Track) ->
   Mp4Track#mp4_track{data_format = mpeg4}.
 
