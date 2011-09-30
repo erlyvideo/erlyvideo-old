@@ -79,7 +79,7 @@ init(Reader, Options) ->
 properties(#mp4_media{additional = Additional, width = Width, height = Height, duration = Duration} = MP4Media) -> 
   Tracks = tuple_to_list(MP4Media#mp4_media.tracks),
   TrackInfo = [[{id,Id},{content,Content},{bitrate,Bitrate},{language, Language},{codec,Codec}] || 
-                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id, data_format = Codec} <- Tracks],
+                #mp4_track{language = Language, content = Content, bitrate = Bitrate, track_id = Id, codec = Codec} <- Tracks],
   Bitrates = [Bitrate || #mp4_track{bitrate = Bitrate, content = Content} <- Tracks, Content == video],
   Languages = [Language || #mp4_track{language = Language, content = Content} <- Tracks, Content == audio],
   
@@ -102,7 +102,7 @@ media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tra
         width = Track#mp4_track.width,
         height = Track#mp4_track.height
       };
-      audio when Track#mp4_track.data_format == aac andalso Track#mp4_track.decoder_config =/= undefined -> 
+      audio when Track#mp4_track.codec == aac andalso Track#mp4_track.decoder_config =/= undefined -> 
         #aac_config{channel_count = Channels, sample_rate = SampleRate} = aac:decode_config(Track#mp4_track.decoder_config),
         #audio_params{channels = Channels, sample_rate = SampleRate};
       audio -> #audio_params{};
@@ -111,7 +111,7 @@ media_info(#mp4_media{additional = Additional, duration = Duration, tracks = Tra
     #stream_info{
       content   = Track#mp4_track.content,
       stream_id = Track#mp4_track.track_id,
-      codec     = Track#mp4_track.data_format,
+      codec     = Track#mp4_track.codec,
       config    = Track#mp4_track.decoder_config,
       bitrate   = Track#mp4_track.bitrate,
       language  = Track#mp4_track.language,
@@ -187,7 +187,7 @@ codec_config({_Type, undefined}, _Media) ->
   undefined;
 
 codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
-  #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
+  #mp4_track{codec = Codec, decoder_config = Config} = element(TrackID, Tracks),
   #video_frame{
    	content = video,
    	flavor  = config,
@@ -198,7 +198,7 @@ codec_config({video,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackI
 	};
 
 codec_config({audio,TrackID}, #mp4_media{tracks = Tracks}) when is_number(TrackID) ->
-  #mp4_track{data_format = Codec, decoder_config = Config} = element(TrackID, Tracks),
+  #mp4_track{codec = Codec, decoder_config = Config} = element(TrackID, Tracks),
   case Config of
     undefined -> undefined;
     _ ->

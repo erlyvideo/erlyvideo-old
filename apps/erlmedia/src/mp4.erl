@@ -98,7 +98,7 @@ read_srt_file(#mp4_media{tracks = Tracks, duration = Duration} = Media, SrtFile)
   {match,[Lang]} = re:run(SrtFile, "\\.(\\w+)\\.srt", [{capture,all_but_first,list}]),
   Subtitles = parse_srt_file(SrtFile),
   SrtFrames = subtitles_to_mp4_frames(Subtitles),
-  Track = #mp4_track{data_format = srt, content = text, track_id = length(Tracks)+1, timescale = 1, 
+  Track = #mp4_track{codec = srt, content = text, track_id = length(Tracks)+1, timescale = 1, 
   duration = Duration, language = list_to_binary(Lang), frames = SrtFrames},
   Media#mp4_media{tracks = Tracks ++ [Track]}.
   
@@ -211,10 +211,10 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
   end.
   
   
-unpack_frame(#mp4_track{frames = Frames, content = text, data_format = _Codec}, Id) when Id < length(Frames) ->
+unpack_frame(#mp4_track{frames = Frames, content = text, codec = _Codec}, Id) when Id < length(Frames) ->
   lists:nth(Id+1, Frames);
   
-unpack_frame(#mp4_track{frames = Frames, data_format = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
+unpack_frame(#mp4_track{frames = Frames, codec = Codec}, Id) when Id*?FRAMESIZE < size(Frames) ->
   FrameOffset = Id*?FRAMESIZE,
 
   <<_:FrameOffset/binary, FKeyframe:1, Size:63, Offset:64, DTS:64/float, PTS:64/float, _/binary>> = Frames,
@@ -337,7 +337,7 @@ trak(<<>>, MediaInfo) ->
   
 trak(Atom, MediaInfo) ->
   Track = parse_atom(Atom, #mp4_track{}),
-  case Track#mp4_track.data_format of
+  case Track#mp4_track.codec of
     undefined -> ?D({skip_mp4_track, undefined_codec}),MediaInfo;
     _ -> fill_track_info(MediaInfo, Track)
   end.
@@ -474,22 +474,22 @@ mp4a(<<0:32>>, Mp4Track) ->
 
 mp4a(<<_Reserved:6/binary, _RefIndex:16, SoundVersion:16, _Unknown:6/binary, _ChannelsCount:16,
        _SampleSize:16, _PacketSize:16, _TimeScale:32, _Reserved3:16, Atom/binary>>, Mp4Track) when SoundVersion == 0 ->
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = aac});
+  parse_atom(Atom, Mp4Track#mp4_track{codec = aac});
 
 mp4a(<<_Reserved:6/binary, _RefIndex:16, SoundVersion:16, _Reserved2:6/binary, _ChannelsCount:16,
        _SampleSize:16, _Reserved3:16, _PacketSize:16, _TimeScale:16, _Reserved4:16, 
        _SamplesPerPacket:32, _BytesPerPacket:32, _BytesPerFrame:32, _BytesPerSample:32, Atom/binary>>, Mp4Track) when SoundVersion == 1 ->
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = aac}).
+  parse_atom(Atom, Mp4Track#mp4_track{codec = aac}).
 
 wave(Atom, Mp4Track) ->
   parse_atom(Atom, Mp4Track).
 
 mp4v(_T, Mp4Track) ->
-  Mp4Track#mp4_track{data_format = mpeg4}.
+  Mp4Track#mp4_track{codec = mpeg4}.
 
 
 '.mp3'(_, Mp4Track) ->
-  Mp4Track#mp4_track{data_format = mp3}.
+  Mp4Track#mp4_track{codec = mp3}.
 
 
 avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
@@ -499,26 +499,26 @@ avc1(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:1
           {horiz_res, HorizRes},{vert_res, VertRes},
           {depth,Depth}],
   % ?D({"Video size:", Meta}),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = h264, width = Width, height = Height}).
+  parse_atom(Atom, Mp4Track#mp4_track{codec = h264, width = Width, height = Height}).
 
 s263(<<_Reserved:6/binary, _RefIndex:16, _Unknown1:16/binary, Width:16, Height:16,
        _HorizRes:32, _VertRes:32, _FrameCount:16, _CompressorName:32/binary, _Depth:16, 
        _Predefined:16, _Unknown:4/binary, Atom/binary>>, Mp4Track) ->
   % ?D({"Video size:", Width, Height}),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = s263, width = Width, height = Height}).
+  parse_atom(Atom, Mp4Track#mp4_track{codec = s263, width = Width, height = Height}).
 
 samr(<<_Reserved:2/binary, _RefIndex:16, Atom/binary>> = AMR, Mp4Track) ->
   ?D(AMR),
-  parse_atom(Atom, Mp4Track#mp4_track{data_format = samr}).
+  parse_atom(Atom, Mp4Track#mp4_track{codec = samr}).
 
 
 'pcm '(_, Mp4Track) ->
   ?D(pcm),
-  Mp4Track#mp4_track{data_format = pcm_le}.
+  Mp4Track#mp4_track{codec = pcm_le}.
 
 'spx '(_, Mp4Track) ->
   ?D(pcm),
-  Mp4Track#mp4_track{data_format = speex}.
+  Mp4Track#mp4_track{codec = speex}.
 
   
 %%%%%%%%%%%%%%%%%%    ESDS     %%%%%%%%%%%%%%
@@ -526,7 +526,7 @@ esds(<<Version:8, _Flags:3/binary, DecoderConfig/binary>>, #mp4_track{} = Mp4Tra
   % ?D({"Extracted audio config", DecoderConfig}),
   ESDS = config_from_esds_tag(DecoderConfig),
   % ?D(ESDS),
-  Mp4Track#mp4_track{decoder_config = ESDS#esds.specific, data_format = ESDS#esds.object_type}.
+  Mp4Track#mp4_track{decoder_config = ESDS#esds.specific, codec = ESDS#esds.object_type}.
 
 % avcC atom
 avcC(DecoderConfig, #mp4_track{} = Mp4Track) ->
