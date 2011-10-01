@@ -42,7 +42,7 @@
 -include("rtsp.hrl").
 
 -export([encode_frame/2, handle_describe_request/4, handle_play_setup/4, handle_play_request/4]).
-
+-export([handle_pause_request/4]).
 
 
 handle_describe_request(#rtsp_socket{callback = Callback} = Socket, URL, Headers, Body) ->
@@ -58,7 +58,7 @@ handle_authorized_describe(#rtsp_socket{} = Socket, URL, Headers, Media) ->
   MediaInfo = ems_media:media_info(Media),
   Info1 = add_rtsp_options(MediaInfo, Socket1),
   SDP = sdp:encode(Info1),
-  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{media = Media, direction = out, rtp = rtp:init(remote, Info1)}, Info1),
+  Socket2 = rtsp_socket:save_media_info(Socket1#rtsp_socket{direction = out, rtp = rtp:init(remote, Info1)}, Info1),
   rtsp_socket:reply(Socket2, "200 OK", [{'Cseq', seq(Headers)}, {'Server', ?SERVER_NAME},
       {'Date', httpd_util:rfc1123_date()}, {'Expires', httpd_util:rfc1123_date()},
       {'Content-Base', io_lib:format("~s/", [URL])}], SDP).
@@ -121,26 +121,28 @@ handle_play_setup(#rtsp_socket{rtp = RTP, addr = Addr, socket = Sock} = Socket, 
   rtsp_socket:reply(Socket#rtsp_socket{rtp = RTP1}, "200 OK", [{'Cseq', seq(Headers)}, {'Transport', encode_transport(Transport, Reply)}]).
 
 
+parse_start_range(Headers) ->
+  case proplists:get_value('Range', Headers) of
+    <<"npt=", Range/binary>> ->
+      [StartS |_] = string:tokens(binary_to_list(Range), "-"),
+      StartS;
+    _ ->
+      "0"
+  end.
 
-handle_play_request(#rtsp_socket{callback = Callback, rtp = RTP} = Socket, URL, Headers, Body) ->
+handle_play_request(#rtsp_socket{callback = Callback, rtp = RTP, media = undefined} = Socket, URL, Headers, Body) ->
   case Callback:play(URL, Headers, Body) of
     {ok, Media} ->
+      erlang:monitor(process, Media),
       rtp:send_rtcp(RTP, sender_report, []),
       timer:send_interval(ems:get_var(rtcp_interval, 5000), send_sr),
       MediaInfo = ems_media:media_info(Media),
-      StartRange = case proplists:get_value('Range', Headers) of
-        <<"npt=", Range/binary>> ->
-          [StartS |_] = string:tokens(binary_to_list(Range), "-"),
-          Start = list_to_float(StartS),
-          if
-            Start > 0 -> ?D({seek,Media,Start}), ems_media:seek(Media, Start);
-            true -> ok
-          end,
-          StartS;
-        _ ->
-          "0"
-      end,  
-        
+      StartRange = parse_start_range(Headers),
+      Start = list_to_float(StartRange),
+      if
+        Start > 0 -> ?D({seek,Media,Start}), ems_media:seek(Media, Start*1000);
+        true -> ok
+      end,
       DurationRange = case MediaInfo of
         #media_info{duration = Duration} when Duration =/= undefined -> io_lib:format("~f", [Duration / 1000]);
         _ -> ""
@@ -149,8 +151,30 @@ handle_play_request(#rtsp_socket{callback = Callback, rtp = RTP} = Socket, URL, 
         {'Range', "npt="++StartRange++"-"++DurationRange}, {'RTP-Info', rtp:rtp_info(RTP)}]);
     {error, authentication} ->
       rtsp_socket:reply(Socket, "401 Unauthorized", [{"WWW-Authenticate", "Basic realm=\"Erlyvideo Streaming Server\""}])
-  end.
+  end;
 
+handle_play_request(#rtsp_socket{media = Media, rtp = RTP} = Socket, _URL, Headers, _Body) ->
+  StartRange = parse_start_range(Headers),
+  Start = list_to_float(StartRange),
+  if
+    Start > 0 -> ems_media:seek(Media, Start*1000);
+    true -> ok
+  end,
+  ems_media:resume(Media),
+  MediaInfo = ems_media:media_info(Media),
+  DurationRange = case MediaInfo of
+    #media_info{duration = Duration} when Duration =/= undefined -> io_lib:format("~f", [Duration / 1000]);
+    _ -> ""
+  end,
+  rtsp_socket:reply(Socket, "200 OK", [{'Cseq', seq(Headers)}, 
+    {'Range', "npt="++StartRange++"-"++DurationRange}, {'RTP-Info', rtp:rtp_info(RTP)}]).
+  
+
+
+handle_pause_request(#rtsp_socket{media = Media} = Socket, _URL, Headers, _Body) ->
+  ems_media:pause(Media),
+  rtsp_socket:reply(Socket, "200 OK", [{'Cseq', seq(Headers)}]).
+  
 
 encode_frame(#video_frame{content = Content} = Frame, #rtsp_socket{rtp = RTP} = Socket) when Content == audio orelse Content == video ->
   {ok, RTP1} = rtp:handle_frame(RTP, Frame),

@@ -406,7 +406,6 @@ hdlr(<<0:32, _Mhdl:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) 
     <<N:Len/binary, 0>> -> N;
     _ -> NameNull
   end,
-  ?D({z, video}),
   Mp4Track#mp4_track{content = video};
 
 hdlr(<<0:32, _Mhdl:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->

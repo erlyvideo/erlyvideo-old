@@ -33,5 +33,4 @@
   sent_sdp_config = false,
   
   rtp           :: pid()
-  
 }).
