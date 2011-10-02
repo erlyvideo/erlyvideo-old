@@ -319,6 +319,7 @@ handle_info(Message, #rtmp_session{host = Host} = State) ->
     {unhandled} -> {noreply, State};
     unhandled -> {noreply, State};
     #rtmp_session{} = State1 -> {noreply, State1};
+    {stop, Reason, State1} -> {stop, Reason, State1};
     {noreply, #rtmp_session{} = State1} -> {noreply, State1}
   end.
 
