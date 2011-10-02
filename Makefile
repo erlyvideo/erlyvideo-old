@@ -84,6 +84,7 @@ packages: release
 	mkdir -p tmproot/etc/init.d/
 	cp contrib/erlyvideo tmproot/etc/init.d/
 	mkdir -p tmproot/etc/erlyvideo
+	mkdir -p tmproot/opt/erlyvideo/lib/erl_interface/ebin tmproot/opt/erlyvideo/lib/erl_interface/include
 	cp priv/erlyvideo.conf.sample tmproot/etc/erlyvideo/erlyvideo.conf.sample
 	cp priv/log4erl.conf.sample tmproot/etc/erlyvideo/log4erl.conf.sample
 	cd tmproot && \
