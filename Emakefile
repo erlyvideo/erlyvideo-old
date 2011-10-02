@@ -1,6 +1,7 @@
 {"apps/amf/src/*", [debug_info, {outdir, "apps/amf/ebin"}, {i, "apps/amf/src"}]}.
 {"apps/erlmedia/src/gen_format.erl", [debug_info, {outdir, "apps/erlmedia/ebin"}, {i, "apps/erlmedia/src"}]}.
 {"apps/erlmedia/src/*", [debug_info, {outdir, "apps/erlmedia/ebin"}, {i, "apps/erlmedia/src"}]}.
+{"apps/meeting/src/*", [debug_info, {outdir, "apps/meeting/ebin"}, {i, "apps/meeting/src"}]}.
 {"apps/elixir/src/*", [debug_info, {outdir, "apps/elixir/ebin"}, {i, "apps/elixir/include"}]}.
 {"apps/erlyvideo/src/*", [debug_info, {outdir, "apps/erlyvideo/ebin"}, {i, "apps/erlyvideo/include"}, {i, ".."}]}.
 {"apps/erlyvideo/src/*/*", [debug_info, {outdir, "apps/erlyvideo/ebin"}, {i, "apps/erlyvideo/include"}, {i, ".."}]}.
