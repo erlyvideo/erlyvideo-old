@@ -77,8 +77,7 @@ handle_call({subscribe, Client, Options}, _From, #ems_media{module = M, clients 
               true -> active
             end
         end,
-        ems_media_clients:insert(Clients, Client=#client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS}),
-	ems_media_clients:insert(Clients,Client)
+        ems_media_clients:insert(Clients, #client{consumer = Client, stream_id = StreamId, ref = Ref, state = ClientState, tcp_socket = proplists:get_value(socket, Options), dts = DTS})
     end,
     {reply, ok, Media1#ems_media{clients = Clients1}, ?TIMEOUT}
   end,

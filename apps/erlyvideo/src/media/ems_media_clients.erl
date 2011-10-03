@@ -64,9 +64,7 @@
 }).
 
 init(Options) ->
-  Bytes = ets:new(bytes_table,[set,public]),
   #clients{
-    bytes = Bytes,
     type = proplists:get_value(type, Options),
     accelerated_mode = proplists:get_value(accelerated_mode, Options),
     name = proplists:get_value(name, Options),
@@ -127,8 +125,7 @@ insert_client(_Clients, #client{state = paused}) ->
   ok;
 
 % No ETS tables for files and low-usage streams
-insert_client(#clients{active = undefined,bytes = Bytes}=_Clients, #client{consumer=Client}=_Entry)  ->
-  ets:insert(Bytes,{Client,0}),
+insert_client(#clients{active = undefined}, _Entry)  ->
   ok;
   
 insert_client(#clients{bytes = Bytes} = Clients, #client{state = State, consumer = Client, stream_id = StreamId, tcp_socket = Socket, dts = DTS}) ->
@@ -175,12 +172,12 @@ list(#clients{list = List, bytes = Bytes}) ->
     TimeDelta = Now - ConnectedAt,
     ByteCount = ets:lookup_element(Bytes, Pid, 2),
     % BitRate = 8*ByteCount div TimeDelta,
-    {{pid, Pid},[
+    [{pid, Pid},
      {bytes, ByteCount},
      {state, atom_to_binary(State,latin1)},
      {connection_time, TimeDelta}
      % {bitrate, BitRate}
-   ]}
+   ] 
    end || #client{consumer = Pid, state = State, connected_at = ConnectedAt} <- List].
 
 
