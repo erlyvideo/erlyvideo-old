@@ -52,9 +52,10 @@ wait_for_reply(RTMP, InvokeId) ->
     30000 -> erlang:error(timeout)
   end.
 
-default_connect_options() ->
+default_connect_options(URL) ->
+  {App, _Path} = app_path(URL),
   lists:ukeysort(1, [
-    {app, <<"ondemand">>},
+    {app, list_to_binary(App)},
     {flashVer,<<"MAC 10,0,32,18">>},
     {swfUrl,<<"http://localhost/player/Player.swf">>},
     {tcUrl,<<"rtmp://localhost/">>},
@@ -111,12 +112,14 @@ fail(RTMP, AMF) -> rtmp_socket:invoke(RTMP, AMF#rtmp_funcall{command = '_error',
 %% @spec (RTMP::rtmp_socket()) -> any()
 %% @doc Send connect request to server with some predefined params
 connect(RTMP) ->
-  connect(RTMP, default_connect_options()).
+  {url, URL} = rtmp_socket:getopts(RTMP, url),
+  connect(RTMP, default_connect_options(URL)).
 
 %% @spec (RTMP::rtmp_socket(), Options::[{Key::atom(), Value::any()}]) -> any()
 %% @doc Send connect request to server
 connect(RTMP, Options) ->
-  ConnectArgs = lists:ukeymerge(1, lists:ukeysort(1, Options), default_connect_options()),
+  {url, URL} = rtmp_socket:getopts(RTMP, url),
+  ConnectArgs = lists:ukeymerge(1, lists:ukeysort(1, Options), default_connect_options(URL)),
   InvokeId = 1,
   AMF = #rtmp_funcall{
     command = connect,
@@ -155,15 +158,25 @@ play(URL) when is_list(URL) orelse is_binary(URL) ->
     Else ->
       Else
   end.
+  
+app_path(URL) ->
+  {_, FullPath} = http_uri2:extract_path_with_query(URL),
+  case re:run(FullPath, "/(.*)//(.*)", [{capture,all_but_first,list}]) of
+    {match, [App1, Path1]} ->
+      {App1, Path1};
+    _ ->
+      [App1|PathParts] = string:tokens(FullPath, "/"),
+      Path1 = string:join(PathParts, "/"),
+      {App1, Path1}
+  end.
+  
 
 invoke_rtmp_play(RTMP, URL) ->
   rtmp_socket:setopts(RTMP, [{active, true}]),
+  ?D({zz, app_path(URL)}),
   connect(RTMP),
-  
-  {_, FullPath} = http_uri2:extract_path_with_query(URL),
-  [_App|PathParts] = string:tokens(FullPath, "/"),
-  Path = string:join(PathParts, "/"),
-  ?D({"Connected to RTMP source", URL}),
+  {_App, Path} = app_path(URL),
+  ?D({"Connected to RTMP source", URL, _App, Path}),
   Stream = rtmp_lib:createStream(RTMP),
   ?D({"Stream",Stream}),
   rtmp_lib:play(RTMP, Stream, Path),
