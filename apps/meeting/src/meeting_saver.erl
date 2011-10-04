@@ -97,7 +97,7 @@ handle_cast({add_user, UserId, UserName}, #saver{writer = Writer} = State) ->
     body = [<<"onMetaData">>, {object, [{action, <<"newUser">>},
                                         {user_id, UserId},
                                         {user_name, UserName}]}]},
-  ?D({metadata, Frame}),
+  ?D({add_user, State#saver.name, UserId, UserName}),
   flv_writer:write_frame(Frame, Writer),
   {noreply, State};
 
@@ -106,7 +106,7 @@ handle_cast({remove_user, UserId}, #saver{writer = Writer} = State) ->
   Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
     body = [<<"onMetaData">>, {object, [{action, <<"removeUser">>},
                                         {user_id, UserId}]}]},
-  ?D({metadata, Frame}),
+  ?D({remove_user, State#saver.name, UserId}),
   flv_writer:write_frame(Frame, Writer),
   {noreply, State};
 
@@ -118,7 +118,7 @@ handle_cast({add_stream, Stream, UserId}, #saver{streams = Streams, writer = Wri
   Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
     body = [<<"onMetaData">>, {object, [{action, <<"publishStart">>},
                                         {user_id, UserId}]}]},
-  ?D({metadata, Frame}),
+  ?D({add_stream, State#saver.name, UserId}),
   flv_writer:write_frame(Frame, Writer),
 
   InStream = #in_stream{stream_id = UserId, pid = Stream, delta = stream_dts(State)},
@@ -134,7 +134,7 @@ handle_cast({remove_stream, UserId}, #saver{streams = Streams, writer = Writer} 
       Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
         body = [<<"onMetaData">>, {object, [{action, <<"publishStop">>},
                                             {user_id, UserId}]}]},
-      ?D({metadata, Frame}),
+      ?D({remove_stream, State#saver.name, UserId}),
       flv_writer:write_frame(Frame, Writer),
       {noreply, State#saver{streams = NewStreams}}
   end;
@@ -146,7 +146,7 @@ handle_cast({add_message, UserId, UserName, Body}, #saver{writer = Writer} = Sta
                                             {user_id, UserId},
                                             {user_name, UserName},
                                             {body, Body}]}]},
-      ?D({metadata, Frame}),
+      ?D({add_message, State#saver.name, UserId, UserName}),
       flv_writer:write_frame(Frame, Writer),
       {noreply, State};
 

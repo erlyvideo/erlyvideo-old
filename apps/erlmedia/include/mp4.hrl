@@ -22,7 +22,7 @@
 }).
 
 -record(mp4_track, {
-  data_format,
+  codec,
   content,
   track_id,
   timescale,
