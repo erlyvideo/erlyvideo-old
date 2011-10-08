@@ -17,13 +17,13 @@ dump(F, Offset) ->
   end.
 
 
-dump_frame(#video_frame{content = Content, codec = Codec, flavor = Flavor, dts = DTS, body = Body, sound = Sound}) ->
+dump_frame(#video_frame{content = Content, stream_id = StreamId, codec = Codec, flavor = Flavor, dts = DTS, body = Body, sound = Sound}) ->
   Info = case Codec of
     _ when Flavor == config -> io_lib:format("~p", [Body]);
     h264 -> io_lib:format("~p bytes", [size(Body)]);
-    aac -> io_lib:format("~p", [Sound]);
+    _ when Content == audio -> io_lib:format("~p", [Sound]);
     _ when Content == metadata -> io_lib:format("~p", [Body])
   end,
     
-  io:format("~8.s ~5.s ~9.s ~6.B ~s~n", [Content, Codec, Flavor, round(DTS), Info]).
+  io:format("~8.s ~3.B ~5.s ~9.s ~9.B ~s~n", [Content, StreamId, Codec, Flavor, round(DTS), Info]).
 
