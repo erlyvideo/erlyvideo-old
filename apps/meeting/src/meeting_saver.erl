@@ -39,6 +39,7 @@
   pid,
   ref,
   delta,
+  start_dts,
   mask = [video, audio, text],
   position
 }).
@@ -75,7 +76,7 @@ init([Conference, Options]) ->
   Host = proplists:get_value(host, Options),
   File = meeting_file_chooser:get_for_writing(get_records_dir(Host), binary_to_list(Name)),
   ?D({write_to_file, File}),
-  {ok, Writer} = flv_writer:start_link(File, [{sort_buffer, 0}]),
+  {ok, Writer} = flv_writer:start_link(File, [{sort_buffer, false}]),
   erlang:monitor(process, Conference),
   {ok, #saver{meeting = Conference,
               writer = Writer,
@@ -104,24 +105,22 @@ handle_cast({add_user, UserId, UserName}, #saver{writer = Writer} = State) ->
 handle_cast({remove_user, UserId}, #saver{writer = Writer} = State) ->
   DTS = stream_dts(State),
   Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
-    body = [<<"onMetaData">>, {object, [{action, <<"removeUser">>},
-                                        {user_id, UserId}]}]},
+    body = [<<"onMetaData">>, {object, [{action, <<"removeUser">>}, {user_id, UserId}]}]},
   ?D({remove_user, State#saver.name, UserId}),
   flv_writer:write_frame(Frame, Writer),
   {noreply, State};
 
 handle_cast({add_stream, Stream, UserId}, #saver{streams = Streams, writer = Writer} = State) ->
   DTS = stream_dts(State),
-  ?D({add_stream, Stream, UserId}),
-  ems_media:subscribe(Stream, [{stream_id, UserId}]),
 
   Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
-    body = [<<"onMetaData">>, {object, [{action, <<"publishStart">>},
-                                        {user_id, UserId}]}]},
-  ?D({add_stream, State#saver.name, UserId}),
+    body = [<<"onMetaData">>, {object, [{action, <<"publishStart">>}, {user_id, UserId}]}]},
+  ?D({add_stream, State#saver.name, UserId, Stream, stream_dts(State)}),
   flv_writer:write_frame(Frame, Writer),
 
   InStream = #in_stream{stream_id = UserId, pid = Stream, delta = stream_dts(State)},
+
+  ems_media:play(Stream, [{stream_id, UserId}]),
   {noreply, State#saver{streams = [InStream|Streams]}};
 
 handle_cast({remove_stream, UserId}, #saver{streams = Streams, writer = Writer} = State) ->
@@ -132,8 +131,7 @@ handle_cast({remove_stream, UserId}, #saver{streams = Streams, writer = Writer} 
       ems_media:stop(Stream),
       DTS = stream_dts(State),
       Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
-        body = [<<"onMetaData">>, {object, [{action, <<"publishStop">>},
-                                            {user_id, UserId}]}]},
+        body = [<<"onMetaData">>, {object, [{action, <<"publishStop">>}, {user_id, UserId}]}]},
       ?D({remove_stream, State#saver.name, UserId}),
       flv_writer:write_frame(Frame, Writer),
       {noreply, State#saver{streams = NewStreams}}
@@ -156,10 +154,15 @@ handle_cast(Msg, State) ->
 
 handle_info(#video_frame{stream_id = StreamId, dts = DTS, pts = PTS} = Frame, #saver{streams = Streams, writer = Writer} = State) ->
   case lists:keyfind(StreamId, #in_stream.stream_id, Streams) of
-    #in_stream{delta = Delta} -> flv_writer:write_frame(Frame#video_frame{dts = DTS+Delta, pts = PTS+Delta}, Writer);
-    _ -> erlang:error({unknown_stream_id, StreamId, Streams})
-  end,
-  {noreply, State};
+    #in_stream{start_dts = undefined, delta = Delta} = Stream ->
+      flv_writer:write_frame(Frame#video_frame{dts = Delta, pts = Delta}, Writer),
+      {noreply, State#saver{streams = lists:keystore(StreamId, #in_stream.stream_id, Streams, Stream#in_stream{start_dts = DTS})}};
+    #in_stream{delta = Delta, start_dts = StartDTS} -> 
+      flv_writer:write_frame(Frame#video_frame{dts = DTS- StartDTS+Delta, pts = PTS-StartDTS+Delta}, Writer),
+      {noreply, State};
+    _ -> 
+      erlang:error({unknown_stream_id, StreamId, Streams})
+  end;
 
 handle_info(stop, State) ->
   ?D({stop_meeting_saver, self()}),
