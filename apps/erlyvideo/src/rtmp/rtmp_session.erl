@@ -349,9 +349,12 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
 handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) 
   when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
   case get_stream(StreamId, State) of
-    #rtmp_stream{pid = Recorder} ->
+    #rtmp_stream{pid = Recorder} when is_pid(Recorder) ->
       Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
       ems_media:publish(Recorder, Frame),
+      State;
+    #rtmp_stream{} ->
+      ?D({broken_frame_on_empty_stream,Type,StreamId,Timestamp}),
       State;
     false ->
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Failed">>),
