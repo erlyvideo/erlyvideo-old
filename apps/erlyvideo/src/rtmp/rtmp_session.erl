@@ -492,6 +492,7 @@ send_frame(#video_frame{content = Content, stream_id = StreamId, dts = DTS, pts 
     #rtmp_stream{seeking = true} ->
       {State, undefined, false, false};
     #rtmp_stream{pid = undefined, started = false} = Stream ->
+      rtmp_lib:play_start(Socket, StreamId, 0, file),
       State1_ = set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State),
       {State1_, DTS, true, true};
     #rtmp_stream{pid = Media, started = false, options = Options} = Stream ->
@@ -499,7 +500,7 @@ send_frame(#video_frame{content = Content, stream_id = StreamId, dts = DTS, pts 
       rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
       State1_ = set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State),
       Duration = proplists:get_value(duration, Options),
-      State2_ = rtmp_session:send_frame(rtmp_session:metadata(Media, [{duration,Duration},{stream_id,StreamId},{dts,DTS}]), State1_),
+      State2_ = rtmp_session:send_frame(metadata(Media, [{duration,Duration},{stream_id,StreamId},{dts,DTS}]), State1_),
       {State2_, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
       {State, DTS_, false, true};
@@ -512,7 +513,7 @@ send_frame(#video_frame{content = Content, stream_id = StreamId, dts = DTS, pts 
       % case Frame#video_frame.content of
       %   metadata -> ?D(Frame);
       %   _ ->
-      %     (catch ?D({StreamId, Frame#video_frame.codec,Frame#video_frame.flavor,rtmp:justify_ts(DTS - BaseDts), Frame#video_frame.sound})),
+      %     (catch ?D({StreamId, Frame#video_frame.codec,Frame#video_frame.flavor, round(DTS), rtmp:justify_ts(DTS - BaseDts), Frame#video_frame.sound})),
       %     ok
       % end,
 
