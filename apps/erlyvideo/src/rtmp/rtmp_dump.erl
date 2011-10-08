@@ -31,7 +31,7 @@
 
 -export([run/1]).
 
--export([protect/2, connect/2, play/2, wait/2, pause/2, resume/2, seek/2, fcpublish/2, publish/2]).
+-export([protect/2, connect/2, play/2, wait/2, sleep/2, pause/2, resume/2, seek/2, fcpublish/2, publish/2]).
 -export([createStream/2, receiveAudio/2, receiveVideo/2]).
 
 -record(dumper, {
@@ -123,6 +123,10 @@ play(#dumper{rtmp = RTMP, stream = Stream_} = Dumper, [Path]) ->
   end,
   rtmp_lib:play(RTMP, Stream, Path),
   Dumper#dumper{stream = Stream}.
+
+sleep(#dumper{} = Dumper, [Time]) ->
+  timer:sleep(Time),
+  Dumper.
 
 wait(#dumper{rtmp = RTMP} = Dumper, [AbsTime]) ->
   % rtmp_socket:setopts(RTMP, [{active, once}]),
