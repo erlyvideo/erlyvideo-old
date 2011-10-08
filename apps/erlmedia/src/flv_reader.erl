@@ -67,11 +67,14 @@ write_frame(_Device, _Frame) ->
 %% @doc Read flv file and load its frames in memory ETS
 %% @end 
 %%--------------------------------------------------------------------
-init({_Module,_Device} = Reader, _Options) ->
-  MediaInfo = #flv_media{reader = Reader},
+init({_Module,_Device} = Reader, Options) ->
+  Media1 = #flv_media{reader = Reader, frames = ets:new(frames, [ordered_set, private])},
+  ReadMeta = proplists:get_value(find_metadata, Options, true),
   case flv:read_header(Reader) of
-    {#flv_header{} = Header, Offset} -> 
-      read_frame_list(MediaInfo#flv_media{header = Header, frames = ets:new(frames, [ordered_set, private])}, Offset, -1);
+    {#flv_header{} = Header, Offset} when ReadMeta -> 
+      read_frame_list(Media1#flv_media{header = Header}, Offset, -1);
+    {#flv_header{} = Header, _} ->
+      {ok, Media1#flv_media{header = Header}};
     eof -> 
       {error, unexpected_eof};
     {error, Reason} -> {error, Reason}           
@@ -149,7 +152,6 @@ read_frame_list(#flv_media{reader = Reader, frames = FrameTable, metadata = Meta
 			end;
 		#video_frame{content = video, flavor = config, codec = Codec, next_id = NextOffset} = V ->
       % ?D({"Save flash video_config"}),
-      io:format("VConfig~n"),
 			read_frame_list(MediaInfo#flv_media{video_config = V, video_codec = Codec}, NextOffset, Limit - 1);
 
 		#video_frame{content = audio, flavor = config, codec = Codec, next_id = NextOffset} = A ->
