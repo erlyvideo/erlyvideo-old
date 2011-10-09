@@ -290,11 +290,9 @@ clean_uri(_Unavailable, Uri) ->
 file_send(FilePath, Headers, ReqT) ->
 	% get file size
 	case file:read_file_info(FilePath) of
-		{ok, FileInfo} ->
-			% get filesize
-			FileSize = FileInfo#file_info.size,
+		{ok, #file_info{size = FileSize, mtime = Mtime}} ->
 			% do the gradual sending
-			case file_open_and_send(FilePath, FileSize, Headers, ReqT) of
+			case file_open_and_send(FilePath, FileSize, [{'Last-Modified', httpd_util:rfc1123_date(Mtime)}|Headers], ReqT) of
 				{error, Reason} ->
 					stream({error, Reason}, ReqT);
 				ok ->
