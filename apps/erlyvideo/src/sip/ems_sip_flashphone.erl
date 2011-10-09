@@ -602,7 +602,9 @@ dialog(Origin,
             StreamIn = <<Name/binary, <<"#-in">>/binary >>,
             StreamOut = << Name/binary, <<"#-out">>/binary >>,
             {ok, Media} = media_provider:create(default, StreamIn,
-                                                [{type,live},{source_shutdown,shutdown}]),
+                                                [{type,live},
+                                                 {source_shutdown,shutdown},
+                                                 {media_info, MediaInfoReply}]),
 
             RtpOpts = [{media_info_loc, MediaInfoReply},
                        {media_info_rmt,MediaInfoReply},
@@ -728,7 +730,11 @@ start_media(SDP,
       rtp_server:add_stream(RTP, remote, MediaInfo),
       apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
-      Fun = fun() -> media_provider:play(default, StreamOut, [{type,live}, {stream_id,1}, {wait, infinity}]) end,
+      Fun = fun() -> media_provider:play(default, StreamOut,
+                                         [{type,live},
+                                          {stream_id,1},
+                                          {wait, infinity},
+                                          {media_info, MediaInfo}]) end,
       rtp_server:play(RTP, Fun),
 
       State#state{sdp = MediaInfo};
