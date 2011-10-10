@@ -81,10 +81,10 @@ init(Media, Consumer, Options) ->
   erlang:monitor(process, Media),
   erlang:monitor(process, Consumer),
   proc_lib:init_ack({ok, self()}),
-  NoTimeouts = case application:get_env(erlyvideo, no_timeouts) of
+  NoTimeouts = proplists:get_value(no_timeouts, Options, case application:get_env(erlyvideo, no_timeouts) of
     {ok, Val} -> Val;
     undefined -> false
-  end,
+  end),
   StreamId = proplists:get_value(stream_id, Options),
   BurstSize = proplists:get_value(burst_size, Options, ?BURST_SIZE),
   ClientBuffer = proplists:get_value(client_buffer, Options, 5000),
