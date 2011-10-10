@@ -28,6 +28,7 @@
 -include_lib("erlmedia/include/media_info.hrl").
 -include("../../src/log.hrl").
 -export([read_file/1]).
+-export([test_file/1, test_file/2]).
 
 
 read_file(Path) ->
@@ -38,15 +39,18 @@ test_duration(Frames, Nearby) ->
   [#video_frame{dts = FDTS}|_] = Frames,
   [#video_frame{dts = LDTS}|_] = lists:reverse(Frames),
   TDTS = LDTS - FDTS,
-  %?D({"Delta DTS ",TDTS}),
   true = TDTS >= Nearby - 1000 andalso TDTS =< Nearby + 1000.
 
 test_file(Id) ->
+  test_file(Id, 20000).
+
+test_file(Id, Duration) ->
   [_,Ext|Rest] = lists:reverse(string:tokens(atom_to_list(Id), "_")),
   Path = string:join(lists:reverse(Rest), "_")++"."++Ext,
+  io:format("zz: ~p~n", [Path]),
   Reader = file_media:file_format(Path),
   {ok, Media, Frames} = read_file(Path),
-  test_duration(Frames, 20000),
+  test_duration(Frames, Duration),
   ?assertMatch(#media_info{flow_type = file}, Reader:media_info(Media)).
 
 -define(CHECK(X), X() -> test_file(X), ok).
@@ -335,6 +339,28 @@ mp3_1_mp3_test() ->
   }, mp3_reader:media_info(Media)).
 
 
+big_buck_bunny_mov_test() ->
+  {ok, Media, Frames} = read_file("big_buck_bunny.mov"),
+  test_duration(Frames, 596416),
+  ?assertMatch(#media_info{
+    flow_type = file,
+    duration = 596416.6666666666,
+    video = [
+      #stream_info{
+        content = video,
+        stream_id = 1,
+        codec = h264,
+        config = <<1,66,192,30,255,225,0,21,103,66,192,30,217,3,197,104,64,0,0,3,0,
+                   64,0,0,12,3,197,139,146,1,0,4,104,203,140,178>>,
+        params = #video_params{width = 240, height = 160}
+      }
+    ],
+    audio = [
+    #stream_info{codec = aac, content = audio,
+    config = <<17,144>>}
+    ],
+    metadata = []
+  }, mp4_reader:media_info(Media)).
 
 
 % h264_1_h264_test() -> ok.
