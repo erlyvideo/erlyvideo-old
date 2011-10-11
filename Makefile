@@ -35,6 +35,7 @@ escriptize: compile
 amazon_update: release
 	tar cvfp erlyvideo.tar.bz2 ./erlyvideo/ 
 	rsync erlyvideo.tar.bz2 $(AMAZON)
+	rm erlyvideo.tar.bz2
 	ssh $(AMAZON_HOST) './script.sh'
 compile:
 	./rebar get-deps
