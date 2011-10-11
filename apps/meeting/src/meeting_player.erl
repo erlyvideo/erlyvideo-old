@@ -101,7 +101,7 @@ init([Conference, Options]) when is_binary(Conference) ->
 init([Conference, Options]) ->
   % ?D({init, Conference}),
   Host = proplists:get_value(host, Options),
-  File = file_manager:get_for_reading(meeting_saver:get_records_dir(Host), Conference),
+  File = meeting_file_chooser:get_for_reading(meeting_saver:get_records_dir(Host), Conference),
   ?D({read_from_file, File}),
   {ok, F} = file:open(File, [read,binary]),
   {ok, Reader} = flv_reader:init({file, F}, [{find_metadata,false}]),
