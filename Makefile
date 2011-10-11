@@ -22,7 +22,8 @@ ERL_LIBS:=apps:deps:plugins
 
 ERL=erl +A 4 +K true
 APP_NAME=ems
-
+AMAZON=root@ec2-50-17-96-238.compute-1.amazonaws.com:/root
+AMAZON_HOST=root@ec2-50-17-96-238.compute-1.amazonaws.com
 all: compile
 
 update:
@@ -31,6 +32,10 @@ update:
 escriptize: compile
 	./contrib/escriptize
 
+amazon_update: release
+	tar cvfp erlyvideo.tar.bz2 ./erlyvideo/ 
+	rsync erlyvideo.tar.bz2 $(AMAZON)
+	ssh $(AMAZON_HOST) './script.sh'
 compile:
 	./rebar get-deps
 	./rebar compile
@@ -53,12 +58,12 @@ clean:
 	./rebar clean
 	rm -fv plugins/*/ebin/*.beam
 	rm -fv erl_crash.dump
+	rm -fv erlyvideo.tar.bz2
 
 clean-doc:
 	rm -fv doc/*.html
 	rm -fv doc/edoc-info
 	rm -fv doc/*.css
-
 
 run: priv/erlyvideo.conf priv/log4erl.conf 
 	ERL_LIBS=apps:..:deps:../commercial/apps erl -args_file files/vm.args -sname ev -boot start_sasl -s erlyvideo -config files/app.config
