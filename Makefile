@@ -33,6 +33,7 @@ escriptize: compile
 	./contrib/escriptize
 
 amazon_update: release
+	./amazon_private.sh
 	tar cjvfp erlyvideo.tar.bz2 ./erlyvideo/ 
 	rsync erlyvideo.tar.bz2 $(AMAZON)
 	ssh $(AMAZON_HOST) './script.sh'
