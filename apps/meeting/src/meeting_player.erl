@@ -169,9 +169,9 @@ send_frame(#player{subscriber = Session, streams = Streams}, #video_frame{conten
   end,
   % Socket ! F, %#video_frame{stream_id = NewId},
   % NewId = 0,
-  ?D({action,Action, round(_F#video_frame.dts)}),
+  % ?D({action,Action, round(_F#video_frame.dts)}),
   Socket = rtmp_session:get(Session, socket),
-  ?D({send, Session, Socket, UserId, NewId, Params}),
+  % ?D({send, Session, Socket, UserId, NewId, Params}),
   rtmp_socket:status(Socket, NewId, Method, Params),
   AutoTick = Action =/= <<"publishStart">>,
   AutoTick;
