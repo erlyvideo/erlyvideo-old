@@ -129,6 +129,7 @@ handle_cast({remove_stream, UserId}, #saver{streams = Streams, writer = Writer} 
       {noreply, State};
     {value, #in_stream{pid = Stream}, NewStreams} ->
       ems_media:stop(Stream),
+      flush_frames(UserId),
       DTS = stream_dts(State),
       Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
         body = [<<"onMetaData">>, {object, [{action, <<"publishStop">>}, {user_id, UserId}]}]},
@@ -139,14 +140,14 @@ handle_cast({remove_stream, UserId}, #saver{streams = Streams, writer = Writer} 
 
 handle_cast({add_message, UserId, UserName, Body}, #saver{writer = Writer} = State) ->
   DTS = stream_dts(State),
-      Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
-        body = [<<"onMetaData">>, {object, [{action, <<"message">>},
-                                            {user_id, UserId},
-                                            {user_name, UserName},
-                                            {body, Body}]}]},
-      ?D({add_message, State#saver.name, UserId, UserName}),
-      flv_writer:write_frame(Frame, Writer),
-      {noreply, State};
+  Frame = #video_frame{content = metadata, stream_id = UserId, dts = DTS, pts = DTS,
+    body = [<<"onMetaData">>, {object, [{action, <<"message">>},
+                                        {user_id, UserId},
+                                        {user_name, UserName},
+                                        {body, Body}]}]},
+  ?D({add_message, State#saver.name, UserId, UserName}),
+  flv_writer:write_frame(Frame, Writer),
+  {noreply, State};
 
 handle_cast(Msg, State) ->
   ?D({unknown_cast, Msg}),
@@ -160,8 +161,9 @@ handle_info(#video_frame{stream_id = StreamId, dts = DTS, pts = PTS} = Frame, #s
     #in_stream{delta = Delta, start_dts = StartDTS} -> 
       flv_writer:write_frame(Frame#video_frame{dts = DTS- StartDTS+Delta, pts = PTS-StartDTS+Delta}, Writer),
       {noreply, State};
-    _ -> 
-      erlang:error({unknown_stream_id, StreamId, Streams})
+    _ ->
+      ?D({unknown_stream_id,StreamId})
+      % erlang:error({unknown_stream_id, StreamId, Streams})
   end;
 
 handle_info(stop, State) ->
@@ -181,4 +183,12 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+
+flush_frames(StreamId) ->
+  receive
+    #video_frame{stream_id = StreamId} -> flush_frames(StreamId)
+  after
+    0 -> ok
+  end.  
 
