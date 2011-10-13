@@ -218,8 +218,8 @@ handle_call({listen_ports, Content, Transport},
                      udp_conn = UDPConn}};
 
 handle_call({add_stream, Location,
-             #media_info{audio = _Audio,
-                         video = _Video} = MediaInfo}, _From,
+             #media_info{audio = Audio,
+                         video = Video} = MediaInfo}, _From,
             #rtp_server{udp_conn = UDPConn} = Server)
   when Location =:= local orelse
        Location =:= remote ->
@@ -230,23 +230,41 @@ handle_call({add_stream, Location,
       %%{ok, RTP_LOC1, _} = rtp:setup_channel(RTP_LOC, 1, [{proto,udp},{remote_rtp_port,RPort1},{remote_rtcp_port,RPort2},{remote_addr,RAddr}]),
       Transport = [{proto,udp}],
 
-
-      {NewRTP_LOC, ChanOpts} =
-        lists:foldl(fun(C, {RL, O}) ->
-                        SId = stream_id(C),
-                        {ok, RTP_LOC1, CO} = rtp:setup_channel(RL, SId, Transport),
-                        {RTP_LOC1, lists:keystore(SId, 1, O, {SId, CO})}
-                    end, {RTP_LOC, []}, [audio
-                                         %%, video
-                                        ]),
-
-
-      %% {ok, RTP_LOC1, AudioChanOpts} = rtp:setup_channel(RTP_LOC, audio, Transport),
-      %% {ok, RTP_LOC2, VideoChanOpts} = rtp:setup_channel(RTP_LOC1, video, Transport),
+      {NewRTP_LOC, NewMediaInfo, ChanOpts} =
+        lists:foldl(
+          fun(C, {RL, MI, O}) ->
+              SId = stream_id(C),
+              {ok, RTP_LOC1, CO} = rtp:setup_channel(RL#rtp_state{udp = UDPConn}, SId, Transport),
+              NewMI =
+                case C of
+                  audio ->
+                    case Audio of
+                      [] -> MI;
+                      [#stream_info{options = SOptions} = AudioStream] ->
+                        MI#media_info{
+                          audio = [AudioStream#stream_info{
+                                     options = lists:keystore(port, 1, SOptions,
+                                                              {port, (element(SId, RTP_LOC1#rtp_state.udp))#rtp_udp.local_rtp_port})}]}
+                    end;
+                  video ->
+                    case Video of
+                      [] -> MI;
+                      [#stream_info{options = SOptions} = VideoStream] ->
+                        MI#media_info{
+                          video = [VideoStream#stream_info{
+                                     options = lists:keystore(port, 1, SOptions,
+                                                              {port, (element(SId, RTP_LOC1#rtp_state.udp))#rtp_udp.local_rtp_port})}]}
+                    end
+                end,
+              {RTP_LOC1, NewMI, lists:keystore(SId, 1, O, {SId, CO})}
+          end, {RTP_LOC, MediaInfo, []},
+          [audio
+           %%, video
+          ]),
 
       NewServer =
         Server#rtp_server{
-          media_info_loc = MediaInfo,
+          media_info_loc = NewMediaInfo,
           rtp_loc = NewRTP_LOC,
           chan_loc = ChanOpts
          };
@@ -270,7 +288,6 @@ handle_call({add_stream, Location,
                                      {remote_rtp_port,RPort1},
                                      {remote_rtcp_port,RPort2},
                                      {remote_addr,RAddr}],
-                        %%Transport = [{proto,udp}],
                         SId = stream_id(C),
                         {ok, RTP_RMT1, CO} = rtp:setup_channel(RR#rtp_state{udp = UDPConn}, SId, Transport),
                         StreamInfo1 = StreamInfo#stream_info{options = lists:keystore(port, 1, StreamOpts, {port, RPort1})},

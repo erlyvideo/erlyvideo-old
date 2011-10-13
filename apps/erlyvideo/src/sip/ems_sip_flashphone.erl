@@ -429,7 +429,7 @@ originating(OrigName, Password, Name, #sip_cb_state{pid = DPid} = CbState) ->
   Binding = proplists:get_value(binding, RtpConfig),
 
 
-  Sess = #sdp_session{name = "Esip flash call",
+  Sess = #sdp_session{name = "Esip flash originating",
                       connect = {inet, Binding},
                       originator = #sdp_o{
                         username = sdp:make_username(),
@@ -596,29 +596,37 @@ dialog(Origin,
       VideoResult = [],
 
       RtpGlue =
-        fun(MediaInfoReply, TranscodeOpts) ->
-            ?DBG("MediaOut:~n~p", [MediaInfoReply]),
+        fun(MediaInfoLocal, MediaInfoRemote, TranscodeOpts) ->
+            ?DBG("MediaOut:~n~p", [MediaInfoRemote]),
 
             StreamIn = <<Name/binary, <<"#-in">>/binary >>,
             StreamOut = << Name/binary, <<"#-out">>/binary >>,
             {ok, Media} = media_provider:create(default, StreamIn,
                                                 [{type,live},
                                                  {source_shutdown,shutdown},
-                                                 {media_info, MediaInfoReply}]),
+                                                 {media_info, MediaInfoLocal}]),
 
-            RtpOpts = [{media_info_loc, MediaInfoReply},
-                       {media_info_rmt,MediaInfoReply},
+            RtpOpts = [{media_info_loc, MediaInfoLocal},
+                       {media_info_rmt,MediaInfoRemote},
                        {consumer, Media}] ++ TranscodeOpts,
             {ok, RTP} = rtp:start_server(RtpOpts),
             {ok, {_PortRTP, _PortRTCP}} = rtp_server:listen_ports(RTP, audio, [{transport, udp}]),
-            rtp_server:add_stream(RTP, local, MediaInfoReply),
-            rtp_server:add_stream(RTP, remote, MediaInfoReply),
+
+            rtp_server:add_stream(RTP, local, MediaInfoLocal),
+            rtp_server:add_stream(RTP, remote, MediaInfoRemote),
+
+            Fun = fun() -> media_provider:play(default, StreamOut,
+                                               [{type,live},
+                                                {stream_id,1},
+                                                {wait, infinity},
+                                                {media_info, MediaInfoLocal}]) end,
+            rtp_server:play(RTP, Fun),
 
             apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
             CbPid ! {config, Media, StreamIn, StreamOut, RTP},
-            MediaInfoReply1 = rtp_server:media_info_loc(RTP),
-            SDP = sdp:encode(MediaInfoReply1),
+            MediaInfoReply = rtp_server:media_info_loc(RTP),
+            SDP = sdp:encode(MediaInfoReply),
             Response = esip:'#new-response'(
                          [
                           {code, 101},
@@ -654,29 +662,77 @@ dialog(Origin,
           %% Incompatible codecs
           ?DBG("Codecs are incompatible.", []),
 
+
+          RtpConfig = ems:get_var(rtp, undefined),
+          Binding = proplists:get_value(binding, RtpConfig),
+
+          Sess = #sdp_session{name = "Esip flash terminating",
+                              connect = {inet, Binding},
+                              originator = #sdp_o{
+                                username = sdp:make_username(),
+                                sessionid = sdp:make_session(),
+                                version = "1",
+                                netaddrtype = inet,
+                                address = Binding
+                               }, attrs = []},
+
+          ?DBG("Session:~n~p", [Sess]),
+
           %% FIXME: use SDP and erlycode capability checking
           %% Recode
-          RecAudioResult = [StreamInfo#stream_info{stream_id = 1} ||
-                             #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
 
-          MediaInfoReply =
+          AudioResultLocal =
+            [StreamInfo#stream_info{stream_id = 1, options = lists:keydelete(port, 1, SOptions)} ||
+              #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}, options = SOptions} = StreamInfo <- Audio],
+          AudioResultRemote =
+            [StreamInfo#stream_info{stream_id = 1} ||
+              #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
+
+          ?DBG("AudioResultLocal:~n~p", [AudioResultLocal]),
+          ?DBG("AudioResultRemote:~n~p", [AudioResultRemote]),
+
+          MediaInfoLocal =
             MediaInfoRequest#media_info{
-              audio = RecAudioResult,
+              audio = AudioResultLocal,
+              video = VideoResult,
+              options = [{sdp_session, Sess}]
+             },
+          ?DBG("MediaInfoLocal:~n~p", [MediaInfoLocal]),
+
+          MediaInfoRemote =
+            MediaInfoRequest#media_info{
+              audio = AudioResultRemote,
               video = VideoResult
              },
-          ?DBG("MediaInfoReply:~n~p", [MediaInfoReply]),
+          ?DBG("MediaInfoRemote:~n~p", [MediaInfoRemote]),
 
           COpt = [{rate, 8000},{channels, 1}],
           TranscodeOpts = [{transcode_in, {{pcma, COpt}, {speex, COpt}}},
                            {transcode_out, {{speex, COpt}, {pcma, COpt}}}],
-          RtpGlue(MediaInfoReply, TranscodeOpts);
+          RtpGlue(MediaInfoLocal, MediaInfoRemote, TranscodeOpts);
         _ ->
-          MediaInfoReply =
+
+          AudioResultLocal =
+            [StreamInfo#stream_info{stream_id = 1, options = lists:keydelete(port, 1, SOptions)} ||
+              #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}, options = SOptions} = StreamInfo <- AudioResult],
+          AudioResultRemote =
+            [StreamInfo#stream_info{stream_id = 1} ||
+              #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- AudioResult],
+
+          ?DBG("AudioResultLocal:~n~p", [AudioResultLocal]),
+          ?DBG("AudioResultRemote:~n~p", [AudioResultRemote]),
+
+          MediaInfoLocal =
             MediaInfoRequest#media_info{
-              audio = AudioResult,
+              audio = AudioResultLocal,
               video = VideoResult
              },
-          RtpGlue(MediaInfoReply, [])
+          MediaInfoRemote =
+            MediaInfoRequest#media_info{
+              audio = AudioResultRemote,
+              video = VideoResult
+             },
+          RtpGlue(MediaInfoLocal, MediaInfoRemote, [])
       end;
     _ ->
       {error, not_found}
@@ -721,23 +777,32 @@ start_media(SDP,
     OldMediaInfo =:= undefined ->
       %% AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
       %%                 #stream_info{codec = speex, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
-      AudioResult = [StreamInfo#stream_info{stream_id = 1} ||
-                      #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
+      AudioResultLocal =
+        [StreamInfo#stream_info{stream_id = 1, options = lists:keydelete(port, 1, SOptions)} ||
+          #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}, options = SOptions} = StreamInfo <- Audio],
+      AudioResultRemote =
+        [StreamInfo#stream_info{stream_id = 1} ||
+          #stream_info{codec = pcma, params = #audio_params{sample_rate = 8000}} = StreamInfo <- Audio],
 
-      ?DBG("AudioResult:~n~p", [AudioResult]),
+      ?DBG("AudioResultLocal:~n~p", [AudioResultLocal]),
+      ?DBG("AudioResultRemote:~n~p", [AudioResultRemote]),
 
-      rtp_server:add_stream(RTP, local, MediaInfo),
-      rtp_server:add_stream(RTP, remote, MediaInfo),
+      MediaInfoLocal = MediaInfo#media_info{audio = AudioResultLocal},
+      MediaInfoRemote = MediaInfo#media_info{audio = AudioResultRemote},
+
+      rtp_server:add_stream(RTP, local, MediaInfoLocal),
+      rtp_server:add_stream(RTP, remote, MediaInfoRemote),
       apps_sip:sip_call(RTMP, StreamOut, StreamIn),
 
       Fun = fun() -> media_provider:play(default, StreamOut,
                                          [{type,live},
                                           {stream_id,1},
                                           {wait, infinity},
-                                          {media_info, MediaInfo}]) end,
+                                          {media_info, MediaInfoLocal}]) end,
       rtp_server:play(RTP, Fun),
-
-      State#state{sdp = MediaInfo};
+      MediaInfoReply = rtp_server:media_info_loc(RTP),
+      ReplySDP = sdp:encode(MediaInfoReply),
+      State#state{sdp = ReplySDP};
     true ->
       State
   end.
