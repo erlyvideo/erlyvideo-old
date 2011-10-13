@@ -46,6 +46,12 @@
 format(DTS) ->
   round(DTS / 1000).
 
+log_out(Format, DTS, StreamId, Args) ->
+  io:format("~5.B ~10.B "++Format ++ "~n", [format(DTS), StreamId] ++ Args).
+
+log_out(Format, DTS, StreamId) ->
+  log_out(Format, DTS, StreamId, []).
+  
 dump(Host, ConfName) when is_atom(Host) ->
   {ok, #player{reader = Reader}} = init([ConfName, [{host,Host}]]),
   put(last_dts, 0),
@@ -55,11 +61,11 @@ dump(Reader, Key) ->
   case flv_reader:read_frame(Reader, Key) of
     #video_frame{content = metadata, next_id = Next, dts = DTS, stream_id = StreamId, body = [<<"onMetaData">>, {object, Meta}]} = F->
       case proplists:get_value(action, Meta) of
-        <<"newUser">> -> io:format("~3.B ~3.B userJoined~n", [format(DTS), StreamId]);
-        <<"publishStart">> -> io:format("~3.B ~3.B publishStart~n", [format(DTS), StreamId]);
-        <<"publishStop">> -> put(StreamId, undefined), io:format("~3.B ~3.B publishStop~n", [format(DTS), StreamId]);
-        <<"removeUser">> -> io:format("~3.B ~3.B userLeft~n", [format(DTS), StreamId]);
-        <<"message">> -> io:format("~3.B ~3.B message: ~s~n", [format(DTS), StreamId, proplists:get_value(body, Meta)]);
+        <<"newUser">> -> log_out("userJoined", DTS, StreamId);
+        <<"publishStart">> -> log_out("publishStart", DTS, StreamId);
+        <<"publishStop">> -> put({stream,StreamId}, undefined), log_out("publishStop", DTS, StreamId);
+        <<"removeUser">> -> log_out("userLeft", DTS, StreamId);
+        <<"message">> -> log_out("message: ~s", DTS, StreamId, [proplists:get_value(body, Meta)]);
         _ -> ?D({meta, F})
       end,
       put(last_dts, DTS),
@@ -74,7 +80,7 @@ dump(Reader, Key) ->
 
 dump_frame(#video_frame{stream_id = StreamId, dts = DTS}) -> 
  case get({stream,StreamId}) of
-   undefined -> io:format("~3.B ~3.B videoflow~n", [format(DTS), StreamId]), put({stream,StreamId}, DTS);
+   undefined -> log_out("videoflow", DTS, StreamId), put({stream,StreamId}, DTS);
    _ -> ok
   end.
 
@@ -101,7 +107,7 @@ init([Conference, Options]) when is_binary(Conference) ->
 init([Conference, Options]) ->
   % ?D({init, Conference}),
   Host = proplists:get_value(host, Options),
-  File = file_manager:get_for_reading(meeting_saver:get_records_dir(Host), Conference),
+  File = meeting_file_chooser:get_for_reading(meeting_saver:get_records_dir(Host), Conference),
   ?D({read_from_file, File}),
   {ok, F} = file:open(File, [read,binary]),
   {ok, Reader} = flv_reader:init({file, F}, [{find_metadata,false}]),
@@ -163,9 +169,9 @@ send_frame(#player{subscriber = Session, streams = Streams}, #video_frame{conten
   end,
   % Socket ! F, %#video_frame{stream_id = NewId},
   % NewId = 0,
-  ?D({action,Action, round(_F#video_frame.dts)}),
+  % ?D({action,Action, round(_F#video_frame.dts)}),
   Socket = rtmp_session:get(Session, socket),
-  ?D({send, Session, Socket, UserId, NewId, Params}),
+  % ?D({send, Session, Socket, UserId, NewId, Params}),
   rtmp_socket:status(Socket, NewId, Method, Params),
   AutoTick = Action =/= <<"publishStart">>,
   AutoTick;

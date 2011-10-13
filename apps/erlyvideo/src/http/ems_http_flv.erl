@@ -30,15 +30,20 @@
 
 
 
-http(Host, 'GET', ["flv" | Name] = Path, Req) ->
-  ems_log:access(Host, "GET ~p ~s /~s", [Req:get(peer_addr), "-", string:join(Path, "/")]),
+http(Host, 'GET', ["flv" | Name], Req) ->
+  Path = string:join(Name,"/"),
+  ems_log:access(Host, "GET ~p ~s /flv/~s", [Req:get(peer_addr), "-", Path]),
   Query = Req:parse_qs(),
   Seek = case proplists:get_value("start", Query) of
     undefined -> [];
     S -> [{start, list_to_integer(S)}]
   end,
+  Mode = case proplists:get_value("mode", Query) of
+    undefined -> [];
+    "file" -> [{no_timeouts,true}]
+  end,
   Req:stream(head, [{"Content-Type", "video/x-flv"}, {"Connection", "close"}]),
-  case media_provider:play(Host, string:join(Name, "/"), Seek) of
+  case media_provider:play(Host, Path, Seek ++ Mode) of
     {ok, Stream} ->
       flv_writer:init(fun(Data) -> Req:stream(Data) end, Stream, [{sort_buffer, 0}]),
       ems_media:stop(Stream),

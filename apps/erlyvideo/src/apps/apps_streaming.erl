@@ -168,6 +168,7 @@ play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
   {Name, Options} = parse_play(FullName, Args),
 
+
   % ?D({play_request, StreamId, FullName,Args, '->', Name, Options}),
   State1 = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
@@ -191,7 +192,7 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
     {ok, Media} ->
       erlang:monitor(process,Media),
       Stream = case rtmp_session:get_stream(StreamId, State1) of
-        undefined -> #rtmp_stream{};
+        false -> #rtmp_stream{};
         Stream_ -> Stream_
       end,
       State2 = rtmp_session:set_stream(Stream#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name, started = false}, State1),

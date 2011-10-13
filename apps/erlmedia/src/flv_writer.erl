@@ -169,6 +169,12 @@ write_frame(eof, #flv_file_writer{} = FlvWriter) ->
 
 %% @hidden
 %% Handle message is for inside writer
+handle_message({ems_stream,_,burst_start}, Writer) ->
+  ?MODULE:writer(Writer);
+
+handle_message({ems_stream,_,burst_stop}, Writer) ->
+  ?MODULE:writer(Writer);
+
 handle_message(#video_frame{} = Frame, #flv_file_writer{} = FlvWriter) ->
   {ok, FlvWriter1} = store_message(Frame, FlvWriter),
   ?MODULE:writer(FlvWriter1);

@@ -400,7 +400,17 @@ extract_language(<<L1:5, L2:5, L3:5>>) ->
 
 
 %% Handler Reference Box
-hdlr(<<0:32, _Mhdl:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, _Handler:4/binary, _Reserved:8/binary, NameNull/binary>>, #mp4_media{} = Mp4Media) ->
+  Len = (size(NameNull) - 1),
+  _Name = case NameNull of
+    <<N:Len/binary, 0>> -> N;
+    _ -> NameNull
+  end,
+  % ?D({hdlr, Handler, Name}),
+  Mp4Media;
+
+
+hdlr(<<0:32, _Mhdl:32, "vide", _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -408,7 +418,7 @@ hdlr(<<0:32, _Mhdl:32, "vide", _Reserved:8/binary, NameNull/binary>>, Mp4Track) 
   end,
   Mp4Track#mp4_track{content = video};
 
-hdlr(<<0:32, _Mhdl:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, _Mhdl:32, "soun", _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
@@ -416,7 +426,7 @@ hdlr(<<0:32, _Mhdl:32, "soun", _Reserved:8/binary, NameNull/binary>>, Mp4Track) 
   end,
   Mp4Track#mp4_track{content = audio};
 
-hdlr(<<0:32, 0:32, "hint", _Reserved:8/binary, NameNull/binary>>, Mp4Track) ->
+hdlr(<<0:32, 0:32, "hint", _Reserved:8/binary, NameNull/binary>>, #mp4_track{} = Mp4Track) ->
   Len = (size(NameNull) - 1),
   _Name = case NameNull of
     <<N:Len/binary, 0>> -> N;
