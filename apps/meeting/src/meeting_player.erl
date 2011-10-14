@@ -12,6 +12,7 @@
 
 -include("meeting.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("erlmedia/include/media_info.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -define(SORT_BUFFER, 40).
@@ -32,6 +33,8 @@
     previous_frame,
     start_time,
     client_buffer,
+    options,
+    playing_from = 0,
     streams = []
   }).
 
@@ -59,7 +62,7 @@ dump(Host, ConfName) when is_atom(Host) ->
 
 dump(Reader, Key) ->
   case flv_reader:read_frame(Reader, Key) of
-    #video_frame{content = metadata, next_id = Next, dts = DTS, stream_id = StreamId, body = [<<"onMetaData">>, {object, Meta}]} = F->
+    #video_frame{content = metadata, next_id = Next, dts = DTS, stream_id = StreamId, body = [<<"onMetaData">>, {object, Meta}]} = F ->
       case proplists:get_value(action, Meta) of
         <<"newUser">> -> log_out("userJoined", DTS, StreamId);
         <<"publishStart">> -> log_out("publishStart", DTS, StreamId);
@@ -112,12 +115,37 @@ init([Conference, Options]) ->
   {ok, F} = file:open(File, [read,binary]),
   {ok, Reader} = flv_reader:init({file, F}, [{find_metadata,false}]),
   ClientBuffer = proplists:get_value(client_buffer, Options, 0),
-  {ok, #player{meeting = Conference, reader = Reader, client_buffer = ClientBuffer}}.
+  {ok, #player{meeting = Conference, reader = Reader, client_buffer = ClientBuffer, options = Options}}.
 
+
+handle_call({seek, Client, DTS}, From, #player{subscriber = Client, streams = Streams} = State) ->
+  flush_tick(),
+  #stream{out_id = StreamId} = lists:keyfind(0, #stream.user_id, Streams),
+  ?D({closing_peers, [{UID,OutID} || #stream{user_id = UID, out_id = OutID} <- Streams, UID =/= 0]}),
+  close_peers(State, [S || #stream{user_id = UID} = S <- Streams, UID =/= 0]),
+  {#video_frame{dts = NewDTS} = NewFrame, Peers1} = rewind(DTS, State),
+  Peers = [P || P <- Peers1, P =/= 0],
+  Client ! {ems_stream, StreamId, seek_success, NewDTS},
+  gen_server:reply(From, {seek_success, NewDTS}),
+  ?D({opening, Peers, NewFrame#video_frame{body = body}}),
+  NewStreams = open_peers(State, DTS, Peers, []),
+  NewStreams1 = NewStreams ++ [S || #stream{user_id = UID} = S <- Streams, UID == 0],
+  ?D({new_streams, NewStreams}),
+  self() ! next_frame,
+  {noreply, State#player{previous_frame = NewFrame, streams = NewStreams1, playing_from = NewDTS}};
+
+handle_call({unsubscribe, _}, _From, State) ->
+  {reply, ok, State};
+
+handle_call({info, _Info}, _From, State) ->
+  {reply, [], State};
+
+handle_call(media_info, _From, State) ->
+  {reply, #media_info{flow_type = stream}, State};
 
 handle_call(Request, _From, State) ->
   ?D({unknown_call, Request}),
-  {stop, {unknown_call, Request}, State}.
+  {reply, {error, {unknown_call, Request}}, State}.
 
 
 handle_cast({play, Session}, State) ->
@@ -126,6 +154,9 @@ handle_cast({play, Session}, State) ->
   self() ! next_frame,
   {noreply, State#player{subscriber = Session, start_time = erlang:now()}};
 
+handle_cast({play_setup, _, _}, State) ->
+  {noreply, State};
+  
 handle_cast(Msg, State) ->
   ?D({unknown_cast, Msg}),
   {stop, {unknown_cast, Msg}, State}.
@@ -161,6 +192,60 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 
+close_peers(_, []) ->
+  ok;
+
+close_peers(Player, [#stream{user_id = UserId}|Streams]) ->
+  send_action(Player, UserId, publishStop),
+  send_action(Player, UserId, removeUser),
+  close_peers(Player, Streams).
+
+open_peers(_, _, [], Streams) ->
+  Streams;
+
+open_peers(Player, DTS, [UserId|Peers], Streams) ->
+  send_action(Player, UserId, newUser),
+  send_action(Player, UserId, publishStart),
+  receive
+    {next_frame, StreamId, UserId} ->
+      Stream = #stream{user_id = UserId, out_id = StreamId, start_dts = DTS},
+      open_peers(Player, DTS, Peers, [Stream|Streams])
+  after
+    5000 -> erlang:error({client_timeout,UserId})
+  end.
+  
+
+rewind(SeekDTS, #player{reader = Reader}) ->
+  rewind(SeekDTS, Reader, undefined, []).
+
+rewind(SeekDTS, Reader, Key, Peers) ->
+  case flv_reader:read_frame(Reader, Key) of
+    #video_frame{content = metadata, next_id = NextKey, body = [<<"onMetaData">>, {object, Meta}]} ->
+      Peers1 = handle_rewind_meta(Peers, binary_to_atom(proplists:get_value(action,Meta),latin1), proplists:get_value(user_id,Meta)),
+      rewind(SeekDTS, Reader, NextKey, Peers1);
+    #video_frame{dts = DTS, content = video, flavor = keyframe} = Frame when DTS >= SeekDTS ->
+      {Frame, Peers};
+    #video_frame{next_id = NextKey} ->
+      rewind(SeekDTS, Reader, NextKey, Peers);
+    eof ->
+      {eof, []}
+  end.
+
+handle_rewind_meta(Peers, publishStart, UserId) ->
+  [round(UserId)|Peers];
+
+handle_rewind_meta(Peers, publishStop, UserId) ->
+  lists:delete(round(UserId), Peers);
+
+handle_rewind_meta(Peers, _, _) ->
+  Peers.
+
+
+send_action(Player, UserId, Action) ->
+  Meta = [{action, atom_to_binary(Action, latin1)},{user_id,UserId}],
+  Frame = #video_frame{content = metadata, dts = 0, pts = 0, stream_id = UserId, body = [<<"onMetaData">>, {object, Meta}]},
+  send_frame(Player, Frame).
+
 send_frame(#player{subscriber = Session, streams = Streams}, #video_frame{content = metadata, stream_id = UserId, body = [Method, {object, Params}]} = _F) ->
   Action = proplists:get_value(action, Params),
   NewId = case Action of
@@ -178,32 +263,45 @@ send_frame(#player{subscriber = Session, streams = Streams}, #video_frame{conten
   
 
 send_frame(#player{subscriber = Socket, streams = Streams} = _State, #video_frame{stream_id = UserId, dts = DTS, pts = PTS} = F) ->
-  #stream{out_id = NewId, start_dts = StartDTS} = lists:keyfind(UserId, #stream.user_id, Streams),
-  % ?D({send,NewId,round(DTS),StartDTS}),
-  Socket ! F#video_frame{stream_id = NewId, dts = DTS - StartDTS, pts = PTS - StartDTS},
+  case lists:keyfind(UserId, #stream.user_id, Streams) of
+    #stream{out_id = NewId, start_dts = StartDTS} ->
+      Socket ! F#video_frame{stream_id = NewId, dts = DTS - StartDTS, pts = PTS - StartDTS};
+    false ->
+      ?D({unknown_stream_id,UserId})
+  end,
   true;
 
 send_frame(_State, undefined) ->
   true.
 
 
-process_frame(#video_frame{dts = DTS} = Frame, NeedToResend, #player{start_time = Start, client_buffer = ClientBuffer} = State) ->
+process_frame(#video_frame{dts = DTS} = Frame, NeedToResend, #player{start_time = Start, playing_from = PlayingFrom, client_buffer = ClientBuffer} = State) ->
   % ?D({frame,Frame#video_frame.stream_id,Frame#video_frame.content,Frame#video_frame.dts}),
   case NeedToResend of
-    true -> schedule_tick(DTS, Start, ClientBuffer);
+    true -> schedule_tick(DTS, Start, PlayingFrom, ClientBuffer);
     false -> ok
   end,
 
   {noreply, State#player{previous_frame = Frame}}.
 
-schedule_tick(DTS, Start, ClientBuffer) ->
+schedule_tick(DTS, Start, PlayingFrom, ClientBuffer) ->
   RealDelta = timer:now_diff(erlang:now(), Start) div 1000,
-  StreamDelta = round(DTS) - 0 ,
+  StreamDelta = round(DTS - PlayingFrom),
   Timeout = case StreamDelta - RealDelta - ClientBuffer of
     Delta when Delta < 0 -> 0;
     Delta -> Delta
   end,
   % ?D({tick,round(DTS),RealDelta,Timeout}),
   if Timeout == 0 -> self() ! next_frame;
-    true -> timer:send_after(Timeout, next_frame)
+    true -> put(timer_ref, timer:send_after(Timeout, next_frame))
   end.
+
+flush_tick() ->
+  (catch timer:cancel(get(timer_ref))),
+  put(timer_ref, undefined),
+  receive
+    next_frame -> flush_tick()
+  after
+    0 -> ok
+  end.
+
