@@ -165,14 +165,17 @@ handle_info({next_frame, StreamId, UserId}, #player{streams = Streams, previous_
   Stream = #stream{user_id = UserId, out_id = StreamId, start_dts = DTS},
   handle_info(next_frame, State#player{streams = lists:keystore(UserId, #stream.user_id, Streams, Stream)});
 
-handle_info(next_frame, #player{previous_frame = PrevFrame, reader = Reader} = State) ->
+handle_info(next_frame, #player{previous_frame = PrevFrame, reader = Reader, subscriber = Client, streams = Streams} = State) ->
   NeedToResend = send_frame(State, PrevFrame),
   NextKey = case PrevFrame of
     undefined -> undefined;
     #video_frame{next_id = Key} -> Key
   end,
   case flv_reader:read_frame(Reader, NextKey) of
-      eof -> {stop, normal, State};
+      eof ->
+        DTS = PrevFrame#video_frame.dts,
+        [Client ! {ems_stream, StreamId, play_complete, DTS} || #stream{out_id = StreamId} <- Streams],
+        {stop, normal, State};
       Frame -> process_frame(Frame, NeedToResend, State)
   end;
 
@@ -289,6 +292,7 @@ schedule_tick(DTS, Start, PlayingFrom, ClientBuffer) ->
   StreamDelta = round(DTS - PlayingFrom),
   Timeout = case StreamDelta - RealDelta - ClientBuffer of
     Delta when Delta < 0 -> 0;
+    Delta when Delta > 1000 -> Delta;
     Delta -> Delta
   end,
   % ?D({tick,round(DTS),RealDelta,Timeout}),
