@@ -14,11 +14,17 @@
 -behaviour(supervisor).
 -behaviour(application).
 
--export([start/0, start/2, stop/0, stop/1]).
+-export([autostart/0, start/0, start/2, stop/0, stop/1]).
 -export([init/1, start_link/0]).
 
 -export([start_meeting/2, start_meeting_saver/2, start_meeting_player/2]).
 
+
+autostart() ->
+  case erlang:whereis(?MODULE) of
+    undefined -> start();
+    _ -> ok
+  end.
 
 start() ->
   application:start(meeting).
