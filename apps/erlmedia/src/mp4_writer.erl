@@ -200,6 +200,9 @@ write_frame(Frame, Writer) ->
     
 handle_frame(#video_frame{flavor = command}, Convertor) ->
   {ok, Convertor};
+
+handle_frame(#video_frame{codec = empty}, Convertor) ->
+  {ok, Convertor};
     
 handle_frame(#video_frame{flavor = config, content = video, body = Config}, Convertor) ->
   ?D("mp4_writer got video config"),
