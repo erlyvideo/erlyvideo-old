@@ -58,8 +58,71 @@
 
 
 -export([mp4_desc_length/1, open/2, read_frame/2, frame_count/1, seek/4, seek/5, mp4_read_tag/1]).
+-export([dump/1]).
 
 -define(FRAMESIZE, 32).
+
+
+dump(Path) when is_list(Path) ->
+  {ok, Bin} = file:read_file(Path),
+  dump(Bin);
+  
+dump(Bin) when is_binary(Bin) ->
+  dump_list(Bin, 0).
+
+dump_list(<<>>, _) ->
+  ok;
+
+dump_list(Bin, Indent) ->
+  Rest = dump_atom(Bin, Indent),
+  dump_list(Rest, Indent).
+
+
+dump_atom(<<Length:32, Atom:4/binary, Data/binary>>, Indent) ->
+  AtomLen = Length - 8,
+  <<Content:AtomLen/binary, Rest/binary>> = Data,
+  dump_atom(binary_to_atom(Atom, latin1), Content, Indent),
+  Rest.
+  
+
+dump_atom(abst = Atom, Content, Indent) ->
+  {Format, Args, SubContent} = atom_dump_info(Atom, Content),
+  indented_dump(Atom, Indent, Format, Args),
+  <<_Count, Rest/binary>> = dump_atom(SubContent, Indent+1),
+  dump_list(Rest, Indent+1);
+
+dump_atom(Atom, Content, Indent) ->
+  {Format, Args, SubContent} = atom_dump_info(Atom, Content),
+  indented_dump(Atom, Indent, Format, Args),
+  dump_list(SubContent, Indent+1).
+
+indented_dump(Atom, Indent, Format, Args) ->
+  Tab = [" " || _N <- lists:seq(1,Indent)],
+  io:format(lists:flatten([Tab, "~p ", Format, "~n"]), [Atom|Args]).
+  
+  
+atom_dump_info(abst, <<0:32, _BootstrapVersion:32, Profile, Timescale:32, Duration:64, _TimeOffset:64, 
+  _MovieId, _ServerEntryCount, _QualityCount, _DrmData, _MetaData, _RunTableCount, Rest/binary>>) ->
+  {"profile=~p,timescale=~p,duration=~p", [Profile,Timescale,Duration], Rest};
+
+atom_dump_info(asrt, <<0:32, QualityCount, SegmentCount:32, _FirstSegment:32, TotalFragments:32, Rest/binary>>) ->
+  {"quality=~p,segments=~p,total_fragments=~p", [QualityCount, SegmentCount, TotalFragments], Rest};
+
+atom_dump_info(afrt, <<0:32, Timescale:32, QualityCount, TotalFragments:32, Rest/binary>>) ->
+  {_Rest, Info} = dump_afrt_fragments(Rest, TotalFragments - 1, []),
+  {"timescale=~p,quality_count=~p,total_fragments=~p,~p (~p)", [Timescale, QualityCount, TotalFragments, length(Info), Info], <<>>};
+  
+atom_dump_info(_, _) ->
+  {"", [], <<>>}.
+
+dump_afrt_fragments(Rest, TotalFragments, List) when length(List) >= TotalFragments ->
+  {Rest, lists:reverse(List)};
+
+dump_afrt_fragments(<<Frag:32, Time:64, 0:32, _Discontinuity, Rest/binary>>, TotalFragments, List) ->
+  dump_afrt_fragments(Rest, TotalFragments, [{Frag,Time,0}|List]);
+  
+dump_afrt_fragments(<<Frag:32, Time:64, Duration:32, Rest/binary>>, TotalFragments, List) ->
+  dump_afrt_fragments(Rest, TotalFragments, [{Frag,Time,Duration}|List]).
 
 
 open(Reader, Options) ->
