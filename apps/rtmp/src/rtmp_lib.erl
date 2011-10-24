@@ -173,13 +173,12 @@ app_path(URL) ->
 
 invoke_rtmp_play(RTMP, URL) ->
   rtmp_socket:setopts(RTMP, [{active, true}]),
-  ?D({zz, app_path(URL)}),
   connect(RTMP),
   {_App, Path} = app_path(URL),
   ?D({"Connected to RTMP source", URL, _App, Path}),
   Stream = rtmp_lib:createStream(RTMP),
   ?D({"Stream",Stream}),
-  rtmp_lib:play(RTMP, Stream, Path),
+  play(RTMP, Stream, Path),
   ?D({"Playing", Path}),
   
   {ok, RTMP}.
@@ -192,6 +191,7 @@ play(RTMP, Stream, Path) ->
   AMF = #rtmp_funcall{
     command = play,
     type = invoke,
+    id = 2,
     stream_id = Stream,
     args = [null, Path]
   },
