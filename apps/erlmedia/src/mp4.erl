@@ -77,8 +77,14 @@ dump_list(Bin, Indent) ->
   Rest = dump_atom(Bin, Indent),
   dump_list(Rest, Indent).
 
+dump_atom(<<1:32, Atom:4/binary, Length:64, Data/binary>>, Indent) ->
+  AtomLen = Length - 16,
+  <<Content:AtomLen/binary, Rest/binary>> = Data,
+  dump_atom(binary_to_atom(Atom, latin1), Content, Indent),
+  Rest;
+  
 
-dump_atom(<<Length:32, Atom:4/binary, Data/binary>>, Indent) ->
+dump_atom(<<Length:32, Atom:4/binary, Data/binary>>, Indent) when Length =/= 1 ->
   AtomLen = Length - 8,
   <<Content:AtomLen/binary, Rest/binary>> = Data,
   dump_atom(binary_to_atom(Atom, latin1), Content, Indent),
@@ -111,9 +117,49 @@ atom_dump_info(asrt, <<0:32, QualityCount, SegmentCount:32, _FirstSegment:32, To
 atom_dump_info(afrt, <<0:32, Timescale:32, QualityCount, TotalFragments:32, Rest/binary>>) ->
   {_Rest, Info} = dump_afrt_fragments(Rest, TotalFragments - 1, []),
   {"timescale=~p,quality_count=~p,total_fragments=~p,~p (~p)", [Timescale, QualityCount, TotalFragments, length(Info), Info], <<>>};
+
+atom_dump_info(afra, <<0:32, _LongIDs:1, LongOffsets:1, GlobalEntries:1, _:5, _Timescale:32, EntryCount:32, Rest1/binary>>) ->
+  {_Rest2, AfraEntries} = dump_afra_entries(Rest1, LongOffsets, EntryCount, []),
+  {"global_entries=~p,afra_entries=~p (~p)", [GlobalEntries,EntryCount, AfraEntries], <<>>};
+
+atom_dump_info(moof, Rest) ->
+  {"", [], Rest};
+
+atom_dump_info(mfhd, <<0:32, SequenceNumber:32>>) ->
+  {"sequence=~p", [SequenceNumber], <<>>};
+
+atom_dump_info(traf, Rest) ->
+  {"", [], Rest};
+
+atom_dump_info(tfhd, <<0, Flags:24, TrackId:32, Rest/binary>>) ->
+  <<_:7, DurationEmpty:1, _, _:2, SampleFlagsPresent:1, SampleSizePresent:1, SampleDurationPresent:1, _:1, 
+  DescriptionPresent:1, DataOffsetPresent:1>> = <<Flags:24>>,
+  {BaseDataOffset, Rest1} = extract_number(Rest, 64, DataOffsetPresent),
+  {SampleDescriptionIndex, Rest2} = extract_number(Rest1, 32, DescriptionPresent),
+  {DefaultSampleDuration, Rest3} = extract_number(Rest2, 32, SampleDurationPresent),
+  {DefaultSampleSize, Rest4} = extract_number(Rest3, 32, SampleSizePresent),
+  {DefaultSampleFlags, _Rest5} = extract_number(Rest4, 32, SampleFlagsPresent),
+  
+  {"duration_empty=~p,flags=~p,size=~p,duration=~p,description=~p,offset=~p,track=~p", [
+    DurationEmpty, DefaultSampleFlags, DefaultSampleSize, DefaultSampleDuration, SampleDescriptionIndex, BaseDataOffset, TrackId], <<>>};
+
+atom_dump_info(trun, <<0, Flags:24, SampleCount:32, Rest1/binary>>) ->
+  <<_:16, _:5, FirstSampleFlagPresent:1, _:1, DataOffsetPresent:1>> = <<Flags:24>>,
+  {DataOffset, Rest2} = extract_number(Rest1, 32, DataOffsetPresent),
+  {_FirstSampleFlag, Rest3} = extract_number(Rest2, 32, FirstSampleFlagPresent),
+  TrunEntries = dump_trun_entries(Rest3, Flags, SampleCount, []),
+  
+  Dump = [io_lib:format("~n       duration=~p,size=~p,flags=~p,ctime=~p", [D,S,F,C]) || [{duration,D},{size,S},{flags,F},{ctime,C}] <- TrunEntries],
+  {"sample_count=~p,data_offset=~p~s", [SampleCount, DataOffset, lists:flatten(Dump)], <<>>};
+      
+  
   
 atom_dump_info(_, _) ->
   {"", [], <<>>}.
+
+extract_number(Bin, _Size, 0) -> {undefined, Bin};
+extract_number(Bin, Size, _) -> <<Data:Size, R0/binary>> = Bin, {Data, R0}.
+
 
 dump_afrt_fragments(Rest, TotalFragments, List) when length(List) >= TotalFragments ->
   {Rest, lists:reverse(List)};
@@ -124,6 +170,27 @@ dump_afrt_fragments(<<Frag:32, Time:64, 0:32, _Discontinuity, Rest/binary>>, Tot
 dump_afrt_fragments(<<Frag:32, Time:64, Duration:32, Rest/binary>>, TotalFragments, List) ->
   dump_afrt_fragments(Rest, TotalFragments, [{Frag,Time,Duration}|List]).
 
+
+dump_afra_entries(Rest, _, 0, List) ->
+  {Rest, lists:reverse(List)};
+
+dump_afra_entries(<<Time:64, Offset:32, Rest/binary>>, 0, Count, List) ->
+  dump_afra_entries(Rest, 0, Count - 1, [{Time,Offset}|List]);
+
+dump_afra_entries(<<Time:64, Offset:64, Rest/binary>>, 1, Count, List) ->
+  dump_afra_entries(Rest, 1, Count - 1, [{Time,Offset}|List]).
+
+
+dump_trun_entries(_, _, 0, List) ->
+  lists:reverse(List);
+  
+dump_trun_entries(Bin, Flags, SampleCount, List) ->
+  {SampleDuration, Rest1} = extract_number(Bin, 32, Flags band 16#0100),
+  {SampleSize, Rest2} = extract_number(Rest1, 32, Flags band 16#0200),
+  {SampleFlags, Rest3} = extract_number(Rest2, 32, Flags band 16#0400),
+  {SampleCompositionTimeOffset, Rest3} = extract_number(Rest2, 32, Flags band 16#0800),
+  Info = [{duration,SampleDuration},{size,SampleSize},{flags,SampleFlags},{ctime,SampleCompositionTimeOffset}],
+  dump_trun_entries(Rest3, Flags, SampleCount - 1, [Info|List]).
 
 open(Reader, Options) ->
   {ok, Mp4Media} = read_header(Reader),
