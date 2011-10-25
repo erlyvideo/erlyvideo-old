@@ -58,6 +58,7 @@
 
 
 -export([mp4_desc_length/1, open/2, read_frame/2, frame_count/1, seek/4, seek/5, mp4_read_tag/1]).
+-export([keyframes/2]).
 -export([dump/1]).
 
 -define(FRAMESIZE, 32).
@@ -152,7 +153,9 @@ atom_dump_info(trun, <<0, Flags:24, SampleCount:32, Rest1/binary>>) ->
   Dump = [io_lib:format("~n       duration=~p,size=~p,flags=~p,ctime=~p", [D,S,F,C]) || [{duration,D},{size,S},{flags,F},{ctime,C}] <- TrunEntries],
   {"sample_count=~p,data_offset=~p~s", [SampleCount, DataOffset, lists:flatten(Dump)], <<>>};
       
-  
+atom_dump_info(mdat, <<Info:10/binary, _/binary>> = Content) ->
+  file:write_file("mmm.flv", <<(flv:header())/binary, Content/binary>>),
+  {"mdat=~p,~p", [size(Content), Info], <<>>};
   
 atom_dump_info(_, _) ->
   {"", [], <<>>}.
@@ -297,6 +300,19 @@ read_atom_header({Module, Device}, Pos) ->
       {error, {invalid_atom, Bin}};
     {error, Error} ->
       {error, Error}
+  end.
+
+keyframes(#mp4_media{} = Media, Video) ->
+  keyframes(Media, Video, 0, -1, []).
+
+keyframes(Media, Video, Id, PrevDTS, Keyframes) ->
+  case read_frame(Media, #frame_id{id = Id, v = Video}) of
+    #mp4_frame{keyframe = true, dts = DTS} when DTS > PrevDTS ->
+      keyframes(Media, Video, Id + 1, DTS, [{DTS,Id}|Keyframes]);
+    #mp4_frame{} ->
+      keyframes(Media, Video, Id + 1, PrevDTS, Keyframes);
+    eof ->
+      lists:reverse(Keyframes)
   end.
 
 
