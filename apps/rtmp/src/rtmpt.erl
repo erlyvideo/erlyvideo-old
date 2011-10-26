@@ -30,11 +30,12 @@
 -version(1.1).
 
 -behaviour(gen_server).
--define(RTMPT_TIMEOUT, 12000).
+-define(RTMPT_TIMEOUT, 10000).
 
 -record(rtmpt, {
 	consumer = undefined,   % backend process
 	session_id = undefined,
+	last_visit_at,
 	ip,
 	buffer = <<>>,
 	bytes_count = 0,
@@ -155,7 +156,8 @@ set_consumer(RTMPT, Consumer) ->
 init([SessionId, IP]) ->
   process_flag(trap_exit, true),
   ems_network_lag_monitor:watch(self()),
-  {ok, #rtmpt{session_id = SessionId, ip = IP}, ?RTMPT_TIMEOUT}.
+  timer:send_interval(?RTMPT_TIMEOUT, check_client),
+  {ok, #rtmpt{session_id = SessionId, ip = IP, last_visit_at = erlang:now()}}.
         
 
 %%-------------------------------------------------------------------------
@@ -173,30 +175,30 @@ init([SessionId, IP]) ->
 
 handle_call({server_data, Bin}, _From, #rtmpt{buffer = Buffer, bytes_count = BytesCount} = State) ->
   Data = iolist_to_binary(Bin),
-  {reply, ok, State#rtmpt{buffer = <<Buffer/binary, Data/binary>>, bytes_count = BytesCount + size(Data)}, ?RTMPT_TIMEOUT};
+  {reply, ok, State#rtmpt{buffer = <<Buffer/binary, Data/binary>>, bytes_count = BytesCount + size(Data)}};
 
 
 handle_call({client_data, Bin}, _From, #rtmpt{consumer = Upstream} = State) when is_pid(Upstream)  ->
   Upstream ! {rtmpt, self(), Bin},
-  {reply, ok, State, ?RTMPT_TIMEOUT};
+  {reply, ok, State#rtmpt{last_visit_at = erlang:now()}};
 
 handle_call({set_consumer, Upstream}, _From, #rtmpt{consumer = undefined} = State) ->
   erlang:monitor(process, Upstream),
-  {reply, ok, State#rtmpt{consumer = Upstream}, ?RTMPT_TIMEOUT};
+  {reply, ok, State#rtmpt{consumer = Upstream}};
 
 handle_call(timeout, _From, #rtmpt{consumer = Consumer} = State) ->
   gen_fsm:send_event(Consumer, timeout),
   {stop, normal, State};
-  % {reply, ok, State, ?RTMPT_TIMEOUT};
+  % {reply, ok, State};
 
 
 handle_call(info, _From, #rtmpt{sequence_number = SequenceNumber, session_id = SessionId, buffer = Buffer, bytes_count = BytesCount} = State) ->
   Info = {self(), [{session_id, SessionId}, {sequence_number, SequenceNumber}, {total_bytes, BytesCount}, {unread_data, size(Buffer)} | process_info(self(), [message_queue_len, heap_size])]},
-  {reply, Info, State, ?RTMPT_TIMEOUT};
+  {reply, Info, State};
 
 handle_call({recv, SequenceNumber}, _From, #rtmpt{buffer = Buffer, consumer = Consumer} = State) ->
   Consumer ! {rtmpt, self(), alive},
-  {reply, {ok, Buffer}, State#rtmpt{buffer = <<>>, sequence_number = SequenceNumber}, ?RTMPT_TIMEOUT}.
+  {reply, {ok, Buffer}, State#rtmpt{buffer = <<>>, sequence_number = SequenceNumber, last_visit_at = erlang:now()}}.
 
 
 
@@ -225,6 +227,12 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
+handle_info(check_client, #rtmpt{last_visit_at = LastVisitAt} = State) ->
+  case timer:now_diff(erlang:now(), LastVisitAt) div 1000 of
+    N when N > ?RTMPT_TIMEOUT -> self() ! timeout;
+    _ -> ok
+  end,
+  {noreply, State};
 
 handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
