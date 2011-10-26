@@ -116,7 +116,7 @@ atom_dump_info(asrt, <<0:32, QualityCount, SegmentCount:32, _FirstSegment:32, To
   {"quality=~p,segments=~p,total_fragments=~p", [QualityCount, SegmentCount, TotalFragments], Rest};
 
 atom_dump_info(afrt, <<0:32, Timescale:32, QualityCount, TotalFragments:32, Rest/binary>>) ->
-  {_Rest, Info} = dump_afrt_fragments(Rest, TotalFragments - 1, []),
+  {_Rest, Info} = dump_afrt_fragments(Rest, TotalFragments, []),
   {"timescale=~p,quality_count=~p,total_fragments=~p,~p (~p)", [Timescale, QualityCount, TotalFragments, length(Info), Info], <<>>};
 
 atom_dump_info(afra, <<0:32, _LongIDs:1, LongOffsets:1, GlobalEntries:1, _:5, _Timescale:32, EntryCount:32, Rest1/binary>>) ->
