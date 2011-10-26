@@ -20,7 +20,7 @@ dump(F, Offset) ->
 dump_frame(#video_frame{content = Content, stream_id = StreamId, codec = Codec, flavor = Flavor, dts = DTS, body = Body, sound = Sound}) ->
   Info = case Codec of
     _ when Flavor == config -> io_lib:format("~p", [Body]);
-    h264 -> io_lib:format("~p bytes", [size(Body)]);
+    _ when Content == video -> io_lib:format("~p bytes", [size(Body)]);
     _ when Content == audio -> io_lib:format("~p", [Sound]);
     _ when Content == metadata -> io_lib:format("~p", [Body])
   end,
