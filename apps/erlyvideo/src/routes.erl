@@ -5,7 +5,7 @@
 -module(routes).
 
 %% API
--export([handler/1,handle_control/2]).
+-export([handler/1]).
 
 -define(FILE_NAME,"routes.conf").
 
@@ -28,6 +28,48 @@ init([]) ->
 	proplists:get_value(route,PList)
     end,
   {ok, #routes{routes=Handlers}}.
+
+handler(URL) ->
+   {ok,State}=init([]),
+%% Parsing URL
+   parse(URL,State).
+
+%%%===================================================================
+%%% Main parse function
+%%%===================================================================
+
+parse(URL,#routes{routes=Routes}) ->
+  ParamList=case re:run(URL,"http://([a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
+    {match,[_Host,_Port,RawParams]} ->
+      RawParams;
+     nomatch ->
+      []
+  end,
+  Route = 
+    fun(List)->
+	Fun =
+	  fun
+	    (_F,[])->false;
+	    (F,[{X,Controller,Method}|Tail])->
+	      case re:run(ParamList,X,[{capture,all_but_first,list}]) of
+		{match,P}->
+		  {Controller,Method,P};
+		_->
+		  F(F,Tail)
+	      end
+	  end,
+	Fun(Fun,List)
+    end,
+  case Route(Routes) of
+    false ->
+      [];
+    VParams ->
+      VParams
+  end.
+
+%%%===================================================================
+%%% Internla functions
+%%%===================================================================
 
 get_routes()->
   {ok,RList} = case file:read_file(?FILE_NAME) of
@@ -61,65 +103,3 @@ exlist(URL,[])->
 exlist(URL,[{Name,Pattern}|ExList])->
   List=re:replace(URL,Name,Pattern,[{return,list}]),
   exlist(List,ExList).
-
-handler(URL) ->
-   {ok,State}=init([]),
-%% Parsing URL
-   parse(URL,State).
-
-%%--------------------------------------------------------------------
-%% Internal handler 
-%% @doc
-%% Handling all control handler non from generic server. 
-%%
-%% @spec handle_info(Info, State) -> {reply, Reply, State} |
-%%                                   {noreply, State} | 
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
-
-handle_control({"hds",Method},#routes{options = OldOptions} = State) ->
-  NewOptions=case re:run(Method,"[Ss]eg([0-9]+)-frag([0-9]+)",[{capture,all_but_first,binary}]) of
-    {match,[SegNumber,FragNumber]}->
-      lists:merge(OldOptions,[erlang:binary_to_list(SegNumber),erlang:binary_to_list(FragNumber)]);
-    nomatch ->
-       OldOptions
-  end,
-  {noreply,State#routes{controller=hds_handler,method=select,options=NewOptions}};
-
-handle_control(_Handler,State) ->
-  {noreply,State}.
-
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
-parse(URL,#routes{routes=Routes}) ->
-  ParamList=case re:run(URL,"http://([a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
-    {match,[_Host,_Port,RawParams]} ->
-      RawParams;
-     nomatch ->
-      []
-  end,
-  Route = 
-    fun(List)->
-	Fun =
-	  fun
-	    (_F,[])->false;
-	    (F,[{X,Controller,Method}|Tail])->
-	      case re:run(ParamList,X,[{capture,all_but_first,list}]) of
-		{match,P}->
-		  {Controller,Method,P};
-		_->
-		  F(F,Tail)
-	      end
-	  end,
-	Fun(Fun,List)
-    end,
-  case Route(Routes) of
-    false ->
-      [];
-    VParams ->
-      VParams
-  end.
