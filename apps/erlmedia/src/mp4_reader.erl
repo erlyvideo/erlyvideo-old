@@ -34,6 +34,7 @@
 
 -export([init/2, media_info/1, read_frame/2, properties/1, seek/3, can_open_file/1, write_frame/2]).
 -export([track_for_bitrate/2, track_for_language/2]).
+-export([keyframes/1]).
 
 -define(FRAMESIZE, 8).
 
@@ -334,3 +335,9 @@ seek(#mp4_media{} = Media, Timestamp, Options) ->
       end
   end.
 
+keyframes(#mp4_media{} = Media) ->
+  Options = [],
+  Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
+  Audio = track_for_language(Media, proplists:get_value(language, Options)),
+  Keyframes = mp4:keyframes(Media, Video),
+  [{DTS, #frame_id{id = Id, v = Video, a = Audio}} || {DTS, Id} <- Keyframes].
