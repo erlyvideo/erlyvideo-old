@@ -114,7 +114,7 @@ brun(AMI) ->
   Status=case run(AMI) of
     Instance when is_list(Instance)  ->
       wait_status(Instance,"running")
-  end, io:format("\n~s",[Instance]), Status.
+  end, io:format("\n~p\n",[Status]), Status.
 
 get_host(Instance) ->
   case make_request("Action=DescribeInstances&InstanceId="++Instance++"&") of
