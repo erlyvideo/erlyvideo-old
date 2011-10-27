@@ -23,7 +23,7 @@ ERL_LIBS:=apps:deps:plugins
 ERL=erl +A 4 +K true
 APP_NAME=ems
 AMAZON=root@ec2-50-17-96-238.compute-1.amazonaws.com:/root
-AMAZON_HOST=root@ec2-50-17-96-238.compute-1.amazonaws.com
+Host=`escript amazon_api.erl get_host $(INSTANCE) $(SECRET_KEY) $(AWS_KEY)`
 all: compile
 
 update:
@@ -32,11 +32,14 @@ update:
 escriptize: compile
 	./contrib/escriptize
 
+amazon_run:
+	./contrib/amazon_api brun $(AMI) $(SECRET_KEY) $(AWS_KEY)
+
 amazon_update: release
 	./amazon_private.sh
 	tar cjvfp erlyvideo.tar.bz2 ./erlyvideo/ 
-	rsync erlyvideo.tar.bz2 $(AMAZON)
-	ssh $(AMAZON_HOST) './script.sh'
+	./amazon_update.sh $(INSTANCE) $(SECRET_KEY) $(AWS_KEY)
+
 compile:
 	./rebar get-deps
 	./rebar compile
