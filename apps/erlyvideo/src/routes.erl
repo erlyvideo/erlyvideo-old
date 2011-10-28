@@ -20,9 +20,9 @@ init([]) ->
   Handlers = 
     case catch(ets:lookup(route_table,route)) of
       {'EXIT',_Reason} ->
-	get_routes();
+	get_file_config();
       []->
-	get_routes();	
+	get_file_config();	
       PList ->
 	io:format("~p~n",["Load from ETS table route_table.."]),
 	proplists:get_value(route,PList)
@@ -39,7 +39,7 @@ handler(URL) ->
 %%%===================================================================
 
 parse(URL,#routes{routes=Routes}) ->
-  ParamList=case re:run(URL,"http://([a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
+  ParamList=case re:run(URL,"http://([-_a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
     {match,[_Host,_Port,RawParams]} ->
       RawParams;
      nomatch ->
@@ -71,22 +71,32 @@ parse(URL,#routes{routes=Routes}) ->
 %%% Internla functions
 %%%===================================================================
 
-get_routes()->
-  {ok,RList} = case file:read_file(?FILE_NAME) of
+get_file_config()-> 
+  {ok,RList}=case file:read_file(?FILE_NAME) of
     {ok,Data}->
       {ok,erlang:binary_to_list(Data)};
     _ -> errror
   end,
-  TList=re:replace(RList,"(s\\\n)","",[global,{return,list}]),
+  TList=re:replace(RList,"(\\\n)","",[global,{return,list}]),
   {ok,Tokens,_}=erl_scan:string(TList),
   {ok,List} = erl_parse:parse_term(Tokens),
-  Table=ets:new(route_table,[public,named_table]),
+  get_routes(List).
+
+get_routes(List)->
+  catch(ets:new(route_table,[public,named_table])),
   Handlers = 
   [begin
+     {URL,Controller,Method,ExList} = 
+       case Element of
+	 [{RURL,RController,RMethod,RExList}] ->
+	   {RURL,RController,RMethod,RExList};
+	 [{RURL,RController,RMethod}] ->
+	   {RURL,RController,RMethod,[]}
+       end,
      NewURL = convert_to_pattern(URL,ExList),
      {NewURL,Controller,Method} 
-   end||[{URL,Controller,Method,ExList}]<-List],
-  ets:insert(Table,{route,Handlers}),Handlers.
+   end||Element <-List],
+  ets:insert(route_table,{route,Handlers}),Handlers.
 
 convert_to_pattern(URL,ExList)->
   Pattern1=exlist(URL,ExList),
@@ -103,3 +113,20 @@ exlist(URL,[])->
 exlist(URL,[{Name,Pattern}|ExList])->
   List=re:replace(URL,Name,Pattern,[{return,list}]),
   exlist(List,ExList).
+
+
+%%%===================================================================
+%%% Test functions function
+%%%===================================================================
+
+-include_lib("eunit/include/eunit.hrl").
+
+make_routes_test () ->
+  ?assertEqual([{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest}],get_routes([[{"hds/:video/:high/Seg(.*)-frag(.*)",hds_handler,manifest,[{":video","(.*)"}]}]])),
+  ?assertEqual([{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest}],get_routes([[{"hds/:video/:high/Seg(.*)-frag(.*)",hds_handler,manifest}]])).
+
+complex_request_test () ->
+  ?assertEqual({hds_handler,manifest,["video.mp4","high","0","0"]},parse("http://my_host/hds/video.mp4/high/Seg0-frag0",#routes{routes=get_routes([[{"hds/:video/:high/Seg(.*)-frag(.*)",hds_handler,manifest}]])})).
+
+parse_request_test () ->
+  ?assertEqual({hds_handler,manifest,["video.mp4","high","0","0"]},parse("http://my_host/hds/video.mp4/high/Seg0-frag0",#routes{routes=[{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest}]})).
