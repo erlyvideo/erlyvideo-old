@@ -24,26 +24,26 @@
 -author('Ilya Shcherbak <ilya@erlyvideo.org>').
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("../log.hrl").
--include_lib("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -export([pauseRaw/2, seek/2]).
 
  
-pauseRaw(#rtmp_session{user_id = undefined} = State, _Funcall) ->
-  ?D(reject_forbidden_pause),
-  State;
-
-pauseRaw(#rtmp_session{} = Session,_Funcall_) ->
+pauseRaw(Session,_Funcall_) ->
+  case rtmp_session:get(Session, user_id) of
+    undefined -> erlang:error(reject_forbidden_pause);
+    _ -> ok
+  end,
+  
   case get(auth_play_limit) of
     undefined -> unhandled;
     _ -> ?D(reject_forbidden_pause), Session
   end.
 
-seek(#rtmp_session{user_id = undefined} = State, _Funcall) -> 
-  ?D(reject_forbidden_seek),
-  State;
-
-seek(#rtmp_session{} = Session,_Funcall_) -> 
+seek(Session,_Funcall_) ->
+  case rtmp_session:get(Session, user_id) of
+    undefined -> erlang:error(reject_forbidden_seek);
+    _ -> ok
+  end,
   case get(auth_play_limit) of
     undefined -> unhandled;
     _ -> ?D(reject_forbidden_seek), Session

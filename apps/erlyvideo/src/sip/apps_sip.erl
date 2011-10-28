@@ -24,7 +24,6 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp/rtmp_session.hrl").
 -include("../log.hrl").
 
 %% RTMP callbacks
@@ -102,12 +101,15 @@ declineCall(State, #rtmp_funcall{args = Args} = AMF) ->
   end,
   State.
 
-handle_info({sip_call, OutStream, InStream}, #rtmp_session{socket = Socket} = State) ->
+handle_info({sip_call, OutStream, InStream}, State) ->
+  Socket = rtmp_session:get(State, socket),
   rtmp_socket:status(Socket, 0, <<"NetConnection.SipCall">>, {object, [{in_stream, InStream},{out_stream,OutStream}]}),
   {noreply, State};
-handle_info({incoming, CallingId}, #rtmp_session{socket = Socket} = State) ->
+handle_info({incoming, CallingId}, State) ->
+  Socket = rtmp_session:get(State, socket),
   rtmp_socket:status(Socket, 0, <<"NetConnection.IncomingCall">>, {object, [{calling_id, CallingId}]}),
   {noreply, State};
-handle_info({bye}, #rtmp_session{socket = Socket} = State) ->
+handle_info({bye}, State) ->
+  Socket = rtmp_session:get(State, socket),
   rtmp_socket:status(Socket, 0, <<"NetConnection.Bye">>, {object, []}),
   {noreply, State}.

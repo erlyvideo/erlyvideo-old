@@ -24,7 +24,6 @@
 -module(apps_rewrite_play, [URL]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp/rtmp_session.hrl").
 -include("../log.hrl").
 
 
@@ -37,7 +36,10 @@ dump_session_id(SessionId) when is_list(SessionId) -> SessionId;
 dump_session_id(SessionId) -> lists:flatten(io_lib:format("~p",[SessionId])).
 
 
-play(#rtmp_session{addr = IP, user_id = UserId, session_id = SessionId} = State, #rtmp_funcall{args = [null, FullName | Args]} = AMF) ->
+play(State, #rtmp_funcall{args = [null, FullName | Args]} = AMF) ->
+  IP = rtmp_session:get(State, addr),
+  UserId = rtmp_session:get(State, user_id),
+  SessionId = rtmp_session:get(State, session_id),
   {Name, Options} = apps_streaming:parse_play(FullName, Args),
   
   Req = lists:flatten(io_lib:format("~s?ip=~s&file=~s&user_id=~p&session_id="++dump_session_id(SessionId), [URL, IP, Name, UserId])),

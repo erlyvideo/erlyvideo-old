@@ -28,7 +28,7 @@
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
--include("../log.hrl").
+-include("log.hrl").
 
 
 -export([create_client/1]).
@@ -89,6 +89,17 @@ handle_control(connected, Session) ->
   SessionId = rtmp_session:get(Session, session_id),
   ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
   {ok, Session};
+
+handle_control({close_stream, _StreamId, Player, Recording}, Session) ->
+  ems_media:stop(Player),
+  case Recording of
+    true ->
+      ems_media:set_source(Player, undefined),
+      ok;
+      % media_provider:remove(Host, Name);
+    _ -> ok
+  end,  
+  {ok, Session};
   
 handle_control(_Control, Session) ->
   {ok, Session}.
@@ -119,9 +130,9 @@ handle_rtmp_call1(Session, #rtmp_funcall{} = AMF) ->
   call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login, remove_useless_prefix, apps_streaming, apps_recording]), Session, AMF).
 
 
-call_mfa([], Session, #rtmp_funcall{command = Command, args = Args} = AMF) ->
+call_mfa([], Session, #rtmp_funcall{command = Command, args = Args}) ->
   ems_log:error(rtmp_session:get(Session, host), "Failed RTMP funcall: ~p(~p)", [Command, Args]),
-  rtmp_session:fail(Session, AMF);
+  unhandled;
 
 call_mfa([Module|Modules], Session, #rtmp_funcall{command = Command} = AMF) ->
   case code:is_loaded(mod_name(Module)) of

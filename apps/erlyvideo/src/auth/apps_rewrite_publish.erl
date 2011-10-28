@@ -24,12 +24,11 @@
 -module(apps_rewrite_publish, [URL]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp/rtmp_session.hrl").
 
 
 -export([publish/2]).
 
 
-publish(#rtmp_session{} = State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
+publish(State, #rtmp_funcall{args = [null, Name | _Args]} = AMF) when is_binary(Name) ->
   Mod = {apps_rewrite_play, URL},
   Mod:play(State, AMF).

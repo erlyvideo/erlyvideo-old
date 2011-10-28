@@ -23,7 +23,6 @@
 %%%---------------------------------------------------------------------------------------
 -module(json_session).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include("../log.hrl").
 -export([connect/2, auth/3]).
@@ -34,12 +33,20 @@ auth(Host, _Method, LoginInfo) ->
   rtmp_cookie:decode(LoginInfo, Secret).
   
 
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo, user_id = undefined} = State, AMF) ->
-  case rtmp_cookie:connect(State, AMF) of
-    #rtmp_session{user_id = undefined} = State1 ->
+connect(State, AMF) ->
+  Host = rtmp_session:get(State, host),
+  Address = rtmp_session:get(State, addr),
+  PlayerInfo = rtmp_session:get(State, player_info),
+  undefined = rtmp_session:get(State, user_id),
+  
+  State1 = rtmp_cookie:connect(State, AMF),
+  
+  case rtmp_session:get(State1, user_id) of
+    undefined ->
 	    ems_log:access(Host, "REJECT ~s ~s ~p ~p ~s json_session", [Address, Host, undefined, undefined, proplists:get_value(pageUrl, PlayerInfo)]),
       rtmp_session:reject_connection(State1);
-	  #rtmp_session{session_id = SessionId, user_id = UserId} = State1 ->
+	  UserId ->
+	    SessionId = rtmp_session:get(State1, session_id),
     	ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s json_session", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo)]),
       rtmp_session:accept_connection(State1)
   end.

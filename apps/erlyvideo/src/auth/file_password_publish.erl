@@ -25,14 +25,16 @@
 -include_lib("../log.hrl").
 
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp/rtmp_session.hrl").
 
 -export([publish/2]).
 
 
 	
-publish(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName, Spec]} = _AMF) when is_binary(Spec) ->
-
+publish(State, #rtmp_funcall{args = [null, FullName, Spec]} = _AMF) when is_binary(Spec) ->
+  Host = rtmp_session:get(State, host),
+  Addr = rtmp_session:get(State, addr),
+  UserId = rtmp_session:get(State, user_id),
+  
   {_RawName, Args} = http_uri2:parse_path_query(FullName),
   
   UserLogin = proplists:get_value("login", Args),
@@ -43,7 +45,7 @@ publish(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName
   case check_file(UserLogin,UserPassword) of
     true -> unhandled;
     _ ->
-      ems_log:error(Host, "DENY_RECORD ~s ~s ~p ~s", [Spec, State#rtmp_session.addr, State#rtmp_session.user_id, FullName]),
+      ems_log:error(Host, "DENY_RECORD ~s ~s ~p ~s", [Spec, Addr, UserId, FullName]),
       rtmp_session:reject_connection(State)
   end;
 

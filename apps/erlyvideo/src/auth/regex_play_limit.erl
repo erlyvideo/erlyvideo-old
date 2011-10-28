@@ -23,14 +23,14 @@
 -module(regex_play_limit, [Regex, Count]).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp/rtmp_session.hrl").
 -include("../log.hrl").
 
 -export([play/2]).
 
 
 
-play(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName | Args]} = _AMF) ->
+play(State, #rtmp_funcall{args = [null, FullName | Args]} = _AMF) ->
+  Host = rtmp_session:get(State, host),
   {Name, _Options} = apps_streaming:parse_play(FullName, Args),
   case re:run(Name, Regex) of
     nomatch -> unhandled;

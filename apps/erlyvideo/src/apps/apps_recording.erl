@@ -24,7 +24,6 @@
 -module(apps_recording).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
--include("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 
@@ -37,7 +36,9 @@
 %% @private
 %%-------------------------------------------------------------------------
 
-'FCPublish'(#rtmp_session{socket = Socket, session_id = SessionId} = State, #rtmp_funcall{args = [null, Name]} = _AMF) -> 
+'FCPublish'(State, #rtmp_funcall{args = [null, Name]} = _AMF) -> 
+  Socket = rtmp_session:get(State, socket),
+  SessionId = rtmp_session:get(State, session_id),
   ?D({"FCpublish", Name}),
   Args = {object, [
     {level, <<"status">>}, 
@@ -49,7 +50,8 @@
   rtmp_socket:invoke(Socket, 0, 'onFCPublish', [Args]),
   State.
 
-'FCUnpublish'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
+'FCUnpublish'(State, #rtmp_funcall{args = [null, FullName]} = _AMF) ->
+  Host = rtmp_session:get(State, host),
   {RawName, _Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
   case media_provider:find(Host, Name) of
@@ -60,12 +62,18 @@
   % media_provider:remove(Host, Name),
   State.
 
-'DVRSetStreamInfo'(#rtmp_session{host = _Host} = State, #rtmp_funcall{args = [null, {object, Info}]} = _AMF) ->
+'DVRSetStreamInfo'(State, #rtmp_funcall{args = [null, {object, Info}]} = _AMF) ->
   ?D({'DVRSetStreamInfo', Info}),
   State.
   
   
-real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId} = State, FullName, Type, StreamId) ->
+real_publish(State, FullName, Type, StreamId) ->
+  Host = rtmp_session:get(State, host),
+  Socket = rtmp_session:get(State, socket),
+  SessionId = rtmp_session:get(State, session_id),
+  Addr = rtmp_session:get(State, addr),
+  UserId = rtmp_session:get(State, user_id),
+  SessionId = rtmp_session:get(State, session_id),
 
   {RawName, Args1} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
@@ -73,7 +81,7 @@ real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId}
   % Options = lists:ukeymerge(1, Options1, [{source_timeout,shutdown},{type,Type}]),
   Options = lists:ukeymerge(1, Options1, [{type,Type},{registrator,true}]),
   
-  ems_log:access(Host, "PUBLISH ~p ~s ~p ~p ~s", [Type, State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name]),
+  ems_log:access(Host, "PUBLISH ~p ~s ~p ~p ~s", [Type, Addr, UserId, SessionId, Name]),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
   Ref = erlang:monitor(process, Recorder),
   ?D({"publish",Type,Options,Recorder}),
@@ -86,7 +94,7 @@ real_publish(#rtmp_session{host = Host, socket = Socket, session_id = SessionId}
   ]},
   Msg = rtmp_socket:prepare_invoke(StreamId, onStatus, [Arg]),
   rtmp_socket:send(Socket, Msg),
-  rtmp_session:set_stream(#rtmp_stream{pid = Recorder, recording_ref = Ref, stream_id = StreamId, started = true, recording = true, name = Name}, State).
+  rtmp_session:set_stream(rtmp_stream:construct({pid,Recorder},{recording_ref,Ref},{stream_id,StreamId},{started, true}, {recording, true}, {name, Name}), State).
   
 extract_publish_args([]) -> [];
 extract_publish_args({"record", "true"}) -> {type, record};

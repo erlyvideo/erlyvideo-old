@@ -25,7 +25,6 @@
 -include_lib("../log.hrl").
 
 -include_lib("rtmp/include/rtmp.hrl").
--include("../rtmp/rtmp_session.hrl").
 
 -export([connect/2, auth/3]).
 
@@ -58,8 +57,13 @@ auth(_Host, _Protocol, _Session) ->
 %% It can even subscribe to channels
 %% @end
 %%-------------------------------------------------------------------------
-connect(#rtmp_session{host = Host, addr = Address, player_info = PlayerInfo} = State, AMF) ->
-  #rtmp_session{session_id = SessionId, user_id = UserId} = State1 = rtmp_cookie:connect(State, AMF),
+connect(State, AMF) ->
+  Host = rtmp_session:get(State, host),
+  Address = rtmp_session:get(State, addr),
+  PlayerInfo = rtmp_session:get(State, player_info),
+  UserId = rtmp_session:get(State, user_id),
+  SessionId = rtmp_session:get(State, session_id),
+  State1 = rtmp_cookie:connect(State, AMF),
   ems_log:access(Host, "CONNECT ~s ~s ~p ~p ~s trusted_login", [Address, Host, UserId, SessionId, proplists:get_value(pageUrl, PlayerInfo)]),
   rtmp_session:accept_connection(State1).
 	

@@ -24,130 +24,25 @@
 -module(apps_streaming).
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("../log.hrl").
--include("../rtmp/rtmp_session.hrl").
 -include_lib("rtmp/include/rtmp.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
 
--export([createStream/2, play/2, deleteStream/2,closeStream/2, pause/2, pauseRaw/2, stop/2, seek/2,
-         receiveAudio/2, receiveVideo/2, releaseStream/2,
+-export([play/2, pause/2, pauseRaw/2, stop/2, seek/2,
          getStreamLength/2, checkBandwidth/2, 'FCSubscribe'/2, 'DVRGetStreamInfo'/2]).
--export(['WAIT_FOR_DATA'/2, handle_info/2]).
 
 -export([extract_play_args/1, parse_play/2]).
 
-'WAIT_FOR_DATA'({metadata, Command, AMF, StreamId}, #rtmp_session{socket = Socket} = State) ->
-  Socket ! #rtmp_message{
-    channel_id = 4, 
-    timestamp = 0, 
-    type = metadata, 
-    stream_id = StreamId, 
-    body = <<(amf0:encode(list_to_binary(Command)))/binary, (amf0:encode({object, AMF}))/binary>>
-  },
-  {next_state, 'WAIT_FOR_DATA', State};
-
-'WAIT_FOR_DATA'({metadata, Command, AMF}, State) -> 'WAIT_FOR_DATA'({metadata, Command, AMF, 0}, State);
-
-
-'WAIT_FOR_DATA'(_Message, _State) -> unhandled.
-
-handle_info({ems_stream, StreamId, play_complete, LastDTS}, #rtmp_session{socket = Socket} = State) ->
-  #rtmp_stream{base_dts = BaseDTS, options = Options} = rtmp_session:get_stream(StreamId, State),
-  Start = case {BaseDTS, proplists:get_value(start, Options)} of
-    {undefined, undefined} -> 0;
-    {Num, _} when is_number(Num) -> Num;
-    {_, Num} when is_number(Num) -> Num
-  end,
-  rtmp_lib:play_complete(Socket, StreamId, [{duration, rtmp:justify_ts(LastDTS - Start)}]),
-  State;
-
-handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} = State) ->
-  rtmp_lib:play_failed(Socket, StreamId),
-  State;
-
-handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
-  #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
-  
-  % ?D({self(), "seek to", round(NewDTS), rtmp:justify_ts(NewDTS - BaseDTS)}),
-  rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
-  rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
-
-handle_info({ems_stream, StreamId, burst_start}, #rtmp_session{socket = Socket} = State) ->
-  rtmp_socket:send(Socket, #rtmp_message{type = burst_start, stream_id = StreamId}),
-  State;
-
-handle_info({ems_stream, StreamId, burst_stop}, #rtmp_session{socket = Socket} = State) ->
-  rtmp_socket:send(Socket, #rtmp_message{type = burst_stop, stream_id = StreamId}),
-  State;
-  
-handle_info({ems_stream, StreamId, seek_failed}, #rtmp_session{socket = Socket} = State) ->
-  ?D({"seek failed"}),
-  rtmp_lib:seek_failed(Socket, StreamId),
-  State;
-
-handle_info({ems_stream, StreamId, not_found}, #rtmp_session{socket = Socket, host = Host} = State) ->
-  rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
-  ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, '??', StreamId]),
-  State;
-  
-handle_info(_, _) ->
-  unhandled.
-  
   
 
-
-%% @private
-createStream(#rtmp_session{} = State, AMF) -> 
-  #rtmp_stream{stream_id = StreamId} = Stream = rtmp_session:alloc_stream(State),
-  rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
-  % ?D({createStream,StreamId}),
-  rtmp_session:set_stream(Stream, State).
-
-releaseStream(State, #rtmp_funcall{} = _AMF) -> 
-  State.
 
 
 %%-------------------------------------------------------------------------
 %% @private
 %%-------------------------------------------------------------------------
 
-closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) -> 
-  % ?D({closeStream,StreamId}),
-  close_stream(State, StreamId).
-
-
-close_stream(#rtmp_session{host = _Host} = State, StreamId) ->
-  case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = _Name} when is_pid(Player) -> 
-      ems_media:stop(Player),
-      case Recording of
-        true ->
-          ems_media:set_source(Player, undefined),
-          (catch erlang:demonitor(Ref, [flush])),
-          ok;
-          % media_provider:remove(Host, Name);
-        _ -> ok
-      end,  
-      rtmp_session:flush_stream(StreamId),
-      rtmp_session:set_stream(#rtmp_stream{stream_id = StreamId}, State);
-    _ ->
-      State
-  end.
-  
-
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
-deleteStream(State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
-  close_stream(State, StreamId),
-  rtmp_session:delete_stream(StreamId, State).
-
-
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
-
-'FCSubscribe'(#rtmp_session{socket = RTMP} = Session, #rtmp_funcall{stream_id = StreamId, args = [null, Name]}) ->
+'FCSubscribe'(Session, #rtmp_funcall{stream_id = StreamId, args = [null, Name]}) ->
+  RTMP = rtmp_session:get(Session, socket),
   Reply = {object, [
     {code, <<"NetStream.Play.Start">>}, 
     {level, <<"status">>}, 
@@ -165,15 +60,21 @@ deleteStream(State, #rtmp_funcall{stream_id = StreamId} = _AMF) ->
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+play(State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+  Host = rtmp_session:get(State, host),
+  Socket = rtmp_session:get(State, socket),
+  Addr = rtmp_session:get(State, addr),
+  UserId = rtmp_session:get(State, user_id),
+  SessionId = rtmp_session:get(State, session_id),
   {Name, Options} = parse_play(FullName, Args),
 
 
   % ?D({play_request, StreamId, FullName,Args, '->', Name, Options}),
-  State1 = case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = OldMedia} when is_pid(OldMedia) -> 
+  Stream = rtmp_session:get_stream(StreamId, State),
+  State1 = case rtmp_stream:get(Stream, pid) of
+    OldMedia when is_pid(OldMedia) -> 
       ?D({"Unsubscribe from old", OldMedia}), 
-      close_stream(State, StreamId);
+      rtmp_session:close_stream(State, StreamId);
     _ ->
       State
   end,
@@ -187,17 +88,17 @@ play(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{args = [
   case media_provider:open(Host, Name) of
     {notfound, _Reason} -> 
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
-      ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
+      ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [Addr, UserId, SessionId, Name, StreamId]),
       State1;
     {ok, Media} ->
       erlang:monitor(process,Media),
       Stream = case rtmp_session:get_stream(StreamId, State1) of
-        false -> #rtmp_stream{};
+        false -> rtmp_stream:construct([]);
         Stream_ -> Stream_
       end,
-      State2 = rtmp_session:set_stream(Stream#rtmp_stream{pid = Media, stream_id = StreamId, options = Options, name = Name, started = false}, State1),
+      State2 = rtmp_session:set_stream(rtmp_stream:set(Stream, [{pid, Media}, {stream_id, StreamId}, {options, Options}, {name, Name}, {started, false}]), State1),
       ems_media:play(Media, SocketOptions ++ [{stream_id,StreamId},{host,Host}|Options]),
-      ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, Name, StreamId]),
+      ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [Addr, UserId, SessionId, Name, StreamId]),
       State2
   end.
 
@@ -256,40 +157,37 @@ extract_play_args([_Start, _Duration, Reset]) -> [{reset, Reset}].
 %% @doc  Processes a pause command and responds
 %% @end
 %%-------------------------------------------------------------------------
-pause(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}) -> 
+pause(State, #rtmp_funcall{args = [null, Pausing, NewTs], stream_id = StreamId}) -> 
+    Socket = rtmp_session:get(State, socket),
     ?D({"PAUSE", Pausing, round(NewTs), rtmp_session:get_stream(StreamId, State)}),
     
-    case {rtmp_session:get_stream(StreamId, State), Pausing} of
-      {null, _} ->
+    case rtmp_session:get_stream(StreamId, State) of
+      null ->
         State;
-      {undefined, _} ->
+      undefined ->
         State;
-      {#rtmp_stream{pid = undefined}, _} ->
-        State;
-      {#rtmp_stream{pid = Player}, true} ->
-        ems_media:pause(Player),
-        rtmp_lib:pause_notify(Socket, StreamId),
-        State;
-      {#rtmp_stream{pid = Player}, false} ->
-        rtmp_lib:unpause_notify(Socket, StreamId, NewTs),
-        ems_media:resume(Player),
-        State
+      Stream ->
+        case {rtmp_stream:get(Stream, pid), Pausing} of
+          {undefined, _} ->
+            State;
+          {Player, true} ->
+            ems_media:pause(Player),
+            rtmp_lib:pause_notify(Socket, StreamId),
+            State;
+          {Player, false} ->
+            rtmp_lib:unpause_notify(Socket, StreamId, NewTs),
+            ems_media:resume(Player),
+            State
+        end
     end.
 
 
 pauseRaw(AMF, State) -> pause(AMF, State).
 
 
-receiveAudio(#rtmp_session{} = State, #rtmp_funcall{args = [null, Flag], stream_id = StreamId}) when Flag == true orelse Flag == false ->
-  Stream = rtmp_session:get_stream(StreamId, State),
-  rtmp_session:set_stream(Stream#rtmp_stream{receive_audio = Flag}, State).
 
-receiveVideo(#rtmp_session{} = State, #rtmp_funcall{args = [null, Flag], stream_id = StreamId}) when Flag == true orelse Flag == false ->
-  Stream = rtmp_session:get_stream(StreamId, State),
-  rtmp_session:set_stream(Stream#rtmp_stream{receive_video = Flag}, State).
-
-
-getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, FullName | _]} = AMF) ->
+getStreamLength(State, #rtmp_funcall{args = [null, FullName | _]} = AMF) ->
+  Host = rtmp_session:get(State, host),
   
   {RawName, Args} = http_uri2:parse_path_query(FullName),
   Name = string:join( [Part || Part <- ems:str_split(RawName, "/"), Part =/= ".."], "/"),
@@ -324,34 +222,48 @@ getStreamLength(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null, 
 %% @doc  Processes a seek command and responds
 %% @end
 %%-------------------------------------------------------------------------
-seek(#rtmp_session{socket = Socket} = State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
-  #rtmp_stream{pid = Player, base_dts = _BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
+seek(State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
+  Socket = rtmp_session:get(State, socket),
+  Stream = rtmp_session:get_stream(StreamId, State),
+  Player = rtmp_stream:get(Stream, player),
   % ?D({self(), "seek", round(Timestamp), BaseDTS, Player}),
   case ems_media:seek(Player, Timestamp) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),
       State;
     _ ->
-      rtmp_session:set_stream(Stream#rtmp_stream{seeking = true}, State)
+      rtmp_session:set_stream(rtmp_stream:set(Stream, seeking, true), State)
   end.
   
 
 %%-------------------------------------------------------------------------
 %% @private
 %%-------------------------------------------------------------------------
-stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_id = StreamId}) -> 
+stop(State, #rtmp_funcall{stream_id = StreamId}) -> 
+  Host = rtmp_session:get(State, host),
+  Socket = rtmp_session:get(State, socket),
+  Addr = rtmp_session:get(State, addr),
+  UserId = rtmp_session:get(State, user_id),
+  SessionId = rtmp_session:get(State, session_id),
   % ?D({"Stop on", self(), StreamId}),
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) ->
-      ems_media:stop(Player),
-      rtmp_session:flush_stream(StreamId),
-      ems_log:access(Host, "STOP ~p ~p ~p ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, StreamId]),
-      rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
-      State;
+    Stream when is_tuple(Stream) ->
+      Player = rtmp_stream:get(Stream, pid),
+      if
+        is_pid(Player) ->
+          ems_media:stop(Player),
+          rtmp_session:flush_stream(StreamId),
+          ems_log:access(Host, "STOP ~p ~p ~p ~p", [Addr, UserId, SessionId, StreamId]),
+          rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.Stop">>),
+          State;
+        true ->
+          State
+      end;
     _ -> State
   end.
   
-'DVRGetStreamInfo'(#rtmp_session{host = Host} = State, #rtmp_funcall{args = [null | RawName]} = AMF) ->
+'DVRGetStreamInfo'(State, #rtmp_funcall{args = [null | RawName]} = AMF) ->
+  Host = rtmp_session:get(State, host),
   Name = case re:run(RawName, "[^:]+:(.*)", [{capture, [1], binary}]) of
     {match, [N]} -> N;
     _ -> RawName
@@ -373,6 +285,6 @@ stop(#rtmp_session{host = Host, socket = Socket} = State, #rtmp_funcall{stream_i
 % http://www.adobe.com/devnet/flashmediaserver/articles/dynamic_stream_switching_04.html
 % TODO Stub at this point, need to determine proper response to this call
 
-checkBandwidth(#rtmp_session{} = State, #rtmp_funcall{args = [null | Args]}) ->
+checkBandwidth(State, #rtmp_funcall{args = [null | Args]}) ->
   ?D({"checkBandwidth", Args}),
   State.

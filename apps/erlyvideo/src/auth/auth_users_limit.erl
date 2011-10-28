@@ -23,12 +23,11 @@
 -module(auth_users_limit, [Limit]).
 -author('Max Lapshin <max@maxidoors.ru>').
 
--include("../rtmp/rtmp_session.hrl").
 -include("../log.hrl").
 
 -export([connect/2]).
 
-connect(#rtmp_session{} = State, _AMF) ->
+connect(State, _AMF) ->
   ?D({"Checking limit", Limit,length(supervisor:which_children(rtmp_session_sup)) }),
   case length(supervisor:which_children(rtmp_session_sup)) of
     Count when Count =< Limit ->
