@@ -39,7 +39,7 @@
 start(_Type, _Args) ->
   case application:get_env(rtmp, logging_function) of
     undefined -> application:set_env(rtmp, logging_function, fun(M, L, X) ->
-      io:format("~p:~p ~p~n", [M, L, X])
+      io:format("~p:~p ~240p~n", [M, L, X])
     end);
     _ -> ok
   end,

@@ -1,1 +1,1 @@
--define(D(X), ems_log:debug(3, mpegts, "~p:~p ~240p",[?MODULE, ?LINE, X])).
+-define(D(X), (case application:get_env(mpegts, logging_function) of {ok, F} -> F(?MODULE, ?LINE, X); _ -> ok end)).

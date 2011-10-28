@@ -117,6 +117,7 @@ start(normal, []) ->
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
   start_http(),
+  start_mpegts(),
   start_rtmp(),
 	start_modules(),
 	load_plugin_files(),
@@ -159,6 +160,12 @@ start_http() ->
       ems_sup:start_http_server(HTTP)
   end.
 
+start_mpegts() ->
+  application:set_env(mpegts, logging_function, fun(M, L, X) ->
+    ems_log:debug(3, mpegts, "~p:~p ~p",[M, L, X])
+  end).
+
+  
 
 start_rtmp() ->
   application:set_env(rtmp, logging_function, fun(M, L, X) ->

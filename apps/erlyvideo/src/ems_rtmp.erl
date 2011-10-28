@@ -135,7 +135,7 @@ handle_rtmp_call1(Session, #rtmp_funcall{} = AMF) ->
   call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login, remove_useless_prefix, apps_streaming, apps_recording]), Session, AMF).
 
 
-call_mfa([], Session, #rtmp_funcall{command = Command, args = Args}) ->
+call_mfa([], _Session, #rtmp_funcall{}) ->
   unhandled;
 
 call_mfa([Module|Modules], Session, #rtmp_funcall{command = Command} = AMF) ->

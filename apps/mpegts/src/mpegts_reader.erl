@@ -95,7 +95,7 @@ load_nif() ->
 
 
 start_link(Options) ->
-  gen_server_ems:start_link(?MODULE, [Options], []).
+  gen_server:start_link(?MODULE, [Options], []).
 
 set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
   gen_tcp:controlling_process(Socket, Reader),

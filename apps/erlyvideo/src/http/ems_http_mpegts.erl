@@ -23,7 +23,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_http_mpegts).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("log.hrl").
+-include("../log.hrl").
 -include_lib("mpegts/include/mpegts.hrl").
 -include_lib("mpegts/include/mpegts_psi.hrl").
 
