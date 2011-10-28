@@ -23,8 +23,8 @@
 %%%---------------------------------------------------------------------------------------
 -module(shared_object).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../log.hrl").
--include_lib("rtmp/include/rtmp.hrl").
+-include("log.hrl").
+-include("../include/rtmp.hrl").
 -include("shared_object.hrl").
 -define(SAVE_TIMEOUT, 1000).
 

@@ -29,7 +29,8 @@
 -define(HS_HEADER,        3).
 -define(HS_BODY_LEN,   1536).
 
--define(D(X), (case application:get_env(rtmp, logging_function) of {ok, F} -> F(?MODULE, ?LINE, X); _ -> ok end)).
+
+-include("log.hrl").
 
 
 

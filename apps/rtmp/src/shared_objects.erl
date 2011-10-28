@@ -22,7 +22,7 @@
 %%%---------------------------------------------------------------------------------------
 -module(shared_objects).
 -author('Max Lapshin <max@maxidoors.ru>').
--include("../../log.hrl").
+-include("log.hrl").
 -include("shared_object.hrl").
 
 -behaviour(gen_server).
