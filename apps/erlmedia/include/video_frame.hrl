@@ -19,7 +19,7 @@
 	stream_id      = 0         ::non_neg_integer(),
 	codec 	       = undefined ::frame_codec()|undefined,
 	flavor         = undefined ::frame_flavor(),
-	sound          = {undefined, undefined, undefined} ::frame_sound(),
+	sound          = {undefined, undefined, undefined} ::frame_sound() | undefined,
 	body           = <<>>      ::binary(),
 	next_id        = undefined ::any()
 }).

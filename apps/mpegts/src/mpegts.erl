@@ -90,6 +90,8 @@ init_counters(Streamer, [PAT, PMT, Audio, Video]) ->
 counters(#streamer{pat_counter = PAT, pmt_counter = PMT, audio_counter = Audio, video_counter = Video}) ->
   [PAT, PMT, Audio, Video].
 
+-spec encode(#streamer{}, video_frame()) -> {#streamer{}, iolist()}.
+
 encode(Streamer, #video_frame{flavor = config} = Frame) ->
   {enqueue_frame(set_stream_codec(Streamer, Frame), Frame), <<>>};
 
@@ -436,7 +438,7 @@ need_to_flush(#streamer{}) -> false.
 flush_audio(#streamer{audio_buffer = [], audio_dts = undefined} = Streamer) ->
   {Streamer, <<>>};
 
-flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS, audio_codec = aac} = Streamer) ->
+flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS, audio_codec = aac} = Streamer) when is_number(DTS) ->
   % ?D({flush_adts, length(Audio), round(DTS)}),
   ADTS = #video_frame{
     content = audio,
@@ -444,6 +446,7 @@ flush_audio(#streamer{audio_buffer = Audio, audio_dts = DTS, audio_codec = aac} 
     flavor = frame,
     dts = DTS,
     pts = DTS,
+    sound = undefined,
     body = iolist_to_binary(lists:reverse(Audio))
   },
   send_audio(Streamer#streamer{audio_buffer = [], audio_dts = undefined}, ADTS);

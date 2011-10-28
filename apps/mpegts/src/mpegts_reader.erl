@@ -384,10 +384,11 @@ handle_psi(PSI, #decoder{dump_psi = Dump} = Decoder) ->
       insert_pids(Streams, Decoder);
     {sdt, Info} ->
       Decoder#decoder{sdt = Info};
-    {eit, #eit_event{pid = EitPid} = Event} ->
-      Pids = [Pid || #stream{pid = Pid} <- Decoder#decoder.pids],
-      case lists:member(EitPid, Pids) of
-        true ->
+    % {eit, Events} ->
+    %   Pids = [Pid || #stream{pid = Pid} <- Decoder#decoder.pids],
+    %   
+      % case lists:member(EitPid, Pids) of
+      %   true ->
           % io:format("new EIT service_id=~p version=~p ts_id=~p network_id=~p~n", [_Pid, _Version, _TSId, _Network]),
           % [begin
           %   #eit_event{
@@ -403,11 +404,11 @@ handle_psi(PSI, #decoder{dump_psi = Dump} = Decoder) ->
           % end || Event <- _Info],
           % ?D({prg1, [Id || #eit_event{id = Id} <- NewProgram]}),
           % ?D({prg2, [Id || #eit_event{id = Id} <- Program]}),
-          Program = Decoder#decoder.program_info,
-          Decoder#decoder{program_info = lists:ukeymerge(#eit_event.id, Event, Program)};
-        _ ->
-          Decoder
-      end;
+          % Program = Decoder#decoder.program_info,
+          % Decoder#decoder{program_info = lists:ukeymerge(#eit_event.id, Event, Program)};
+      %   _ ->
+      %     Decoder
+      % end;
     _ ->
       Decoder
   end,
@@ -484,7 +485,7 @@ decode_pes_packet(#stream{codec = mpeg2audio, dts = DTS, pts = PTS, es_buffer = 
   {Stream#stream{es_buffer = <<>>}, Frames};
 
 
-decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Data, codec = mpeg2video} = Stream) ->
+decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Data, codec = mpeg2video} = Stream) when is_number(DTS) andalso is_number(PTS) ->
   % TC1 = get(mpeg2_h264),
   % {TC2, Frames} = ems_video:mpeg2_h264(TC1, #video_frame{codec = mpeg2video, pts = PTS, dts = DTS, body = Data, content = video}),
   % put(mpeg2_h264, TC2),
@@ -496,6 +497,7 @@ decode_pes_packet(#stream{dts = DTS, pts = PTS, es_buffer = Data, codec = mpeg2v
     dts = DTS,
     pts = PTS,
     body = Data,
+    sound = undefined,
     codec = mpeg2video
   }],
   {Stream#stream{es_buffer = <<>>}, Frames}.
