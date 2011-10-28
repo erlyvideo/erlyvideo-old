@@ -1,6 +1,6 @@
 -record(rtmp_session, {
-  host,
   path,
+  module,
 	socket,    % client socket
 	addr,      % client address
 	port,

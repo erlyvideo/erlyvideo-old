@@ -32,7 +32,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
          
--export([open/3]).
+-export([open/2]).
          
 -record(shared_objects, {
   objects
@@ -57,8 +57,8 @@ start_link()  ->
 %% @doc Opens new or existing shared object
 %% @end
 %%----------------------------------------------------------------------
-open(Host, Name, Persistent) ->
-  {ok, Object} = gen_server:call(?MODULE, {open, Host, Name, Persistent}),
+open(Name, Persistent) ->
+  {ok, Object} = gen_server:call(?MODULE, {open, Name, Persistent}),
   Object.
 
 %%----------------------------------------------------------------------
@@ -89,13 +89,13 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 
-handle_call({open, Host, Name, Persistent}, _From, #shared_objects{objects = Objects} = State) ->
-  case ets:lookup(Objects, {Host, Name}) of
-    [{{Host, Name}, Object}] -> ok;
+handle_call({open, Name, Persistent}, _From, #shared_objects{objects = Objects} = State) ->
+  case ets:lookup(Objects, Name) of
+    [{Name, Object}] -> ok;
     _ -> 
-      {ok, Object} = ems_sup:start_shared_object(Host, Name, Persistent),
+      {ok, Object} = rtmp_sup:start_shared_object(Name, Persistent),
       erlang:monitor(process, Object),
-      ets:insert(Objects, {{Host, Name}, Object})
+      ets:insert(Objects, {Name, Object})
   end,
   {reply, {ok, Object}, State};
 

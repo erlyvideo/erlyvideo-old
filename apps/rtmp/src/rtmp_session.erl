@@ -23,56 +23,37 @@
 %%%---------------------------------------------------------------------------------------
 -module(rtmp_session).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("log.hrl").
 -include_lib("erlmedia/include/video_frame.hrl").
 -include_lib("erlmedia/include/media_info.hrl").
--include("../log.hrl").
--include_lib("rtmp/include/rtmp.hrl").
+-include("../include/rtmp.hrl").
 -include("rtmp_session.hrl").
 
 -behaviour(gen_server).
 
 
--export([start_link/0, set_socket/2]).
+-export([start_link/1, set_socket/2]).
 
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([send/2, send_frame/2, flush_stream/1, send_rtmp_frame/2]).
--export([metadata/1, metadata/2]).
 
 
--export([create_client/1]).
 -export([accept_connection/1, reject_connection/1, close_connection/1]).
--export([message/4, collect_stats/1]).
+-export([message/4]).
 
 -export([reply/2, fail/2, stop/1]).
 -export([get_stream/2, set_stream/2, alloc_stream/1, delete_stream/2]).
 -export([get_socket/1]).
+-export([call_function/2]).
 
 
--include("../meta_access.hrl").
+-include("meta_access.hrl").
 
 
-%%-------------------------------------------------------------------------
-%% @spec create_client(Socket)  -> {ok, Pid}
-%% @doc Very important function. rtmp_listener calls it to
-%% create new process, that will accept socket.
-%% @end
-%%-------------------------------------------------------------------------
-create_client(Socket) ->
-  {ok, Pid} = ems_sup:start_rtmp_session(Socket),
-  {ok, Pid}.
 
 
-%%-------------------------------------------------------------------------
-%% @spec collect_stats(Host)  -> Stats::proplist
-%% @doc Asynchronously asks all rtmp clients to tell about their info
-%% @end
-%%-------------------------------------------------------------------------
-collect_stats(_Host) ->
-  Pids = [Pid || {_, Pid, _, _} <- supervisor:which_children(rtmp_session_sup), Pid =/= self()],
-  Info = ems:multicall(Pids, info, 1000),
-  lists:sort(fun({_,Inf1}, {_,Inf2}) -> proplists:get_value(addr, Inf1) < proplists:get_value(addr, Inf2) end, Info).
 
 
 
@@ -80,10 +61,10 @@ stop(Pid) when is_pid(Pid) ->
   gen_server:call(Pid, exit).
 
 
-accept_connection(#rtmp_session{host = Host, socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId} = Session) ->
+accept_connection(#rtmp_session{socket = Socket, amf_ver = AMFVersion, user_id = UserId, session_id = SessionId, module = M} = Session) ->
   rtmp_lib:accept_connection(Socket, [{amf_version, AMFVersion}]),
-  ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
-  Session;
+  {ok, Session1} = M:handle_control({connected, UserId, SessionId}, Session),
+  Session1;
 
 accept_connection(Session) when is_pid(Session) ->
   gen_server:call(Session, accept_connection).
@@ -121,53 +102,13 @@ message(Pid, Stream, Code, Body) ->
 
 
 
-metadata(Media) when is_pid(Media) ->
-  metadata(Media, []).
-
-%%----------------------------------------------------------------------
-%% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
-%%
-%% @doc Returns video_frame, prepared to send into flash
-%% @end
-%%----------------------------------------------------------------------
-metadata(Media, Options) when is_pid(Media) ->
-  MediaInfo = ems_media:media_info(Media),
-  Info1 = add_metadata_options(MediaInfo, Options),
-  metadata_frame(Info1, Options).
-
-
-add_metadata_options(#media_info{} = MediaInfo, []) -> MediaInfo;
-add_metadata_options(#media_info{} = MediaInfo, [{duration,Duration}|Options]) when Duration =/= undefined -> add_metadata_options(MediaInfo#media_info{duration = Duration}, Options);
-add_metadata_options(#media_info{} = MediaInfo, [_|Options]) -> add_metadata_options(MediaInfo, Options).
-
-
-metadata_frame(#media_info{options = Options, duration = Duration} = Media, Opts) ->
-  Meta = lists:map(fun({K,V}) when is_atom(V) -> {K, atom_to_binary(V,latin1)};
-                      ({K,V}) when is_tuple(V) -> {K, iolist_to_binary(io_lib:format("~p", [V]))};
-                      (Else) -> Else end, Options),
-  Meta1 = lists:ukeymerge(1, lists:keysort(1,Meta), video_parameters(Media)),
-  DurationMeta = case Duration of
-    undefined -> [];
-    _ -> [{duration, Duration / 1000}]
-  end,
-  DTS = proplists:get_value(dts, Opts),
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}], 
-               stream_id = proplists:get_value(stream_id, Opts, 0), dts = DTS, pts = DTS}.
-
-
-video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
-  [{height, Height}, {width, Width}];
-
-video_parameters(#media_info{}) ->  
-  [].
-
 
 %%%------------------------------------------------------------------------
 %%% API
 %%%------------------------------------------------------------------------
 
-start_link() ->
-  gen_server_ems:start_link(?MODULE, [], []).
+start_link(Callback) ->
+  gen_server:start_link(?MODULE, [Callback], []).
 
 set_socket(Pid, Socket) when is_pid(Pid) ->
   gen_server:call(Pid, {socket_ready, Socket}).
@@ -184,10 +125,10 @@ set_socket(Pid, Socket) when is_pid(Pid) ->
 %%          {stop, StopReason}
 %% @private
 %%-------------------------------------------------------------------------
-init([]) ->
+init([Callback]) ->
   random:seed(now()),
-  ems_network_lag_monitor:watch(self()),
-  {ok, #rtmp_session{}}.
+  {ok, Session} = Callback:init(#rtmp_session{module = Callback}),
+  {ok, Session}.
 
 
 send(Session, Message) ->
@@ -218,12 +159,9 @@ handle_call({socket_ready, RTMP}, _From, State) ->
     _ -> lists:flatten(io_lib:format("~p.~p.~p.~p", erlang:tuple_to_list(IP)))
   end,
   erlang:monitor(process, RTMP),
-  ems_network_lag_monitor:watch(RTMP),
+  (catch ems_network_lag_monitor:watch(RTMP)),
   % rtmp_socket:setopts(RTMP, [{debug,true}]),
   {reply, ok, State#rtmp_session{socket = RTMP, addr = Addr, port = Port}};
-
-handle_call(info, _From, #rtmp_session{} = State) ->
-  {reply, session_stats(State), State};
 
 handle_call({get_field, Field}, _From, State) ->
   {reply, get(State, Field), State};
@@ -271,9 +209,9 @@ handle_info({rtmp, Socket, connected}, State) ->
   rtmp_socket:setopts(Socket, [{active, once}]),
   {noreply, State};
 
-handle_info({rtmp, _Socket, timeout}, #rtmp_session{host = Host, user_id = UserId, addr = IP} = State) ->
-  ems_log:error(Host, "TIMEOUT ~p ~p ~p", [_Socket, UserId, IP]),
-  {stop, normal, State};
+handle_info({rtmp, _Socket, timeout}, #rtmp_session{module = M} = State) ->
+  {ok, State1} = M:handle_control(timeout, State),
+  {stop, normal, State1};
 
 handle_info({'DOWN', _Ref, process, Socket, _Reason}, #rtmp_session{socket = Socket} = State) ->
   {stop, normal, State};
@@ -314,14 +252,8 @@ handle_info({message, Stream, Code, Body}, #rtmp_session{socket = Socket} = Stat
   {noreply, State};
 
 
-handle_info(Message, #rtmp_session{host = Host} = State) ->
-  case ems:try_method_chain(Host, handle_info, [Message, State]) of
-    {unhandled} -> {noreply, State};
-    unhandled -> {noreply, State};
-    #rtmp_session{} = State1 -> {noreply, State1};
-    {stop, Reason, State1} -> {stop, Reason, State1};
-    {noreply, #rtmp_session{} = State1} -> {noreply, State1}
-  end.
+handle_info(Message, #rtmp_session{module = M} = State) ->
+  M:handle_info(Message, State).
 
 
 
@@ -387,10 +319,10 @@ handle_rtmp_message(State, Message) ->
   State.
 
 
-find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} = State, Name, Persistent) ->
+find_shared_object(#rtmp_session{cached_shared_objects = Objects} = State, Name, Persistent) ->
   case lists:keysearch(Name, 1, Objects) of
     false ->
-      Object = shared_objects:open(Host, Name, Persistent),
+      Object = shared_objects:open(Name, Persistent),
       NewObjects = lists:keystore(Name, 1, Objects, {Name, Object}),
       {State#rtmp_session{cached_shared_objects = NewObjects}, Object};
     {value, {Name, Object}} ->
@@ -399,9 +331,7 @@ find_shared_object(#rtmp_session{host = Host, cached_shared_objects = Objects} =
 
 call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
   URL = proplists:get_value(tcUrl, PlayerInfo),
-  {match, [_Proto, HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
-  Host = ems:host(HostName),
-
+  {match, [_Proto, _HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
   % ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
 
   AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
@@ -416,58 +346,18 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
 
   SessionId = timer:now_diff(erlang:now(),{0,0,0}),
 
-	NewState1 =	State#rtmp_session{player_info = PlayerInfo, host = Host, path = Path, amf_ver = AMFVersion, session_id = SessionId},
-
-	call_function(Host, NewState1, AMF);
-
-
-call_function(#rtmp_session{host = Host} = State, AMF) ->
-  call_function(Host, State, AMF).
-
-call_function(Host, #rtmp_session{} = State, #rtmp_funcall{command = Command} = AMF) ->
-  call_function(Host, Command, [State, AMF]);
-
-call_function(Host, Command, Args) when is_atom(Host) andalso is_atom(Command) andalso is_list(Args) ->
-  call_mfa(ems:get_var(rtmp_handlers, Host, [trusted_login, remove_useless_prefix, apps_streaming, apps_recording]), Command, Args).
+	NewState1 =	State#rtmp_session{player_info = PlayerInfo, path = Path, amf_ver = AMFVersion, session_id = SessionId},
+	
+	call_function_callback(NewState1, AMF);
 
 
-call_mfa([], Command, Args) ->
-  % ?D({"MFA failed", Command}),
-  case Args of
-    [#rtmp_session{host = Host} = State, #rtmp_funcall{args = AMFArgs} = AMF] ->
-      ems_log:error(Host, "Failed RTMP funcall: ~p(~p)", [Command, AMFArgs]),
-      rtmp_session:fail(State, AMF);
-    _ -> ok
-  end;
+call_function(#rtmp_session{} = State, #rtmp_funcall{} = AMF) ->
+  call_function_callback(State, AMF).
+  
+call_function_callback(#rtmp_session{module = M} = State, #rtmp_funcall{} = AMF) ->
+  #rtmp_session{} = M:handle_rtmp_call(State, AMF).
+  
 
-call_mfa([Module|Modules], Command, Args) ->
-  case code:is_loaded(mod_name(Module)) of
-    false -> 
-      case code:load_file(mod_name(Module)) of
-        {module, _ModName} -> ok;
-        _ -> erlang:error({cant_load_file, Module})
-      end;
-    _ -> ok
-  end,
-  % ?D({"Checking", Module, Command, ems:respond_to(Module, Command, 2)}),
-  case ems:respond_to(Module, Command, length(Args)) of
-    true ->
-      case erlang:apply(Module, Command, Args) of
-        unhandled ->
-          call_mfa(Modules, Command, Args);
-        {unhandled, NewState, NewAMF} ->
-          call_mfa(Modules, Command, [NewState, NewAMF]);
-        Reply ->
-          Reply
-      end;
-    false ->
-      call_mfa(Modules, Command, Args)
-  end.
-
-
-
-mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
-mod_name(Mod) -> Mod.
 
 
 
@@ -483,7 +373,7 @@ handle_frame(#video_frame{} = Frame, Session) ->
   end.
 
 send_frame(#video_frame{content = Content, stream_id = StreamId, dts = DTS, pts = PTS} = Frame,
-             #rtmp_session{socket = Socket, bytes_sent = Sent} = State) ->
+             #rtmp_session{socket = Socket, bytes_sent = Sent, module = M} = State) ->
   {State1, BaseDts, _Starting, Allow} = case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{base_dts = DTS_, receive_audio = false} when Content == audio ->
       {State, DTS_, false, false};
@@ -500,7 +390,7 @@ send_frame(#video_frame{content = Content, stream_id = StreamId, dts = DTS, pts 
       rtmp_lib:play_start(Socket, StreamId, 0, MediaType),
       State1_ = set_stream(Stream#rtmp_stream{started = true, base_dts = DTS}, State),
       Duration = proplists:get_value(duration, Options),
-      State2_ = rtmp_session:send_frame(metadata(Media, [{duration,Duration},{stream_id,StreamId},{dts,DTS}]), State1_),
+      {ok, State2_} = M:handle_control({start_stream, Media, [{duration,Duration},{stream_id,StreamId},{dts,DTS}]}, State1_),
       {State2_, DTS, true, true};
     #rtmp_stream{base_dts = DTS_} ->
       {State, DTS_, false, true};
@@ -558,16 +448,11 @@ flush_reply(#rtmp_session{socket = Socket} = State) ->
 %% Returns: any
 %% @private
 %%-------------------------------------------------------------------------
-terminate(_Reason, #rtmp_session{host = Host, addr = Addr, user_id = UserId, session_id = SessionId, bytes_recv = Recv, bytes_sent = Sent} = State) ->
-  ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p ~p", [Addr, Host, UserId, SessionId, Recv, Sent]),
-  ems_event:user_disconnected(State#rtmp_session.host, self(), session_stats(State)),
-  (catch call_function(Host, logout, [State])),
+terminate(_Reason, #rtmp_session{module = M} = State) ->
+  M:handle_control(terminate, State),
   ok.
 
 
-
-session_stats(#rtmp_session{host = Host, addr = Addr, bytes_recv = Recv, bytes_sent = Sent, play_stats = PlayStats, user_id = UserId, session_id = SessionId}) ->
-  [{host,Host},{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats].
 
 
 flush_stream(StreamId) ->

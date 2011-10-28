@@ -168,7 +168,7 @@ start_rtmp() ->
     undefined ->
       ok;
     RTMP ->
-      rtmp_socket:start_server(RTMP, rtmp_listener1, rtmp_session)
+      rtmp_socket:start_server(RTMP, rtmp_listener1, ems_rtmp)
   end.
 
 

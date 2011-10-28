@@ -25,6 +25,6 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("rtmp_session.hrl").
 
--include("../meta_access.hrl").
+-include("meta_access.hrl").
 
 

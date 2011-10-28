@@ -56,7 +56,7 @@
 
 
 -export([init/1,start_link/0]).
--export([start_rtmp_session/1, start_media/3, start_shared_object/3,
+-export([start_rtmp_session/1, start_media/3, 
           start_shoutcast_reader/1, start_recorder/3,
           start_deskshare_capture/2,
           start_http_server/1, start_ticker/3, start_mjpeg_reader/2]).
@@ -70,7 +70,7 @@ start_link() ->
 
 -spec start_rtmp_session(RTMPSocket::pid()) -> {'error',_} | {'ok',pid()}.
 start_rtmp_session(RTMPSocket) ->
-  {ok, Pid} = supervisor:start_child(rtmp_session_sup, []),
+  {ok, Pid} = supervisor:start_child(rtmp_session_sup, [ems_rtmp]),
   rtmp_session:set_socket(Pid, RTMPSocket),
   {ok, Pid}.
 
@@ -111,7 +111,6 @@ start_media(_Name, Module,        Opts) -> supervisor:start_child(ems_media_sup,
 
 start_ticker(Media, Consumer, Options) -> supervisor:start_child(media_ticker_sup, [Media, Consumer, Options]).
 
-start_shared_object(Host, Name, Persistent) -> supervisor:start_child(shared_object_sup, [Host, Name, Persistent]).
 
 
 start_http_server(Port) ->
@@ -195,13 +194,6 @@ init([ems_http_sup]) ->
     
 %%%%%%%%  Shared objects  %%%%%%%%
 
-
-init([ems_so_sup]) ->
-  {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, [
-    ?NAMED_SERVER(shared_objects_sup, shared_objects, []),
-    ?SUPERVISOR_LINK(shared_object_sup)
-  ]}};
-    
     
 init([shared_object_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(shared_object, [])]}};
@@ -220,8 +212,7 @@ init([]) ->
     ?SUPERVISOR_LINK(erlyvideo_media_sup),
     ?SUPERVISOR_LINK(ems_user_sessions_sup),
     ?SUPERVISOR_LINK(ems_http_sup),
-    ?STATIC_SERVER(ems_event_sup, ems_event, []),
-    ?SUPERVISOR_LINK(ems_so_sup)
+    ?STATIC_SERVER(ems_event_sup, ems_event, [])
   ],
 
   {ok, {{one_for_one, ?MAX_RESTART, ?MAX_TIME}, Supervisors}}.
