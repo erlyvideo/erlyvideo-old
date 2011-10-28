@@ -37,7 +37,7 @@
 %% @end
 %%----------------------------------------------------------------------
 start_link(Port, Name, Callback, Args) ->
-  gen_listener:start_link(Name, Port, ?MODULE, [Callback|Args]).
+  rtmp_gen_listener:start_link(Name, Port, ?MODULE, [Callback|Args]).
 
 accept(CliSocket, Args) ->
   % raw_accept(CliSocket, Args).
