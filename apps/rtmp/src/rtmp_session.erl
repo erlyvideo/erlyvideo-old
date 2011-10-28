@@ -49,7 +49,7 @@
 -export([call_function/2]).
 
 
--export([createStream/2, deleteStream/2,closeStream/2, releaseStream/2]).
+-export([createStream/2, deleteStream/2, closeStream/2, releaseStream/2]).
 -export([receiveAudio/2, receiveVideo/2]).
 
 -include("meta_access.hrl").
@@ -262,36 +262,37 @@ handle_info({ems_stream, StreamId, play_complete, LastDTS}, #rtmp_session{socket
     {_, Num} when is_number(Num) -> Num
   end,
   rtmp_lib:play_complete(Socket, StreamId, [{duration, rtmp:justify_ts(LastDTS - Start)}]),
-  State;
+  {noreply, State};
 
 handle_info({ems_stream, StreamId, play_failed}, #rtmp_session{socket = Socket} = State) ->
   rtmp_lib:play_failed(Socket, StreamId),
-  State;
+  {noreply, State};
 
 handle_info({ems_stream, StreamId, seek_success, NewDTS}, #rtmp_session{socket = Socket} = State) ->
   #rtmp_stream{base_dts = BaseDTS} = Stream = rtmp_session:get_stream(StreamId, State),
 
   % ?D({self(), "seek to", round(NewDTS), rtmp:justify_ts(NewDTS - BaseDTS)}),
   rtmp_lib:seek_notify(Socket, StreamId, rtmp:justify_ts(NewDTS - BaseDTS)),
-  rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State);
+  State1 = rtmp_session:set_stream(Stream#rtmp_stream{seeking = false}, State),
+  {noreply, State1};
 
 handle_info({ems_stream, StreamId, burst_start}, #rtmp_session{socket = Socket} = State) ->
   rtmp_socket:send(Socket, #rtmp_message{type = burst_start, stream_id = StreamId}),
-  State;
+  {noreply, State};
 
 handle_info({ems_stream, StreamId, burst_stop}, #rtmp_session{socket = Socket} = State) ->
   rtmp_socket:send(Socket, #rtmp_message{type = burst_stop, stream_id = StreamId}),
-  State;
+  {noreply, State};
 
 handle_info({ems_stream, StreamId, seek_failed}, #rtmp_session{socket = Socket} = State) ->
   ?D({"seek failed"}),
   rtmp_lib:seek_failed(Socket, StreamId),
-  State;
+  {noreply, State};
 
-handle_info({ems_stream, StreamId, not_found}, #rtmp_session{socket = Socket, host = Host} = State) ->
+handle_info({ems_stream, StreamId, not_found}, #rtmp_session{socket = Socket} = State) ->
   rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
-  ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, '??', StreamId]),
-  State;
+  % ems_log:access(Host, "NOT_FOUND ~s ~p ~p ~s ~p", [State#rtmp_session.addr, State#rtmp_session.user_id, State#rtmp_session.session_id, '??', StreamId]),
+  {noreply, State};
 
 
 handle_info(Message, #rtmp_session{module = M} = State) ->
@@ -396,7 +397,7 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
 call_function(#rtmp_session{} = State, #rtmp_funcall{} = AMF) ->
   call_function_callback(State, AMF).
   
-call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{command = Command} = AMF) ->
+call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{} = AMF) ->
   case M:handle_rtmp_call(Session, AMF) of
     unhandled ->
       call_default_function(Session, AMF);
@@ -406,12 +407,11 @@ call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{comman
       Session1
   end.
 
-call_default_function(#rtmp_session{} = Session, #rtmp_funcall{command = Command} = AMF) ->
+call_default_function(#rtmp_session{module = M} = Session, #rtmp_funcall{command = Command} = AMF) ->
+  ?D({calling, Command, erlang:function_exported(?MODULE, Command, 2)}),
   case erlang:function_exported(?MODULE, Command, 2) of
-    true ->
-      ?MODULE:Command(State, AMF);
-    false ->
-      rtmp_session:fail(Session, AMF)
+    true -> ?MODULE:Command(Session, AMF);
+    false -> M:handle_control({unhandled_call, AMF}, Session)
   end.
   
 
@@ -584,7 +584,8 @@ closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) ->
 close_stream(#rtmp_session{module = M} = State, StreamId) ->
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = _Name} when is_pid(Player) -> 
-      {ok, State1} = ems_rtmp:handle_control({close_stream, StreamId, Player, Recording}, State),
+      (erlang:demonitor(Ref, [flush])),
+      {ok, State1} = M:handle_control({close_stream, StreamId, Player, Recording}, State),
       rtmp_session:flush_stream(StreamId),
       rtmp_session:set_stream(#rtmp_stream{stream_id = StreamId}, State1);
     _ ->

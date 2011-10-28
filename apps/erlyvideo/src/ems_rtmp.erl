@@ -100,6 +100,11 @@ handle_control({close_stream, _StreamId, Player, Recording}, Session) ->
     _ -> ok
   end,  
   {ok, Session};
+
+handle_control({unhandled_call, #rtmp_funcall{command = Command, args = Args} = AMF}, Session) ->
+  ems_log:error(rtmp_session:get(Session, host), "Failed RTMP funcall: ~p(~p)", [Command, Args]),
+  rtmp_session:fail(Session, AMF),
+  {ok, Session};
   
 handle_control(_Control, Session) ->
   {ok, Session}.
@@ -131,7 +136,6 @@ handle_rtmp_call1(Session, #rtmp_funcall{} = AMF) ->
 
 
 call_mfa([], Session, #rtmp_funcall{command = Command, args = Args}) ->
-  ems_log:error(rtmp_session:get(Session, host), "Failed RTMP funcall: ~p(~p)", [Command, Args]),
   unhandled;
 
 call_mfa([Module|Modules], Session, #rtmp_funcall{command = Command} = AMF) ->
