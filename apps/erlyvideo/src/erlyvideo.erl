@@ -161,6 +161,9 @@ start_http() ->
 
 
 start_rtmp() ->
+  application:set_env(rtmp, logging_function, fun(M, L, X) ->
+    ems_log:debug(3, rtmp, "~p:~p ~p",[M, L, X])
+  end),
   case ems:get_var(rtmp_port, 1935) of
     undefined ->
       ok;
