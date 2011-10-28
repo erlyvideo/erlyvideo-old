@@ -119,7 +119,6 @@
   active = false    ::true|false|once,
   consumer          ::pid(),
   socket            ::port()|pid(),
-  driver            ::microtcp|gen_tcp,
   amf_version = 0   ::integer(),
   fmle_3 = false    ::boolean(),
 	channels          ::tuple(),

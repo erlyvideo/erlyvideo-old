@@ -134,7 +134,7 @@ write(RTMPT, Data) ->
 
 %% @private
 start_link(SessionId, IP) ->
-  gen_server_ems:start_link(?MODULE, [SessionId, IP], []).
+  gen_server:start_link(?MODULE, [SessionId, IP], []).
 
 %% @private
 set_consumer(RTMPT, Consumer) ->
@@ -155,7 +155,7 @@ set_consumer(RTMPT, Consumer) ->
 %%-------------------------------------------------------------------------
 init([SessionId, IP]) ->
   process_flag(trap_exit, true),
-  ems_network_lag_monitor:watch(self()),
+  (catch ems_network_lag_monitor:watch(self())),
   timer:send_interval(?RTMPT_TIMEOUT, check_client),
   {ok, #rtmpt{session_id = SessionId, ip = IP, last_visit_at = erlang:now()}}.
         

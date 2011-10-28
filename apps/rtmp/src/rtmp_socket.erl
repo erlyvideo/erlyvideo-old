@@ -283,24 +283,15 @@ init([connect]) ->
 wait_for_socket_on_server(timeout, State) ->
   {stop, normal, State};
 
-wait_for_socket_on_server({socket, {gen_tcp, Socket}}, #rtmp_socket{} = State) when is_port(Socket) ->
+wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_port(Socket) ->
   case inet:peername(Socket) of
     {ok, {IP, Port}} ->
       ok =  inet:setopts(Socket, [{active, once}, {packet, raw}, binary]),
-      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port, driver = gen_tcp}, ?RTMP_TIMEOUT};
+      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port}, ?RTMP_TIMEOUT};
     {error, _Error} ->
       {stop, normal, State}
   end;
 
-wait_for_socket_on_server({socket, {microtcp, Socket}}, #rtmp_socket{} = State) when is_port(Socket) ->
-  case microtcp:peername(Socket) of
-    {ok, {IP, Port}} ->
-      microtcp:active_once(Socket),
-      {next_state, handshake_c1, State#rtmp_socket{socket = Socket, address = IP, port = Port, driver = microtcp}, ?RTMP_TIMEOUT};
-    {error, _Error} ->
-      {stop, normal, State}
-  end;
-      
 wait_for_socket_on_server({socket, Socket}, #rtmp_socket{} = State) when is_pid(Socket) ->
   erlang:monitor(process, Socket),
   {next_state, handshake_c1, State#rtmp_socket{socket = Socket}, ?RTMP_TIMEOUT}.
@@ -607,8 +598,6 @@ flush_send(State) ->
     0 -> State
   end.
   
-activate_socket(#rtmp_socket{driver = microtcp, socket = Socket}) when is_port(Socket) ->
-  microtcp:active_once(Socket);
 activate_socket(#rtmp_socket{socket = Socket}) when is_port(Socket) ->
   inet:setopts(Socket, [{active, once}]);
 activate_socket(#rtmp_socket{socket = Socket}) when is_pid(Socket) ->
@@ -645,7 +634,7 @@ send_data(#rtmp_socket{sent_audio_notify = true} = Socket, #rtmp_message{type = 
 send_data(#rtmp_socket{sent_video_notify = true} = Socket, #rtmp_message{type = stream_end} = Message) ->
   send_data(Socket#rtmp_socket{sent_video_notify = false}, Message);
 
-send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, driver = Driver} = State, Message) ->
+send_data(#rtmp_socket{socket = Socket, key_out = KeyOut} = State, Message) ->
   case State#rtmp_socket.debug of
     true -> print_rtmp_message(out, Message);
     _ -> ok
@@ -663,8 +652,6 @@ send_data(#rtmp_socket{socket = Socket, key_out = KeyOut, driver = Driver} = Sta
   end,
   % (catch rtmp_stat_collector:out_bytes(self(), iolist_size(Crypt))),
   if
-    is_port(Socket) andalso Driver == microtcp ->
-      microtcp:send(Socket, Crypt);
     is_port(Socket) ->
       gen_tcp:send(Socket, Crypt);
     is_pid(Socket) ->

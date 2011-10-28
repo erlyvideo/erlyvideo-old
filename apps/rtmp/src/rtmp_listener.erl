@@ -48,10 +48,9 @@ accept(CliSocket, Args) ->
   end.  
 
 raw_accept(CliSocket, [Callback|Args]) ->
-  Driver = ems:get_var(rtmp_tcp, gen_tcp),
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
-  Driver:controlling_process(CliSocket, RTMP),
-  rtmp_socket:set_socket(RTMP, {Driver, CliSocket}),
+  gen_tcp:controlling_process(CliSocket, RTMP),
+  rtmp_socket:set_socket(RTMP, CliSocket),
   {ok, Pid} = erlang:apply(Callback, create_client, [RTMP|Args]),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   ok.
