@@ -408,7 +408,6 @@ call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{} = AM
   end.
 
 call_default_function(#rtmp_session{module = M} = Session, #rtmp_funcall{command = Command} = AMF) ->
-  ?D({calling, Command, erlang:function_exported(?MODULE, Command, 2)}),
   case erlang:function_exported(?MODULE, Command, 2) of
     true -> ?MODULE:Command(Session, AMF);
     false -> M:handle_control({unhandled_call, AMF}, Session)
@@ -584,7 +583,7 @@ closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) ->
 close_stream(#rtmp_session{module = M} = State, StreamId) ->
   case rtmp_session:get_stream(StreamId, State) of
     #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = _Name} when is_pid(Player) -> 
-      (erlang:demonitor(Ref, [flush])),
+      (catch erlang:demonitor(Ref, [flush])),
       {ok, State1} = M:handle_control({close_stream, StreamId, Player, Recording}, State),
       rtmp_session:flush_stream(StreamId),
       rtmp_session:set_stream(#rtmp_stream{stream_id = StreamId}, State1);
