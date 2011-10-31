@@ -322,10 +322,14 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   call_function(State, AMF#rtmp_funcall{command = Command});
 
 handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) 
-  when (Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3) ->
+  when ((Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3)) andalso is_number(Timestamp)  ->
   case get_stream(StreamId, State) of
     #rtmp_stream{pid = Recorder} when is_pid(Recorder) ->
-      Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type}, Body),
+      Type1 = case Type of
+        metadata3 -> metadata;
+        _ -> Type
+      end,
+      Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type1}, Body),
       ems_media:publish(Recorder, Frame),
       State;
     #rtmp_stream{} ->
