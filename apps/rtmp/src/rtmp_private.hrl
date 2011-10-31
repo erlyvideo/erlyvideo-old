@@ -21,7 +21,7 @@
 %%%
 %%%---------------------------------------------------------------------------------------
 
--define(RTMP_TIMEOUT, 10000).
+-define(RTMP_TIMEOUT, 120000).
 -define(RTMP_DEF_CHUNK_SIZE, 128).
 -define(MIN_CLIENT_BUFFER, 100).
 -define(HS_UNCRYPTED,        3).
