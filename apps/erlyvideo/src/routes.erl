@@ -3,9 +3,10 @@
 %%% Created : 27 Oct 2011 by Ilya Shcherbak <ilya@erlyvideo.org>
 %%%-------------------------------------------------------------------
 -module(routes).
+-include_lib("proper/include/proper.hrl").
 
 %% API
--export([handler/1]).
+-export([init/0,handler/2,prop_sm/0]).
 
 -define(FILE_NAME,"routes.conf").
 
@@ -16,23 +17,13 @@
 	  options=[]
 }).
 
-init([]) ->
-  Handlers = 
-    case catch(ets:lookup(route_table,route)) of
-      {'EXIT',_Reason} ->
-	get_file_config();
-      []->
-	get_file_config();	
-      PList ->
-	io:format("~p~n",["Load from ETS table route_table.."]),
-	proplists:get_value(route,PList)	
-    end,
+init() ->
+  Handlers = get_file_config(),
   {ok, #routes{routes=Handlers}}.
 
-handler(URL) ->
-   {ok,State}=init([]),
+handler(URL,State) ->
 %% Parsing URL
-   parse(URL,State).
+  parse(URL,State).
 
 %%%===================================================================
 %%% Main parse function
@@ -81,6 +72,7 @@ compose(PList,VList) ->
 
 compose([],[],Acc) ->
   lists:reverse(Acc);
+
 compose([Param|PTail],[[Var]|VTail],Acc) ->
   compose(PTail,VTail,[{Var,Param}|Acc]).
 
@@ -96,8 +88,6 @@ get_file_config()->
   get_routes(List).
 
 get_routes(List)->
-  catch(ets:new(route_table,[public,named_table])),
-  Handlers = 
     [begin
        {URL,Controller,Method,ExList} = 
 	 case Element of
@@ -115,8 +105,7 @@ get_routes(List)->
 	 end, 
        {ok,NewURL} = convert_to_pattern(URL,ExList),
        {NewURL,Controller,Method,VarList} 
-     end||Element <-List],
-  ets:insert(route_table,{route,Handlers}),Handlers.
+     end||Element <-List].
 
 convert_to_pattern(URL,ExList)->
   Convert = 
@@ -152,7 +141,7 @@ exlist(URL,[{Name,Pattern}|ExList]) ->
 
 make_routes_test () ->
   ?assertEqual([{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest,[["video"],["high"],["segment"],["fragment"]]}],get_routes([[{"hds/:video/:high/Seg(:segment)-frag(:fragment)",hds_handler,manifest,[{":video","(.*)"}]}]])),
-    ?assertEqual([{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest,[["video"],["high"],["segment"],["fragment"]]}],get_routes([[{"hds/:video/:high/Seg(:segment)-frag(:fragment)",hds_handler,manifest}]])).
+  ?assertEqual([{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest,[["video"],["high"],["segment"],["fragment"]]}],get_routes([[{"hds/:video/:high/Seg(:segment)-frag(:fragment)",hds_handler,manifest}]])).
 
 
 complex_request_test () ->
@@ -161,3 +150,9 @@ complex_request_test () ->
 parse_request_test () ->
   ?assertEqual({hds_handler,manifest,[{"video","video.mp4"},{"quality","high"},{"segment","0"},{"fragment","0"}]},parse("http://my_host/hds/video.mp4/high/Seg0-frag0",#routes{routes=[{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest,[["video"],["quality"],["segment"],["fragment"]]}]})).
 
+prop_sm() ->
+  ?FORALL(Msg, union([list(), list(range(1,255))]),
+	  begin
+	    io:format("~p",[Msg]),
+	    is_atom(parse(Msg,#routes{routes=get_routes([[{"hds/:video/:quality/Seg(:segment)-frag(:fragment)",hds_handler,manifest}]])}))
+	  end). 
