@@ -13,7 +13,6 @@
 	  method,
 	  controller,
 	  routes=[],
-	  vars=[],
 	  options=[]
 }).
 
@@ -40,12 +39,16 @@ handler(URL) ->
 %%%===================================================================
 
 parse(URL,#routes{routes=Routes}) ->
-  ParamList=case re:run(URL,"http://([-_a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
-    {match,[_Host,_Port,RawParams]} ->
-      RawParams;
-     nomatch ->
-      []
-  end,
+%%% Get list of parameters
+  ParamList = 
+    case re:run(URL,"http://([-_a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
+      {match,[_Host,_Port,RawParams]} ->
+	RawParams;
+      nomatch ->
+	[]
+    end,
+
+%%% Implementation of parsing lambda 
   Route = 
     fun(List)->
 	Fun =
@@ -61,11 +64,13 @@ parse(URL,#routes{routes=Routes}) ->
 	  end,
 	Fun(Fun,List)
     end,
+
+%%% Calling parsing lambda
   case Route(Routes) of
     false ->
-      [];
-    VParams ->
-      VParams
+      {error,route_not_found};
+    RouteList ->
+      RouteList
   end.
 
 %%%===================================================================
@@ -108,21 +113,29 @@ get_routes(List)->
 	   _ ->
 	     []
 	 end, 
-       NewURL = convert_to_pattern(URL,ExList),
+       {ok,NewURL} = convert_to_pattern(URL,ExList),
        {NewURL,Controller,Method,VarList} 
      end||Element <-List],
-
   ets:insert(route_table,{route,Handlers}),Handlers.
 
 convert_to_pattern(URL,ExList)->
-  Pattern1=exlist(URL,ExList),
-  Pattern2=case re:replace(Pattern1,"(\\(*:[a-zA-Z]+\\)*)","(.*)",[global,{return,list}]) of
-    Value2 when is_list(Value2) ->
-      Value2;
+  Convert = 
+    fun() ->
+	Pattern1=exlist(URL,ExList),
+	  case re:replace(Pattern1,"(\\(*:[a-zA-Z]+\\)*)","(.*)",[global,{return,list}]) of
+	    Value2 when is_list(Value2) ->
+	      {ok,Value2};
+	    nomatch ->
+	      ""
+	  end
+    end,
+  case re:run(URL,"(.*\\([^:]+)",[{capture,all_but_first,list},global]) of
     nomatch ->
-      ""
-  end,
-  Pattern2.
+      Convert();
+    {match,Error} ->
+      io:format("Route rule error near ~p~n",[Error]),
+      error
+  end.
 
 exlist(URL,[])->
   URL;
