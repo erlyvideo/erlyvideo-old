@@ -3,10 +3,13 @@
 %%% Created : 27 Oct 2011 by Ilya Shcherbak <ilya@erlyvideo.org>
 %%%-------------------------------------------------------------------
 -module(routes).
+-ifdef(TEST).
 -include_lib("proper/include/proper.hrl").
+-export([prop_sm/0]).
+-endif().
 
 %% API
--export([init/0,handler/2,prop_sm/0]).
+-export([init/0,handler/2]).
 
 -define(FILE_NAME,"routes.conf").
 
@@ -137,6 +140,8 @@ exlist(URL,[{Name,Pattern}|ExList]) ->
 %%% Test functions
 %%%===================================================================
 
+-ifdef(TEST).
+
 -include_lib("eunit/include/eunit.hrl").
 
 make_routes_test () ->
@@ -149,10 +154,13 @@ complex_request_test () ->
 
 parse_request_test () ->
   ?assertEqual({hds_handler,manifest,[{"video","video.mp4"},{"quality","high"},{"segment","0"},{"fragment","0"}]},parse("http://my_host/hds/video.mp4/high/Seg0-frag0",#routes{routes=[{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest,[["video"],["quality"],["segment"],["fragment"]]}]})).
-
+  
 prop_sm() ->
   ?FORALL(Msg, union([list(), list(range(1,255))]),
 	  begin
 	    io:format("~p",[Msg]),
 	    is_atom(parse(Msg,#routes{routes=get_routes([[{"hds/:video/:quality/Seg(:segment)-frag(:fragment)",hds_handler,manifest}]])}))
 	  end). 
+	  
+	  
+-endif.
