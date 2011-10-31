@@ -32,12 +32,6 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-  case application:get_env(mpegts, logging_function) of
-    undefined -> application:set_env(mpegts, logging_function, fun(M, L, X) ->
-      io:format("~p:~p ~240p~n", [M, L, X])
-    end);
-    _ -> ok
-  end,
   mpegts_sup:start_link().
 
 stop(_State) ->
