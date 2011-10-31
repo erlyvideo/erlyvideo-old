@@ -13,6 +13,7 @@
 	  method,
 	  controller,
 	  routes=[],
+	  vars=[],
 	  options=[]
 }).
 
@@ -25,7 +26,7 @@ init([]) ->
 	get_file_config();	
       PList ->
 	io:format("~p~n",["Load from ETS table route_table.."]),
-	proplists:get_value(route,PList)
+	proplists:get_value(route,PList)	
     end,
   {ok, #routes{routes=Handlers}}.
 
@@ -50,10 +51,10 @@ parse(URL,#routes{routes=Routes}) ->
 	Fun =
 	  fun
 	    (_F,[])->false;
-	    (F,[{X,Controller,Method}|Tail])->
+	    (F,[{X,Controller,Method,Vars}|Tail])->
 	      case re:run(ParamList,X,[{capture,all_but_first,list}]) of
-		{match,P}->
-		  {Controller,Method,P};
+		{match,P} ->
+		  {Controller,Method,compose(P,Vars)};
 		_->
 		  F(F,Tail)
 	      end
@@ -68,8 +69,15 @@ parse(URL,#routes{routes=Routes}) ->
   end.
 
 %%%===================================================================
-%%% Internla functions
+%%% Internal functions
 %%%===================================================================
+compose(PList,VList) ->
+  compose(PList,VList,[]).
+
+compose([],[],Acc) ->
+  Acc;
+compose([Param|PTail],[[Var]|VTail],Acc) ->
+  compose(PTail,VTail,[{Var,Param}|Acc]).
 
 get_file_config()-> 
   {ok,RList}=case file:read_file(?FILE_NAME) of
@@ -84,7 +92,8 @@ get_file_config()->
 
 get_routes(List)->
   catch(ets:new(route_table,[public,named_table])),
-  Handlers = 
+
+ Handlers = 
   [begin
      {URL,Controller,Method,ExList} = 
        case Element of
@@ -93,14 +102,22 @@ get_routes(List)->
 	 [{RURL,RController,RMethod}] ->
 	   {RURL,RController,RMethod,[]}
        end,
+     VarList = 
+       case re:run(URL,"\\(*:([-_a-zA-Z0-9]+)\\)*",[{capture,all_but_first,list},global]) of
+	 {match,Vars} ->
+	   Vars;
+	 _ ->
+	   []
+       end, 
      NewURL = convert_to_pattern(URL,ExList),
-     {NewURL,Controller,Method} 
+     {NewURL,Controller,Method,VarList} 
    end||Element <-List],
+
   ets:insert(route_table,{route,Handlers}),Handlers.
 
 convert_to_pattern(URL,ExList)->
   Pattern1=exlist(URL,ExList),
-  Pattern2=case re:replace(Pattern1,"(:[a-zA-Z]+)","(.*)",[global,{return,list}]) of
+  Pattern2=case re:replace(Pattern1,"(\\(*:[a-zA-Z]+\\)*)","(.*)",[global,{return,list}]) of
     Value2 when is_list(Value2) ->
       Value2;
     nomatch ->
@@ -110,13 +127,13 @@ convert_to_pattern(URL,ExList)->
 
 exlist(URL,[])->
   URL;
-exlist(URL,[{Name,Pattern}|ExList])->
-  List=re:replace(URL,Name,Pattern,[{return,list}]),
+exlist(URL,[{Name,Pattern}|ExList]) ->
+  List=re:replace(URL,"\\(*"++Name++"*\\)",Pattern,[{return,list}]),
   exlist(List,ExList).
 
 
 %%%===================================================================
-%%% Test functions function
+%%% Test functions
 %%%===================================================================
 
 -include_lib("eunit/include/eunit.hrl").
@@ -130,3 +147,4 @@ complex_request_test () ->
 
 parse_request_test () ->
   ?assertEqual({hds_handler,manifest,["video.mp4","high","0","0"]},parse("http://my_host/hds/video.mp4/high/Seg0-frag0",#routes{routes=[{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest}]})).
+
