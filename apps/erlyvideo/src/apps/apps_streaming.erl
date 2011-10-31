@@ -225,8 +225,8 @@ getStreamLength(State, #rtmp_funcall{args = [null, FullName | _]} = AMF) ->
 seek(State, #rtmp_funcall{args = [_, Timestamp], stream_id = StreamId}) ->
   Socket = rtmp_session:get(State, socket),
   Stream = rtmp_session:get_stream(StreamId, State),
-  Player = rtmp_stream:get(Stream, player),
-  % ?D({self(), "seek", round(Timestamp), BaseDTS, Player}),
+  Player = rtmp_stream:get(Stream, pid),
+  ?D({self(), StreamId, seek, round(Timestamp), StreamId, Stream}),
   case ems_media:seek(Player, Timestamp) of
     seek_failed -> 
       rtmp_lib:seek_failed(Socket, StreamId),
