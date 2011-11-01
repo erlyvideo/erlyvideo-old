@@ -122,7 +122,6 @@ start(normal, []) ->
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
   start_http(),
-  start_mpegts(),
   start_rtmp(),
 	start_modules(),
 	load_plugin_files(),
