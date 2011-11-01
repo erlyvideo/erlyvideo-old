@@ -111,6 +111,7 @@ fail(RTMP, AMF) -> rtmp_socket:invoke(RTMP, AMF#rtmp_funcall{command = '_error',
 
 %% @spec (RTMP::rtmp_socket()) -> any()
 %% @doc Send connect request to server with some predefined params
+-spec connect(RTMP::rtmp_socket_pid()) -> ok.
 connect(RTMP) ->
   {url, URL} = rtmp_socket:getopts(RTMP, url),
   connect(RTMP, default_connect_options(URL)).
@@ -130,7 +131,8 @@ connect(RTMP, Options) ->
   },
   % io:format("~p -> ~p~n", [{connect, Options}, ConnectArgs]),
   rtmp_socket:invoke(RTMP, AMF),
-  wait_for_reply(RTMP, InvokeId).
+  wait_for_reply(RTMP, InvokeId),
+  ok.
   
 createStream(RTMP) ->
   InvokeId = 1,

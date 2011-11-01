@@ -107,6 +107,11 @@ start(normal, []) ->
 	error_logger:info_report("Starting Erlyvideo ..."),
   LicenseReply = ems_license_client:load(),
   ems_log:start(),
+  set_logging_function(erlmedia),
+  set_logging_function(mpegts),
+  set_logging_function(rtmp),
+  set_logging_function(rtsp),
+  set_logging_function(rtp),
 	load_config(),
   load_script_paths(),
 	lists:foreach(fun(PluginPath) ->
@@ -117,7 +122,6 @@ start(normal, []) ->
   ems_vhosts:start(),
   {ok, Supervisor} = ems_sup:start_link(),
   start_http(),
-  start_mpegts(),
   start_rtmp(),
 	start_modules(),
 	load_plugin_files(),
@@ -160,17 +164,14 @@ start_http() ->
       ems_sup:start_http_server(HTTP)
   end.
 
-start_mpegts() ->
-  application:set_env(mpegts, logging_function, fun(M, L, X) ->
-    ems_log:debug(3, mpegts, "~p:~p ~p",[M, L, X])
-  end).
 
+set_logging_function(Application) ->
+  application:set_env(Application, logging_function, fun(M, L, X) ->
+    ems_log:debug(3, Application, "~p:~p ~240p",[M, L, X])
+  end).
   
 
 start_rtmp() ->
-  application:set_env(rtmp, logging_function, fun(M, L, X) ->
-    ems_log:debug(3, rtmp, "~p:~p ~p",[M, L, X])
-  end),
   case ems:get_var(rtmp_port, 1935) of
     undefined ->
       ok;

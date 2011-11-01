@@ -174,7 +174,7 @@ setopts(RTMP, Options) ->
 %%  <li><code>address</code> - get remote client IP and port</li>
 %% </ul>
 %% @end
--spec(getopts(RTMP::rtmp_socket_pid(), Options::[Key::atom()]) -> ok).
+-spec(getopts(RTMP::rtmp_socket_pid(), Options::atom()|[Key::atom()]) -> any()).
 getopts(RTMP, Options) ->
   gen_fsm:sync_send_all_state_event(RTMP, {getopts, Options}, ?RTMP_TIMEOUT).
 
