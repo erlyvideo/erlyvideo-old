@@ -6,7 +6,7 @@
 -include_lib("proper/include/proper.hrl").
 
 %% API
--export([init/0,handler/2,prop_sm/0]).
+-export([init/0,handler/2,prop_tests/0,get_params/1]).
 
 -define(FILE_NAME,"routes.conf").
 
@@ -29,16 +29,17 @@ handler(URL,State) ->
 %%% Main parse function
 %%%===================================================================
 
-parse(URL,#routes{routes=Routes}) ->
-%%% Get list of parameters
-  ParamList = 
+get_params(URL) ->
     case re:run(URL,"http://([-_a-zA-Z0-9.]+):*([0-9]*)/*([-_a-zA-Z0-9.=/]*)",[{capture,all_but_first,list}]) of
       {match,[_Host,_Port,RawParams]} ->
 	RawParams;
       nomatch ->
 	[]
-    end,
+    end.
 
+parse(URL,#routes{routes=Routes}) ->
+%%% Get list of parameters
+  ParamList=get_params(URL),
 %%% Implementation of parsing lambda 
   Route = 
     fun(List)->
@@ -150,9 +151,36 @@ complex_request_test () ->
 parse_request_test () ->
   ?assertEqual({hds_handler,manifest,[{"video","video.mp4"},{"quality","high"},{"segment","0"},{"fragment","0"}]},parse("http://my_host/hds/video.mp4/high/Seg0-frag0",#routes{routes=[{"hds/(.*)/(.*)/Seg(.*)-frag(.*)",hds_handler,manifest,[["video"],["quality"],["segment"],["fragment"]]}]})).
 
-prop_sm() ->
-  ?FORALL(Msg, union([list(), list(range(1,255))]),
-	  begin
-	    io:format("~p",[Msg]),
-	    is_atom(parse(Msg,#routes{routes=get_routes([[{"hds/:video/:quality/Seg(:segment)-frag(:fragment)",hds_handler,manifest}]])}))
-	  end). 
+
+hostname_head_char() ->
+  oneof([choose($a, $z), choose($A, $Z), choose($0, $9)]).
+
+hostname_char() ->
+  oneof([choose($a, $z), choose($A, $Z), choose($0, $9), $-]).
+
+hostname_label() ->
+  ?SUCHTHAT(Label, [hostname_head_char()|list(hostname_char())],
+	    length(Label) < 64).
+
+hostname() ->
+  ?SUCHTHAT(Hostname,
+	    ?LET(Labels, list(hostname_label()), string:join(Labels, ".")),
+	    length(Hostname) > 0 andalso length(Hostname) =< 255).
+
+port_number() ->
+  choose(1, 16#ffff).
+
+port_str() ->
+  oneof(["", ?LET(Port, port_number(), ":" ++ integer_to_list(Port))]).
+
+server() ->
+  ?LET({Hostname, PortStr}, {hostname(), port_str()}, Hostname ++ PortStr).
+
+path() ->
+  ?SUCHTHAT(Hostname,list(hostname_label()),length(Hostname) =< 255).
+
+get_params_prop_test() ->
+  ?FORALL({Server,Path}, {server(),path()},get_params("http://"++Server++"/"++string:join(Path,"/"))=:=string:join(Path,"/")). 
+
+prop_tests()->
+  proper:quickcheck(?MODULE:get_params_prop_test()).
