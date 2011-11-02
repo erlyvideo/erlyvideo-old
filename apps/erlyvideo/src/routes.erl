@@ -193,26 +193,45 @@ variable_char_vector() ->
 
 variable() ->
   frequency([
-	     {25,?LET({Var,Text1,Text2},{variable_char_vector(),variable_char_vector(),variable_char_vector()},Text1++"("++":"++Var++")"++Text2)},
-	     {75,?LET(Var,variable_char_vector(),":"++Var)}
+	     %{25,?LET({Var,Text1,Text2},{variable_char_vector(),variable_char_vector(),variable_char_vector()},{Var,Text1++Var++Text2,Text1++"("++":"++Var++")"++Text2})},
+	     {75,?LET(Var,variable_char_vector(),{Var,Var,":"++Var})}
 	    ]).
 
 variable_list() ->
   ?LET(Num,nat(),vector(Num+1,variable())).
 
 complex_variable() ->
-  ?LET(VariableList,variable_list(),begin
-       string:join(VariableList,".") end).
+  ?LET(
+     VariableList,variable_list(),
+     begin
+       UrlValues= [Element ||{_,Element,_}<-VariableList],
+       UrlVars = [Element || {_,_,Element}<-VariableList],
+       Values = [Element || {Element,_,_}<-VariableList],
+       {lists:merge(Values),lists:merge(UrlValues),lists:merge(UrlVars)} 
+     end).
 
 variable_complex_list() ->
   ?LET(Num,nat(),vector(Num,complex_variable())).
 
 get_params_prop_test() ->
-  ?FORALL({Server,Path,Variable}, {server(),path(),variable_complex_list()},
-	  begin
-	    io:format("~p",[Variable]),
-	    get_params("http://"++Server++"/"++string:join(Path,"/"))=:=string:join(Path,"/")
-	  end). 
+  ?FORALL(
+     {Server,Path,Variable}, {server(),path(),variable_complex_list()},
+     begin
+       io:format("~p",[Variable]),
+       get_params("http://"++Server++"/"++string:join(Path,"/"))=:=string:join(Path,"/")
+     end). 
+parse_complex_prop_test() ->
+  ?FORALL(
+     {Server,Vars},{server(),variable_complex_list()},
+     begin
+       RoutePath = [Element || {_,_,Element}<-Vars],
+       Vv = [{Element, Element} || {Element,_,_}<-Vars],
+       UrlPath = [Element || {Element,_,_}<-Vars],
+       Url = "http://"++Server++"/"++string:join(UrlPath,"/"),
+       Route = [[{string:join(RoutePath,"/"),handler,manifest}]],
+       io:format("~p, ~p ~p ~p~n",[lists:flatten(Url),lists:flatten(Route), parse(Url,#routes{routes=get_routes(Route)}),Vv]),
+       {handler,manifest,Vv} =:= parse(Url,#routes{routes=get_routes(Route)})
+     end).
 
 prop_tests()->
-  proper:quickcheck(?MODULE:get_params_prop_test()).
+  proper:quickcheck(?MODULE:parse_complex_prop_test()).
