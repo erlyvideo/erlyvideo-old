@@ -162,6 +162,10 @@ hostname_head_char() ->
 hostname_char() ->
   frequency([{5,$-},{25,choose($a,$z)},{25,choose($A,$Z)},{25,choose($0,$9)}]).
 
+variable_char() ->
+  frequency([{5,$-},{25,choose($a,$z)},{25,choose($A,$Z)},{25,choose($0,$9)}]).
+
+
 hostname_label() ->
   ?SUCHTHAT(Label, [hostname_head_char()|list(hostname_char())],
 	    length(Label) < 64).
@@ -180,12 +184,33 @@ port_str() ->
 server() ->
   ?LET({Hostname, PortStr}, {hostname(), port_str()}, Hostname ++ PortStr).
 
+
 path() ->
-  ?SUCHTHAT(Hostname,list(hostname_label()),length(Hostname) =< 255).
+  ?LET(Num,nat(),vector(Num,hostname_label())).
+
+variable_char_vector() ->
+  ?LET(Num,nat(),vector(Num+1,variable_char())).
+
+variable() ->
+  frequency([
+	     {25,?LET({Var,Text1,Text2},{variable_char_vector(),variable_char_vector(),variable_char_vector()},Text1++"("++":"++Var++")"++Text2)},
+	     {75,?LET(Var,variable_char_vector(),":"++Var)}
+	    ]).
+
+variable_list() ->
+  ?LET(Num,nat(),vector(Num+1,variable())).
+
+complex_variable() ->
+  ?LET(VariableList,variable_list(),begin
+       string:join(VariableList,".") end).
+
+variable_complex_list() ->
+  ?LET(Num,nat(),vector(Num,complex_variable())).
 
 get_params_prop_test() ->
-  ?FORALL({Server,Path}, {server(),path()},
+  ?FORALL({Server,Path,Variable}, {server(),path(),variable_complex_list()},
 	  begin
+	    io:format("~p",[Variable]),
 	    get_params("http://"++Server++"/"++string:join(Path,"/"))=:=string:join(Path,"/")
 	  end). 
 
