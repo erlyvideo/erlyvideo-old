@@ -3,10 +3,7 @@
 %%% Created : 27 Oct 2011 by Ilya Shcherbak <ilya@erlyvideo.org>
 %%%-------------------------------------------------------------------
 -module(routes).
--ifdef(TEST).
 -include_lib("proper/include/proper.hrl").
--export([prop_sm/0]).
--endif().
 
 %% API
 
@@ -143,7 +140,6 @@ exlist(URL,[{Name,Pattern}|ExList]) ->
 %%% Test functions
 %%%===================================================================
 
--ifdef(TEST).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -161,10 +157,10 @@ parse_request_test () ->
 
 
 hostname_head_char() ->
-  oneof([choose($a, $z), choose($A, $Z), choose($0, $9)]).
+  frequency([{50,choose($a,$z)},{25,choose($A,$Z)},{25,choose($0,$9)}]).
 
 hostname_char() ->
-  oneof([choose($a, $z), choose($A, $Z), choose($0, $9), $-]).
+  frequency([{5,$-},{25,choose($a,$z)},{25,choose($A,$Z)},{25,choose($0,$9)}]).
 
 hostname_label() ->
   ?SUCHTHAT(Label, [hostname_head_char()|list(hostname_char())],
@@ -188,8 +184,10 @@ path() ->
   ?SUCHTHAT(Hostname,list(hostname_label()),length(Hostname) =< 255).
 
 get_params_prop_test() ->
-  ?FORALL({Server,Path}, {server(),path()},get_params("http://"++Server++"/"++string:join(Path,"/"))=:=string:join(Path,"/")). 
+  ?FORALL({Server,Path}, {server(),path()},
+	  begin
+	    get_params("http://"++Server++"/"++string:join(Path,"/"))=:=string:join(Path,"/")
+	  end). 
 
 prop_tests()->
   proper:quickcheck(?MODULE:get_params_prop_test()).
-
