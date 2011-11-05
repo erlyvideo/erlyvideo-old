@@ -44,15 +44,16 @@ accept(CliSocket, Args) ->
   try raw_accept(CliSocket, Args) of
     Reply -> Reply
   catch
+    % _Class:{noproc, _} -> ok;
     _Error:Reason -> error_logger:error_msg("Error in RTMP Listener: ~p~n~p~n", [Reason, erlang:get_stacktrace()])
   end.  
 
 raw_accept(CliSocket, [Callback|Args]) ->
   {ok, RTMP} = rtmp_sup:start_rtmp_socket(accept),
   gen_tcp:controlling_process(CliSocket, RTMP),
-  rtmp_socket:set_socket(RTMP, CliSocket),
   {ok, Pid} = erlang:apply(Callback, create_client, [RTMP|Args]),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
+  rtmp_socket:set_socket(RTMP, CliSocket),
   ok.
 
 

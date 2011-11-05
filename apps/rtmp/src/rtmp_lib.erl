@@ -32,6 +32,7 @@
 -export([channel_id/2, empty_audio/2]).
 -export([accept_connection/1, accept_connection/2, reject_connection/1]).
 -export([reply/2, reply/3, fail/2]).
+-export([notify_publish_start/4]).
 
 -export([call/4]).
 
@@ -413,6 +414,22 @@ play_failed(RTMP, StreamId) ->
 channel_id(metadata, StreamId) -> 4 + StreamId;
 channel_id(video, StreamId) -> 6 + StreamId;
 channel_id(audio, StreamId) -> 5 + StreamId.
+
+
+notify_publish_start(RTMP, StreamId, SessionId, Name) when is_list(Name) ->
+  notify_publish_start(RTMP, StreamId, SessionId, list_to_binary(Name));
+
+notify_publish_start(RTMP, StreamId, SessionId, Name) ->
+  rtmp_socket:send(RTMP, #rtmp_message{type = stream_begin, stream_id = StreamId}),
+  Arg = {object, [
+    {level, <<"status">>}, 
+    {code, <<"NetStream.Publish.Start">>}, 
+    {description, <<"Publishing ", Name/binary, ".">>},
+    {clientid, SessionId}
+  ]},
+  Msg = rtmp_socket:prepare_invoke(StreamId, onStatus, [Arg]),
+  rtmp_socket:send(RTMP, Msg),
+  ok.
 
 % wait_for(Msg) ->
 %   receive

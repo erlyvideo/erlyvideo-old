@@ -48,7 +48,7 @@ init(Session) ->
 %% @end
 %%-------------------------------------------------------------------------
 create_client(Socket) ->
-  {ok, Pid} = ems_sup:start_rtmp_session(Socket),
+  {ok, Pid} = rtmp_sup:start_rtmp_session(Socket, ?MODULE),
   {ok, Pid}.
 
 

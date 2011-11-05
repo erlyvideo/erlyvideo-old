@@ -49,6 +49,7 @@
 -export([call_function/2]).
 
 
+-export([connect/2]).
 -export([createStream/2, deleteStream/2, closeStream/2, releaseStream/2]).
 -export([receiveAudio/2, receiveVideo/2]).
 
@@ -414,7 +415,11 @@ call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{} = AM
 call_default_function(#rtmp_session{module = M} = Session, #rtmp_funcall{command = Command} = AMF) ->
   case erlang:function_exported(?MODULE, Command, 2) of
     true -> ?MODULE:Command(Session, AMF);
-    false -> M:handle_control({unhandled_call, AMF}, Session)
+    false -> 
+      case M:handle_control({unhandled_call, AMF}, Session) of
+        {ok, Session1} -> Session1;
+        Else -> Else
+      end
   end.
   
 
@@ -563,6 +568,14 @@ get_socket(#rtmp_session{socket = Socket}) -> Socket.
 
 
 
+%%-------------------------------------------------------------------------
+%% Default RTMP functionality
+%%-------------------------------------------------------------------------
+
+
+connect(#rtmp_session{} = State, _AMF) ->
+  rtmp_session:accept_connection(State).
+
 
 %% @private
 createStream(#rtmp_session{} = State, AMF) -> 
@@ -575,9 +588,6 @@ releaseStream(State, #rtmp_funcall{} = _AMF) ->
   State.
 
 
-%%-------------------------------------------------------------------------
-%% @private
-%%-------------------------------------------------------------------------
 
 closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) -> 
   % ?D({closeStream,StreamId}),

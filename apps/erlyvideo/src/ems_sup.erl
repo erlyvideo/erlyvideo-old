@@ -56,7 +56,7 @@
 
 
 -export([init/1,start_link/0]).
--export([start_rtmp_session/1, start_media/3, 
+-export([start_media/3, 
           start_shoutcast_reader/1, start_recorder/3,
           start_deskshare_capture/2,
           start_http_server/1, start_ticker/3, start_mjpeg_reader/2]).
@@ -68,11 +68,6 @@ start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
--spec start_rtmp_session(RTMPSocket::pid()) -> {'error',_} | {'ok',pid()}.
-start_rtmp_session(RTMPSocket) ->
-  {ok, Pid} = supervisor:start_child(rtmp_session_sup, [ems_rtmp]),
-  rtmp_session:set_socket(Pid, RTMPSocket),
-  {ok, Pid}.
 
 start_shoutcast_reader(Consumer) ->
   supervisor:start_child(shoutcast_reader_sup, [Consumer]).
@@ -170,19 +165,6 @@ init([deskshare_sup]) ->
 init([deskshare_capture_sup]) ->
   {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(deskshare, [])]}};
 
-
-%%%%%%%%  User sessions  %%%%%%%%
-
-init([ems_user_sessions_sup]) ->
-  {ok, {{one_for_one, 1000, 20},[
-    ?SUPERVISOR_LINK(rtmp_session_sup)
-  ]}};
-
-
-  
-init([rtmp_session_sup]) ->
-  {ok, {{simple_one_for_one, ?MAX_RESTART, ?MAX_TIME}, [?SIMPLE_SERVER(rtmp_session, [])]}};
-
   
 
 %%%%%%%%  HTTP Listener  %%%%%%%%
@@ -210,7 +192,6 @@ init([]) ->
     ?STATIC_SERVER(elixir_tracker_sup, elixir_tracker, []),
     ?STATIC_SERVER(media_provider_sup, media_provider, []),
     ?SUPERVISOR_LINK(erlyvideo_media_sup),
-    ?SUPERVISOR_LINK(ems_user_sessions_sup),
     ?SUPERVISOR_LINK(ems_http_sup),
     ?STATIC_SERVER(ems_event_sup, ems_event, [])
   ],

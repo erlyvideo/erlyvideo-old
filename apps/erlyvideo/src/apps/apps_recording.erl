@@ -83,18 +83,12 @@ real_publish(State, FullName, Type, StreamId) ->
   
   ems_log:access(Host, "PUBLISH ~p ~s ~p ~p ~s", [Type, Addr, UserId, SessionId, Name]),
   {ok, Recorder} = media_provider:create(Host, Name, Options),
-  Ref = erlang:monitor(process, Recorder),
   ?D({"publish",Type,Options,Recorder}),
-  rtmp_socket:send(Socket, #rtmp_message{type = stream_begin, stream_id = StreamId}),
-  Arg = {object, [
-    {level, <<"status">>}, 
-    {code, <<"NetStream.Publish.Start">>}, 
-    {description, <<"Publishing ", (list_to_binary(Name))/binary, ".">>},
-    {clientid, SessionId}
-  ]},
-  Msg = rtmp_socket:prepare_invoke(StreamId, onStatus, [Arg]),
-  rtmp_socket:send(Socket, Msg),
-  rtmp_session:set_stream(rtmp_stream:construct({pid,Recorder},{recording_ref,Ref},{stream_id,StreamId},{started, true}, {recording, true}, {name, Name}), State).
+  Ref = erlang:monitor(process, Recorder),
+  
+  rtmp_lib:notify_publish_start(Socket, StreamId, SessionId, Name),
+  
+  rtmp_session:set_stream(rtmp_stream:construct([{pid,Recorder},{recording_ref,Ref},{stream_id,StreamId},{started, true}, {recording, true}, {name, Name}]), State).
   
 extract_publish_args([]) -> [];
 extract_publish_args({"record", "true"}) -> {type, record};
