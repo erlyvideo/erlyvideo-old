@@ -304,7 +304,7 @@ send_video(Streamer, #video_frame{dts = DTS, pts = PTS, body = Body, flavor = Fl
     h264 -> ?MPEGTS_STREAMID_H264;
     mpeg2video -> ?MPEGTS_STREAMID_MPEG2
   end,
-  PES = <<1:24, Code, 0:16, PesHeader/binary, 1:32, Body/binary>>,
+  PES = iolist_to_binary([<<1:24, Code, 0:16>>, PesHeader, Body]),
   
   Keyframe = case Flavor of
     config -> 1;
@@ -408,14 +408,11 @@ enqueue_frame(#streamer{length_size = LengthSize, video_config = VideoConfig, vi
   ConfigNALS = case Flavor of
     keyframe ->
       {_, CfgNALS} = h264:unpack_config(VideoConfig),
-      CfgNALS;
+      [[<<1:32>>, NAL] || NAL <- CfgNALS];
     _ ->
       []
   end,
-  F = fun(NAL, S) ->
-    <<S/binary, 1:32, NAL/binary>>
-  end,
-  Packed = lists:foldl(F, <<9, 16#F0>>, ConfigNALS ++ BodyNALS), % Need to add AU (9 NAL) for HLS
+  Packed = [<<1:32, 9, 16#F0>>, ConfigNALS, [[<<1:24>>, NAL] || NAL <- BodyNALS]], % Need to add AU (9 NAL) for HLS
   {Streamer2, Video} = send_video(Streamer#streamer{last_dts = DTS}, Frame#video_frame{body = Packed}),
   Streamer2#streamer{video_buffer = [Video|Buffer]};
 
