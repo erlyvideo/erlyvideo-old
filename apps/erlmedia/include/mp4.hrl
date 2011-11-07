@@ -34,6 +34,8 @@
   bitrate,
   language,
   frames,
+  number,
+  index_info = [],
   sample_sizes = [],
   sample_dts = [],
   sample_offsets = [],
