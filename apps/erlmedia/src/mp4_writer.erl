@@ -65,6 +65,7 @@
 -export([write/2, write/3, pack_language/1, dump_media/2]).
 -export([init/2, handle_frame/2, write_frame/2]).
 -export([pack_durations/1]).
+-export([mp4_serialize/1]).
 
 -export([pack_compositions/1]).
 

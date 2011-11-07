@@ -32,6 +32,7 @@
 
 -behaviour(gen_format).
 -export([init/2, read_frame/2, media_info/1, properties/1, seek/3, can_open_file/1, write_frame/2]).
+-export([keyframes/1]).
 
 -record(flv_media, {
   reader,
@@ -42,6 +43,7 @@
   duration,
   height,
   width,
+  bitrate,
   audio_config,
   audio_codec,
   video_config,
@@ -96,12 +98,13 @@ first(_, Id, _DTS) ->
 properties(#flv_media{metadata = Meta}) -> Meta.
 
 
-media_info(#flv_media{width = Width, height = Height, duration = Duration} = FLV) ->
+media_info(#flv_media{width = Width, height = Height, duration = Duration, bitrate = Bitrate} = FLV) ->
   VideoStreams = case FLV#flv_media.video_codec of
     undefined -> [];
     _ -> [#stream_info{
       content = video,
       stream_id = 1,
+      bitrate = Bitrate,
       codec = FLV#flv_media.video_codec,
       config = case FLV#flv_media.video_config of
         #video_frame{body = VideoBody} -> VideoBody;
@@ -212,6 +215,10 @@ parse_metadata(MediaInfo, [<<"onMetaData">>, Meta]) ->
       ElseH -> round(ElseH)
     end,
     duration = Duration,
+    bitrate = case proplists:get_value(videodatarate, Meta1) of
+      undefined -> undefined;
+      BR -> round(BR*1000)
+    end,
     metadata = [{duration,Duration}|Meta2]
   },
   case proplists:get_value(keyframes, Meta1) of
@@ -227,6 +234,9 @@ parse_metadata(MediaInfo, Meta) ->
   ?D({"Unknown metadata", Meta}),
   {MediaInfo, false}.
 
+
+keyframes(#flv_media{frames = Frames}) ->
+  ets:tab2list(Frames).
 
 insert_keyframes(MediaInfo, [], _) -> MediaInfo;
 insert_keyframes(MediaInfo, _, []) -> MediaInfo;

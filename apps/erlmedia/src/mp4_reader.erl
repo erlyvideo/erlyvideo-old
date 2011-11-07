@@ -339,5 +339,7 @@ keyframes(#mp4_media{} = Media) ->
   Options = [],
   Video = track_for_bitrate(Media, proplists:get_value(bitrate, Options)),
   Audio = track_for_language(Media, proplists:get_value(language, Options)),
-  Keyframes = mp4:keyframes(Media, Video),
+  Keyframes = mp4:keyframes(Media, Audio, Video),
   [{DTS, #frame_id{id = Id, v = Video, a = Audio}} || {DTS, Id} <- Keyframes].
+
+

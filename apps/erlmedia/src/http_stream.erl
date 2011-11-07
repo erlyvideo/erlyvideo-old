@@ -152,13 +152,18 @@ get_with_body(URL, Options) ->
               end
           end;
         Length ->
-          {ok, Body} = gen_tcp:recv(Socket, ems:to_i(Length)),
+          {ok, Body} = gen_tcp:recv(Socket, to_i(Length)),
  %         gen_tcp:close(Socket),
           {ok, Socket, Headers, Body}
       end;
     Else ->
       Else
   end.  
+
+to_i(L) when is_list(L) -> list_to_integer(L);
+to_i(B) when is_binary(B) -> to_i(binary_to_list(B));
+to_i(I) when is_number(I) -> I.
+  
 
 get_plain_body(Socket) ->
   get_plain_body(Socket, []).
