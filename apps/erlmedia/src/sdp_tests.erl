@@ -576,6 +576,26 @@ a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdelta
 ">>.
 
 
+avformat_sdp() ->
+<<"v=0
+o=- 0 0 IN IP4 127.0.0.1
+t=0 0
+s=No Title
+a=tool:libavformat 52.32.0
+m=audio 0 RTP/AVP 96
+b=AS:112
+a=rtpmap:96 L16/22050/1
+a=control:streamid=0
+m=video 0 RTP/AVP 96
+b=AS:1000
+a=rtpmap:96 H264/90000
+a=fmtp:96 packetization-mode=1; sprop-parameter-sets=Z00AH9oBABhsBVIAAAMABAAAAwB4wIAB6EgAFJl3vfC8IhGo,aM48gA==
+a=control:streamid=1
+a=framesize:96 1024-768
+">>.
+
+avformat_test() ->
+  SDP = sdp:decode(avformat_sdp()).
 
 treart_sdp() ->
 <<"v=0
