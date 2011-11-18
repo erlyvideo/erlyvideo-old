@@ -69,20 +69,22 @@ read_raw(URL, Options) ->
   ok == ConnectResult orelse erlang:error(ConnectResult),
   % {ok, _Methods} = rtsp_socket:options(RTSP, Options),
   {ok, MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
+  ?D(AvailableTracks),
   Tracks = case proplists:get_value(tracks, Options) of
     undefined -> AvailableTracks;
     RequestedTracks -> [T || T <- AvailableTracks, lists:member(T,RequestedTracks)]
   end,
   [ok = rtsp_socket:setup(RTSP, Track, Options) || Track <- Tracks],
   ok = rtsp_socket:play(RTSP, Options),
-  {ok, RTSP, MediaInfo}.
+  {ok,RTSP,MediaInfo}.
+
 
 
 options(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
   gen_server:call(RTSP, {request, options}, Timeout).
 
-describe(RTSP, Options) ->
+describe(RTSP, Options) -> 
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
   gen_server:call(RTSP, {request, describe}, Timeout).
 
