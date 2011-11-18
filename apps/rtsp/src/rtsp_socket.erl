@@ -69,16 +69,16 @@ read_raw(URL, Options) ->
   ok == ConnectResult orelse erlang:error(ConnectResult),
   % {ok, _Methods} = rtsp_socket:options(RTSP, Options),
   {ok, MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
-  ?D(AvailableTracks),
-  Tracks = case proplists:get_value(tracks, Options) of
-    undefined -> AvailableTracks;
-    RequestedTracks -> [T || T <- AvailableTracks, lists:member(T,RequestedTracks)]
+  {NewMediaInfo,Tracks} = 
+    case proplists:get_value(tracks, Options) of
+      undefined -> {MediaInfo,AvailableTracks};
+      RequestedTracks -> 
+	Tracks1 = [T || T <- AvailableTracks, lists:member(T,RequestedTracks)],
+	{rm_tracks_from_mediainfo(MediaInfo,Tracks1),Tracks1}
   end,
   [ok = rtsp_socket:setup(RTSP, Track, Options) || Track <- Tracks],
   ok = rtsp_socket:play(RTSP, Options),
-  {ok,RTSP,MediaInfo}.
-
-
+  {ok,RTSP,NewMediaInfo}.
 
 options(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
@@ -440,6 +440,33 @@ reply(#rtsp_socket{socket = Socket} = State, Code, Headers, Body) ->
   io:format("[RTSP Response to Client]~n~s", [Reply]),
   gen_tcp:send(Socket, Reply),
   State1.
+
+rm_tracks_from_mediainfo(#media_info{audio=A,video=V}=MediaInfo,Tracks) ->
+  NewV = rm_tracks_from_mediainfo(V,Tracks),
+  NewA = rm_tracks_from_mediainfo(A,Tracks),
+  MediaInfo#media_info{audio=NewA,video=NewV};
+
+rm_tracks_from_mediainfo(Elements,Tracks) ->
+  lists:foldl(
+    fun(Element,Acc) ->
+	NewElement=
+	  lists:foldl(
+	    fun(T,Acc1) -> 
+		CurTrack = "track"++erlang:integer_to_list(T),
+		case proplists:get_value(control,Element#stream_info.options) of
+		  CurTrack->
+		    [Element|Acc1];
+		  _->
+		    Acc1
+		end
+	    end,[],Tracks),
+	case NewElement of
+	  [] ->
+	    Acc;
+	  [Else] ->
+	    [Else|Acc]
+	end
+    end,[],Elements).
 
 
 
