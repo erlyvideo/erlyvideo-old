@@ -28,7 +28,7 @@
 -export([start/2, loop/2]).
 
 -define(COUNTER, 100).
--define(TIMEOUT, 1000).
+-define(TIMEOUT, 5000).
 
 -record(pusher, {
   from_url,
