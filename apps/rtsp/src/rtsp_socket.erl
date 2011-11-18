@@ -49,7 +49,7 @@
 -export([read/2, connect/3, options/2, describe/2, setup/3, play/2, teardown/1]).
 
 
--export([handle_sdp/3, reply/3, reply/4, save_media_info/2, generate_session/0,rm_track_in_mediainfo/2]).
+-export([handle_sdp/3, reply/3, reply/4, save_media_info/2, generate_session/0]).
 
 read(URL, Options) when is_binary(URL) ->
   read(binary_to_list(URL), Options);
@@ -68,42 +68,17 @@ read_raw(URL, Options) ->
   ConnectResult = rtsp_socket:connect(RTSP, URL, Options),
   ok == ConnectResult orelse erlang:error(ConnectResult),
   % {ok, _Methods} = rtsp_socket:options(RTSP, Options),
-  {ok, #media_info{audio=A,video=V}=MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
+  {ok, MediaInfo, AvailableTracks} = rtsp_socket:describe(RTSP, Options),
   ?D(AvailableTracks),
   Tracks = case proplists:get_value(tracks, Options) of
     undefined -> AvailableTracks;
     RequestedTracks -> [T || T <- AvailableTracks, lists:member(T,RequestedTracks)]
   end,
-  ?D({Tracks,A,V}),
   [ok = rtsp_socket:setup(RTSP, Track, Options) || Track <- Tracks],
   ok = rtsp_socket:play(RTSP, Options),
-  ?D({Tracks,A,V}),
-  {ok, RTSP, MediaInfo#media_info{audio=rm_track_in_mediainfo(A,Tracks),video=rm_track_in_mediainfo(V,Tracks)}}.
+  {ok,RTSP,MediaInfo}.
 
-rm_track_in_mediainfo(Elements,[])->
-  Elements;
 
-rm_track_in_mediainfo(Elements,Tracks) ->
-  L = lists:foldl(
-	fun(Element,Acc) ->
-	    NewElement=
-	      lists:foldl(
-		fun(T,Acc1) -> 
-		    CurTrack = "track"++erlang:integer_to_list(T),
-		    case proplists:get_value(control,Element#stream_info.options) of
-		      CurTrack->
-			[Element|Acc1];
-		      _->
-			Acc1
-		    end
-		end,[],Tracks),
-	    case NewElement of
-	      [] ->
-		Acc;
-	      [Else] ->
-		[Else|Acc]
-	    end
-	end,[],Elements),L.
 
 options(RTSP, Options) ->
   Timeout = proplists:get_value(timeout, Options, 5000)*2,
