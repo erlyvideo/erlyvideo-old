@@ -95,12 +95,11 @@ handle_control(timeout, #ems_media{source = Reader} = Media) ->
   {noreply, Media};
 
 handle_control({make_request, URL}, #ems_media{state = #rtsp{timeout = Timeout}, options = Options}) ->
-  Tracks = proplists:get_value(tracks,Options,[]),
-  {ok,RTSP,#media_info{audio=A,video=V}=MediaInfo} = rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
+  {ok,RTSP,MediaInfo} = rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
                          {dump_traffic,proplists:get_value(dump_traffic,Options,true)},
                          {transport,proplists:get_value(transport,Options,tcp)},
-                         {tracks, Tracks}]),
-  {ok, RTSP, MediaInfo#media_info{audio=rm_track_in_mediainfo(A,Tracks),video=rm_track_in_mediainfo(V,Tracks)}};
+			 {tracks, proplists:get_value(tracks,Options)}]),
+  {ok, RTSP, MediaInfo};
 
 handle_control(_Control, State) ->
   {noreply, State}.
@@ -131,27 +130,6 @@ handle_info(make_request, Media) ->
 handle_info(_Message, State) ->
   {noreply, State}.
 
-rm_track_in_mediainfo(Elements,[])->
-  Elements;
 
-rm_track_in_mediainfo(Elements,Tracks) ->
-  lists:foldl(
-    fun(Element,Acc) ->
-	NewElement=
-	  lists:foldl(
-	    fun(T,Acc1) -> 
-		CurTrack = "track"++erlang:integer_to_list(T),
-		case proplists:get_value(control,Element#stream_info.options) of
-		  CurTrack->
-		    [Element|Acc1];
-		  _->
-			Acc1
-		end
-	    end,[],Tracks),
-	case NewElement of
-	  [] ->
-	    Acc;
-	  [Else] ->
-	    [Else|Acc]
-	end
-    end,[],Elements).
+
+
