@@ -95,7 +95,7 @@ handle_control(timeout, #ems_media{source = Reader} = Media) ->
   {noreply, Media};
 
 handle_control({make_request, URL}, #ems_media{state = #rtsp{timeout = Timeout}, options = Options}) ->
-  Tracks = proplists:get_value(tracks,Options),
+  Tracks = proplists:get_value(tracks,Options,[]),
   {ok,RTSP,#media_info{audio=A,video=V}=MediaInfo} = rtsp_socket:read(URL, [{consumer, self()},{timeout,Timeout},
                          {dump_traffic,proplists:get_value(dump_traffic,Options,true)},
                          {transport,proplists:get_value(transport,Options,tcp)},
