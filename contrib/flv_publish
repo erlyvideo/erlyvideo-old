@@ -1,0 +1,24 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa ebin -pa apps/amf/ebin -pa apps/erlmedia/ebin
+
+main([]) ->
+  io:format("flv_publish path url~n"),
+  ok;
+
+main([In, Out]) ->
+  {ok, _InHeaders, InSock} = http_stream:get(In, []),
+  {http, _, Host, Port, Path, []} = http_uri2:parse(Out),
+  {ok, OutSock} = gen_tcp:connect(Host, Port, [binary]),
+  S = io_lib:format("PUT ~s HTTP/1.1\r\nHost: ~s\r\n\r\n", [Path, Host]),
+  gen_tcp:send(OutSock, S),
+  loop(InSock, OutSock).
+
+
+loop(In, Out) ->
+  {ok, Bin} = gen_tcp:recv(In, 8192),
+  gen_tcp:send(Out, Bin),
+  loop(In, Out).
+
+  
+
