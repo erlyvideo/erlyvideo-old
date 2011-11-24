@@ -177,7 +177,7 @@ write_mp4(Reader, ReadOffset, Convertor) ->
 init(Writer, Options) ->
   {ok, HeaderEnd} = mp4_write(Writer, 0, mp4_header() ++ proplists:get_value(mp4, Options, [])),
   Method = proplists:get_value(method, Options),
-  ?D({add_mp4, proplists:get_value(mp4, Options, [])}),
+  % ?D({add_mp4, proplists:get_value(mp4, Options, [])}),
   % ?D({header_end, HeaderEnd}),
   
   {ok, WriteOffset} = case Method of
@@ -206,16 +206,16 @@ handle_frame(#video_frame{codec = empty}, Convertor) ->
   {ok, Convertor};
     
 handle_frame(#video_frame{flavor = config, content = video, body = Config}, Convertor) ->
-  ?D("mp4_writer got video config"),
+  % ?D("mp4_writer got video config"),
   {ok, Convertor#convertor{video_config = Config}};
 
 handle_frame(#video_frame{flavor = config, content = audio, body = Config}, Convertor) ->
-  ?D("mp4_writer got audio config"),
+  % ?D("mp4_writer got audio config"),
   {ok, Convertor#convertor{audio_config = Config}};
 
 handle_frame(#video_frame{codec = mp3, body = Body}, #convertor{audio_config = undefined} = Convertor) ->
   {ok, #mp3_frame{} = Config, _} = mp3:read(Body),
-  ?D("mp4_writer got audio config"),
+  % ?D("mp4_writer got audio config"),
   {ok, Convertor#convertor{audio_config = Config}};
   
 

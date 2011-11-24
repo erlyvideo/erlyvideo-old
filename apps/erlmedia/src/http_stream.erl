@@ -51,7 +51,8 @@ make_request_with_redirect(URL, Options, RedirectsLeft) ->
     {http, _Socket, Code} ->
       {error, {http_code, Code}};
     {tcp_closed, _Socket} ->
-      {error, normal};
+      make_request_with_redirect(URL, lists:keydelete(socket, 1, Options), RedirectsLeft);
+      % {error, tcp_closed};
     {error, Reason} ->
       {error, Reason}
   end.
@@ -120,10 +121,8 @@ make_raw_request(URL, Options) ->
     {http, Socket, {http_response, _Version, Code, _Reply}} ->
       {http, Socket, Code};
     {tcp_closed, Socket} ->
-      ?D(normallll),
-      {error, normal};
+      {error, tcp_closed};
     {tcp_error, Socket, Reason} ->
-      ?D(Reason),
       {error, Reason}
   after
     Timeout ->
@@ -202,13 +201,15 @@ head(URL, Options) ->
 
 get(URL, Options) ->
   Timeout = proplists:get_value(timeout, Options, 3000),
-  {ok, Headers1, Socket} = open_socket(URL, Options),
-  case wait_for_headers(Socket, [], Timeout) of
-    {ok, Headers} ->
-      ok = inet:setopts(Socket, [{active, false},{packet,raw},{keepalive,true}]),
-      {ok, Headers ++ Headers1, Socket};
-    {error, Reason} ->
-      {error, Reason}
+  case open_socket(URL, Options) of
+    {ok, Headers1, Socket} ->
+      case wait_for_headers(Socket, [], Timeout) of
+        {ok, Headers} ->
+          ok = inet:setopts(Socket, [{active, false},{packet,raw},{keepalive,true}]),
+          {ok, Headers ++ Headers1, Socket};
+        {error, Reason} -> {error, Reason}
+      end;
+    {error, Reason} -> {error, Reason}
   end.
   
 wait_for_headers(Socket, Headers, Timeout) ->
@@ -219,7 +220,7 @@ wait_for_headers(Socket, Headers, Timeout) ->
     {http, Socket, http_eoh} ->
       {ok, lists:reverse(Headers)};
     {tcp_closed, Socket} ->
-      {error, normal};
+      {error, tcp_closed};
     {tcp_error, Socket, Reason} ->
       {error, Reason}
   after

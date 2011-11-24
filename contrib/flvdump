@@ -19,11 +19,11 @@ dump(F, Offset) ->
 
 dump_frame(#video_frame{content = Content, stream_id = StreamId, codec = Codec, flavor = Flavor, dts = DTS, body = Body, sound = Sound}) ->
   Info = case Codec of
-    _ when Flavor == config -> io_lib:format("~p", [Body]);
-    _ when Content == video -> io_lib:format("~p bytes", [size(Body)]);
-    _ when Content == audio -> io_lib:format("~p", [Sound]);
-    _ when Content == metadata -> io_lib:format("~p", [Body])
+    _ when Flavor == config -> io_lib:format("~240p", [Body]);
+    _ when Content == video -> io_lib:format("~240p bytes", [size(Body)]);
+    _ when Content == audio -> io_lib:format("~240p", [Sound]);
+    _ when Content == metadata -> io_lib:format("~240p", [Body])
   end,
     
-  io:format("~8.s ~3.B ~5.s ~9.s ~9.B ~s~n", [Content, StreamId, Codec, Flavor, round(DTS), Info]).
+  io:format("~8.s ~8.B ~5.s ~9.s ~9.B ~s~n", [Content, StreamId, Codec, Flavor, round(DTS), Info]).
 
