@@ -595,7 +595,7 @@ a=framesize:96 1024-768
 ">>.
 
 avformat_test() ->
-  SDP = sdp:decode(avformat_sdp()).
+  _SDP = sdp:decode(avformat_sdp()).
 
 treart_sdp() ->
 <<"v=0
