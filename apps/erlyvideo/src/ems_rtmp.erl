@@ -108,10 +108,12 @@ handle_control({unhandled_call, #rtmp_funcall{command = Command, args = Args} = 
 
 
 handle_control({rtmp, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}}, State) ->
-  case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
-    _ -> ok
+  Player = case rtmp_session:get_stream(StreamId, State) of
+    Stream when is_tuple(Stream) -> rtmp_stream:get(Stream, pid);
+    _ -> undefined
   end,
+  if is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
+  true -> ok end,  
   {ok, State};
   
 handle_control(_Control, Session) ->
