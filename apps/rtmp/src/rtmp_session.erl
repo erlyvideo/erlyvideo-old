@@ -331,7 +331,7 @@ handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type =
         _ -> Type
       end,
       Frame = flv_video_frame:decode(#video_frame{dts = Timestamp, pts = Timestamp, content = Type1}, Body),
-      ems_media:publish(Recorder, Frame),
+      Recorder ! Frame,
       State;
     #rtmp_stream{} ->
       ?D({broken_frame_on_empty_stream,Type,StreamId,Timestamp}),
@@ -348,13 +348,6 @@ handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) 
   shared_object:message(Object, SOEvent),
   NewState;
 
-handle_rtmp_message(#rtmp_session{} = State, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}) ->
-  case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
-    _ -> ok
-  end,
-  State;
-
 handle_rtmp_message(State, #rtmp_message{type = pong}) -> State;
 handle_rtmp_message(State, #rtmp_message{type = ping}) -> State;
 handle_rtmp_message(State, #rtmp_message{type = ack_read}) -> State;
@@ -362,9 +355,9 @@ handle_rtmp_message(State, #rtmp_message{type = window_size}) -> State;
 handle_rtmp_message(State, #rtmp_message{type = chunk_size}) -> State;
 handle_rtmp_message(State, #rtmp_message{type = broken_meta}) -> State;
 
-handle_rtmp_message(State, Message) ->
-  ?D({"RTMP", Message#rtmp_message.type}),
-  State.
+handle_rtmp_message(#rtmp_session{module = M} = State, Message) ->
+  {ok, State1} = M:handle_control({rtmp, Message}, State),
+  State1.
 
 
 find_shared_object(#rtmp_session{cached_shared_objects = Objects} = State, Name, Persistent) ->

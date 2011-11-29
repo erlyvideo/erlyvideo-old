@@ -105,9 +105,18 @@ handle_control({unhandled_call, #rtmp_funcall{command = Command, args = Args} = 
   ems_log:error(rtmp_session:get(Session, host), "Failed RTMP funcall: ~p(~p)", [Command, Args]),
   rtmp_session:fail(Session, AMF),
   {ok, Session};
+
+
+handle_control({rtmp, #rtmp_message{stream_id = StreamId, type = buffer_size, body = BufferSize}}, State) ->
+  case rtmp_session:get_stream(StreamId, State) of
+    #rtmp_stream{pid = Player} when is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
+    _ -> ok
+  end,
+  {ok, State};
   
 handle_control(_Control, Session) ->
   {ok, Session}.
+
 
 handle_info(Message, Session) ->
   Host = rtmp_session:get(Session, host),
