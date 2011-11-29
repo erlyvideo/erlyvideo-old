@@ -62,7 +62,7 @@
 -include("../include/media_info.hrl").
 -include("log.hrl").
 
--export([write/2, write/3, pack_language/1, dump_media/2]).
+-export([write/2, write/3, pack_language/1, dump_media/1]).
 -export([init/2, handle_frame/2, write_frame/2]).
 -export([pack_durations/1]).
 -export([mp4_serialize/1]).
@@ -91,7 +91,7 @@
 -define(D(X), io:format("~p:~p ~p~n", [?MODULE, ?LINE, X])).
 
 -define(H264_SCALE, 24).
--define(AUDIO_SCALE, 44.1).
+% -define(AUDIO_SCALE, 44.1).
 
 
 write(InFlvPath, OutMp4Path) ->
@@ -115,51 +115,44 @@ write(InFlvPath, OutMp4Path, Options) ->
 
 % 1294735440 .. 1294736280
 %
-dump_media(undefined, _Options) ->
+dump_media(undefined) ->
   {ok, Pid} = media_provider:open(default, "zzz"),
   {ok, Out} = file:open("out.mp4", [append, binary, raw]),
   Start = 1294735443380,
   End = 1294736280000,
   % End = 1294735448480,
-  dump_media(Pid, [{writer, fun(_Offset, Bin) ->
+  Reader = fun(Pos) ->
+    ems_media:read_frame(Pid, Pos)
+  end,
+  dump_media([{reader, Reader},{writer, fun(_Offset, Bin) ->
     file:write(Out, Bin)
   end}, {from, Start}, {to, End}]),
   file:close(Out),
   ok;
 
-dump_media(Media, Options) when is_pid(Media) ->
-  ems_media:subscribe(Media, Options),
-  #media_info{duration = Duration1} = ems_media:media_info(Media),
-  Duration = case Duration1 of
-    undefined -> 0;
-    _ -> Duration1
-  end,
-  
-  
+dump_media(Options) ->
   Writer = proplists:get_value(writer, Options),
+  Reader = proplists:get_value(reader, Options),
+  Header = proplists:get_value(header, Options),
+  StartPos = proplists:get_value(start_pos, Options),
     
-  {ok, Converter} = mp4_writer:init(Writer, [{method,two_pass}]),
-  From = proplists:get_value(start, Options, proplists:get_value(start, Options, 0)),
-  To = proplists:get_value(to, Options, proplists:get_value(duration, Options, Duration - From) + From),
-  
-  {StartPos, _} = ems_media:seek_info(Media, From, []),
-  {ok, Converter1} = dump_media_2pass(Media, Converter, StartPos, To),
-  {ok, Converter2} = shift_and_write_moov(Converter1),
+  Header(undefined),
 
-  {StartPos, _} = ems_media:seek_info(Media, From, []),
-  {ok, _Converter3} = dump_media_2pass(Media, Converter2, StartPos, To),
+  {ok, Converter} = mp4_writer:init(Writer, [{method,two_pass}]),
+  {ok, Converter1} = dump_media_2pass(Reader, Converter, StartPos),
+  {ok, Converter2} = shift_and_write_moov(Converter1),
+  {ok, _Converter3} = dump_media_2pass(Reader, Converter2, StartPos),
   ok.
 
 
-dump_media_2pass(Media, Writer, Pos, End) ->
-  case ems_media:read_frame(Media, Pos) of
+dump_media_2pass(Reader, Writer, Pos) ->
+  case Reader(Pos) of
     eof ->
       {ok, Writer};
-    #video_frame{dts = DTS} when is_number(End) andalso DTS >= End ->
-      {ok, Writer};
-    #video_frame{next_id = NewPos} = Frame ->  
+    #video_frame{next_id = NewPos} = Frame ->
+      % ?D({read, round(Frame#video_frame.dts), Frame#video_frame.flavor, Frame#video_frame.codec}),
       {ok, Writer1} = handle_frame(Frame, Writer),
-      dump_media_2pass(Media, Writer1, NewPos, End)
+      dump_media_2pass(Reader, Writer1, NewPos)
   end.
 
   
@@ -222,19 +215,22 @@ handle_frame(#video_frame{codec = mp3, body = Body}, #convertor{audio_config = u
 handle_frame(#video_frame{content = metadata}, Convertor) ->
   {ok, Convertor};
 
-handle_frame(#video_frame{body = Body} = Frame,
+handle_frame(#video_frame{} = Frame,
              #convertor{write_offset = WriteOffset, writer = Writer, method = one_pass} = Convertor) ->
+  Body = flv_video_frame:to_tag(Frame),             
   Writer(WriteOffset, Body),
   {ok, Convertor1} = append_frame_to_list(Frame, Convertor),
   {ok, Convertor1#convertor{write_offset = WriteOffset + size(Body)}};
 
-handle_frame(#video_frame{body = Body} = Frame,
+handle_frame(#video_frame{} = Frame,
              #convertor{write_offset = WriteOffset, method = two_pass} = Convertor) ->
+  Body = flv_video_frame:to_tag(Frame),             
   {ok, Convertor1} = append_frame_to_list(Frame, Convertor),
   {ok, Convertor1#convertor{write_offset = WriteOffset + size(Body)}};
 
-handle_frame(#video_frame{body = Body},
+handle_frame(#video_frame{} = Frame,
              #convertor{write_offset = WriteOffset, writer = Writer, method = two_pass2} = Convertor) ->
+  Body = flv_video_frame:to_tag(Frame),             
   Writer(WriteOffset, Body),
   {ok, Convertor#convertor{write_offset = WriteOffset + size(Body)}};
 
@@ -249,13 +245,13 @@ append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{min_dts = Min} 
 append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{max_dts = Max} = C) when Max == undefined orelse Max < DTS ->
   append_frame_to_list(Frame, C#convertor{max_dts = DTS});
 
-append_frame_to_list(#video_frame{body = Body, content = video} = Frame, 
+append_frame_to_list(#video_frame{body = Body, content = video, codec = Codec} = Frame, 
              #convertor{write_offset = WriteOffset, video_frames = Video} = Convertor) ->
-  {ok, Convertor#convertor{video_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Video]}};
+  {ok, Convertor#convertor{video_frames = [Frame#video_frame{body = {WriteOffset + flv:content_offset(Codec),size(Body)}}|Video]}};
 
-append_frame_to_list(#video_frame{body = Body, content = audio} = Frame,
+append_frame_to_list(#video_frame{body = Body, content = audio, codec = Codec} = Frame,
              #convertor{write_offset = WriteOffset, audio_frames = Audio} = Convertor) ->
-  {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset,size(Body)}}|Audio]}}.
+  {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset + flv:content_offset(Codec),size(Body)}}|Audio]}}.
 
 
 shift_and_write_moov(#convertor{writer = Writer, header_end = HeaderEnd, write_offset = WriteOffset, method = two_pass} = Convertor) ->
@@ -354,10 +350,11 @@ tracks(Convertor) ->
   video_track(Convertor) ++ audio_track(Convertor).
   
 video_track(#convertor{video_frames = []}) -> [];
-video_track(#convertor{video_frames = RevVideo, duration = DTS, url = URL} = Convertor) ->
-  Duration = round(DTS*?H264_SCALE),
+video_track(#convertor{video_frames = RevVideo1, url = URL} = Convertor) ->
 	CTime = mp4_now(),
 	MTime = mp4_now(),
+	RevVideo = normalize_h264_durations(RevVideo1),
+	Duration = lists:sum([D || #video_frame{dts = D} <- RevVideo]),
   [ {trak, [
     {tkhd, pack_video_tkhd(Convertor)},
     {edts, [
@@ -375,9 +372,11 @@ video_track(#convertor{video_frames = RevVideo, duration = DTS, url = URL} = Con
           {stco, pack_chunk_offsets(RevVideo)},
           {stts, pack_durations(RevVideo)},
           {stsz, pack_sizes(RevVideo)},
-          {ctts, pack_compositions(RevVideo)},
           {stss, pack_keyframes(RevVideo)}
-        ]}
+        ] ++ case is_ctts_required(RevVideo) of
+          true -> [{ctts, pack_compositions(RevVideo)}];
+          false -> []
+        end}
       ]}
     ]}
   ]}].
@@ -386,12 +385,14 @@ uuid_atom() ->
   <<16#6b6840f2:32, 16#5f244fc5:32, 16#ba39a51b:32, 16#cf0323f3:32, 0:32>>.
 
 audio_track(#convertor{audio_frames = []}) -> [];
-audio_track(#convertor{audio_frames = RevAudio, duration = DTS} = Convertor) ->
-  Duration = round(DTS*?AUDIO_SCALE),
+audio_track(#convertor{audio_frames = RevAudio1, audio_config = AAC} = Convertor) ->
+  #aac_config{sample_rate = SampleRate} = aac:decode_config(AAC),
+  Duration = round(length(RevAudio1)*1024 / SampleRate),
+  RevAudio = normalize_aac_durations(RevAudio1),
   [ {trak, [
     {tkhd, pack_audio_tkhd(Convertor)},
     {mdia, [
-      {mdhd, <<0, 0:24, 0:32, 0:32, (round(?AUDIO_SCALE*1000)):32, Duration:32, 0:1, (pack_language(eng))/bitstring, 0:16>>},
+      {mdhd, <<0, 0:24, 0:32, 0:32, SampleRate:32, Duration:32, 0:1, (pack_language(eng))/bitstring, 0:16>>},
       {hdlr, <<0:32, 0:32, "soun", 0:96, "SoundHandler", 0>>},
       {minf, [
         {smhd, <<0:32, 0:16, 0:16>>},
@@ -407,6 +408,52 @@ audio_track(#convertor{audio_frames = RevAudio, duration = DTS} = Convertor) ->
       ]}
     ]}
   ]}].
+
+
+normalize_aac_durations(RevAudio) ->
+  [F#video_frame{dts = 1024, pts = undefined} || #video_frame{} = F <- RevAudio].
+
+
+normalize_h264_durations(RevVideo) ->
+  Durations1 = lists:reverse(dts_to_durations(RevVideo)),
+  Timescale = ?H264_SCALE*1000,
+  Total = lists:sum(Durations1),
+  Avg = Total / length(Durations1),
+  FPS = round(Timescale / Avg),  
+  Ideal = round(Timescale / FPS),
+  IdealDuration = Ideal*length(Durations1),
+  TotalDeviation = round(abs(Total - IdealDuration)*100 / Total),
+  Deviation = [round(abs(D - Ideal)*100 / Ideal) || D <- Durations1],
+  % ?D({normalize, {time, Total}, {avg, Avg,Timescale}, {avg_abs,Avg*1000 / Timescale}, {fps, FPS, Ideal}, length(Durations1),
+  % {deviation, lists:min(Deviation), lists:max(Deviation)}}),
+  MaxDeviation = lists:max(Deviation),
+  % ?D({normalize, {avg, Avg,MaxDeviation}, {ideal, Ideal, Ideal / Timescale}, {duration,Total},{total,IdealDuration,TotalDeviation}}),
+  Durations2 = if MaxDeviation < 6 andalso TotalDeviation < 5 -> [Ideal || _ <- Durations1];
+    true -> Durations1
+  end,
+  Durations = Durations2,
+  lists:zipwith(fun(D, #video_frame{dts = DTS, pts = PTS} = Frame) ->
+    Frame#video_frame{dts = D, pts = round((PTS - DTS)*?H264_SCALE)}
+  end, Durations, RevVideo).
+
+dts_to_durations(Frames) ->
+  dts_to_durations(Frames, []).
+
+dts_to_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2} = F|ReverseFrames], []) when DTS1 > DTS2 ->
+  Duration = round((DTS1 - DTS2)*?H264_SCALE),
+	dts_to_durations([F|ReverseFrames], [Duration, Duration]);
+
+dts_to_durations([#video_frame{dts = DTS, pts = PTS}, #video_frame{dts = DTS1} = F|ReverseFrames], Acc) when DTS =< DTS1->
+	dts_to_durations([F#video_frame{dts = DTS - 1, pts = PTS - DTS1 + DTS}|ReverseFrames], [round(?H264_SCALE) | Acc]);
+
+dts_to_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2}], Acc) when DTS1 > DTS2 ->
+	[round((DTS1 - DTS2)*?H264_SCALE) | Acc];
+
+dts_to_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2} = F|ReverseFrames], Acc) when DTS1 > DTS2 ->
+	dts_to_durations([F|ReverseFrames], [round((DTS1 - DTS2)*?H264_SCALE) | Acc]).
+
+
+
 
 
 moov(#convertor{} = Convertor) ->
@@ -515,10 +562,10 @@ pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame
 
   {ObjectType, ChannelsCount} = case Codec of
     aac ->
-      #aac_config{channel_count = AACChannels} = aac:decode_config(Config),
+      #aac_config{channel_count = AACChannels, sample_rate = SampleRate} = aac:decode_config(Config),
       {64, AACChannels};
     mp3 ->
-      #mp3_frame{channels = Channels} = Config,
+      #mp3_frame{channels = Channels, sample_rate = SampleRate} = Config,
       {107, Channels}
   end,
 
@@ -545,7 +592,7 @@ pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame
   
 
   MP4A = <<Reserved:6/binary, RefIndex:16, SoundVersion:16, Unknown:6/binary, ChannelsCount:16, SampleSize:16, 
-            CompressionId:16, PacketSize:16, (round(?AUDIO_SCALE*1000)):16, 0:16>>,
+            CompressionId:16, PacketSize:16, SampleRate:16, 0:16>>,
             
   DescrTag = case Codec of
     aac -> [ConfigDescr, {?MP4DecSpecificDescrTag, Config}];
@@ -584,30 +631,31 @@ pack_video_config(#convertor{video_config = Config}) ->
         Reserved1:16, Reserved2:16>>,
   
   [Bin, {avcC, Config}, {uuid, uuid_atom()}].
+
+pack_durations([]) ->	
+  <<0:32, 0:32>>;
   
-pack_durations(ReverseFrames) ->	
-	Durations = pack_durations(ReverseFrames, []),
-	List = [<<1:32, Duration:32>> || Duration <- Durations],
+pack_durations(ReverseFrames) ->
+	Durations1 = lists:reverse([D || #video_frame{dts = D} <- ReverseFrames]),
+  % Durations2 = normalize_durations(Durations1, Content),
+	Durations = Durations1,
+
+  List1 = collapse_durations(Durations),
+  List = [<<Count:32, Duration:32>> || {Count,Duration} <- List1],
 	[<<0:32, (length(List)):32>>, List].
 
-pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], []) when DTS1 > DTS2 ->
-  Duration = round((DTS1 - DTS2)*scale_for_content(Content)),
-	pack_durations([F|ReverseFrames], [Duration, Duration]);
+collapse_durations([Duration|Durations]) ->
+  collapse_durations(Durations, 1, Duration, []).
 
-
-pack_durations([#video_frame{dts = DTS, pts = PTS}, #video_frame{dts = DTS1, content = Content} = F|ReverseFrames], Acc) when DTS =< DTS1->
-	pack_durations([F#video_frame{dts = DTS - 1, pts = PTS - DTS1 + DTS}|ReverseFrames], [round(scale_for_content(Content)) | Acc]);
-
-pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content}], Acc) when DTS1 > DTS2 ->
-	[round((DTS1 - DTS2)*scale_for_content(Content)) | Acc];
-
-pack_durations([#video_frame{dts = DTS1}, #video_frame{dts = DTS2, content = Content} = F|ReverseFrames], Acc) when DTS1 > DTS2 ->
-	pack_durations([F|ReverseFrames], [round((DTS1 - DTS2)*scale_for_content(Content)) | Acc]).
-
-
-scale_for_content(video) -> ?H264_SCALE;
-scale_for_content(audio) -> ?AUDIO_SCALE.
+collapse_durations([], Count, Duration, Acc) ->
+  lists:reverse([{Count,Duration}|Acc]);
   
+collapse_durations([Duration|Durations], Count, Duration, Acc) ->
+  collapse_durations(Durations, Count + 1, Duration, Acc);
+
+collapse_durations([NewDuration|Durations], Count, Duration, Acc) ->
+  collapse_durations(Durations, 1, NewDuration, [{Count,Duration}|Acc]).
+
 pack_sizes(ReverseFrames) ->
   pack_sizes(<<0:32, 0:32, (length(ReverseFrames)):32>>, lists:reverse(ReverseFrames)).
 
@@ -632,14 +680,18 @@ pack_keyframes([], Acc, _) ->
   lists:reverse(Acc).
 
 
+is_ctts_required(ReverseFrames) ->
+  length([true || #video_frame{dts = DTS, pts = PTS} <- ReverseFrames, PTS - DTS > 1]) > 0.
+
 pack_compositions(ReverseFrames) ->
   [<<0:32, (length(ReverseFrames)):32>>, compositions(ReverseFrames, [])].
   
   
 compositions([], Acc) ->
   Acc;
-compositions([#video_frame{dts = DTS, pts = PTS, content = Content}|Frames], Acc) when PTS >= DTS ->
-  compositions(Frames, [<<1:32, (round((PTS - DTS)*scale_for_content(Content))):32>>|Acc]).
+% Here already PTS - DTS * Scale is stored  
+compositions([#video_frame{pts = PTS}|Frames], Acc) ->
+  compositions(Frames, [<<1:32, PTS:32>>|Acc]).
 
 %%
 %% Tests

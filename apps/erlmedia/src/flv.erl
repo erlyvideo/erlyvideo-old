@@ -44,6 +44,13 @@
 
 -export([read_frame/1, read_frame/2, duration/1]).
 
+-export([content_offset/1]).
+
+content_offset(h264) -> ?FLV_TAG_HEADER_LENGTH + 5;
+content_offset(aac) -> ?FLV_TAG_HEADER_LENGTH + 2;
+content_offset(_) -> ?FLV_TAG_HEADER_LENGTH + 1.
+  
+
 read_frame(Reader, Offset) ->
   case flv:read_tag(Reader, Offset) of
 		#flv_tag{} = Tag ->

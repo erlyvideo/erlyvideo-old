@@ -42,7 +42,11 @@
 -export([mp4a/2, mp4v/2, avc1/2, s263/2, samr/2, free/2, wave/2]).
 -export([hdlr/2, vmhd/2, dinf/2, dref/2, 'url '/2, 'pcm '/2, 'spx '/2, '.mp3'/2]).
 -export([meta/2, ilst/2, covr/2, data/2, nam/2, alb/2]).
+
+-export([abst/2, asrt/2, afrt/2]).
+
 -export([extract_language/1,get_coverart/1]).
+-export([parse_atom/2]).
 
 -record(esds, {
   object_type,
@@ -87,14 +91,25 @@ dump_atom(<<Length:32, Atom:4/binary, Data/binary>>, Indent) when Length =/= 1 -
   AtomLen = Length - 8,
   <<Content:AtomLen/binary, Rest/binary>> = Data,
   dump_atom(binary_to_atom(Atom, latin1), Content, Indent),
-  Rest.
+  Rest;
+
+dump_atom(<<>>, _) ->
+  <<>>.
   
 
 dump_atom(abst = Atom, Content, Indent) ->
-  {Format, Args, SubContent} = atom_dump_info(Atom, Content),
+  {Format, Args, <<SegmentCount, SubContent/binary>>} = atom_dump_info(Atom, Content),
   indented_dump(Atom, Indent, Format, Args),
-  <<_Count, Rest/binary>> = dump_atom(SubContent, Indent+1),
-  dump_list(Rest, Indent+1);
+  SegmentCount == 1 orelse throw(non_one_segment_count),
+  <<FragmentCount, FragmentTables/binary>> = lists:foldl(fun
+    (0, Bin) -> Bin;
+    (_N, Bin) -> dump_atom(Bin, Indent+1)
+  end, SubContent, lists:seq(1, SegmentCount)),
+
+  lists:foldl(fun
+    (0, Bin) -> Bin;
+    (_N, Bin) -> dump_atom(Bin, Indent+1)
+  end, FragmentTables, lists:seq(1,FragmentCount));
 
 dump_atom(Atom, Content, Indent) ->
   {Format, Args, SubContent} = atom_dump_info(Atom, Content),
@@ -106,12 +121,25 @@ indented_dump(Atom, Indent, Format, Args) ->
   io:format(lists:flatten([Tab, "~p ", Format, "~n"]), [Atom|Args]).
   
   
-atom_dump_info(abst, <<0:32, _BootstrapVersion:32, Profile, Timescale:32, Duration:64, _TimeOffset:64, 
-  _MovieId, _ServerEntryCount, _QualityCount, _DrmData, _MetaData, _RunTableCount, Rest/binary>>) ->
-  {"profile=~p,timescale=~p,duration=~p", [Profile,Timescale,Duration], Rest};
+atom_dump_info(abst, ABST) ->
+  <<_Version, 0:24, _BootstrapVersion:32, Profile:2, Live:1, Update:1, 0:4, Timescale:32, Duration:64, _TimeOffset:64, 
+    MovieId, ServerEntryCount, QualityCount, DrmData, MetaData, Rest/binary>> = ABST,
+  MovieId == 0 orelse throw({abst,non_null_movie_id}),
+  ServerEntryCount == 0 orelse throw({abst,server_entry}),
+  QualityCount == 0 orelse throw({abst,quality}),
+  DrmData == 0 orelse throw({abst,drm}),
+  MetaData == 0 orelse throw({abst,meta}),
+  {"profile=~p,live=~p,update=~p,timescale=~p,duration=~p", [Profile, Live, Update, Timescale,Duration], Rest};
 
-atom_dump_info(asrt, <<0:32, QualityCount, SegmentCount:32, _FirstSegment:32, TotalFragments:32, Rest/binary>>) ->
-  {"quality=~p,segments=~p,total_fragments=~p", [QualityCount, SegmentCount, TotalFragments], Rest};
+atom_dump_info(asrt, <<0:32, QualityCount, SegmentCount:32, ASRT/binary>>) ->
+  QualityCount == 0 orelse throw({asrt,non_zero_quality}),
+  
+  {Rest, Seg1} = lists:foldl(fun(_N, {<<FirstSegment:32, Fragments:32, R/binary>>, Acc}) -> 
+    {R, [{FirstSegment,Fragments}|Acc]} 
+  end, {ASRT, []}, lists:seq(1, SegmentCount)),
+  Segments = lists:reverse(Seg1),
+  
+  {"segments=~p,~p", [SegmentCount, Segments], Rest};
 
 atom_dump_info(afrt, <<0:32, Timescale:32, QualityCount, TotalFragments:32, Rest/binary>>) ->
   {_Rest, Info} = dump_afrt_fragments(Rest, TotalFragments, []),
@@ -374,16 +402,18 @@ frame_count(undefined) -> 0;
 frame_count(#mp4_track{frames = Frames}) -> size(Frames) div ?FRAMESIZE;
 frame_count(Frames) -> size(Frames) div ?FRAMESIZE.
 
-parse_atom(<<>>, Mp4Parser) ->
-  Mp4Parser;
-  
-parse_atom(Atom, _) when size(Atom) < 4 ->
-  {error, "Invalid atom"};
 
-parse_atom(<<8:32, 0:32>>, Mp4Parser) ->
+parse_atom(<<>>, State) ->
+  State;
+
+parse_atom(Bin, State) ->
+  {ok, _Atom, NewState, Rest} = decode_atom(Bin, State),
+  parse_atom(Rest, NewState).
+
+decode_atom(<<8:32, 0:32>>, Mp4Parser) ->
   Mp4Parser;
   
-parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
+decode_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Parser) when (size(AtomRest) >= AllAtomLength - 8) ->
   AtomLength = AllAtomLength - 8,
   <<Atom:AtomLength/binary, Rest/binary>> = AtomRest,
   % ?D({atom,BinaryAtomName}),
@@ -398,17 +428,57 @@ parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, AtomRest/binary>>, Mp4Pa
     false -> Mp4Parser
     % false -> Mp4Parser
   end,
-  parse_atom(Rest, NewMp4Parser);
-  
-parse_atom(<<AllAtomLength:32, BinaryAtomName:4/binary, _Rest/binary>>, Mp4Parser) ->
-  ?D({"Invalid atom", AllAtomLength, binary_to_atom(BinaryAtomName, latin1), size(_Rest)}),
-  Mp4Parser;
+  {ok, AtomName, NewMp4Parser, Rest};
 
-parse_atom(<<0:32>>, Mp4Parser) ->
+decode_atom(<<0:32>>, Mp4Parser) ->
   ?D("NULL atom"),
   Mp4Parser.
 
+
+%% Adobe bootstrap
+
+abst(<<_Version, 0:24, InfoVersion:32, Profile:2, Live:1, Update:1, 0:4, 
+       TimeScale:32, CurrentMediaTime:64, _SmpteTimeCodeOffset:64, Rest1/binary>>, State) ->
+  {IdLen, _} = binary:match(Rest1, [<<0>>]),
+  <<MovieIdentifier:IdLen/binary, 0, Rest2/binary>> = Rest1,
+  <<ServerEntryCount, QualityEntryCount, DrmData, MetaData, SegmentRunTableCount, Rest3/binary>> = Rest2,
+  ServerEntryCount = 0,
+  QualityEntryCount = 0,
+  DrmData = 0,
+  MetaData = 0,
+  SegmentRunTableCount = 1,
+  {ok, asrt, SegmentRunTable, <<FragmentRunTableCount, Rest4/binary>>} = decode_atom(Rest3, State),
+  FragmentRunTableCount = 1,
+  {ok, afrt, FragmentRunTable, <<>>} = decode_atom(Rest4, State),
+  {'Bootstrap', [{version,InfoVersion},{profile,Profile},{live,Live},{update,Update},{timescale,TimeScale},{current_time,CurrentMediaTime},
+  {id,MovieIdentifier},{segments,SegmentRunTable},{fragments, FragmentRunTable}], Rest4}.
+
+
+asrt(<<_Version, Update:24, QualityEntryCount, SegmentRunEntryCount:32, Rest/binary>>, _State) ->
+  QualityEntryCount = 0,
+  Segments = [{FirstSegment, FragmentsPerSegment} || <<FirstSegment:32, FragmentsPerSegment:32>> <= Rest],
+  SegmentRunEntryCount = length(Segments),
+  {'SegmentRunTable', [{update,Update}], Segments}.
+
+afrt(<<_Version, Update:24, TimeScale:32, QualityEntryCount, FragmentRunEntryCount:32, Rest/binary>>, _State) ->
+  QualityEntryCount = 0,
+  Fragments = read_afrt_fragments(Rest),
+  FragmentRunEntryCount = length(Fragments),
+  {'FragmentRunEntry', [{update,Update},{timescale,TimeScale}],Fragments}.
   
+read_afrt_fragments(Bin) -> read_afrt_fragments(Bin, []).
+
+read_afrt_fragments(<<FirstFragment:32, FirstFragmentTimestamp:64, 0:32, DiscontinuityIndicator, Rest/binary>>, Acc) ->
+   read_afrt_fragments(Rest, [{FirstFragment, FirstFragmentTimestamp, 0, DiscontinuityIndicator}|Acc]);
+
+read_afrt_fragments(<<FirstFragment:32, FirstFragmentTimestamp:64, FragmentDuration:32, Rest/binary>>, Acc) ->
+  read_afrt_fragments(Rest, [{FirstFragment, FirstFragmentTimestamp, FragmentDuration}|Acc]);
+
+read_afrt_fragments(_, Acc) ->
+  lists:reverse(Acc).
+
+
+
 % FTYP atom
 ftyp(<<_Major:4/binary, _Minor:4/binary, _CompatibleBrands/binary>>, MediaInfo) ->
   % ?D({"File", _Major, _Minor, ftyp(_CompatibleBrands, [])}),
@@ -442,7 +512,10 @@ udta(UDTA, Media) ->
   parse_atom(UDTA, Media).
 
 meta(<<0:32, Meta/binary>>, #mp4_media{} = Media) ->
-  parse_atom(Meta, Media).
+  parse_atom(Meta, Media);
+
+meta(_, #mp4_media{} = Media) ->
+  Media.
 
 ilst(ILST, #mp4_media{} = Media) ->
   parse_atom(ILST, Media).
