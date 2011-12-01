@@ -81,12 +81,16 @@
   duration,
   min_dts,
   max_dts,
+  tracks = []
+}).
 
-  audio_frames = [],
-  audio_config,
-
-  video_frames = [],
-  video_config
+-record(writer_track, {
+  content,
+  id,
+  frames = [],
+  duration,
+  timescale,
+  config
 }).
 
 -undef(D).
@@ -152,7 +156,7 @@ dump_by_spec(Specification) ->
   
   dump_media([{reader, Reader},{writer, fun(_Offset, Bin) ->
     file:write(Out, Bin)
-  end}, {start_pos, StartPos}]),
+  end}, {start_pos, StartPos}, {no_autosplit, true}]),
   file:close(Out),
   ok.
 
@@ -182,7 +186,17 @@ read_multi_reader(Readers, R, K) ->
 
 dump_media(Options) ->
   Writer = proplists:get_value(writer, Options),
-  Reader = proplists:get_value(reader, Options),
+  Reader1 = proplists:get_value(reader, Options),
+  Reader = case proplists:get_value(no_autosplit, Options, false) of
+    true -> Reader1;
+    _ -> fun(Id) ->
+      case Reader1(Id) of
+        #video_frame{content = video} = F -> F#video_frame{stream_id = 1};
+        #video_frame{content = audio} = F -> F#video_frame{stream_id = 2};
+        Else -> Else
+      end
+    end    
+  end,
   Header = proplists:get_value(header, Options),
   StartPos = proplists:get_value(start_pos, Options),
     
@@ -248,18 +262,18 @@ handle_frame(#video_frame{flavor = command}, Convertor) ->
 handle_frame(#video_frame{codec = empty}, Convertor) ->
   {ok, Convertor};
     
-handle_frame(#video_frame{flavor = config, content = video, body = Config}, Convertor) ->
+handle_frame(#video_frame{flavor = config, content = Content, body = Config, stream_id = StreamId}, #convertor{tracks = Tracks} = Convertor) ->
+  Track = case lists:keyfind(StreamId, #writer_track.id, Tracks) of
+    false -> #writer_track{content = Content, id = StreamId};
+    T -> T
+  end,
   % ?D("mp4_writer got video config"),
-  {ok, Convertor#convertor{video_config = Config}};
+  {ok, Convertor#convertor{tracks = lists:keystore(StreamId, #writer_track.id, Tracks, Track#writer_track{config = Config})}};
 
-handle_frame(#video_frame{flavor = config, content = audio, body = Config}, Convertor) ->
-  % ?D("mp4_writer got audio config"),
-  {ok, Convertor#convertor{audio_config = Config}};
-
-handle_frame(#video_frame{codec = mp3, body = Body}, #convertor{audio_config = undefined} = Convertor) ->
-  {ok, #mp3_frame{} = Config, _} = mp3:read(Body),
-  % ?D("mp4_writer got audio config"),
-  {ok, Convertor#convertor{audio_config = Config}};
+% handle_frame(#video_frame{codec = mp3, body = Body}, #convertor{audio_config = undefined} = Convertor) ->
+%   {ok, #mp3_frame{} = Config, _} = mp3:read(Body),
+%   % ?D("mp4_writer got audio config"),
+%   {ok, Convertor#convertor{audio_config = Config}};
   
 
 handle_frame(#video_frame{content = metadata}, Convertor) ->
@@ -295,13 +309,14 @@ append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{min_dts = Min} 
 append_frame_to_list(#video_frame{dts = DTS} = Frame, #convertor{max_dts = Max} = C) when Max == undefined orelse Max < DTS ->
   append_frame_to_list(Frame, C#convertor{max_dts = DTS});
 
-append_frame_to_list(#video_frame{body = Body, content = video, codec = Codec} = Frame, 
-             #convertor{write_offset = WriteOffset, video_frames = Video} = Convertor) ->
-  {ok, Convertor#convertor{video_frames = [Frame#video_frame{body = {WriteOffset + flv:content_offset(Codec),size(Body)}}|Video]}};
-
-append_frame_to_list(#video_frame{body = Body, content = audio, codec = Codec} = Frame,
-             #convertor{write_offset = WriteOffset, audio_frames = Audio} = Convertor) ->
-  {ok, Convertor#convertor{audio_frames = [Frame#video_frame{body = {WriteOffset + flv:content_offset(Codec),size(Body)}}|Audio]}}.
+append_frame_to_list(#video_frame{body = Body, codec = Codec, stream_id = StreamId, content = Content} = Frame, 
+             #convertor{write_offset = WriteOffset, tracks = Tracks} = Convertor) ->
+  #writer_track{frames = Frames} = Track = case lists:keyfind(StreamId, #writer_track.id, Tracks) of
+    false -> #writer_track{content = Content, id = StreamId};
+    T -> T
+  end,
+  Track1 = Track#writer_track{frames = [Frame#video_frame{body = {WriteOffset + flv:content_offset(Codec),size(Body)}}|Frames]},
+  {ok, Convertor#convertor{tracks = lists:keystore(StreamId, #writer_track.id, Tracks, Track1)}}.
 
 
 shift_and_write_moov(#convertor{writer = Writer, header_end = HeaderEnd, write_offset = WriteOffset, method = two_pass} = Convertor) ->
@@ -319,10 +334,11 @@ shift_and_write_moov(#convertor{writer = Writer, header_end = HeaderEnd, write_o
   {ok, Convertor3#convertor{method = two_pass2, write_offset = MoovOffset + MdatHeaderSize}}.
   
   
-append_chunk_offsets(#convertor{video_frames = Video, audio_frames = Audio} = Convertor, Shift) ->
-  Video1 = [Frame#video_frame{body = {Offset+Shift,Size}} || #video_frame{body = {Offset,Size}} = Frame <- Video],
-  Audio1 = [Frame#video_frame{body = {Offset+Shift,Size}} || #video_frame{body = {Offset,Size}} = Frame <- Audio],
-  Convertor#convertor{video_frames = Video1, audio_frames = Audio1}.
+append_chunk_offsets(#convertor{tracks = Tracks} = Convertor, Shift) ->
+  Tracks1 = lists:map(fun(#writer_track{frames = Frames} = Track) ->
+    Track#writer_track{frames = [Frame#video_frame{body = {Offset+Shift,Size}} || #video_frame{body = {Offset,Size}} = Frame <- Frames]}
+  end, Tracks),
+  Convertor#convertor{tracks = Tracks1}.
   
 sorted(Frames) ->
   lists:sort(fun
@@ -331,8 +347,9 @@ sorted(Frames) ->
     (_, _) -> false
   end, Frames).
   
-sort_frames(#convertor{video_frames = Video, audio_frames = Audio} = Convertor) ->
-  Convertor#convertor{video_frames = sorted(Video), audio_frames = sorted(Audio)}.
+sort_frames(#convertor{tracks = Tracks} = Convertor) ->
+  Tracks1 = [T#writer_track{frames = sorted(Frames)} || #writer_track{frames = Frames} = T <- Tracks],
+  Convertor#convertor{tracks = Tracks1}.
   
 write_moov(#convertor{writer = Writer, write_offset = WriteOffset, min_dts = Min, max_dts = Max} = Convertor) ->
   Duration = round(Max - Min),
@@ -396,28 +413,31 @@ esds_serialize({AtomName, Content}) ->
 %%%% Content part
 
 
-tracks(Convertor) ->
-  video_track(Convertor) ++ audio_track(Convertor).
+tracks(#convertor{tracks = Tracks}) ->
+  [track(Track) || Track <- Tracks].
+
+track(#writer_track{content = video} = Track) -> video_track(Track);
+track(#writer_track{content = audio} = Track) -> audio_track(Track).
   
-video_track(#convertor{video_frames = []}) -> [];
-video_track(#convertor{video_frames = RevVideo1, url = URL} = Convertor) ->
+video_track(#writer_track{frames = []}) -> [];
+video_track(#writer_track{frames = RevVideo1} = Track1) ->
 	CTime = mp4_now(),
 	MTime = mp4_now(),
 	RevVideo = normalize_h264_durations(RevVideo1),
 	Duration = lists:sum([D || #video_frame{dts = D} <- RevVideo]),
+	Track = Track1#writer_track{duration = Duration, timescale = ?H264_SCALE*1000},
   [ {trak, [
-    {tkhd, pack_video_tkhd(Convertor)},
+    {tkhd, pack_tkhd(Track)},
     {edts, [
-      {elst, [<<0:32>>, pack_elst(Convertor)]}
+      {elst, [<<0:32>>, pack_elst(Track)]}
     ]},
     {mdia, [
       {mdhd, <<0, 0:24, CTime:32, MTime:32, (?H264_SCALE*1000):32, Duration:32, 0:16, 0:16>>},
       {hdlr, <<0:32, 0:32, "vide", 0:96, "VideoHandler", 0>>},
       {minf, [
         {vmhd, <<1:32, 0:16, 0:16, 0:16, 0:16>>},
-        {dinf, {dref, [<<0:32, 1:32>>, {'url ', [<<0, 1:24>>, URL]}]}},
         {stbl, [
-          {stsd, [<<0:32, 1:32>>, {avc1, pack_video_config(Convertor)}]},
+          {stsd, [<<0:32, 1:32>>, {avc1, pack_config(Track)}]},
           {stsc, pack_chunk_sizes(RevVideo)},
           {stco, pack_chunk_offsets(RevVideo)},
           {stts, pack_durations(RevVideo)},
@@ -434,13 +454,21 @@ video_track(#convertor{video_frames = RevVideo1, url = URL} = Convertor) ->
 uuid_atom() ->
   <<16#6b6840f2:32, 16#5f244fc5:32, 16#ba39a51b:32, 16#cf0323f3:32, 0:32>>.
 
-audio_track(#convertor{audio_frames = []}) -> [];
-audio_track(#convertor{audio_frames = RevAudio1, audio_config = AAC} = Convertor) ->
-  #aac_config{sample_rate = SampleRate} = aac:decode_config(AAC),
-  Duration = round(length(RevAudio1)*1024 / SampleRate),
+audio_track(#writer_track{frames = []}) -> [];
+audio_track(#writer_track{frames = RevAudio1, config = Config} = Track1) ->
+  Track2 = case Track1#writer_track.frames of
+    [#video_frame{codec = mp3, body = Body}|_] ->
+      {ok, #mp3_frame{sample_rate = SampleRate} = Config, _} = mp3:read(Body),
+      Track1#writer_track{timescale = SampleRate, config = Config};
+    [#video_frame{codec = aac}|_] ->
+      #aac_config{sample_rate = SampleRate} = aac:decode_config(Config),
+      Track1#writer_track{timescale = SampleRate}
+  end,
+  Duration = round(length(RevAudio1)*1024 / Track2#writer_track.timescale),
   RevAudio = normalize_aac_durations(RevAudio1),
+	Track = Track2#writer_track{duration = Duration},
   [ {trak, [
-    {tkhd, pack_audio_tkhd(Convertor)},
+    {tkhd, pack_tkhd(Track)},
     {mdia, [
       {mdhd, <<0, 0:24, 0:32, 0:32, SampleRate:32, Duration:32, 0:1, (pack_language(eng))/bitstring, 0:16>>},
       {hdlr, <<0:32, 0:32, "soun", 0:96, "SoundHandler", 0>>},
@@ -448,7 +476,7 @@ audio_track(#convertor{audio_frames = RevAudio1, audio_config = AAC} = Convertor
         {smhd, <<0:32, 0:16, 0:16>>},
         {dinf, {dref, [<<0:32, 1:32>>, {'url ', <<0, 1:24>>}]}},
         {stbl, [
-          {stsd, [<<0:32, 1:32>>, pack_audio_config(Convertor)]},
+          {stsd, [<<0:32, 1:32>>, pack_config(Track)]},
           {stsc, pack_chunk_sizes(RevAudio)},
           {stco, pack_chunk_offsets(RevAudio)},
           {stts, pack_durations(RevAudio)},
@@ -523,7 +551,7 @@ pack_language(Lang) when is_atom(Lang) ->
 pack_language([L1, L2, L3]) ->
   <<(L1 - 16#60):5, (L2 - 16#60):5, (L3 - 16#60):5>>.
   
-pack_elst(#convertor{duration = Duration}) ->
+pack_elst(#writer_track{duration = Duration}) ->
   MediaTime = 2002, 
   MediaRate = 1,
   MediaFrac = 0,
@@ -535,10 +563,6 @@ pack_chunk_sizes(_VChunks) ->
 pack_chunk_offsets(VChunks) ->
   [<<0:32, (length(VChunks)):32>>, [<<Offset:32>> || #video_frame{body = {Offset,_}} <- lists:reverse(VChunks)]].
  
-
-next_track_id(#convertor{video_frames = []}) -> 2;
-next_track_id(#convertor{audio_frames = []}) -> 2;
-next_track_id(_) -> 3.
 
 
 pack_mvhd(#convertor{duration = Duration} = Convertor) ->
@@ -552,28 +576,21 @@ pack_mvhd(#convertor{duration = Duration} = Convertor) ->
   Reserved1 = 0,
   Matrix = <<0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,0,0,0>>,
   Reserved2 = <<0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0>>,
-  NextTrackId = next_track_id(Convertor),
+  NextTrackId = length(Convertor#convertor.tracks) + 1,
   <<0:32, CTime:32, MTime:32, TimeScale:32, Duration:32, Rate:16, RateDelim:16,
         Volume, VolumeDelim, 0:16, Reserved1:64, Matrix:36/binary, Reserved2:24/binary, NextTrackId:32>>.
 
 
 
-pack_video_tkhd(Convertor) -> pack_tkhd(Convertor, video).
-pack_audio_tkhd(Convertor) -> pack_tkhd(Convertor, audio).
-
-pack_tkhd(#convertor{duration = Duration, video_config = Config}, Track) ->
+pack_tkhd(#writer_track{duration = Duration, config = Config, content = Content, id = TrackID}) ->
 	Flags = 15,
 	CTime = mp4_now(),
 	MTime = mp4_now(),
-	TrackID = case Track of
-	  video -> 1;
-	  audio -> 2
-	end,
 	Reserved1 = 0,
 	Reserved2 = 0,
 	Layer = 0,
 	AlternateGroup = 0,
-	Volume = case Track of
+	Volume = case Content of
 	  video -> 0;
 	  audio -> 1
 	end,
@@ -582,7 +599,7 @@ pack_tkhd(#convertor{duration = Duration, video_config = Config}, Track) ->
   Matrix = <<0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,64,0,0,0>>,
   
   
-  {Width, Height} = case Track of
+  {Width, Height} = case Content of
     video ->
       Meta = h264:metadata(Config),
       {proplists:get_value(width, Meta), proplists:get_value(height, Meta)};
@@ -596,15 +613,15 @@ pack_tkhd(#convertor{duration = Duration, video_config = Config}, Track) ->
   Layer:16, AlternateGroup:16, Volume, VolDelim, Reserved3:16, Matrix/binary, 
   Width:16, WidthDelim:16, Height:16, HeightDelim:16>>.
 
-pack_audio_config(#convertor{audio_config = undefined, audio_frames = [#video_frame{codec = speex}|_]}) ->
+pack_config(#writer_track{config = undefined, frames = [#video_frame{codec = speex}|_]}) ->
   {'spx ', <<>>};
 
-pack_audio_config(#convertor{audio_config = undefined}) ->
-  ?D({"no audio config"}),
+pack_config(#writer_track{config = undefined} = T) ->
+  ?D({"no config on track", T#writer_track.id, T#writer_track.content}),
   <<>>;
 
 
-pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame{codec = Codec}|_]}) ->
+pack_config(#writer_track{content = audio, config = Config, frames = [#video_frame{codec = Codec}|_]}) when Codec == mp3 orelse Codec == aac ->
   Reserved = <<0,0,0,0,0,0>>,
   RefIndex = 1,
   SoundVersion = 0,
@@ -653,12 +670,12 @@ pack_audio_config(#convertor{audio_config = Config, audio_frames = [#video_frame
      {?MP4Unknown6Tag, <<2>>}]
    },
    
-  {mp4a, [MP4A,{esds, [<<0:32>>, esds_serialize(ESDS)]}]}.
+  {mp4a, [MP4A,{esds, [<<0:32>>, esds_serialize(ESDS)]}]};
 
 
 
 
-pack_video_config(#convertor{video_config = Config}) ->
+pack_config(#writer_track{content = video, config = Config}) ->
   Meta = h264:metadata(Config),
   Width = proplists:get_value(width, Meta),
   Height = proplists:get_value(height, Meta),
