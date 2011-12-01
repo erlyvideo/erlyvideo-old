@@ -47,6 +47,7 @@
 
 -export([extract_language/1,get_coverart/1]).
 -export([parse_atom/2]).
+-export([video_frame/2, video_frame/3]).
 
 -record(esds, {
   object_type,
@@ -366,6 +367,25 @@ seek(Media, Audio, Video, Timestamp, Id, Found, SeekMode) ->
     eof -> undefined
   end.
 
+
+read_frame(#mp4_media{tracks = Tracks}, {track, TrackId, config}) ->
+  #mp4_track{content = Content, codec = Codec, decoder_config = Config} = element(TrackId, Tracks),
+  #video_frame{
+   	content = Content,
+   	flavor  = config,
+		dts     = 0,
+		pts     = 0,
+		body    = Config,
+		codec   = Codec
+	};
+
+read_frame(#mp4_media{tracks = Tracks} = Media, {track, TrackId, Id}) ->
+  #mp4_track{content = Content} = Track = element(TrackId, Tracks),
+  case unpack_frame(Track, Id) of
+    eof -> eof;
+    Mp4Frame -> video_frame(Media, Mp4Frame#mp4_frame{content = Content})
+  end;
+
 read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id,a = Audio,v = Video, t = Text} = FrameId) ->
   IndexOffset = Id*4,
   
@@ -382,6 +402,66 @@ read_frame(#mp4_media{tracks = Tracks, index = Index} = Media, #frame_id{id = Id
     <<_:IndexOffset/binary, _OtherTrackId, _K:1, _FrameIndex:23, _/binary>> ->
       read_frame(Media, FrameId#frame_id{id = Id+1})
   end.
+
+
+
+read_data(#mp4_media{reader = {M, Dev}}, Offset, Size) ->
+  case M:pread(Dev, Offset, Size) of
+    {ok, Data} ->
+      {ok, Data};
+    Else -> Else
+  end.
+
+
+video_frame(#mp4_media{} = Media, #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame) ->
+  case read_data(Media, Offset, Size) of
+		{ok, Data} ->
+		  VideoFrame = video_frame(Content, Frame, Data),
+		  VideoFrame#video_frame{next_id = Next};
+    eof -> eof;
+    {error, Reason} -> {error, Reason}
+  end.
+
+video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS, codec = Codec}, Data) ->
+  #video_frame{
+   	content = video,
+		dts     = DTS,
+		pts     = PTS,
+		body    = Data,
+		flavor  = case Keyframe of
+		  true ->	keyframe;
+		  _ -> frame
+	  end,
+		codec   = Codec
+  };  
+
+video_frame(text, #mp4_frame{dts = DTS, pts = PTS, codec = Codec}, Data) ->
+  #video_frame{
+   	content = metadata,
+		dts     = DTS,
+		pts     = DTS,
+		flavor  = frame,
+		codec   = Codec,
+		body    = [<<"onTextData">>, {object, [
+		  {name, onCuePoint},
+		  {type, event},
+		  {'begin', DTS},
+  		{'end', PTS},
+		  {text, Data}
+		]}]
+  };  
+
+video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
+  #video_frame{       
+   	content = audio,
+		dts     = DTS,
+		pts     = DTS,
+  	body    = Data,
+  	flavor  = frame,
+	  codec	  = Codec,
+	  sound	  = {stereo, bit16, rate44}
+  }.
+
   
   
 unpack_frame(#mp4_track{frames = Frames, content = text, codec = _Codec}, Id) when Id < length(Frames) ->
@@ -395,7 +475,9 @@ unpack_frame(#mp4_track{frames = Frames, codec = Codec}, Id) when Id*?FRAMESIZE 
     1 -> true;
     0 -> false
   end,
-  #mp4_frame{id = Id, dts = DTS, pts = PTS, size = Size, offset = Offset, keyframe = Keyframe, codec = Codec}.
+  #mp4_frame{id = Id, dts = DTS, pts = PTS, size = Size, offset = Offset, keyframe = Keyframe, codec = Codec};
+  
+unpack_frame(#mp4_track{frames = Frames}, Id) when Id*?FRAMESIZE == size(Frames) -> eof.
 
 
 frame_count(undefined) -> 0;

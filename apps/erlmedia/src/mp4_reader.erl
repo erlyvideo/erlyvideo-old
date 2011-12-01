@@ -245,67 +245,12 @@ read_frame(#mp4_media{} = Media, Id) ->
     eof ->
       eof;
     #mp4_frame{content = text, next_id = Next, body = Data} = Frame ->
-		  VideoFrame = video_frame(text, Frame, Data),
+		  VideoFrame = mp4:video_frame(text, Frame, Data),
 		  VideoFrame#video_frame{next_id = Next};
-    #mp4_frame{offset = Offset, size = Size, content = Content, next_id = Next} = Frame ->
+    #mp4_frame{} = Frame ->
       % ?D({"read frame", Id, Offset, Size,Content}),
-    	case read_data(Media, Offset, Size) of
-    		{ok, Data, _} ->
-    		  VideoFrame = video_frame(Content, Frame, Data),
-    		  VideoFrame#video_frame{next_id = Next};
-        eof -> eof;
-        {error, Reason} -> {error, Reason}
-      end
+      mp4:video_frame(Frame)
   end.
-  
-
-read_data(#mp4_media{reader = {M, Dev}} = Media, Offset, Size) ->
-  case M:pread(Dev, Offset, Size) of
-    {ok, Data} ->
-      {ok, Data, Media};
-    Else -> Else
-  end.
-  
-
-video_frame(video, #mp4_frame{dts = DTS, keyframe = Keyframe, pts = PTS, codec = Codec}, Data) ->
-  #video_frame{
-   	content = video,
-		dts     = DTS,
-		pts     = PTS,
-		body    = Data,
-		flavor  = case Keyframe of
-		  true ->	keyframe;
-		  _ -> frame
-	  end,
-		codec   = Codec
-  };  
-
-video_frame(text, #mp4_frame{dts = DTS, pts = PTS, codec = Codec}, Data) ->
-  #video_frame{
-   	content = metadata,
-		dts     = DTS,
-		pts     = DTS,
-		flavor  = frame,
-		codec   = Codec,
-		body    = [<<"onTextData">>, {object, [
-		  {name, onCuePoint},
-		  {type, event},
-		  {'begin', DTS},
-  		{'end', PTS},
-		  {text, Data}
-		]}]
-  };  
-
-video_frame(audio, #mp4_frame{dts = DTS, codec = Codec}, Data) ->
-  #video_frame{       
-   	content = audio,
-		dts     = DTS,
-		pts     = DTS,
-  	body    = Data,
-  	flavor  = frame,
-	  codec	  = Codec,
-	  sound	  = {stereo, bit16, rate44}
-  }.
 
 
 
