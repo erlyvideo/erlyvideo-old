@@ -67,6 +67,8 @@
 -export([pack_durations/1]).
 -export([mp4_serialize/1]).
 
+-export([test_dump/0]).
+
 -export([pack_compositions/1]).
 
 -record(convertor, {
@@ -115,20 +117,68 @@ write(InFlvPath, OutMp4Path, Options) ->
 
 % 1294735440 .. 1294736280
 %
-dump_media(undefined) ->
-  {ok, Pid} = media_provider:open(default, "zzz"),
-  {ok, Out} = file:open("out.mp4", [append, binary, raw]),
-  Start = 1294735443380,
-  End = 1294736280000,
-  % End = 1294735448480,
-  Reader = fun(Pos) ->
-    ems_media:read_frame(Pid, Pos)
+test_dump() ->
+  Specification = [
+    "test/files/h264_1.mp4@1",
+    "test/files/h264_aac_1.mp4@2"
+  ],
+  
+  dump_by_spec(Specification).
+
+dump_by_spec(Specification) ->
+  Readers = lists:map(fun(Spec) ->
+    [Path, Track] = string:tokens(Spec, "@"),
+    TrackId = list_to_integer(Track),
+    {ok, F} = file:open(Path, [read, binary]),
+    {ok, R} = mp4:open({file, F}, []),
+    fun(Id) -> 
+      case mp4:read_frame(R, {track, TrackId, Id}) of
+        eof -> eof;
+        Fr -> Fr#video_frame{next_id = if Id == config -> 0; true -> Id+1 end}
+      end
+    end      
+  end, Specification),
+  
+  % StartPos = [config || _ <- Specification],
+  StartPos = {1, config},
+  
+  Reader = fun({R, K}) ->
+    Fr = read_multi_reader(Readers, R, K),
+    if Fr == eof -> ?D({read, R, K, eof}); true -> ?D({read, R, K, Fr#video_frame.dts}) end,
+    Fr
   end,
+  
+  {ok, Out} = file:open("zzz.mp4", [binary, write]),
+  
   dump_media([{reader, Reader},{writer, fun(_Offset, Bin) ->
     file:write(Out, Bin)
-  end}, {from, Start}, {to, End}]),
+  end}, {start_pos, StartPos}]),
   file:close(Out),
-  ok;
+  ok.
+
+
+read_multi_reader(Readers, R, K) ->
+  case (lists:nth(R, Readers))(K) of
+    eof when R == length(Readers) -> eof;
+    eof ->
+      Fr = (lists:nth(R+1, Readers))(config),
+      Fr#video_frame{next_id = {R+1, 0}, stream_id = R+1};
+    #video_frame{next_id = Next} = Fr ->
+      Fr#video_frame{next_id = {R, Next}, stream_id = R}
+  end.
+
+
+%
+% 1. Pass reader that sends frames from several sources with different stream_id
+% 2. Read each of them one by one
+% 3. Assign number to frames from each reader by wrapping in a function
+% 4. Separate audio and video frames from readers into different tracks
+%
+% Calling code should:
+% 1. Collect instructions to open different mp4 files.
+% 2. Split them to different Reader functions
+% 3. Pass to mp4_writer
+
 
 dump_media(Options) ->
   Writer = proplists:get_value(writer, Options),
@@ -136,7 +186,7 @@ dump_media(Options) ->
   Header = proplists:get_value(header, Options),
   StartPos = proplists:get_value(start_pos, Options),
     
-  Header(undefined),
+  if is_function(Header) -> Header(undefined); true -> ok end,
 
   {ok, Converter} = mp4_writer:init(Writer, [{method,two_pass}]),
   {ok, Converter1} = dump_media_2pass(Reader, Converter, StartPos),
