@@ -23,8 +23,18 @@
 %%%---------------------------------------------------------------------------------------
 -module(ems_http_mp4_export).
 -author('Max Lapshin <max@maxidoors.ru>').
+-include("../log.hrl").
 
 -export([http/4]).
+
+http(_Host, 'GET', ["multi-mp4" | PathSpec], Req) ->
+  Specification = [Spec || {"path", Spec} <- Req:parse_qs()],
+  Path = ems:pathjoin(PathSpec),
+  Req:stream(head, [{"Content-Type", "video/mp4"}, {"Connection", "close"}, {"Content-Disposition", "attachment; filename="++Path}]),
+  mp4_writer:dump_by_spec(Specification, [{writer, fun(_Offset, Bin) ->
+    Req:stream(Bin)
+  end}]),
+  Req:stream(close);
 
 http(Host, 'GET', ["mp4" | PathSpec], Req) ->
   Path = ems:pathjoin(PathSpec),

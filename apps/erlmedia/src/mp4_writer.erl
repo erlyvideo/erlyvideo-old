@@ -67,7 +67,7 @@
 -export([pack_durations/1]).
 -export([mp4_serialize/1]).
 
--export([test_dump/0]).
+-export([test_dump/0, dump_by_spec/2]).
 
 -export([pack_compositions/1]).
 
@@ -123,13 +123,23 @@ write(InFlvPath, OutMp4Path, Options) ->
 %
 test_dump() ->
   Specification = [
-    "test/files/h264_1.mp4@1",
-    "test/files/h264_aac_1.mp4@2"
+    "../flussonic/priv/bunny_mbr_200.mp4@1",
+    "../flussonic/priv/bunny_mbr_700.mp4@1",
+    "../flussonic/priv/bunny_mbr_1500.mp4@1",
+    "../flussonic/priv/bunny.mp4@2"
   ],
-  
-  dump_by_spec(Specification).
 
-dump_by_spec(Specification) ->
+  {ok, Out} = file:open("zzz.mp4", [binary, write]),
+  
+  Writer = fun(_Offset, Bin) ->
+    file:write(Out, Bin)
+  end,
+  
+  dump_by_spec(Specification, [{writer,Writer}]),
+  file:close(Out),
+  ok.
+
+dump_by_spec(Specification, Options) ->
   Readers = lists:map(fun(Spec) ->
     [Path, Track] = string:tokens(Spec, "@"),
     TrackId = list_to_integer(Track),
@@ -148,16 +158,11 @@ dump_by_spec(Specification) ->
   
   Reader = fun({R, K}) ->
     Fr = read_multi_reader(Readers, R, K),
-    if Fr == eof -> ?D({read, R, K, eof}); true -> ?D({read, R, K, Fr#video_frame.dts}) end,
+    % if Fr == eof -> ?D({read, R, K, eof}); true -> ?D({read, R, K, Fr#video_frame.dts}) end,
     Fr
   end,
   
-  {ok, Out} = file:open("zzz.mp4", [binary, write]),
-  
-  dump_media([{reader, Reader},{writer, fun(_Offset, Bin) ->
-    file:write(Out, Bin)
-  end}, {start_pos, StartPos}, {no_autosplit, true}]),
-  file:close(Out),
+  dump_media([{reader, Reader}, {start_pos, StartPos}, {no_autosplit, true}|Options]),
   ok.
 
 
