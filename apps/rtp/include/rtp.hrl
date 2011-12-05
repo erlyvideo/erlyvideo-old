@@ -1,6 +1,7 @@
 -define(RTCP_SR, 200).
 -define(RTCP_RR, 201).
 -define(RTCP_SD, 202).
+-define(RTCP_PT_APP, 204).
 -define(YEARS_70, 2208988800).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 -define(YEARS_100, 3155673600).  % RTP bases its timestamp on NTP. NTP counts from 1900. Shift it to 1970. This constant is not precise.
 
