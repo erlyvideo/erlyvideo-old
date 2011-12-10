@@ -41,6 +41,7 @@ main([]) ->
 % 2. 
 
 main([OutPath|Inputs]) ->
+  T1 = erlang:now(),
   InputFiles = lists:map(fun(Spec) ->
     [Path, Track] = string:tokens(Spec, "@"),
     TrackId = list_to_integer(Track),
@@ -48,18 +49,18 @@ main([OutPath|Inputs]) ->
     {{file,F}, TrackId}
   end, Inputs),
   
-  {ok, Out} = file:open(OutPath, [binary,write]),
+  {ok, Out} = file:open(OutPath, [binary, write, {delayed_write, 2*1024*1024, 3000}]),
   Writer = fun(Bin) ->
     file:write(Out, Bin)
   end,
   
   State = #state{},
   #state{tracks = Tracks} = _State1 = lists:foldl(fun({F, TrackId}, #state{tracks = Tracks_} = State_) ->
-    Track = append_track(F, #track{track_id = TrackId, track_number = 1, reader = F}),
+    {_T2_, Track} = timer:tc(fun() -> append_track(F, #track{track_id = TrackId, track_number = 1, reader = F}) end),
+    % ?D({append_track, TrackId, T2_}),
     State_#state{tracks = Tracks_ ++ [Track]}
   end, State, InputFiles),
   Mp4 = fun([#track{mvhd = MVHD}|_] = Tracks_) ->
-    
     [
       {ftyp, [<<"isom", 512:32>>, [<<"isom", "iso2", "avc1", "mp42">>]]},
       {free, <<>>},
@@ -68,13 +69,19 @@ main([OutPath|Inputs]) ->
   end,
   Buffer1 = mp4_serialize(Mp4(Tracks)),
   DataOffset = iolist_size(Buffer1) + 8,
+  T2 = erlang:now(),
+  ?D({flush_header, timer:now_diff(T2, T1)}),
   Tracks1 = rewrite_track_offsets(Tracks, DataOffset, []),
   MdatSize = 8 + lists:sum([Size || #track{total_size = Size} <- Tracks1]),
   % ?D(Mp4(Tracks1)),
   Writer(mp4_serialize(Mp4(Tracks1))),
   Writer(<<MdatSize:32, "mdat">>),
+  T3 = erlang:now(),
+  ?D({flush_moov, timer:now_diff(T3, T2)}),
   [write_track(Writer, Track) || Track <- Tracks1],
-  timer:sleep(100),
+  T4 = erlang:now(),
+  ?D({finish, timer:now_diff(T4,T3), timer:now_diff(T4,T1)}),
+  timer:sleep(50),
   ok.
 
 rewrite_track_offsets([], _, Acc) ->
@@ -105,11 +112,16 @@ rewrite_track_atoms([{Atom, Content}|Atoms], Count, Offset, Acc) when is_list(Co
 rewrite_track_atoms([Atom|Atoms], Count, Offset, Acc) ->
   rewrite_track_atoms(Atoms, Count, Offset, [Atom|Acc]).
 
-write_track(Writer, #track{reader = Reader, stsc = <<_:32, EntryCount:32, STSC/binary>>, stco = <<_:32, OffsetCount:32, STCO/binary>>, sizes = Sizes}) ->
+write_track(Writer, #track{reader = Reader, stsc = <<_:32, _EntryCount:32, STSC/binary>>, stco = <<_:32, OffsetCount:32, STCO/binary>>, sizes = Sizes}) ->
+  T0 = erlang:now(),
   ChunkOffsets = [ChunkOffset || <<ChunkOffset:32>> <= STCO],
-  ChunkSizes = expand_chunks([{ChunkId, SamplesPerChunk} || <<ChunkId:32, SamplesPerChunk:32, _SampleId:32>> <= STSC], OffsetCount, []),
+  {T1, ChunkSizes} = timer:tc(fun()-> expand_chunks([{ChunkId, SamplesPerChunk} || <<ChunkId:32, SamplesPerChunk:32, _SampleId:32>> <= STSC], OffsetCount, []) end),
   Chunks = lists:zipwith(fun(ChunkOffset, SamplesPerChunk) -> {ChunkOffset, SamplesPerChunk} end, ChunkOffsets, ChunkSizes),
+  ?D({expand_chunks, T1 div 1000, length(Chunks)}),
+  T2 = erlang:now(),
   write_track(Writer, Reader, Sizes, Chunks),
+  T3 = erlang:now(),
+  ?D({written_track, timer:now_diff(T3,T0)}),
   ok.
 
 expand_chunks([{Chunk1, Samples}, {Chunk2, Samples2}|Chunks], Count, Acc) ->
@@ -118,15 +130,44 @@ expand_chunks([{Chunk1, Samples}, {Chunk2, Samples2}|Chunks], Count, Acc) ->
 expand_chunks([{Chunk, Samples}], Count, Acc) ->
   Acc ++ [Samples || _ <- lists:seq(0, Count - Chunk)].
 
-write_track(Writer, Reader, [], []) ->
+write_track(_Writer, _Reader, [], []) ->
   ok;
 
-write_track(Writer, {Module,Device} = Reader, Sizes, [{Offset,Count}|Chunks]) ->
-  {ChunkSizes, AllSizes} = lists:split(Count, Sizes),
-  ChunkSize = lists:sum(ChunkSizes),
-  {ok, Bin} = Module:pread(Device, Offset, ChunkSize),
+write_track(Writer, Reader, Sizes, [{Offset,Count}|Chunks]) ->
+  {ChunkSize, LeftSizes} = if
+    is_number(Sizes) -> {Sizes*Count, Sizes};
+    is_list(Sizes) -> {ChunkSizes, AllSizes} = lists:split(Count, Sizes), {lists:sum(ChunkSizes), AllSizes};
+    is_binary(Sizes) -> erlang:throw(binary)
+  end,
+  % ?D({read, length(Chunks), Count, Offset, ChunkSize}),
+  {ok, Bin} = cached_pread(Reader, Offset, ChunkSize),
   Writer(Bin),
-  write_track(Writer, Reader, AllSizes, Chunks).
+  write_track(Writer, Reader, LeftSizes, Chunks).
+
+cached_pread(Reader, Offset, ChunkSize) ->
+  CachedSize = get(cached_size),
+  case get(cached_offset) of
+    CachedOffset when CachedOffset =< Offset andalso CachedOffset + CachedSize >= Offset + ChunkSize -> ok;
+    _ -> fetch_cache(Reader, Offset, ChunkSize)
+  end,
+  Bin = get(cached_bin),
+  InnerOffset = Offset - get(cached_offset),
+  <<_:InnerOffset/binary, Result:ChunkSize/binary, _/binary>> = Bin,
+  {ok, Result}.
+  
+fetch_cache({Module, Device}, Offset, ChunkSize) ->
+  CachedSize = ((ChunkSize bsr 20)+16) bsl 20,
+  % ?D({ChunkSize, CachedSize}),
+  put(cached_offset, Offset),
+  put(cached_size, CachedSize),
+  case get(prev_cache_time) of undefined -> put(prev_cache_time, erlang:now()); _ -> ok end,
+  Delta = timer:now_diff(erlang:now(), get(prev_cache_time)),
+  put(prev_cache_time, erlang:now()),
+  ?D({pread, Offset, CachedSize, Delta}),
+  {ok, Bin} = Module:pread(Device, Offset, CachedSize),
+  put(cached_bin, Bin).
+      
+
 
 %% Generic
 
@@ -156,13 +197,15 @@ mp4_foldl({Module,Device} = Input, Pos, State) ->
 mp4_foldl(<<1:32, AtomName:4/binary, AtomLength:64, Bin/binary>>, State) ->
   Size = AtomLength - 16,
   <<Atom:Size/binary, Rest/binary>> = Bin,
-  State1 = handle_atom(binary_to_atom(AtomName, latin1), Atom, State),
+  {T1, State1} = timer:tc(fun() -> handle_atom(binary_to_atom(AtomName, latin1), Atom, State) end),
+  ?D({atom, AtomName, T1}),
   mp4_foldl(Rest, State1);
 
 mp4_foldl(<<AtomLength:32, AtomName:4/binary, Bin/binary>>, State) ->
   Size = AtomLength - 8,
   <<Atom:Size/binary, Rest/binary>> = Bin,
-  State1 = handle_atom(binary_to_atom(AtomName, latin1), Atom, State),
+  {_T1, State1} = timer:tc(fun() -> handle_atom(binary_to_atom(AtomName, latin1), Atom, State) end),
+  % ?D({atom, AtomName, T1}),
   mp4_foldl(Rest, State1);
 
 mp4_foldl(<<>>, State) ->
@@ -281,15 +324,19 @@ handle_atom(iods, _Bin, State) -> State;
 handle_atom(udta, _Bin, State) -> State;
 handle_atom(ftyp, _Bin, State) -> State;
 
-handle_atom(stsz, <<_:32, _:32, SampleCount:32, _/binary>> = Bin, #track{buffer = Trak} = State) ->
-  Sizes = case Bin of
-    <<_:32, 0:32, _:32, Data/binary>> -> [Size || <<Size:32>> <= Data];
-    <<_:32, Size:32, _/binary>> -> Size
+handle_atom(stsz, <<_:32, SampleSize:32, SampleCount:32, SampleSizeData/binary>> = Bin, #track{buffer = Trak} = State) ->
+  T1 = erlang:now(),
+  Sizes = case SampleSize of
+    0 -> [Size || <<Size:32>> <= SampleSizeData];
+    _ -> SampleSize
   end,
+  T2 = erlang:now(),
   TotalSize = case Sizes of
     _ when is_number(Sizes) -> SampleCount*Sizes;
     _ -> lists:sum(Sizes)
   end,
+  T3 = erlang:now(),
+  ?D({stsz, SampleSize, timer:now_diff(T2, T1), timer:now_diff(T3, T2), SampleCount}),
   % ?D({stsz, SampleCount, TotalSize}),
   State#track{buffer = Trak ++ [{stsz, Bin}], sample_count = SampleCount, total_size = TotalSize, sizes = Sizes};
 
@@ -302,7 +349,7 @@ handle_atom(stco, Bin, #track{buffer = Trak} = State) ->
   State#track{stco = Bin, buffer = Trak ++ [{stco, <<0:32, 1:32, ChunkOffset:32>>}]};
 
 handle_atom(_Atom, _Bin, State) ->
-  ?D({_Atom, size(_Bin)}),
+  % ?D({_Atom, size(_Bin)}),
   State.
 
 
