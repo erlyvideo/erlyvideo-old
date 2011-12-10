@@ -285,6 +285,9 @@ rtcp(<<_, ?RTCP_SR, _/binary>> = SR, #rtp_channel{} = RTP) ->
   RTP#rtp_channel{wall_clock = WallClock, timecode = Timecode, last_sr = NTP, stream_id = StreamId};
 
 rtcp(<<_, ?RTCP_RR, _/binary>>, #rtp_channel{} = RTP) ->
+  RTP;
+
+rtcp(<<_, ?RTCP_PT_APP, _/binary>>, #rtp_channel{} = RTP) ->
   RTP.
 
 
