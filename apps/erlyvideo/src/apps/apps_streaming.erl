@@ -80,11 +80,13 @@ play(State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId})
   end,
   
   
-  SocketOptions = case {rtmp_session:get(State, disable_accel), rtmp_socket:get_socket(Socket)} of
-    {true, _} -> [];
-    {_, {rtmp, RTMPSocket}} -> [{socket,{rtmp,RTMPSocket}}];
-    _ -> []
-  end,
+  % SocketOptions = case {rtmp_session:get(State, disable_accel), rtmp_socket:get_socket(Socket)} of
+  %   {true, _} -> [];
+  %   {_, {rtmp, RTMPSocket}} -> [{socket,{rtmp,RTMPSocket}}];
+  %   _ -> []
+  % end,
+  % Totally remove useless acceleration
+  SocketOptions = [],
   case media_provider:open(Host, Name) of
     {notfound, _Reason} -> 
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Play.StreamNotFound">>),
