@@ -55,11 +55,12 @@ wait_for_reply(RTMP, InvokeId) ->
 
 default_connect_options(URL) ->
   {App, _Path} = app_path(URL),
+  {Host, _} = http_uri2:extract_path_with_query(URL),
   lists:ukeysort(1, [
     {app, list_to_binary(App)},
     {flashVer,<<"MAC 10,0,32,18">>},
     {swfUrl,<<"http://localhost/player/Player.swf">>},
-    {tcUrl,<<"rtmp://localhost/">>},
+    {tcUrl,list_to_binary("rtmp://"++Host)},
     {fpad,false},
     {capabilities,15.0},
     {audioCodecs,3191.0},
