@@ -66,7 +66,7 @@
 init(Options) ->
   #clients{
     type = proplists:get_value(type, Options),
-    accelerated_mode = proplists:get_value(accelerated_mode, Options),
+    accelerated_mode = false, %proplists:get_value(accelerated_mode, Options,false),
     name = proplists:get_value(name, Options),
     send_buffer = proplists:get_value(send_buffer, Options, ?SNDBUF)
   }.
