@@ -43,9 +43,8 @@ start_rtmpt(SessionID, IP) -> supervisor:start_child(rtmpt_session_sup, [Session
 start_rtmp_socket(Type) -> supervisor:start_child(rtmp_socket_sup, [Type]).
 
 -spec start_rtmp_session(RTMPSocket::pid(), Callback::atom()) -> {'error',_} | {'ok',pid()}.
-start_rtmp_session(RTMPSocket, Callback) ->
+start_rtmp_session(_RTMPSocket, Callback) ->
   {ok, Pid} = supervisor:start_child(rtmp_session_sup, [Callback]),
-  rtmp_session:set_socket(Pid, RTMPSocket),
   {ok, Pid}.
 
 
