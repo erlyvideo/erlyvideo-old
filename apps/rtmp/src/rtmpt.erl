@@ -68,6 +68,7 @@ open(IP, Callback) ->
   {ok, Pid} = Callback:create_client(RTMP),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   rtmpt:set_consumer(RTMPT, RTMP),
+  rtmp_session:set_socket(Pid, RTMP),
   gen_fsm:send_event(RTMP, {socket, RTMPT}),
   {ok, Pid, SessionID}.
 

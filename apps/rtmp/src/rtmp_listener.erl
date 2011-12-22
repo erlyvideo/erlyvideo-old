@@ -54,6 +54,7 @@ raw_accept(CliSocket, [Callback|Args]) ->
   {ok, Pid} = erlang:apply(Callback, create_client, [RTMP|Args]),
   rtmp_socket:setopts(RTMP, [{consumer, Pid}]),
   rtmp_socket:set_socket(RTMP, CliSocket),
+  rtmp_session:set_socket(Pid, RTMP),
   ok.
 
 
