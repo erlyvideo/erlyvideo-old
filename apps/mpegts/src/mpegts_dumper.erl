@@ -94,17 +94,19 @@ dump_frames(File, Position, Reader, Count) ->
         {ok, Reader1, undefined} ->
           dump_frames(File, Position+188, Reader1, Count);
         {ok, Reader1, PES} ->
+          % ?D({read_pes, PES}),
           {Reader2, Cnt} = dump_pes(Reader1, PES),
           dump_frames(File, Position+188, Reader2, Count + Cnt)
       end;
     {ok, <<_/binary>>} ->
-      % ?D(desync),
+      ?D(desync),
       dump_frames(File, Position + 1, Reader, Count);
     eof ->
       {ok, Reader1, PES1} = mpegts_reader:decode_ts({eof, h264}, Reader),
       Reader2 = case PES1 of
         undefined -> Reader1;
         _ ->
+          % ?D({old_pes,PES1}),
           {__Reader2, _} = dump_pes(Reader1, PES1),
           __Reader2
       end,
