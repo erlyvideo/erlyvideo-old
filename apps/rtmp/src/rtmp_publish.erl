@@ -101,7 +101,7 @@ init([Path, URL, Options]) ->
   {ok, RTMP} = rtmp_socket:connect(Socket),
   io:format("Connecting to ~s~n", [URL]),
   
-  {ok, Publisher#publisher{socket = Socket, rtmp = RTMP, counter = 1, no_timeout = proplists:get_value(no_timeout, Options, false)}}.
+  {ok, Publisher#publisher{socket = Socket, rtmp = RTMP, url = URL, counter = 1, no_timeout = proplists:get_value(no_timeout, Options, false)}}.
 
 
 read_frame(#publisher{file = File, offset = Offset} = Publisher) ->
@@ -150,8 +150,8 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({rtmp, RTMP, connected}, #publisher{server_path = Path} = Publisher) ->
-  rtmp_socket:setopts(RTMP, [{active, true}]),
+handle_info({rtmp, RTMP, connected}, #publisher{server_path = Path, url = URL} = Publisher) ->
+  rtmp_socket:setopts(RTMP, [{active, true},{url,URL}]),
   rtmp_lib:connect(RTMP, [{app, <<"live">>}, {tcUrl, <<"rtmp://localhost/live/a">>}]),
   Stream = rtmp_lib:createStream(RTMP),
   rtmp_lib:publish(RTMP, Stream, Path),
