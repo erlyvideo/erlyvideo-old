@@ -32,7 +32,7 @@
 
 http(Host, 'POST', ["open", ChunkNumber], Req) ->
   <<_Timeout>> = Req:get(body),
-  {ok, Pid, SessionId} = rtmpt:open(Req:get(peer_addr), rtmp_session),
+  {ok, Pid, SessionId} = rtmpt:open(Req:get(peer_addr), ems_rtmp),
   ems_log:access(Host, "RTMPT OPEN ~p ~p ~p", [SessionId, ChunkNumber, Pid]),
   Req:ok([?CONTENT_TYPE, ?SERVER_HEADER, {'Cache-Control', 'no-cache'},{'Connection','Keep-Alive'}], [SessionId, "\n"]);
   
