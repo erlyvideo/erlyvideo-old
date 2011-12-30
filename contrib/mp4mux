@@ -22,7 +22,7 @@
 -define(D(X), io:format("mp4mux:~p ~p~n", [?LINE, X])).
 
 main([]) ->
-  io:format("~s out.mp4 Spec1 Spec2 .. SpecN~n", [escript:script_name()]),
+  io:format("~s out.mp4 File1@Track1 File@Track2 .. SpecN~n", [escript:script_name()]),
   erlang:halt(1);
 
 
@@ -57,7 +57,7 @@ main([OutPath|Inputs]) ->
   State = #state{},
   #state{tracks = Tracks} = _State1 = lists:foldl(fun({F, TrackId}, #state{tracks = Tracks_} = State_) ->
     {_T2_, Track} = timer:tc(fun() -> append_track(F, #track{track_id = TrackId, track_number = 1, reader = F}) end),
-    % ?D({append_track, TrackId, T2_}),
+    ?D({append_track, TrackId, _T2_}),
     State_#state{tracks = Tracks_ ++ [Track]}
   end, State, InputFiles),
   Mp4 = fun([#track{mvhd = MVHD}|_] = Tracks_) ->
@@ -114,6 +114,7 @@ rewrite_track_atoms([Atom|Atoms], Count, Offset, Acc) ->
 
 write_track(Writer, #track{reader = Reader, stsc = <<_:32, _EntryCount:32, STSC/binary>>, stco = <<_:32, OffsetCount:32, STCO/binary>>, sizes = Sizes}) ->
   T0 = erlang:now(),
+  put(prev_cache_time, undefined),
   ChunkOffsets = [ChunkOffset || <<ChunkOffset:32>> <= STCO],
   {T1, ChunkSizes} = timer:tc(fun()-> expand_chunks([{ChunkId, SamplesPerChunk} || <<ChunkId:32, SamplesPerChunk:32, _SampleId:32>> <= STSC], OffsetCount, []) end),
   Chunks = lists:zipwith(fun(ChunkOffset, SamplesPerChunk) -> {ChunkOffset, SamplesPerChunk} end, ChunkOffsets, ChunkSizes),
@@ -181,7 +182,10 @@ mp4_foldl({Module,Device} = Input, Pos, State) ->
       State1 = handle_atom(mdat, undefined, State),
       mp4_foldl(Input, NewPos+Size, State1);
     {atom, moov, NewPos, Size} ->
+      T1 = erlang:now(),
       {ok, Bin} = Module:pread(Device, NewPos, Size),
+      T2 = erlang:now(),
+      ?D({pread_moov, timer:now_diff(T2,T1)}),
       State1 = mp4_foldl(Bin, State),
       mp4_foldl(Input, NewPos+Size, State1);
     {atom, Atom, NewPos, Size} ->
