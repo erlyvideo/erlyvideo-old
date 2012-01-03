@@ -9,12 +9,16 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <sys/uio.h>
+#include <http_parser.h>
 
 #ifndef IOV_MAX
 #define IOV_MAX 1000
 #endif
 
 typedef enum {LISTENER_MODE, CLIENT_MODE} SocketMode;
+
+static ErlDrvTermData atom_http;
+static ErlDrvTermData method_atoms[HTTP_PATCH+1];
 
 enum {
     CMD_LISTEN = 1,
@@ -31,6 +35,12 @@ typedef struct {
 } Config;
 #pragma options align=reset
 
+typedef struct {
+  ErlDrvBinary *field;
+  ErlDrvBinary *value;
+} Header;
+
+#define HTTP_MAX_HEADERS 100
 
 typedef struct {
   ErlDrvPort port;
@@ -38,11 +48,22 @@ typedef struct {
   int socket;
   unsigned long timeout;
   SocketMode mode;
+  http_parser_settings settings;
+  http_parser *parser;
+  ErlDrvBinary* buffer;
+  Header headers[HTTP_MAX_HEADERS];
+  int headers_count;
+  ErlDrvBinary *url;
+  
   Config config; // Only for listener mode
 } HTTP;
 
-
 static int microtcp_init(void) {
+  atom_http = driver_mk_atom("http");
+  int i;
+  for(i = 0; i <= HTTP_PATCH; i++) {
+    method_atoms[i] = driver_mk_atom((char *)http_method_str(i));
+  }
   return 0;
 }
 
@@ -106,26 +127,34 @@ static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
     driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 0);
     return;
   }
-  fprintf(stderr, "Flushing buffer %d\r\n", driver_sizeq(d->port));
+  fprintf(stderr, "Flushing buffer %d\r\n", (int)driver_sizeq(d->port));
   written = writev(d->socket, (const struct iovec *)vec, vlen > IOV_MAX ? IOV_MAX : vlen);
   if(vlen > IOV_MAX) {
-    fprintf(stderr, "Buffer overloaded: %d, %d\r\n", vlen, driver_sizeq(d->port) - written);
-  } else {
-    fprintf(stderr, "Network write: %d (%d)\r\n", written, driver_sizeq(d->port) - written);
+    fprintf(stderr, "Buffer overloaded: %d, %d\r\n", vlen, (int)(driver_sizeq(d->port) - written));
   }
   if(written == -1) {
     if((errno != EWOULDBLOCK) && (errno != EINTR)) {
-        fprintf(stderr, "Error in writev: %s %p %d/%d\r\n", strerror(errno), vec, vlen, driver_sizeq(d->port));
+        fprintf(stderr, "Error in writev: %s %p %d/%d\r\n", strerror(errno), vec, vlen, (int)driver_sizeq(d->port));
       tcp_exit(d);
       return;
     }
   } else {
-    driver_deq(d->port, written);
+    ErlDrvSizeT rest = driver_deq(d->port, written);
+    fprintf(stderr, "Network write: %d (%d)\r\n", (int)written, (int)rest);
+    
   }
 }
 
-static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *buf, 
-                   int len, char **rbuf, int rlen) {
+static void activate(HTTP *d) {
+  driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 1);
+}
+
+static void deactivate(HTTP *d) {
+  driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 0);
+}
+
+static ErlDrvSSizeT microtcp_drv_command(ErlDrvData handle, unsigned int command, char *buf, 
+                   ErlDrvSizeT len, char **rbuf, ErlDrvSizeT rlen) {
   HTTP* d = (HTTP*) handle;
   
   switch(command) {
@@ -159,7 +188,7 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
       }
       
       int on = 1;
-      if(d->config.reuseaddr) {
+      if(d->config.reuseaddr || 1) {
         fprintf(stderr, "Reusing listen addr\r\n");
         setsockopt(d->socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)); 
       }
@@ -167,7 +196,7 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
         setsockopt(d->socket, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
       }
       
-      driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 1);
+      activate(d);
       d->mode = LISTENER_MODE;
       listen(d->socket, d->config.backlog);
       memcpy(*rbuf, "ok", 2);
@@ -175,7 +204,7 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
     }
     
     case CMD_ACTIVE_ONCE: {
-      driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 1);
+      activate(d);
       driver_set_timer(d->port, d->timeout);
       memcpy(*rbuf, "ok", 2);
       return 2;
@@ -184,6 +213,116 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
     default:
     return 0;
   }
+  return 0;
+}
+
+static int on_message_begin(http_parser *p) {
+  fprintf(stderr, "S> INCOME REQUEST\r\n");
+  HTTP *d = (HTTP *)p->data;
+  d->url = NULL;
+  d->headers_count = 0;
+  return 0;
+}
+
+static int on_url(http_parser *p, const char *url, size_t len) {
+  // TODO: here should be special accelerated cache replier
+  HTTP *d = (HTTP *)p->data;
+  d->url = driver_alloc_binary(len);
+  activate(d);
+  memcpy(d->url->orig_bytes, url, len);
+  return 0;
+}
+
+static int on_header_field(http_parser *p, const char *field, size_t len) {
+  HTTP *d = (HTTP *)p->data;
+  activate(d);
+  if(d->headers_count >= HTTP_MAX_HEADERS) {
+    p->http_errno = HPE_HEADER_OVERFLOW;
+    return 1;
+  }
+  
+  ErlDrvBinary *bin = d->headers[d->headers_count].field = driver_alloc_binary(len);
+  memcpy(bin->orig_bytes, field, len);
+  
+  return 0;
+}
+
+static int on_header_value(http_parser *p, const char *field, size_t len) {
+  HTTP *d = (HTTP *)p->data;
+  activate(d);
+
+  ErlDrvBinary *bin = d->headers[d->headers_count].value = driver_alloc_binary(len);
+  memcpy(bin->orig_bytes, field, len);
+  
+  d->headers_count++;
+  
+  return 0;
+}
+
+static int on_headers_complete(http_parser *p) {
+  HTTP *d = (HTTP *)p->data;
+  
+  int count = 2 + 2 + 2 + 4 + d->headers_count*(4*2 + 2) + 3 + 2;
+  ErlDrvTermData reply[count];
+  
+  int i = 0;
+  
+  fprintf(stderr, "S> %s %.*s HTTP/%d.%d\r\n", http_method_str(p->method), (int)d->url->orig_size, d->url->orig_bytes, p->http_major, p->http_minor);
+  
+  
+  reply[i++] = ERL_DRV_ATOM;
+  reply[i++] = atom_http;
+  reply[i++] = ERL_DRV_PORT;
+  reply[i++] = driver_mk_port(d->port);
+  reply[i++] = ERL_DRV_ATOM;
+  reply[i++] = method_atoms[p->method];
+  reply[i++] = ERL_DRV_BINARY;
+  reply[i++] = (ErlDrvTermData)d->url;
+  reply[i++] = (ErlDrvTermData)d->url->orig_size;
+  reply[i++] = 0;
+  int j;
+  
+  for(j = 0; j < d->headers_count; j++) {
+    reply[i++] = ERL_DRV_BINARY;
+    reply[i++] = (ErlDrvTermData)d->headers[j].field;
+    reply[i++] = (ErlDrvTermData)d->headers[j].field->orig_size;
+    reply[i++] = 0;
+
+    reply[i++] = ERL_DRV_BINARY;
+    reply[i++] = (ErlDrvTermData)d->headers[j].value;
+    reply[i++] = (ErlDrvTermData)d->headers[j].value->orig_size;
+    reply[i++] = 0;
+    
+    reply[i++] = ERL_DRV_TUPLE;
+    reply[i++] = 2;
+
+    fprintf(stderr, "S> %.*s: %.*s\r\n", (int)d->headers[j].field->orig_size, d->headers[j].field->orig_bytes, (int)d->headers[j].value->orig_size, d->headers[j].value->orig_bytes);
+  }
+  
+  reply[i++] = ERL_DRV_NIL;
+  reply[i++] = ERL_DRV_LIST;
+  reply[i++] = j+1;
+  
+  reply[i++] = ERL_DRV_TUPLE;
+  reply[i++] = 5;
+  
+  int o = driver_output_term(d->port, reply, i);
+  // reply[10] = ERL_DRV_TUPLE;
+  // reply[11] = 4;
+  // int o = driver_output_term(d->port, reply, 12);
+  deactivate(d);
+  
+  fprintf(stderr, "S> -- (%d, %d) \r\n", i, o);
+  return 0;
+}
+
+static int on_body(http_parser *p, const char *body, size_t len) {
+  fprintf(stderr, "S> body chunk %d\r\n", (int)len);
+  return 0;
+}
+
+static int on_message_complete(http_parser *_) {
+  fprintf(stderr, "S> REQUEST COMPLETE\r\n");
   return 0;
 }
 
@@ -204,6 +343,17 @@ static void accept_tcp(HTTP *d)
   ErlDrvPort client = driver_create_port(d->port, d->owner_pid, "microtcp_drv", (ErlDrvData)c);
   c->port = client;
   c->timeout = d->config.timeout;
+  c->parser = malloc(sizeof(http_parser));
+  c->parser->data = c;
+  c->settings.on_message_begin = on_message_begin;
+  c->settings.on_url = on_url;
+  c->settings.on_header_field = on_header_field;
+  c->settings.on_header_value = on_header_value;
+  c->settings.on_headers_complete = on_headers_complete;
+  c->settings.on_body = on_body;
+  c->settings.on_message_complete = on_message_complete;
+  http_parser_init(c->parser, HTTP_REQUEST);
+  c->buffer = driver_alloc_binary(10240);
   driver_set_timer(c->port, c->timeout);
   set_port_control_flags(c->port, PORT_CONTROL_FLAG_BINARY);
   ErlDrvTermData reply[] = {
@@ -226,9 +376,9 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
   }
   
   if(d->mode == CLIENT_MODE) {
-    driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 0);
-    ErlDrvBinary* bin = driver_alloc_binary(10240);
-    size_t n = recv(d->socket, bin->orig_bytes, bin->orig_size, 0);
+    deactivate(d);
+    
+    size_t n = recv(d->socket, d->buffer->orig_bytes, d->buffer->orig_size, 0);
     if(n <= 0) {
       if((errno != EWOULDBLOCK) && (errno != EINTR)) {
         fprintf(stderr, "Error in recv: %s\r\n", strerror(errno));
@@ -237,13 +387,27 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
       return;
     }
     
-    ErlDrvTermData reply[] = {
-      ERL_DRV_ATOM, driver_mk_atom("tcp"),
-      ERL_DRV_PORT, driver_mk_port(d->port),
-      ERL_DRV_BINARY, (ErlDrvTermData)bin, (ErlDrvTermData)n, 0,
-      ERL_DRV_TUPLE, 3
-    };
-    driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
+    ssize_t nparsed = http_parser_execute(d->parser, &d->settings, d->buffer->orig_bytes, n);
+    
+    if(d->parser->upgrade) {
+      fprintf(stderr, "Websockets not supported\n");
+      tcp_exit(d);
+      return;
+    }
+    
+    if(nparsed != n) {
+      fprintf(stderr, "Handle HTTP error: %s(%s)\n", http_errno_name(d->parser->http_errno), http_errno_description(d->parser->http_errno));
+      tcp_exit(d);
+      return;
+    }
+    
+    // ErlDrvTermData reply[] = {
+    //   ERL_DRV_ATOM, driver_mk_atom("tcp"),
+    //   ERL_DRV_PORT, driver_mk_port(d->port),
+    //   ERL_DRV_BINARY, (ErlDrvTermData)c->, (ErlDrvTermData)n, 0,
+    //   ERL_DRV_TUPLE, 3
+    // };
+    // driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
     return;
   }
 }

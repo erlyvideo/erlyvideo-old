@@ -49,8 +49,8 @@ listen(Port) ->
 
 connect(Port) ->
   {ok, _R1} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
-  {ok, _R2} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
-  {ok, _R3} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
+  {ok, _R2} = httpc:request(post, {"http://localhost:"++integer_to_list(Port)++"/index.html", [], "application/octet-stream", "a=b&c=d"}, [], []),
+  {ok, _R3} = httpc:request(put, {"http://localhost:"++integer_to_list(Port)++"/index.html", [], "text/plain", "Hi!!!\ndamn\n"}, [], []),
   ok.
   
   
@@ -61,7 +61,14 @@ client_launch() ->
   end.
 
 client_loop(Socket, Bin) ->
-  microtcp:send(Socket, <<(size(Bin)):32, Bin/binary>>),
+  microtcp:active_once(Socket),
+  receive
+    % {http, Socket, Method, URL, Headers}
+    Req -> ?S(Req)
+  end,
+  timer:sleep(100),
+  OK = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+  microtcp:send(Socket, [OK, OK, OK]),
   receive
     {tcp_closed, Socket} -> ok;
     Else -> 
