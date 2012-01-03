@@ -28,8 +28,6 @@ typedef struct {
   uint8_t reuseaddr;
   uint8_t keepalive;
   uint16_t timeout;
-  uint32_t upper_limit;
-  uint32_t lower_limit;
 } Config;
 #pragma options align=reset
 
@@ -38,21 +36,21 @@ typedef struct {
   ErlDrvPort port;
   ErlDrvTermData owner_pid;
   int socket;
-  uint32_t upper_limit;
-  uint32_t lower_limit;
   unsigned long timeout;
-  int paused_output;
   SocketMode mode;
   Config config; // Only for listener mode
-} Emstcp;
+} HTTP;
 
 
+static int microtcp_init(void) {
+  return 0;
+}
 
 
 static ErlDrvData microtcp_drv_start(ErlDrvPort port, char *buff)
 {
-    Emstcp* d = (Emstcp *)driver_alloc(sizeof(Emstcp));
-    bzero(d, sizeof(Emstcp));
+    HTTP* d = (HTTP *)driver_alloc(sizeof(HTTP));
+    bzero(d, sizeof(HTTP));
     d->port = port;
     set_port_control_flags(port, PORT_CONTROL_FLAG_BINARY);
     d->owner_pid = driver_caller(port);
@@ -62,19 +60,19 @@ static ErlDrvData microtcp_drv_start(ErlDrvPort port, char *buff)
 
 static void microtcp_drv_stop(ErlDrvData handle)
 {
-  Emstcp* d = (Emstcp *)handle;
+  HTTP* d = (HTTP *)handle;
   if(d->mode == LISTENER_MODE) {
     fprintf(stderr, "Listener port is closing: %d\r\n", ntohs(d->config.port));
   } else {
     fprintf(stderr, "Client socket is closing\r\n");
   }
-  driver_select(d->port, (ErlDrvEvent)(d->socket), DO_READ|DO_WRITE, 0);
+  driver_select(d->port, (ErlDrvEvent)(d->socket), (int)DO_READ|DO_WRITE, 0);
   close(d->socket);
   driver_free((char*)handle);
 }
 
 
-static void tcp_exit(Emstcp *d)
+static void tcp_exit(HTTP *d)
 {
   driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ|DO_WRITE, 0);
   ErlDrvTermData reply[] = {
@@ -88,31 +86,17 @@ static void tcp_exit(Emstcp *d)
 
 static void microtcp_drv_outputv(ErlDrvData handle, ErlIOVec *ev)
 {
-    Emstcp* d = (Emstcp *)handle;
-    if(d->paused_output) {
-      return;
-    } else if(ev->size + driver_sizeq(d->port) > d->upper_limit) {
-      d->paused_output = 1;
-      fprintf(stderr, "Pausing client\r\n");
-      ErlDrvTermData reply[] = {
-        ERL_DRV_ATOM, driver_mk_atom("tcp_paused"),
-        ERL_DRV_PORT, driver_mk_port(d->port),
-        ERL_DRV_TUPLE, 2
-      };
-      driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
-      
-    } else {
-      driver_enqv(d->port, ev, 0);
-      //fprintf(stderr, "Queue %d bytes, %d\r\n", ev->size,  driver_sizeq(d->port));
-      driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 1);
-    }
+  HTTP* d = (HTTP *)handle;
+  driver_enqv(d->port, ev, 0);
+  //fprintf(stderr, "Queue %d bytes, %d\r\n", ev->size,  driver_sizeq(d->port));
+  driver_select(d->port, (ErlDrvEvent)d->socket, DO_WRITE, 1);
 }
 
 
 
 static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
 {
-  Emstcp* d = (Emstcp*) handle;
+  HTTP* d = (HTTP*) handle;
   SysIOVec* vec;
   int vlen = 0;
   size_t written;
@@ -137,22 +121,12 @@ static void microtcp_drv_output(ErlDrvData handle, ErlDrvEvent event)
     }
   } else {
     driver_deq(d->port, written);
-    if(d->paused_output && driver_sizeq(d->port) <= d->lower_limit) {
-      ErlDrvTermData reply[] = {
-        ERL_DRV_ATOM, driver_mk_atom("tcp_resumed"),
-        ERL_DRV_PORT, driver_mk_port(d->port),
-        ERL_DRV_TUPLE, 2
-      };
-      driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
-      fprintf(stderr, "Resuming client\r\n");
-      d->paused_output = 0;
-    }
   }
 }
 
 static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *buf, 
                    int len, char **rbuf, int rlen) {
-  Emstcp* d = (Emstcp*) handle;
+  HTTP* d = (HTTP*) handle;
   
   switch(command) {
     case CMD_LISTEN: {
@@ -213,7 +187,7 @@ static int microtcp_drv_command(ErlDrvData handle, unsigned int command, char *b
   return 0;
 }
 
-static void accept_tcp(Emstcp *d)
+static void accept_tcp(HTTP *d)
 {
   socklen_t sock_len;
   struct sockaddr_in client_addr;
@@ -221,7 +195,7 @@ static void accept_tcp(Emstcp *d)
   if(fd == -1) {
     return;
   }
-  Emstcp* c = driver_alloc(sizeof(Emstcp));
+  HTTP* c = driver_alloc(sizeof(HTTP));
 
   c->owner_pid = d->owner_pid;
   c->socket = fd;
@@ -229,9 +203,6 @@ static void accept_tcp(Emstcp *d)
 
   ErlDrvPort client = driver_create_port(d->port, d->owner_pid, "microtcp_drv", (ErlDrvData)c);
   c->port = client;
-  c->upper_limit = d->config.upper_limit;
-  c->lower_limit = d->config.lower_limit;
-  c->paused_output = 0;
   c->timeout = d->config.timeout;
   driver_set_timer(c->port, c->timeout);
   set_port_control_flags(c->port, PORT_CONTROL_FLAG_BINARY);
@@ -247,7 +218,7 @@ static void accept_tcp(Emstcp *d)
 
 static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
 {
-  Emstcp* d = (Emstcp*) handle;
+  HTTP* d = (HTTP*) handle;
   
   if(d->mode == LISTENER_MODE) {
     accept_tcp(d);
@@ -280,13 +251,13 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
 
 static void microtcp_inet_timeout(ErlDrvData handle)
 {
-  Emstcp* d = (Emstcp *)handle;
+  HTTP* d = (HTTP *)handle;
   fprintf(stderr, "Timeout in socket\r\n");
   tcp_exit(d);
 }
 
 ErlDrvEntry microtcp_driver_entry = {
-    NULL,			/* F_PTR init, N/A */
+    microtcp_init,			/* F_PTR init, N/A */
     microtcp_drv_start,		/* L_PTR start, called when port is opened */
     microtcp_drv_stop,		/* F_PTR stop, called when port is closed */
     NULL,	                /* F_PTR output, called when erlang has sent */
@@ -304,7 +275,7 @@ ErlDrvEntry microtcp_driver_entry = {
     NULL,                             /* event */
     ERL_DRV_EXTENDED_MARKER,          /* ERL_DRV_EXTENDED_MARKER */
     ERL_DRV_EXTENDED_MAJOR_VERSION,   /* ERL_DRV_EXTENDED_MAJOR_VERSION */
-    ERL_DRV_EXTENDED_MAJOR_VERSION,   /* ERL_DRV_EXTENDED_MINOR_VERSION */
+    ERL_DRV_EXTENDED_MINOR_VERSION,   /* ERL_DRV_EXTENDED_MINOR_VERSION */
     ERL_DRV_FLAG_USE_PORT_LOCKING,     /* ERL_DRV_FLAGs */
     NULL,     /* void *handle2 */
     NULL,     /* process_exit */

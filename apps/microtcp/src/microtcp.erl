@@ -49,11 +49,9 @@ listen(Port, Options) ->
     _ -> 0
   end,
   Timeout = proplists:get_value(timeout, Options, 60000),
-  UpperLimit = proplists:get_value(upper_limit, Options, 1000000),
-  LowerLimit = proplists:get_value(lower_limit, Options, 0),
   Backlog = proplists:get_value(backlog, Options, 30),
   
-  <<"ok">> = port_control(Socket, ?CMD_LISTEN, <<Port:16, Backlog:16/little, Reuseaddr, Keepalive, Timeout:16/little, UpperLimit:32/little, LowerLimit:32/little>>),
+  <<"ok">> = port_control(Socket, ?CMD_LISTEN, <<Port:16, Backlog:16/little, Reuseaddr, Keepalive, Timeout:16/little>>),
   {ok, Socket}.
 
 

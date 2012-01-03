@@ -1,7 +1,11 @@
 #!/usr/bin/env ERL_LIBS=.. escript
 %%! -pa ebin
 
+-define(C(X), io:format("client:~p ~p~n", [?LINE,X])).
+-define(S(X), io:format("server:~p ~p~n", [?LINE,X])).
+
 main([]) ->
+  inets:start(),
   Listener = spawn(fun() ->
     listen(9000)
   end),
@@ -25,7 +29,7 @@ listen(Port) ->
   Opts1 = [binary, {packet, raw}, {reuseaddr, true}, 
           {keepalive, true}, {backlog, 30}, {active, once}],
   {ok, Listen} = microtcp:listen(Port, Opts1),
-  io:format("Open port: ~p~n", [Listen]),
+  ?S({open_port,Listen}),
   receive
     {tcp_connection, Listen, Socket} ->
       Pid = spawn(fun() ->
@@ -33,7 +37,7 @@ listen(Port) ->
       end),
       microtcp:controlling_process(Socket, Pid),
       Pid ! {socket, Socket},
-      io:format("Client connected~n"),
+      ?S({client,connected}),
       erlang:monitor(process, Pid)
   end,
   receive
@@ -44,12 +48,12 @@ listen(Port) ->
 -define(SIZE, 100000).
 
 connect(Port) ->
-  {ok, Sock} = gen_tcp:connect("localhost", Port, [binary]),
-  gen_tcp:recv(Sock, 0),
-  gen_tcp:recv(Sock, 0),
-  gen_tcp:recv(Sock, 0),
-  gen_tcp:close(Sock).
-
+  {ok, _R1} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
+  {ok, _R2} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
+  {ok, _R3} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
+  ok.
+  
+  
 client_launch() ->
   Bin = crypto:rand_bytes(?SIZE),
   receive
