@@ -24,6 +24,7 @@
 #include <http_parser.h>
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 
 
 #ifndef MIN
@@ -658,6 +659,7 @@ size_t http_parser_execute (http_parser *parser,
         CALLBACK2(message_begin);
 
         if (!IS_ALPHA(ch)) {
+          fprintf(stderr, "Left %d %.*s\r\n", ch, (int)(pe - p), p);
           SET_ERRNO(HPE_INVALID_METHOD);
           goto error;
         }

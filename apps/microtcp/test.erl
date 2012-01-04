@@ -11,18 +11,20 @@ main([]) ->
   end),
   erlang:monitor(process, Listener),
   
-  Client = spawn(fun() ->
-    connect(9000)
-  end),
-  erlang:monitor(process, Client),
-  
-  receive
-    {'DOWN', _, process, Client, Reason1} -> io:format("client died ~p~n", [Reason1])
-  end,
+  % Client = spawn(fun() ->
+  %   connect(9000)
+  % end),
+  % erlang:monitor(process, Client),
+  % 
+  % receive
+  %   {'DOWN', _, process, Client, Reason1} -> io:format("client died ~p~n", [Reason1])
+  % end,
   receive
     {'DOWN', _, process, Listener, Reason2} -> io:format("listener died ~p~n", [Reason2])
   end,
   ok.
+
+-define(SIZE, 100000).
 
 
 listen(Port) ->
@@ -30,54 +32,60 @@ listen(Port) ->
           {keepalive, true}, {backlog, 30}, {active, once}],
   {ok, Listen} = microtcp:listen(Port, Opts1),
   ?S({open_port,Listen}),
+  Bin = crypto:rand_bytes(?SIZE),  
+  listen_loop(Listen, Bin).
+  
+listen_loop(Listen, Bin) ->  
   receive
     {tcp_connection, Listen, Socket} ->
       Pid = spawn(fun() ->
-        client_launch()
+        client_launch(Bin)
       end),
       microtcp:controlling_process(Socket, Pid),
       Pid ! {socket, Socket},
-      ?S({client,connected}),
-      erlang:monitor(process, Pid)
-  end,
-  receive
-    Msg -> io:format("Msg: ~p~n", [Msg])
-  end,
-  ok.
-
--define(SIZE, 100000).
+      % ?S({client,connected});
+      % erlang:monitor(process, Pid);
+      listen_loop(Listen, Bin);
+    Else ->
+      ?S(Else)  
+  end.
 
 connect(Port) ->
-  {ok, _R1} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
-  {ok, _R2} = httpc:request(post, {"http://localhost:"++integer_to_list(Port)++"/index.html", [], "application/octet-stream", "a=b&c=d"}, [], []),
-  {ok, _R3} = httpc:request(put, {"http://localhost:"++integer_to_list(Port)++"/index.html", [], "text/plain", "Hi!!!\ndamn\n"}, [], []),
+  % {ok, _R1} = httpc:request("http://localhost:"++integer_to_list(Port)++"/index.html"),
+  % {ok, _R2} = httpc:request(post, {"http://localhost:"++integer_to_list(Port)++"/index.html", [], "application/octet-stream", "a=b&c=d"}, [], []),
+  % {ok, _R3} = httpc:request(put, {"http://localhost:"++integer_to_list(Port)++"/index.html", [], "text/plain", "Hi!!!\ndamn\n"}, [], []),
   ok.
   
   
-client_launch() ->
-  Bin = crypto:rand_bytes(?SIZE),
+client_launch(Bin) ->
+  ?S({spawned_client}),
+  % Bin = <<"Hello world!\n">>,
+  Reply = iolist_to_binary([
+    "HTTP/1.1 200 OK\r\n",
+    "Connection: Keep-Alive\r\n",
+    io_lib:format("Content-Length: ~p\r\n", [size(Bin)]),
+    "\r\n",
+    Bin
+  ]),
   receive
-    {socket, Socket} -> client_loop(Socket, Bin)
+    {socket, Socket} -> client_loop(Socket, Reply)
   end.
 
-client_loop(Socket, Bin) ->
+client_loop(Socket, Reply) ->
   microtcp:active_once(Socket),
+  % receive
+  %   {tcp, Socket, Bin} ->
+  %     ?S({Bin, size(Bin)})
+  % end,  
   receive
-    % {http, Socket, Method, URL, Headers}
-    Req -> ?S(Req)
-  end,
-  timer:sleep(100),
-  OK = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
-  microtcp:send(Socket, [OK, OK, OK]),
-  receive
-    {tcp_closed, Socket} -> ok;
-    Else -> 
-      io:format("Msg: ~p~n", [Else]),
-      inet:setopts(Socket, [{active,once}]),
-      client_loop(Socket, Bin)
-  after
-    40 -> client_loop(Socket, Bin)
+    {http, Socket, Method, URL, _Version, Headers} = Req ->
+      % ?S(Req),
+      microtcp:send(Socket, Reply),
+      client_loop(Socket, Reply);
+    {tcp_closed, Socket} ->
+      ok  
   end.
+  
   % microtcp:active_once(Socket),
   % receive
   %   {tcp, Socket, Data} ->
