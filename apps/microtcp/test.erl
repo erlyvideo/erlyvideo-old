@@ -29,10 +29,11 @@ main([]) ->
 
 listen(Port) ->
   Opts1 = [binary, {packet, raw}, {reuseaddr, true}, 
-          {keepalive, true}, {backlog, 30}, {active, once}],
+          {keepalive, true}, {backlog, 400}, {active, once}],
   {ok, Listen} = microtcp:listen(Port, Opts1),
   ?S({open_port,Listen}),
-  Bin = crypto:rand_bytes(?SIZE),  
+  Bin = crypto:rand_bytes(?SIZE),
+  put(clients, 0),  
   listen_loop(Listen, Bin).
   
 listen_loop(Listen, Bin) ->  
@@ -44,7 +45,13 @@ listen_loop(Listen, Bin) ->
       microtcp:controlling_process(Socket, Pid),
       Pid ! {socket, Socket},
       % ?S({client,connected});
-      % erlang:monitor(process, Pid);
+      erlang:monitor(process, Pid),
+      put(clients, get(clients)+1),
+      ?S({spawned_client,get(clients)}),
+      listen_loop(Listen, Bin);
+    {'DOWN', _, _, _, _} ->
+      put(clients, get(clients)-1),
+      ?S({died_client, get(clients)}),
       listen_loop(Listen, Bin);
     Else ->
       ?S(Else)  
@@ -58,7 +65,6 @@ connect(Port) ->
   
   
 client_launch(Bin) ->
-  ?S({spawned_client}),
   % Bin = <<"Hello world!\n">>,
   Reply = iolist_to_binary([
     "HTTP/1.1 200 OK\r\n",
@@ -83,7 +89,9 @@ client_loop(Socket, Reply) ->
       microtcp:send(Socket, Reply),
       client_loop(Socket, Reply);
     {tcp_closed, Socket} ->
-      ok  
+      ok;
+    {tcp_error, Socket, timeout} ->
+      microtcp:close(Socket)  
   end.
   
   % microtcp:active_once(Socket),

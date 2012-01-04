@@ -396,7 +396,7 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
     // };
     // driver_output_term(d->port, reply, sizeof(reply) / sizeof(reply[0]));
     
-    if(n == 0) {
+    if(n == 0 || (n < 0 && errno == ECONNRESET)) {
       tcp_exit(d);
       return;
     }
@@ -445,8 +445,12 @@ static void microtcp_drv_input(ErlDrvData handle, ErlDrvEvent event)
 static void microtcp_inet_timeout(ErlDrvData handle)
 {
   HTTP* d = (HTTP *)handle;
-  fprintf(stderr, "Timeout in socket\r\n");
-  tcp_exit(d);
+  ErlDrvTermData reply[] = {
+    ERL_DRV_ATOM, driver_mk_atom("tcp_error"),
+    ERL_DRV_PORT, driver_mk_port(d->port),
+    ERL_DRV_PORT, driver_mk_atom("timeout"),
+    ERL_DRV_TUPLE, 3
+  };
 }
 
 ErlDrvEntry microtcp_driver_entry = {
