@@ -1,5 +1,5 @@
 #!/usr/bin/env ERL_LIBS=.. escript
-%%! -pa ebin
+%%! -pa ebin  -smp enable +K true +A 16 +a 2048
 
 -define(C(X), io:format("client:~p ~p~n", [?LINE,X])).
 -define(S(X), io:format("server:~p ~p~n", [?LINE,X])).
@@ -33,6 +33,16 @@ listen(Port) ->
   {ok, Listen} = microtcp:listen(Port, Opts1),
   ?S({open_port,Listen}),
   Bin = crypto:rand_bytes(?SIZE),
+  Reply = iolist_to_binary([
+    "HTTP/1.1 200 OK\r\n",
+    "Connection: Keep-Alive\r\n",
+    io_lib:format("Content-Length: ~p\r\n", [size(Bin)]),
+    "\r\n",
+    Bin
+  ]),
+  
+  ets:new(http_cache, [set,named_table,public]),
+  ets:insert(http_cache, {<<"/index.html">>, Reply}),
   put(clients, 0),  
   listen_loop(Listen, Bin).
   
@@ -64,15 +74,8 @@ connect(Port) ->
   ok.
   
   
-client_launch(Bin) ->
+client_launch(Reply) ->
   % Bin = <<"Hello world!\n">>,
-  Reply = iolist_to_binary([
-    "HTTP/1.1 200 OK\r\n",
-    "Connection: Keep-Alive\r\n",
-    io_lib:format("Content-Length: ~p\r\n", [size(Bin)]),
-    "\r\n",
-    Bin
-  ]),
   receive
     {socket, Socket} -> client_loop(Socket, Reply)
   end.
@@ -85,8 +88,14 @@ client_loop(Socket, Reply) ->
   % end,  
   receive
     {http, Socket, Method, URL, _Version, Headers} = Req ->
+      case ets:lookup(http_cache, URL) of
+        [] ->
+          microtcp:send(Socket, ["HTTP/1.1 404 NotFound\r\n\r\n"]);
+        [{URL, R}] ->
+          microtcp:send(Socket, R)
+      end,
       % ?S(Req),
-      microtcp:send(Socket, Reply),
+      % microtcp:send(Socket, Reply),
       client_loop(Socket, Reply);
     {tcp_closed, Socket} ->
       ok;

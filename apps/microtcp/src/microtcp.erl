@@ -31,8 +31,6 @@ listen(Port) -> listen(Port, []).
 -define(CMD_LISTEN, 1).
 -define(CMD_ACTIVE_ONCE, 2).
 
-
-
 listen(Port, Options) ->
   case erl_ddll:load_driver(code:lib_dir(microtcp,priv), microtcp_drv) of
   	ok -> ok;
