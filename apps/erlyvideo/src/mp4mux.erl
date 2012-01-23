@@ -189,7 +189,7 @@ mp4_foldl({Module,Device} = Input, Pos, State) ->
       ?D({pread_moov, timer:now_diff(T2,T1)}),
       State1 = mp4_foldl(Bin, State),
       mp4_foldl(Input, NewPos+Size, State1);
-    {atom, Atom, NewPos, Size} ->
+    {atom, _Atom, NewPos, Size} ->
       % {ok, Bin} = Module:pread(Device, NewPos, Size),
       % State1 = handle_atom(Atom, Bin, State),
       mp4_foldl(Input, NewPos+Size, State);
@@ -332,7 +332,7 @@ handle_atom(udta, _Bin, State) -> State;
 handle_atom(ftyp, _Bin, State) -> State;
 
 handle_atom(stsz, <<_:32, SampleSize:32, SampleCount:32, SampleSizeData/binary>> = Bin, #track{buffer = Trak} = State) ->
-  T1 = erlang:now(),
+  _T1 = erlang:now(),
   Sizes = case SampleSize of
     0 -> SampleSizeData;
     _ -> SampleSize
@@ -342,7 +342,7 @@ handle_atom(stsz, <<_:32, SampleSize:32, SampleCount:32, SampleSizeData/binary>>
     true -> stsz_size(SampleSizeData)
   end,
   
-  T3 = erlang:now(),
+  _T3 = erlang:now(),
   State#track{buffer = Trak ++ [{stsz, Bin}], sample_count = SampleCount, total_size = TotalSize, sizes = Sizes};
 
 handle_atom(stsc, Bin, #track{buffer = Trak} = State) ->
