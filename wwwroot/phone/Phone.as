@@ -10,7 +10,7 @@ private var registerEnabled:Boolean = false;
 private var registerLabel:String = "Register";
 
 [Bindable]
-private var callEnabled:Boolean = false;
+private var callEnabled:Boolean = true;
 
 [Bindable]
 private var callLabel:String = "Call";
@@ -209,6 +209,7 @@ public function declineCall() : void
   inTalk = false;
   acceptEnabled = false;
   declineEnabled = false;
+  callEnabled = true;
   callLabel = "Call";
   callingLabel = "";
   nc.call("declineCall", r);
