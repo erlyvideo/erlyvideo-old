@@ -21,8 +21,17 @@
 
 -define(D(X), io:format("mp4mux:~p ~p~n", [?LINE, X])).
 
-run(OutPath, Inputs) ->  
+run(OutPath, Inputs) when is_list(OutPath) ->
+  {ok, Out} = file:open(OutPath, [binary, write, raw, {delayed_write, 2*1024*1024, 3000}]),
+  Writer = fun(Bin) ->
+    file:write(Out, Bin)
+    % ok
+  end,
+  run(Writer, Inputs);
+
+run(Writer, Inputs) when is_function(Writer) ->
   T1 = erlang:now(),
+  
   InputFiles = lists:map(fun(Spec) ->
     [Path, Track] = string:tokens(Spec, "@"),
     TrackId = list_to_integer(Track),
@@ -30,11 +39,6 @@ run(OutPath, Inputs) ->
     {{file,F}, TrackId}
   end, Inputs),
   
-  {ok, Out} = file:open(OutPath, [binary, write, raw, {delayed_write, 2*1024*1024, 3000}]),
-  Writer = fun(Bin) ->
-    file:write(Out, Bin)
-    % ok
-  end,
   
   State = #state{},
   #state{tracks = Tracks} = _State1 = lists:foldl(fun({F, TrackId}, #state{tracks = Tracks_} = State_) ->
