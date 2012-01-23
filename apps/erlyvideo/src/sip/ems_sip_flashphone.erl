@@ -391,10 +391,23 @@ reregister(Number, Password) ->
 call(Name, Options, Client) when is_list(Name) ->
   call(list_to_binary(Name), Options, Client);
 call(Name, _Options, Client) when is_binary(Name) ->
-  {ok, OrigNameS, Password, _} = esip_registrator:find(Client),
-  OrigName = list_to_binary(OrigNameS),
-  {ok, CbState} = ?MODULE:cb_init([{name, OrigName}]),
-  case originating(OrigName, Password, Name, CbState) of
+  {OrigName, Password, FromName, IsTmp} =
+    case esip_registrator:find(Client) of
+      {ok, ONS, PW, _} -> {list_to_binary(ONS), PW, list_to_binary(ONS), false};
+      _ ->
+        TmpOrigName = esip_util:rand_str(8),
+        FlashPhoneConfig = ems:get_var(flashphone, undefined),
+        SipCfg = proplists:get_value(sip, FlashPhoneConfig, []),
+        ON = proplists:get_value(peer_name, SipCfg),
+        {list_to_binary(ON), "", list_to_binary(TmpOrigName), true}
+    end,
+  if IsTmp ->
+      esip_registrator:register(FromName, "", self(), ?MODULE);
+     true ->
+      pass
+  end,
+  {ok, CbState} = ?MODULE:cb_init([{name, FromName}]),
+  case originating(OrigName, Password, Name, FromName, CbState) of
     {ok, TUPid} ->
       CbState#sip_cb_state.pid ! {set_tu, TUPid},
       {ok, TUPid};
@@ -420,7 +433,7 @@ decline_call(Client) ->
       undefined
   end.
 
-originating(OrigName, Password, Name, #sip_cb_state{pid = DPid} = CbState) ->
+originating(OrigName, Password, Name, FromName, #sip_cb_state{pid = DPid} = CbState) ->
   ?DBG("Name: ~p, DPid: ~p", [Name, DPid]),
   StreamIn = <<OrigName/binary, <<"#-in">>/binary >>,
   StreamOut = << OrigName/binary, <<"#-out">>/binary >>,
@@ -499,7 +512,6 @@ originating(OrigName, Password, Name, #sip_cb_state{pid = DPid} = CbState) ->
 
       ToURI = esip:'#new-sip_uri'([{name, Name}, {domain, DomainName}]),
       FromURI = esip:'#new-sip_uri'([{name, OrigName}, {domain, DomainName}]),
-      FromName = "Flash client " ++ OrigName,
 
       SipOpts =
         [
