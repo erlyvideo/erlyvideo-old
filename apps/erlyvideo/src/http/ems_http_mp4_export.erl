@@ -29,12 +29,17 @@
 
 http(_Host, 'GET', ["multi-mp4" | PathSpec], Req) ->
   Specification = [Spec || {"path", Spec} <- Req:parse_qs()],
-  Path = ems:pathjoin(PathSpec),
-  Req:stream(head, [{"Content-Type", "video/mp4"}, {"Connection", "close"}, {"Content-Disposition", "attachment; filename="++Path}]),
-  mp4_writer:dump_by_spec(Specification, [{writer, fun(_Offset, Bin) ->
-    Req:stream(Bin)
-  end}]),
-  Req:stream(close);
+  if Specification == [] ->
+    Req:respond(404, "404 Not Found\nEmpty specification\n");
+  true ->  
+    Path = ems:pathjoin(PathSpec),
+    Req:stream(head, [{"Content-Type", "video/mp4"}, {"Connection", "close"}, {"Content-Disposition", "attachment; filename="++Path}]),
+    ?D({export, Specification}),
+    mp4mux:run(fun(Bin) ->
+      Req:stream(Bin)
+    end, Specification),
+    Req:stream(close)
+  end;
 
 http(Host, 'GET', ["mp4" | PathSpec], Req) ->
   Path = ems:pathjoin(PathSpec),
