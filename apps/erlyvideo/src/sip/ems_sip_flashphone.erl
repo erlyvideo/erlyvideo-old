@@ -435,8 +435,8 @@ decline_call(Client) ->
 
 originating(OrigName, Password, Name, FromName, #sip_cb_state{pid = DPid} = CbState) ->
   ?DBG("Name: ~p, DPid: ~p", [Name, DPid]),
-  StreamIn = <<OrigName/binary, <<"#-in">>/binary >>,
-  StreamOut = << OrigName/binary, <<"#-out">>/binary >>,
+  StreamIn = <<FromName/binary, <<"#-in">>/binary >>,
+  StreamOut = <<FromName/binary, <<"#-out">>/binary >>,
 
   RtpConfig = ems:get_var(rtp, undefined),
   Binding = proplists:get_value(binding, RtpConfig),
