@@ -31,12 +31,14 @@
 % -include("mpegts_reader.hrl").
 
 -include_lib("erlmedia/include/video_frame.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -define(MAX_PAYLOAD, 16#100000000).
 
 -record(decoder, {
   buffer = <<>>,
   pids = [],
+  frames = [],
   consumer,
   pmt_pid,
   socket,
@@ -88,6 +90,19 @@
 -export([pes/3, psi/3, emm/3]).
 -export([program_info/1]).
 
+-export([file_packets/1, packet/2]).
+
+file_packets(Path) ->
+  {ok, #file_info{size = Size}} = file:read_file_info(Path),
+  Size rem 188 == 0 orelse throw({invalid_file_size, Size}),
+  Size div 188.
+
+packet(Path, N) ->
+  {ok, F} = file:open(Path, [binary,raw,read]),
+  {ok, <<16#47, _:1, Start:1, _:1, Pid:13, _:4, Counter:4>>} = file:pread(F, N*188, 4),
+  file:close(F),
+  {if Start == 1 -> start; true -> continue end, Pid, Counter }.
+
 load_nif() ->
   Load = erlang:load_nif(code:lib_dir(mpegts,priv)++ "/mpegts_reader", 0),
   io:format("Load mpegts_reader: ~p~n", [Load]),
@@ -95,10 +110,10 @@ load_nif() ->
 
 
 start_link(Options) ->
-  gen_server:start_link(?MODULE, [Options], []).
+  gen_server_ems:start_link(?MODULE, [Options], []).
 
 set_socket(Reader, Socket) when is_pid(Reader) andalso is_port(Socket) ->
-  gen_tcp:controlling_process(Socket, Reader),
+  ok = gen_tcp:controlling_process(Socket, Reader),
   gen_server:call(Reader, {set_socket, Socket}).
 
 
@@ -128,7 +143,7 @@ init([Options]) ->
 
 
 handle_call({set_socket, Socket}, _From, #decoder{} = Decoder) ->
-  inet:setopts(Socket, [{packet,raw},{active,once}]),
+  ok = inet:setopts(Socket, [{packet,raw},{active,once}]),
   % ?D({passive_accepted, Socket}),
   {reply, ok, Decoder#decoder{socket = Socket}};
 
@@ -140,17 +155,20 @@ handle_call(connect, _From, #decoder{options = Options} = Decoder) ->
   URL = proplists:get_value(url, Options),
   Timeout = proplists:get_value(timeout, Options, 2000),
   {Schema, _, _Host, _Port, _Path, _Query} = http_uri2:parse(URL),
-  {ok, Socket} = case Schema of
+  case Schema of
     udp -> 
       connect_udp(URL);
     _ ->
-      {ok, _Headers, Sock} = http_stream:get(URL, [{timeout,Timeout}]),
-      inet:setopts(Sock, [{packet,raw},{active,once}]),
-      {ok, Sock}
-  end,
-  ?D({connected, URL, Socket}),
-  {reply, ok, Decoder#decoder{socket = Socket}};
-
+      case  http_stream:request(URL, [{timeout,Timeout}]) of 
+	{ok,{Socket,_Code,_Header}} ->
+	  ok = inet:setopts(Socket, [{packet,raw},{active,once}]),
+	  ?D({connected, URL, Socket}),
+	  {reply, ok, Decoder#decoder{socket = Socket}};
+	{error,Reason} ->
+	  {stop,{error,Reason},Decoder}
+      end
+  end;
+    
 handle_call(Call, _From, State) ->
   {stop, {unknown_call, Call}, State}.
   
@@ -223,8 +241,14 @@ decode(<<_, Bin/binary>>, Decoder, Frames) when size(Bin) >= 374 ->
   % ?D(desync),
   decode(Bin, Decoder, Frames);
 
-decode(Bin, Decoder, Frames) ->
-  {ok, Decoder#decoder{buffer = Bin}, Frames}.
+decode(Bin, #decoder{frames = Buffered} = Decoder, Frames) ->
+  Sorted = lists:sort(fun flv:frame_sorter/2, Buffered ++ Frames),
+  % case Sorted == Buffered ++ Frames of true -> ?D(sort_ok); false -> ?D({sorting_changed_order}) end,
+  {Reply, Save} = if
+    length(Sorted) > 4 -> lists:split(length(Sorted) - 4, Sorted);
+    true -> {[], Sorted}
+  end,
+  {ok, Decoder#decoder{buffer = Bin, frames = Save}, Reply}.
 
 decode_ts(<<_:3, ?PAT_PID:13, _/binary>> = Packet, Decoder) ->
   handle_psi(ts_payload(Packet), Decoder);
@@ -453,7 +477,7 @@ decode_pes_packet(#stream{codec = aac} = Packet) ->
   decode_aac(Packet);
   
 decode_pes_packet(#stream{codec = h264} = Packet) ->
-  decode_avc(Packet, []);
+  decode_avc(Packet);
 
 
 decode_pes_packet(#stream{codec = mp3, dts = DTS, pts = PTS, es_buffer = Data} = Stream) ->
@@ -624,6 +648,7 @@ decode_aac(#stream{send_audio_config = false, es_buffer = AAC, dts = DTS} = Stre
   
 
 decode_aac(#stream{es_buffer = ADTS, dts = DTS, sample_rate = SampleRate} = Stream) ->
+  % ?D({adts, DTS}),
   {Frames, Rest} = decode_adts(ADTS, DTS, SampleRate / 1000, 0, []),
   {Stream#stream{es_buffer = Rest}, Frames}.
 
@@ -667,15 +692,36 @@ decode_adts(ADTS, BaseDTS, SampleRate, SampleCount, Frames) ->
 %   Stream#stream{es_buffer = <<>>}.
 %   
 
-decode_avc(#stream{es_buffer = Data} = Stream, Frames) ->
-  case extract_nal(Data) of
-    undefined ->
-      {Stream, Frames};
-    {ok, NAL, Rest} ->
-      % ?D(NAL),
-      {Stream1, Frames1} = handle_nal(Stream#stream{es_buffer = Rest}, NAL),
-      decode_avc(Stream1, Frames ++ Frames1)
-  end.
+decode_avc(#stream{es_buffer = Data, dts = DTS, pts = PTS, h264 = H264} = Stream) ->
+  NALS = pes_to_nals(Data),
+  Body = [[<<(size(NAL)):32>>, NAL] || <<_:3, Type:5, _/binary>> = NAL <- NALS, Type == ?NAL_IDR orelse Type == ?NAL_SINGLE],
+  ConfigNALS = [NAL || <<_:3, Type:5,_/binary>> = NAL <- NALS, Type == ?NAL_SPS orelse Type == ?NAL_PPS],
+  IDRS = [NAL || <<_:3, ?NAL_IDR:5,_/binary>> = NAL <- NALS],
+  
+  H264_1 = lists:foldl(fun(NAL, H264_) ->
+    h264:parse_nal(NAL, H264_)
+  end, H264, ConfigNALS),
+  
+  % ?D({avc,length(IDRS), length(SPS), length(PPS), h264:has_config(H264), h264:has_config(H264_1)}),
+  
+  ConfigFrames = case {h264:has_config(H264), h264:has_config(H264_1)} of
+    {false, true} -> 
+      Config = h264:video_config(H264_1),
+      [Config#video_frame{dts = DTS, pts = DTS}];
+    _ -> []
+  end,
+  
+  
+  Frame = #video_frame{
+   	content = video,
+		body    = iolist_to_binary(Body),
+		flavor  = case length(IDRS) of 0 -> frame; _ -> keyframe end,
+		codec   = h264,
+		dts     = DTS,
+		pts     = PTS
+  },
+  
+  {Stream#stream{h264 = H264_1, es_buffer = <<>>}, ConfigFrames ++ [Frame]}.
 
 % 
 % decode_mpeg2_video(#stream{dts = DTS, pts = PTS, es_buffer = Data} = Stream, Frames) ->
@@ -698,19 +744,44 @@ decode_avc(#stream{es_buffer = Data} = Stream, Frames) ->
 
   
 
-handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
-  {Stream, []};
+% handle_nal(Stream, <<_:3, 9:5, _/binary>>) ->
+%   {Stream, []};
+% 
+% handle_nal(#stream{dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
+%   % case get(first_dts) of undefined -> put(first_dts, DTS); _ -> ok end,
+%   % ?D({h264, DTS - get(first_dts), PTS - get(first_dts)}),
+%   {H264_1, Frames} = h264:decode_nal(NAL, H264),
+%   ConfigFrames = case {h264:has_config(H264), h264:has_config(H264_1)} of
+%     {false, true} -> 
+%       Config = h264:video_config(H264_1),
+%       [Config#video_frame{dts = DTS, pts = DTS}];
+%     _ -> []
+%   end,
+%   {Stream#stream{h264 = H264_1}, ConfigFrames ++ [Frame#video_frame{dts = DTS, pts = PTS, body = <<2:32, 9,224, Body/binary>>} || #video_frame{body = Body} = Frame <- Frames]}.
 
-handle_nal(#stream{dts = DTS, pts = PTS, h264 = H264} = Stream, NAL) ->
-  {H264_1, Frames} = h264:decode_nal(NAL, H264),
-  ConfigFrames = case {h264:has_config(H264), h264:has_config(H264_1)} of
-    {false, true} -> 
-      Config = h264:video_config(H264_1),
-      [Config#video_frame{dts = DTS, pts = DTS}];
-    _ -> []
-  end,
-  {Stream#stream{h264 = H264_1}, [Frame#video_frame{dts = DTS, pts = PTS} || Frame <- Frames] ++ ConfigFrames}.
 
+pes_to_nals(PES) ->
+  pes_to_nals(PES, []).
+  
+  
+pes_to_nals(<<>>, Acc) ->
+  lists:reverse(Acc);
+  
+pes_to_nals(PES, Acc) ->
+  case extract_nal(PES) of
+    {ok, NAL, Rest} ->
+      pes_to_nals(Rest, [NAL|Acc]);
+    undefined ->  
+      % Here is very main decision taken: either to look for NAL end in next PES or reply now.
+      % This clause means, that there is no NAL marker anymore
+      LastNal = case PES of
+        <<1:24, Rest/binary>> -> Rest;
+        <<1:32, Rest/binary>> -> Rest;
+        _ -> <<>>
+      end,
+      pes_to_nals(<<>>, [LastNal|Acc])
+  end.
+  
 
 extract_nal(Data) ->
   case extract_nal1(Data) of
@@ -738,7 +809,8 @@ find_nal_start_erl(<<_, Rest/binary>>) ->
 
 find_and_extract_nal(Bin) ->
   case find_nal_end_erl(Bin, 0) of
-    undefined -> undefined;
+    undefined ->
+      undefined; % this reply tells to look for NAL end in next PES and delays one frame
     Length ->
       <<NAL:Length/binary, Rest/binary>> = Bin,
       {ok, NAL, Rest}
