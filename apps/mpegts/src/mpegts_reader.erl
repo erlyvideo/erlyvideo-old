@@ -159,8 +159,8 @@ handle_call(connect, _From, #decoder{options = Options} = Decoder) ->
     udp -> 
       connect_udp(URL);
     _ ->
-      case  http_stream:request(URL, [{timeout,Timeout}]) of 
-	{ok,{Socket,_Code,_Header}} ->
+      case  http_stream:get(URL, [{timeout,Timeout}]) of 
+	{ok,_Headers,Socket} ->
 	  ok = inet:setopts(Socket, [{packet,raw},{active,once}]),
 	  ?D({connected, URL, Socket}),
 	  {reply, ok, Decoder#decoder{socket = Socket}};
