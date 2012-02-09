@@ -45,10 +45,17 @@
 -export([read_frame/1, read_frame/2, duration/1]).
 
 -export([content_offset/1]).
+-export([frame_sorter/2]).
 
 content_offset(h264) -> ?FLV_TAG_HEADER_LENGTH + 5;
 content_offset(aac) -> ?FLV_TAG_HEADER_LENGTH + 2;
 content_offset(_) -> ?FLV_TAG_HEADER_LENGTH + 1.
+
+
+frame_sorter(#video_frame{dts = DTS1}, #video_frame{dts = DTS2}) when DTS1 < DTS2 -> true;
+frame_sorter(#video_frame{dts = DTS, flavor = config}, #video_frame{dts = DTS, flavor = Flavor}) when Flavor =/= config -> true;
+frame_sorter(#video_frame{dts = DTS, flavor = config, content = video}, #video_frame{dts = DTS, flavor = config, content = Content}) when Content=/= video -> true;
+frame_sorter(#video_frame{}, #video_frame{}) -> false.
   
 
 read_frame(Reader, Offset) ->

@@ -35,6 +35,7 @@
 -export([parse_sps/1, to_fmtp/1, init/0, init/1]).
 -export([type/1, fua_split/2]).
 -export([unpack_rtp_list/2, nal_list_flavor/1]).
+-export([parse_nal/2]).
 
 
 video_config(H264) ->
@@ -224,6 +225,21 @@ decode_nal(<<0:1, _NalRefIdc:2, _NalUnitType:5, _/binary>> = _NAL, H264) ->
 
 
 nal_with_size(NAL) -> <<(size(NAL)):32, NAL/binary>>.
+
+
+parse_nal(<<0:1, _NalRefIdc:2, ?NAL_SPS:5, Profile, _:8, Level, _/binary>> = SPS, #h264{} = H264) ->
+  % io:format("log2_max_frame_num_minus4: ~p~n", [Log2MaxFrameNumMinus4]),
+  % ?D({"Parsing SPS", SPS}),
+  % _SPSInfo = parse_sps(SPS),
+  % ?D({"SPS", profile_name(Profile), Level/10, _SPSInfo#h264_sps.width, _SPSInfo#h264_sps.height}),
+  % ?D({sps,Profile,Level}),
+  H264#h264{profile = Profile, level = Level, sps = [SPS]};
+
+parse_nal(<<0:1, _NalRefIdc:2, ?NAL_PPS:5, _/binary>> = PPS, #h264{} = H264) ->
+  H264#h264{pps = [PPS]};
+
+parse_nal(_, H264) ->
+  H264.
 
 
 profile_has_scaling_matrix(Profile) ->

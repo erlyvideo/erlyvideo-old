@@ -86,7 +86,6 @@ Erlyvideo = {
   },
   
   rtmp_server: "rtmp://"+window.location.hostname+"/rtmp",
-  rtsp_server: "rtsp://"+window.location.hostname+":8081/",
   
   load_stream_info: function() {
     $.get("/erlyvideo/api/streams", {}, function(streams) {
@@ -111,7 +110,6 @@ Erlyvideo = {
       <a href='#' onclick='Erlyvideo.play_stream(\"{{name}}\",\"jwplayer\"); return false;'><span class='jwplayer'></span>{{name}}</a> \
       <a href='#' onclick='Erlyvideo.play_stream(\"{{name}}\",\"flowplayer\"); return false;'><span class='flowplayer'></span>{{name}}</a> \
       <a href='#' onclick='Erlyvideo.play_stream(\"{{name}}\",\"hls\"); return false;'><span class='hls'></span>{{name}}</a> \
-      <a href='rtsp://"+window.location.hostname+":8081/{{name}}'><span class='android'></span>{{name}}</a> \
       </td>\
       <td>{{client_count}}</td> \
       <td>{{type}}</td> \
