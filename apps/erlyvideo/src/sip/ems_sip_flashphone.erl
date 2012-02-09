@@ -399,10 +399,12 @@ call(Name, _Options, Client) when is_binary(Name) ->
         FlashPhoneConfig = ems:get_var(flashphone, undefined),
         SipCfg = proplists:get_value(sip, FlashPhoneConfig, []),
         ON = proplists:get_value(peer_name, SipCfg),
-        {list_to_binary(ON), "", list_to_binary(TmpOrigName), true}
+        OP = proplists:get_value(peer_password, SipCfg),
+        {list_to_binary(ON), list_to_binary(OP), list_to_binary(TmpOrigName), true}
     end,
   if IsTmp ->
-      esip_registrator:register(FromName, "", self(), ?MODULE);
+      %% TODO: add support for users pool
+      esip_registrator:register(OrigName, Password, self(), ?MODULE);
      true ->
       pass
   end,
