@@ -14,7 +14,7 @@
     <script type="text/javascript">
     $(function() {
       swfobject.embedSWF("/phone/Phone.swf", "Phone", "800", "700", "10.3", "expressInstall.swf",
-        {server :"rtmp://localhost",
+        {server :"rtmp://"+window.location.hostname,
          app : "rtmp",
          speex: "8000",
          buffer : "0"});
