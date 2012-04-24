@@ -105,5 +105,26 @@ upload_packages:
 	ssh erlyhub@git.erlyvideo.org "cd /apps/erlyvideo/debian ; ./update ; cd public/binary ; ln -sf erlyvideo-$(VERSION).tgz erlyvideo-latest.tgz "
 	echo "Erlyvideo version ${VERSION} uploaded to debian repo http://debian.erlyvideo.org/ ." | mail -r "Erlybuild <build@erlyvideo.org>" -s "Erlyvideo version ${VERSION}" -v erlyvideo-dev@googlegroups.com
 
+
+COMBO_PLT = $(HOME)/.erlyvideo_combo_dialyzer_plt
+PLT_SKIP  = $(wildcard erlyvideo/lib/elixir*/ebin)
+PLT_LIBS  = $(filter-out $(PLT_SKIP), $(wildcard erlyvideo/lib/*/ebin))
+
+DIALYZER_APPS = amf  deprecated  erlmedia  erlyvideo mpegts  plugins  rtmp  rtp  rtsp
+DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))
+
+check_plt: release
+	dialyzer --check_plt --plt $(COMBO_PLT) $(PLT_LIBS)
+
+build_plt: release
+	dialyzer --build_plt --output_plt $(COMBO_PLT) $(PLT_LIBS)
+
+dialyzer: compile
+	dialyzer -Wno_return --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS) | \
+	    fgrep -v -f ./dialyzer.ignore-warnings
+
+cleanplt:
+	rm $(COMBO_PLT)
+
 .PHONY: doc debian compile
 
