@@ -6,22 +6,27 @@
     <link rel="stylesheet" href="/blueprint/print.css" type="text/css" media="print">
     <script type="text/javascript" src="/js/jquery.js"></script>
     <script type="text/javascript" src="/js/swfobject.js"></script>
+    <script type="text/javascript" src="/phone/ephone.js"></script>
     <!--[if lt IE 8]>
       <link rel="stylesheet" href="css/blueprint/ie.css" type="text/css" media="screen, projection">
     <![endif]-->
   </head>
   <body>
     <script type="text/javascript">
-    $(function() {
-      swfobject.embedSWF("/phone/Phone.swf", "Phone", "800", "700", "10.3", "expressInstall.swf",
-        {server :"rtmp://"+window.location.hostname,
-         app : "rtmp",
-         speex: "8000",
-         buffer : "0"});
-    });
-      </script>
+      EPhone.swf_opts = {path: "/phone/PhoneButton.swf",
+                         elid: "PhoneButton",
+                         width: 150, height: 150,
+                         xipath: "expressInstall.swf"};
+      EPhone.params = {server :"rtmp://"+window.location.hostname,
+                       call_number: "6001",
+                       speex: "8000"};
+      EPhone.embed();
+    </script>
 
-      <div id="Phone">
+
+    <a class="handle" href="#" onClick="EPhone.callToggle(); return false;" style="display: block; width: 167px; height: 32px; text-indent: -99999px; background-image: url(http://stepintegrator.ru/img/feedback_top_tab.gif); background-attachment: initial; background-origin: initial; background-clip: initial; background-color: initial; outline-style: none; outline-width: initial; outline-color: initial; position: absolute; right: 0px; bottom: -32px; background-position: initial initial; background-repeat: no-repeat no-repeat; ">Call</a>
+
+      <div id="PhoneButton">
         <p>Phone should be here</p>
       </div>
   </body>

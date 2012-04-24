@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:local="*" layout="vertical" creationComplete="init()">
+
+  <mx:Script source="PhoneButton.as" />
+  <!-- <mx:Panel> -->
+  <!--   <mx:Button click="outgoingCallToggle()" label="{callLabel}" enabled="{callEnabled}" /> -->
+    <!-- <mx:VBox> -->
+    <!--   <local:VideoContainer id="videoContainer" width="640" height="480" top="0" backgroundColor="#FFFFFF"/> -->
+
+  	<!--   <mx:HBox> -->
+  	<!--     <mx:TextInput id="registerNumber" /> -->
+  	<!--     <mx:TextInput id="registerPassword" /> -->
+  	<!--     <mx:Button click="register()" label="{registerLabel}" enabled="{registerEnabled}" /> -->
+  	<!--     <mx:Button click="unregister()" label="Unregister"/> -->
+  	<!--   </mx:HBox> -->
+  	<!--   <mx:HBox> -->
+  	<!--     <mx:Label id="callingNumber" text="{callingLabel}" width="300" /> -->
+  	<!--     <mx:Button click="acceptCall()" label="{acceptLabel}" enabled="{acceptEnabled}" /> -->
+  	<!--   </mx:HBox> -->
+  	<!--   <mx:HBox> -->
+  	<!--     <mx:TextInput id="callNumber" /> -->
+  	<!--     <mx:Button click="outgoingCallToggle()" label="{callLabel}" enabled="{callEnabled}" /> -->
+  	<!--   </mx:HBox> -->
+
+  	<!--   <mx:HBox> -->
+  	<!--     <mx:Button click="declineCall()" label="{declineLabel}" enabled="{declineEnabled}" /> -->
+  	<!--   </mx:HBox> -->
+  	<!-- </mx:VBox> -->
+  <!-- </mx:Panel> -->
+</mx:Application>
