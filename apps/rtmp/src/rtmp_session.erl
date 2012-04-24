@@ -322,7 +322,7 @@ handle_rtmp_message(State, #rtmp_message{type = invoke, body = AMF}) ->
   Command = binary_to_atom(CommandBin, utf8),
   call_function(State, AMF#rtmp_funcall{command = Command});
 
-handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp}) 
+handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type = Type, stream_id = StreamId, body = Body, timestamp = Timestamp})
   when ((Type == video) or (Type == audio) or (Type == metadata) or (Type == metadata3)) andalso is_number(Timestamp)  ->
   case get_stream(StreamId, State) of
     #rtmp_stream{pid = Recorder} when is_pid(Recorder) ->
@@ -339,7 +339,7 @@ handle_rtmp_message(#rtmp_session{socket = Socket} = State, #rtmp_message{type =
     false ->
       rtmp_socket:status(Socket, StreamId, <<"NetStream.Publish.Failed">>),
       State
-  end;  
+  end;
 
 handle_rtmp_message(State, #rtmp_message{type = shared_object, body = SOEvent}) ->
   #so_message{name = Name, persistent = Persistent} = SOEvent,
@@ -372,8 +372,9 @@ find_shared_object(#rtmp_session{cached_shared_objects = Objects} = State, Name,
 
 call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [{object, PlayerInfo} | _]} = AMF) ->
   URL = proplists:get_value(tcUrl, PlayerInfo),
-  {match, [_Proto, _HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
-  % ?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
+  {match, [_Proto, HostName, _Port, Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
+  Host = ems:host(HostName),
+  %%?D({"Client connecting", HostName, Host, AMF#rtmp_funcall.args}),
 
   AMFVersion = case lists:keyfind(objectEncoding, 1, PlayerInfo) of
     {objectEncoding, 0.0} -> 0;
@@ -388,19 +389,19 @@ call_function(#rtmp_session{} = State, #rtmp_funcall{command = connect, args = [
   SessionId = timer:now_diff(erlang:now(),{0,0,0}),
 
 	NewState1 =	State#rtmp_session{player_info = PlayerInfo, path = Path, amf_ver = AMFVersion, session_id = SessionId},
-	
-	call_function_callback(NewState1, AMF);
+
+	call_function_callback(rtmp_session:set(NewState1, host, Host), AMF);
 
 
 call_function(#rtmp_session{} = State, #rtmp_funcall{} = AMF) ->
   call_function_callback(State, AMF).
-  
+
 call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{} = AMF) ->
   case M:handle_rtmp_call(Session, AMF) of
     unhandled ->
       call_default_function(Session, AMF);
     {unhandled, Session1, AMF1} ->
-      call_default_function(Session1, AMF1);  
+      call_default_function(Session1, AMF1);
     #rtmp_session{} = Session1 ->
       Session1
   end.
@@ -408,13 +409,13 @@ call_function_callback(#rtmp_session{module = M} = Session, #rtmp_funcall{} = AM
 call_default_function(#rtmp_session{module = M} = Session, #rtmp_funcall{command = Command} = AMF) ->
   case erlang:function_exported(?MODULE, Command, 2) of
     true -> ?MODULE:Command(Session, AMF);
-    false -> 
+    false ->
       case M:handle_control({unhandled_call, AMF}, Session) of
         {ok, Session1} -> Session1;
         Else -> Else
       end
   end.
-  
+
 
 
 
@@ -482,7 +483,7 @@ send_rtmp_frame(Socket, #video_frame{content = Type, stream_id = StreamId, dts =
     stream_id = StreamId,
     body = flv_video_frame:encode(Frame)},
 	rtmp_socket:send(Socket, Message).
-  
+
 
 flush_reply(#rtmp_session{socket = Socket} = State) ->
   receive
@@ -543,7 +544,7 @@ alloc_stream(#rtmp_session{streams1 = Streams}) ->
   StreamNumbers = [N || #rtmp_stream{stream_id = N} <- Streams],
   alloc_stream(StreamNumbers, 1).
 
-alloc_stream(StreamNumbers, N) -> 
+alloc_stream(StreamNumbers, N) ->
   case lists:member(N, StreamNumbers) of
     true -> alloc_stream(StreamNumbers, N+1);
     false -> #rtmp_stream{stream_id = N}
@@ -571,25 +572,25 @@ connect(#rtmp_session{} = State, _AMF) ->
 
 
 %% @private
-createStream(#rtmp_session{} = State, AMF) -> 
+createStream(#rtmp_session{} = State, AMF) ->
   #rtmp_stream{stream_id = StreamId} = Stream = rtmp_session:alloc_stream(State),
   rtmp_session:reply(State,AMF#rtmp_funcall{args = [null, StreamId]}),
   % ?D({createStream,StreamId}),
   rtmp_session:set_stream(Stream, State).
 
-releaseStream(State, #rtmp_funcall{} = _AMF) -> 
+releaseStream(State, #rtmp_funcall{} = _AMF) ->
   State.
 
 
 
-closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) -> 
+closeStream(#rtmp_session{} = State, #rtmp_funcall{stream_id = StreamId}) ->
   % ?D({closeStream,StreamId}),
   close_stream(State, StreamId).
 
 
 close_stream(#rtmp_session{module = M} = State, StreamId) ->
   case rtmp_session:get_stream(StreamId, State) of
-    #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = _Name} when is_pid(Player) -> 
+    #rtmp_stream{pid = Player, recording = Recording, recording_ref = Ref, name = _Name} when is_pid(Player) ->
       (catch erlang:demonitor(Ref, [flush])),
       {ok, State1} = M:handle_control({close_stream, StreamId, Player, Recording}, State),
       rtmp_session:flush_stream(StreamId),

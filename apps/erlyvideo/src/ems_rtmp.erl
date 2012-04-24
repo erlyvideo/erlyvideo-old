@@ -76,17 +76,22 @@ handle_control(terminate, Session) ->
   Sent = rtmp_session:get(Session, bytes_sent),
   PlayStats = rtmp_session:get(Session, play_stats),
   ems_log:access(Host, "DISCONNECT ~s ~s ~p ~p ~p ~p", [Addr, Host, UserId, SessionId, Recv, Sent]),
-  
+
   Stats = [{host,Host},{recv_oct,Recv},{sent_oct,Sent},{addr,Addr},{user_id,UserId},{session_id,SessionId}|PlayStats],
   ems_event:user_disconnected(Host, self(), Stats),
   (catch rtmp_session:call_function(Host, logout, [Session])),
   ok;
-  
+
 
 handle_control(connected, Session) ->
   Host = rtmp_session:get(Session, host),
   UserId = rtmp_session:get(Session, user_id),
   SessionId = rtmp_session:get(Session, session_id),
+  ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
+  {ok, Session};
+
+handle_control({connected, UserId, SessionId}, Session) ->
+  Host = rtmp_session:get(Session, host),
   ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
   {ok, Session};
 
@@ -98,7 +103,7 @@ handle_control({close_stream, _StreamId, Player, Recording}, Session) ->
       ok;
       % media_provider:remove(Host, Name);
     _ -> ok
-  end,  
+  end,
   {ok, Session};
 
 handle_control({unhandled_call, #rtmp_funcall{command = Command, args = Args} = AMF}, Session) ->
@@ -113,9 +118,9 @@ handle_control({rtmp, #rtmp_message{stream_id = StreamId, type = buffer_size, bo
     _ -> undefined
   end,
   if is_pid(Player) -> ems_media:play_setup(Player, [{client_buffer, BufferSize}]);
-  true -> ok end,  
+  true -> ok end,
   {ok, State};
-  
+
 handle_control(_Control, Session) ->
   {ok, Session}.
 
@@ -129,10 +134,10 @@ handle_info(Message, Session) ->
     {noreply, State1} -> {noreply, State1};
     State1 when is_tuple(State1) andalso element(1, State1) == rtmp_session -> {noreply, State1}
   end.
- 
+
 
 handle_rtmp_call(Session, #rtmp_funcall{command = connect, args = [{object, PlayerInfo}|_]} = AMF) ->
-  
+
   URL = proplists:get_value(tcUrl, PlayerInfo),
   {match, [_Proto, HostName, _Port, _Path]} = re:run(URL, "(.*)://([^/:]+)([^/]*)/?(.*)$", [{capture,all_but_first,binary}]),
   Host = ems:host(HostName),
@@ -151,7 +156,7 @@ call_mfa([], _Session, #rtmp_funcall{}) ->
 
 call_mfa([Module|Modules], Session, #rtmp_funcall{command = Command} = AMF) ->
   case code:is_loaded(mod_name(Module)) of
-    false -> 
+    false ->
       case code:load_file(mod_name(Module)) of
         {module, _ModName} -> ok;
         _ -> erlang:error({cant_load_file, Module})
@@ -178,11 +183,11 @@ mod_name(Mod) when is_tuple(Mod) -> element(1, Mod);
 mod_name(Mod) -> Mod.
 
 
-  
+
 
 % metadata(Media) when is_pid(Media) ->
 %   metadata(Media, []).
-% 
+%
 % %%----------------------------------------------------------------------
 % %% @spec (Media::pid(), Options::proplist()) -> Metadata::video_frame()
 % %%
@@ -210,14 +215,14 @@ metadata_frame(#media_info{options = Options, duration = Duration} = Media, Opts
     _ -> [{duration, Duration / 1000}]
   end,
   DTS = proplists:get_value(dts, Opts),
-  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}], 
+  #video_frame{content = metadata, body = [<<"onMetaData">>, {object, DurationMeta ++ Meta1}],
                stream_id = proplists:get_value(stream_id, Opts, 0), dts = DTS, pts = DTS}.
 
 
 video_parameters(#media_info{video = [#stream_info{params = #video_params{width = Width, height = Height}}|_]}) ->
   [{height, Height}, {width, Width}];
 
-video_parameters(#media_info{}) ->  
+video_parameters(#media_info{}) ->
   [].
 
 
