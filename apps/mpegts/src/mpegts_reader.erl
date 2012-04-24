@@ -157,7 +157,8 @@ handle_call(connect, _From, #decoder{options = Options} = Decoder) ->
   {Schema, _, _Host, _Port, _Path, _Query} = http_uri2:parse(URL),
   case Schema of
     udp -> 
-      connect_udp(URL);
+      {ok, Socket} = connect_udp(URL),
+      {reply, ok, Decoder#decoder{socket = Socket}};
     _ ->
       case  http_stream:get(URL, [{timeout,Timeout}]) of 
 	{ok,_Headers,Socket} ->
