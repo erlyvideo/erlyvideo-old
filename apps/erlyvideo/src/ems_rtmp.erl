@@ -82,14 +82,6 @@ handle_control(terminate, Session) ->
   (catch rtmp_session:call_function(Host, logout, [Session])),
   ok;
 
-
-handle_control(connected, Session) ->
-  Host = rtmp_session:get(Session, host),
-  UserId = rtmp_session:get(Session, user_id),
-  SessionId = rtmp_session:get(Session, session_id),
-  ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
-  {ok, Session};
-
 handle_control({connected, UserId, SessionId}, Session) ->
   Host = rtmp_session:get(Session, host),
   ems_event:user_connected(Host, self(), [{user_id,UserId}, {session_id,SessionId}]),
