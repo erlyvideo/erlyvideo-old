@@ -218,10 +218,24 @@ code_change(_OldVsn, State, _Extra) ->
 connect_udp(URL) ->
   {_, _, Host, Port, _Path, _Query} = http_uri2:parse(URL),
   {ok, Addr} = inet_parse:address(Host),
-  {ok, Socket} = gen_udp:open(Port, [binary,{active,once},{recbuf,65536},inet,{ip,Addr}]),
+  Common = [binary,{active,once},{recbuf,65536},inet,{ip,Addr}],
+  Multicast = [{reuseaddr,true},{multicast_ttl,4},{multicast_loop,false}],
+  case is_multicast(Addr) of
+    true ->
+      {ok, Socket} = gen_udp:open(Port, Common ++ Multicast),
+      inet:setopts(Socket,[{add_membership,{Addr,{0,0,0,0}}}]);
+    false ->
+      {ok, Socket} = gen_udp:open(Port, Common)
+  end,
   {ok, Socket}.
   
-
+is_multicast(Addr) ->
+  Leading = element(1, Addr),
+  case tuple_size(Addr) of
+    4 -> (Leading bsr 4) == 14; % IPv4
+    8 -> (Leading bsr 8) == 255; % IPv6
+    _ -> false
+  end.
 
 decode(Bin, #decoder{buffer = <<>>} = Decoder) when is_binary(Bin) ->
   decode(Bin, Decoder#decoder{}, []);
