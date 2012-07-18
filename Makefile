@@ -102,7 +102,7 @@ packages: release
 	cp priv/erlyvideo.conf.sample tmproot/etc/erlyvideo/erlyvideo.conf.sample
 	cp priv/log4erl.conf.sample tmproot/etc/erlyvideo/log4erl.conf.sample
 	cd tmproot && \
-	fpm -s dir -t deb -n erlyvideo -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt 
+	fpm -s dir -t deb -n erlyvideo -d libssl1.0.0 -v $(VERSION) -m "Max Lapshin <max@maxidoors.ru>" etc/init.d/erlyvideo etc/erlyvideo opt 
 	mv tmproot/*.deb .
 
 upload_packages: 
