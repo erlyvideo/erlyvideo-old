@@ -60,7 +60,7 @@
 play(State, #rtmp_funcall{args = [null, null | _]} = AMF) -> stop(State, AMF);
 play(State, #rtmp_funcall{args = [null, false | _]} = AMF) -> stop(State, AMF);
 
-play(State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId}) ->
+play(State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId} = RtmpFuncCall) ->
   Host = rtmp_session:get(State, host),
   Socket = rtmp_session:get(State, socket),
   Addr = rtmp_session:get(State, addr),
@@ -74,7 +74,7 @@ play(State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId})
   State1 = case rtmp_stream:get(Stream, pid) of
     OldMedia when is_pid(OldMedia) -> 
       ?D({"Unsubscribe from old", OldMedia}), 
-      rtmp_session:close_stream(State, StreamId);
+      rtmp_session:closeStream(State, RtmpFuncCall);
     _ ->
       State
   end,
