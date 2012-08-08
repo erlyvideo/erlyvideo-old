@@ -94,11 +94,11 @@ play(State, #rtmp_funcall{args = [null, FullName | Args], stream_id = StreamId} 
       State1;
     {ok, Media} ->
       erlang:monitor(process,Media),
-      Stream = case rtmp_session:get_stream(StreamId, State1) of
+      Stream1 = case rtmp_session:get_stream(StreamId, State1) of
         false -> rtmp_stream:construct([]);
         Stream_ -> Stream_
       end,
-      State2 = rtmp_session:set_stream(rtmp_stream:set(Stream, [{pid, Media}, {stream_id, StreamId}, {options, Options}, {name, Name}, {started, false}]), State1),
+      State2 = rtmp_session:set_stream(rtmp_stream:set(Stream1, [{pid, Media}, {stream_id, StreamId}, {options, Options}, {name, Name}, {started, false}]), State1),
       ems_media:play(Media, SocketOptions ++ [{stream_id,StreamId},{host,Host}|Options]),
       ems_log:access(Host, "PLAY ~s ~p ~p ~s ~p", [Addr, UserId, SessionId, Name, StreamId]),
       State2
