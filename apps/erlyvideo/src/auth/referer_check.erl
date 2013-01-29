@@ -28,7 +28,7 @@ connect(State, _Funcall) ->
   Host = rtmp_session:get(State, host),
   PlayerInfo = rtmp_session:get(State, player_info),
   PageUrl = proplists:get_value(pageUrl, PlayerInfo),
-  {http,_,Hostname,_Port,_Path,_QueryString} = http_uri:parse(binary_to_list(PageUrl)),
+  {ok, {http,_,Hostname,_Port,_Path,_QueryString}} = http_uri:parse(binary_to_list(PageUrl)),
   case lists:member(Hostname, ems:get_var(hostname, Host, [])) of
     true ->
       unhandled;
