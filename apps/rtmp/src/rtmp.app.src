@@ -1,7 +1,0 @@
-{application, rtmp,
-[{description, "RTMP handling library"},
- {vsn, git},
- {registered,[]},
- {applications, [kernel,stdlib]},
- {mod, {rtmp_app,[]}}
-]}.

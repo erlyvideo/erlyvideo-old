@@ -1,7 +1,0 @@
-{application, rtp,
-[{description, "RTP handling library"},
- {vsn, "0.1"},
- {registered,[]},
- {applications, [kernel,stdlib]},
- {mod, {rtp,[]}}
-]}.

@@ -1,7 +1,0 @@
-{connect, "rtmp://localhost:1935/rtmp", [{debug,true}]}.
-{play, "apple.mp4"}.
-{wait, 1000}.
-{pause}.
-{seek, 500}.
-{resume}.
-{wait, 1000}.

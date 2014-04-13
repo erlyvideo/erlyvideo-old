@@ -1,5 +1,0 @@
-{parallel, 900, 5}.
-{protect}.
-{connect, "rtmp://localhost:1935/rtmp", []}.
-{play, "cam3_view?start=1306312860"}.
-{wait, 500000}.
